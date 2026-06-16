@@ -16,20 +16,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 工具 | 用途 | 示例 |
 |------|------|------|
-| `codegraph_status` | 查看索引健康度（文件数/节点数/边数/语言分布） | 上线前、debug MCP 时 |
-| `codegraph_search` | 按名称快速搜索符号（仅 location，不带源码） | 知道名字但不知在哪 |
-| `codegraph_explore` | **主力工具**：问"X 是怎么工作的" / 给一组符号名，返回 verbatim 源码分组 | 几乎所有"了解/调查/实现"任务的第一步 |
-| `codegraph_node` | 看单个符号的完整 body（当 `explore` 因 token 限制被裁剪时） | 重载方法、过深 body |
-| `codegraph_callers` | 哪些代码调用了 X | 重构前找全部引用 |
-| `codegraph_callees` | X 调用了哪些 | 理解函数依赖 |
-| `codegraph_impact` | 多层依赖图（修改前必跑） | 改公共函数前评估 blast radius |
-| `codegraph_files` | 文件树 + 元数据 | 项目布局浏览 |
+| `codegraph status .`（CLI） / `mcp__codegraph__codegraph_status`（MCP） | 查看索引健康度（文件数/节点数/边数/语言分布） | `codegraph status .` |
+| `codegraph query`（CLI） / `mcp__codegraph__codegraph_search`（MCP） | 按名称快速搜索符号（仅 location，不带源码） | `codegraph query ProductCost` |
+| `mcp__codegraph__codegraph_explore` | **主力工具**：问"X 是怎么工作的" / 给一组符号名，返回 verbatim 源码分组 | 几乎所有"了解/调查/实现"任务的第一步 |
+| `mcp__codegraph__codegraph_node` | 看单个符号的完整 body（当 `explore` 因 token 限制被裁剪时） | 重载方法、过深 body |
+| `mcp__codegraph__codegraph_callers` | 哪些代码调用了 X | 重构前找全部引用 |
+| `mcp__codegraph__codegraph_callees` | X 调用了哪些 | 理解函数依赖 |
+| `mcp__codegraph__codegraph_impact` | 多层依赖图（修改前必跑） | 改公共函数前评估 blast radius |
+| `codegraph files --path .`（CLI） / `mcp__codegraph__codegraph_files`（MCP） | 文件树 + 元数据 | 项目布局浏览 |
 
-> **注**：CLAUDE.md 早期版本提到 `codegraph_context` / `codegraph_node` 等 — `codegraph_context` 在当前 MCP 版本中不存在，已删除。
+> **注**：`codegraph_status` / `codegraph_search` 等不是 shell 命令；在终端里请用 `codegraph status`、`codegraph query`、`codegraph files`。在 Claude Code / 支持 MCP 的 agent 中才使用 `mcp__codegraph__*` 工具名。
 
 ### 调用方法
 
-使用 `mcp__codegraph__*` 前缀的工具，例如：
+MCP 工具使用 `mcp__codegraph__*` 前缀，例如：
 
 ```
 mcp__codegraph__codegraph_status
@@ -38,29 +38,41 @@ mcp__codegraph__codegraph_explore query="calculate_revenue 的调用链与所有
 mcp__codegraph__codegraph_impact symbol="process_report"
 ```
 
+本地 shell 诊断使用 CodeGraph CLI：
+
+```bash
+cd believeboyDashboard
+codegraph status .          # 检查当前 worktree 是否已初始化 / 索引是否健康
+codegraph init -i .         # 首次进入新 worktree 或提示 Not initialized 时执行
+codegraph query ProductCost  # 等价于 MCP 的 codegraph_search
+```
+
+不要直接执行 `codegraph_status`；该命令不存在。若终端报 `command not found`，改用 `codegraph status .`。
+
 ### 何时使用
 
-**默认路径**：对于"X 怎么工作 / 架构 / 某 bug / X 在哪 / 概览某模块" → 第一步 `codegraph_explore`，**多数情况下一次调用就够**。Codegraph IS 预构建的搜索索引，**不要**把 lookup 委托给 Read/Grep 子任务（重复工作 + 更贵）。
+**默认路径**：对于"X 怎么工作 / 架构 / 某 bug / X 在哪 / 概览某模块" → 第一步 `mcp__codegraph__codegraph_explore`，**多数情况下一次调用就够**。CodeGraph 是预构建的搜索索引，**不要**把 lookup 委托给 Read/Grep 子任务（重复工作 + 更贵）。
 
 | 意图 | 工具 |
 |---|---|
-| "X 是怎么工作的" / 架构 / 排查 bug / "X 在哪" / 概览某区域 | `codegraph_explore`（PRIMARY — 第一步，one-capped call） |
-| "X 如何到达 Y" / 跨函数的数据流 / 流程路径 | `codegraph_explore`，把跨流的符号全列上（含动态分派） |
-| "符号 X 在哪"（只要 location） | `codegraph_search` |
-| "谁调用 X" / "X 调用谁" / "改 X 会破什么" | `codegraph_callers` / `codegraph_callees` / `codegraph_impact` |
-| "X 的完整 body"（被 explore 裁剪后） | `codegraph_node` |
-| 索引是否健康 / MCP 是否活着 | `codegraph_status` |
+| "X 是怎么工作的" / 架构 / 排查 bug / "X 在哪" / 概览某区域 | `mcp__codegraph__codegraph_explore`（PRIMARY — 第一步，one-capped call） |
+| "X 如何到达 Y" / 跨函数的数据流 / 流程路径 | `mcp__codegraph__codegraph_explore`，把跨流的符号全列上（含动态分派） |
+| "符号 X 在哪"（只要 location） | `mcp__codegraph__codegraph_search` |
+| "谁调用 X" / "X 调用谁" / "改 X 会破什么" | `mcp__codegraph__codegraph_callers` / `mcp__codegraph__codegraph_callees` / `mcp__codegraph__codegraph_impact` |
+| "X 的完整 body"（被 explore 裁剪后） | `mcp__codegraph__codegraph_node` |
+| 索引是否健康 / MCP 是否活着 | `mcp__codegraph__codegraph_status`；终端用 `codegraph status .` |
 
 只在你**确认** codegraph 没覆盖的细节上才用 Read/Grep。
 
 ### 实战经验（2026-06 起记录）
 
-1. **首选 `codegraph_explore` 而不是 `codegraph_search`**：后者只给 location（"X 在 file:line"），前者直接给 verbatim 源码，多数场景一次到位。`search` 适用于"我只想要 location 列表"（如 grep 替代）。
-2. **改函数前必跑 `codegraph_impact`**：默认 depth=2，会列出多层调用方。VAT 发票模块的 `computeInvoiceTotal` 当时在 3 处被引用（client + summary + pdf），改之前查一下能避免漏改。
-3. **`.test.ts` 后缀的文件不被 codegraph 识别为"覆盖测试"**：`codegraph_explore` 的 blast radius 报告里会标 "⚠️ no covering tests found" — 这可能是误报，要人工核对。
+1. **首选 `mcp__codegraph__codegraph_explore` 而不是 `mcp__codegraph__codegraph_search`**：后者只给 location（"X 在 file:line"），前者直接给 verbatim 源码，多数场景一次到位。`search` 适用于"我只想要 location 列表"（如 grep 替代）。
+2. **改函数前必跑 `mcp__codegraph__codegraph_impact`**：默认 depth=2，会列出多层调用方。VAT 发票模块的 `computeInvoiceTotal` 当时在 3 处被引用（client + summary + pdf），改之前查一下能避免漏改。
+3. **`.test.ts` 后缀的文件不被 codegraph 识别为"覆盖测试"**：`mcp__codegraph__codegraph_explore` 的 blast radius 报告里会标 "⚠️ no covering tests found" — 这可能是误报，要人工核对。
 4. **React 动态分派也能追**：`VatInvoiceClient` → `<SellerCard>` 的 JSX 渲染关系 codegraph 能识别，会在 explore 输出里以 "Dynamic-dispatch links" 段单独列出。
-5. **索引滞后约 1 秒**：写完代码后等几秒再查，否则可能漏新加的符号。如要即时确认可跑 `codegraph_status` 看 `Files indexed` 是否增加。
-6. **MCP 静默/不可用时**：先跑 `codegraph_status`；如果工具直接报"未注册"，说明 `mcpServers` 没配好，需要在 `~/.claude/settings.json` 加 `mcpServers.codegraph` 段。
+5. **索引滞后约 1 秒**：写完代码后等几秒再查，否则可能漏新加的符号。如要即时确认可跑 `codegraph status .` 看 `Files indexed` 是否增加。
+6. **MCP 静默/不可用时**：先在仓库根目录跑 `codegraph status .`；如果提示 `Not initialized`，执行 `codegraph init -i .`。如果工具报“未注册”，说明 `mcpServers` 没配好，需要在 `~/.claude/settings.json` 加 `mcpServers.codegraph` 段。
+7. **worktree / 新 checkout 路径不存在**：CodeGraph 索引是本地 `.codegraph/codegraph.db`，不会随 Git 提交；每次进入新的 Multica worktree、新建 worktree 或重建工作区后，都要重新执行 `codegraph status .`，必要时 `codegraph init -i .`。如果 `codegraph_files` 返回“No files found matching the criteria”，先确认当前目录是仓库根，并且 `path` 传相对路径 `.`；不要用绝对路径试探。
 
 ### 启动 Explore 代理时
 
@@ -68,12 +80,14 @@ mcp__codegraph__codegraph_impact symbol="process_report"
 
 ### 本次实践沉淀（BEL-93）
 
-1. **初始化/健康检查**：首次进入仓库先跑 `codegraph_status`；若提示未初始化，在仓库根目录执行 `codegraph init`。
+1. **初始化/健康检查**：首次进入仓库先跑 `codegraph status .`（MCP 用 `mcp__codegraph__codegraph_status`）；若提示未初始化，在仓库根目录执行 `codegraph init -i .`。
 2. **文件树路径要用相对路径**：`codegraph_files` 的 `path` 参数传 `.`；传绝对路径会命中 “No files found matching the criteria”。
-3. **精准定位优先 `node` + `file/line`**：`explore` 适合宽泛问题，但遇到 `Index` 这类泛名可能混入无关 blast radius；已知位置时用 `codegraph_node symbol="..." file="..." line=...` 看单个 body 最稳。
-4. **前端登录入口实践**：`codegraph_search("login")` 找到 `frontend/app/login/page.tsx:6` 的 `LoginPage`，继续追到 `frontend/components/login/sign-in-card.tsx:67` 的 `handleSignIn`，其通过 `signIn("credentials", ...)` 发起登录。
-5. **后端登录入口实践**：同一个 `codegraph_search("login")` 找到 `backend/app/api/v1/endpoints/auth.py:82` 的 `login`，`codegraph_node` 显示它会先做 IP/邮箱限流，再查 `public.user_accounts`、校验密码、写审计日志并创建 Redis session。
-6. **重构前必跑影响面**：对 `frontend/lib/backend-auth.ts:125` 的 `buildBackendAuthHeaders` 跑 `callers/callees/impact`，确认它被 admin users、AI chat、file upload、password、proxy/cache 等 19 个直接调用方使用，修改前需要覆盖这些路径。
+3. **worktree 索引隔离**：每个 checkout/worktree 的 `.codegraph/` 都是本地索引，不随 Git 同步；换 worktree 后如果 CodeGraph 提示路径不存在、Not initialized 或查不到当前分支新增文件，先在本 worktree 根目录重新初始化。
+4. **精准定位优先 `node` + `file/line`**：`explore` 适合宽泛问题，但遇到 `Index` 这类泛名可能混入无关 blast radius；已知位置时用 `codegraph_node symbol="..." file="..." line=...` 看单个 body 最稳。
+5. **前端登录入口实践**：`mcp__codegraph__codegraph_search("login")` 找到 `frontend/app/login/page.tsx:6` 的 `LoginPage`，继续追到 `frontend/components/login/sign-in-card.tsx:67` 的 `handleSignIn`，其通过 `signIn("credentials", ...)` 发起登录。
+6. **后端登录入口实践**：同一个 `mcp__codegraph__codegraph_search("login")` 找到 `backend/app/api/v1/endpoints/auth.py:82` 的 `login`，`mcp__codegraph__codegraph_node` 显示它会先做 IP/邮箱限流，再查 `public.user_accounts`、校验密码、写审计日志并创建 Redis session。
+7. **重构前必跑影响面**：对 `frontend/lib/backend-auth.ts:125` 的 `buildBackendAuthHeaders` 跑 `mcp__codegraph__codegraph_callers` / `mcp__codegraph__codegraph_callees` / `mcp__codegraph__codegraph_impact`，确认它被 admin users、AI chat、file upload、password、proxy/cache 等 19 个直接调用方使用，修改前需要覆盖这些路径。
+8. **BEL-112 排查结论**：worktree 中“路径不存在”的常见根因是 `.codegraph/` 本地索引未初始化或 MCP/CLI 命令混淆；修复动作是在当前 worktree 根目录执行 `codegraph status .`，必要时 `codegraph init -i .`，并在 PR/评论中记录 CodeGraph 不可用或 fallback 的原因。
 
 ### 团队确认机制（BEL-93 后续执行）
 
