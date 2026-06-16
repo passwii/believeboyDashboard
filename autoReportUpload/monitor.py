@@ -14,6 +14,15 @@ from db import Session, check_db_health, get_db_session, get_db_session_with_ret
 from processor import ProcessResult, process_file
 
 
+_A_TABLE_REPORT_TYPE_LABELS: dict[str, str] = {
+    "sales_report": "所有订单",
+    "return_report": "退货报告",
+    "inventory_report": "库存报告",
+    "business_report": "业务报告",
+    "payment_report": "付款报告",
+}
+
+
 import unicodedata
 import shutil
 
@@ -203,8 +212,13 @@ class RunLogger:
         # 国家
         country = result.country or "-"
 
-        # 报表类型中文（优先用 report_label，ad 报告直接带中文标签）
-        report_type_cn = result.report_label or result.report_type or "未知报表"
+        # 报表类型中文（优先用 report_label；A 表 report_type 映射为中文）
+        report_type_cn = (
+            result.report_label
+            or _A_TABLE_REPORT_TYPE_LABELS.get(result.report_type)
+            or result.report_type
+            or "未知报表"
+        )
 
         # 报告日期（压缩格式：单日 MM-DD，区间同月 MM-DD~DD，跨月 MM-DD~MM-DD）
         def _short_date(ds: str) -> str:
