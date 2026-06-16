@@ -94,6 +94,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   const [othersContent, setOthersContent] = useState<HTMLDivElement | null>(null)
   const [othersChevron, setOthersChevron] = useState<SVGSVGElement | null>(null)
   const [drawerPanel, setDrawerPanel] = useState<HTMLDivElement | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   const isDesktop = useIsDesktop(1024)
 
@@ -395,25 +396,6 @@ export function ModelSelector({ selectedModel, onModelChange }: {
                     />
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDrawerOpen(false)}
-                  className="p-1.5 rounded-md text-[#8a8a8f] hover:text-white hover:bg-white/5 transition-colors touch-manipulation"
-                  aria-label="关闭"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 overscroll-contain">
-                {otherModels.map((model) => (
-                  <DrawerModelRow
-                    key={model.id}
-                    model={model}
-                    isCurrent={current === model.id}
-                    onSelect={handleSelect}
-                    badge={badgeFor(model.id, premiumSet, defaultModel)}
-                  />
-                ))}
               </div>
             )}
           </div>
