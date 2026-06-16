@@ -7,10 +7,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import text
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.db.session import SessionLocal
+from app.db.session import ReadSessionLocal, SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
 from app.core.scheduler import init_scheduler, shutdown_scheduler
 
@@ -21,6 +22,7 @@ settings = get_settings()
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 request_logger = logging.getLogger('app.request')
 performance_logger = logging.getLogger('app.performance')
+startup_logger = logging.getLogger('app.startup')
 logging.getLogger('uvicorn.access').disabled = True
 
 app = FastAPI(title=settings.app_name)
@@ -66,6 +68,25 @@ def on_startup() -> None:
         raise
     finally:
         db.close()
+    # BEL-55-P5 / BEL-73: probe the replica at startup so a misconfigured
+    # `database_read_url` surfaces in the boot log instead of as silent
+    # request failures. We do NOT crash the process — the breaker handles
+    # a flaky replica at runtime; a hard failure here would block the
+    # whole API. Just log and let the breaker / /health endpoint expose it.
+    if ReadSessionLocal is not None:
+        try:
+            probe = ReadSessionLocal()
+            try:
+                probe.execute(text("SELECT 1 AS replica_ping"))
+            finally:
+                probe.close()
+            startup_logger.info("BEL-73: read replica reachable at startup")
+        except Exception as exc:  # noqa: BLE001
+            startup_logger.warning(
+                "BEL-73: read replica ping failed at startup, "
+                "app will fall back to primary: %s",
+                exc,
+            )
     init_scheduler()
 
 
