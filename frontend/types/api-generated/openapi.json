@@ -6669,6 +6669,66 @@
         "title": "CustomerFeedbackItem",
         "type": "object"
       },
+      "DailyAnalysisAllCountriesResponse": {
+        "description": "跨所有支持国家站点的聚合响应。\n\n金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按\n``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段\n（订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。\n响应顶层 ``currency`` 字段固定为 ``\"USD\"``，便于前端识别并切换符号。",
+        "properties": {
+          "available_dates": {
+            "additionalProperties": true,
+            "title": "Available Dates",
+            "type": "object"
+          },
+          "console": {
+            "$ref": "#/components/schemas/DailyAnalysisConsoleResponse"
+          },
+          "country_breakdown": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Country Breakdown",
+            "type": "object"
+          },
+          "currency": {
+            "default": "USD",
+            "title": "Currency",
+            "type": "string"
+          },
+          "currency_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Note"
+          },
+          "detail_rows": {
+            "items": {
+              "$ref": "#/components/schemas/DailyAnalysisDetailRow"
+            },
+            "title": "Detail Rows",
+            "type": "array"
+          },
+          "summary_rows": {
+            "items": {
+              "$ref": "#/components/schemas/DailyAnalysisSummaryRow"
+            },
+            "title": "Summary Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "console",
+          "summary_rows",
+          "detail_rows",
+          "available_dates",
+          "country_breakdown"
+        ],
+        "title": "DailyAnalysisAllCountriesResponse",
+        "type": "object"
+      },
       "DailyAnalysisAllProjectsResponse": {
         "properties": {
           "available_dates": {
@@ -7056,294 +7116,6 @@
           "available_qty"
         ],
         "title": "DailyAnalysisSummaryRow",
-        "type": "object"
-      },
-      "DashboardOverviewAds": {
-        "properties": {
-          "period_acos": {
-            "default": 0.0,
-            "title": "Period Acos",
-            "type": "number"
-          },
-          "period_clicks": {
-            "default": 0,
-            "title": "Period Clicks",
-            "type": "integer"
-          },
-          "period_ctr": {
-            "default": 0.0,
-            "title": "Period Ctr",
-            "type": "number"
-          },
-          "period_impressions": {
-            "default": 0,
-            "title": "Period Impressions",
-            "type": "integer"
-          },
-          "period_orders": {
-            "default": 0,
-            "title": "Period Orders",
-            "type": "integer"
-          },
-          "period_roas": {
-            "default": 0.0,
-            "title": "Period Roas",
-            "type": "number"
-          },
-          "period_sales": {
-            "default": 0.0,
-            "title": "Period Sales",
-            "type": "number"
-          },
-          "period_spend": {
-            "default": 0.0,
-            "title": "Period Spend",
-            "type": "number"
-          }
-        },
-        "title": "DashboardOverviewAds",
-        "type": "object"
-      },
-      "DashboardOverviewInventory": {
-        "properties": {
-          "available_qty": {
-            "default": 0,
-            "title": "Available Qty",
-            "type": "integer"
-          },
-          "out_of_stock_count": {
-            "default": 0,
-            "title": "Out Of Stock Count",
-            "type": "integer"
-          },
-          "sku_count": {
-            "default": 0,
-            "title": "Sku Count",
-            "type": "integer"
-          }
-        },
-        "title": "DashboardOverviewInventory",
-        "type": "object"
-      },
-      "DashboardOverviewResponse": {
-        "properties": {
-          "ads": {
-            "$ref": "#/components/schemas/DashboardOverviewAds",
-            "default": {
-              "period_acos": 0.0,
-              "period_clicks": 0,
-              "period_ctr": 0.0,
-              "period_impressions": 0,
-              "period_orders": 0,
-              "period_roas": 0.0,
-              "period_sales": 0.0,
-              "period_spend": 0.0
-            }
-          },
-          "country": {
-            "title": "Country",
-            "type": "string"
-          },
-          "days": {
-            "title": "Days",
-            "type": "integer"
-          },
-          "inventory": {
-            "$ref": "#/components/schemas/DashboardOverviewInventory",
-            "default": {
-              "available_qty": 0,
-              "out_of_stock_count": 0,
-              "sku_count": 0
-            }
-          },
-          "project_ids": {
-            "default": [],
-            "items": {
-              "type": "integer"
-            },
-            "title": "Project Ids",
-            "type": "array"
-          },
-          "project_names": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Project Names",
-            "type": "array"
-          },
-          "returns": {
-            "$ref": "#/components/schemas/DashboardOverviewReturns",
-            "default": {
-              "return_rate": 0.0,
-              "total_quantity": 0,
-              "total_returns": 0
-            }
-          },
-          "sales": {
-            "$ref": "#/components/schemas/DashboardOverviewSalesSnapshot",
-            "default": {
-              "change_type_order_qty": "neutral",
-              "change_type_sales": "neutral",
-              "order_qty_change_pct": 0.0,
-              "prev_order_qty": 0,
-              "prev_sales_amount": 0.0,
-              "sales_change_pct": 0.0,
-              "today_order_qty": 0,
-              "today_sales_amount": 0.0
-            }
-          },
-          "sales_trend": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/DashboardOverviewTrendItem"
-            },
-            "title": "Sales Trend",
-            "type": "array"
-          },
-          "server_time": {
-            "title": "Server Time",
-            "type": "string"
-          },
-          "shipments": {
-            "$ref": "#/components/schemas/DashboardOverviewShipments",
-            "default": {
-              "in_transit_count": 0,
-              "in_transit_qty": 0
-            }
-          },
-          "sku_sales_detail": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/SkuSalesDetailItem"
-            },
-            "title": "Sku Sales Detail",
-            "type": "array"
-          }
-        },
-        "required": [
-          "country",
-          "days",
-          "server_time"
-        ],
-        "title": "DashboardOverviewResponse",
-        "type": "object"
-      },
-      "DashboardOverviewReturns": {
-        "properties": {
-          "return_rate": {
-            "default": 0.0,
-            "title": "Return Rate",
-            "type": "number"
-          },
-          "top_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Top Reason"
-          },
-          "total_quantity": {
-            "default": 0,
-            "title": "Total Quantity",
-            "type": "integer"
-          },
-          "total_returns": {
-            "default": 0,
-            "title": "Total Returns",
-            "type": "integer"
-          }
-        },
-        "title": "DashboardOverviewReturns",
-        "type": "object"
-      },
-      "DashboardOverviewSalesSnapshot": {
-        "properties": {
-          "change_type_order_qty": {
-            "default": "neutral",
-            "title": "Change Type Order Qty",
-            "type": "string"
-          },
-          "change_type_sales": {
-            "default": "neutral",
-            "title": "Change Type Sales",
-            "type": "string"
-          },
-          "order_qty_change_pct": {
-            "default": 0.0,
-            "title": "Order Qty Change Pct",
-            "type": "number"
-          },
-          "prev_order_qty": {
-            "default": 0,
-            "title": "Prev Order Qty",
-            "type": "integer"
-          },
-          "prev_sales_amount": {
-            "default": 0.0,
-            "title": "Prev Sales Amount",
-            "type": "number"
-          },
-          "sales_change_pct": {
-            "default": 0.0,
-            "title": "Sales Change Pct",
-            "type": "number"
-          },
-          "today_order_qty": {
-            "default": 0,
-            "title": "Today Order Qty",
-            "type": "integer"
-          },
-          "today_sales_amount": {
-            "default": 0.0,
-            "title": "Today Sales Amount",
-            "type": "number"
-          }
-        },
-        "title": "DashboardOverviewSalesSnapshot",
-        "type": "object"
-      },
-      "DashboardOverviewShipments": {
-        "properties": {
-          "in_transit_count": {
-            "default": 0,
-            "title": "In Transit Count",
-            "type": "integer"
-          },
-          "in_transit_qty": {
-            "default": 0,
-            "title": "In Transit Qty",
-            "type": "integer"
-          }
-        },
-        "title": "DashboardOverviewShipments",
-        "type": "object"
-      },
-      "DashboardOverviewTrendItem": {
-        "properties": {
-          "date": {
-            "title": "Date",
-            "type": "string"
-          },
-          "order_qty": {
-            "default": 0,
-            "title": "Order Qty",
-            "type": "integer"
-          },
-          "sales_amount": {
-            "default": 0.0,
-            "title": "Sales Amount",
-            "type": "number"
-          }
-        },
-        "required": [
-          "date"
-        ],
-        "title": "DashboardOverviewTrendItem",
         "type": "object"
       },
       "DataLifecycleStatus": {
@@ -22163,40 +21935,6 @@
         "title": "SkuRecordsPage",
         "type": "object"
       },
-      "SkuSalesDetailItem": {
-        "properties": {
-          "product_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Product Name"
-          },
-          "quantity": {
-            "default": 0,
-            "title": "Quantity",
-            "type": "integer"
-          },
-          "sales_amount": {
-            "default": 0.0,
-            "title": "Sales Amount",
-            "type": "number"
-          },
-          "sku": {
-            "title": "Sku",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sku"
-        ],
-        "title": "SkuSalesDetailItem",
-        "type": "object"
-      },
       "SourcePersistOutcomeSchema": {
         "properties": {
           "error_message": {
@@ -33006,67 +32744,50 @@
         "summary": "Get Daily Analysis All"
       }
     },
-    "/api/v1/dashboard/overview": {
+    "/api/v1/daily-analysis/all-countries": {
       "get": {
-        "description": "Dashboard KPI 总览聚合接口。\n\n- 返回当前用户可访问的所有项目的汇总 KPI 数据（销售、库存、发货、退货、广告）\n- 支持按项目 ID 筛选（逗号分隔），支持按国家筛选\n- 数据来自 digital_display_service 的各子模块",
-        "operationId": "get_dashboard_overview_api_v1_dashboard_overview_get",
+        "description": "跨国家站点聚合单项目数据。\n\n当前对 US / DE / UK 三个国家分别加载数据并按 (date, sku) 求和；\n响应里 ``country_breakdown`` 字段给出按国家分桶的明细。",
+        "operationId": "get_daily_analysis_all_countries_api_v1_daily_analysis_all_countries_get",
         "parameters": [
           {
             "in": "query",
-            "name": "country",
-            "required": false,
+            "name": "project_id",
+            "required": true,
             "schema": {
-              "default": "US",
-              "title": "Country",
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "Start Date",
               "type": "string"
             }
           },
           {
             "in": "query",
-            "name": "days",
-            "required": false,
+            "name": "end_date",
+            "required": true,
             "schema": {
-              "default": 7,
-              "maximum": 30,
-              "minimum": 1,
-              "title": "Days",
-              "type": "integer"
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "End Date",
+              "type": "string"
             }
           },
           {
-            "description": "comma-separated project IDs",
-            "in": "query",
-            "name": "project_ids",
+            "in": "header",
+            "name": "X-Is-Admin",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "comma-separated project IDs",
-              "title": "Project Ids"
-            }
-          },
-          {
-            "description": "reference date (YYYY-MM-DD), defaults to server today",
-            "in": "query",
-            "name": "reference_date",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "reference date (YYYY-MM-DD), defaults to server today",
-              "title": "Reference Date"
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
             }
           },
           {
@@ -33116,22 +32837,6 @@
               ],
               "title": "X-User-Name"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Is-Admin"
-            }
           }
         ],
         "responses": {
@@ -33139,7 +32844,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DashboardOverviewResponse"
+                  "$ref": "#/components/schemas/DailyAnalysisAllCountriesResponse"
                 }
               }
             },
@@ -33156,7 +32861,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Dashboard Overview"
+        "summary": "Get Daily Analysis All Countries"
       }
     },
     "/api/v1/digital-display/{project_id}": {

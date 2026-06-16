@@ -6,11 +6,8 @@ import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
-import { DashboardToolbar, type ViewMode } from '@/components/dashboard/dashboard-toolbar'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
-import { DashboardSystemStatus } from '@/components/dashboard/dashboard-system-status'
-import { useDashboardOverview } from '@/hooks/use-dashboard-overview'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -116,21 +113,9 @@ function fmtPct(v: number) {
   return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
 }
 
-function getDateRange(mode: ViewMode): { from: Date; to: Date } {
-  const today = getTodayInTimezone(US_TIMEZONE)
-  const yesterday = addDays(today, -1)
-  if (mode === 'today') {
-    return { from: yesterday, to: yesterday }
-  }
-  const start = addDays(yesterday, -6)
-  return { from: start, to: yesterday }
-}
-
-function getDateLabel(mode: ViewMode): string {
-  const range = getDateRange(mode)
+function getDateLabel(from: Date, to: Date): string {
   const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
-  if (mode === 'today') return fmt(range.to)
-  return `${fmt(range.from)} — ${fmt(range.to)}`
+  return `${fmt(from)} — ${fmt(to)}`
 }
 
 export type DashboardDailyData = {
@@ -144,7 +129,13 @@ export default function DashboardPage() {
   const operatorName = session?.user?.operatorNameZh ?? session?.user?.name ?? undefined
   const { notify } = useNotifications()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('today')
+  const today = useMemo(() => getTodayInTimezone(US_TIMEZONE), [])
+  const yesterday = useMemo(() => addDays(today, -1), [today])
+  const dateRange = useMemo(() => ({
+    from: addDays(yesterday, -6),
+    to: yesterday,
+  }), [yesterday])
+
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [currentRows, setCurrentRows] = useState<DailyAnalysisRow[]>([])
@@ -152,19 +143,7 @@ export default function DashboardPage() {
   const [dataLoading, setDataLoading] = useState(false)
   const latestRequestRef = useRef(0)
 
-  const dateRange = useMemo(() => getDateRange(viewMode), [viewMode])
-  const days = viewMode === 'today' ? 1 : 7
-
-  const referenceDate = useMemo(() => formatYMD(dateRange.to), [dateRange])
-
   const projectIds = useMemo(() => projects.map((p) => p.id).filter((id): id is number => id !== null), [projects])
-
-  const { data: overviewData, loading: overviewLoading, refresh: overviewRefresh } = useDashboardOverview({
-    projectIds,
-    enabled: status === 'authenticated' && roleType !== 'factory' && projectIds.length > 0,
-    days,
-    referenceDate,
-  })
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -349,7 +328,7 @@ export default function DashboardPage() {
     ] satisfies MetricTileProps[]
   }, [currentRows, comparisonRows])
 
-  const dateLabel = getDateLabel(viewMode)
+  const dateLabel = getDateLabel(dateRange.from, dateRange.to)
   const dailyData: DashboardDailyData = useMemo(() => ({
     currentRows,
     comparisonRows,
@@ -357,10 +336,9 @@ export default function DashboardPage() {
 
   const handleRefresh = () => {
     void loadData()
-    overviewRefresh()
   }
 
-  const anyLoading = dataLoading || overviewLoading || projectsLoading
+  const anyLoading = dataLoading || projectsLoading
 
   if (status === 'loading') {
     return <DashboardPageLoading />
@@ -372,13 +350,24 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <DashboardToolbar
-        mode={viewMode}
-        onModeChange={setViewMode}
-        onRefresh={handleRefresh}
-        refreshing={anyLoading}
-        dateLabel={dateLabel}
-      />
+      <div className="dashboard-toolbar flex items-center justify-between rounded-xl">
+        <div className="space-y-1">
+          <h1 className="text-base font-semibold">销售概览</h1>
+          <p className="text-xs text-muted-foreground">近 7 日 {dateLabel}</p>
+        </div>
+
+        <button
+          onClick={handleRefresh}
+          disabled={anyLoading}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-50"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.6-6.36" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 4v6h-6" />
+          </svg>
+          刷新
+        </button>
+      </div>
 
       {/*
         * iPad portrait (768–1023px) intentionally stays single-column:
@@ -391,8 +380,6 @@ export default function DashboardPage() {
         <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
         <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
       </section>
-
-      <DashboardSystemStatus data={overviewData} loading={overviewLoading} />
     </div>
   )
 }

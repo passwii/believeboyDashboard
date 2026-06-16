@@ -1,4 +1,4 @@
-"""Build report email data from dashboard overview + extra queries."""
+"""Build report email data from local report queries."""
 
 from __future__ import annotations
 
@@ -10,14 +10,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import AdUploadFile, AdUploadPromotedProductRow, AnalysisReturnRow, AnalysisSalesOrderRow, AnalysisSourceFile, InventorySnapshotRow
+from app.models.project import Project
+from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.sku_info import SkuRecord
-from app.services.dashboard_overview_service import build_dashboard_overview
 from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
 )
-from app.utils.country import get_today_for_country
+from app.utils.country import get_today_for_country, normalize_country
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,251 @@ def _get_report_anchor_date(country: str) -> date:
     country_today = get_today_for_country(country)
     server_yesterday = date.today() - timedelta(days=1)
     return min(country_today, server_yesterday)
+
+
+def _safe_pct_change(current: float, previous: float) -> tuple[float, str]:
+    if previous == 0:
+        return 0.0, "neutral"
+    change = ((current - previous) / previous) * 100
+    if abs(change) < 0.5:
+        return round(change, 2), "neutral"
+    return round(change, 2), "up" if change > 0 else "down"
+
+
+def _query_project_names(db: Session, project_ids: list[int] | None) -> list[str]:
+    if not project_ids:
+        return []
+
+    rows = (
+        db.query(Project.id, Project.project_name)
+        .filter(Project.id.in_(project_ids))
+        .order_by(Project.id)
+        .all()
+    )
+    return [row.project_name for row in rows if row.project_name]
+
+
+def _query_sales_snapshot(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
+    """查询近 7 天销售趋势、锚定日销售，以及前 7 天对比量。"""
+    try:
+        trend_map: dict[date, dict[str, float | int]] = {}
+        current = start_date
+        while current <= end_date:
+            trend_map[current] = {"order_qty": 0, "sales_amount": 0.0}
+            current += timedelta(days=1)
+
+        amount_expr = func.coalesce(AnalysisSalesOrderRow.item_price, 0) + func.coalesce(
+            AnalysisSalesOrderRow.shipping_price, 0
+        )
+        rows = (
+            db.query(
+                AnalysisSalesOrderRow.purchase_date_pt.label("purchase_date"),
+                func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
+                func.coalesce(func.sum(amount_expr), 0).label("amount"),
+            )
+            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            .filter(
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "sales_report",
+                AnalysisSourceFile.is_current == True,  # noqa: E712
+                AnalysisSalesOrderRow.is_counted_sales == True,  # noqa: E712
+                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            )
+        )
+        if project_ids:
+            rows = rows.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        for row in rows.group_by(AnalysisSalesOrderRow.purchase_date_pt).all():
+            purchase_date = row.purchase_date
+            if purchase_date in trend_map:
+                trend_map[purchase_date] = {
+                    "order_qty": int(row.qty or 0),
+                    "sales_amount": float(row.amount or 0),
+                }
+
+        trend_days = [
+            {"date": current.isoformat(), **trend_map[current]}
+            for current in sorted(trend_map)
+        ]
+
+        yesterday = end_date - timedelta(days=1)
+        prev_start = yesterday - timedelta(days=6)
+        prev_sales = _query_period_sales(db, project_ids, country, prev_start, yesterday)
+
+        today_qty = int(trend_map[end_date]["order_qty"])
+        today_amount = float(trend_map[end_date]["sales_amount"])
+        yesterday_qty = int(trend_map[yesterday]["order_qty"])
+        yesterday_amount = float(trend_map[yesterday]["sales_amount"])
+        qty_change_pct, qty_change_type = _safe_pct_change(today_qty, yesterday_qty)
+        amount_change_pct, amount_change_type = _safe_pct_change(today_amount, yesterday_amount)
+
+        sales = {
+            "today_order_qty": today_qty,
+            "today_sales_amount": today_amount,
+            "yesterday_order_qty": yesterday_qty,
+            "yesterday_sales_amount": yesterday_amount,
+            "prev_order_qty": int(prev_sales.get("week_qty", 0)),
+            "prev_sales_amount": float(prev_sales.get("week_amount", 0.0)),
+            "order_qty_change_pct": qty_change_pct,
+            "sales_change_pct": amount_change_pct,
+            "change_type_order_qty": qty_change_type,
+            "change_type_sales": amount_change_type,
+        }
+        return sales, trend_days, sum(int(day["order_qty"]) for day in trend_days)
+    except Exception as e:
+        logger.warning("Failed to query sales snapshot: %s", e)
+        empty_trend = [
+            {
+                "date": (start_date + timedelta(days=offset)).isoformat(),
+                "order_qty": 0,
+                "sales_amount": 0.0,
+            }
+            for offset in range((end_date - start_date).days + 1)
+        ]
+        return {
+            "today_order_qty": 0,
+            "today_sales_amount": 0.0,
+            "yesterday_order_qty": 0,
+            "yesterday_sales_amount": 0.0,
+            "prev_order_qty": 0,
+            "prev_sales_amount": 0.0,
+            "order_qty_change_pct": 0.0,
+            "sales_change_pct": 0.0,
+            "change_type_order_qty": "neutral",
+            "change_type_sales": "neutral",
+        }, empty_trend, 0
+
+
+def _query_inventory_summary(db: Session, project_ids: list[int] | None, country: str) -> dict[str, Any]:
+    try:
+        query = (
+            db.query(
+                InventorySnapshotRow.sku,
+                InventorySnapshotRow.available_qty,
+                InventorySnapshotRow.stock_status,
+            )
+            .join(AnalysisSourceFile, AnalysisSourceFile.id == InventorySnapshotRow.source_file_id)
+            .filter(
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "inventory_report",
+                AnalysisSourceFile.is_current == True,  # noqa: E712
+            )
+        )
+        if project_ids:
+            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+
+        rows = query.all()
+        return {
+            "sku_count": len(rows),
+            "out_of_stock_count": sum(
+                1 for row in rows if (row.available_qty or 0) <= 0 or row.stock_status == "out_of_stock"
+            ),
+            "available_qty": sum(int(row.available_qty or 0) for row in rows),
+        }
+    except Exception as e:
+        logger.warning("Failed to query inventory summary: %s", e)
+        return {"sku_count": 0, "out_of_stock_count": 0, "available_qty": 0}
+
+
+def _query_shipment_snapshot(db: Session, project_ids: list[int] | None, country: str) -> dict[str, Any]:
+    try:
+        normalized_country = normalize_country(country)
+        query = (
+            db.query(
+                func.count(func.distinct(ShipmentSchedule.id)).label("in_transit_count"),
+                func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label("in_transit_qty"),
+            )
+            .join(
+                ShipmentScheduleItem,
+                ShipmentScheduleItem.shipment_schedule_id == ShipmentSchedule.id,
+                isouter=True,
+            )
+            .filter(
+                ShipmentSchedule.country == normalized_country,
+                ShipmentSchedule.shipment_status == "in_transit",
+            )
+        )
+        if project_ids:
+            query = query.filter(ShipmentSchedule.project_id.in_(project_ids))
+
+        row = query.first()
+        return {
+            "in_transit_count": int(row.in_transit_count or 0) if row else 0,
+            "in_transit_qty": int(row.in_transit_qty or 0) if row else 0,
+        }
+    except Exception as e:
+        logger.warning("Failed to query shipment snapshot: %s", e)
+        return {"in_transit_count": 0, "in_transit_qty": 0}
+
+
+def _query_ads_period(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+    start_date: date,
+    end_date: date,
+) -> dict[str, Any]:
+    try:
+        query = (
+            db.query(
+                func.coalesce(func.sum(AdUploadPromotedProductRow.spend), 0).label("spend"),
+                func.coalesce(func.sum(AdUploadPromotedProductRow.sales_7d), 0).label("sales"),
+                func.coalesce(func.sum(AdUploadPromotedProductRow.clicks), 0).label("clicks"),
+                func.coalesce(func.sum(AdUploadPromotedProductRow.impressions), 0).label("impressions"),
+                func.coalesce(func.sum(AdUploadPromotedProductRow.orders_7d), 0).label("orders"),
+            )
+            .join(
+                AdUploadFile,
+                AdUploadFile.id == AdUploadPromotedProductRow.source_file_id,
+            )
+            .filter(
+                AdUploadFile.country == country,
+                AdUploadFile.report_type == "ad_promoted_product_report",
+                AdUploadFile.is_current == True,  # noqa: E712
+                AdUploadFile.period_end_date >= start_date,
+                AdUploadFile.period_end_date <= end_date,
+                AdUploadPromotedProductRow.scope_status == "included_product",
+            )
+        )
+        if project_ids:
+            query = query.filter(AdUploadFile.project_id.in_(project_ids))
+
+        row = query.first()
+        spend = float(row.spend or 0) if row else 0
+        sales = float(row.sales or 0) if row else 0
+        clicks = int(row.clicks or 0) if row else 0
+        impressions = int(row.impressions or 0) if row else 0
+        orders = int(row.orders or 0) if row else 0
+
+        roas = round(sales / spend, 2) if spend > 0 else 0.0
+        acos = round(spend / sales * 100, 2) if sales > 0 else 0.0
+        ctr = round(clicks / impressions * 100, 2) if impressions > 0 else 0.0
+
+        return {
+            "spend": round(spend, 2),
+            "sales": round(sales, 2),
+            "roas": roas,
+            "acos": acos,
+            "ctr": ctr,
+            "orders": orders,
+        }
+    except Exception as e:
+        logger.warning("Failed to query period ads for %s ~ %s: %s", start_date, end_date, e)
+        return {
+            "spend": 0.0,
+            "sales": 0.0,
+            "roas": 0.0,
+            "acos": 0.0,
+            "ctr": 0.0,
+            "orders": 0,
+        }
 
 
 def build_report_email_data(
@@ -59,41 +305,29 @@ def build_report_email_data(
     # 补发时使用指定的历史日期，正常调度时自动计算
     today = reference_date if reference_date is not None else _get_report_anchor_date(country)
     days = 7
+    period_start = today - timedelta(days=days - 1)
 
-    # 1. Get overview KPIs（传入锚定日期，确保查询窗口正确）
-    overview = build_dashboard_overview(
-        db,
-        project_ids=project_ids,
-        operator=None,
-        is_admin=True,
-        country=country,
-        days=days,
-        reference_date=today,
+    # 1. 用本地查询替代 dashboard overview 聚合接口，只保留报表所需字段
+    sales_snapshot, sales_trend, p7d_sales_qty = _query_sales_snapshot(
+        db, project_ids, country, period_start, today
     )
-
-    ov_sales = overview.get("sales", {})
-    ov_trend = overview.get("sales_trend", [])
-    ov_inv = overview.get("inventory", {})
-    ov_ship = overview.get("shipments", {})
-    ov_ads = overview.get("ads", {})
-    ov_ret = overview.get("returns", {})
-    ov_project_names = overview.get("project_names", [])
+    project_names = _query_project_names(db, project_ids)
+    inventory_summary = _query_inventory_summary(db, project_ids, country)
+    shipment_snapshot = _query_shipment_snapshot(db, project_ids, country)
 
     # 2. Transform sales
     sales = {
-        "yesterday_qty": ov_sales.get("today_order_qty", 0),
-        "yesterday_amount": float(ov_sales.get("today_sales_amount", 0)),
-        "prev_qty": ov_sales.get("prev_order_qty", 0),
-        "change_pct": ov_sales.get("order_qty_change_pct", 0.0),
+        "yesterday_qty": sales_snapshot.get("today_order_qty", 0),
+        "yesterday_amount": float(sales_snapshot.get("today_sales_amount", 0)),
+        "prev_qty": sales_snapshot.get("prev_order_qty", 0),
+        "change_pct": sales_snapshot.get("order_qty_change_pct", 0.0),
     }
 
     # 3. Week sales (sum the trend)
-    week_qty = sum(t.get("order_qty", 0) for t in ov_trend)
-    week_amount = sum(t.get("sales_amount", 0.0) for t in ov_trend)
-    week_sales = {"week_qty": week_qty, "week_amount": week_amount}
-
-    # 4. Period boundaries for queries
-    period_start = today - timedelta(days=days - 1)
+    week_sales = {
+        "week_qty": p7d_sales_qty,
+        "week_amount": sum(t.get("sales_amount", 0.0) for t in sales_trend),
+    }
 
     # 4b. Previous week sales for comparison
     prev_period_start = period_start - timedelta(days=days)
@@ -102,7 +336,7 @@ def build_report_email_data(
 
     # 5. Trend days (last 7 items, format date as MM-DD)
     trend_days = []
-    for t in ov_trend[-7:]:
+    for t in sales_trend[-7:]:
         d = t.get("date", "")
         short_date = d[5:] if len(d) >= 10 else d  # "2026-05-16" -> "05-16"
         trend_days.append({"date": short_date, "qty": t.get("order_qty", 0)})
@@ -116,11 +350,11 @@ def build_report_email_data(
     # 6. Inventory (+ OOS and low stock details)
     oos_skus, low_stock_skus = _query_inventory_alerts(db, project_ids, country)
     inventory = {
-        "sku_count": ov_inv.get("sku_count", 0),
+        "sku_count": inventory_summary.get("sku_count", 0),
         "oos_skus": oos_skus,
         "low_stock_skus": low_stock_skus,
-        "total_available": ov_inv.get("available_qty", 0),
-        "in_transit": ov_ship.get("in_transit_qty", 0),
+        "total_available": inventory_summary.get("available_qty", 0),
+        "in_transit": shipment_snapshot.get("in_transit_qty", 0),
     }
 
     # 7. Build alert rows for email
@@ -143,18 +377,11 @@ def build_report_email_data(
     # 8. Ads
     # 根据报告频率选择广告数据源：
     # - 日报：使用单日广告数据（精确到目标日期的实际数据）
-    # - 周报/月报：使用 overview 中聚合的 7 天数据
+    # - 周报/月报：使用本地近 7 天聚合数据
     if frequency == "daily":
         ads = _query_ads_single_day(db, project_ids, country, today)
     else:
-        ads = {
-            "spend": ov_ads.get("period_spend", 0.0),
-            "sales": ov_ads.get("period_sales", 0.0),
-            "roas": ov_ads.get("period_roas", 0.0),
-            "acos": ov_ads.get("period_acos", 0.0),
-            "ctr": ov_ads.get("period_ctr", 0.0),
-            "orders": ov_ads.get("period_orders", 0),
-        }
+        ads = _query_ads_period(db, project_ids, country, period_start, today)
 
     # 9. Returns（从 AnalysisReturnRow 直接查询近7天数据）
     # 注意：退货报表是累积的，同一退货事件可能出现在多个 source_file 中
@@ -199,7 +426,6 @@ def build_report_email_data(
         top_returns = []
     
     # 计算退货率（基于7天销售）
-    p7d_sales_qty = sum(t.get("order_qty", 0) for t in ov_trend)
     ret_rate = round(ret_qty / p7d_sales_qty * 100, 2) if p7d_sales_qty > 0 else 0.0
     
     returns = {
@@ -211,7 +437,7 @@ def build_report_email_data(
     # 10. AI summary - built below after report_data is assembled
 
     # 11. Meta
-    project_name = ", ".join(ov_project_names) if ov_project_names else "全部项目"
+    project_name = ", ".join(project_names) if project_names else "全部项目"
     date_range = f"{period_start.isoformat()} ~ {today.isoformat()}"
 
     # 12. Build complete report_data for AI summary

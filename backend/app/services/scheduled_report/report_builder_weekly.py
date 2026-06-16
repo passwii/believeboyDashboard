@@ -22,7 +22,6 @@ from app.models import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
-from app.services.dashboard_overview_service import build_dashboard_overview
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
