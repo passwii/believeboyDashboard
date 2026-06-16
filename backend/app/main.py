@@ -25,6 +25,11 @@ performance_logger = logging.getLogger('app.performance')
 startup_logger = logging.getLogger('app.startup')
 logging.getLogger('uvicorn.access').disabled = True
 
+# BEL-122: suppress APScheduler framework INFO noise from scheduled jobs.
+logging.getLogger('apscheduler.schedulers.background').setLevel(logging.WARNING)
+logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+logging.getLogger('apscheduler.jobstores.default').setLevel(logging.WARNING)
+
 app = FastAPI(title=settings.app_name)
 app.state.limiter = limiter
 
