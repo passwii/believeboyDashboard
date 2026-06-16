@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models import AnalysisSourceFile
 from sqlalchemy import func, select
 from app.schemas.inventory_replenishment import (
@@ -48,7 +48,7 @@ def get_inventory_analysis(
         default=None,
         description="筛选特定业务日期的库存数据，格式: YYYY-MM-DD",
     ),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryAnalysisResponse:
@@ -97,7 +97,7 @@ def get_inventory_analysis(
 def list_inventory_snapshot_options(
     project_id: int = Query(gt=0),
     country: str = Query(default="US"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> list[InventorySnapshotOption]:
     options = list_snapshot_options(db, project_id=project_id, country=country)
     return [
@@ -119,7 +119,7 @@ def list_inventory_replenishment_analysis_endpoint(
     in_transit_only: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentListResponse:
@@ -181,7 +181,7 @@ def update_inventory_replenishment_setting(
     payload: InventoryReplenishmentSettingUpdate,
     request: Request,
     country: str = Query(default="US"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentSettingItem:
@@ -240,7 +240,7 @@ def list_inventory_replenishment_shipments_endpoint(
     request: Request,
     project_id: int = Query(gt=0),
     sku: str = Query(min_length=1),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> InventoryReplenishmentShipmentResponse:
@@ -285,7 +285,7 @@ def list_inventory_replenishment_calendar(
     date_to: date | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> CalendarResponse:

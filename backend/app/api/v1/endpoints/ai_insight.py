@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from app.api.deps import get_db_session, get_request_is_admin, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_is_admin, get_request_operator, protected
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
     InsightChunkResponse,
@@ -107,7 +107,7 @@ router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[De
 @router.post("/generate", response_model=InsightStatusResponse)
 def generate_insight(
     payload: InsightGenerateRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -147,7 +147,7 @@ def generate_insight(
 @router.get("/{insight_id}/stream")
 def stream_insight(
     insight_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -240,7 +240,7 @@ def list_insights(
     insight_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightListResponse:
@@ -284,7 +284,7 @@ def list_insights(
 def get_latest_insight(
     project_id: int,
     country: str = "US",
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail | InsightStatusResponse:
@@ -344,7 +344,7 @@ def list_schedules(
     project_id: int | None = None,
     is_active: bool | None = None,
     insight_type: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -383,7 +383,7 @@ def list_schedules(
 )
 def create_insight_schedule(
     payload: InsightScheduleCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -401,7 +401,7 @@ def create_insight_schedule(
 def update_insight_schedule(
     schedule_id: int,
     payload: InsightScheduleUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -414,7 +414,7 @@ def update_insight_schedule(
 @router.delete("/schedules/{schedule_id}")
 def delete_insight_schedule(
     schedule_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightScheduleDeleteResponse:
@@ -430,7 +430,7 @@ def delete_insight_schedule(
 )
 def toggle_insight_schedule(
     schedule_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -450,7 +450,7 @@ def toggle_insight_schedule(
 )
 def run_insight_schedule_now(
     schedule_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -475,7 +475,7 @@ def run_insight_schedule_now(
 @router.get("/{insight_id}")
 def get_insight(
     insight_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail:
@@ -510,7 +510,7 @@ def get_insight(
 def update_insight(
     insight_id: int,
     payload: InsightUpdateRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail:
@@ -532,7 +532,7 @@ def update_insight(
 @router.post("/{insight_id}/retry", response_model=InsightRetryResponse)
 def retry_insight(
     insight_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     x_operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -569,7 +569,7 @@ def retry_insight(
 @router.delete("/{insight_id}")
 def delete_insight(
     insight_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ):
@@ -588,7 +588,7 @@ def delete_insight(
 @router.get("/ad-agent/evolution-report")
 def get_ad_agent_evolution_report(
     project_id: int | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> dict[str, Any]:
     """Get ad agent evolution report for a project."""
     from app.services.ad_agent.evolution_engine import (

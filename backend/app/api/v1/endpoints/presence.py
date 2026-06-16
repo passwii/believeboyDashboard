@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.schemas.presence import PresenceHeartbeatRequest, PresenceResponse
 from app.services.presence_service import list_active_presence, upsert_presence
 
@@ -49,7 +49,7 @@ def _get_server_time(db: Session | None) -> str:
 @router.post("/heartbeat", response_model=PresenceResponse)
 def heartbeat(
     payload: PresenceHeartbeatRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
     user_name: str | None = Depends(get_request_user_name),
     user_email: str | None = Depends(get_request_user_email),
@@ -74,7 +74,7 @@ def heartbeat(
 @router.get("", response_model=PresenceResponse)
 def get_presence(
     stale_after_seconds: int = Query(default=90, ge=30, le=300),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ) -> PresenceResponse:
     return PresenceResponse(

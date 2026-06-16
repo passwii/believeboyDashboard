@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.core.config import Settings, get_settings
 from app.schemas.ai_chat import (
     AIChatConfigResponse,
@@ -90,7 +90,7 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
 
 @router.get("/conversations", response_model=list[ConversationItem])
 def list_conversations(
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> list[ConversationItem]:
     ai_chat_service.ensure_tables(db)
@@ -110,7 +110,7 @@ def list_conversations(
 @router.post("/conversations", response_model=ConversationItem)
 def create_conversation(
     payload: ConversationCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationItem:
     if user_id is None:
@@ -125,7 +125,7 @@ def create_conversation(
 @router.delete("/conversations/{conversation_id}", status_code=204)
 def delete_conversation(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     ai_chat_service.ensure_tables(db)
@@ -138,7 +138,7 @@ def delete_conversation(
 def update_conversation(
     conversation_id: int,
     payload: ConversationCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationItem:
     ai_chat_service.ensure_tables(db)
@@ -154,7 +154,7 @@ def update_conversation(
 @router.post("/conversations/{conversation_id}/regenerate-title", response_model=ConversationTitleRegenerateResponse)
 def regenerate_conversation_title(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationTitleRegenerateResponse:
@@ -179,7 +179,7 @@ def regenerate_conversation_title(
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageItem])
 def list_messages(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> list[MessageItem]:
     ai_chat_service.ensure_tables(db)
@@ -191,7 +191,7 @@ def list_messages(
 def delete_message_endpoint(
     conversation_id: int,
     message_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     """硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。"""
@@ -206,7 +206,7 @@ def update_message_endpoint(
     conversation_id: int,
     message_id: int,
     payload: AIChatMessageUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> MessageItem:
     """编辑单条消息的 content。
@@ -235,7 +235,7 @@ def update_message_endpoint(
 def create_message(
     conversation_id: int,
     payload: MessageCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> MessageCreateResponse:
@@ -307,7 +307,7 @@ def create_message(
 def stream_message(
     conversation_id: int,
     payload: MessageCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ):
@@ -592,7 +592,7 @@ class _CancelledError(Exception):
 @router.post("/conversations/{conversation_id}/stream/cancel", status_code=204)
 def cancel_stream(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     """请求取消正在进行的流式生成。

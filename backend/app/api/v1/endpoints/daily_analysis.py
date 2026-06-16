@@ -5,7 +5,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_read_db_session, get_request_operator, protected
 from app.schemas.daily_analysis import (
     DailyAnalysisAllCountriesResponse,
     DailyAnalysisAllProjectsResponse,
@@ -29,7 +29,7 @@ def get_daily_analysis(
     country: str = "US",
     sku: Optional[str] = None,
     no_cache: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -57,7 +57,7 @@ def get_daily_analysis_all(
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
     country: str = "US",
     sku: Optional[str] = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -98,7 +98,7 @@ def get_daily_analysis_all_countries(
     project_id: int,
     start_date: Annotated[str, Query(min_length=10, max_length=10)],
     end_date: Annotated[str, Query(min_length=10, max_length=10)],
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):

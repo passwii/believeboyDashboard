@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.services import project_service
 from app.core.config import get_settings
 from app.schemas.platform_revenue import (
@@ -79,7 +79,7 @@ def list_platform_revenues(
     currency: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueListResponse:
@@ -113,7 +113,7 @@ def list_platform_revenues(
 @router.get('/platform-revenues/{revenue_id}', response_model=PlatformRevenueItem)
 def get_platform_revenue(
     revenue_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
@@ -125,7 +125,7 @@ def get_platform_revenue(
 def create_platform_revenue(
     request: Request,
     payload: PlatformRevenueCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
@@ -181,7 +181,7 @@ def update_platform_revenue(
     request: Request,
     revenue_id: int,
     payload: PlatformRevenueUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> PlatformRevenueItem:
@@ -219,7 +219,7 @@ def update_platform_revenue(
 def delete_platform_revenue(
     request: Request,
     revenue_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> Response:
@@ -342,7 +342,7 @@ async def upload_platform_revenue_image(
 @router.get('/platform-revenues/project-countries/{project_id}')
 def get_project_countries(
     project_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> dict:

@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 
 from app.schemas.system_management.commission.summary import (
     CommissionYearlyMonthlySummaryItem,
@@ -37,7 +37,7 @@ def list_commission_yearly_monthly_summary(
     year: str,
     request: Request,
     country: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionYearlyMonthlySummaryResponse:
     try:
@@ -58,7 +58,7 @@ def list_commission_project_yearly_summary(
     year: str,
     request: Request,
     country: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionProjectYearlySummaryResponse:
     try:
@@ -79,7 +79,7 @@ def recompute_commission_records_endpoint(
     payload: RecomputeCommissionRequest,
     request: Request,
     country: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> RecomputeCommissionResponse:
     try:
