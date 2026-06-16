@@ -1027,7 +1027,7 @@ export function AIChatWindow({
                 model: selectedModel,
               })}
               compact={!isLanding}
-              disabled={isStreaming || activeServerId == null}
+              disabled={isStreaming}
               enableWebSearch={enableWebSearch}
               onToggleWebSearch={setEnableWebSearch}
               reasoningEffort={reasoningEffort}
