@@ -654,7 +654,7 @@ export default function InspectionForm({
           </Card>
         </div>
 
-        <DialogFooter className="sticky bottom-0 border-t bg-background pt-4">
+        <DialogFooter className="gap-2 pt-2">
           <Button variant="outline" onClick={handleSaveDraft} disabled={saving || submitting}>
             {saving ? (
               <div className="mr-1 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
