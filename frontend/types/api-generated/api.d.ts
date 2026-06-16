@@ -7783,6 +7783,8 @@ export interface components {
             screenshots: components["schemas"]["InspectionHistoryScreenshot"][];
             /** Status */
             status: string;
+            /** Status Summary */
+            status_summary?: string | null;
             /** Submitted At */
             submitted_at?: string | null;
             /** Submitted By */

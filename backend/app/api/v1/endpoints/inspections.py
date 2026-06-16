@@ -408,6 +408,7 @@ def get_history(
             status=report.status,
             account_health_rating=health.get("account_health_rating"),
             compliance_total=compliance_total,
+            status_summary=report.status_summary,
             submitted_by=report.submitted_by,
             submitted_at=report.submitted_at,
             screenshots=screenshots_data,

@@ -105,8 +105,8 @@ function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSev
 
 const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   normal: '',
-  warning: 'border-l-[4px] border-l-amber-500 dark:border-l-amber-400',
-  critical: 'border-l-[4px] border-l-rose-500 dark:border-l-rose-400',
+  warning: 'border-[3px] border-amber-500 dark:border-amber-400 shadow-[0_0_0_1px_rgb(245_158_11_/_0.15)]',
+  critical: 'border-[3px] border-rose-500 dark:border-rose-400 shadow-[0_0_0_1px_rgb(244_63_94_/_0.18)]',
 }
 
 const SEVERITY_RANK: Record<CardSeverity, number> = {
@@ -207,7 +207,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
   return (
     <Card
-      className={`cursor-pointer border-border/70 hover-lift hover:border-primary/30 ${CARD_SEVERITY_STYLES[cardSeverity]}`}
+      className={`cursor-pointer hover-lift ${CARD_SEVERITY_STYLES[cardSeverity]}`}
       onClick={onClick}
     >
       {/* HEAD */}
