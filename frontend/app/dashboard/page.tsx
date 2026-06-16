@@ -113,11 +113,6 @@ function fmtPct(v: number) {
   return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
 }
 
-function getDateLabel(from: Date, to: Date): string {
-  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
-  return `${fmt(from)} — ${fmt(to)}`
-}
-
 export type DashboardDailyData = {
   currentRows: DailyAnalysisRow[]
   comparisonRows: DailyAnalysisRow[]
@@ -328,7 +323,6 @@ export default function DashboardPage() {
     ] satisfies MetricTileProps[]
   }, [currentRows, comparisonRows])
 
-  const dateLabel = getDateLabel(dateRange.from, dateRange.to)
   const dailyData: DashboardDailyData = useMemo(() => ({
     currentRows,
     comparisonRows,
@@ -350,25 +344,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <div className="dashboard-toolbar flex items-center justify-between rounded-xl">
-        <div className="space-y-1">
-          <h1 className="text-base font-semibold">销售概览</h1>
-          <p className="text-xs text-muted-foreground">近 7 日 {dateLabel}</p>
-        </div>
-
-        <button
-          onClick={handleRefresh}
-          disabled={anyLoading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/60 px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-50"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.6-6.36" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 4v6h-6" />
-          </svg>
-          刷新
-        </button>
-      </div>
-
       {/*
         * iPad portrait (768–1023px) intentionally stays single-column:
         * the 2:3 split would compress tiles to ~200px each. Side-by-side
