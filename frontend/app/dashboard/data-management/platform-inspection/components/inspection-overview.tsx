@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -107,6 +107,12 @@ const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   normal: '',
   warning: 'border-l-[4px] border-l-amber-500 dark:border-l-amber-400',
   critical: 'border-l-[4px] border-l-rose-500 dark:border-l-rose-400',
+}
+
+const SEVERITY_RANK: Record<CardSeverity, number> = {
+  critical: 0,
+  warning: 1,
+  normal: 2,
 }
 
 interface MetricBadgeProps {
@@ -378,6 +384,13 @@ export default function InspectionOverview({
     void loadOverview()
   }, [periodId, refreshKey, notify])
 
+  const sortedItems = useMemo(() => {
+    if (!overview) return []
+    return [...overview.items].sort(
+      (a, b) => SEVERITY_RANK[getCardSeverity(a)] - SEVERITY_RANK[getCardSeverity(b)]
+    )
+  }, [overview])
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -474,7 +487,7 @@ export default function InspectionOverview({
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {overview.items.map((item) => (
+          {sortedItems.map((item) => (
             <div key={item.project_id} className="stagger-item">
               <ProjectCard
                 item={item}
