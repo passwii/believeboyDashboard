@@ -99,12 +99,12 @@ PAYMENT_TYPE_ALIASES = {
     'Service Fee': ['service fee', 'servicegebuehr'],
     'FBA Inventory Fee': ['fba inventory fee', 'versand durch amazon lagergebuehr'],
     'Transfer': ['transfer', 'uebertrag'],
-    'FBA Transaction Fees': ['fba transaction fees'],
+    'FBA Transaction Fees': ['fba transaction fees', 'transaktionsgebuehren fuer versand durch amazon'],
     'Chargeback Refund': ['chargeback refund'],
     'Liquidations': ['liquidations'],
     'Adjustment': ['adjustment'],
     'Deal Fee': ['deal fee'],
-    'Debt': ['debt'],
+    'Debt': ['debt', 'verbindlichkeit'],
     'Fee Adjustment': ['fee adjustment'],
 }
 
