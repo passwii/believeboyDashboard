@@ -576,6 +576,7 @@ def export_financial_accounting_detail_workbook(
     financial_row = _build_financial_row(
         report_month=month,
         pt4=pt4,
+        pt3=pt3,
         credit_card_deduction_usd=debt_sum,
         fob_cost_rmb=cost_totals.get("fob_cost_rmb", 0),
         first_leg_cost_rmb=cost_totals.get("first_leg_cost_rmb", 0),
