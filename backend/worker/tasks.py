@@ -21,7 +21,8 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.job import JobStatus
-from app.services import job_service, monthly_report_runtime_service as monthly_report_service, upload_service
+from app.services import job_service, upload_service
+from app.services import report as monthly_report_service
 from app.tasks.script_registry import SCRIPT_HANDLERS
 
 
