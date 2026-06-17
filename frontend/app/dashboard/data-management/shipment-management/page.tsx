@@ -2145,7 +2145,7 @@ export default function ShipmentManagementPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('FBA箱单明细', {
-        views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+        views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       })
 
       const maxSkuLen = Math.max(8, ...fbaBoxItems.map((item) => item.sku.length))
@@ -2170,27 +2170,10 @@ export default function ShipmentManagementPage() {
         { header: '总体积(m³)', key: 'total_volume', width: 14 },
         { header: '总重量(kg)', key: 'total_weight', width: 14 },
       ] as const
-      const lastColumn = columns.length
-      const dataStartRow = 4
+      const dataStartRow = 2
       const imageColumnIndex = 5 // 产品图片列
 
-      worksheet.mergeCells(1, 1, 1, lastColumn)
-      const projectText = fbaBoxMeta.projectNames.length === 1 ? fbaBoxMeta.projectNames[0] : `${fbaBoxMeta.projectNames.length} 个项目`
-      const countryText = fbaBoxMeta.countries.length === 1 ? countryLabel(fbaBoxMeta.countries[0]) : `${fbaBoxMeta.countries.length} 个国家`
-      const shipmentText =
-        fbaBoxMeta.shipmentNos.length <= 3
-          ? fbaBoxMeta.shipmentNos.join('、')
-          : `${fbaBoxMeta.shipmentNos.slice(0, 3).join('、')} 等 ${fbaBoxMeta.shipmentNos.length} 个货件`
-      worksheet.getCell(1, 1).value = `项目：${projectText}    国家：${countryText}    货件编号：${shipmentText}`
-      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 13, bold: true, color: { argb: 'FF000000' } }
-      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-      worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
-
-      worksheet.mergeCells(2, 1, 2, lastColumn)
-      worksheet.getCell(2, 1).value = `导出时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`
-      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF64748B' } }
-
-      const headerRow = worksheet.getRow(3)
+      const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
       headerRow.height = 22
       headerRow.eachCell((cell) => {
@@ -2380,17 +2363,17 @@ export default function ShipmentManagementPage() {
 
       const totalRow = worksheet.getRow(fbaBoxItems.length + dataStartRow)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(15).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(17).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(18).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(19).value = fbaBoxSummary.totalWeightKg
-      applyRowBorder(totalRow, 1, 19)
+      totalRow.getCell(13).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(15).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(16).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(17).value = fbaBoxSummary.totalWeightKg
+      applyRowBorder(totalRow, 1, 17)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
       })
-      totalRow.getCell(18).numFmt = '#,##0.0000'
-      totalRow.getCell(19).numFmt = '#,##0.000'
+      totalRow.getCell(16).numFmt = '#,##0.0000'
+      totalRow.getCell(17).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
