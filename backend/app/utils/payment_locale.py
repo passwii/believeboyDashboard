@@ -409,7 +409,14 @@ def normalize_payment_description(value: Any, locale: str = 'en') -> str:
         )
 
         if not is_likely_product_name:
-            logger.info(
+            # BEL-2026-06-17 follow-up: downgraded from INFO to DEBUG. These
+            # "Unknown German description" lines flooded the uvicorn log on
+            # every DE monthly report (Amazon emits internal settlement-group
+            # IDs like `amzn1.cam.v1.sgid.*` that we never canonicalize).
+            # The "Potential unmapped" warning above (line 395) stays at
+            # WARNING because it is a genuine fuzzy-match signal worth
+            # alerting on; this one is observational only.
+            logger.debug(
                 f"[DE Mapping Monitor] Unknown German system description: "
                 f"'{original_value}' (normalized: '{normalized}'). "
                 f"If this is a standard Amazon description, consider adding to mapping."
