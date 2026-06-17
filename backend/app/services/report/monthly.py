@@ -538,11 +538,15 @@ def get_financial_series(
     )
 
     query_rows = db.execute(
-        select(MonthlyReport, MonthlyReportPT4Calculation)
+        select(MonthlyReport, MonthlyReportPT4Calculation, MonthlyReportPT3Calculation)
         .add_columns(debt_sum_subquery.c.credit_card_deduction_usd)
         .outerjoin(
             MonthlyReportPT4Calculation,
             MonthlyReportPT4Calculation.report_id == MonthlyReport.id,
+        )
+        .outerjoin(
+            MonthlyReportPT3Calculation,
+            MonthlyReportPT3Calculation.report_id == MonthlyReport.id,
         )
         .outerjoin(debt_sum_subquery, debt_sum_subquery.c.report_id == MonthlyReport.id)
         .where(
@@ -565,11 +569,16 @@ def get_financial_series(
     for row in query_rows:
         report = row[0]
         pt4 = row[1] if len(row) > 1 else None
-        credit_card_deduction_usd = row[2] if len(row) > 2 else None
+        # Income-side VAT columns (alembic 160) live on PT3 — BEL-125 v3.
+        # Without this outerjoin, ``_build_financial_row`` always sees
+        # ``pt3=None`` and the income VAT fields come back as 0.
+        pt3 = row[2] if len(row) > 2 else None
+        credit_card_deduction_usd = row[3] if len(row) > 3 else None
         cost_totals = cost_totals_by_report.get(int(report.id), {})
         month_to_row[report.report_month] = _build_financial_row(
             report.report_month,
             pt4,
+            pt3,
             credit_card_deduction_usd=credit_card_deduction_usd,
             fob_cost_rmb=cost_totals.get("fob_cost_rmb", 0),
             first_leg_cost_rmb=cost_totals.get("first_leg_cost_rmb", 0),

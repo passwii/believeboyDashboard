@@ -40,6 +40,7 @@ from app.services.report.utils import (
 def _build_financial_row(
     report_month: str,
     pt4: MonthlyReportPT4Calculation | None,
+    pt3: MonthlyReportPT3Calculation | None = None,
     *,
     credit_card_deduction_usd: Decimal | float | int | None = None,
     fob_cost_rmb: Decimal | float | int | None = None,
@@ -50,6 +51,10 @@ def _build_financial_row(
     Args:
         report_month: YYYY-MM string
         pt4: PT4 calculation model or None
+        pt3: PT3 calculation model or None. PT3 owns the income-side VAT
+            columns (``income_vat_total`` / ``income_sales_with_tax``) per
+            alembic 160; PT4 only owns ``expense_vat_total`` (alembic 161).
+            Income-side VAT values are read from PT3 — see BEL-125 v3.
         credit_card_deduction_usd: Credit card deduction amount
         fob_cost_rmb: FOB cost in RMB
         first_leg_cost_rmb: First leg shipping cost in RMB
@@ -70,6 +75,20 @@ def _build_financial_row(
         if stored_credit_card is not None
         else credit_card_deduction_usd
     )
+    # Income-side VAT lives on PT3 (alembic 160). PT4 has no such column, so
+    # `getattr(pt4, ...)` would always return None and `None or 0 == 0`,
+    # which is the historical bug masked by stub-based tests (see
+    # test_financial_series_vat_propagation v3 rewrite).
+    income_vat_total = (
+        _to_float(getattr(pt3, "income_vat_total", None) or 0)
+        if pt3 is not None
+        else 0.0
+    )
+    income_sales_with_tax = (
+        _to_float(getattr(pt3, "income_sales_with_tax", None) or 0)
+        if pt3 is not None
+        else 0.0
+    )
     return {
         "report_month": report_month,
         "income_sales": _to_float(pt4.income_sales),
@@ -85,12 +104,8 @@ def _build_financial_row(
         "income_total": _to_float(pt4.income_total),
         "expense_total": _to_float(pt4.expense_total),
         "amazon_pay_back": _to_float(pt4.amazon_pay_back),
-        "income_vat_total": _to_float(
-            getattr(pt4, "income_vat_total", None) or 0
-        ),
-        "income_sales_with_tax": _to_float(
-            getattr(pt4, "income_sales_with_tax", None) or 0
-        ),
+        "income_vat_total": income_vat_total,
+        "income_sales_with_tax": income_sales_with_tax,
         "expense_vat_total": _to_float(
             getattr(pt4, "expense_vat_total", None) or 0
         ),
