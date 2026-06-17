@@ -866,7 +866,7 @@ def _wrap_weekly_html_shell(
               </td>
               <td style="vertical-align: middle;">
                 <div style="font-size: 22px; font-weight: 700; color: white;">每周运营报告</div>
-                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">{project_name} · {country_display} · {year} 第 {week_number} 周（{date_range}）</div>
+                <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px; line-height: 1.5;">{project_name} · {country_display} · {year} 第 {week_number} 周<br>{date_range}</div>
               </td>
               <td width="90" align="right" style="vertical-align: middle;">
                 <span style="display: inline-block; background: #059669; color: white; font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 20px; white-space: nowrap;">每周报告</span>
