@@ -8855,6 +8855,10 @@
             "title": "Database",
             "type": "string"
           },
+          "database_replica": {
+            "title": "Database Replica",
+            "type": "string"
+          },
           "redis": {
             "title": "Redis",
             "type": "string"
@@ -8883,6 +8887,7 @@
           "status",
           "timestamp",
           "database",
+          "database_replica",
           "redis"
         ],
         "title": "HealthResponse",
@@ -10838,6 +10843,17 @@
           "in_transit_quantity": {
             "title": "In Transit Quantity",
             "type": "integer"
+          },
+          "product_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Name"
           },
           "production_lead_days": {
             "title": "Production Lead Days",
@@ -34182,7 +34198,7 @@
     },
     "/api/v1/health": {
       "get": {
-        "description": "Enhanced health check with DB + Redis status for monitoring.",
+        "description": "Enhanced health check with DB + replica + Redis status for monitoring.",
         "operationId": "health_api_v1_health_get",
         "parameters": [
           {
