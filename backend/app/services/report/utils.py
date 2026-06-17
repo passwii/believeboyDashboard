@@ -120,7 +120,25 @@ def _safe_project_name(project_name: str) -> str:
 
 
 def _parse_transaction_datetime(value: Any) -> datetime:
-    """Parse transaction datetime with multiple format support and timezone handling."""
+    """Parse transaction datetime with multiple format support and timezone handling.
+
+    Supported date formats (one per Amazon marketplace locale):
+    - US (en, AM/PM):        ``May 17, 2026 02:44:48 PM``
+    - US (en, ISO):          ``2026-05-17 02:44:48``
+    - UK (en, DD MMM YYYY):  ``17 May 2026 02:44:48 UTC`` (Amazon UK default;
+      also accepts single-digit day ``7 May 2026 02:44:48 UTC`` and no tz)
+    - DE (de, dotted):       ``17.05.2026 02:44:48``
+
+    Trailing timezone abbreviation in ``TZ_OFFSET_BY_ABBR`` (UTC/GMT/PST/…)
+    is stripped first, then the remaining string is matched against the
+    format list. Missing tz defaults to UTC.
+
+    Note: BEL-127 follow-up — the UK ``DD MMM YYYY HH:MM:SS TZ`` format was
+    previously missing from this list, so UK monthly-report persistence
+    failed with ``ValueError: invalid transaction date`` while the Excel
+    handler ran fine (the handler doesn't need per-row dates for aggregates).
+    That surfaced on the dashboard as "数据同步失败" with no other symptoms.
+    """
     text = str(value or "").strip()
     if not text:
         raise ValueError("transaction date is empty")
@@ -132,9 +150,10 @@ def _parse_transaction_datetime(value: Any) -> datetime:
         text = parts[0]
 
     for fmt in (
-        "%b %d, %Y %I:%M:%S %p",
-        "%Y-%m-%d %H:%M:%S",
-        "%d.%m.%Y %H:%M:%S",
+        "%b %d, %Y %I:%M:%S %p",  # US en, AM/PM: "May 17, 2026 02:44:48 PM"
+        "%Y-%m-%d %H:%M:%S",      # US en, ISO:  "2026-05-17 02:44:48"
+        "%d.%m.%Y %H:%M:%S",      # DE:          "17.05.2026 02:44:48"
+        "%d %b %Y %H:%M:%S",      # UK en:       "17 May 2026 02:44:48"
     ):
         try:
             parsed = datetime.strptime(text, fmt)
