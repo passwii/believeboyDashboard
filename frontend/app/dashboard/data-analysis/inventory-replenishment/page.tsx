@@ -649,7 +649,14 @@ export default function InventoryReplenishmentPage() {
           cell.alignment = {
             vertical: 'middle',
             horizontal: colNumber >= 3 && colNumber <= 16 ? 'right' : 'left',
-            wrapText: true,
+            // 产品名称列（colNumber === 2）：单行显示，文本超出列宽时直接截断。
+            // 完整品名以 cell.note 形式保留，鼠标悬停可看。
+            // 其它列保留 wrapText 以防未来加长字段时溢出。
+            wrapText: colNumber !== 2,
+          }
+          // 产品名称完整文本写到 cell.note，鼠标悬停可看（不论是否被列宽截断）。
+          if (colNumber === 2 && row.product_name && row.product_name !== '-') {
+            cell.note = row.product_name
           }
           if (colNumber === 21) {
             const riskStatus = row.risk_status
