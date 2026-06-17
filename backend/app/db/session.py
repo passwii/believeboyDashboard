@@ -1,3 +1,4 @@
+import logging
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
@@ -16,6 +17,9 @@ from app.db.replica import (
 
 class Base(DeclarativeBase):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 settings = get_settings()
@@ -83,18 +87,58 @@ def force_primary():
     Use this in service code that follows a write in the same request
     (e.g. INSERT then SELECT for the response payload) so the read sees
     the just-committed row rather than waiting for WAL replay.
+
+    BEL-126: the `reset` is guarded against `ValueError: Token was created
+    in a different Context`. When `force_primary` is entered from a
+    sync function that is later driven by `anyio.to_thread.run_sync`
+    (e.g. inside `run_in_threadpool` callbacks called from async code
+    that later awaits a yield to the event loop), the `__exit__` runs
+    in a `copy_context()` snapshot that is *not* the same Context the
+    `set` ran in. In that case the token is invalid; we swallow the
+    `ValueError` and let the request-scoped context clean the value up
+    when the request finishes.
     """
     token = _force_primary.set(True)
     try:
         yield
     finally:
-        _force_primary.reset(token)
+        try:
+            _force_primary.reset(token)
+        except ValueError:
+            # Token belongs to a different Context (BEL-126). The value
+            # is bound to the Context that the `set` ran in; that
+            # Context will be torn down with the request, so we can
+            # safely ignore the failed reset.
+            pass
 
 
-def get_primary_db():
+async def get_primary_db():
     """Primary-only dependency. Sets `_force_primary` for the duration of the request.
 
     Use for write endpoints or write-after-read scenarios.
+
+    BEL-126: this is an **async generator** (not a `@contextmanager`,
+    not an `@asynccontextmanager`) on purpose. FastAPI runs
+    **sync** contextmanager dependencies through
+    `contextmanager_in_threadpool`, which invokes `__enter__` and
+    `__exit__` in two separate `anyio.to_thread.run_sync` calls — and
+    each call gets its own `contextvars.copy_context()` snapshot. A
+    `ContextVar.set` token created in the first snapshot cannot be
+    `reset` from the second; doing so raises
+    `ValueError: Token was created in a different Context`, which
+    FastAPI then wraps in an `ExceptionGroup` and surfaces as HTTP 500
+    (reproducible on `PATCH /api/v1/shipment-schedules/{id}`).
+
+    Making the dependency an async generator keeps both the `set`
+    and the `reset` inside the same asyncio task context: FastAPI's
+    `solve_generator` detects `inspect.isasyncgenfunction(get_primary_db)`
+    and routes the dependency through `asynccontextmanager(call)()`
+    + `enter_async_context` — no thread copy, no cross-context reset.
+
+    Plain `async def` (returning a value) is also a valid dep shape,
+    but using a generator is what lets us bracket the whole request
+    in `try/finally` so the marker is always released even when the
+    handler raises.
     """
     db = SessionLocal()
     token = _force_primary.set(True)
