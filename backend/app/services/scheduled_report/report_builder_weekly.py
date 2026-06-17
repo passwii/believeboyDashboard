@@ -517,25 +517,58 @@ def _get_inventory_alerts(
     project_ids: list[int] | None,
     country: str,
 ) -> list[dict[str, Any]]:
-    """获取库存预警 SKU。"""
+    """获取库存预警 SKU。
+
+    改动（BEL-130）：不再过滤 ``is_current=True``，改为按
+    ``(project, country)`` 下 report_date 最新的 inventory 快照取数，
+    与库存分析页 ``inventory_analysis_service._get_inventory_source``
+    口径保持一致。这样能正确处理 BEL-104 修复前的旧快照（``is_current=False``）
+    和手工回填的快照，避免周报里库存数据全部为 0。
+
+    实现说明：latest-per-group 走 ``ROW_NUMBER() OVER (PARTITION BY
+    project_id ORDER BY report_date DESC, version DESC, id DESC)`` +
+    ``WHERE rn = 1`` 的窗口函数写法，而不是 PG-only 的 ``DISTINCT ON``，
+    以保证单元测试在 SQLite 跑得动、生产 PG 也兼容。
+    """
     try:
+        rn = func.row_number().over(
+            partition_by=AnalysisSourceFile.project_id,
+            order_by=(
+                AnalysisSourceFile.report_date.desc(),
+                AnalysisSourceFile.version.desc(),
+                AnalysisSourceFile.id.desc(),
+            ),
+        ).label("rn")
+        ranked_subq = (
+            db.query(
+                AnalysisSourceFile.id.label("source_file_id"),
+                AnalysisSourceFile.project_id,
+                rn,
+            )
+            .filter(
+                AnalysisSourceFile.report_type == "inventory_report",
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_date.isnot(None),
+            )
+            .subquery()
+        )
+        latest_source_subq = db.query(ranked_subq).filter(ranked_subq.c.rn == 1).subquery()
+
         base_query = (
             db.query(
                 InventorySnapshotRow.sku,
                 InventorySnapshotRow.available_qty,
                 InventorySnapshotRow.stock_status,
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == InventorySnapshotRow.source_file_id)
-            .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "inventory_report",
-                AnalysisSourceFile.is_current == True,
+            .join(
+                latest_source_subq,
+                latest_source_subq.c.source_file_id == InventorySnapshotRow.source_file_id,
             )
         )
         if project_ids:
-            base_query = base_query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            base_query = base_query.filter(latest_source_subq.c.project_id.in_(project_ids))
 
-        alerts = []
+        alerts: list[dict[str, Any]] = []
         for row in base_query.filter(
             InventorySnapshotRow.available_qty <= 10
         ).order_by(
@@ -553,6 +586,15 @@ def _get_inventory_alerts(
                     "available_qty": int(row.available_qty or 0),
                     "level": "low",
                 })
+
+        if not alerts:
+            logger.warning(
+                "BEL-130: no inventory alerts found for projects=%s country=%s "
+                "— check that at least one inventory_report snapshot is uploaded "
+                "for the project/country combination.",
+                project_ids,
+                country,
+            )
         return alerts
 
     except Exception as e:
