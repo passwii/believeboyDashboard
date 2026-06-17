@@ -299,6 +299,13 @@ function calculateNetProfitRmb(row: FinancialSeriesRow, exchangeRate: number): n
   )
 }
 
+// 销售额展示口径：后端对 US/DE/UK 都返回 ``income_sales_with_tax``，其中
+// US = net（sum of product_sales），DE/UK = 含税（product price + VAT）。
+// 兜底到 ``income_sales`` 覆盖存量报表或字段缺失场景，让前端无分支消费。
+function resolveDisplaySales(row: FinancialSeriesRow): number {
+  return row.income_sales_with_tax ?? row.income_sales
+}
+
 function formatCurrency(value: number, symbol = '$'): string {
   const abs = Math.abs(value)
   const text = abs.toLocaleString('en-US', {
@@ -1235,7 +1242,7 @@ export default function FinancialDataClient({
     return data.rows.map((row) => ({
       report_month: row.report_month,
       month_label: formatMonth(row.report_month),
-      income_sales: row.income_sales,
+      income_sales: resolveDisplaySales(row),
       // 退款统一按正值展示金额规模，避免与销售额方向相反影响可读性
       income_refund: Math.abs(row.income_refund),
       has_source_report: row.has_source_report,
@@ -1305,7 +1312,7 @@ export default function FinancialDataClient({
         const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
 
         return {
-          income_sales: acc.income_sales + row.income_sales,
+          income_sales: acc.income_sales + resolveDisplaySales(row),
           income_refund: acc.income_refund + row.income_refund,
           income_adjustment: acc.income_adjustment + row.income_adjustment,
           income_other: acc.income_other + row.income_other,
@@ -1392,7 +1399,7 @@ export default function FinancialDataClient({
 
       return {
         monthLabel: formatMonth(row.report_month),
-        incomeSales: row.income_sales,
+        incomeSales: resolveDisplaySales(row),
         incomeRefund: row.income_refund,
         incomeAdjustment: row.income_adjustment,
         incomeOther: row.income_other,
@@ -1435,7 +1442,7 @@ export default function FinancialDataClient({
           row.income_total,
         ),
         adRatio: toPositiveRatio(row.expense_advertising, row.income_total),
-        refundRatio: toPositiveRatio(row.income_refund, row.income_sales),
+        refundRatio: toPositiveRatio(row.income_refund, resolveDisplaySales(row)),
         paybackRatio: toSignedRatio(row.amazon_pay_back, row.income_total),
         hasSourceReport: row.has_source_report,
       }
@@ -2730,7 +2737,7 @@ export default function FinancialDataClient({
                   )
                   const refundRatio = toPositiveRatio(
                     row.income_refund,
-                    row.income_sales,
+                    resolveDisplaySales(row),
                   )
                   const paybackRatio = toSignedRatio(
                     row.amazon_pay_back,
@@ -2764,7 +2771,7 @@ export default function FinancialDataClient({
                         </div>
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_sales, currencySymbol)}
+                        {formatCurrency(resolveDisplaySales(row), currencySymbol)}
                       </TableCell>
                       <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
                         {formatCurrency(row.income_refund, currencySymbol)}

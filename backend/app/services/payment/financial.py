@@ -54,6 +54,11 @@ def _compute_vat_metrics(
 ) -> dict[str, Decimal]:
     """Compute VAT (sales tax) metrics for tax-inclusive countries (DE/UK).
 
+    For non-VAT countries (e.g. US), ``income_sales_with_tax`` is the *net*
+    sales (i.e. ``sum(product_sales)``), so that downstream consumers can
+    always pick this field as the displayed sales amount — no special
+    branching by country needed.
+
     Args:
         classified: Dict of classified rows from classify_rows().
         country: Normalized country code (US/DE/UK).
@@ -61,33 +66,32 @@ def _compute_vat_metrics(
     Returns:
         Dict with keys:
         - income_vat_total: sum of product_sales_tax across all Order+Refund rows
-        - income_sales_with_tax: sum of (product_sales + product_sales_tax)
+        - income_sales_with_tax: DE/UK = sum(product_sales + product_sales_tax);
+          US = sum(product_sales) (net, since US has no VAT)
         - expense_vat_total: mirror of income_vat_total (used by PT4 回款公式)
     """
+    # 跨所有 Order/Refund 行计算。注意 fba_refund / fbm_refund 的 product_sales 是负数
+    # （退款为负），所以 sales_with_tax 也自然为负（消费者退的钱含税）。
+    # 单元测试可能只塞入部分 key，``get`` 兜底保证向后兼容。
+    all_sales_rows = classified.get("order", []) + classified.get("refund", [])
+    income_sales_with_tax = _round2(
+        sum((_to_decimal(row.get("product sales")) for row in all_sales_rows), Decimal("0"))
+    )
+
     normalized = (country or "").strip().upper()
     if normalized not in VAT_INCLUSIVE_COUNTRIES:
+        # US 等无 VAT 国家：sales_with_tax 退化为净额，VAT 列保持 0
         return {
             "income_vat_total": Decimal("0"),
-            "income_sales_with_tax": Decimal("0"),
+            "income_sales_with_tax": income_sales_with_tax,
             "expense_vat_total": Decimal("0"),
         }
 
-    # 跨所有 Order/Refund 行计算。注意 fba_refund / fbm_refund 的 product_sales 是负数
-    # （退款为负），所以 sales_with_tax 也自然为负（消费者退的钱含税）。
-    all_sales_rows = classified["order"] + classified["refund"]
     income_vat_total = _round2(
         sum((_to_decimal(row.get("product sales tax")) for row in all_sales_rows), Decimal("0"))
     )
-    income_sales_with_tax = _round2(
-        sum(
-            (
-                _to_decimal(row.get("product sales"))
-                + _to_decimal(row.get("product sales tax"))
-                for row in all_sales_rows
-            ),
-            Decimal("0"),
-        )
-    )
+    # DE/UK：在已算出的 net 之上加 VAT，避免重复遍历
+    income_sales_with_tax = _round2(income_sales_with_tax + income_vat_total)
     return {
         "income_vat_total": income_vat_total,
         "income_sales_with_tax": income_sales_with_tax,
