@@ -332,6 +332,10 @@ def _build_multi_country_report(
                     "prev_week": {"qty": 0, "amount": 0.0, "orders": 0, "avg_price": 0.0},
                     "changes": {}, "attribution": [], "top_skus_comparison": [],
                     "ads_comparison": {}, "inventory_alerts": [],
+                    "inventory_summary": {
+                        "sku_count": 0, "total_available": 0,
+                        "low_stock_count": 0, "oos_count": 0,
+                    },
                     "returns_data": {"qty": 0, "rate": 0.0},
                     "daily_trend": [], "sku_sales_detail": [],
                     "alerts": [], "action_items": [],
@@ -399,6 +403,10 @@ def _build_multi_country_report(
             "top_skus_comparison": first.get("top_skus_comparison", []),
             "ads_comparison": first.get("ads_comparison", {}),
             "inventory_alerts": first.get("inventory_alerts", []),
+            "inventory_summary": first.get("inventory_summary", {
+                "sku_count": 0, "total_available": 0,
+                "low_stock_count": 0, "oos_count": 0,
+            }),
             "returns_data": first.get("returns_data", {}),
             "daily_trend": first.get("daily_trend", []),
             "sku_sales_detail": first.get("sku_sales_detail", []),
