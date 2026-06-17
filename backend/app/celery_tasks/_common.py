@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models import JobRun
 from app.services import job_service
-from app.services import monthly_report_runtime_service as monthly_report_service
+from app.services import report as monthly_report_service
 from app.services import upload_service
 
 logger = logging.getLogger(__name__)
