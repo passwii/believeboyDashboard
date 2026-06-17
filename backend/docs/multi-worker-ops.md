@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8000，nginx 转发 `/api/*` |
 | `deploy/systemd/believeboy-worker.service` | Celery worker（`-c 4`） | 消费 `default,reports,insights` 三个队列 |
-| `deploy/systemd/believeboy-flower.service` | Flower Web UI（basic auth） | 本机 `:5555`，nginx 转发 `/flower` |
+| `deploy/systemd/believeboy-flower.service` | Flower Web UI（basic auth） | 本机 `:5555`，Cloudflare 隧道转发 `flower.believeboy.com` |
 
 > **为什么只起一个 worker 进程？** `believeboy-worker.service` 用的是
 > `celery -A app.tasks.celery_app worker -c 4`：一个 worker **进程** + 4
@@ -71,18 +71,23 @@ CELERY_WORKER_CONCURRENCY=8
 
 ### 2.1 访问入口
 
-- **生产**：通过 cloudflared tunnel 访问 `https://flower.believeboy.com`
-  （tunnel 指向 `127.0.0.1:5555`，由运维维护，配置示例见 2.3 节）。
+- **生产**：`https://flower.believeboy.com`（Cloudflare 隧道，TLS + basic auth 全链路加密，VPS 端口 5555 由 Cloudflare Tunnel 暴露）。
 - **直连本机（仅限 VPS 内部）**：`http://127.0.0.1:5555/`
 - **本地 dev**：`./run_worker.sh single` 起一个 worker，再
   `celery -A app.tasks.celery_app flower --basic_auth=dev:dev` 临时起
-  flower，然后用 `http://127.0.0.1:5555/` + `dev / dev` 登录。
+  flower，然后用 `http://127.0.0.1:5555` + `dev / dev` 登录。
 
 用户名固定为 `flower_admin`（在 systemd 单元里 hardcode 了），密码在
-`/home/damon/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。**不要把这
-个密码贴到 issue / Slack**，需要给同事开权限时让运维直接 ssh 到
-VPS 上加新的 `basic_auth=` 段（更稳的方案是接公司 SSO，但当前
+`/home/damon/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。
+**不要把这个密码贴到 issue / Slack**，需要给同事开权限时让运维直接
+ssh 到 VPS 上加新的 `basic_auth=` 段（更稳的方案是接公司 SSO，但当前
 issue 不在范围内）。
+
+> **Cloudflare 隧道配置**：VPS 上通过 `cloudflared` 将 `localhost:5555`
+> 映射到 `flower.believeboy.com`。basic auth 由 Flower 后端校验，
+> Cloudflare 层不做额外 auth，否则会要求两次 basic auth。
+> TLS 证书由 Cloudflare 自动签发（当前 issuer: Google Trust Services WE1，
+> 有效期至 2026-08-26，到期自动续期）。
 
 ### 2.2 面板里要看哪几个 tab
 
@@ -94,21 +99,35 @@ issue 不在范围内）。
 | **Tasks** | 单任务详情 | `Received → Started → Succeeded` 时序、args、result、traceback |
 | **Monitor** | 实时时间轴 | 与 Prometheus / Alertmanager 集成时用（本项目暂未接） |
 
-### 2.3 cloudflared tunnel（生产）
+### 2.3 Cloudflare 隧道（生产）
 
-flower 监听 `0.0.0.0:5555`，对外通过 cloudflared tunnel 出
-`https://flower.believeboy.com`。tunnel 不在本仓里维护，由运维在
-cloudflare 控制台配；本地 `~/.cloudflared/config.yml` 至少要有一段：
+Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置步骤：
 
-```yaml
-ingress:
-  - hostname: flower.believeboy.com
-    service: http://127.0.0.1:5555
-  - service: http_status:404
-```
+1. VPS 上安装 `cloudflared`（如果还没装）：
+   ```bash
+   # Debian / Ubuntu
+   curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+   echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+   sudo apt update && sudo apt install cloudflared -y
+   ```
 
-> flower 的 basic auth 已在后端校验；tunnel 端不要再加 `auth_basic` 块
-> 否则会要求两次 basic auth，用户体验混乱。
+2. 用 `cloudflared tunnel` 将 `localhost:5555` 映射到 `flower.believeboy.com`：
+   ```bash
+   # 临时测试（不持久化）
+   cloudflared tunnel --url http://127.0.0.1:5555
+
+   # 生产：已通过 Cloudflare Dashboard 配置持久化隧道
+   # tunnel name: believeboy-flower
+   # hostname: flower.believeboy.com
+   # service: http://127.0.0.1:5555
+   ```
+
+3. basic auth 由 Flower 后端校验（`--basic_auth=flower_admin:${FLOWER_PASSWORD}`），
+   Cloudflare 层不做额外 auth。TLS 证书由 Cloudflare 自动签发和续期。
+
+> **注意**：Cloudflare 隧道不需要开放 VPS 防火墙端口 5555 — 所有流量
+> 都走 `cloudflared` 的出站连接，VPS 只需要能访问外网即可。这比 nginx
+> 反代更安全（不需要暴露任何端口到公网）。
 
 ## 3. 队列堆积 SOP
 
