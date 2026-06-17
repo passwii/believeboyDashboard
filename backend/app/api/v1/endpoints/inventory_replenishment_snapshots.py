@@ -14,6 +14,7 @@ from app.services.inventory.replenishment_snapshot import (
     list_snapshots,
     update_snapshot,
 )
+from app.services.inventory.replenishment import _load_product_name_map
 from app.schemas.inventory_replenishment_snapshot import (
     InventoryReplenishmentSnapshotListItem,
     InventoryReplenishmentSnapshotDetail,
@@ -297,6 +298,11 @@ def get_snapshot_items_endpoint(
     paged_items = filtered_items[offset:offset + page_size]
     has_next = offset + page_size < total
 
+    # 读时 join SkuRecord,补上 product_name(快照表不存该字段)
+    product_name_map = _load_product_name_map(
+        db, snapshot.project_id, [item.sku for item in paged_items]
+    )
+
     # 转换为列表格式
     list_items = [
         InventoryReplenishmentListItem(
@@ -305,6 +311,7 @@ def get_snapshot_items_endpoint(
             sku=item.sku,
             country=snapshot.country,
             asin=item.asin,
+            product_name=product_name_map.get(item.sku),
             available_inventory=item.available_inventory,
             in_transit_quantity=item.in_transit_quantity,
             dms_30=float(item.dms_30) if item.dms_30 else None,
