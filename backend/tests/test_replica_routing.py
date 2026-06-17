@@ -183,17 +183,152 @@ def test_force_primary_context_manager_resets_marker() -> None:
 
 
 def test_get_primary_db_sets_force_primary_marker() -> None:
-    """`get_primary_db()` sets _force_primary for the duration of the request
-    so a nested `get_read_db()` call stays on primary."""
-    primary_factory = sessionmaker(bind=_sqlite_engine(), autoflush=False, autocommit=False, future=True)
+    """`get_primary_db()` is an async generator; FastAPI detects it via
+    `inspect.isasyncgenfunction` and drives it through
+    `asynccontextmanager` + `enter_async_context`. This test exercises
+    the same path: drive the gen manually inside an asyncio task, with
+    the marker on, then close it cleanly.
+    """
+    import asyncio
+
+    primary_factory = sessionmaker(
+        bind=_sqlite_engine(), autoflush=False, autocommit=False, future=True
+    )
     with patch.object(session_module, "SessionLocal", primary_factory):
-        gen = get_primary_db()
-        db = next(gen)
-        # Inside the gen, the marker is True.
-        assert _force_primary.get() is True
-        gen.close()
+
+        async def _drive() -> None:
+            gen = get_primary_db()
+            db = await gen.__anext__()
+            try:
+                # Inside the gen, the marker is True.
+                assert _force_primary.get() is True
+            finally:
+                await gen.aclose()
+
+        asyncio.run(_drive())
     # After the gen closes, the marker is reset.
     assert _force_primary.get() is False
+
+
+def test_get_primary_db_async_dep_works_under_fastapi_path() -> None:
+    """BEL-126 regression: `get_primary_db` is an async generator
+    (no `@asynccontextmanager`) so `inspect.isasyncgenfunction` is True
+    and FastAPI's `solve_generator` routes it through
+    `asynccontextmanager(call)()` + `enter_async_context` (no thread
+    copy, no cross-context reset).
+
+    The previous sync-contextmanager shape triggered
+    `ValueError: Token was created in a different Context` on
+    `PATCH /api/v1/shipment-schedules/{id}` because
+    `contextmanager_in_threadpool` ran `__enter__` and `__exit__` in
+    two separate `anyio.to_thread.run_sync` calls (each its own
+    `contextvars.copy_context()` snapshot).
+    """
+    import asyncio
+    import contextlib
+    import inspect
+
+    # Sanity: the function is detected as an async generator, so
+    # FastAPI's `is_async_gen_callable` returns True and the request
+    # will route through the async path, not the broken sync-cm path.
+    assert inspect.isasyncgenfunction(get_primary_db)
+    # And it is NOT a sync contextmanager (which would route through
+    # `contextmanager_in_threadpool` and trigger the original bug).
+    assert not inspect.isgeneratorfunction(get_primary_db)
+
+    primary_factory = sessionmaker(
+        bind=_sqlite_engine(), autoflush=False, autocommit=False, future=True
+    )
+    with patch.object(session_module, "SessionLocal", primary_factory):
+
+        async def _drive() -> None:
+            # This mirrors what FastAPI does for an async gen dep:
+            # wrap with `asynccontextmanager`, then `enter_async_context`.
+            cm = contextlib.asynccontextmanager(get_primary_db)()
+            db = await cm.__aenter__()
+            try:
+                # Inside the request handler, the marker is set.
+                assert _force_primary.get() is True
+            finally:
+                # Exit runs in the same async task context as enter;
+                # the token is still valid here.
+                await cm.__aexit__(None, None, None)
+
+        asyncio.run(_drive())
+
+    # After the request finishes, the marker is reset to default.
+    assert _force_primary.get() is False
+
+
+def test_get_primary_db_via_contextmanager_in_threadpool_raises() -> None:
+    """BEL-126 documentation: confirm the OLD path (sync contextmanager
+    driven via `contextmanager_in_threadpool`) still raises the
+    cross-context `ValueError`. This is the failure mode we are
+    guarding against by switching to async gen.
+    """
+    import asyncio
+    from contextlib import contextmanager
+
+    from fastapi.concurrency import contextmanager_in_threadpool
+
+    @contextmanager
+    def _sync_cm():
+        from app.db.replica import _force_primary as marker
+
+        token = marker.set(True)
+        try:
+            yield None
+        finally:
+            marker.reset(token)
+
+    async def _drive() -> None:
+        cm = contextmanager_in_threadpool(_sync_cm())
+        await cm.__aenter__()
+        # The exit is what raises when the inner cm's `reset` is
+        # called from a `copy_context()` that does not own the token.
+        with pytest.raises(ValueError, match="different Context"):
+            await cm.__aexit__(None, None, None)
+
+    asyncio.run(_drive())
+
+
+def test_force_primary_resets_marker_after_with_block() -> None:
+    """BEL-126: `force_primary()` is still a sync contextmanager, but
+    its `__exit__` is now safe under cross-context reset (the value
+    will be cleaned up when the request Context ends).
+    """
+    with force_primary():
+        assert _force_primary.get() is True
+    assert _force_primary.get() is False
+
+
+def test_force_primary_swallows_cross_context_reset() -> None:
+    """BEL-126: if `force_primary()` is used inside a sync function that
+    is later driven by `anyio.to_thread.run_sync` (so `__exit__` ends
+    up in a different `copy_context()`), the cross-context `reset`
+    raises `ValueError`. The fix swallows it; the value will be
+    released when the Context the `set` ran in is torn down.
+    """
+    import anyio
+    import asyncio
+
+    cm = force_primary()
+    cm.__enter__()
+    try:
+        assert _force_primary.get() is True
+
+        # Drive the exit through anyio's threadpool. anyio runs sync
+        # callables in a `copy_context()` snapshot that is NOT the
+        # one `__enter__` ran in. The old code raised `ValueError`
+        # here; the new code swallows it.
+        async def _drive_exit() -> None:
+            await anyio.to_thread.run_sync(cm.__exit__, None, None, None)
+
+        asyncio.run(_drive_exit())
+    finally:
+        # Reset the marker in the current (test) context so the
+        # autouse fixture's assertion on cleanup passes.
+        _force_primary.set(False)
 
 
 # ---------------------------------------------------------------------------
