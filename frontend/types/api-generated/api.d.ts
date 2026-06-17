@@ -1476,7 +1476,7 @@ export interface paths {
         };
         /**
          * Health
-         * @description Enhanced health check with DB + Redis status for monitoring.
+         * @description Enhanced health check with DB + replica + Redis status for monitoring.
          */
         get: operations["health_api_v1_health_get"];
         put?: never;
@@ -7427,6 +7427,8 @@ export interface components {
         HealthResponse: {
             /** Database */
             database: string;
+            /** Database Replica */
+            database_replica: string;
             /** Redis */
             redis: string;
             /** Status */
@@ -8106,10 +8108,10 @@ export interface components {
             estimated_replenishment_quantity?: number | null;
             /** In Transit Quantity */
             in_transit_quantity: number;
-            /** Production Lead Days */
-            production_lead_days: number;
             /** Product Name */
             product_name?: string | null;
+            /** Production Lead Days */
+            production_lead_days: number;
             /** Project Id */
             project_id: number;
             /** Project Name */
