@@ -85,6 +85,7 @@ type AnalysisRow = {
   sku: string
   country: string
   asin: string | null
+  product_name: string | null
   available_inventory: number
   in_transit_quantity: number
   dms_30: number | null
@@ -580,10 +581,8 @@ export default function InventoryReplenishmentPage() {
       })
 
       const columns = [
-        { header: '项目', key: 'project_name', width: 16 },
-        { header: '国家', key: 'country', width: 10 },
         { header: 'SKU', key: 'sku', width: 18 },
-        { header: 'ASIN', key: 'asin', width: 18 },
+        { header: '产品名称', key: 'product_name', width: 28 },
         { header: '店铺库存', key: 'available_inventory', width: 12 },
         { header: '在途', key: 'in_transit_quantity', width: 10 },
         { header: '30D', key: 'dms_30', width: 10 },
@@ -622,10 +621,8 @@ export default function InventoryReplenishmentPage() {
       rows.forEach((row, index) => {
         const sheetRow = worksheet.getRow(index + 2)
         sheetRow.values = [
-          row.project_name,
-          row.country,
           row.sku,
-          row.asin || '-',
+          row.product_name || '-',
           row.available_inventory,
           row.in_transit_quantity,
           row.dms_30,
@@ -651,10 +648,10 @@ export default function InventoryReplenishmentPage() {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 5 && colNumber <= 18 ? 'right' : 'left',
+            horizontal: colNumber >= 3 && colNumber <= 16 ? 'right' : 'left',
             wrapText: true,
           }
-          if (colNumber === 23) {
+          if (colNumber === 21) {
             const riskStatus = row.risk_status
             if (riskStatus === '断货风险') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFDC2626' }, bold: true }
@@ -672,42 +669,42 @@ export default function InventoryReplenishmentPage() {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF64748B' } }
             }
           }
-          if (colNumber === 5 || colNumber === 6 || colNumber === 17 || colNumber === 18) cell.numFmt = '#,##0'
-          if (colNumber >= 7 && colNumber <= 11) cell.numFmt = '0.0000'
-          if (colNumber === 12) cell.numFmt = '0.00%'
-          if (colNumber === 13 || colNumber === 14) cell.numFmt = '0.00'
-          if (colNumber === 22) cell.numFmt = '#,##0'
+          if (colNumber === 3 || colNumber === 4 || colNumber === 15 || colNumber === 16) cell.numFmt = '#,##0'
+          if (colNumber >= 5 && colNumber <= 9) cell.numFmt = '0.0000'
+          if (colNumber === 10) cell.numFmt = '0.00%'
+          if (colNumber === 11 || colNumber === 12) cell.numFmt = '0.00'
+          if (colNumber === 20) cell.numFmt = '#,##0'
           applyBorder(cell)
         })
       })
 
       const totalRow = worksheet.getRow(rows.length + 2)
       totalRow.getCell(1).value = '筛选结果合计'
-      totalRow.getCell(5).value = tableTotals.available_inventory
-      totalRow.getCell(6).value = tableTotals.in_transit_quantity
-      totalRow.getCell(7).value = tableTotals.dms_30
-      totalRow.getCell(8).value = tableTotals.dms_14
-      totalRow.getCell(9).value = tableTotals.dms_7
-      totalRow.getCell(10).value = tableTotals.dms_3
-      totalRow.getCell(11).value = tableTotals.base_dms
-      totalRow.getCell(13).value = tableTotals.weighted_dms
-      totalRow.getCell(22).value = tableTotals.estimated_replenishment_quantity
-      totalRow.getCell(23).value = `SKU: ${summary.sku_count}`
-      applyRowBorder(totalRow, 1, 23)
+      totalRow.getCell(3).value = tableTotals.available_inventory
+      totalRow.getCell(4).value = tableTotals.in_transit_quantity
+      totalRow.getCell(5).value = tableTotals.dms_30
+      totalRow.getCell(6).value = tableTotals.dms_14
+      totalRow.getCell(7).value = tableTotals.dms_7
+      totalRow.getCell(8).value = tableTotals.dms_3
+      totalRow.getCell(9).value = tableTotals.base_dms
+      totalRow.getCell(11).value = tableTotals.weighted_dms
+      totalRow.getCell(20).value = tableTotals.estimated_replenishment_quantity
+      totalRow.getCell(21).value = `SKU: ${summary.sku_count}`
+      applyRowBorder(totalRow, 1, 21)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', wrapText: true }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
       })
-      totalRow.getCell(5).numFmt = '#,##0'
-      totalRow.getCell(6).numFmt = '#,##0'
+      totalRow.getCell(3).numFmt = '#,##0'
+      totalRow.getCell(4).numFmt = '#,##0'
+      totalRow.getCell(5).numFmt = '0.0000'
+      totalRow.getCell(6).numFmt = '0.0000'
       totalRow.getCell(7).numFmt = '0.0000'
       totalRow.getCell(8).numFmt = '0.0000'
       totalRow.getCell(9).numFmt = '0.0000'
-      totalRow.getCell(10).numFmt = '0.0000'
-      totalRow.getCell(11).numFmt = '0.0000'
-      totalRow.getCell(13).numFmt = '0.00'
-      totalRow.getCell(22).numFmt = '#,##0'
+      totalRow.getCell(11).numFmt = '0.00'
+      totalRow.getCell(20).numFmt = '#,##0'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
@@ -716,8 +713,10 @@ export default function InventoryReplenishmentPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
+      const countryLabel = COUNTRY_OPTIONS.find((opt) => opt.value === country)?.label ?? country
+      const countryShort = (countryLabel.split(' (')[0] ?? countryLabel).trim()
       link.href = url
-      link.download = `补货分析-${safeTimestamp}.xlsx`
+      link.download = `补货分析-${selectedProjectName}-${countryShort}-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({
@@ -943,8 +942,7 @@ export default function InventoryReplenishmentPage() {
                         <TableHeader>
                           <TableRow className="bg-transparent">
                             <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}>SKU</TableHead>
-                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px]`}>国家</TableHead>
-                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[152px]`}>ASIN</TableHead>
+                            <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[200px]`}>产品名称</TableHead>
                             <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>店铺库存</TableHead>
                             <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>在途</TableHead>
                             <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>30D</TableHead>
@@ -978,9 +976,8 @@ export default function InventoryReplenishmentPage() {
                                   <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}>
                                     {row.sku}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{row.country}</TableCell>
                                   <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 font-medium text-foreground">
-                                    {row.asin || '--'}
+                                    {row.product_name || '--'}
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.available_inventory)}</TableCell>
                                   <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.in_transit_quantity)}</TableCell>
@@ -1084,7 +1081,7 @@ export default function InventoryReplenishmentPage() {
                             })}
                             <TableRow className="bg-muted/40 font-semibold">
                               <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}>合计</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" colSpan={2} />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" colSpan={1} />
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.available_inventory)}</TableCell>
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.in_transit_quantity)}</TableCell>
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_30, 4)}</TableCell>
@@ -1125,20 +1122,19 @@ export default function InventoryReplenishmentPage() {
                   const risk = riskMeta(row.risk_status)
                   return (
                     <div key={key} className="dashboard-surface p-4 space-y-3">
-                      {/* 头部：SKU + 风险 + 国家 */}
+                      {/* 头部：SKU + 风险 */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-semibold text-sm text-foreground truncate">{row.sku}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">{row.country}</span>
                         </div>
                         <Badge variant="outline" className={cn('text-xs shrink-0', risk.className)}>
                           {risk.label}
                         </Badge>
                       </div>
 
-                      {/* ASIN */}
-                      {row.asin && (
-                        <div className="text-xs text-muted-foreground">ASIN: {row.asin}</div>
+                      {/* 产品名称 */}
+                      {row.product_name && (
+                        <div className="text-xs text-muted-foreground">产品名称: {row.product_name}</div>
                       )}
 
                       {/* 核心数据 2 列网格 */}
