@@ -576,7 +576,7 @@ export default function InventoryReplenishmentPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('补货分析', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, showGridLines: false }],
+        views: [{ state: 'frozen', ySplit: 1, xSplit: 1, showGridLines: false }],
       })
 
       const columns = [
@@ -605,33 +605,11 @@ export default function InventoryReplenishmentPage() {
         { header: '风险状态', key: 'risk_status', width: 12 },
       ] as const
 
-      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-      const lastColumn = columns.length
       const selectedProjectName = projects.find((project) => String(project.id) === projectId)?.name ?? '全部项目'
-      worksheet.mergeCells(1, 1, 1, lastColumn)
-      worksheet.getCell(1, 1).value = '补货核算分析'
-      worksheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-      worksheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-
-      worksheet.mergeCells(2, 1, 2, lastColumn)
-      worksheet.getCell(2, 1).value = `导出时间：${exportedAt}    说明：导出当前筛选条件下的补货主表数据`
-      worksheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-      worksheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-
-      const filterText = [
-        `项目：${selectedProjectName}`,
-        `国家：${COUNTRY_OPTIONS.find((option) => option.value === country)?.label ?? country}`,
-        keyword.trim() ? `关键词：${keyword.trim()}` : '关键词：全部',
-        riskFilter === 'all' ? '风险状态：全部' : `风险状态：${riskFilter}`,
-      ].join('    ')
-      worksheet.mergeCells(3, 1, 3, lastColumn)
-      worksheet.getCell(3, 1).value = filterText
-      worksheet.getCell(3, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF64748B' } }
-      worksheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
 
       worksheet.columns = columns.map((column) => ({ key: column.key, width: column.width }))
 
-      const headerRow = worksheet.getRow(4)
+      const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
       headerRow.height = 24
       headerRow.eachCell((cell) => {
@@ -642,7 +620,7 @@ export default function InventoryReplenishmentPage() {
       })
 
       rows.forEach((row, index) => {
-        const sheetRow = worksheet.getRow(index + 5)
+        const sheetRow = worksheet.getRow(index + 2)
         sheetRow.values = [
           row.project_name,
           row.country,
@@ -703,7 +681,7 @@ export default function InventoryReplenishmentPage() {
         })
       })
 
-      const totalRow = worksheet.getRow(rows.length + 5)
+      const totalRow = worksheet.getRow(rows.length + 2)
       totalRow.getCell(1).value = '筛选结果合计'
       totalRow.getCell(5).value = tableTotals.available_inventory
       totalRow.getCell(6).value = tableTotals.in_transit_quantity
