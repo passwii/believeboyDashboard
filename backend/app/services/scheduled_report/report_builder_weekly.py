@@ -165,6 +165,9 @@ def build_weekly_report_data(
     
     # 5. 库存预警
     inventory_alerts = _get_inventory_alerts(db, project_ids, country)
+
+    # 5.5 库存摘要（用于邮件模板"📦 库存状态"卡片，BEL-131）
+    inventory_summary = _get_inventory_summary(db, project_ids, country)
     
     # 6. 广告数据对比
     ads_comparison = _get_ads_comparison(
@@ -270,6 +273,9 @@ def build_weekly_report_data(
         
         # 库存预警
         "inventory_alerts": inventory_alerts,
+
+        # 库存摘要（BEL-131：供邮件模板"📦 库存状态"卡片消费）
+        "inventory_summary": inventory_summary,
         
         # 退货数据
         "returns_data": returns_data,
@@ -600,6 +606,114 @@ def _get_inventory_alerts(
     except Exception as e:
         logger.warning(f"Failed to get inventory alerts: {e}")
         return []
+
+
+def _get_inventory_summary(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+) -> dict[str, Any]:
+    """库存摘要：用于邮件模板的"📦 库存状态"卡片。
+
+    修复 BEL-131：周报邮件模板的"退货及库存概况"区块（见
+    ``email_sender_weekly._section_week_returns`` 与
+    ``_render_weekly_content_sections``）会去 ``report_data`` 里读
+    ``inventory_summary``，期望拿到 ``{sku_count, total_available,
+    low_stock_count, oos_count}`` 四个字段。但
+    ``build_weekly_report_data`` 之前只构造了 ``inventory_alerts``
+    （告警 list），从未生成这个 summary dict，导致邮件渲染时
+    ``inv_total=0``，整段"退货及库存概况"在没有退货的周被直接跳过
+    （条件 ``ret_qty>0 or inv_total>0 or ...`` 永不成立），有退货的
+    周则四行全显示 0。
+
+    修复：
+      * 取数口径与 ``_get_inventory_alerts``（BEL-130）保持一致——
+        按 ``(project, country)`` 下 ``report_date`` 最新的 inventory
+        快照取数，latest-per-group 走 ``ROW_NUMBER() OVER (...)``
+        窗口函数，避免依赖 ``is_current`` 标志。
+      * 阈值与月报 ``_get_inventory_summary`` 对齐：``low`` 阈值 = 20，
+        ``oos`` 阈值 = ``available_qty <= 0`` 或
+        ``stock_status == 'out_of_stock'``。
+
+    Args:
+        db: 数据库会话
+        project_ids: 项目 ID 列表，None 表示全部项目
+        country: 国家代码
+
+    Returns:
+        ``{"sku_count": int, "total_available": int,
+           "low_stock_count": int, "oos_count": int}``
+    """
+    try:
+        rn = func.row_number().over(
+            partition_by=AnalysisSourceFile.project_id,
+            order_by=(
+                AnalysisSourceFile.report_date.desc(),
+                AnalysisSourceFile.version.desc(),
+                AnalysisSourceFile.id.desc(),
+            ),
+        ).label("rn")
+        ranked_subq = (
+            db.query(
+                AnalysisSourceFile.id.label("source_file_id"),
+                AnalysisSourceFile.project_id,
+                rn,
+            )
+            .filter(
+                AnalysisSourceFile.report_type == "inventory_report",
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_date.isnot(None),
+            )
+            .subquery()
+        )
+        latest_source_subq = (
+            db.query(ranked_subq).filter(ranked_subq.c.rn == 1).subquery()
+        )
+
+        base_query = (
+            db.query(
+                InventorySnapshotRow.sku,
+                InventorySnapshotRow.available_qty,
+                InventorySnapshotRow.stock_status,
+            )
+            .join(
+                latest_source_subq,
+                latest_source_subq.c.source_file_id == InventorySnapshotRow.source_file_id,
+            )
+        )
+        if project_ids:
+            base_query = base_query.filter(
+                latest_source_subq.c.project_id.in_(project_ids)
+            )
+
+        rows = base_query.all()
+        total_available = sum(int(r.available_qty or 0) for r in rows)
+        oos_count = sum(
+            1 for r in rows
+            if (r.available_qty or 0) <= 0 or r.stock_status == "out_of_stock"
+        )
+        # low 与 oos 互斥：只在"非 OOS 且 0 < qty <= 20"时算 low，
+        # 避免 stock_status='out_of_stock' 的 SKU 同时被算到 low 里。
+        low_count = sum(
+            1 for r in rows
+            if 0 < (r.available_qty or 0) <= 20
+            and r.stock_status != "out_of_stock"
+        )
+        return {
+            "sku_count": len(rows),
+            "total_available": total_available,
+            "low_stock_count": low_count,
+            "oos_count": oos_count,
+        }
+
+    except Exception as e:
+        logger.warning(f"Failed to get inventory summary: {e}")
+        return {
+            "sku_count": 0,
+            "total_available": 0,
+            "low_stock_count": 0,
+            "oos_count": 0,
+        }
 
 
 def _get_ads_comparison(
