@@ -8108,6 +8108,8 @@ export interface components {
             in_transit_quantity: number;
             /** Production Lead Days */
             production_lead_days: number;
+            /** Product Name */
+            product_name?: string | null;
             /** Project Id */
             project_id: number;
             /** Project Name */
