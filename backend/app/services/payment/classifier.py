@@ -122,7 +122,7 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
         if row_type == "Debt":
             classified["debt"].append(row)
             continue
-        if row_type == "FBA Transaction fees":
+        if row_type == "FBA Transaction Fees":
             classified["fba_transaction_fees"].append(row)
             continue
         if row_type == "Fee Adjustment":
