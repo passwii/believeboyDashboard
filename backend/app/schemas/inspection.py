@@ -158,6 +158,7 @@ class InspectionHistoryItem(BaseModel):
     status: str
     account_health_rating: str | None = None
     compliance_total: int | None = None
+    status_summary: str | None = None
     submitted_by: str | None = None
     submitted_at: datetime | None = None
     screenshots: list[InspectionHistoryScreenshot] = []

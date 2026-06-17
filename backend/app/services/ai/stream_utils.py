@@ -19,6 +19,8 @@ def serialize_message(row: AIMessage) -> dict[str, object]:
         "role": row.role,
         "content": row.content,
         "search_sources": parse_search_sources(row.search_sources),
+        # [BEL-81.B] 历史消息回放时，前端按此字段渲染时间范围 chip
+        "search_time_range": row.search_time_range,
         "is_complete": row.is_complete,
         "prompt_tokens": row.prompt_tokens,
         "completion_tokens": row.completion_tokens,
@@ -62,8 +64,24 @@ def build_stream_tool_done() -> bytes:
     return encode_stream_event({"type": "tool_done"})
 
 
-def build_stream_sources(sources: list[dict]) -> bytes:
-    return encode_stream_event({"type": "sources", "sources": sources})
+def build_stream_sources(
+    sources: list[dict],
+    time_range: str | None = None,
+    query: str | None = None,
+) -> bytes:
+    """构建 sources 事件。
+
+    [BEL-81.B] sources 事件额外携带 `time_range`（day|week|month|year）
+    与 `query`（tool 调用时的实际查询词），供前端在搜索结果卡片上方
+    渲染时间范围 chip。`time_range` 缺省时字段不写入事件体，保持对旧
+    客户端的兼容。
+    """
+    payload: dict[str, Any] = {"type": "sources", "sources": sources}
+    if time_range:
+        payload["time_range"] = time_range
+    if query:
+        payload["query"] = query
+    return encode_stream_event(payload)
 
 
 def build_stream_usage(usage: dict) -> bytes:

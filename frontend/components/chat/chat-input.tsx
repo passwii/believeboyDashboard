@@ -11,6 +11,7 @@ import {
   SendHorizontal,
   Globe,
   BrainCircuit,
+  AlertCircle,
 } from 'lucide-react'
 import { ModelSelector } from './model-selector'
 import { ensureConfigLoaded, getConfig, subscribe as subscribeConfig } from '@/lib/api/ai-chat-config-store'
@@ -50,6 +51,12 @@ export function ChatInput({
   const outerGlowRef = useRef<HTMLDivElement>(null)
   const sendBtnRef = useRef<HTMLButtonElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  // Web-search toggle: separate refs for the diffusion ring (the
+  // expanding outline on enable) and the button itself (the squash
+  // feedback on disable). Keeping them apart means the two animations
+  // never stomp on each other when the user toggles quickly.
+  const webSearchBtnRef = useRef<HTMLButtonElement>(null)
+  const webSearchRingRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     ensureConfigLoaded().catch(() => {
@@ -112,6 +119,34 @@ export function ChatInput({
   const handleToggleReasoning = () => {
     if (disabled || !reasoningSupported) return
     onReasoningEffortChange?.(reasoningEnabled ? null : defaultReasoningEffort)
+  }
+
+  // Web-search toggle feedback. Two distinct motions:
+  //   * ENABLING — diffusion ring (separate span ref) scales 0.8→1.2 with
+  //     opacity fading 0.8→0 over 400ms. The ring is hidden by default
+  //     (initial style below) and `fromTo` revives it on each click.
+  //   * DISABLING — 200ms yoyo squash (1→0.95→1) on the button itself.
+  //     Yoyo + repeat:1 with 0.1s duration = two halves = 200ms total,
+  //     landing back at scale 1 so we don't fight the button's own
+  //     `transition-all`.
+  const handleToggleWebSearch = () => {
+    if (disabled || !cfg?.webSearchConfigured) return
+    if (enableWebSearch) {
+      if (webSearchBtnRef.current) {
+        gsap.fromTo(
+          webSearchBtnRef.current,
+          { scale: 1 },
+          { scale: 0.95, duration: 0.1, yoyo: true, repeat: 1, ease: 'power2.inOut' }
+        )
+      }
+    } else if (webSearchRingRef.current) {
+      gsap.fromTo(
+        webSearchRingRef.current,
+        { scale: 0.8, opacity: 0.8 },
+        { scale: 1.2, opacity: 0, duration: 0.4, ease: 'power2.out' }
+      )
+    }
+    onToggleWebSearch?.(!enableWebSearch)
   }
 
   return (
@@ -240,19 +275,55 @@ export function ChatInput({
 
               {/* Web search toggle */}
               <button
+                ref={webSearchBtnRef}
                 type="button"
-                onClick={() => onToggleWebSearch?.(!enableWebSearch)}
+                onClick={handleToggleWebSearch}
                 disabled={disabled || !cfg?.webSearchConfigured}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto] ${
-                  enableWebSearch
-                    ? 'bg-blue-500/20 text-blue-300'
-                    : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
-                } ${disabled || !cfg?.webSearchConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`relative flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] ${
+                  !cfg?.webSearchConfigured
+                    ? 'border border-amber-500/20 bg-amber-500/[0.06] text-amber-200/90 cursor-not-allowed'
+                    : enableWebSearch
+                      ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-400/30'
+                      : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
+                } ${disabled && cfg?.webSearchConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
                 aria-label={enableWebSearch ? '已开启联网搜索' : '联网搜索'}
                 title={cfg?.webSearchConfigured ? '联网搜索' : '后端未配置联网搜索'}
               >
-                <Globe className="size-3.5" />
-                <span className="hidden sm:inline">联网</span>
+                {/* Diffusion ring — sits behind the icon/text, hidden by
+                    default, briefly scales 0.8→1.2 with opacity fading out
+                    when the user enables the toggle. The initial inline
+                    style keeps it invisible at rest; `gsap.fromTo` revives
+                    it on each click. Only rendered when the toggle is
+                    configured and currently active (or the user just
+                    clicked on) — when webSearch is off AND configured,
+                    we skip the ring span to avoid an unused DOM node. */}
+                {cfg?.webSearchConfigured && (
+                  <span
+                    ref={webSearchRingRef}
+                    className="absolute inset-0 rounded-full pointer-events-none"
+                    style={{
+                      boxShadow: '0 0 0 1.5px rgba(96,165,250,0.6)',
+                      opacity: 0,
+                      transform: 'scale(0.8)',
+                    }}
+                    aria-hidden
+                  />
+                )}
+                {cfg?.webSearchConfigured ? (
+                  <Globe aria-hidden="true" className="size-4 sm:size-3.5" />
+                ) : (
+                  <AlertCircle aria-hidden="true" className="size-4 sm:size-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {!cfg?.webSearchConfigured
+                    ? '联网未配置'
+                    : enableWebSearch
+                      ? '联网中'
+                      : '联网'}
+                </span>
+                {enableWebSearch && cfg?.webSearchConfigured && (
+                  <span className="size-1 rounded-full bg-blue-400 animate-pulse" />
+                )}
               </button>
 
               <button
@@ -288,6 +359,9 @@ export function ChatInput({
                 }`}
                 aria-label="发送"
               >
+                {enableWebSearch && cfg?.webSearchConfigured && (
+                  <Globe aria-hidden="true" className="size-3.5" />
+                )}
                 <span className="hidden sm:inline">立即构建</span>
                 <SendHorizontal className="size-4" />
               </button>

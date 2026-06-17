@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_read_db_session, get_request_operator, protected
 from app.schemas.ad_analysis import (
     AdAnalysisBudgetResponse,
     AdAnalysisCampaignsResponse,
@@ -38,7 +38,7 @@ def get_ad_analysis_overview(
     country: str = Query(default='US'),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisOverviewResponse:
@@ -64,7 +64,7 @@ def get_ad_analysis_campaigns(
     sku: str | None = Query(default=None),
     search_term: str | None = Query(default=None),
     placement: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisCampaignsResponse:
@@ -92,7 +92,7 @@ def get_ad_analysis_products(
     date_to: date | None = Query(default=None),
     campaign: str | None = Query(default=None),
     sku: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisProductsResponse:
@@ -116,7 +116,7 @@ def get_ad_analysis_time_trend(
     country: str = Query(default='US'),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTimeTrendResponse:
@@ -141,7 +141,7 @@ def get_ad_analysis_purchased_products(
     campaign: str | None = Query(default=None),
     sku: str | None = Query(default=None),
     purchased_asin: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisPurchasedProductsResponse:
@@ -169,7 +169,7 @@ def get_ad_analysis_search_terms(
     campaign: str | None = Query(default=None),
     search_term: str | None = Query(default=None),
     sku: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisSearchTermsResponse:
@@ -197,7 +197,7 @@ def get_ad_analysis_targets(
     campaign: str | None = Query(default=None),
     target_text: str | None = Query(default=None),
     sku: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTargetsResponse:
@@ -224,7 +224,7 @@ def get_ad_analysis_budget(
     date_to: date | None = Query(default=None),
     campaign: str | None = Query(default=None),
     sku: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisBudgetResponse:
@@ -251,7 +251,7 @@ def get_ad_analysis_placements(
     campaign: str | None = Query(default=None),
     sku: str | None = Query(default=None),
     placement: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisPlacementsResponse:
@@ -278,7 +278,7 @@ def get_ad_analysis_traffic_quality(
     date_to: date | None = Query(default=None),
     campaign: str | None = Query(default=None),
     sku: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> AdAnalysisTrafficQualityResponse:

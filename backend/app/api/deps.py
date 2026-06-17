@@ -6,13 +6,27 @@ from fastapi import Header
 from sqlalchemy.orm import Session
 
 from app.core.security import require_api_key
-from app.db.session import get_db
+from app.db.session import get_db, get_primary_db, get_read_db
 
 
 DbSession = Session
 
 
 def get_db_session(db: Session = Depends(get_db)) -> Session:
+    return db
+
+
+def get_read_db_session(db: Session = Depends(get_read_db)) -> Session:
+    """Read-routed session. Use for pure-GET handlers (BEL-55-P5 / BEL-73).
+
+    When `database_read_url` is blank this transparently returns a primary
+    session, so endpoints can adopt it without breaking the no-replica path.
+    """
+    return db
+
+
+def get_primary_db_session(db: Session = Depends(get_primary_db)) -> Session:
+    """Primary-only session. Use for write handlers and write-after-read."""
     return db
 
 

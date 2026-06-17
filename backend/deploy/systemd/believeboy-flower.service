@@ -13,7 +13,9 @@ WorkingDirectory=/home/damon/believeboyDashboard/backend
 EnvironmentFile=/home/damon/believeboyDashboard/backend/.env
 # FLOWER_PASSWORD must be set in /home/damon/believeboyDashboard/backend/.env.
 # The `flower_admin` username is the only operator account — keep it that
-# way until we wire a per-user auth backend.
+# way until we wire a per-user auth backend. The dashboard listens on
+# 0.0.0.0:5555 and is fronted by a cloudflared tunnel (see
+# backend/docs/multi-worker-ops.md for the tunnel hostname).
 ExecStart=/home/damon/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app flower \
   --basic_auth=flower_admin:${FLOWER_PASSWORD} \
   --port=5555

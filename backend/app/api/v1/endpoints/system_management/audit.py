@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_read_db_session, protected
 from app.models.operation_audit_log import OperationAuditLog
 
 from app.schemas.system_management.audit import (
@@ -29,7 +29,7 @@ def list_operation_audit_logs(
     target_type: str | None = Query(default=None),
     result: str | None = Query(default=None),
     keyword: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> OperationAuditLogsResponse:
     from app.services.system_management import _to_iso
 
@@ -102,7 +102,7 @@ def get_operation_audit_logs_summary(
     target_type: str | None = Query(default=None),
     result: str | None = Query(default=None),
     keyword: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> OperationAuditLogsSummaryResponse:
     summary = get_audit_log_summary(
         db,

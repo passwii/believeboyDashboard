@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -16,6 +16,7 @@ from app.models import (
     ShipmentSchedule,
     ShipmentScheduleItem,
 )
+from app.services import exchange_rate_service
 from app.services import infra as redis_service
 from app.services.daily.aggregation import (
     _MetricBucket,
@@ -556,4 +557,314 @@ def build_daily_analysis_all_projects(
         "detail_rows": global_detail,
         "available_dates": available_dates,
         "project_breakdown": project_breakdown,
+    }
+
+
+# 全部国家站点聚合：当前支持 US / DE /UK（与 utils/country.py 的 SUPPORTED_COUNTRIES 对齐）。
+# 国家 → 源币种映射，用于跨币种→USD 折算。
+ALL_COUNTRIES_AGGREGATION: tuple[str, ...] = ("US", "DE", "UK")
+ALL_COUNTRIES_CURRENCY: dict[str, str] = {
+    "US": "USD",
+    "DE": "EUR",
+    "UK": "GBP",
+}
+
+
+def _year_months_in_range(start_date: date, end_date: date) -> list[str]:
+    """列出 start_date..end_date 范围内去重并按升序排列的 year_month。
+
+    返回格式与 ``ExchangeRate.year_month`` 一致（'YYYY-MM'）。
+    """
+    months: set[str] = set()
+    cursor = date(start_date.year, start_date.month, 1)
+    end_first = date(end_date.year, end_date.month, 1)
+    while cursor <= end_first:
+        months.add(f"{cursor.year:04d}-{cursor.month:02d}")
+        # step to next month
+        if cursor.month == 12:
+            cursor = date(cursor.year + 1, 1, 1)
+        else:
+            cursor = date(cursor.year, cursor.month + 1, 1)
+    return sorted(months)
+
+
+def _load_usd_factors_for_countries(
+    db: Session,
+    *,
+    countries: tuple[str, ...],
+    year_months: list[str],
+) -> dict[tuple[str, str], Decimal]:
+    """预加载各国在各月相对 USD 的转换因子。
+
+    返回 {(country, year_month): source_to_usd_factor}。
+    - 对源币种为 USD 的国家，factor = 1。
+    - 对其他币种，factor = (source_to_cny_rate) / (usd_to_cny_rate)，与 commission
+      recompute 同口径。
+    - 缺失汇率时（连回退都没有）抛 HTTP 422，调用方在响应中能立刻看到哪一格没有数据。
+    """
+    factors: dict[tuple[str, str], Decimal] = {}
+    if not year_months:
+        return factors
+
+    for country_value in countries:
+        currency = ALL_COUNTRIES_CURRENCY.get(country_value)
+        if currency is None:
+            continue
+        for ym in year_months:
+            if currency == "USD":
+                factors[(country_value, ym)] = Decimal("1")
+                continue
+
+            source_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                db, currency=currency, year_month=ym
+            )
+            usd_rate = exchange_rate_service.get_exchange_rate_by_currency_month_with_fallback(
+                db, currency="USD", year_month=ym
+            )
+            if source_rate is None or usd_rate is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"exchange rate missing for country={country_value} "
+                        f"({currency}) or USD in {ym} (no fallback available); "
+                        "cannot convert all-countries aggregation to USD"
+                    ),
+                )
+            source_to_cny = Decimal(str(source_rate.rate))
+            usd_to_cny = Decimal(str(usd_rate.rate))
+            if usd_to_cny == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"USD->CNY rate is zero for {ym}",
+                )
+            factors[(country_value, ym)] = source_to_cny / usd_to_cny
+    return factors
+
+
+def _convert_bucket_amounts_to_usd(
+    buckets: dict[tuple[str, str], _MetricBucket],
+    *,
+    country: str,
+    usd_factors: dict[tuple[str, str], Decimal],
+) -> None:
+    """原地把一个国家的 buckets 内的金额字段（sales_amount / ad_spend /
+    business_sales_amount）按各 row 日期的 year_month 折算成 USD。
+
+    非金额字段（order_qty / impressions / clicks / ...）保持不变。
+    """
+    factor_by_year_month: dict[str, Decimal] = {
+        ym: usd_factors[(country, ym)]
+        for (_c, ym) in usd_factors.keys()
+        if _c == country
+    }
+    if not factor_by_year_month:
+        return
+
+    for (date_text, _sku), bucket in buckets.items():
+        # date_text 形如 'YYYY-MM-DD'
+        ym = date_text[:7]
+        factor = factor_by_year_month.get(ym)
+        if factor is None:
+            # 边界情况：start_date/end_date 跨多月，但预加载的 year_month 列表中
+            # 缺了某月；这种 row 保持原币种原值，不参与 USD 聚合。
+            continue
+        bucket.sales_amount = (bucket.sales_amount * factor).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        bucket.ad_spend = (bucket.ad_spend * factor).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        bucket.business_sales_amount = (bucket.business_sales_amount * factor).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+
+def build_daily_analysis_all_countries(
+    db: Session,
+    *,
+    project_id: int,
+    start_date: str,
+    end_date: str,
+    sku: str | None = None,
+) -> dict[str, object]:
+    """跨所有支持的国家站点聚合单项目数据，并按 exchange_rates 表把金额字段折算成 USD。
+
+    行为约定：
+    - 对每个国家独立调用 *_metrics loader，再把每个国家的 buckets 合并到
+      ``global_buckets``。同一 (date, sku) 在不同国家的数据点会被相加。
+    - 在合并到 global 之前，每个国家的金额字段（sales_amount / ad_spend /
+      business_sales_amount）已按当月 ``source_to_cny / usd_to_cny`` 因子
+      折算成 USD；非金额字段（order_qty / impressions / clicks / sessions /
+      page_views / units_ordered / available_qty / in_transit_qty /
+      ad_orders）保持原值。
+    - 不应用 sku 过滤（与 all_projects 一致：单 SKU 不能跨国家求和）。
+    - 返回 ``country_breakdown`` 给出按国家分桶的明细，每行同时带 ``currency``
+      字段标识源币种，方便前端展示"原始/折算后"对照。
+    - 汇率预加载：按 (country, year_month) 一次性获取并按月回退；若某月汇率
+      缺失（含回退）则整个请求返回 422，避免出现"半截已折算、半截未折算"
+      的不一致数据。
+    """
+    project = _get_project_or_404(db, project_id)
+    normalized_start = parse_yyyy_mm_dd(start_date, "start_date")
+    normalized_end = parse_yyyy_mm_dd(end_date, "end_date")
+
+    if normalized_start > normalized_end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date cannot be greater than end_date",
+        )
+
+    year_months = _year_months_in_range(normalized_start, normalized_end)
+    usd_factors = _load_usd_factors_for_countries(
+        db,
+        countries=ALL_COUNTRIES_AGGREGATION,
+        year_months=year_months,
+    )
+
+    global_buckets: dict[tuple[str, str], _MetricBucket] = {}
+    global_in_transit_map: dict[str, int] = {}
+    country_breakdown: dict[str, dict[str, object]] = {}
+    available_dates: dict[str, list[str]] = {
+        "sales_report": [],
+        "ad_product_report": [],
+        "inventory_report": [],
+        "business_report": [],
+    }
+    report_type_key_map = {
+        "latest_sales_date": "sales_report",
+        "latest_ad_date": "ad_product_report",
+        "latest_inventory_date": "inventory_report",
+        "latest_business_date": "business_report",
+    }
+
+    for country_value in ALL_COUNTRIES_AGGREGATION:
+        detail_buckets: dict[tuple[str, str], _MetricBucket] = {}
+
+        _load_sales_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=country_value,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_ad_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=country_value,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_inventory_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=country_value,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        asin_to_sku_map = _build_asin_to_sku_map(
+            db,
+            project_id=project_id,
+            country=country_value,
+            start_date=normalized_start,
+            end_date=normalized_end,
+        )
+        _load_business_metrics(
+            db,
+            detail_buckets=detail_buckets,
+            project_id=project_id,
+            country=country_value,
+            start_date=normalized_start,
+            end_date=normalized_end,
+            asin_to_sku_map=asin_to_sku_map,
+        )
+
+        # 折算该国家的金额字段到 USD（不动非金额字段），然后再做 country 维度聚合。
+        _convert_bucket_amounts_to_usd(
+            detail_buckets,
+            country=country_value,
+            usd_factors=usd_factors,
+        )
+
+        country_detail, country_summary = _aggregate_buckets(
+            detail_buckets, sku_filter=None,
+        )
+        country_in_transit_map = _load_in_transit_quantities(
+            db, project_id, country_value
+        )
+        for row in country_detail:
+            row["in_transit_qty"] = country_in_transit_map.get(row["sku"], 0)
+            row["country"] = country_value
+        country_breakdown[country_value] = {
+            "summary_rows": country_summary,
+            "detail_rows": country_detail,
+            "currency": "USD",  # 折算后
+            "source_currency": ALL_COUNTRIES_CURRENCY.get(country_value, "USD"),
+        }
+
+        for key, bucket in detail_buckets.items():
+            global_bucket = global_buckets.setdefault(key, _MetricBucket())
+            _set_asin_if_blank(global_bucket, bucket.asin)
+            global_bucket.order_qty += bucket.order_qty
+            global_bucket.sales_amount += bucket.sales_amount
+            global_bucket.impressions += bucket.impressions
+            global_bucket.clicks += bucket.clicks
+            global_bucket.ad_spend += bucket.ad_spend
+            global_bucket.ad_orders += bucket.ad_orders
+            global_bucket.available_qty += bucket.available_qty
+            global_bucket.page_views += bucket.page_views
+            global_bucket.units_ordered += bucket.units_ordered
+            global_bucket.sessions += bucket.sessions
+            global_bucket.business_sales_amount += bucket.business_sales_amount
+
+        for sku_key, qty in country_in_transit_map.items():
+            global_in_transit_map[sku_key] = global_in_transit_map.get(sku_key, 0) + qty
+
+        proj_dates = _load_latest_available_dates(
+            db, project_id=project_id, country=country_value
+        )
+        for key, latest_date in proj_dates.items():
+            if latest_date is None:
+                continue
+            report_type = report_type_key_map.get(key)
+            if report_type is None:
+                continue
+            current = available_dates[report_type]
+            if not current or latest_date > current[0]:
+                available_dates[report_type] = [latest_date]
+
+    global_detail, global_summary = _aggregate_buckets(global_buckets, sku_filter=None)
+    for row in global_detail:
+        row["in_transit_qty"] = global_in_transit_map.get(row["sku"], 0)
+
+    return {
+        "console": {
+            "project_id": int(project.id),
+            "project_name": project.project_name,
+            "country": "ALL",
+            "start_date": normalized_start.isoformat(),
+            "end_date": normalized_end.isoformat(),
+            "requested_days": len(
+                [item.isoformat() for item in date_range(normalized_start, normalized_end)]
+            ),
+            "summary_days": len(global_summary),
+            "detail_rows": len(global_detail),
+            "sales_source_days": 0,
+            "ad_source_days": 0,
+            "inventory_source_days": 0,
+            "business_source_days": 0,
+            "missing_dates": [],
+            "latest_sales_date": None,
+            "latest_ad_date": None,
+            "latest_inventory_date": None,
+            "latest_business_date": None,
+        },
+        "summary_rows": global_summary,
+        "detail_rows": global_detail,
+        "available_dates": available_dates,
+        "country_breakdown": country_breakdown,
+        "currency": "USD",
+        "currency_note": "金额字段已按当月 CNY 中转折算为 USD 统一展示；非金额字段（订单/曝光/点击/库存等）保持原值。",
     }

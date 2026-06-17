@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models.notification_subscription import NotificationSubscription
 from app.schemas.notification import (
     SubscriptionCreate,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/notification-settings", tags=["notification-settings
 @router.get("/subscriptions", response_model=SubscriptionListResponse)
 def list_subscriptions(
     project_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> SubscriptionListResponse:
@@ -45,7 +45,7 @@ def list_subscriptions(
 @router.post("/subscriptions", response_model=SubscriptionItem, status_code=201)
 def create_subscription_endpoint(
     data: SubscriptionCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -65,7 +65,7 @@ def create_subscription_endpoint(
 def update_subscription_endpoint(
     subscription_id: int,
     data: SubscriptionUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> SubscriptionItem:
@@ -79,7 +79,7 @@ def update_subscription_endpoint(
 @router.delete("/subscriptions/{subscription_id}", status_code=204)
 def delete_subscription_endpoint(
     subscription_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ):
@@ -94,7 +94,7 @@ def delete_subscription_endpoint(
 def test_subscription_email(
     subscription_id: int,
     data: TestEmailRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> TestEmailResponse:
     sub = db.query(NotificationSubscription).filter(NotificationSubscription.id == subscription_id).first()

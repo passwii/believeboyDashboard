@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.core.config import Settings, get_settings
 from app.schemas.ai_chat import (
     AIChatConfigResponse,
@@ -90,7 +90,7 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
 
 @router.get("/conversations", response_model=list[ConversationItem])
 def list_conversations(
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> list[ConversationItem]:
     ai_chat_service.ensure_tables(db)
@@ -110,7 +110,7 @@ def list_conversations(
 @router.post("/conversations", response_model=ConversationItem)
 def create_conversation(
     payload: ConversationCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationItem:
     if user_id is None:
@@ -125,7 +125,7 @@ def create_conversation(
 @router.delete("/conversations/{conversation_id}", status_code=204)
 def delete_conversation(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     ai_chat_service.ensure_tables(db)
@@ -138,7 +138,7 @@ def delete_conversation(
 def update_conversation(
     conversation_id: int,
     payload: ConversationCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationItem:
     ai_chat_service.ensure_tables(db)
@@ -154,7 +154,7 @@ def update_conversation(
 @router.post("/conversations/{conversation_id}/regenerate-title", response_model=ConversationTitleRegenerateResponse)
 def regenerate_conversation_title(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> ConversationTitleRegenerateResponse:
@@ -179,7 +179,7 @@ def regenerate_conversation_title(
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageItem])
 def list_messages(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> list[MessageItem]:
     ai_chat_service.ensure_tables(db)
@@ -191,7 +191,7 @@ def list_messages(
 def delete_message_endpoint(
     conversation_id: int,
     message_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     """硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。"""
@@ -206,7 +206,7 @@ def update_message_endpoint(
     conversation_id: int,
     message_id: int,
     payload: AIChatMessageUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> MessageItem:
     """编辑单条消息的 content。
@@ -235,7 +235,7 @@ def update_message_endpoint(
 def create_message(
     conversation_id: int,
     payload: MessageCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> MessageCreateResponse:
@@ -249,10 +249,15 @@ def create_message(
     history_rows = ai_chat_service.list_messages(db, conversation_id, user_id)
     web_search_context = None
     search_source_cards: list[dict[str, Any]] = []
+    search_time_range: str | None = None
     if payload.enable_web_search:
         web_search_payload = ai_chat_service.request_web_search(settings, user_content)
         web_search_context = ai_chat_service.format_web_search_context(web_search_payload, user_content)
         search_source_cards = ai_chat_service.build_search_source_cards(web_search_payload)
+        search_time_range = (
+            web_search_payload.get("time_range")
+            or ai_chat_service.detect_time_range_from_query(user_content)
+        )
 
     llm_config = ai_chat_service.build_llm_config(
         settings=settings, model=payload.model,
@@ -276,7 +281,14 @@ def create_message(
             conversation.title = generated_title
 
     user_row = ai_chat_service.append_message(db, conversation_id, "user", user_content)
-    assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", assistant_content, search_sources=search_source_cards)
+    assistant_row = ai_chat_service.append_message(
+        db,
+        conversation_id,
+        "assistant",
+        assistant_content,
+        search_sources=search_source_cards,
+        search_time_range=search_time_range,
+    )
     conversation.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user_row)
@@ -295,7 +307,7 @@ def create_message(
 def stream_message(
     conversation_id: int,
     payload: MessageCreate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ):
@@ -365,6 +377,9 @@ def stream_message(
     def event_stream():
         assistant_parts: list[str] = []
         search_source_cards: list[dict[str, Any]] = []
+        # [BEL-81.B] tool 调用 / fallback 路径透传下来的时间范围标签。
+        # 持久化到 `AIMessage.search_time_range` 以支持历史回放。
+        search_time_range: str | None = None
         start_time = datetime.now(timezone.utc)
         tool_call_count = 0
         collected_usage: dict[str, Any] = {}
@@ -409,7 +424,14 @@ def stream_message(
                             yield build_stream_tool_done()
                         elif event.get("type") == "sources":
                             search_source_cards = event.get("sources") or []
-                            yield build_stream_sources(search_source_cards)
+                            event_time_range = event.get("time_range")
+                            if event_time_range:
+                                search_time_range = event_time_range
+                            yield build_stream_sources(
+                                search_source_cards,
+                                time_range=event.get("time_range"),
+                                query=event.get("query"),
+                            )
                         elif event.get("type") == "usage":
                             collected_usage = event.get("usage", {})
                             yield build_stream_usage(collected_usage)
@@ -435,7 +457,16 @@ def stream_message(
                     search_source_cards = ai_chat_service.build_search_source_cards(web_search_payload, settings.ai_chat_web_search_max_results)
 
                     if search_source_cards:
-                        yield build_stream_sources(search_source_cards)
+                        fallback_time_range = (
+                            web_search_payload.get("time_range")
+                            or ai_chat_service.detect_time_range_from_query(user_content)
+                        )
+                        search_time_range = fallback_time_range
+                        yield build_stream_sources(
+                            search_source_cards,
+                            time_range=fallback_time_range,
+                            query=user_content,
+                        )
 
                     for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings, cancel_event=cancel_event):
                         if cancel_event.is_set():
@@ -489,6 +520,9 @@ def stream_message(
                 ai_chat_service.update_message_content(db, assistant_row.id, assistant_content)
                 if search_source_cards:
                     assistant_row.search_sources = json.dumps(search_source_cards, ensure_ascii=False)
+                # [BEL-81.B] 历史回放用：把 time_range 一并持久化
+                if search_time_range:
+                    assistant_row.search_time_range = search_time_range
 
             conversation.updated_at = datetime.now(timezone.utc)
             end_time = datetime.now(timezone.utc)
@@ -558,7 +592,7 @@ class _CancelledError(Exception):
 @router.post("/conversations/{conversation_id}/stream/cancel", status_code=204)
 def cancel_stream(
     conversation_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     user_id: int | None = Depends(_get_request_user_id),
 ) -> None:
     """请求取消正在进行的流式生成。

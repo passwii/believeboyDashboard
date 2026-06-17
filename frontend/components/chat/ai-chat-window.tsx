@@ -65,6 +65,8 @@ function toClientMessage(server: ServerChatMessage): ChatMessage {
     content: server.content,
     streaming: false,
     searchSources: server.search_sources,
+    // [BEL-81.B] 历史回放用：让 chip 在刷新后仍可见
+    searchTimeRange: server.search_time_range ?? null,
     tokenUsage: hasUsage
       ? {
           prompt: server.prompt_tokens,
@@ -217,10 +219,13 @@ export function AIChatWindow({
   // ── conversation; the placeholder "new conversation" state creates one
   // ── first via `createConversation`).
   const streamCallbacksRef = useRef<UseChatStreamCallbacks>({})
-  const { send: sendStream, stop: stopStream, error: streamHookError } = useChatStream(
-    activeServerId ?? 0,
-    streamCallbacksRef,
-  )
+  const {
+    send: sendStream,
+    stop: stopStream,
+    error: streamHookError,
+    toolState,
+    pendingSources,
+  } = useChatStream(activeServerId ?? 0, streamCallbacksRef)
 
   // Surface stream-hook errors as a transient banner. The hook's `error`
   // state is cleared on the next `send`, so this naturally re-syncs.
@@ -285,6 +290,13 @@ export function AIChatWindow({
   const isLanding = phase === 'landing'
   const isChat = phase === 'chat'
   const hasMessages = messages.length > 0
+  // Derived from message data — true if any assistant message in this
+  // conversation was produced via web search. Drives the sticky
+  // "本对话已开启联网" status bar in <ChatMessageList />.
+  const usedWebSearch = useMemo(
+    () => messages.some((m) => m.role === 'assistant' && (m.searchSources?.length ?? 0) > 0),
+    [messages]
+  )
 
   // ── Stream callback bridge: route events into the React state for the
   // ── active assistant message. The assistant message is identified by a
@@ -324,14 +336,38 @@ export function AIChatWindow({
             ]
           })
         },
-        onSources: (sources) => {
+        onSources: (sources, meta) => {
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === assistantLocalId)
             if (idx === -1) return prev
             const target = prev[idx]
             return [
               ...prev.slice(0, idx),
-              { ...target, searchSources: sources },
+              {
+                ...target,
+                searchSources: sources,
+                // [BEL-81.B] 把后端透传的 time_range / query 落到消息上
+                searchTimeRange: meta?.timeRange ?? target.searchTimeRange ?? null,
+                searchQuery: meta?.query ?? target.searchQuery ?? null,
+                searchSearching: false,
+              },
+              ...prev.slice(idx + 1),
+            ]
+          })
+        },
+        // [BEL-81.B] tool_searching 时显示骨架卡占位
+        onToolState: (state) => {
+          if (!state.searching) return
+          setMessages((prev) => {
+            const idx = prev.findIndex((m) => m.id === assistantLocalId)
+            if (idx === -1) return prev
+            const target = prev[idx]
+            if (target.searchSearching && target.searchSources && target.searchSources.length > 0) {
+              return prev
+            }
+            return [
+              ...prev.slice(0, idx),
+              { ...target, searchSearching: true },
               ...prev.slice(idx + 1),
             ]
           })
@@ -745,7 +781,7 @@ export function AIChatWindow({
   // ── Typewriter segments ──────────────────────────────────────────
   const typewriterSegments: TextSegment[] = useMemo(
     () => [
-      { text: `${title} `, speed: 80 },
+      { text: title, speed: 80 },
       { text: titleHighlight, highlight: true, speed: 100 },
       { text: ' 什么？', speed: 80 },
     ],
@@ -760,8 +796,18 @@ export function AIChatWindow({
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
-      {/* Layer 1: Background */}
-      <div className="absolute inset-0">
+      {/* Layer 1: Background — same paddingLeft shift as the chat / input
+          layers so the gradient rays, glows and floating particles
+          "follow" the foreground when the sidebar opens. Without this
+          the background looks pinned while everything else slides
+          right, breaking the unified "camera pan" feel. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+          transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         <RayBackground arcsUp={arcsUp} />
         <FloatingParticles />
       </div>
@@ -893,6 +939,10 @@ export function AIChatWindow({
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 streamError={streamError}
+                pendingSearchState={
+                  toolState ? { searching: toolState.searching, sources: pendingSources } : null
+                }
+                usedWebSearch={usedWebSearch}
                 onRetry={
                   messages.length >= 2 && isStreaming === false
                     ? () => {
@@ -977,7 +1027,7 @@ export function AIChatWindow({
                 model: selectedModel,
               })}
               compact={!isLanding}
-              disabled={isStreaming || activeServerId == null}
+              disabled={isStreaming}
               enableWebSearch={enableWebSearch}
               onToggleWebSearch={setEnableWebSearch}
               reasoningEffort={reasoningEffort}

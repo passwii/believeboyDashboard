@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.models.inspection import InspectionScreenshot
 from app.models.project import Project
@@ -129,7 +129,7 @@ def get_template():
 def list_periods(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ):
     items, total = inspection_service.list_periods(db, limit=limit, offset=offset)
     return InspectionPeriodListResponse(
@@ -139,7 +139,7 @@ def list_periods(
 
 
 @router.get("/periods/current", response_model=InspectionPeriodItem)
-def get_current_period(db: Session = Depends(get_db_session)):
+def get_current_period(db: Session = Depends(get_read_db_session)):
     period = inspection_service.get_or_create_current_period(db)
     return InspectionPeriodItem.model_validate(period)
 
@@ -147,7 +147,7 @@ def get_current_period(db: Session = Depends(get_db_session)):
 @router.get("/periods/{period_id}/overview", response_model=InspectionOverviewResponse)
 def get_period_overview(
     period_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -169,7 +169,7 @@ def get_period_overview(
 def get_report(
     period_id: int,
     project_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -187,7 +187,7 @@ def create_or_update_report(
     project_id: int,
     body: InspectionReportCreate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -217,7 +217,7 @@ def update_report(
     project_id: int,
     body: InspectionReportUpdate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -242,7 +242,7 @@ def submit_report(
     period_id: int,
     project_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -267,7 +267,7 @@ def upload_screenshot(
     file: UploadFile,
     report_id_form: int | None = Form(default=None, alias="report_id"),
     report_id_query: int | None = Query(default=None, alias="report_id"),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -307,7 +307,7 @@ def upload_screenshot(
 def delete_screenshot(
     screenshot_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -335,7 +335,7 @@ def get_history(
     project_id: int | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -408,6 +408,7 @@ def get_history(
             status=report.status,
             account_health_rating=health.get("account_health_rating"),
             compliance_total=compliance_total,
+            status_summary=report.status_summary,
             submitted_by=report.submitted_by,
             submitted_at=report.submitted_at,
             screenshots=screenshots_data,

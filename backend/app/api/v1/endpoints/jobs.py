@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.job import CreateJobRequest, JobDetailResponse, JobResponse, JobRunResponse
 from app.services import job_service
@@ -15,7 +15,7 @@ router = APIRouter(dependencies=[Depends(protected)])
 @router.post('/jobs', response_model=JobResponse)
 def create_job(
     data: CreateJobRequest,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
 ) -> JobResponse:
@@ -34,7 +34,7 @@ def create_job(
 
 
 @router.get('/jobs/{job_id}', response_model=JobDetailResponse)
-def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResponse:
+def get_job(job_id: int, db: Session = Depends(get_read_db_session)) -> JobDetailResponse:
     job = job_service.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
@@ -68,7 +68,7 @@ def get_job(job_id: int, db: Session = Depends(get_db_session)) -> JobDetailResp
 @router.get('/jobs/{job_id}/result')
 def download_job_result(
     job_id: int,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
 ):
     job = job_service.get_job(db, job_id)

@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { SidebarShell } from '@/components/dashboard/sidebar-shell'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,21 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const { isNavigationLoading } = useGlobalLoading()
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
+  const { status } = useSession()
+  const wasAuthenticatedRef = useRef(false)
+
+  const getCurrentPath = useCallback(() => `${window.location.pathname}${window.location.search}`, [])
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      wasAuthenticatedRef.current = true
+      return
+    }
+
+    if (status === 'unauthenticated' && wasAuthenticatedRef.current) {
+      void signOut({ callbackUrl: buildLoginCallbackUrl(getCurrentPath()) })
+    }
+  }, [getCurrentPath, status])
 
   useEffect(() => {
     document.title = `${pageTitle} | BelieveBoy Dashboard`
@@ -25,11 +41,11 @@ export default function DashboardLayout({
   // 监听 SidebarShell 派发的登出事件
   useEffect(() => {
     const handler = () => {
-      void signOut({ callbackUrl: '/login' })
+      void signOut({ callbackUrl: buildLoginCallbackUrl(getCurrentPath()) })
     }
     window.addEventListener('believeboy:logout', handler)
     return () => window.removeEventListener('believeboy:logout', handler)
-  }, [])
+  }, [getCurrentPath])
 
   return (
     <SidebarProvider>

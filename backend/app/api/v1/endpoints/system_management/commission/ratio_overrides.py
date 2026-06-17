@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.models.commission_ratio_override import CommissionRatioOverride
 
 from app.schemas.system_management.commission.ratio_overrides import (
@@ -42,7 +42,7 @@ def _serialize_ratio_override_row(row: CommissionRatioOverride) -> CommissionRat
 def upsert_commission_ratio_overrides_endpoint(
     payload: UpsertCommissionRatioOverridesRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRatioOverridesResponse:
     try:
@@ -67,7 +67,7 @@ def upsert_commission_ratio_overrides_endpoint(
 def list_commission_ratio_overrides(
     report_month: str,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> CommissionRatioOverridesResponse:
     try:

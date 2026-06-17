@@ -31,13 +31,10 @@ const SignInCard = ({ theme }: SignInCardProps) => {
   // GSAP entrance timeline
   useLoginAnimations(cardRef);
 
-  // Warm the dashboard route's RSC payload + client chunks while the user is
-  // still typing their credentials. `router.push` after a successful signIn
-  // will hit the prefetched bundle, shaving 200–500ms off the navigation
-  // transition — the time the user is staring at the spinner.
-  useEffect(() => {
-    router.prefetch(callbackUrl);
-  }, [router, callbackUrl]);
+  // Do not prefetch the callback route while the login page is still unauthenticated:
+  // the request can be rewritten by middleware to the login page and poison the
+  // App Router cache, which makes the post-sign-in navigation render stale login
+  // content at the target URL.
 
   const finishNavigationLoading = useCallback(() => {
     if (!loadingPendingRef.current) return;
@@ -112,7 +109,7 @@ const SignInCard = ({ theme }: SignInCardProps) => {
       // its job is to cover the dashboard RSC / client chunk load, not the
       // login HTTP we already finished.
       beginNavigationLoading();
-      router.push(nextPath);
+      router.replace(nextPath);
     } catch (err) {
       setSubmitting(false);
       setError("无法连接到服务器，请检查后端服务是否启动。");

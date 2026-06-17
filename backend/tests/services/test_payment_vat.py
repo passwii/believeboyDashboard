@@ -12,13 +12,31 @@ from app.services.payment.financial import (
 
 
 def test_vat_metrics_us_returns_zero():
-    """US 报表：product_sales_tax 通常为 0，新口径与原版完全一致。"""
+    """US 报表：product_sales_tax 为 0，income_vat_total 必为 0。
+
+    v2 行为变更（BEL-125）：``income_sales_with_tax`` 不再 hardcode 0，
+    而是 ``sum(product_sales)``（= net），便于前端无分支消费。
+    """
     result = _compute_vat_metrics(
         classified={"order": [{"product sales": "10", "product sales tax": "0"}]},
         country="US",
     )
     assert result["income_vat_total"] == Decimal("0")
-    assert result["income_sales_with_tax"] == Decimal("0")
+    assert result["income_sales_with_tax"] == Decimal("10")
+    assert result["expense_vat_total"] == Decimal("0")
+
+
+def test_vat_metrics_us_orders_and_refunds_real_sum():
+    """US：income_sales_with_tax = 订单 net + 退款 net（退款为负自然抵消）。"""
+    result = _compute_vat_metrics(
+        classified={
+            "order": [{"product sales": "100", "product sales tax": "0"}],
+            "refund": [{"product sales": "-20", "product sales tax": "0"}],
+        },
+        country="US",
+    )
+    assert result["income_vat_total"] == Decimal("0")
+    assert result["income_sales_with_tax"] == Decimal("80")
     assert result["expense_vat_total"] == Decimal("0")
 
 
@@ -85,7 +103,11 @@ def test_vat_metrics_mixed_order_and_refund():
 
 
 def test_compute_metrics_us_unchanged():
-    """US 报表：income_total 与 amazon_pay_back 公式不变。"""
+    """US 报表：income_total 与 amazon_pay_back 公式不变。
+
+    v2 行为变更（BEL-125）：``income_sales_with_tax`` 现在等于 net，
+    端到端检查该字段也是 net（让前端无分支消费 sales_with_tax）。
+    """
     rows = [
         {
             "type": "Order",
@@ -111,6 +133,11 @@ def test_compute_metrics_us_unchanged():
     assert pt4["expense_vat_total"] == Decimal("0")
     # 回款 = 100 + (-15) + (-5) = 80
     assert pt4["amazon_pay_back"] == Decimal("80")
+
+    pt3 = result["pt3"]
+    # v2：US 端到端 sales_with_tax = net
+    assert pt3["income_sales_with_tax"] == Decimal("100")
+    assert pt3["income_vat_total"] == Decimal("0")
 
 
 def test_compute_metrics_de_with_vat():

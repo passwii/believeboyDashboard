@@ -28,6 +28,9 @@ class MessageItem(BaseModel):
     role: str
     content: str
     search_sources: list[dict[str, str | float | None]] = Field(default_factory=list)
+    # [BEL-81.B] 历史消息回放时，前端按此字段渲染「今日 / 近 7 天 / 近 30 天 /
+    # 近 1 年」chip。允许 None（无搜索 / 老数据）。
+    search_time_range: str | None = None
     is_complete: bool = True
     prompt_tokens: int = 0
     completion_tokens: int = 0

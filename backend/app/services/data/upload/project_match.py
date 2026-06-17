@@ -34,6 +34,14 @@ def _build_project_match(
         identifiers=normalized_values,
         match_by=match_by,
         country=country,
+        # A-table reports (business/payment/sales/inventory/return) may
+        # include SKU/ASIN that have been delisted but still belong to a
+        # project.  Match against both active and inactive records so the
+        # project isn't misclassified as "unmatched" / "manual" for files
+        # that contain only inactive identifiers.
+        # B-table ad reports (ad/upload/project_match) keep the active-only
+        # default — out of scope for BEL-104.
+        include_inactive=True,
     )
     if allowed_projects is not None:
         matched_map = {

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
 
-from app.api.deps import get_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.core.config import get_settings
 from app.services.artifact_service import ArtifactService
 from app.schemas.exchange_rate import (
@@ -57,7 +57,7 @@ def list_exchange_rates(
     year_month: str | None = None,
     page: int = 1,
     page_size: int = 50,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> ExchangeRateListResponse:
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 200)
@@ -89,7 +89,7 @@ class ExchangeRateResolveResponse(BaseModel):
 def resolve_exchange_rate(
     currency: str,
     year_month: str | None = None,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
 ) -> ExchangeRateResolveResponse:
     """
     解析汇率：优先精确匹配指定年月，找不到则回退到最近的历史记录。
@@ -130,7 +130,7 @@ def resolve_exchange_rate(
 
 
 @router.get('/exchange-rates/options', response_model=ExchangeRateOptionsResponse)
-def get_exchange_rate_options(db: Session = Depends(get_db_session)) -> ExchangeRateOptionsResponse:
+def get_exchange_rate_options(db: Session = Depends(get_read_db_session)) -> ExchangeRateOptionsResponse:
     rows = exchange_rate_service.list_exchange_rate_rows(db)
 
     currency_map: dict[str, ExchangeRateOption] = {}
@@ -151,7 +151,7 @@ def get_exchange_rate_options(db: Session = Depends(get_db_session)) -> Exchange
 
 
 @router.get('/exchange-rates/{exchange_rate_id}', response_model=ExchangeRateItem)
-def get_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_db_session)) -> ExchangeRateItem:
+def get_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_read_db_session)) -> ExchangeRateItem:
     row = exchange_rate_service.get_exchange_rate(db, exchange_rate_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Exchange rate not found')
@@ -159,7 +159,7 @@ def get_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_db_sessio
 
 
 @router.post('/exchange-rates', response_model=ExchangeRateItem, status_code=status.HTTP_201_CREATED)
-def create_exchange_rate(payload: ExchangeRateCreate, db: Session = Depends(get_db_session)) -> ExchangeRateItem:
+def create_exchange_rate(payload: ExchangeRateCreate, db: Session = Depends(get_primary_db_session)) -> ExchangeRateItem:
     year_month = exchange_rate_service.normalize_year_month(
         year_month=payload.year_month,
         year=payload.year,
@@ -178,7 +178,7 @@ def create_exchange_rate(payload: ExchangeRateCreate, db: Session = Depends(get_
 def update_exchange_rate(
     exchange_rate_id: int,
     payload: ExchangeRateUpdate,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
 ) -> ExchangeRateItem:
     row = exchange_rate_service.get_exchange_rate(db, exchange_rate_id)
     if not row:
@@ -201,7 +201,7 @@ def update_exchange_rate(
 
 
 @router.delete('/exchange-rates/{exchange_rate_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_db_session)) -> Response:
+def delete_exchange_rate(exchange_rate_id: int, db: Session = Depends(get_primary_db_session)) -> Response:
     row = exchange_rate_service.get_exchange_rate(db, exchange_rate_id)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Exchange rate not found')

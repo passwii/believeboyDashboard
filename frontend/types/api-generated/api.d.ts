@@ -283,27 +283,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ai-insights/generate/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Insight Stream Endpoint
-         * @description Legacy endpoint: generates insight in the request thread with streaming response.
-         *     Prefer POST /generate + GET /{id}/stream for background execution.
-         */
-        post: operations["generate_insight_stream_endpoint_api_v1_ai_insights_generate_stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/ai-insights/latest": {
         parameters: {
             query?: never;
@@ -553,12 +532,52 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stream Message */
+        /**
+         * Stream Message
+         * @description SSE 流式对话端点。
+         *
+         *     [BEL-80 follow-up] 取消支持：
+         *     - 注册 `threading.Event` 到 `cancel_registry`；前端通过
+         *       `POST /conversations/{id}/stream/cancel` 设事件，后端
+         *       LLM 循环下一次迭代时检测到后立刻 `return`，
+         *       `with httpx.Client(...)` 退出关闭连接，节省 token。
+         *     - 进程级注册：多 worker 部署需要 sticky session 或 Redis
+         *       广播，本 PR 暂不处理。
+         *     - 数据库 session 仍走 FastAPI Depends（BEL-66 sync handler
+         *       模式）：LLM 取消只关 httpx，不动 DB session 生命周期。
+         */
         post: operations["stream_message_api_v1_ai_conversations__conversation_id__messages_stream_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/conversations/{conversation_id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Message Endpoint
+         * @description 硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。
+         */
+        delete: operations["delete_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Message Endpoint
+         * @description 编辑单条消息的 content。
+         *
+         *     当前仅支持 user 消息；编辑 assistant 消息会破坏 regenerate 链，
+         *     统一返回 400。
+         */
+        patch: operations["update_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__patch"];
         trace?: never;
     };
     "/api/v1/ai/conversations/{conversation_id}/regenerate-title": {
@@ -572,6 +591,32 @@ export interface paths {
         put?: never;
         /** Regenerate Conversation Title */
         post: operations["regenerate_conversation_title_api_v1_ai_conversations__conversation_id__regenerate_title_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/conversations/{conversation_id}/stream/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Stream
+         * @description 请求取消正在进行的流式生成。
+         *
+         *     - 校验 conv 归属，避免跨用户取消。
+         *     - 通过 `cancel_registry` 设 event；
+         *       `event_stream()` 在下一次 LLM 迭代时检测到并终止。
+         *     - 进程级：只在同一个 worker 进程内有效（multi-worker
+         *       部署需要 sticky session 或 Redis，本 PR 暂不处理）。
+         */
+        post: operations["cancel_stream_api_v1_ai_conversations__conversation_id__stream_cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1129,7 +1174,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/dashboard/overview": {
+    "/api/v1/daily-analysis/all-countries": {
         parameters: {
             query?: never;
             header?: never;
@@ -1137,14 +1182,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Dashboard Overview
-         * @description Dashboard KPI 总览聚合接口。
+         * Get Daily Analysis All Countries
+         * @description 跨国家站点聚合单项目数据。
          *
-         *     - 返回当前用户可访问的所有项目的汇总 KPI 数据（销售、库存、发货、退货、广告）
-         *     - 支持按项目 ID 筛选（逗号分隔），支持按国家筛选
-         *     - 数据来自 digital_display_service 的各子模块
+         *     当前对 US / DE / UK 三个国家分别加载数据并按 (date, sku) 求和；
+         *     响应里 ``country_breakdown`` 字段给出按国家分桶的明细。
          */
-        get: operations["get_dashboard_overview_api_v1_dashboard_overview_get"];
+        get: operations["get_daily_analysis_all_countries_api_v1_daily_analysis_all_countries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2352,6 +2396,30 @@ export interface paths {
         put?: never;
         /** Check Product Calculation Data */
         post: operations["check_product_calculation_data_api_v1_product_analysis_calculation_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-analysis/calculation/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Product Calculation
+         * @description 月度 SKU 临时核算（不入库）。
+         *
+         *     三类报告的 temp_file_id 必须已通过各自的 recognize 端点识别成功并落盘。
+         *     端点会直读 temp file 路径构造 DataFrame 跑核算，**永不调用 persist_* 写库**。
+         *     返回的 periods 全部为 `persisted=False, preview=True`。
+         */
+        post: operations["preview_product_calculation_api_v1_product_analysis_calculation_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4163,6 +4231,17 @@ export interface components {
              */
             web_search_max_results: number;
         };
+        /**
+         * AIChatMessageUpdate
+         * @description PATCH /ai/conversations/{cid}/messages/{mid} 请求体。
+         *
+         *     当前仅支持编辑 user 消息的 content。assistant 消息不接受编辑
+         *     （会破坏 regenerate 链），由 endpoint 层校验。
+         */
+        AIChatMessageUpdate: {
+            /** Content */
+            content: string;
+        };
         /** AIFileUploadResponse */
         AIFileUploadResponse: {
             /** Content */
@@ -4420,6 +4499,11 @@ export interface components {
              * @default US
              */
             country: string;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
             /** Original Filename */
             original_filename?: string | null;
             /** Project Name */
@@ -4452,7 +4536,7 @@ export interface components {
              * Ingestion Status
              * @enum {string}
              */
-            ingestion_status: "pending" | "saved" | "failed";
+            ingestion_status: "pending" | "saved" | "failed" | "skipped";
             /** Is Current */
             is_current: boolean;
             /** Message */
@@ -4544,7 +4628,7 @@ export interface components {
              * Ingestion Status
              * @enum {string}
              */
-            ingestion_status: "pending" | "saved" | "failed";
+            ingestion_status: "pending" | "saved" | "failed" | "skipped";
             /** Is Current */
             is_current: boolean;
             /** Original Filename */
@@ -6591,6 +6675,39 @@ export interface components {
             /** Sku */
             sku: string;
         };
+        /**
+         * DailyAnalysisAllCountriesResponse
+         * @description 跨所有支持国家站点的聚合响应。
+         *
+         *     金额字段（``sales_amount`` / ``ad_spend`` / ``ordered_sales_amount``）已按
+         *     ``exchange_rates`` 表的当月 CNY 中转折算为 USD 统一展示；非金额字段
+         *     （订单 / 曝光 / 点击 / 库存 / 销量 / 访问 / 在途等）保持原值。
+         *     响应顶层 ``currency`` 字段固定为 ``"USD"``，便于前端识别并切换符号。
+         */
+        DailyAnalysisAllCountriesResponse: {
+            /** Available Dates */
+            available_dates: {
+                [key: string]: unknown;
+            };
+            console: components["schemas"]["DailyAnalysisConsoleResponse"];
+            /** Country Breakdown */
+            country_breakdown: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /** Currency Note */
+            currency_note?: string | null;
+            /** Detail Rows */
+            detail_rows: components["schemas"]["DailyAnalysisDetailRow"][];
+            /** Summary Rows */
+            summary_rows: components["schemas"]["DailyAnalysisSummaryRow"][];
+        };
         /** DailyAnalysisAllProjectsResponse */
         DailyAnalysisAllProjectsResponse: {
             /** Available Dates */
@@ -6759,236 +6876,6 @@ export interface components {
              * @default 0
              */
             units_ordered: number;
-        };
-        /** DashboardOverviewAds */
-        DashboardOverviewAds: {
-            /**
-             * Period Acos
-             * @default 0
-             */
-            period_acos: number;
-            /**
-             * Period Clicks
-             * @default 0
-             */
-            period_clicks: number;
-            /**
-             * Period Ctr
-             * @default 0
-             */
-            period_ctr: number;
-            /**
-             * Period Impressions
-             * @default 0
-             */
-            period_impressions: number;
-            /**
-             * Period Orders
-             * @default 0
-             */
-            period_orders: number;
-            /**
-             * Period Roas
-             * @default 0
-             */
-            period_roas: number;
-            /**
-             * Period Sales
-             * @default 0
-             */
-            period_sales: number;
-            /**
-             * Period Spend
-             * @default 0
-             */
-            period_spend: number;
-        };
-        /** DashboardOverviewInventory */
-        DashboardOverviewInventory: {
-            /**
-             * Available Qty
-             * @default 0
-             */
-            available_qty: number;
-            /**
-             * Out Of Stock Count
-             * @default 0
-             */
-            out_of_stock_count: number;
-            /**
-             * Sku Count
-             * @default 0
-             */
-            sku_count: number;
-        };
-        /** DashboardOverviewResponse */
-        DashboardOverviewResponse: {
-            /**
-             * @default {
-             *       "period_acos": 0,
-             *       "period_clicks": 0,
-             *       "period_ctr": 0,
-             *       "period_impressions": 0,
-             *       "period_orders": 0,
-             *       "period_roas": 0,
-             *       "period_sales": 0,
-             *       "period_spend": 0
-             *     }
-             */
-            ads: components["schemas"]["DashboardOverviewAds"];
-            /** Country */
-            country: string;
-            /** Days */
-            days: number;
-            /**
-             * @default {
-             *       "available_qty": 0,
-             *       "out_of_stock_count": 0,
-             *       "sku_count": 0
-             *     }
-             */
-            inventory: components["schemas"]["DashboardOverviewInventory"];
-            /**
-             * Project Ids
-             * @default []
-             */
-            project_ids: number[];
-            /**
-             * Project Names
-             * @default []
-             */
-            project_names: string[];
-            /**
-             * @default {
-             *       "return_rate": 0,
-             *       "total_quantity": 0,
-             *       "total_returns": 0
-             *     }
-             */
-            returns: components["schemas"]["DashboardOverviewReturns"];
-            /**
-             * @default {
-             *       "change_type_order_qty": "neutral",
-             *       "change_type_sales": "neutral",
-             *       "order_qty_change_pct": 0,
-             *       "prev_order_qty": 0,
-             *       "prev_sales_amount": 0,
-             *       "sales_change_pct": 0,
-             *       "today_order_qty": 0,
-             *       "today_sales_amount": 0
-             *     }
-             */
-            sales: components["schemas"]["DashboardOverviewSalesSnapshot"];
-            /**
-             * Sales Trend
-             * @default []
-             */
-            sales_trend: components["schemas"]["DashboardOverviewTrendItem"][];
-            /** Server Time */
-            server_time: string;
-            /**
-             * @default {
-             *       "in_transit_count": 0,
-             *       "in_transit_qty": 0
-             *     }
-             */
-            shipments: components["schemas"]["DashboardOverviewShipments"];
-            /**
-             * Sku Sales Detail
-             * @default []
-             */
-            sku_sales_detail: components["schemas"]["SkuSalesDetailItem"][];
-        };
-        /** DashboardOverviewReturns */
-        DashboardOverviewReturns: {
-            /**
-             * Return Rate
-             * @default 0
-             */
-            return_rate: number;
-            /** Top Reason */
-            top_reason?: string | null;
-            /**
-             * Total Quantity
-             * @default 0
-             */
-            total_quantity: number;
-            /**
-             * Total Returns
-             * @default 0
-             */
-            total_returns: number;
-        };
-        /** DashboardOverviewSalesSnapshot */
-        DashboardOverviewSalesSnapshot: {
-            /**
-             * Change Type Order Qty
-             * @default neutral
-             */
-            change_type_order_qty: string;
-            /**
-             * Change Type Sales
-             * @default neutral
-             */
-            change_type_sales: string;
-            /**
-             * Order Qty Change Pct
-             * @default 0
-             */
-            order_qty_change_pct: number;
-            /**
-             * Prev Order Qty
-             * @default 0
-             */
-            prev_order_qty: number;
-            /**
-             * Prev Sales Amount
-             * @default 0
-             */
-            prev_sales_amount: number;
-            /**
-             * Sales Change Pct
-             * @default 0
-             */
-            sales_change_pct: number;
-            /**
-             * Today Order Qty
-             * @default 0
-             */
-            today_order_qty: number;
-            /**
-             * Today Sales Amount
-             * @default 0
-             */
-            today_sales_amount: number;
-        };
-        /** DashboardOverviewShipments */
-        DashboardOverviewShipments: {
-            /**
-             * In Transit Count
-             * @default 0
-             */
-            in_transit_count: number;
-            /**
-             * In Transit Qty
-             * @default 0
-             */
-            in_transit_qty: number;
-        };
-        /** DashboardOverviewTrendItem */
-        DashboardOverviewTrendItem: {
-            /** Date */
-            date: string;
-            /**
-             * Order Qty
-             * @default 0
-             */
-            order_qty: number;
-            /**
-             * Sales Amount
-             * @default 0
-             */
-            sales_amount: number;
         };
         /**
          * DataLifecycleStatus
@@ -7896,6 +7783,8 @@ export interface components {
             screenshots: components["schemas"]["InspectionHistoryScreenshot"][];
             /** Status */
             status: string;
+            /** Status Summary */
+            status_summary?: string | null;
             /** Submitted At */
             submitted_at?: string | null;
             /** Submitted By */
@@ -8774,6 +8663,8 @@ export interface components {
             search_sources?: {
                 [key: string]: string | number | null;
             }[];
+            /** Search Time Range */
+            search_time_range?: string | null;
             /**
              * Total Tokens
              * @default 0
@@ -8807,6 +8698,8 @@ export interface components {
         };
         /** MonthlyFinancialAccountingLine */
         MonthlyFinancialAccountingLine: {
+            /** Currency Code */
+            currency_code?: string | null;
             /** Expense Amount Usd */
             expense_amount_usd: number;
             /** Expense En */
@@ -10202,6 +10095,39 @@ export interface components {
              */
             weekly_availability: components["schemas"]["WeeklyAvailabilityItem"][];
         };
+        /**
+         * ProductCalculationPreviewRequest
+         * @description 月度 SKU 临时核算请求体。
+         *
+         *     三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的
+         *     临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'
+         *     或 '_report_upload_tmp' 下找到物理文件路径直读。
+         */
+        ProductCalculationPreviewRequest: {
+            /** Ad Temp File Id */
+            ad_temp_file_id?: string | null;
+            /** Business Temp File Id */
+            business_temp_file_id?: string | null;
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Payment Temp File Id */
+            payment_temp_file_id?: string | null;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
         /** ProductCalculationRunRequest */
         ProductCalculationRunRequest: {
             /**
@@ -10666,6 +10592,11 @@ export interface components {
              * @default US
              */
             country: string;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
             /** Original Filename */
             original_filename?: string | null;
             /** Project Name */
@@ -10727,7 +10658,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "saved" | "persisted";
+            status: "saved" | "persisted" | "skipped";
         };
         /** ReportProjectMatchSummary */
         ReportProjectMatchSummary: {
@@ -12051,23 +11982,6 @@ export interface components {
             page_size: number;
             /** Total */
             total?: number | null;
-        };
-        /** SkuSalesDetailItem */
-        SkuSalesDetailItem: {
-            /** Product Name */
-            product_name?: string | null;
-            /**
-             * Quantity
-             * @default 0
-             */
-            quantity: number;
-            /**
-             * Sales Amount
-             * @default 0
-             */
-            sales_amount: number;
-            /** Sku */
-            sku: string;
         };
         /** SourcePersistOutcomeSchema */
         SourcePersistOutcomeSchema: {
@@ -13669,44 +13583,6 @@ export interface operations {
             };
         };
     };
-    generate_insight_stream_endpoint_api_v1_ai_insights_generate_stream_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-API-Key"?: string | null;
-                "X-Operator"?: string | null;
-                "X-User-Name"?: string | null;
-                "X-Is-Admin"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsightGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_latest_insight_api_v1_ai_insights_latest_get: {
         parameters: {
             query: {
@@ -14188,6 +14064,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -14219,6 +14096,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -14254,6 +14132,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14285,6 +14164,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14322,6 +14202,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14355,6 +14236,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14392,6 +14274,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14424,11 +14307,84 @@ export interface operations {
             };
         };
     };
+    delete_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                conversation_id: number;
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                conversation_id: number;
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIChatMessageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     regenerate_conversation_title_api_v1_ai_conversations__conversation_id__regenerate_title_post: {
         parameters: {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
             };
             path: {
                 conversation_id: number;
@@ -14445,6 +14401,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ConversationTitleRegenerateResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_stream_api_v1_ai_conversations__conversation_id__stream_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                conversation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -15698,21 +15686,18 @@ export interface operations {
             };
         };
     };
-    get_dashboard_overview_api_v1_dashboard_overview_get: {
+    get_daily_analysis_all_countries_api_v1_daily_analysis_all_countries_get: {
         parameters: {
-            query?: {
-                country?: string;
-                days?: number;
-                /** @description comma-separated project IDs */
-                project_ids?: string | null;
-                /** @description reference date (YYYY-MM-DD), defaults to server today */
-                reference_date?: string | null;
+            query: {
+                project_id: number;
+                start_date: string;
+                end_date: string;
             };
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Is-Admin"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15725,7 +15710,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardOverviewResponse"];
+                    "application/json": components["schemas"]["DailyAnalysisAllCountriesResponse"];
                 };
             };
             /** @description Validation Error */
@@ -18716,6 +18701,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductCalculationCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_product_calculation_api_v1_product_analysis_calculation_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCalculationPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductCalculationRunResponse"];
                 };
             };
             /** @description Validation Error */

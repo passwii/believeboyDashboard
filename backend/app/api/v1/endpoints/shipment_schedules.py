@@ -17,7 +17,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.shipment_schedule import (
     ShipmentCostCalculateRequest,
     ShipmentFbaBoxDetailItem,
@@ -65,7 +65,7 @@ def list_shipment_schedules(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     include_total: bool = Query(default=False),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleListResponse:
@@ -200,7 +200,7 @@ def summarize_shipment_schedule_costs(
     shipment_no: list[str] | None = Query(default=None),
     created_date_from: str | None = Query(default=None),
     created_date_to: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleCostSummary:
@@ -296,7 +296,7 @@ def list_shipment_sku_summary(
     shipment_no: Annotated[list[str] | None, Query()] = None,
     created_date_from: str | None = Query(default=None),
     created_date_to: str | None = Query(default=None),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentSkuSummaryResponse:
@@ -403,7 +403,7 @@ def list_shipment_sku_summary(
 def list_shipment_fba_box_details(
     request: Request,
     shipment_no: Annotated[list[str], Query(min_length=1)],
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentFbaBoxDetailResponse:
@@ -459,7 +459,7 @@ def list_shipment_fba_box_details(
 def get_shipment_schedule_detail(
     schedule_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
@@ -476,7 +476,7 @@ def get_shipment_schedule_detail(
 def create_shipment_schedule(
     payload: ShipmentScheduleCreate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentScheduleDetail:
     row = shipment_schedule_service.create_shipment_schedule(
@@ -517,7 +517,7 @@ def create_shipment_schedule(
 def import_shipment_schedules_csv(
     request: Request,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentSchedulesImportResponse:
     if not file.filename:
@@ -575,7 +575,7 @@ def update_shipment_schedule(
     schedule_id: int,
     payload: ShipmentScheduleUpdate,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:
@@ -618,7 +618,7 @@ def update_shipment_schedule(
 def delete_shipment_schedule(
     schedule_id: int,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> Response:
@@ -660,7 +660,7 @@ def import_shipment_schedule_items_csv(
     schedule_id: int,
     request: Request,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ShipmentItemsImportResponse:
     if not file.filename:
@@ -727,7 +727,7 @@ def calculate_shipment_schedule_costs(
     schedule_id: int,
     payload: ShipmentCostCalculateRequest,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> ShipmentScheduleDetail:

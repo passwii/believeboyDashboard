@@ -95,19 +95,16 @@ export const proxy = auth(async (request) => {
   const user = session?.user
 
   if (pathname === '/login') {
-    // Clear session check cache on sign-in page (user may be signing in as someone else)
     if (user?.id) {
       _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)
-    }
-    if (user?.id) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
     return NextResponse.next()
   }
 
   if (pathname.startsWith('/dashboard')) {
+    const callbackUrl = `${pathname}${search}`
     if (!user?.id) {
-      const callbackUrl = `${pathname}${search}`
       return NextResponse.redirect(
         new URL(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`, request.url)
       )
@@ -123,8 +120,9 @@ export const proxy = auth(async (request) => {
     )
     if (!sessionValid) {
       _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)
+      const loginCallbackUrl = `/login?reason=session_invalidated&callbackUrl=${encodeURIComponent(callbackUrl)}`
       return NextResponse.redirect(
-        new URL('/api/auth/signout?callbackUrl=/login?reason=session_invalidated', request.url)
+        new URL(`/api/auth/signout?callbackUrl=${encodeURIComponent(loginCallbackUrl)}`, request.url)
       )
     }
 

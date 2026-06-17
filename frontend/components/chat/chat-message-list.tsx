@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Brain, Bot, RefreshCw, User } from 'lucide-react'
+import { Brain, Bot, Globe, RefreshCw, User } from 'lucide-react'
 import { AIChatMessageContent } from '@/components/ai-chat-message-content'
 import { AIChatSearchSources } from '@/components/ai-chat-search-sources'
 import { TypingIndicator } from './typing-indicator'
 import { MessageActions } from './message-actions'
 import type { ChatMessage } from './types'
+import type { SearchSource } from '@/lib/api/ai-chat'
 
 interface ChatMessageListProps {
   messages: ChatMessage[]
@@ -17,6 +18,14 @@ interface ChatMessageListProps {
    *  next to the most recent assistant message with a retry CTA. */
   streamError?: string | null
   onRetry?: () => void
+  /** In-flight web-search status for the latest assistant turn. When the
+   *  message has no content yet and the backend reports a tool call is
+   *  searching, we render a dedicated "正在搜索…" badge instead of the
+   *  generic typing dots so the user knows the wait is meaningful. */
+  pendingSearchState?: { searching: boolean; sources: SearchSource[] } | null
+  /** True when any message in this conversation used web search
+   *  (searchSources.length > 0). Drives the sticky "已在线" status bar. */
+  usedWebSearch?: boolean
 }
 
 function formatDuration(ms?: number | null): string {
@@ -70,6 +79,8 @@ export function ChatMessageList({
   onDelete,
   streamError,
   onRetry,
+  pendingSearchState,
+  usedWebSearch = false,
 }: ChatMessageListProps) {
   // Find the last assistant message so we can attach the top-level stream
   // error to it (with a retry button).
@@ -82,6 +93,20 @@ export function ChatMessageList({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 sm:space-y-7">
+      {/* Sticky "已在线" status bar — surfaces whenever any message in
+          this conversation was produced via web search, so the user
+          can see at a glance why a given answer is grounded in fresh
+          data. Fades in on first appearance. */}
+      {usedWebSearch && (
+        <div
+          role="status"
+          aria-label="本对话已开启联网"
+          className="sticky top-0 z-10 -mx-1 flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/[0.06] px-3 py-1 text-[11px] font-medium text-blue-300 backdrop-blur-sm animate-fade-slide-up"
+        >
+          <Globe aria-hidden="true" className="h-3 w-3 shrink-0" />
+          <span>本对话已开启联网</span>
+        </div>
+      )}
       {messages.map((msg, index) => (
         <div
           key={msg.id}
@@ -130,6 +155,17 @@ export function ChatMessageList({
                     content={msg.content}
                     className="text-[15px] sm:text-[16px] leading-7 sm:leading-[1.75] text-[#e6e6e8] [&_p]:text-[15px] sm:[&_p]:text-[16px] [&_p]:leading-7 sm:[&_p]:leading-[1.75] [&_p]:text-[#e6e6e8] [&_strong]:text-white [&_em]:text-[#e6e6e8] [&_h2]:mt-5 [&_h2]:text-[17px] sm:[&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-white [&_h3]:mt-4 [&_h3]:text-[15px] sm:[&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-white [&_li]:text-[#d8d8db] [&_li]:leading-7 sm:[&_li]:leading-[1.75]"
                   />
+                ) : msg.streaming && pendingSearchState?.searching ? (
+                  // Web-search tool is in flight: surface a dedicated badge
+                  // so the wait reads as "fetching the web" rather than a
+                  // generic typing pulse. Once the first token arrives the
+                  // `msg.content` branch above takes over and this naturally
+                  // disappears — no manual teardown needed.
+                  <div className="flex items-center gap-2 text-xs text-blue-300/80">
+                    <span className="size-1.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_6px_rgba(96,165,250,0.6)]" />
+                    <Globe className="size-3" />
+                    <span>正在搜索…</span>
+                  </div>
                 ) : (
                   <TypingIndicator />
                 )}
@@ -142,11 +178,19 @@ export function ChatMessageList({
                 )}
               </div>
 
-              {/* Search sources — only on assistant messages that have them. */}
+              {/* Search sources — render whenever the message has sources OR
+                  is still waiting for them. The `searching` flag drives the
+                  skeleton cards (B3), `searchTimeRange` powers the time-range
+                  chip (B2). */}
               {msg.role === 'assistant' &&
-                msg.searchSources &&
-                msg.searchSources.length > 0 && (
-                  <AIChatSearchSources sources={msg.searchSources} />
+                (msg.searchSearching ||
+                  (msg.searchSources && msg.searchSources.length > 0)) && (
+                  <AIChatSearchSources
+                    sources={msg.searchSources ?? []}
+                    timeRange={msg.searchTimeRange ?? null}
+                    query={msg.searchQuery ?? null}
+                    searching={!!msg.searchSearching && !(msg.searchSources && msg.searchSources.length > 0)}
+                  />
                 )}
 
               {/* Token / duration footer — only on completed assistant messages. */}
@@ -154,11 +198,29 @@ export function ChatMessageList({
                 <TokenFooter message={msg} />
               )}
 
-              {/* Streaming indicator */}
+              {/* Streaming indicator — blue-300 (matches the web-search
+                  toggle) while we're in the search phase, blue-400/50
+                  (quieter) during the pure generation phase. */}
               {msg.streaming && msg.content && (
-                <span className="text-xs text-blue-400/50 flex items-center gap-1 px-1">
-                  <span className="h-1 w-1 rounded-full bg-blue-400 animate-pulse" />
-                  <span className="hidden sm:inline">生成中...</span>
+                <span
+                  className={`flex items-center gap-1 px-1 text-xs ${
+                    msg.searchSources && msg.searchSources.length > 0
+                      ? 'text-blue-300'
+                      : 'text-blue-400/50'
+                  }`}
+                >
+                  <span
+                    className={`h-1 w-1 rounded-full animate-pulse ${
+                      msg.searchSources && msg.searchSources.length > 0
+                        ? 'bg-blue-300'
+                        : 'bg-blue-400/50'
+                    }`}
+                  />
+                  <span className="hidden sm:inline">
+                    {msg.searchSources && msg.searchSources.length > 0
+                      ? '搜索中...'
+                      : '生成中...'}
+                  </span>
                 </span>
               )}
 

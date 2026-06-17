@@ -172,8 +172,12 @@ def aggregate_project_data(
     comp_end = start_date - timedelta(days=1)
     comp_start = comp_end - timedelta(days=period_days - 1)
 
-    from app.db.session import SessionLocal
-    session_factory = SessionLocal
+    from app.db.session import ReadSessionLocal, SessionLocal
+    # BEL-55-P5 / BEL-73: when a read replica is configured, the read-only
+    # sub-sessions opened inside this aggregator route to it. When the
+    # replica is not configured, `ReadSessionLocal` is None and we fall
+    # back to `SessionLocal` (unchanged behavior — backward compatible).
+    session_factory = ReadSessionLocal or SessionLocal
 
     # Run queries sequentially so progress events are ordered and visible.
     # Each query sends a "running" event before executing and a "completed"

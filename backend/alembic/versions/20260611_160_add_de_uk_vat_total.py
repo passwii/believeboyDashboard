@@ -1,4 +1,14 @@
-"""add DE/UK VAT total columns to monthly report PT3/PT4
+"""add DE/UK VAT income columns to monthly report PT3
+
+[BEL-81.A] Adds two columns to monthly_report_pt3_calculation:
+- income_vat_total: DE/UK VAT total over the period
+- income_sales_with_tax: net sales including tax
+
+The matching `expense_vat_total` column for monthly_report_pt4_calculation
+is added separately by revision 161 (this revision originally added both
+PT3 and PT4 columns; the PT4 portion was removed to avoid a duplicate
+add_column with revision 161, which causes DuplicateColumn on
+`alembic upgrade`).
 
 Revision ID: 160
 Revises: 159
@@ -27,13 +37,8 @@ def upgrade() -> None:
         'monthly_report_pt3_calculation',
         sa.Column('income_sales_with_tax', sa.Numeric(18, 2), nullable=False, server_default='0'),
     )
-    op.add_column(
-        'monthly_report_pt4_calculation',
-        sa.Column('expense_vat_total', sa.Numeric(18, 2), nullable=False, server_default='0'),
-    )
 
 
 def downgrade() -> None:
-    op.drop_column('monthly_report_pt4_calculation', 'expense_vat_total')
     op.drop_column('monthly_report_pt3_calculation', 'income_sales_with_tax')
     op.drop_column('monthly_report_pt3_calculation', 'income_vat_total')
