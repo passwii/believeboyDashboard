@@ -21,6 +21,7 @@ class InventoryReplenishmentListItem(BaseModel):
     sku: str
     country: str
     asin: str | None = None
+    product_name: str | None = None
     available_inventory: int
     in_transit_quantity: int
     dms_30: float | None = None

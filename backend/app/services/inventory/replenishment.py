@@ -249,6 +249,28 @@ def _load_in_transit_map(db: Session, project_id: int, country: str) -> dict[str
     }
 
 
+def _load_product_name_map(
+    db: Session, project_id: int, skus: list[str]
+) -> dict[str, str]:
+    """从 SkuRecord 预加载 SKU -> 产品名称,首条 active + 非空品名胜出。"""
+    if not skus:
+        return {}
+    rows = db.execute(
+        select(SkuRecord.sku, SkuRecord.product_name)
+        .where(
+            SkuRecord.project_id == project_id,
+            SkuRecord.sku.in_(skus),
+            SkuRecord.is_active.is_(True),
+        )
+        .order_by(SkuRecord.sku, SkuRecord.id.desc())
+    ).all()
+    result: dict[str, str] = {}
+    for sku, product_name in rows:
+        if sku not in result and product_name:
+            result[sku] = product_name
+    return result
+
+
 def _load_asin_to_skus_map(base_rows: list[_BaseSkuRow]) -> dict[str, set[str]]:
     mapping: dict[str, set[str]] = {}
     for row in base_rows:
@@ -476,6 +498,9 @@ def list_inventory_replenishment_analysis(
     settings_map = _load_settings_map(db, project.id, normalized_country)
     inventory_map = _load_inventory_map(db, project.id, normalized_country)
     in_transit_map = _load_in_transit_map(db, project.id, normalized_country)
+    product_name_map = _load_product_name_map(
+        db, project.id, [row.sku for row in base_rows]
+    )
     dms_30_map = _load_sales_dms_map(db, project.id, normalized_country, today, 30)
     dms_14_map = _load_sales_dms_map(db, project.id, normalized_country, today, 14)
     dms_7_map = _load_sales_dms_map(db, project.id, normalized_country, today, 7)
@@ -584,6 +609,7 @@ def list_inventory_replenishment_analysis(
                 "sku": base_row.sku,
                 "country": base_row.country,
                 "asin": asin,
+                "product_name": product_name_map.get(base_row.sku),
                 "available_inventory": available_inventory,
                 "in_transit_quantity": in_transit_quantity,
                 "dms_30": _decimal_to_float(dms_30),
