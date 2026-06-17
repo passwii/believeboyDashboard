@@ -388,7 +388,7 @@ def _classify_monthly_rows(
         if row_type == "FBA Inventory Fee":
             classified["fba_inventory_fee"].append(row)
             continue
-        if row_type == "FBA Transaction fees":
+        if row_type == "FBA Transaction Fees":
             classified["fba_transaction_fees"].append(row)
             continue
         if row_type == "Amazon Fees - Reversal":

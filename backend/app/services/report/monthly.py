@@ -399,7 +399,7 @@ def persist_monthly_report_result(
         1 for row in rows if str(row.get("type", "")).strip() == "Service Fee"
     )
     report.total_trans_fees = sum(
-        1 for row in rows if str(row.get("type", "")).strip() == "FBA Transaction fees"
+        1 for row in rows if str(row.get("type", "")).strip() == "FBA Transaction Fees"
     )
     db.flush()
 
