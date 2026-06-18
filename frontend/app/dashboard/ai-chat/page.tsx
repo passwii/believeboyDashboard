@@ -20,6 +20,14 @@ import { AIChatWindow } from '@/components/chat/ai-chat-window'
  * SidebarShell 的 shadcn 主题 token 由 `<html class="dark">` 驱动 ——
  * 通过 next-themes 的 `useTheme` 在 mount/unmount 临时切换，保证只在这
  * 一个页面进入暗色，离开时还原用户原选择，不污染其他页面。
+ *
+ * `!absolute` 用意：`globals.css` 里有规则
+ *   `.dark .dashboard-page-shell > * { position: relative; z-index: 1; }`
+ * 它的本意是让 dashboard 页面的内容浮在 `dashboard-page-shell::before`
+ * 的渐变背景之上，但在 ai-chat 这里会把根 div 的 `absolute` 强制覆盖成
+ * `relative`，导致 inset-0 失效、根 div 塌缩、整页看不到。`!important`
+ * 把 absolute 抬到这个 base 规则之上，保证 dark 模式下 chat 窗口依然
+ * 撑满视口。
  */
 export default function DashboardAiChatPage() {
   useEffect(() => {
@@ -35,7 +43,7 @@ export default function DashboardAiChatPage() {
   }, [])
 
   return (
-    <div className="absolute inset-0 -m-1 -mt-3 -mb-6 md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4">
+    <div className="!absolute inset-0 -m-1 -mt-3 -mb-6 md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4">
       <AIChatWindow />
     </div>
   )
