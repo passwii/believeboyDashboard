@@ -466,6 +466,25 @@ if (requestId !== latestRequestRef.current) return
     comparisonRows,
   }), [currentRows, comparisonRows])
 
+  /**
+   * 库存健康度快照 —— 同步给 DashboardAlertWidget 卡片底部使用。
+   * current: 区间最后一天的 available_qty 快照(每日是当时累计);
+   * trend: 7 日序列;labels: 形如 "M/D",与 dashboard-metric-tiles 同口径。
+   */
+  const stockSnapshot = useMemo(() => {
+    if (currentRows.length === 0) return undefined
+    const trend = currentRows.map((r) => r.available_qty ?? 0)
+    const labels = currentRows.map((r) => {
+      const [, m, d] = r.date.split('-')
+      return `${Number(m)}/${Number(d)}`
+    })
+    return {
+      current: trend[trend.length - 1] ?? 0,
+      trend,
+      labels,
+    }
+  }, [currentRows])
+
   const handleRefresh = () => {
     void loadData()
   }
@@ -500,7 +519,10 @@ if (requestId !== latestRequestRef.current) return
         * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
         */}
       <section className="grid gap-5 lg:grid-cols-3">
-        <DashboardAlertWidget />
+        <DashboardAlertWidget
+          stockSnapshot={stockSnapshot}
+          stockLoading={dataLoading}
+        />
         <DashboardHealthKpis
           currentRows={currentRows}
           comparisonRows={comparisonRows}
