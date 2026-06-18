@@ -14,7 +14,7 @@ import { DashboardTopCountries } from '@/components/dashboard/dashboard-top-coun
 import { DashboardAdSpendChart } from '@/components/dashboard/dashboard-ad-spend-chart'
 import { DashboardHealthKpis } from '@/components/dashboard/dashboard-health-kpis'
 import { ProjectSelect } from '@/components/dashboard/console/project-select'
-import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 import { fmtMoney, fmtNum, fmtPct, formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -73,8 +73,6 @@ const LazyDashboardAdSpendChart = dynamic(
     ),
   },
 )
-
-type ProjectOption = { id: number | null; name: string }
 
 type DailyAnalysisRow = {
   date: string
@@ -185,8 +183,13 @@ export default function DashboardPage() {
     to: yesterday,
   }), [yesterday])
 
-  const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(true)
+  // 项目列表由 useManagedProjects hook 统一管理(单一 fetch + 2min client cache),
+  // 子组件 <ProjectSelect> 也通过 props 复用同一份数据,避免重复请求
+  const {
+    projects,
+    loading: projectsLoading,
+    error: projectsError,
+  } = useManagedProjects()
   const [currentRows, setCurrentRows] = useState<DailyAnalysisRow[]>([])
   const [comparisonRows, setComparisonRows] = useState<DailyAnalysisRow[]>([])
   const [projectBreakdown, setProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>({})
@@ -199,7 +202,11 @@ export default function DashboardPage() {
   const [dataLoading, setDataLoading] = useState(false)
   const latestRequestRef = useRef(0)
 
-  const projectIds = useMemo(() => projects.map((p) => p.id).filter((id): id is number => id !== null), [projects])
+  // hook 返回的项目 id 必为 number;保留 ?. 防御性兜底(后端 schema 升级时)
+  const projectIds = useMemo(
+    () => projects.map((p) => p.id).filter((id): id is number => typeof id === 'number'),
+    [projects],
+  )
 
   // 代表项目初始化 + 失效回退:
   //   - 首次进入时(state=null)自动选第一个项目
@@ -216,19 +223,10 @@ export default function DashboardPage() {
   }, [projectIds, representativeProjectId])
 
   useEffect(() => {
-    const loadProjects = async () => {
-      setProjectsLoading(true)
-      try {
-        const rows = await fetchManagedProjectsCached<ProjectOption[]>(session)
-        setProjects(rows.filter((item) => item.id !== null))
-      } catch {
-        notify({ type: 'error', title: '项目列表加载失败' })
-      } finally {
-        setProjectsLoading(false)
-      }
+    if (projectsError) {
+      notify({ type: 'error', title: '项目列表加载失败' })
     }
-    void loadProjects()
-  }, [notify, session])
+  }, [projectsError, notify])
 
   const loadData = useCallback(async () => {
     if (projects.length === 0) return
@@ -537,6 +535,9 @@ if (requestId !== latestRequestRef.current) return
               onChange={(v) => setRepresentativeProjectId(Number(v))}
               placeholder="选择代表项目"
               triggerClassName="h-8 text-xs min-w-[140px]"
+              projects={projects}
+              loading={projectsLoading}
+              error={projectsError}
             />
           }
           loading={dataLoading}
