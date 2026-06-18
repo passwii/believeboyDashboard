@@ -63,6 +63,17 @@ class Settings(BaseSettings):
         "application/octet-stream",
     }
 
+    # User avatar uploads — separate, smaller cap than generic uploads so
+    # we never accept phone-camera dumps into the R2 bucket by accident.
+    avatar_max_bytes: int = 5 * 1024 * 1024
+    avatar_allowed_extensions: set[str] = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+    avatar_allowed_content_types: set[str] = {
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+    }
+
     redis_host: str = Field(default="localhost", max_length=200)
     redis_port: int = Field(default=6379, ge=1, le=65535)
     redis_password: str = Field(default="", max_length=200)
