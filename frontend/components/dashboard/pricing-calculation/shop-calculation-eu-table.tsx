@@ -99,31 +99,33 @@ function toNumber(value: string) {
 /**
  * Unified semantic color system — mirrors shop-calculation-table.tsx.
  * Provides consistent group header colors across both US and EU tables.
+ * Each entry combines light + dark variants via Tailwind `dark:` prefixes,
+ * matching the structure used by the US table so dark mode is honored.
  */
 const GROUP_COLORS = {
   店铺产品: {
-    light: { header: 'bg-[#e0e7ff] text-[#1e1b4b]', sub: 'bg-[#eef2ff]' },
-    dark:  { header: 'bg-[#312e81] text-[#e0e7ff]', sub: 'bg-[#1e1b4b]/80' },
+    header: 'bg-[#e0e7ff] text-[#1e1b4b] dark:bg-[#312e81] dark:text-[#e0e7ff]',
+    sub: 'bg-[#eef2ff] dark:bg-[#1e1b4b]/80',
   },
   货品数据: {
-    light: { header: 'bg-[#e0f2fe] text-[#0c4a6e]', sub: 'bg-[#f0f9ff]' },
-    dark:  { header: 'bg-[#0c4a6e] text-[#e0f2fe]', sub: 'bg-[#082f49]/80' },
+    header: 'bg-[#e0f2fe] text-[#0c4a6e] dark:bg-[#0c4a6e] dark:text-[#e0f2fe]',
+    sub: 'bg-[#f0f9ff] dark:bg-[#082f49]/80',
   },
   'DDP 成本': {
-    light: { header: 'bg-[#fef3c7] text-[#78350f]', sub: 'bg-[#fffbeb]' },
-    dark:  { header: 'bg-[#78350f] text-[#fef3c7]', sub: 'bg-[#451a03]/80' },
+    header: 'bg-[#fef3c7] text-[#78350f] dark:bg-[#78350f] dark:text-[#fef3c7]',
+    sub: 'bg-[#fffbeb] dark:bg-[#451a03]/80',
   },
   费用支出: {
-    light: { header: 'bg-[#ffe4e6] text-[#881337]', sub: 'bg-[#fff1f2]' },
-    dark:  { header: 'bg-[#881337] text-[#ffe4e6]', sub: 'bg-[#4c0519]/80' },
+    header: 'bg-[#ffe4e6] text-[#881337] dark:bg-[#881337] dark:text-[#ffe4e6]',
+    sub: 'bg-[#fff1f2] dark:bg-[#4c0519]/80',
   },
   利润核算: {
-    light: { header: 'bg-[#d1fae5] text-[#064e3b]', sub: 'bg-[#ecfdf5]' },
-    dark:  { header: 'bg-[#064e3b] text-[#d1fae5]', sub: 'bg-[#022c22]/80' },
+    header: 'bg-[#d1fae5] text-[#064e3b] dark:bg-[#064e3b] dark:text-[#d1fae5]',
+    sub: 'bg-[#ecfdf5] dark:bg-[#022c22]/80',
   },
   操作: {
-    light: { header: 'bg-[hsl(var(--surface-subtle))] text-[hsl(var(--foreground))]', sub: 'bg-[hsl(var(--surface-subtle))]' },
-    dark:  { header: 'bg-[hsl(var(--surface-soft))] text-[hsl(var(--foreground))]', sub: 'bg-[hsl(var(--surface-soft))]' },
+    header: 'bg-[hsl(var(--surface-subtle))] text-[hsl(var(--foreground))] dark:bg-[hsl(var(--surface-soft))]',
+    sub: 'bg-[hsl(var(--surface-subtle))] dark:bg-[hsl(var(--surface-soft))]',
   },
 } as const
 
@@ -131,7 +133,7 @@ function getGroupStyle(
   group: keyof typeof GROUP_COLORS,
   variant: 'header' | 'sub',
 ) {
-  return GROUP_COLORS[group]?.light[variant] ?? ''
+  return GROUP_COLORS[group]?.[variant] ?? ''
 }
 
 export function ShopCalculationEuTable({
