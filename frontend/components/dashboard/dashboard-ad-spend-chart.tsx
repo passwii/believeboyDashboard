@@ -254,7 +254,10 @@ function KpiItem({ icon, label, value, change, badge, badgeColor, accent }: KpiI
     <div className="flex flex-col gap-1 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5">
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-          <span className={cn('flex h-4 w-4 items-center justify-center rounded text-white/90', `bg-[hsl(var(--${accent}))]/85`)}>
+          <span
+            className="flex h-4 w-4 items-center justify-center rounded text-white/90"
+            style={{ backgroundColor: `hsl(var(--${accent}) / 0.85)` }}
+          >
             {icon}
           </span>
           <span>{label}</span>
