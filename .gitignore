@@ -119,10 +119,8 @@ autoReportUpload/__pycache__/
 /backend/tmp_upload_check/
 /backend/tmp_backup/
 
-# Backend tests
-/backend/tests/
+# Backend tests — now tracked
 /backend/.pytest_cache/
-/backend/conftest.py
 
 # Docs
 /Docs/*
