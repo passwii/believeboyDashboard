@@ -4,7 +4,7 @@ import warnings
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import PricingCalculationRun
@@ -289,6 +289,7 @@ def list_pricing_runs(
     page_size: int = 20,
     exclude_project_id: bool = True,
     country: str | None = None,
+    keyword: str | None = None,
     operator: str | None = None,
     is_admin: bool = False,
 ) -> tuple[list[PricingCalculationRun], int]:
@@ -304,7 +305,17 @@ def list_pricing_runs(
         if normalized_operator:
             stmt = stmt.where(PricingCalculationRun.created_by == normalized_operator)
         else:
-            stmt = stmt.where(PricingCalculationRun.id == -1)
+            stmt = stmt.where(PricingCalculationRun.id == -1)  # 非 admin 且无 operator → 强制空
+    # keyword 必须在 operator 隔离之后追加，避免非 admin 越权看到别人记录
+    normalized_keyword = (keyword or "").strip()
+    if normalized_keyword:
+        like_value = f"%{normalized_keyword}%"
+        stmt = stmt.where(
+            or_(
+                PricingCalculationRun.product_name.ilike(like_value),
+                PricingCalculationRun.created_by.ilike(like_value),
+            )
+        )
     total = int(
         db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one() or 0
     )
