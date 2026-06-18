@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Activity, Boxes, Eye, MousePointerClick, Percent, Users } from 'lucide-react'
+import { Activity, Eye, MousePointerClick, Percent, Users } from 'lucide-react'
 
 import {
   DataCard,
@@ -38,7 +38,7 @@ export interface DashboardHealthKpisProps {
   loading?: boolean
 }
 
-type HealthKey = 'stock' | 'impressions' | 'clicks' | 'cpc' | 'conv' | 'sessions'
+type HealthKey = 'impressions' | 'clicks' | 'cpc' | 'conv' | 'sessions'
 
 interface HealthMeta {
   key: HealthKey
@@ -58,18 +58,6 @@ interface HealthMeta {
 }
 
 const HEALTH_META: HealthMeta[] = [
-  {
-    key: 'stock',
-    label: '可用库存',
-    icon: <Boxes className="h-3.5 w-3.5" />,
-    color: 'hsl(var(--chart-1))',
-    // 可用库存:取区间最后一天的快照(每日是当时累计)
-    current: (rows) => (rows.length > 0 ? rows[rows.length - 1].available_qty ?? 0 : 0),
-    previous: (rows) => (rows.length > 0 ? rows[rows.length - 1].available_qty ?? 0 : 0),
-    format: (n) => `${fmtNumPrecise(n)} 件`,
-    trend: (rows) => rows.map((r) => r.available_qty ?? 0),
-    trendFormat: (n) => `${fmtNumPrecise(n)} 件`,
-  },
   {
     key: 'impressions',
     label: '曝光',
@@ -182,13 +170,13 @@ export function DashboardHealthKpis({
     <DataCard className="h-full">
       <DataCardHeader
         title="库存 / 流量 健康度"
-        description="6 维度核心指标 · 含 7 日趋势"
+        description="5 维度核心指标 · 含 7 日趋势"
       />
-      <DataCardContent className="space-y-2">
+      <DataCardContent className="space-y-2.5">
         {isEmpty ? (
           <EmptyHealth />
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5">
             {kpis.map((kpi) => (
               <HealthKpiRow key={kpi.key} kpi={kpi} loading={loading && kpi.trendData.every((v) => v === 0)} />
             ))}
@@ -211,7 +199,7 @@ interface HealthKpiRowProps {
 
 function HealthKpiRow({ kpi, loading }: HealthKpiRowProps) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-2.5 py-2">
+    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-3.5">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
           <span
@@ -237,7 +225,7 @@ function HealthKpiRow({ kpi, loading }: HealthKpiRowProps) {
           )}
         </div>
       </div>
-      <div className="h-9 w-20 shrink-0">
+      <div className="h-10 w-24 shrink-0">
         {loading ? (
           <Skeleton className="h-full w-full" />
         ) : (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Bell, CheckCircle, RefreshCw, XCircle } from 'lucide-react'
+import { AlertTriangle, Bell, Boxes, CheckCircle, RefreshCw, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/data-card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { fmtNumPrecise } from '@/lib/dashboard-format'
+import { AreaSparkline } from './area-sparkline'
 
 interface AlertStats {
   total_active: number
@@ -32,11 +34,28 @@ interface AlertEvent {
   deviation_pct: number
 }
 
-interface DashboardAlertWidgetProps {
-  className?: string
+/** 库存健康度快照 —— 来自 DashboardHealthKpis 同一份 currentRows */
+export interface StockSnapshot {
+  /** 区间最后一天的快照值 */
+  current: number
+  /** 7 日序列(每日的 available_qty) */
+  trend: number[]
+  /** trend 对应的日期标签(可选,用于 sparkline tooltip) */
+  labels?: string[]
 }
 
-export function DashboardAlertWidget({ className }: DashboardAlertWidgetProps) {
+interface DashboardAlertWidgetProps {
+  className?: string
+  /** 库存健康度数据(由 DashboardPage 注入,与 HealthKpis 同一份数据源) */
+  stockSnapshot?: StockSnapshot
+  stockLoading?: boolean
+}
+
+export function DashboardAlertWidget({
+  className,
+  stockSnapshot,
+  stockLoading = false,
+}: DashboardAlertWidgetProps) {
   const [stats, setStats] = useState<AlertStats | null>(null)
   const [recentEvents, setRecentEvents] = useState<AlertEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -195,6 +214,9 @@ export function DashboardAlertWidget({ className }: DashboardAlertWidgetProps) {
             </span>
           </div>
         )}
+
+        {/* 库存健康度 —— 从 DashboardHealthKpis 迁回,与 currentRows 同一份数据源 */}
+        <StockHealthBlock snapshot={stockSnapshot} loading={stockLoading} />
       </DataCardContent>
     </DataCard>
   )
@@ -208,6 +230,74 @@ function SeverityBadge({ severity }: { severity: string }) {
   }
   const cfg = map[severity] ?? map.info
   return <Badge className={cn(cfg.className, "text-[10px] px-1.5 border")}>{cfg.label}</Badge>
+}
+
+/**
+ * 库存健康度子区块 —— 位于告警中心卡片底部
+ * 视觉与 HealthKpiRow 对齐:左侧 icon+标签+数值,右侧 AreaSparkline 7 日趋势
+ */
+function StockHealthBlock({
+  snapshot,
+  loading,
+}: {
+  snapshot?: StockSnapshot
+  loading: boolean
+}) {
+  const hasData = !!snapshot && snapshot.trend.length > 0
+  return (
+    <div className="border-t border-border/60 pt-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+          库存健康度
+        </span>
+        {hasData && (
+          <span className="text-[10px] text-muted-foreground">区间末日快照</span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-3.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-white/90"
+              style={{ backgroundColor: 'hsl(var(--chart-1))' }}
+            >
+              <Boxes className="h-3.5 w-3.5" />
+            </span>
+            <span className="truncate text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+              可用库存
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            {loading && !hasData ? (
+              <Skeleton className="h-4 w-20" />
+            ) : (
+              <span className="truncate text-sm font-semibold tabular-nums leading-tight">
+                {hasData ? `${fmtNumPrecise(snapshot!.current)} 件` : '—'}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="h-10 w-24 shrink-0">
+          {loading && !hasData ? (
+            <Skeleton className="h-full w-full" />
+          ) : hasData ? (
+            <AreaSparkline
+              trend={snapshot!.trend}
+              gradientId="alert-stock-health"
+              strokeColor="hsl(var(--chart-1))"
+              strokeWidth={2}
+              labels={snapshot!.labels}
+              formatValue={(n) => `${fmtNumPrecise(n)} 件`}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground/70">
+              暂无库存数据
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function formatRelativeTime(isoString: string): string {
