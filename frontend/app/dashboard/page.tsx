@@ -8,7 +8,14 @@ import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-load
 import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
+import { DashboardAlertWidget } from '@/components/dashboard/dashboard-alert-widget'
+import { DashboardTopProjects } from '@/components/dashboard/dashboard-top-projects'
+import { DashboardTopCountries } from '@/components/dashboard/dashboard-top-countries'
+import { DashboardAdSpendChart } from '@/components/dashboard/dashboard-ad-spend-chart'
+import { DashboardHealthKpis } from '@/components/dashboard/dashboard-health-kpis'
+import { ProjectSelect } from '@/components/dashboard/console/project-select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fmtMoney, fmtNum, fmtPct, formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -39,6 +46,34 @@ const LazyDashboardSalesChart = dynamic(
   },
 )
 
+// Row 3 右侧「销售 vs 广告花费」同样依赖 recharts,也需要 ssr:false
+const LazyDashboardAdSpendChart = dynamic(
+  () =>
+    import('@/components/dashboard/dashboard-ad-spend-chart').then(
+      (m) => m.DashboardAdSpendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className='dashboard-surface p-5'>
+        <div className='flex items-center justify-between pb-3'>
+          <div className='space-y-2'>
+            <Skeleton className='h-5 w-36' />
+            <Skeleton className='h-3 w-48' />
+          </div>
+          <Skeleton className='h-7 w-7 rounded-md' />
+        </div>
+        <div className='grid grid-cols-3 gap-3 pb-3'>
+          <Skeleton className='h-16 w-full' />
+          <Skeleton className='h-16 w-full' />
+          <Skeleton className='h-16 w-full' />
+        </div>
+        <Skeleton className='h-[260px] sm:h-[320px] w-full rounded-lg' />
+      </div>
+    ),
+  },
+)
+
 type ProjectOption = { id: number | null; name: string }
 
 type DailyAnalysisRow = {
@@ -58,10 +93,32 @@ type DailyAnalysisRow = {
   conversion_rate: number
 }
 
+type ProjectBreakdownEntry = {
+  project_name: string
+  summary_rows: DailyAnalysisRow[]
+}
+
+type CountryBreakdownEntry = {
+  summary_rows: DailyAnalysisRow[]
+  detail_rows?: unknown[]
+  currency?: string
+  source_currency?: string
+}
+
 type DailyAnalysisAllProjectsResponse = {
   summary_rows: DailyAnalysisRow[]
   detail_rows: unknown[]
   available_dates: Record<string, string[]>
+  project_breakdown?: Record<number, ProjectBreakdownEntry>
+}
+
+type DailyAnalysisAllCountriesResponse = {
+  summary_rows: DailyAnalysisRow[]
+  detail_rows: unknown[]
+  available_dates: Record<string, string[]>
+  country_breakdown?: Record<string, CountryBreakdownEntry>
+  currency?: string
+  currency_note?: string | null
 }
 
 const US_TIMEZONE = 'America/Los_Angeles'
@@ -77,13 +134,6 @@ function addDays(date: Date, amount: number): Date {
   const next = new Date(date)
   next.setDate(next.getDate() + amount)
   return next
-}
-
-function formatYMD(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
 }
 
 function aggregateMetric(rows: DailyAnalysisRow[], key: keyof DailyAnalysisRow & ('order_qty' | 'sales_amount' | 'impressions' | 'clicks' | 'cpc' | 'ad_spend' | 'ad_orders' | 'page_views' | 'units_ordered' | 'sessions' | 'conversion_rate')): number {
@@ -103,14 +153,18 @@ function aggregateMetric(rows: DailyAnalysisRow[], key: keyof DailyAnalysisRow &
   return rows.reduce((s, r) => s + (r[key] as number), 0)
 }
 
-function fmtMoney(v: number) {
-  return v >= 10000 ? `$${(v / 1000).toFixed(0)}k` : v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(2)}`
-}
-function fmtNum(v: number) {
-  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)
-}
-function fmtPct(v: number) {
-  return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
+/** 解析后端 /all-countries 返回的 country_breakdown,过滤非法 entry */
+function parseCountryBreakdown(
+  countryBreakdown: Record<string, CountryBreakdownEntry> | undefined,
+): Record<string, DailyAnalysisRow[]> {
+  const result: Record<string, DailyAnalysisRow[]> = {}
+  if (!countryBreakdown) return result
+  for (const [code, entry] of Object.entries(countryBreakdown)) {
+    if (entry && Array.isArray(entry.summary_rows) && entry.summary_rows.length > 0) {
+      result[code] = entry.summary_rows
+    }
+  }
+  return result
 }
 
 export type DashboardDailyData = {
@@ -135,10 +189,31 @@ export default function DashboardPage() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [currentRows, setCurrentRows] = useState<DailyAnalysisRow[]>([])
   const [comparisonRows, setComparisonRows] = useState<DailyAnalysisRow[]>([])
+  const [projectBreakdown, setProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>({})
+  const [compareProjectBreakdown, setCompareProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>({})
+  const [countryRowsByCode, setCountryRowsByCode] = useState<Record<string, DailyAnalysisRow[]>>({})
+  const [countryCompareRowsByCode, setCountryCompareRowsByCode] = useState<Record<string, DailyAnalysisRow[]>>({})
+  const [countryCurrencyNote, setCountryCurrencyNote] = useState<string | null>(null)
+  /** 跨国家卡片的"代表项目"(用户可手动切换);null 表示跟随默认 projectIds[0] */
+  const [representativeProjectId, setRepresentativeProjectId] = useState<number | null>(null)
   const [dataLoading, setDataLoading] = useState(false)
   const latestRequestRef = useRef(0)
 
   const projectIds = useMemo(() => projects.map((p) => p.id).filter((id): id is number => id !== null), [projects])
+
+  // 代表项目初始化 + 失效回退:
+  //   - 首次进入时(state=null)自动选第一个项目
+  //   - 选中的代表项目被移除(用户改了权限/项目下架)时,重置到第一个
+  useEffect(() => {
+    if (projectIds.length === 0) return
+    if (representativeProjectId === null) {
+      setRepresentativeProjectId(projectIds[0])
+      return
+    }
+    if (!projectIds.includes(representativeProjectId)) {
+      setRepresentativeProjectId(projectIds[0])
+    }
+  }, [projectIds, representativeProjectId])
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -186,10 +261,43 @@ export default function DashboardPage() {
         end_date: formatYMD(prevTo),
       })
 
-      const [response, compareResponse] = await Promise.all([
+      // /all-countries 只接受单 project_id,首页是多项目合并 —— 用户可在 Row 3 切换"代表项目",
+      // 未指定时 fallback 到 projectIds[0]
+      const effectiveRepresentativeProjectId = representativeProjectId ?? projectIds[0]
+      const countriesParams = effectiveRepresentativeProjectId !== undefined
+        ? new URLSearchParams({
+            project_id: String(effectiveRepresentativeProjectId),
+            start_date: startDate,
+            end_date: endDate,
+          })
+        : null
+      const countriesCompareParams =
+        effectiveRepresentativeProjectId !== undefined
+          ? new URLSearchParams({
+              project_id: String(effectiveRepresentativeProjectId),
+              start_date: formatYMD(prevFrom),
+              end_date: formatYMD(prevTo),
+            })
+          : null
+
+      const fetches: Array<Promise<Response>> = [
         fetch(`/api/backend/api/v1/daily-analysis/all?${params.toString()}`, { cache: 'no-store' }),
         fetch(`/api/backend/api/v1/daily-analysis/all?${compareParams.toString()}`, { cache: 'no-store' }),
-      ])
+      ]
+      if (countriesParams && countriesCompareParams) {
+        fetches.push(
+          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesParams.toString()}`, { cache: 'no-store' }),
+          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesCompareParams.toString()}`, { cache: 'no-store' }),
+        )
+      }
+
+      const responses = await Promise.all(fetches)
+      const [response, compareResponse, countriesRes, countriesCompareRes] = responses as [
+        Response,
+        Response,
+        Response | undefined,
+        Response | undefined,
+      ]
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -201,11 +309,38 @@ export default function DashboardPage() {
         ? ((await compareResponse.json()) as DailyAnalysisAllProjectsResponse)
         : null
 
-      if (requestId !== latestRequestRef.current) return
+      // 跨国家数据:静默降级,失败只 set empty,不阻断 KPI 错误提示
+      let nextCountryRowsByCode: Record<string, DailyAnalysisRow[]> = {}
+      let nextCountryCompareRowsByCode: Record<string, DailyAnalysisRow[]> = {}
+      let nextCurrencyNote: string | null = null
+      if (countriesRes && countriesRes.ok) {
+        try {
+          const countriesPayload = (await countriesRes.json()) as DailyAnalysisAllCountriesResponse
+          nextCountryRowsByCode = parseCountryBreakdown(countriesPayload.country_breakdown)
+          nextCurrencyNote = countriesPayload.currency_note ?? null
+        } catch {
+          nextCountryRowsByCode = {}
+        }
+      }
+      if (countriesCompareRes && countriesCompareRes.ok) {
+        try {
+          const compareCountriesPayload = (await countriesCompareRes.json()) as DailyAnalysisAllCountriesResponse
+          nextCountryCompareRowsByCode = parseCountryBreakdown(compareCountriesPayload.country_breakdown)
+        } catch {
+          nextCountryCompareRowsByCode = {}
+        }
+      }
 
-      setCurrentRows(payload.summary_rows)
-      setComparisonRows(comparePayload?.summary_rows ?? [])
-    } catch (err) {
+if (requestId !== latestRequestRef.current) return
+
+    setCurrentRows(payload.summary_rows)
+    setComparisonRows(comparePayload?.summary_rows ?? [])
+    setProjectBreakdown(payload.project_breakdown ?? {})
+    setCompareProjectBreakdown(comparePayload?.project_breakdown ?? {})
+    setCountryRowsByCode(nextCountryRowsByCode)
+    setCountryCompareRowsByCode(nextCountryCompareRowsByCode)
+    setCountryCurrencyNote(nextCurrencyNote)
+  } catch (err) {
       if (requestId !== latestRequestRef.current) return
       notify({
         type: 'error',
@@ -214,6 +349,11 @@ export default function DashboardPage() {
       })
       setCurrentRows([])
       setComparisonRows([])
+      setProjectBreakdown({})
+      setCompareProjectBreakdown({})
+      setCountryRowsByCode({})
+      setCountryCompareRowsByCode({})
+      setCountryCurrencyNote(null)
     } finally {
       if (requestId !== latestRequestRef.current) return
       setDataLoading(false)
@@ -354,6 +494,59 @@ export default function DashboardPage() {
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
         <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+      </section>
+      {/*
+        * Row 2 — 高度填充 + 信息密度补充
+        *   - 左 2fr：DashboardAlertWidget（自管 fetch，与 KPI 时段无关）
+        *   - 右 3fr：DashboardTopProjects（Top 5 项目/店铺，Tab 切换 销售额/广告花费）
+        * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
+        */}
+      <section className="grid gap-5 lg:grid-cols-3">
+        <DashboardAlertWidget />
+        <DashboardHealthKpis
+          currentRows={currentRows}
+          comparisonRows={comparisonRows}
+          loading={dataLoading}
+        />
+        <DashboardTopProjects
+          projectBreakdown={projectBreakdown}
+          compareProjectBreakdown={compareProjectBreakdown}
+          projects={projects}
+          loading={dataLoading || projectsLoading}
+        />
+      </section>
+
+      {/*
+        * Row 3 — 销售/广告全景
+        *   - 左 2fr：跨国家 TOP（取 representativeProjectId 为代表项目调 /all-countries,静默降级)
+        *   - 右 3fr：销售 vs 广告花费 双轴对比图（复用 page.tsx 同一份 currentRows/comparisonRows）
+        */}
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <DashboardTopCountries
+          countryRowsByCode={countryRowsByCode}
+          countryCompareRowsByCode={countryCompareRowsByCode}
+          currencyNote={countryCurrencyNote}
+          representativeProjectName={
+            representativeProjectId
+              ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
+              : null
+          }
+          projectSelector={
+            <ProjectSelect
+              value={representativeProjectId ? String(representativeProjectId) : ''}
+              onChange={(v) => setRepresentativeProjectId(Number(v))}
+              placeholder="选择代表项目"
+              triggerClassName="h-8 text-xs min-w-[140px]"
+            />
+          }
+          loading={dataLoading}
+        />
+        <LazyDashboardAdSpendChart
+          dailyData={dailyData}
+          dateRange={dateRange}
+          loading={dataLoading}
+          onRefresh={handleRefresh}
+        />
       </section>
     </div>
   )
