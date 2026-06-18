@@ -194,8 +194,12 @@ def compute_metrics(
     fba_transaction_fee_refunds = _round2(
         _sum_field(fba_refund, "fba fees") + fee_adjustment_fee
     )
-    other_transaction_fees = Decimal("0")
-    other_transaction_fee_refunds = Decimal("0")
+    # Other transaction fees / refunds：对齐 Amazon 月报 PDF 口径，
+    # 取 Order / Refund 行 CSV 的 "other transaction fees" 列求和。
+    # 注意：Service Fee(Cost of Advertising) 已计入 advertising，
+    # Liquidations 的 otf 已计入 liquidations_fees，此处均不重复计入。
+    other_transaction_fees = _sum_field(order, "other transaction fees")
+    other_transaction_fee_refunds = _sum_field(refund, "other transaction fees")
     fba_inventory_and_inbound_services_fees = _round2(
         _sum_field(fba_inventory_fee, "total")
         + _sum_field(fba_customer_return_fee, "total")
