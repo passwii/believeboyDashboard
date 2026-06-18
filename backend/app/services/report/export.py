@@ -482,6 +482,83 @@ def _auto_width_for_report_sheet_service(ws) -> None:
         ws.column_dimensions[letter].width = min(max(max_length + 2, 8), 50)
 
 
+def _style_accounting_summary_rows(ws, rows: list[dict[str, Any]]) -> None:
+    """Post-style the 报表核算 sheet to highlight the spacer and total rows.
+
+    `_apply_monthly_like_styles` already gives every cell a uniform sty1/sty2
+    treatment and an alternating fill; we override the per-cell fill and font
+    for spacer and total rows here. Runs *after* `_apply_monthly_like_styles`
+    so the overrides win.
+
+    Layout convention: sheet row 1 is the header. Detail rows start at sheet
+    row 2 and follow the order of `rows`.
+
+    Args:
+        ws: The 报表核算 worksheet.
+        rows: The structured row list returned by `_build_accounting_rows`,
+            which carries the `kind` discriminator ("detail" | "spacer" | "total").
+    """
+    thin = Side(style="thin", color="FFCBD5E1")
+    medium = Side(style="medium", color="FF64748B")
+    # Tailwind emerald-100 / rose-100 + emerald-800 / rose-800, mirroring
+    # the frontend's `bg-emerald-100` / `bg-rose-100` summary colors.
+    income_fill = PatternFill(
+        start_color="FFD1FAE5", end_color="FFD1FAE5", fill_type="solid"
+    )
+    income_font = Font(name="等线", size=11, bold=True, color="FF065F46")
+    expense_fill = PatternFill(
+        start_color="FFFFE4E6", end_color="FFFFE4E6", fill_type="solid"
+    )
+    expense_font = Font(name="等线", size=11, bold=True, color="FF9F1239")
+    no_fill = PatternFill(fill_type=None)
+
+    # sheet row 1 = header, so the first data row is row 2.
+    for offset, row in enumerate(rows):
+        sheet_row = 2 + offset
+        kind = row.get("kind", "detail")
+        if kind == "spacer":
+            # Compress the spacer so the totals read as a visual summary.
+            ws.row_dimensions[sheet_row].height = 8
+            for col in range(1, 10):
+                cell = ws.cell(sheet_row, col)
+                cell.fill = no_fill
+                cell.font = Font(name="等线", size=10)
+                cell.border = Border()
+            continue
+        if kind == "total":
+            ws.row_dimensions[sheet_row].height = 28
+            # Income half: columns 1..4, leave a thicker top border to mark
+            # the totals as a separated summary block.
+            income_border = Border(
+                top=medium, bottom=thin, left=thin, right=thin
+            )
+            for col in range(1, 5):
+                cell = ws.cell(sheet_row, col)
+                cell.fill = income_fill
+                cell.font = income_font
+                cell.border = income_border
+            # Visual gap column 5: keep the border minimal so the two halves
+            # read as a paired summary.
+            gap = ws.cell(sheet_row, 5)
+            gap.fill = PatternFill(
+                start_color="FFF1F5F9", end_color="FFF1F5F9", fill_type="solid"
+            )
+            gap.font = Font(name="等线", size=11, bold=True, color="FF334155")
+            gap.border = Border(top=medium, bottom=thin, left=thin, right=thin)
+            # Expense half: columns 6..9.
+            expense_border = Border(
+                top=medium, bottom=thin, left=thin, right=thin
+            )
+            for col in range(6, 10):
+                cell = ws.cell(sheet_row, col)
+                cell.fill = expense_fill
+                cell.font = expense_font
+                cell.border = expense_border
+            # Number format for the two amount cells (columns 3 and 8).
+            ws.cell(sheet_row, 3).number_format = _excel_num_fmt("currency_usd")
+            ws.cell(sheet_row, 8).number_format = _excel_num_fmt("currency_usd")
+
+
 def _style_financial_export_sheets(ws_summary, ws_financial_detail) -> None:
     """Apply specific styling to financial export sheets.
 
@@ -635,7 +712,30 @@ def export_financial_accounting_detail_workbook(
             "Ex源表",
         ]
     )
+    # Each row carries a `kind` discriminator produced by
+    # `_build_accounting_rows` (detail / spacer / total). The layout
+    # arranges the totals on the same line with one blank row separating
+    # the detail block from the totals.
     for line in _build_accounting_rows(pt3, country=report.country):
+        kind = line.get("kind", "detail")
+        if kind == "spacer":
+            ws.append([""] * 9)
+            continue
+        if kind == "total":
+            ws.append(
+                [
+                    line["income_en"],
+                    line["income_zh"],
+                    line["income_amount_usd"],
+                    line["income_source"],
+                    "",
+                    line["expense_en"],
+                    line["expense_zh"],
+                    line["expense_amount_usd"],
+                    line["expense_source"],
+                ]
+            )
+            continue
         ws.append(
             [
                 line["income_en"],
@@ -675,6 +775,11 @@ def export_financial_accounting_detail_workbook(
         _auto_width(detail_ws)
 
     _apply_monthly_like_styles(wb)
+
+    # Post-process the 报表核算 sheet so that spacer / total rows are styled
+    # on top of the uniform sty1/sty2 treatment applied above. `_apply_monthly_like_styles`
+    # iterates every cell, so the overrides here run after it and win.
+    _style_accounting_summary_rows(ws, _build_accounting_rows(pt3, country=report.country))
 
     out = BytesIO()
     wb.save(out)
@@ -718,6 +823,7 @@ __all__ = [
     "_load_usd_exchange_rate",
     "_parse_report_month",
     "_rows_to_sheet",
+    "_style_accounting_summary_rows",
     "_style_financial_export_sheets",
     "export_financial_accounting_detail_workbook",
 ]

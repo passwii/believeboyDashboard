@@ -69,3 +69,17 @@ def get_request_role_type(x_role_type: str | None = Header(default=None, alias='
         return None
     value = _decode_header_value(x_role_type)
     return value[:32] if value else None
+
+
+def get_request_user_id(
+    x_user_id: str | None = Header(default=None, alias='X-User-Id'),
+) -> str | None:
+    """Read the authenticated user id from the proxy-injected ``X-User-Id`` header.
+
+    Returns None when missing so individual endpoints can decide whether to
+    raise 401 (vs. treating it as anonymous, e.g. health checks).
+    """
+    if x_user_id is None:
+        return None
+    value = _decode_header_value(x_user_id)
+    return value[:64] if value else None

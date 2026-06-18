@@ -146,6 +146,14 @@ type FinancialAccountingDetailLine = {
   // Frontend maps this to the symbol/label so values render in the
   // correct currency after the user switches country.
   currency_code?: string | null
+  // Row layout discriminator produced by the backend:
+  //   "detail" - a regular income/expense line item
+  //   "spacer" - a blank separator row between details and totals
+  //   "total"  - the bottom row carrying Total_Income and Total_Expense
+  //              on the same visual line
+  // Defaults to "detail" for backward compatibility with older responses
+  // that do not stamp this field.
+  kind?: 'detail' | 'spacer' | 'total'
 }
 
 type FinancialAccountingDetailResponse = {
@@ -3105,22 +3113,72 @@ export default function FinancialDataClient({
                             : rowCurrencyCode === 'USD'
                               ? '$'
                               : currencySymbol
+                      // Backward-compat: older responses (no `kind` field) all
+                      // route through the "detail" branch.
+                      const rowKind = row.kind ?? 'detail'
+                      if (rowKind === 'spacer') {
+                        return (
+                          <TableRow
+                            key={`spacer-${index}`}
+                            className='h-2 bg-muted/30 hover:bg-muted/30'
+                            aria-hidden='true'
+                          >
+                            <TableCell colSpan={9} className='border-0 p-0' />
+                          </TableRow>
+                        )
+                      }
+                      if (rowKind === 'total') {
+                        return (
+                          <TableRow
+                            key={`total-${index}`}
+                            className='border-t-2 border-slate-400 font-semibold hover:bg-transparent'
+                          >
+                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                              {row.income_en}
+                            </TableCell>
+                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                              {row.income_zh}
+                            </TableCell>
+                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-right tabular-nums text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                              {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
+                            </TableCell>
+                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                              {row.income_source || '\u00A0'}
+                            </TableCell>
+                            <TableCell className='border-r bg-slate-100 px-2 py-2 text-center text-muted-foreground dark:bg-slate-800'>
+                              |
+                            </TableCell>
+                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                              {row.expense_en}
+                            </TableCell>
+                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                              {row.expense_zh}
+                            </TableCell>
+                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-right tabular-nums text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                              {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
+                            </TableCell>
+                            <TableCell className='bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                              {row.expense_source || '\u00A0'}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      }
                       return (
-                      <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
-                        <TableCell className='border-r px-2 py-1.5'>{row.income_en || '-'}</TableCell>
-                        <TableCell className='border-r px-2 py-1.5'>{row.income_zh || '-'}</TableCell>
-                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                          {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
-                        </TableCell>
-                        <TableCell className='border-r px-2 py-1.5'>{row.income_source || '-'}</TableCell>
-                        <TableCell className='border-r px-2 py-1.5 text-center text-muted-foreground'>|</TableCell>
-                        <TableCell className='border-r px-2 py-1.5'>{row.expense_en || '-'}</TableCell>
-                        <TableCell className='border-r px-2 py-1.5'>{row.expense_zh || '-'}</TableCell>
-                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                          {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
-                        </TableCell>
-                        <TableCell className='px-2 py-1.5'>{row.expense_source || '-'}</TableCell>
-                      </TableRow>
+                        <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
+                          <TableCell className='border-r px-2 py-1.5'>{row.income_en || '-'}</TableCell>
+                          <TableCell className='border-r px-2 py-1.5'>{row.income_zh || '-'}</TableCell>
+                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                            {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
+                          </TableCell>
+                          <TableCell className='border-r px-2 py-1.5'>{row.income_source || '-'}</TableCell>
+                          <TableCell className='border-r px-2 py-1.5 text-center text-muted-foreground'>|</TableCell>
+                          <TableCell className='border-r px-2 py-1.5'>{row.expense_en || '-'}</TableCell>
+                          <TableCell className='border-r px-2 py-1.5'>{row.expense_zh || '-'}</TableCell>
+                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                            {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
+                          </TableCell>
+                          <TableCell className='px-2 py-1.5'>{row.expense_source || '-'}</TableCell>
+                        </TableRow>
                       )
                     })}
                   </TableBody>
