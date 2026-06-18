@@ -103,12 +103,11 @@ function TopProjectsSkeleton() {
         </div>
         <Skeleton className="h-7 w-32 rounded-md" />
       </div>
-      <div className="space-y-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+      {/* Phase 5: 与 DashboardTopProjects 保持 10 行 + max-h 滚动条 */}
+      <div className="max-h-[420px] space-y-2 overflow-y-auto">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
       </div>
     </div>
   )
