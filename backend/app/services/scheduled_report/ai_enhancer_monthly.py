@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from app.core.config import get_settings
@@ -90,69 +91,142 @@ def generate_monthly_ai_summary(
 
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
+    # Diagnostic container — written by _call_monthly_ai_inner on the worker
+    # thread, read by the parent thread in the except branches below.
+    # The mutations are visible because dict assignment is atomic in CPython
+    # and the parent only reads after future.result() has returned / raised.
+    diag: dict[str, Any] = {
+        "stage": "enter",
+        "use_model": "",
+        "prompt_chars": 0,
+        "elapsed_resolve": 0.0,
+        "elapsed_build": 0.0,
+        "elapsed_prompt": 0.0,
+        "elapsed_chat": 0.0,
+    }
+
     def _call_monthly_ai():
-        return _call_monthly_ai_inner(report_data, model)
+        return _call_monthly_ai_inner(report_data, model, diag)
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(_call_monthly_ai)
             return future.result(timeout=secs)
     except FuturesTimeout:
+        # Snapshot the diagnostic state IMMEDIATELY on entry to the except
+        # block. The worker thread is still running (concurrent.futures does
+        # not interrupt in-flight work on cancel) and may keep mutating
+        # ``diag`` for the remainder of its run, which would otherwise race
+        # with the multi-field read below and produce inconsistent log lines.
+        diag_snapshot = dict(diag)
         logger.warning(
-            "Monthly AI summary timed out (%.0fs) — using fallback",
+            "Monthly AI summary timed out (%.0fs) — using fallback "
+            "stage=%s model=%s prompt_chars=%d "
+            "t_resolve=%.2fs t_build=%.2fs t_prompt=%.2fs t_chat=%.2fs",
             secs,
+            diag_snapshot.get("stage"),
+            diag_snapshot.get("use_model"),
+            diag_snapshot.get("prompt_chars"),
+            diag_snapshot.get("elapsed_resolve"),
+            diag_snapshot.get("elapsed_build"),
+            diag_snapshot.get("elapsed_prompt"),
+            diag_snapshot.get("elapsed_chat"),
         )
         return _generate_fallback_monthly_summary(report_data)
     except Exception as e:
-        logger.warning("Monthly AI summary failed, using fallback: %s", e)
+        # If the future itself raised (e.g. the inner function raised before
+        # the timeout fired), the worker has already exited and ``diag`` is
+        # stable, so we read it directly.
+        logger.warning(
+            "Monthly AI summary failed, using fallback: %s "
+            "(stage=%s model=%s prompt_chars=%d "
+            "t_resolve=%.2fs t_build=%.2fs t_prompt=%.2fs t_chat=%.2fs)",
+            e,
+            diag.get("stage"),
+            diag.get("use_model"),
+            diag.get("prompt_chars"),
+            diag.get("elapsed_resolve"),
+            diag.get("elapsed_build"),
+            diag.get("elapsed_prompt"),
+            diag.get("elapsed_chat"),
+        )
         return _generate_fallback_monthly_summary(report_data)
 
 
 def _call_monthly_ai_inner(
     report_data: dict[str, Any],
     model: str | None = None,
+    diag: dict[str, Any] | None = None,
 ) -> str:
-    """Inner function for monthly AI call (extracted for timeout wrapping)."""
-    settings = get_settings()
-    if not settings.ai_chat_provider_api_key:
-        logger.warning("AI_CHAT_PROVIDER_API_KEY not configured, using fallback monthly summary")
-        return _generate_fallback_monthly_summary(report_data)
+    """Inner function for monthly AI call (extracted for timeout wrapping).
 
-    from app.services.ai.llm import (
-        build_llm_config,
-        generate_assistant_content,
-        resolve_available_models,
-    )
+    ``diag`` is an optional diagnostic dict (see ``generate_monthly_ai_summary``)
+    that the function mutates in place to record the current stage, the model
+    being used, the prompt size, and per-stage elapsed time. When a timeout or
+    exception occurs the parent thread reads these values to attribute the
+    failure to a specific stage (e.g. ``resolve_models`` / ``build_config`` /
+    ``build_prompt`` / ``chat_completion``).
+    """
+    if diag is None:
+        diag = {"stage": "enter", "use_model": "", "prompt_chars": 0,
+                "elapsed_resolve": 0.0, "elapsed_build": 0.0,
+                "elapsed_prompt": 0.0, "elapsed_chat": 0.0}
 
-    _models, default_model = resolve_available_models(settings)
-    use_model = model if model else default_model
-    llm_config = build_llm_config(
-        settings=settings,
-        model=use_model,
-        system_prompt=SYSTEM_PROMPT_MONTHLY,
-        reasoning_effort=None,
-    )
+    t_enter = time.monotonic()
+    diag["stage"] = "enter"
 
-    from app.services.scheduled_report.context_helpers import (
-        format_project_context_for_prompt,
-        format_sku_context_for_prompt,
-    )
+    try:
+        settings = get_settings()
+        if not settings.ai_chat_provider_api_key:
+            logger.warning(
+                "AI_CHAT_PROVIDER_API_KEY not configured, using fallback monthly summary "
+                "(elapsed=%.2fs)",
+                time.monotonic() - t_enter,
+            )
+            return _generate_fallback_monthly_summary(report_data)
 
-    # Separate context fields from data for structured prompt
-    ctx_project = report_data.get("project_context")
-    ctx_sku = report_data.get("sku_context")
-    ctx_factory = report_data.get("sku_factory_info_text", "")
+        from app.services.ai.llm import (
+            build_llm_config,
+            generate_assistant_content,
+            resolve_available_models,
+        )
 
-    display_data = {
-        k: v for k, v in report_data.items()
-        if k not in ("project_context", "sku_context", "sku_factory_info_text")
-    }
-    data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+        t_resolve_start = time.monotonic()
+        diag["stage"] = "resolve_models"
+        _models, default_model = resolve_available_models(settings)
+        diag["use_model"] = model if model else default_model
+        diag["elapsed_resolve"] = time.monotonic() - t_resolve_start
 
-    project_context_text = format_project_context_for_prompt(ctx_project)
-    sku_context_text = format_sku_context_for_prompt(ctx_sku)
+        t_build_start = time.monotonic()
+        diag["stage"] = "build_config"
+        llm_config = build_llm_config(
+            settings=settings,
+            model=diag["use_model"],
+            system_prompt=SYSTEM_PROMPT_MONTHLY,
+            reasoning_effort=None,
+        )
+        diag["elapsed_build"] = time.monotonic() - t_build_start
 
-    user_content = f"""请根据以下月度报告数据生成深度运营分析：
+        from app.services.scheduled_report.context_helpers import (
+            format_project_context_for_prompt,
+            format_sku_context_for_prompt,
+        )
+
+        # Separate context fields from data for structured prompt
+        ctx_project = report_data.get("project_context")
+        ctx_sku = report_data.get("sku_context")
+        ctx_factory = report_data.get("sku_factory_info_text", "")
+
+        display_data = {
+            k: v for k, v in report_data.items()
+            if k not in ("project_context", "sku_context", "sku_factory_info_text")
+        }
+        data_str = json.dumps(display_data, ensure_ascii=False, indent=2)
+
+        project_context_text = format_project_context_for_prompt(ctx_project)
+        sku_context_text = format_sku_context_for_prompt(ctx_sku)
+
+        user_content = f"""请根据以下月度报告数据生成深度运营分析：
 
 ```json
 {data_str}
@@ -168,15 +242,54 @@ def _call_monthly_ai_inner(
 
 ### 产品属性（Top/预警 SKU）
 {ctx_factory}"""
-    result = generate_assistant_content(
-        llm_config=llm_config,
-        messages=[],
-        user_content=user_content,
-    )
 
-    if result and result.strip():
-        return result.strip()
-    return _generate_fallback_monthly_summary(report_data)
+        t_prompt_start = time.monotonic()
+        diag["stage"] = "build_prompt"
+        diag["prompt_chars"] = len(user_content)
+        diag["elapsed_prompt"] = time.monotonic() - t_prompt_start
+
+        t_chat_start = time.monotonic()
+        diag["stage"] = "chat_completion"
+        result = generate_assistant_content(
+            llm_config=llm_config,
+            messages=[],
+            user_content=user_content,
+        )
+        diag["elapsed_chat"] = time.monotonic() - t_chat_start
+        diag["stage"] = "chat_completion_done"
+
+        if result and result.strip():
+            logger.info(
+                "Monthly AI summary ok model=%s prompt_chars=%d "
+                "t_resolve=%.2fs t_build=%.2fs t_prompt=%.2fs t_chat=%.2fs t_total=%.2fs",
+                diag["use_model"],
+                diag["prompt_chars"],
+                diag["elapsed_resolve"],
+                diag["elapsed_build"],
+                diag["elapsed_prompt"],
+                diag["elapsed_chat"],
+                time.monotonic() - t_enter,
+            )
+            return result.strip()
+
+        logger.warning(
+            "Monthly AI summary returned empty content (model=%s prompt_chars=%d "
+            "t_resolve=%.2fs t_build=%.2fs t_prompt=%.2fs t_chat=%.2fs t_total=%.2fs)",
+            diag["use_model"],
+            diag["prompt_chars"],
+            diag["elapsed_resolve"],
+            diag["elapsed_build"],
+            diag["elapsed_prompt"],
+            diag["elapsed_chat"],
+            time.monotonic() - t_enter,
+        )
+        return _generate_fallback_monthly_summary(report_data)
+    except Exception:
+        # Record that the failure happened at the current stage so the parent's
+        # except branch can attribute it. Re-raise so the caller still sees
+        # the original exception (e.g. for outer `except Exception as e`).
+        diag["stage"] = f"{diag.get('stage', 'unknown')}_exception"
+        raise
 
 
 def _generate_fallback_monthly_summary(report_data: dict[str, Any]) -> str:
