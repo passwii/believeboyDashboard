@@ -35,6 +35,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/ai/ad-analysis', title: 'AI 广告分析' },
  { match: '/data-analysis/research-analysis', title: '调研分析' },
  { match: '/change-password', title: '修改密码' },
+ { match: '/profile', title: '个人中心' },
  { match: '/feature-updates', title: '产品更新' },
  { match: '/changelog', title: '更新日志' },
 ]

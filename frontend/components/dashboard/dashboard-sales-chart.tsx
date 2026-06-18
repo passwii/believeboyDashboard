@@ -19,6 +19,12 @@ import {
 } from '@/components/ui/data-card'
 import { RefreshButton } from '@/components/dashboard/console'
 import { cn } from '@/lib/utils'
+import {
+  formatYMD,
+  generateDateRangeStrings,
+  formatMoney,
+  formatAxisMoney,
+} from '@/lib/dashboard-format'
 
 import type { DashboardDailyData } from '@/app/dashboard/page'
 
@@ -45,35 +51,6 @@ const CHART_CONFIG = {
   sales_amount: { label: '销售额', color: 'hsl(var(--chart-1))' },
   order_qty: { label: '订单量', color: 'hsl(var(--chart-2))' },
 } satisfies ChartConfig
-
-function formatYMD(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function generateDateRangeStrings(from: Date, to: Date): string[] {
-  const dates: string[] = []
-  const current = new Date(from)
-  while (current <= to) {
-    dates.push(formatYMD(current))
-    current.setDate(current.getDate() + 1)
-  }
-  return dates
-}
-
-function formatMoney(value: number) {
-  return value.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
-
-function formatAxisMoney(value: number) {
-  if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}k`
-  return `$${value.toFixed(0)}`
-}
 
 interface DashboardSalesChartProps {
   dailyData: DashboardDailyData

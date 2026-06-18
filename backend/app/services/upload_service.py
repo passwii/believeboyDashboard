@@ -259,3 +259,98 @@ def resolve_upload_file_path(settings: Settings, project_name: str, file_type: s
     if path.exists():
         return path
     raise FileNotFoundError(f'file_id not found: {file_id}')
+
+
+def _safe_user_id_slug(user_id: str) -> str:
+    """Sanitize a UUID-like user_id into a path-safe folder name.
+
+    Falls back to ``user_<short>`` if the value is empty or all unsafe chars.
+    """
+    raw = (user_id or '').strip()
+    if not raw:
+        return 'user_unknown'
+    safe = re.sub(r'[^A-Za-z0-9._-]', '-', raw)
+    safe = re.sub(r'\.+', '.', safe).strip(' .-_')
+    return safe[:80] or 'user_unknown'
+
+
+def save_user_avatar_file(file: UploadFile, settings: Settings, user_id: str) -> dict:
+    """
+    Upload a user profile picture to R2.
+
+    Unlike report uploads, avatars are stored exclusively in R2 (no local
+    mirror) and capped at ``settings.avatar_max_bytes``. The path layout
+    is ``avatars/{user_id}/{uuid}.{ext}`` so each user gets its own
+    namespace and old objects can be deleted without collisions.
+
+    Args:
+        file: FastAPI UploadFile
+        settings: Application settings
+        user_id: Authenticated user id (used as path segment, never trusted
+            from the request body).
+
+    Returns:
+        dict with ``r2_key``, ``r2_url``, ``size``, ``content_type``.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Missing filename')
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in settings.avatar_allowed_extensions:
+        expected = ', '.join(sorted(settings.avatar_allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Unsupported avatar extension: {ext} (expected: {expected})',
+        )
+
+    content_type = (file.content_type or '').lower()
+    if content_type and content_type not in settings.avatar_allowed_content_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Unsupported avatar MIME type: {content_type}',
+        )
+
+    if not settings.r2_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Cloud storage is not configured. Please contact administrator.',
+        )
+
+    user_slug = _safe_user_id_slug(user_id)
+    type_slug = 'avatar'
+    unique_id = uuid.uuid4().hex
+    safe_name = _safe_name(file.filename)
+    stored_name = f'{unique_id}_{safe_name}'
+
+    # Stream-read with a strict size cap so we don't allocate the whole body
+    # in memory before rejecting oversized uploads.
+    file_content = b''
+    size = 0
+    while True:
+        chunk = file.file.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if size > settings.avatar_max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f'Avatar exceeds {settings.avatar_max_bytes} bytes',
+            )
+        file_content += chunk
+
+    from app.services.r2_service import upload_bytes_to_r2
+    r2_result = upload_bytes_to_r2(
+        settings,
+        file_content,
+        stored_name,
+        user_slug,
+        type_slug,
+        content_type or 'application/octet-stream',
+    )
+
+    return {
+        'r2_key': r2_result['key'],
+        'r2_url': r2_result['url'],
+        'size': size,
+        'content_type': content_type or 'application/octet-stream',
+    }

@@ -11,6 +11,7 @@ import {
   Pin,
   PinOff,
   SunMedium,
+  UserCog,
   X,
 } from 'lucide-react'
 
@@ -158,6 +159,14 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
             </span>
           </div>
           <nav className='flex flex-col gap-0.5' aria-label='账户操作'>
+            <RouteLoadingLink
+              href='/dashboard/profile'
+              onClick={onClose}
+              className='group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+            >
+              <UserCog className='h-4 w-4 shrink-0 text-primary' />
+              <span className='min-w-0 flex-1 truncate'>个人资料</span>
+            </RouteLoadingLink>
             <RouteLoadingLink
               href='/dashboard/change-password'
               onClick={onClose}
