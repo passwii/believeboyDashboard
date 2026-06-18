@@ -47,6 +47,11 @@ def list_pricing_runs_endpoint(
         default=True, description="是否排除店铺核算记录（只返回新品核算）"
     ),
     country: str | None = Query(default=None, description="按国家筛选（如 US, DE, UK）"),
+    keyword: str | None = Query(
+        default=None,
+        max_length=100,
+        description="按产品名/创建人模糊搜索（大小写不敏感，命中 product_name 或 created_by）",
+    ),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
@@ -57,6 +62,7 @@ def list_pricing_runs_endpoint(
         page_size=page_size,
         exclude_project_id=exclude_project_id,
         country=country,
+        keyword=keyword,
         operator=operator,
         is_admin=is_admin,
     )

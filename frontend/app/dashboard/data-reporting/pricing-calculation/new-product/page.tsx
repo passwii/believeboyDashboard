@@ -1,7 +1,13 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import {
   AlertCircle,
   Calculator,
@@ -1913,6 +1919,8 @@ export default function PricingCalculationPage() {
   const [runsTotal, setRunsTotal] = useState(0)
   const RUNS_PAGE_SIZE = 12
   const [productKeyword, setProductKeyword] = useState('')
+  // React 18 轻量防抖：用户连续输入时不触发后端查询，等空闲时再提交最新值
+  const deferredProductKeyword = useDeferredValue(productKeyword)
   const [selectedRunIds, setSelectedRunIds] = useState<number[]>([])
   const [runPickerOpen, setRunPickerOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -1940,11 +1948,19 @@ export default function PricingCalculationPage() {
     [projects, selectedProjectName],
   )
 
-  const loadRuns = useCallback(async (page: number) => {
+  const loadRuns = useCallback(async (page: number, keyword?: string) => {
     setRunsLoading(true)
     try {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(RUNS_PAGE_SIZE),
+      })
+      const trimmedKeyword = (keyword ?? '').trim()
+      if (trimmedKeyword) {
+        params.set('keyword', trimmedKeyword)
+      }
       const response = await fetch(
-        `${API_BASE}/api/v1/pricing-calculation/runs?page=${page}&page_size=${RUNS_PAGE_SIZE}`,
+        `${API_BASE}/api/v1/pricing-calculation/runs?${params.toString()}`,
         {
           cache: 'no-store',
         },
@@ -1971,8 +1987,12 @@ export default function PricingCalculationPage() {
     }
   }, [])
 
+  // 搜索关键词变化：reset 到第 1 页，按后端 keyword 重新查询
   useEffect(() => {
-    void loadRuns(1)
+    void loadRuns(1, deferredProductKeyword)
+  }, [deferredProductKeyword, loadRuns])
+
+  useEffect(() => {
     async function loadProjects() {
       setProjectsLoading(true)
       setProjectsError(null)
@@ -2005,7 +2025,7 @@ export default function PricingCalculationPage() {
     }
 
     void loadProjects()
-  }, [loadRuns])
+  }, [])
 
   useEffect(() => {
     async function loadProjectSkus() {
@@ -2214,27 +2234,13 @@ export default function PricingCalculationPage() {
     void loadProjectSkus()
   }, [selectedProject?.id, selectedProjectName, storeCalculationMode])
 
-  const filteredRuns = useMemo(() => {
-    const normalizedKeyword = productKeyword.trim().toLowerCase()
-    if (!normalizedKeyword) {
-      return runs
-    }
-    return runs.filter((run) => {
-      return [
-        run.product_name,
-        run.created_by ?? '',
-        getCalculationTypeMeta(run.calculation_type).label,
-        formatCompactDate(run.created_at),
-      ].some((value) => value.toLowerCase().includes(normalizedKeyword))
-    })
-  }, [productKeyword, runs])
-  const runPickerOptions = useMemo(() => {
-    return filteredRuns.map((run) => ({
-      run,
-      summary: getRunSummary(run),
-    }))
-  }, [filteredRuns])
-  const visibleRuns = filteredRuns
+  // 搜索/分页都由后端 keyword + page 承担；前端不再对 runs 做二次过滤
+  const visibleRuns = runs
+  // 弹层列表直接用后端当前页数据（受控 CommandInput 触发 cmdk 自带即时过滤）
+  const runPickerOptions = useMemo(
+    () => runs.map((run) => ({ run, summary: getRunSummary(run) })),
+    [runs],
+  )
 
   const selectedRuns = useMemo(() => {
     if (selectedRunIds.length === 0) {
@@ -2319,13 +2325,14 @@ export default function PricingCalculationPage() {
         }),
       })
 
-      setRuns((current) => [createdRun, ...current])
       setSelectedRunIds((current) =>
         [createdRun.id, ...current.filter((id) => id !== createdRun.id)].slice(
           0,
           MAX_SELECTED_RUNS,
         ),
       )
+      // 创建后重新拉取当前页（保持与后端 total/分页一致）
+      void loadRuns(runsPage, deferredProductKeyword)
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : '定价测算失败',
@@ -2434,8 +2441,9 @@ export default function PricingCalculationPage() {
         )
       }
 
-      setRuns((current) => current.filter((run) => run.id !== runId))
       setSelectedRunIds((current) => current.filter((id) => id !== runId))
+      // 删除后重新拉取当前页（保持与后端 total/分页一致）
+      void loadRuns(runsPage, deferredProductKeyword)
       notify({ type: 'success', title: '运行记录已删除' })
     } catch (deleteError) {
       setError(
@@ -3058,7 +3066,7 @@ export default function PricingCalculationPage() {
                                 onChange={(event) =>
                                   setProductKeyword(event.target.value)
                                 }
-                                placeholder='按产品名、测算类型、日期、创建人筛选'
+                                placeholder='按产品名、创建人搜索'
                                 className='pl-9'
                               />
                             </div>
@@ -3087,13 +3095,13 @@ export default function PricingCalculationPage() {
                               className='w-[min(92vw,420px)] p-0'
                             >
                               <Command>
-                                <CommandInput placeholder='搜索产品名称、测算类型、日期' />
+                                <CommandInput placeholder='在当前页内筛选（支持产品名/创建人）' />
                                 <CommandList>
                                   <CommandEmpty>
                                     没有匹配的测算结果
                                   </CommandEmpty>
                                   <CommandGroup
-                                    heading={`可选记录 ${runPickerOptions.length} 条`}
+                                    heading={`当前页可选 ${runPickerOptions.length} 条`}
                                   >
                                     {runPickerOptions.map(
                                       ({ run, summary }) => {
@@ -3168,7 +3176,10 @@ export default function PricingCalculationPage() {
                           </Button>
                         </div>
                         <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
-                          <span>筛选结果 {filteredRuns.length} 条</span>
+                          <span>
+                            共 {runsTotal} 条记录 · 当前第 {runsPage} 页 / 显示{' '}
+                            {runs.length} 条
+                          </span>
                           {productKeyword ? (
                             <span>关键词: {productKeyword}</span>
                           ) : null}
@@ -3367,7 +3378,7 @@ export default function PricingCalculationPage() {
                                     href='#'
                                     onClick={(e) => {
                                       e.preventDefault()
-                                      if (runsPage > 1) void loadRuns(runsPage - 1)
+                                      if (runsPage > 1) void loadRuns(runsPage - 1, deferredProductKeyword)
                                     }}
                                     aria-disabled={runsPage <= 1}
                                     className={cn('gap-1 px-3', runsPage <= 1 ? 'pointer-events-none opacity-50' : undefined)}
@@ -3389,7 +3400,7 @@ export default function PricingCalculationPage() {
                                         href='#'
                                         onClick={(e) => {
                                           e.preventDefault()
-                                          void loadRuns(p)
+                                          void loadRuns(p, deferredProductKeyword)
                                         }}
                                         isActive={p === runsPage}
                                       >
@@ -3403,7 +3414,7 @@ export default function PricingCalculationPage() {
                                     href='#'
                                     onClick={(e) => {
                                       e.preventDefault()
-                                      if (runsPage < totalPages) void loadRuns(runsPage + 1)
+                                      if (runsPage < totalPages) void loadRuns(runsPage + 1, deferredProductKeyword)
                                     }}
                                     aria-disabled={runsPage >= totalPages}
                                     className={cn('gap-1 px-3', runsPage >= totalPages ? 'pointer-events-none opacity-50' : undefined)}
