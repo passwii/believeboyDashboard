@@ -644,21 +644,27 @@ export default function InventoryReplenishmentPage() {
           row.risk_status,
         ]
 
-        sheetRow.eachCell((cell, colNumber) => {
+        // 显式遍历 1-21 列应用样式和边框：
+        // 默认的 sheetRow.eachCell(cb) 会跳过 null 单元格，导致 dms_30 / weighted_dms /
+        // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少边框。
+        // 改成 for 循环 + getCell(col) 可以保证每个单元格都被处理（与 totalRow 的
+        // applyRowBorder(totalRow, 1, 21) 保持一致），且不改变原始数据（null 仍为 null）。
+        for (let col = 1; col <= 21; col++) {
+          const cell = sheetRow.getCell(col)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 3 && colNumber <= 16 ? 'right' : 'left',
-            // 产品名称列（colNumber === 2）：单行显示，文本超出列宽时直接截断。
+            horizontal: col >= 3 && col <= 16 ? 'right' : 'left',
+            // 产品名称列（col === 2）：单行显示，文本超出列宽时直接截断。
             // 完整品名以 cell.note 形式保留，鼠标悬停可看。
             // 其它列保留 wrapText 以防未来加长字段时溢出。
-            wrapText: colNumber !== 2,
+            wrapText: col !== 2,
           }
           // 产品名称完整文本写到 cell.note，鼠标悬停可看（不论是否被列宽截断）。
-          if (colNumber === 2 && row.product_name && row.product_name !== '-') {
+          if (col === 2 && row.product_name && row.product_name !== '-') {
             cell.note = row.product_name
           }
-          if (colNumber === 21) {
+          if (col === 21) {
             const riskStatus = row.risk_status
             if (riskStatus === '断货风险') {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FFDC2626' }, bold: true }
@@ -676,13 +682,13 @@ export default function InventoryReplenishmentPage() {
               cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF64748B' } }
             }
           }
-          if (colNumber === 3 || colNumber === 4 || colNumber === 15 || colNumber === 16) cell.numFmt = '#,##0'
-          if (colNumber >= 5 && colNumber <= 9) cell.numFmt = '0.0000'
-          if (colNumber === 10) cell.numFmt = '0.00%'
-          if (colNumber === 11 || colNumber === 12) cell.numFmt = '0.00'
-          if (colNumber === 20) cell.numFmt = '#,##0'
+          if (col === 3 || col === 4 || col === 15 || col === 16) cell.numFmt = '#,##0'
+          if (col >= 5 && col <= 9) cell.numFmt = '0.0000'
+          if (col === 10) cell.numFmt = '0.00%'
+          if (col === 11 || col === 12) cell.numFmt = '0.00'
+          if (col === 20) cell.numFmt = '#,##0'
           applyBorder(cell)
-        })
+        }
       })
 
       const totalRow = worksheet.getRow(rows.length + 2)
