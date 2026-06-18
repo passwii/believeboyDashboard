@@ -25,6 +25,7 @@ from app.api.v1.endpoints.uploads import router as uploads_router
 from app.api.v1.endpoints.ad_upload import router as ad_upload_router
 from app.api.v1.endpoints.ad_analysis import router as ad_analysis_router
 from app.api.v1.endpoints.users import router as users_router
+from app.api.v1.endpoints.profile import router as profile_router
 from app.api.v1.endpoints.category_research import router as category_research_router
 from app.api.v1.endpoints.return_analysis import router as return_analysis_router
 from app.api.v1.endpoints.project_goals import router as project_goals_router
@@ -65,6 +66,7 @@ api_router.include_router(product_analysis_router)
 api_router.include_router(category_research_router)
 api_router.include_router(system_management_router)
 api_router.include_router(users_router)
+api_router.include_router(profile_router)
 api_router.include_router(presence_router)
 api_router.include_router(return_analysis_router)
 api_router.include_router(project_goals_router)
