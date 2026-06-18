@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -142,6 +143,14 @@ class MonthlyFinancialAccountingLine(BaseModel):
     # the frontend render the correct currency symbol/label without
     # keeping its own country->currency switch.
     currency_code: str | None = None
+    # Row layout discriminator. The frontend table and the Excel "报表核算"
+    # sheet both render the same structured list, where:
+    #   "detail" — a regular income/expense line item
+    #   "spacer" — a blank separator row between the detail block and totals
+    #   "total"  — the bottom row carrying Total_Income and Total_Expense
+    #              on the same visual line
+    # Defaults to "detail" for backward compatibility with older clients.
+    kind: Literal["detail", "spacer", "total"] = "detail"
 
 
 class MonthlyFinancialAccountingDetailResponse(BaseModel):

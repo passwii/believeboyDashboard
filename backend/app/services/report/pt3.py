@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
@@ -26,6 +26,14 @@ from app.services.report.utils import (
 )
 from app.utils.country import get_currency
 
+# Discriminator for the structured layout produced by `_build_accounting_rows`.
+# - "detail" : an income/expense line item (regular row).
+# - "spacer" : a blank separator row inserted between the detail block and the
+#              Total row so the totals read as a visual summary.
+# - "total"  : the bottom row carrying Total_Income and Total_Expense on the
+#              same line. Left half is income, right half is expense.
+AccountingRowKind = Literal["detail", "spacer", "total"]
+
 
 def _pt3_float(pt3: MonthlyReportPT3Calculation, key: str) -> float:
     """Extract float value from PT3 calculation."""
@@ -39,6 +47,16 @@ def _build_accounting_rows(
 ) -> list[dict[str, Any]]:
     """Build dual-column income/expense rows from PT3 calculation.
 
+    The output is a single source of truth for both the frontend table and the
+    Excel "报表核算" sheet. It is structured with a `kind` discriminator so the
+    view layer can render:
+
+        ┌─ income_pad blank income rows (pads to the longer expense side) ─┐
+        │ 16 income detail rows  ║  19 expense detail rows  (right-aligned)   │
+        │ spacer row (1 blank row separating details from totals)             │
+        │ Total_Income row  ║  Total_Expense row  (same line)                 │
+        └─────────────────────────────────────────────────────────────────────┘
+
     Args:
         pt3: MonthlyReportPT3Calculation model instance
         country: Country code (US/DE/UK). Used to stamp the local
@@ -49,9 +67,18 @@ def _build_accounting_rows(
     Returns:
         List of dicts with income_en, income_zh, income_amount_usd, income_source,
         expense_en, expense_zh, expense_amount_usd, expense_source,
-        currency_code keys.
+        currency_code, and kind keys.
     """
     currency_code = get_currency(country) if country else "USD"
+    # Build the structured row list. The output is the single source of truth
+    # for both the frontend table and the Excel "报表核算" sheet.
+    #
+    # Layout (21 rows total for the current 16 income + 19 expense detail):
+    #   rows 0..2       income pad (blank income, real expense lines 0..2)
+    #   rows 3..18      16 income detail rows aligned with expense lines 3..18
+    #   row 19          spacer (blank, separates details from totals)
+    #   row 20          total row: Total_Income on the left, Total_Expense on
+    #                   the right, on the same visual line
     income_lines = [
         (
             "Product sales (non-FBA)",
@@ -149,13 +176,6 @@ def _build_accounting_rows(
             _pt3_float(pt3, "income_vat_total"),
             "所有订单/退款-产品销售税",
         ),
-        (
-            "Sales tax / VAT (Sales Tax)",
-            "VAT (销售税)",
-            _pt3_float(pt3, "income_vat_total"),
-            "所有订单/退款-产品销售税",
-        ),
-        ("Total_Income", "合计销售额", _pt3_float(pt3, "income_total"), ""),
     ]
 
     expense_lines = [
@@ -269,27 +289,82 @@ def _build_accounting_rows(
             _pt3_float(pt3, "expense_amazon_shipping_charge_adjustments"),
             "",
         ),
-        ("Total_Expense", "合计费用", _pt3_float(pt3, "expense_total"), ""),
     ]
 
-    max_len = max(len(income_lines), len(expense_lines))
+    income_detail_count = len(income_lines)
+    expense_detail_count = len(expense_lines)
+    # Pad the shorter side (income) at the top with blank income rows so the
+    # detail blocks share a common baseline, and the two Total rows align at
+    # the bottom of the table.
+    income_pad = max(0, expense_detail_count - income_detail_count)
+
     rows: list[dict[str, Any]] = []
-    for idx in range(max_len):
-        in_line = income_lines[idx] if idx < len(income_lines) else ("", "", 0.0, "")
-        ex_line = expense_lines[idx] if idx < len(expense_lines) else ("", "", 0.0, "")
-        rows.append(
-            {
-                "income_en": in_line[0],
-                "income_zh": in_line[1],
-                "income_amount_usd": in_line[2],
-                "income_source": in_line[3],
-                "expense_en": ex_line[0],
-                "expense_zh": ex_line[1],
-                "expense_amount_usd": ex_line[2],
-                "expense_source": ex_line[3],
-                "currency_code": currency_code,
-            }
+
+    def _detail_row(
+        in_line: tuple[str, str, float, str],
+        ex_line: tuple[str, str, float, str],
+    ) -> dict[str, Any]:
+        return {
+            "income_en": in_line[0],
+            "income_zh": in_line[1],
+            "income_amount_usd": in_line[2],
+            "income_source": in_line[3],
+            "expense_en": ex_line[0],
+            "expense_zh": ex_line[1],
+            "expense_amount_usd": ex_line[2],
+            "expense_source": ex_line[3],
+            "currency_code": currency_code,
+            "kind": "detail",
+        }
+
+    # Top pad: blank income, real expense. This satisfies the requirement
+    # that "Total_Income 这上面不够的就用空白填充".
+    for pad_idx in range(income_pad):
+        rows.append(_detail_row(("", "", 0.0, ""), expense_lines[pad_idx]))
+
+    # Aligned detail block: one row per income line item, with the expense
+    # column offset by `income_pad` so the bottom of the two blocks aligns.
+    for in_idx in range(income_detail_count):
+        ex_idx = income_pad + in_idx
+        ex_line = (
+            expense_lines[ex_idx] if ex_idx < expense_detail_count else ("", "", 0.0, "")
         )
+        rows.append(_detail_row(income_lines[in_idx], ex_line))
+
+    # Spacer: one blank row separating the details from the totals so the
+    # totals read as a visual summary.
+    rows.append(
+        {
+            "income_en": "",
+            "income_zh": "",
+            "income_amount_usd": 0.0,
+            "income_source": "",
+            "expense_en": "",
+            "expense_zh": "",
+            "expense_amount_usd": 0.0,
+            "expense_source": "",
+            "currency_code": currency_code,
+            "kind": "spacer",
+        }
+    )
+
+    # Total row: Total_Income on the left, Total_Expense on the right, on the
+    # same visual line.
+    rows.append(
+        {
+            "income_en": "Total_Income",
+            "income_zh": "合计销售额",
+            "income_amount_usd": _pt3_float(pt3, "income_total"),
+            "income_source": "",
+            "expense_en": "Total_Expense",
+            "expense_zh": "合计费用",
+            "expense_amount_usd": _pt3_float(pt3, "expense_total"),
+            "expense_source": "",
+            "currency_code": currency_code,
+            "kind": "total",
+        }
+    )
+
     return rows
 
 
@@ -510,6 +585,7 @@ def _normalize_pt3_payload(pt3: dict[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "AccountingRowKind",
     "_build_accounting_rows",
     "_build_transaction_payloads",
     "_classify_monthly_rows",
