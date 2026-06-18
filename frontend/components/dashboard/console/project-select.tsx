@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
+import type { ManagedProjectOption } from '@/lib/hooks/use-managed-projects'
 
-type ProjectOption = { id: number; name: string }
+// 本地别名,保留组件内部使用旧名 ProjectOption 维持 git diff 友好;
+// 类型上等价于 ManagedProjectOption(id 必为 number)
+type ProjectOption = ManagedProjectOption
 
 interface ProjectSelectProps {
   value: string
@@ -20,6 +22,15 @@ interface ProjectSelectProps {
   triggerClassName?: string
   autoSelectFirst?: boolean
   onAutoSelected?: (project: ProjectOption) => void
+  /**
+   * 外部注入的项目列表(例如 DashboardPage 已通过 useManagedProjects 拿到)。
+   * 传了则不再内部 fetch,避免重复请求与状态分叉。
+   */
+  projects?: ProjectOption[]
+  /** 外部 loading 状态;只有不传 projects 时才生效(否则外部是真相来源)。 */
+  loading?: boolean
+  /** 外部 error 状态;只有不传 projects 时才生效(否则外部是真相来源)。 */
+  error?: string | null
 }
 
 export function ProjectSelect({
@@ -31,23 +42,35 @@ export function ProjectSelect({
   triggerClassName,
   autoSelectFirst = false,
   onAutoSelected,
+  projects: externalProjects,
+  loading: externalLoading,
+  error: externalError,
 }: ProjectSelectProps) {
   const { data: session } = useSession()
-  const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // 内部兜底状态 —— 仅在调用方没传 projects 时使用
+  const [internalProjects, setInternalProjects] = useState<ProjectOption[]>([])
+  const [internalLoading, setInternalLoading] = useState<boolean>(externalProjects === undefined)
+  const [internalError, setInternalError] = useState<string | null>(null)
+
+  // 外部 props 优先(externalProjects 已注入时内部 fetch 直接跳过)
+  const projects = externalProjects ?? internalProjects
+  const loading = externalProjects !== undefined ? Boolean(externalLoading) : internalLoading
+  const error = externalProjects !== undefined ? externalError ?? null : internalError
 
   useEffect(() => {
+    // 外部已注入,不需要内部 fetch
+    if (externalProjects !== undefined) return
+
     let active = true
 
     async function loadProjects() {
-      setLoading(true)
-      setError(null)
+      setInternalLoading(true)
+      setInternalError(null)
       try {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
 
-        setProjects(payload)
+        setInternalProjects(payload)
 
         if (autoSelectFirst && !value && payload[0]?.id) {
           onChange(String(payload[0].id))
@@ -55,9 +78,9 @@ export function ProjectSelect({
         }
       } catch (e) {
         if (!active) return
-        setError(e instanceof Error ? e.message : '项目列表加载失败')
+        setInternalError(e instanceof Error ? e.message : '项目列表加载失败')
       } finally {
-        if (active) setLoading(false)
+        if (active) setInternalLoading(false)
       }
     }
 
@@ -66,7 +89,7 @@ export function ProjectSelect({
     return () => {
       active = false
     }
-  }, [session, autoSelectFirst, value, onChange, onAutoSelected])
+  }, [session, autoSelectFirst, value, onChange, onAutoSelected, externalProjects])
 
   if (loading) {
     return (

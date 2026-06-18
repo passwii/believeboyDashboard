@@ -48,7 +48,10 @@ interface AggregatedRow {
   totalOrders: number
 }
 
-const MAX_ROWS = 5
+// Phase 5 提到 Top 10:对多项目用户更有意义(原 Top 5 会让中段项目被裁掉),
+// 表格区加 max-h + overflow-y-auto,避免 1080p 屏撑出整页 + 与 Row 1/2 高度失衡
+const MAX_ROWS = 10
+const TABLE_MAX_HEIGHT = 'max-h-[420px]'
 
 function aggregate(
   projectBreakdown: Record<number, ProjectBreakdownEntry>,
@@ -158,7 +161,7 @@ export function DashboardTopProjects({
         ) : topRows.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="overflow-x-auto">
+          <div className={`${TABLE_MAX_HEIGHT} overflow-y-auto overflow-x-auto`}>
             <table className="w-full min-w-[420px] text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
