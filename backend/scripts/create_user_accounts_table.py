@@ -30,6 +30,10 @@ create table if not exists public.user_accounts (
 alter table public.user_accounts add column if not exists operator_name_zh text;
 alter table public.user_accounts add column if not exists full_name text;
 alter table public.user_accounts add column if not exists password_changed_at timestamptz not null default now();
+-- avatar_url stores the public R2 URL for the user profile picture.
+-- Schema migrations live in alembic/versions/20260618_166_*.py; this clause
+-- keeps the bootstrap script idempotent for fresh databases.
+alter table public.user_accounts add column if not exists avatar_url text;
 
 create unique index if not exists ux_user_accounts_email_ci
 on public.user_accounts ((lower(email)));
