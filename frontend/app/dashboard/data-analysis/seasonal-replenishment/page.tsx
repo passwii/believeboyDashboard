@@ -314,6 +314,7 @@ export default function SeasonalReplenishmentPage() {
           page: '1',
           page_size: '200',
         })
+        if (currentProjectId) params.set('project_id', String(currentProjectId))
         if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
 
         const url = `${API_BASE}/api/v1/seasonal-replenishment-analysis?${params.toString()}`
