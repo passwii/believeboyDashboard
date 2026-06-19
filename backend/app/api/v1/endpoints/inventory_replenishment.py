@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
@@ -19,6 +19,8 @@ from app.schemas.inventory_replenishment import (
     InventoryReplenishmentShipmentItem,
     InventoryReplenishmentShipmentResponse,
     InventoryReplenishmentSummary,
+    SeasonalReplenishmentListItem,
+    SeasonalReplenishmentListResponse,
 )
 from app.services import (
     inventory_analysis_service,
@@ -27,6 +29,7 @@ from app.services import (
 from app.services.inventory.replenishment import (
     list_inventory_replenishment_analysis,
     list_inventory_replenishment_shipments,
+    list_seasonal_replenishment_analysis,
     list_snapshot_options,
     upsert_inventory_replenishment_setting,
 )
@@ -376,4 +379,103 @@ def list_inventory_replenishment_calendar(
         page_size=page_size,
         total=total,
         has_next=has_next,
+    )
+
+
+@router.get(
+    "/seasonal-replenishment-analysis",
+    response_model=SeasonalReplenishmentListResponse,
+)
+def list_seasonal_replenishment_analysis_endpoint(
+    request: Request,
+    project_id: int = Query(gt=0),
+    country: str = Query(default="US"),
+    from_date: date = Query(
+        ...,
+        description="历史窗口左端，YYYY-MM-DD；与 to_date 一起决定加权 DMS 窗口",
+    ),
+    to_date: date = Query(
+        ...,
+        description="历史窗口右端（同时作为售卖截止/可售天数的锚点），YYYY-MM-DD",
+    ),
+    compare_year_offset: int = Query(
+        default=0,
+        ge=0,
+        le=2,
+        description="0=关闭去年同期，1=去年同期，2=前年同期",
+    ),
+    keyword: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> SeasonalReplenishmentListResponse:
+    """季节性补货分析接口。
+
+    与 ``/inventory-replenishment-analysis`` 的区别：
+      - 销量窗口由 ``from_date`` / ``to_date`` 决定（不是 date.today()）
+      - 加权权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
+      - 不判定 risk_status
+      - 可选去年同期对比（``compare_year_offset``）
+    """
+    project_service.ensure_project_access(
+        db,
+        project_id,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+    if to_date < from_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="to_date 必须 ≥ from_date",
+        )
+    if (to_date - from_date).days < 7:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="日期范围跨度至少 7 天",
+        )
+
+    rows, summary, total, has_next = list_seasonal_replenishment_analysis(
+        db,
+        project_id=project_id,
+        country=country,
+        from_date=from_date,
+        to_date=to_date,
+        compare_year_offset=compare_year_offset,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+    )
+    append_operation_view_log(
+        db,
+        action="inventory_replenishment.seasonal.view",
+        target_type="inventory_replenishment",
+        target_id=project_id,
+        operator=operator,
+        after={
+            "project_id": project_id,
+            "country": country,
+            "from_date": str(from_date),
+            "to_date": str(to_date),
+            "compare_year_offset": compare_year_offset,
+            "keyword": keyword,
+            "page": page,
+            "page_size": page_size,
+            "count": len(rows),
+            "total": total,
+        },
+        request=request,
+    )
+    db.commit()
+    return SeasonalReplenishmentListResponse(
+        items=[SeasonalReplenishmentListItem(**row) for row in rows],
+        summary=InventoryReplenishmentSummary(**summary),
+        page=page,
+        page_size=page_size,
+        total=total,
+        has_next=has_next,
+        from_date=from_date,
+        to_date=to_date,
+        compare_year_offset=compare_year_offset,
     )

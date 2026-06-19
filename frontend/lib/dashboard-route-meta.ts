@@ -10,6 +10,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/data-analysis/weekly-product-analysis', title: '按周产品分析' },
  { match: '/data-analysis/inventory-analysis', title: '库存分析' },
  { match: '/data-analysis/inventory-replenishment', title: '补货分析' },
+ { match: '/data-analysis/seasonal-replenishment', title: '季节性补货分析' },
  { match: '/data-analysis/project-goals', title: '目标管理' },
  { match: '/data-management/report-upload', title: '报表上传' },
  { match: '/data-management/shipment-management', title: '发货管理' },
