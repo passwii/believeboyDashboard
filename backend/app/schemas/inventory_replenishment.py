@@ -166,3 +166,61 @@ class CalendarResponse(BaseModel):
     page_size: int
     total: int
     has_next: bool
+
+
+# ---------------------------------------------------------------------------
+# Seasonal replenishment (季节性补货)
+# ---------------------------------------------------------------------------
+
+
+class SeasonalReplenishmentListItem(BaseModel):
+    """季节性补货分析单行。
+
+    与 ``InventoryReplenishmentListItem`` 的区别：
+    - 4 个主窗口 DMS (90/30/14/7)，不含 3D
+    - 可选去年同期对照 (90/30/14/7 YoY)
+    - 风险状态**不判定**（``risk_status`` 字段不存在）
+    - 售卖截止锚点 = ``to_date`` + sellable_days（不是 ``date.today()``）
+    """
+    project_id: int
+    project_name: str
+    sku: str
+    country: str
+    asin: str | None = None
+    product_name: str | None = None
+    available_inventory: int
+    in_transit_quantity: int
+    dms_90: float | None = None
+    dms_30: float | None = None
+    dms_14: float | None = None
+    dms_7: float | None = None
+    dms_90_yoy: float | None = None
+    dms_30_yoy: float | None = None
+    dms_14_yoy: float | None = None
+    dms_7_yoy: float | None = None
+    base_dms: float | None = None
+    weighted_dms: float | None = None
+    sellable_days: float | None = None
+    sellout_date: str | None = None
+    sellout_date_with_transit: str | None = None
+    production_lead_days: int
+    shipping_days: int
+    estimated_replenishment_quantity: int | None = None
+
+
+class SeasonalReplenishmentListResponse(BaseModel):
+    """季节性补货分析响应。
+
+    复用 ``InventoryReplenishmentSummary``：季节性页面不判定风险，所以
+    ``out_of_stock_risk_count`` / ``slow_moving_count`` / ``pending_data_count``
+    固定返回 0，前端不应展示对应统计卡。
+    """
+    items: list[SeasonalReplenishmentListItem]
+    summary: InventoryReplenishmentSummary
+    page: int
+    page_size: int
+    total: int
+    has_next: bool
+    from_date: date
+    to_date: date
+    compare_year_offset: int
