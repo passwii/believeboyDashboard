@@ -7,10 +7,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import Any
 import warnings
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -421,6 +422,373 @@ def _classify_risk(
     if days_diff <= 120:
         return RISK_SLOW_MOVING
     return RISK_SEVERE_SLOW_MOVING
+
+
+# ---------------------------------------------------------------------------
+# 季节性补货分析 (Seasonal Replenishment)
+# ---------------------------------------------------------------------------
+# 与现有 list_inventory_replenishment_analysis 的区别：
+# - 销量窗口由调用方传入 ``to_date``，向前回溯 90/30/14/7 天
+# - 加权权重改为 90D×40% + 30D×30% + 14D×20% + 7D×10%（长周期权重更高）
+# - 风险状态**不判定**（A4 决定），仅提供 sellable_days / sellout_date 供决策参考
+# - 可选去年同期对比（YoY）：compare_year_offset=1 表示 [to-365-89, to-365]
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _SeasonalDmsRow:
+    """单 SKU 的季节性 DMS 聚合结果。
+
+    每个字段都是 ``units_ordered / window_days`` 的 Decimal。
+    ``None`` 表示该窗口内没有任何销量记录（与现有 _load_sales_dms_map 行为一致）。
+    """
+    sku: str
+    dms_90: Decimal | None
+    dms_30: Decimal | None
+    dms_14: Decimal | None
+    dms_7: Decimal | None
+    dms_90_yoy: Decimal | None
+    dms_30_yoy: Decimal | None
+    dms_14_yoy: Decimal | None
+    dms_7_yoy: Decimal | None
+
+
+# 季节性补货加权规则（与现有 _normalize_weighted_dms 不同）。
+# 长周期权重高是因为季节性商品需要看 90D 趋势而非近期噪音。
+SEASONAL_WEIGHT_90 = Decimal("0.40")
+SEASONAL_WEIGHT_30 = Decimal("0.30")
+SEASONAL_WEIGHT_14 = Decimal("0.20")
+SEASONAL_WEIGHT_7 = Decimal("0.10")
+
+
+def _normalize_seasonal_weighted_dms(
+    dms_90: Decimal | None,
+    dms_30: Decimal | None,
+    dms_14: Decimal | None,
+    dms_7: Decimal | None,
+) -> Decimal | None:
+    """季节性加权 DMS：90D×40% + 30D×30% + 14D×20% + 7D×10%。
+
+    仅在所有窗口都缺失时返回 None；否则按"可用窗口"重新归一化权重，
+    这样部分窗口缺失不会让结果偏低。
+    """
+    weighted_windows = [
+        (dms_90, SEASONAL_WEIGHT_90),
+        (dms_30, SEASONAL_WEIGHT_30),
+        (dms_14, SEASONAL_WEIGHT_14),
+        (dms_7, SEASONAL_WEIGHT_7),
+    ]
+    available = [(value, weight) for value, weight in weighted_windows if value is not None]
+    if not available:
+        return None
+    total_weight = sum((weight for _, weight in available), Decimal("0"))
+    if total_weight <= 0:
+        return None
+    weighted_sum = sum((value * weight for value, weight in available), Decimal("0"))
+    return weighted_sum / total_weight
+
+
+def _build_seasonal_window_cases(
+    today: date,
+    compare_year_offset: int,
+) -> tuple[
+    list[tuple[int, date, date]],
+    list[tuple[int, date, date]],
+    date,
+    date,
+]:
+    """构造季节性窗口元数据。
+
+    Returns:
+        main_cases: [(window_days, since, until), ...] 主窗口 4 个
+        yoy_cases: [(window_days, since, until), ...] 去年同期 0/4 个
+        outer_since: 外层 WHERE 用的最早日期下界
+        outer_until: 外层 WHERE 用的最晚日期上界（= today）
+    """
+    windows = (90, 30, 14, 7)
+    main_cases: list[tuple[int, date, date]] = []
+    for n in windows:
+        since = today - timedelta(days=n - 1)
+        main_cases.append((n, since, today))
+
+    yoy_cases: list[tuple[int, date, date]] = []
+    if compare_year_offset > 0:
+        yoy_until = today - timedelta(days=365 * compare_year_offset)
+        for n in windows:
+            since = yoy_until - timedelta(days=n - 1)
+            yoy_cases.append((n, since, yoy_until))
+
+    # outer_since = 去年最早窗口的左端（最小 since）
+    # outer_until = today（主窗口都包含今天）
+    outer_since = today
+    for _, since, until in [*main_cases, *yoy_cases]:
+        if since < outer_since:
+            outer_since = since
+    outer_until = today
+    return main_cases, yoy_cases, outer_since, outer_until
+
+
+def _load_seasonal_dms_map(
+    db: Session,
+    project_id: int,
+    country: str,
+    to_date: date,
+    compare_year_offset: int = 1,
+) -> dict[str, _SeasonalDmsRow]:
+    """一次 SQL 算 4 主窗口 (+可选 4 去年同期窗口) 的 DMS。
+
+    窗口定义（与 ``_load_sales_dms_map`` 一致，[since, until] 双闭区间）：
+      - 主窗口：右端 = ``to_date``，长度 = 90/30/14/7 天
+      - 去年同期：右端 = ``to_date - 365 * offset``，长度同上
+
+    SQL 优化：
+      - 外层 WHERE 把 ``purchase_date_pt`` 圈在所有窗口并集区间内
+        （约 ``to_date - 365 - 89`` 到 ``to_date``），命中复合索引
+        ``idx_analysis_sales_order_source_purchase_date (source_file_id, purchase_date_pt)``
+      - 4~8 个 ``func.sum(case((date >= since, quantity), else_=0))`` 一次 group_by(sku)
+      - 过滤条件复用 ``_load_sales_dms_map``：``is_current=True`` + ``is_counted_sales=True``
+    """
+    if compare_year_offset < 0:
+        compare_year_offset = 0
+
+    main_cases, yoy_cases, outer_since, outer_until = _build_seasonal_window_cases(
+        to_date, compare_year_offset
+    )
+
+    # 构造聚合表达式：每个窗口一个 SUM(CASE WHEN date >= since THEN quantity ELSE 0 END)
+    # 外层 WHERE 已经把上界限定为 outer_until，所以这里只判断下界
+    aggregates: dict[str, Any] = {"sku": AnalysisSalesOrderRow.sku.label("sku")}
+    for window_days, since, _until in main_cases:
+        aggregates[f"sum_{window_days}"] = func.sum(
+            case(
+                (
+                    AnalysisSalesOrderRow.purchase_date_pt >= since,
+                    AnalysisSalesOrderRow.quantity,
+                ),
+                else_=0,
+            )
+        ).label(f"sum_{window_days}")
+    for window_days, since, _until in yoy_cases:
+        aggregates[f"sum_{window_days}_yoy"] = func.sum(
+            case(
+                (
+                    AnalysisSalesOrderRow.purchase_date_pt >= since,
+                    AnalysisSalesOrderRow.quantity,
+                ),
+                else_=0,
+            )
+        ).label(f"sum_{window_days}_yoy")
+
+    stmt = (
+        select(*aggregates.values())
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.report_type == "sales_report",
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.is_current.is_(True),
+            AnalysisSalesOrderRow.is_counted_sales.is_(True),
+            AnalysisSalesOrderRow.purchase_date_pt >= outer_since,
+            AnalysisSalesOrderRow.purchase_date_pt <= outer_until,
+        )
+        .group_by(AnalysisSalesOrderRow.sku)
+    )
+
+    rows = db.execute(stmt).all()
+
+    def _dms(window_days: int, qty: int | None) -> Decimal | None:
+        if qty is None or qty == 0:
+            return None
+        return Decimal(int(qty)) / Decimal(window_days)
+
+    result: dict[str, _SeasonalDmsRow] = {}
+    for row in rows:
+        normalized = _normalize_text(row.sku, max_length=128)
+        if normalized is None:
+            continue
+        result[normalized] = _SeasonalDmsRow(
+            sku=normalized,
+            dms_90=_dms(90, getattr(row, "sum_90", None)),
+            dms_30=_dms(30, getattr(row, "sum_30", None)),
+            dms_14=_dms(14, getattr(row, "sum_14", None)),
+            dms_7=_dms(7, getattr(row, "sum_7", None)),
+            dms_90_yoy=_dms(90, getattr(row, "sum_90_yoy", None)),
+            dms_30_yoy=_dms(30, getattr(row, "sum_30_yoy", None)),
+            dms_14_yoy=_dms(14, getattr(row, "sum_14_yoy", None)),
+            dms_7_yoy=_dms(7, getattr(row, "sum_7_yoy", None)),
+        )
+    return result
+
+
+def list_seasonal_replenishment_analysis(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    from_date: date,
+    to_date: date,
+    compare_year_offset: int,
+    keyword: str | None,
+    page: int,
+    page_size: int,
+) -> tuple[list[dict[str, object]], dict[str, int], int, bool]:
+    """季节性补货分析主流程。
+
+    与 ``list_inventory_replenishment_analysis`` 的区别：
+      - 销量窗口由 ``to_date`` 决定（不是 date.today()）
+      - 加权权重是 SEASONAL_WEIGHT_*（长周期高权重）
+      - **不判定** risk_status（A4 决定）
+      - sellout_date 锚点 = ``to_date`` + sellable_days（不是 today + sellable_days）
+      - 复用 InventoryReplenishmentSummary，但风险计数字段固定为 0
+    """
+    project = _get_project_or_404(db, project_id)
+    normalized_country = normalize_country(country)
+
+    # 复用现有 5 个 loader
+    base_rows = _load_base_skus(db, project, normalized_country)
+    settings_map = _load_settings_map(db, project.id, normalized_country)
+    inventory_map = _load_inventory_map(db, project.id, normalized_country)
+    in_transit_map = _load_in_transit_map(db, project.id, normalized_country)
+    product_name_map = _load_product_name_map(
+        db, project.id, [row.sku for row in base_rows]
+    )
+
+    # 一次性拿到 4~8 个窗口的 DMS
+    dms_map = _load_seasonal_dms_map(
+        db,
+        project.id,
+        normalized_country,
+        to_date=to_date,
+        compare_year_offset=compare_year_offset,
+    )
+
+    keyword_text = (keyword or "").strip().lower()
+    rows: list[dict[str, object]] = []
+
+    for base_row in base_rows:
+        setting = settings_map.get((base_row.sku, base_row.country))
+        asin = _normalize_text(
+            setting.asin if setting and setting.asin else base_row.asin,
+            max_length=64,
+        )
+        available_inventory = int(inventory_map.get(base_row.sku, 0))
+        in_transit_quantity = int(in_transit_map.get(base_row.sku, 0))
+        dms_row = dms_map.get(base_row.sku)
+
+        dms_90 = dms_row.dms_90 if dms_row else None
+        dms_30 = dms_row.dms_30 if dms_row else None
+        dms_14 = dms_row.dms_14 if dms_row else None
+        dms_7 = dms_row.dms_7 if dms_row else None
+        dms_90_yoy = dms_row.dms_90_yoy if dms_row else None
+        dms_30_yoy = dms_row.dms_30_yoy if dms_row else None
+        dms_14_yoy = dms_row.dms_14_yoy if dms_row else None
+        dms_7_yoy = dms_row.dms_7_yoy if dms_row else None
+
+        base_dms = _normalize_seasonal_weighted_dms(dms_90, dms_30, dms_14, dms_7)
+        safety_factor = (
+            setting.safety_factor if setting is not None else DEFAULT_SAFETY_FACTOR
+        )
+        weighted_dms = (
+            None if base_dms is None else base_dms * (Decimal("1") + safety_factor)
+        )
+        if weighted_dms is not None and weighted_dms <= 0:
+            weighted_dms = None
+        sellable_days = (
+            None
+            if weighted_dms is None
+            else Decimal(available_inventory) / weighted_dms
+        )
+        # 关键区别：锚点 = to_date（不是 today）
+        sellout_date = _add_days(to_date, sellable_days)
+        sellable_days_with_transit = (
+            None
+            if weighted_dms is None
+            else Decimal(available_inventory + in_transit_quantity) / weighted_dms
+        )
+        sellout_date_with_transit = _add_days(to_date, sellable_days_with_transit)
+
+        production_lead_days = (
+            setting.production_lead_days
+            if setting is not None
+            else DEFAULT_PRODUCTION_LEAD_DAYS
+        )
+        shipping_days = (
+            setting.shipping_days if setting is not None else DEFAULT_SHIPPING_DAYS
+        )
+        estimated_replenishment_quantity = (
+            _round_decimal_to_int(
+                Decimal(production_lead_days + shipping_days) * weighted_dms
+            )
+            if weighted_dms is not None
+            else None
+        )
+
+        if (
+            keyword_text
+            and keyword_text not in base_row.sku.lower()
+            and keyword_text not in (asin or "").lower()
+        ):
+            continue
+
+        rows.append(
+            {
+                "project_id": project.id,
+                "project_name": project.project_name,
+                "sku": base_row.sku,
+                "country": base_row.country,
+                "asin": asin,
+                "product_name": product_name_map.get(base_row.sku),
+                "available_inventory": available_inventory,
+                "in_transit_quantity": in_transit_quantity,
+                "dms_90": _decimal_to_float(dms_90),
+                "dms_30": _decimal_to_float(dms_30),
+                "dms_14": _decimal_to_float(dms_14),
+                "dms_7": _decimal_to_float(dms_7),
+                "dms_90_yoy": _decimal_to_float(dms_90_yoy),
+                "dms_30_yoy": _decimal_to_float(dms_30_yoy),
+                "dms_14_yoy": _decimal_to_float(dms_14_yoy),
+                "dms_7_yoy": _decimal_to_float(dms_7_yoy),
+                "base_dms": _decimal_to_float(base_dms),
+                "weighted_dms": _decimal_to_float(weighted_dms),
+                "sellable_days": _decimal_to_float(
+                    _round_decimal(sellable_days, digits=2), digits=2
+                )
+                if sellable_days is not None
+                else None,
+                "sellout_date": sellout_date,
+                "sellout_date_with_transit": sellout_date_with_transit,
+                "production_lead_days": production_lead_days,
+                "shipping_days": shipping_days,
+                "estimated_replenishment_quantity": estimated_replenishment_quantity,
+            }
+        )
+
+    summary = {
+        # 季节性页面不判定风险，所以这三个字段固定 0
+        # 前端不会展示对应的统计卡，避免误导
+        "sku_count": len(rows),
+        "out_of_stock_risk_count": 0,
+        "healthy_count": sum(
+            1 for item in rows if item["weighted_dms"] is not None
+        ),
+        "slow_moving_count": 0,
+        "pending_data_count": sum(
+            1 for item in rows if item["weighted_dms"] is None
+        ),
+        "total_available_inventory": sum(
+            int(item["available_inventory"]) for item in rows
+        ),
+        "total_in_transit_quantity": sum(
+            int(item["in_transit_quantity"]) for item in rows
+        ),
+    }
+    total = len(rows)
+    paged = rows[(page - 1) * page_size : (page - 1) * page_size + page_size + 1]
+    has_next = len(paged) > page_size
+    return paged[:page_size], summary, total, has_next
 
 
 def list_snapshot_options(
