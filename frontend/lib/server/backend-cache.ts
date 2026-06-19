@@ -62,10 +62,49 @@ export type CacheEndpointRule = {
 }
 
 export const CACHEABLE_ENDPOINTS: ReadonlyArray<CacheEndpointRule> = [
+  // ── Original allowlist (kept) ─────────────────────────────────────────────
   { label: 'projects-manage', pathPattern: /\/projects\/manage$/, revalidateSeconds: 60 },
   { label: 'daily-analysis-all', pathPattern: /\/daily-analysis\/all$/, revalidateSeconds: 60 },
   { label: 'exchange-rates', pathPattern: /\/exchange-rates$/, revalidateSeconds: 60 },
   { label: 'inventory-replenishment-snapshots', pathPattern: /\/inventory-replenishment-snapshots$/, revalidateSeconds: 60 },
+
+  // ── BEL-133-step2: extended allowlist (Phase 1 — 4 high-traffic groups) ──
+  //
+  // All rules below use `\/<segment>$/` strict-anchored path patterns so
+  // they only match the list endpoint itself, never detail endpoints like
+  // `/monthly-reports/{id}/export`. POST/PUT/DELETE are short-circuited
+  // upstream in `tryCachedBackendGet` (method !== 'GET' && method !== 'HEAD'),
+  // so write operations on these resources still hit the backend live.
+
+  // 1) ad-analysis: 10 read-only ad-hoc reports under /ad-analysis/*.
+  //    All are project-scoped aggregations. 30s is a sweet spot for the
+  //    operational team (single-digit-second navigation matters; one minute
+  //    of staleness on ad rollups is acceptable).
+  { label: 'ad-analysis-overview', pathPattern: /\/ad-analysis\/overview$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-campaigns', pathPattern: /\/ad-analysis\/campaigns$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-products', pathPattern: /\/ad-analysis\/products$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-time-trend', pathPattern: /\/ad-analysis\/time-trend$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-purchased-products', pathPattern: /\/ad-analysis\/purchased-products$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-search-terms', pathPattern: /\/ad-analysis\/search-terms$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-targets', pathPattern: /\/ad-analysis\/targets$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-budget', pathPattern: /\/ad-analysis\/budget$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-placements', pathPattern: /\/ad-analysis\/placements$/, revalidateSeconds: 30 },
+  { label: 'ad-analysis-traffic-quality', pathPattern: /\/ad-analysis\/traffic-quality$/, revalidateSeconds: 30 },
+
+  // 2) monthly-reports: ONLY the list endpoint (no `/{id}/...` matches).
+  //    Monthly financials are low-frequency edits (manual reconciliation),
+  //    so 60s is comfortable.
+  { label: 'monthly-reports-list', pathPattern: /\/monthly-reports$/, revalidateSeconds: 60 },
+
+  // 3) product-analysis: list/aggregate reads (sources, pt1, weekly).
+  //    60s; users re-open these pages frequently.
+  { label: 'product-analysis-sources', pathPattern: /\/product-analysis\/sources$/, revalidateSeconds: 60 },
+  { label: 'product-analysis-pt1', pathPattern: /\/product-analysis\/pt1$/, revalidateSeconds: 60 },
+  { label: 'product-analysis-weekly', pathPattern: /\/product-analysis\/weekly$/, revalidateSeconds: 60 },
+
+  // 4) daily-analysis: the dashboard's all-countries cross-country view
+  //    (separate from `/all` which was already cached). 30s.
+  { label: 'daily-analysis-all-countries', pathPattern: /\/daily-analysis\/all-countries$/, revalidateSeconds: 30 },
 ]
 
 /**
