@@ -2,19 +2,31 @@
 
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { FolderKanban, UserCog } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { KeyRound, UserCog, FolderKanban } from 'lucide-react'
+import {
+  DataCard,
+  DataCardContent,
+  DataCardHeader,
+} from '@/components/ui/data-card'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { useProfile } from '@/lib/hooks/use-profile'
 
 import { ProfileAvatarTab } from './components/profile-avatar-tab'
+import { getRoleLabel } from './components/profile-shared'
 import { ProfileInfoTab } from './components/profile-info-tab'
 import { ProfileProjectsTab } from './components/profile-projects-tab'
 
 type ProfileTab = 'info' | 'avatar' | 'projects'
 
 const TAB_VALUES: ProfileTab[] = ['info', 'avatar', 'projects']
+const TAB_ORDER: ProfileTab[] = TAB_VALUES
 
 function isProfileTab(value: string | null): value is ProfileTab {
   return TAB_VALUES.includes(value as ProfileTab)
@@ -23,7 +35,7 @@ function isProfileTab(value: string | null): value is ProfileTab {
 export default function ProfileClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session, update } = useSession()
+  const { profile, loading, error, refetch, update } = useProfile()
 
   const requestedTab = searchParams.get('tab')
   const initialTab: ProfileTab = isProfileTab(requestedTab) ? requestedTab : 'info'
@@ -46,72 +58,84 @@ export default function ProfileClient() {
     [router, searchParams],
   )
 
-  const userId = session?.user?.id ?? null
-
-  const onAvatarUpdated = React.useCallback(
-    async (newUrl: string | null) => {
-      // next-auth exposes ``update`` so we can re-trigger the JWT callback
-      // and refresh ``session.user.image`` for the sidebar.
-      await update({ user: { image: newUrl ?? undefined } })
-    },
-    [update],
-  )
-
   return (
     <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-6">
-      <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
-        <CardHeader className="space-y-3">
-          <p className="dashboard-kicker">个人中心</p>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                <UserCog className="h-5 w-5" />
-                我的资料
-              </CardTitle>
-              <CardDescription>
-                管理个人基本信息、头像以及你所参与的项目。
-              </CardDescription>
-            </div>
-            {session?.user?.roleType ? (
-              <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                {session.user.roleType}
+      <DataCard>
+        <DataCardHeader
+          badge={
+            <Badge
+              variant="outline"
+              className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+            >
+              个人中心
+            </Badge>
+          }
+          title="我的资料"
+          description="管理个人基本信息、头像以及你所参与的项目。"
+          action={
+            profile?.role_type ? (
+              <Badge
+                variant="outline"
+                className="border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+              >
+                {getRoleLabel(profile.role_type)}
               </Badge>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent>
+            ) : null
+          }
+        />
+        <DataCardContent>
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-            <TabsList className="mb-6 flex w-full flex-wrap sm:w-auto">
-              <TabsTrigger value="info" className="flex-1 sm:flex-none">
-                <UserCog className="mr-1.5 h-4 w-4" />
-                资料设置
-              </TabsTrigger>
-              <TabsTrigger value="avatar" className="flex-1 sm:flex-none">
-                头像
-              </TabsTrigger>
-              <TabsTrigger value="projects" className="flex-1 sm:flex-none">
-                <FolderKanban className="mr-1.5 h-4 w-4" />
-                我的项目
-              </TabsTrigger>
+            <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+              <TabsMotionGroup id="profile-tabs">
+                <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs">
+                  <UserCog className="h-4 w-4" />
+                  资料设置
+                </SlidingTabsTrigger>
+                <SlidingTabsTrigger value="avatar" activeValue={tab} layoutId="profile-tabs">
+                  头像
+                </SlidingTabsTrigger>
+                <SlidingTabsTrigger value="projects" activeValue={tab} layoutId="profile-tabs">
+                  <FolderKanban className="h-4 w-4" />
+                  我的项目
+                </SlidingTabsTrigger>
+              </TabsMotionGroup>
             </TabsList>
 
-            <TabsContent value="info">
-              <ProfileInfoTab />
-            </TabsContent>
-            <TabsContent value="avatar">
-              <ProfileAvatarTab userId={userId} onAvatarUpdated={onAvatarUpdated} />
-            </TabsContent>
-            <TabsContent value="projects">
-              <ProfileProjectsTab />
-            </TabsContent>
+            <DirectionalTabTransition value={tab} order={TAB_ORDER} className="mt-6">
+              <TabsContent value="info" hidden={tab !== 'info'}>
+                <ProfileInfoTab
+                  profile={profile}
+                  loading={loading}
+                  error={error}
+                  onUpdate={update}
+                />
+              </TabsContent>
+              <TabsContent value="avatar" hidden={tab !== 'avatar'}>
+                <ProfileAvatarTab
+                  profile={profile}
+                  loading={loading}
+                  onRefetch={refetch}
+                />
+              </TabsContent>
+              <TabsContent value="projects" hidden={tab !== 'projects'}>
+                <ProfileProjectsTab
+                  operatorNameCandidates={{
+                    name: profile?.name ?? null,
+                    operatorNameZh: profile?.operator_name_zh ?? null,
+                  }}
+                />
+              </TabsContent>
+            </DirectionalTabTransition>
           </Tabs>
-        </CardContent>
-      </Card>
+        </DataCardContent>
+      </DataCard>
 
       <p className="text-center text-xs text-muted-foreground">
-        <KeyRound className="mr-1 inline h-3 w-3" />
         想修改密码？前往{' '}
-        <a href="/dashboard/change-password" className="text-primary underline-offset-2 hover:underline">
+        <a
+          href="/dashboard/change-password"
+          className="text-primary underline-offset-2 hover:underline"
+        >
           修改密码
         </a>
         。
