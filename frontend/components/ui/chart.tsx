@@ -1,5 +1,12 @@
 "use client"
 
+// 原 shadcn 风格的 chart 容器。
+// 项目里大部分页面（dashboard / data-analysis / financial-data / portfolio /
+// ai-insights / ad-analysis）都引用这里的 ChartContainer / ChartTooltipContent。
+// 与 `line-charts-6.tsx` 并存：后者是 Tailwind 4 上游版本的 Tailwind 3 适配版，
+// 用于新的"单 line + 顶部 metric 切换"型卡片场景（如 demo.tsx）。
+// 新代码优先用 line-charts-6，存量代码继续用本文件，逐步迁移。
+
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
