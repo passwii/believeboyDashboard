@@ -1,13 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef, useId, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   FileDown,
   Loader2,
@@ -16,17 +12,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 
 import {
   CountrySelect,
@@ -42,7 +27,6 @@ import {
   DataCardContent,
   DataTableCard,
   DataTableCardHeader,
-  DataTableCardMetrics,
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import {
@@ -264,10 +248,6 @@ const SINGLE_METRIC_CHART_CONFIG = {
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
 const EMPTY_DETAIL_ROWS: DailyAnalysisDetailRow[] = []
 
-function getChartColor(key: ChartMetricKey): string {
-  return SINGLE_METRIC_CHART_CONFIG[key]?.color ?? 'hsl(var(--chart-1))'
-}
-
 function authHeaders(): Record<string, string> {
   return {}
 }
@@ -424,15 +404,6 @@ function formatAxisValue(metric: ChartMetricKey, value: number) {
 
 function metricIncreaseIsGood(metric: ChartMetricKey) {
   return metric !== 'cpc' && metric !== 'ad_spend'
-}
-
-function isBarMetric(metric: ChartMetricKey) {
-  return (
-    metric === 'order_qty' ||
-    metric === 'ad_orders' ||
-    metric === 'sales_amount' ||
-    metric === 'units_ordered'
-  )
 }
 
 function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
@@ -1014,217 +985,8 @@ function DailyMetricChart({
                   ? formatMetricValue(metric, item.value)
                   : String(item.value ?? '')
 
-              return (
-                <div
-                  key={`${item.dataKey ?? item.name ?? 'value'}-${index}`}
-                  className='flex items-center justify-between gap-4'
-                >
-                  <span
-                    className='font-medium'
-                    style={{ color: item.color || undefined }}
-                  >
-                    {itemLabel}
-                  </span>
-                  <span className='font-mono font-medium text-foreground'>
-                    {value}
-                  </span>
-                </div>
-              )
-            })}
-        </div>
-      </div>
-    )
-  }
-
-  const mobileChartMargin = isBar
-    ? { top: 12, right: 4, left: -12, bottom: 8 }
-    : { top: 12, right: 4, left: -12, bottom: 8 }
-  const desktopChartMargin = { top: 20, right: 8, left: 0, bottom: 12 }
-  const chartMargin = isMobile ? mobileChartMargin : desktopChartMargin
-  const tickFontSize = isMobile ? 10 : 12
-  const lineStrokeWidth = isMobile ? 2 : 3
-  const barRadius = isMobile ? [4, 4, 0, 0] as [number, number, number, number] : [8, 8, 0, 0] as [number, number, number, number]
-
-  return (
-    <div className='h-[300px] w-full md:h-[420px]'>
-      <ResponsiveContainer width='100%' height='100%'>
-        {isBar ? (
-          <BarChart
-            data={rows}
-            margin={chartMargin}
-            barGap={8}
-          >
-            <defs>
-              <linearGradient id={currentGradientId} x1='0' y1='0' x2='0' y2='1'>
-                <stop offset='0%' stopColor={color} stopOpacity={0.98} />
-                <stop offset='100%' stopColor={color} stopOpacity={0.72} />
-              </linearGradient>
-              <linearGradient id={compareGradientId} x1='0' y1='0' x2='0' y2='1'>
-                <stop offset='0%' stopColor='rgba(148,163,184,0.42)' />
-                <stop offset='100%' stopColor='rgba(148,163,184,0.18)' />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              vertical={false}
-              stroke='rgba(148,163,184,0.18)'
-              strokeDasharray='0'
-            />
-            <XAxis
-              dataKey='date'
-              axisLine={false}
-              tickLine={false}
-              tickMargin={isMobile ? 8 : 18}
-              tick={{ fontSize: tickFontSize, fill: '#71717a' }}
-              tickFormatter={(value) => {
-                const [, month, day] = String(value).split('-')
-                return isMobile ? `${month}/${day}` : `${month}月${day}日`
-              }}
-            />
-            {!isMobile && (
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tickMargin={16}
-                tick={{ fontSize: 12, fill: '#71717a' }}
-                domain={[0, 'auto']}
-                tickFormatter={(value) =>
-                  formatAxisValue(metric, Number(value))
-                }
-              />
-            )}
-            <Tooltip
-              cursor={false}
-              content={tooltipContent}
-            />
-            {showComparison ? (
-              <Bar
-                dataKey='compareMetricValue'
-                name='上一个周期'
-                fill={`url(#${compareGradientId})`}
-                radius={barRadius}
-                barSize={12}
-                isAnimationActive
-                animationDuration={320}
-                animationEasing='ease-out'
-                activeBar={{
-                  fill: 'rgba(148,163,184,0.6)',
-                  fillOpacity: 1,
-                  stroke: 'rgba(148,163,184,0.8)',
-                  strokeWidth: 2,
-                }}
-              />
-            ) : null}
-            <Bar
-              dataKey={metric}
-              name={SINGLE_METRIC_CHART_CONFIG[metric].label}
-              fill={`url(#${currentGradientId})`}
-              radius={barRadius}
-              minPointSize={rows.some((row) => Number(row[metric] ?? 0) > 0) ? 2 : 0}
-              barSize={12}
-              isAnimationActive
-              animationDuration={360}
-              animationEasing='ease-out'
-              activeBar={{
-                fill: color,
-                fillOpacity: 1,
-                stroke: '#fff',
-                strokeWidth: 2,
-              }}
-            />
-          </BarChart>
-        ) : (
-          <LineChart
-            data={rows}
-            margin={chartMargin}
-          >
-            <defs>
-              <filter id={lineGlowId} x='-20%' y='-20%' width='140%' height='140%'>
-                <feGaussianBlur stdDeviation='3' result='blur' />
-                <feColorMatrix
-                  in='blur'
-                  type='matrix'
-                  values='1 0 0 0 0
-                          0 1 0 0 0
-                          0 0 1 0 0
-                          0 0 0 0.2 0'
-                  result='glow'
-                />
-                <feMerge>
-                  <feMergeNode in='glow' />
-                  <feMergeNode in='SourceGraphic' />
-                </feMerge>
-              </filter>
-            </defs>
-            <CartesianGrid
-              vertical={false}
-              stroke='rgba(148,163,184,0.18)'
-              strokeDasharray='0'
-            />
-            <XAxis
-              dataKey='date'
-              axisLine={false}
-              tickLine={false}
-              tickMargin={isMobile ? 6 : 12}
-              tick={{ fontSize: isMobile ? 10 : 11, fill: '#71717a' }}
-              tickFormatter={(value) => {
-                const [, month, day] = String(value).split('-')
-                return isMobile ? `${month}/${day}` : `${month}月${day}日`
-              }}
-            />
-            {!isMobile && (
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tickMargin={10}
-                tick={{ fontSize: 11, fill: '#71717a' }}
-                domain={[0, 'auto']}
-                tickFormatter={(value) =>
-                  formatAxisValue(metric, Number(value))
-                }
-              />
-            )}
-            <Tooltip
-              cursor={false}
-              content={tooltipContent}
-            />
-            {showComparison ? (
-              <Line
-                type='monotone'
-                dataKey='compareMetricValue'
-                name='上一个周期'
-                stroke='rgba(148,163,184,0.9)'
-                strokeWidth={isMobile ? 2 : 2.5}
-                strokeDasharray='6 6'
-                dot={false}
-                isAnimationActive
-                animationDuration={320}
-                animationEasing='ease-out'
-              />
-            ) : null}
-            <Line
-              type='monotone'
-              dataKey={metric}
-              name={SINGLE_METRIC_CHART_CONFIG[metric].label}
-              stroke={color}
-              strokeWidth={lineStrokeWidth}
-              style={{ filter: `url(#${lineGlowId})` }}
-              dot={false}
-              isAnimationActive
-              animationDuration={360}
-              animationEasing='ease-out'
-              activeDot={{
-                r: 5,
-                fill: color,
-                stroke: '#fff',
-                strokeWidth: 2,
-              }}
-            />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
-    </div>
-  )
-}
+// 已下线 — DailyMetricChart（Bar/Line 切换）已被 MetricSwitcherCard 单线视图替代，
+// 函数体内联删除以减少 ~270 行死代码。如需重新启用 Bar 视图，请参考 git 历史 `dbb77e7`。
 
 export default function DailyAnalysisPage() {
   const { notify } = useNotifications()
@@ -1764,34 +1526,6 @@ export default function DailyAnalysisPage() {
     ? filteredComparisonRows
     : comparisonSummaryRows
 
-  const metricCards = useMemo(() => {
-    return CHART_METRICS.map((metric) => {
-      const currentValue = aggregateMetric(chartDataRows, metric.key)
-      const hasComparison = comparisonDataRows.length > 0
-      const previousValue = hasComparison
-        ? aggregateMetric(comparisonDataRows, metric.key)
-        : 0
-      const diff = currentValue - previousValue
-      const percentChange =
-        previousValue === 0 ? null : (diff / previousValue) * 100
-      const isPositiveDirection =
-        percentChange === null
-          ? true
-          : metricIncreaseIsGood(metric.key)
-            ? percentChange >= 0
-            : percentChange <= 0
-
-      return {
-        ...metric,
-        currentValue,
-        previousValue,
-        percentChange,
-        isPositiveDirection,
-        hasComparison,
-        showComparisonBadge: comparisonDataRows.length > 0,
-      }
-    })
-  }, [chartDataRows, comparisonDataRows])
   const comparisonRange = useMemo(
     () => getPreviousPeriodRange(dateRange),
     [dateRange],
