@@ -930,61 +930,6 @@ const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => ({
   format: (val: number) => formatMetricCardValue(m.key, val),
 }))
 
-function DailyMetricChart({
-  rows,
-  metric,
-  isBar,
-  color,
-  showComparison,
-  isMobile,
-}: {
-  rows: DailyChartRow[]
-  metric: ChartMetricKey
-  isBar: boolean
-  color: string
-  showComparison: boolean
-  isMobile?: boolean
-}) {
-  const chartId = useId().replace(/:/g, '')
-  const currentGradientId = `${chartId}-${metric}-current`
-  const compareGradientId = `${chartId}-${metric}-compare`
-  const lineGlowId = `${chartId}-${metric}-glow`
-
-  const tooltipContent = ({
-    active,
-    payload,
-    label,
-  }: {
-    active?: boolean
-    payload?: Array<{
-      color?: string
-      dataKey?: string | number
-      name?: string | number
-      value?: unknown
-    }>
-    label?: string
-  }) => {
-    if (!active || !payload?.length) return null
-
-    return (
-      <div className='grid min-w-[10rem] gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))]'>
-        <div className='font-medium'>{label ?? ''}</div>
-        <div className='grid gap-1.5'>
-          {payload
-            .filter((item) => item.value !== null && item.value !== undefined)
-            .map((item, index) => {
-              const itemLabel =
-                (typeof item.name === 'string' || typeof item.name === 'number'
-                  ? String(item.name)
-                  : '') ||
-                (item.dataKey === 'compareMetricValue'
-                  ? '上一个周期'
-                  : SINGLE_METRIC_CHART_CONFIG[metric].label)
-              const value =
-                typeof item.value === 'number'
-                  ? formatMetricValue(metric, item.value)
-                  : String(item.value ?? '')
-
 // 已下线 — DailyMetricChart（Bar/Line 切换）已被 MetricSwitcherCard 单线视图替代，
 // 函数体内联删除以减少 ~270 行死代码。如需重新启用 Bar 视图，请参考 git 历史 `dbb77e7`。
 
@@ -1027,11 +972,6 @@ export default function DailyAnalysisPage() {
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
   const selectedSkuRef = useRef('')
-  const [metricCardPage, setMetricCardPage] = useState(0)
-  const METRICS_PER_PAGE = 6
-  // 图表视图模式：'classic' = 旧版 DailyMetricChart（Bar/Line 切换）；'switcher' = 新版 MetricSwitcherCard
-  // 旧版为默认值，保持现有用户习惯；用户可手动切换到新版查看 line-charts-6 效果
-  const [chartViewMode, setChartViewMode] = useState<'classic' | 'switcher'>('switcher')
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -1733,241 +1673,32 @@ export default function DailyAnalysisPage() {
             </div>
           )}
           {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
-            <>
-              {/* 桌面端：左右箭头 + 网格 */}
-              <div className='hidden sm:flex items-center gap-2'>
-                <button
-                  type='button'
-                  onClick={() => setMetricCardPage((p) => Math.max(0, p - 1))}
-                  disabled={metricCardPage === 0}
-                  className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30'
-                >
-                  <ChevronLeft className='h-4 w-4' />
-                </button>
-                <DataTableCardMetrics className='grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 flex-1'>
-                  {metricCards
-                    .slice(metricCardPage * METRICS_PER_PAGE, (metricCardPage + 1) * METRICS_PER_PAGE)
-                    .map((metric) => {
-                      const isActive = metric.key === activeChartMetric
-                      const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
-                      const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
-                      return (
-                        <button
-                          key={metric.key}
-                          type='button'
-                          onClick={() => setActiveChartMetric(metric.key)}
-                          className={cn(
-                            'rounded-lg border px-3 py-3 text-left transition-all duration-200',
-                            isActive
-                              ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
-                              : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground hover:-translate-y-0.5 hover:border-border hover:bg-background',
-                          )}
-                        >
-                          <div className='flex items-start justify-between gap-2'>
-                            <div className={cn('text-xs font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
-                              {metric.label}
-                            </div>
-                            {metric.showComparisonBadge ? (
-                              <div className={cn(
-                                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold backdrop-blur-sm',
-                                isActive
-                                  ? usePositiveColor
-                                    ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                    : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))] shadow-[0_10px_24px_-14px_rgba(255,255,255,0.9)]'
-                                  : usePositiveColor
-                                    ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                    : 'border-destructive/25 bg-destructive/12 text-destructive',
-                              )}>
-                                {showIncrease ? <ArrowUp className='h-3 w-3' /> : <ArrowDown className='h-3 w-3' />}
-                                {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                              </div>
-                            ) : <div className='h-[28px] w-[60px]' />}
-                          </div>
-                          <div className='mt-3 space-y-0.5'>
-                            <div className={cn('text-[1.25rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
-                              {formatMetricCardValue(metric.key, metric.currentValue)}
-                            </div>
-                            <div className={cn('text-xs', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
-                              {metric.hasComparison ? `对比 ${formatMetricCardValue(metric.key, metric.previousValue)}` : (selectedSku ? 'SKU 明细' : '暂无对比')}
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                </DataTableCardMetrics>
-                <button
-                  type='button'
-                  onClick={() => setMetricCardPage((p) => Math.min(Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1, p + 1))}
-                  disabled={metricCardPage >= Math.ceil(metricCards.length / METRICS_PER_PAGE) - 1}
-                  className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-30'
-                >
-                  <ChevronRight className='h-4 w-4' />
-                </button>
-              </div>
-              {/* 手机端：左右滑动 + 指示点 */}
-              <div className='sm:hidden'>
-                {/* 可滑动容器 */}
-                <div
-                  className='flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1 scrollbar-hide'
-                  style={{ WebkitOverflowScrolling: 'touch' }}
-                >
-                  {metricCards.map((metric) => {
-                    const isActive = metric.key === activeChartMetric
-                    const showIncrease = metric.percentChange === null ? true : metric.percentChange >= 0
-                    const usePositiveColor = metric.percentChange === null ? true : metric.isPositiveDirection
-                    return (
-                      <button
-                        key={metric.key}
-                        type='button'
-                        onClick={() => setActiveChartMetric(metric.key)}
-                        className={cn(
-                          'flex-none snap-start rounded-lg border px-3 py-2.5 text-left transition-all duration-200 w-[calc(50%-0.25rem)]',
-                          isActive
-                            ? 'border-primary/45 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_hsl(var(--primary)/0.72)]'
-                            : 'border-border/70 bg-[hsl(var(--surface-soft))]/86 text-foreground',
-                        )}
-                      >
-                        <div className='flex items-start justify-between gap-1.5'>
-                          <div className={cn('text-[10px] font-semibold tracking-tight', isActive ? 'text-primary-foreground/88' : 'text-muted-foreground')}>
-                            {metric.label}
-                          </div>
-                          {metric.showComparisonBadge ? (
-                            <div className={cn(
-                              'flex-none inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold backdrop-blur-sm',
-                              isActive
-                                ? usePositiveColor
-                                  ? 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(220,252,231,0.92))] text-[hsl(var(--success))]'
-                                  : 'border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(254,226,226,0.92))] text-[hsl(var(--destructive))]'
-                                : usePositiveColor
-                                  ? 'border-[hsl(var(--success))/0.28] bg-[hsl(var(--success))/0.12] text-[hsl(var(--success))]'
-                                  : 'border-destructive/25 bg-destructive/12 text-destructive',
-                            )}>
-                              {showIncrease ? <ArrowUp className='h-2.5 w-2.5' /> : <ArrowDown className='h-2.5 w-2.5' />}
-                              {metric.percentChange === null ? '--' : `${Math.abs(metric.percentChange).toFixed(1)}%`}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className='mt-2 space-y-0.5'>
-                          <div className={cn('text-[1.1rem] font-semibold tracking-tight', isActive ? 'text-primary-foreground' : 'text-foreground')}>
-                            {formatMetricCardValue(metric.key, metric.currentValue)}
-                          </div>
-                          <div className={cn('text-[10px]', isActive ? 'text-primary-foreground/72' : 'text-muted-foreground')}>
-                            {metric.hasComparison ? `对比 ${formatMetricCardValue(metric.key, metric.previousValue)}` : (selectedSku ? 'SKU 明细' : '暂无对比')}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-                {/* 指示点（当前激活的卡片的对应点高亮） */}
-                <div className='flex justify-center gap-1.5 mt-1'>
-                  {Array.from({ length: Math.ceil(metricCards.length / METRICS_PER_PAGE) }).map((_, i) => {
-                    const startIdx = i * METRICS_PER_PAGE
-                    const endIdx = startIdx + METRICS_PER_PAGE
-                    const isActiveGroup = metricCards.slice(startIdx, endIdx).some(m => m.key === activeChartMetric)
-                    return (
-                      <button
-                        key={i}
-                        type='button'
-                        onClick={() => setMetricCardPage(i)}
-                        className={cn(
-                          'h-1.5 rounded-full transition-all',
-                          isActiveGroup ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50',
-                        )}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
-                <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
-                      <span
-                        className='h-2.5 w-2.5 rounded-full'
-                        style={{
-                          backgroundColor:
-                            SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
-                        }}
-                      />
-                      当前周期
-                    </div>
-                    {hasComparisonData ? (
-                      <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
-                        <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
-                        上一个周期
-                      </div>
-                    ) : null}
-                  </div>
-                  {/* 视图切换：classic (旧版 Bar/Line 切换) vs switcher (新版 MetricSwitcherCard) */}
-                  <div className="inline-flex h-7 items-center rounded-full border border-border/70 bg-background/72 p-0.5 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setChartViewMode('classic')}
-                      className={cn(
-                        'rounded-full px-2.5 py-1 font-medium transition-colors',
-                        chartViewMode === 'classic'
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      Bar/Line
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setChartViewMode('switcher')}
-                      className={cn(
-                        'rounded-full px-2.5 py-1 font-medium transition-colors',
-                        chartViewMode === 'switcher'
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      单线 + 切换
-                    </button>
-                  </div>
-                </div>
-
-                {chartViewMode === 'switcher' ? (
-                  <div className="rounded-md border border-border/60 bg-background/40 p-2 sm:p-3">
-                    <MetricSwitcherCard<ChartMetricKey>
-                      metrics={LINE_METRICS}
-                      defaultMetric={activeChartMetric}
-                      colors={Object.fromEntries(
-                        LINE_METRICS.map((m) => [
-                          m.key,
-                          SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
-                        ]),
-                      ) as Partial<Record<ChartMetricKey, string>>}
-                      heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
-                      getCurrent={(k) => aggregateMetric(chartDataRows, k)}
-                      getPrevious={(k) =>
-                        comparisonDataRows.length > 0
-                          ? aggregateMetric(comparisonDataRows, k)
-                          : null
-                      }
-                      renderLine={() => chartRows as Array<Record<string, unknown>>}
-                      tooltipFormatter={(value, key) => formatMetricValue(key, value)}
-                      yAxisFormatter={(value, key) => formatAxisValue(key, value)}
-                      xTickFormatter={(value) => {
-                        const [, month, day] = value.split('-')
-                        return isMobile ? `${month}/${day}` : `${month}月${day}日`
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <DailyMetricChart
-                    rows={chartRows as DailyChartRow[]}
-                    metric={activeChartMetric}
-                    isBar={isBarMetric(activeChartMetric)}
-                    color={getChartColor(activeChartMetric)}
-                    showComparison={hasComparisonData}
-                    isMobile={isMobile}
-                  />
-                )}
-              </div>
-            </>
+            <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-2 sm:p-3'>
+              <MetricSwitcherCard<ChartMetricKey>
+                metrics={LINE_METRICS}
+                defaultMetric={activeChartMetric}
+                colors={Object.fromEntries(
+                  LINE_METRICS.map((m) => [
+                    m.key,
+                    SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
+                  ]),
+                ) as Partial<Record<ChartMetricKey, string>>}
+                heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+                getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+                getPrevious={(k) =>
+                  comparisonDataRows.length > 0
+                    ? aggregateMetric(comparisonDataRows, k)
+                    : null
+                }
+                renderLine={() => chartRows as Array<Record<string, unknown>>}
+                tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+                yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+                xTickFormatter={(value) => {
+                  const [, month, day] = value.split('-')
+                  return isMobile ? `${month}/${day}` : `${month}月${day}日`
+                }}
+              />
+            </div>
           ) : (
             <div className='flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center'>
               <div className='space-y-2'>
