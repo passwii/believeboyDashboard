@@ -1,92 +1,40 @@
 'use client'
 
 import * as React from 'react'
-import { Camera, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useNotifications } from '@/components/notifications'
-import {
-  type CachedAvatar,
-  invalidateUserAvatar,
-  loadUserAvatar,
-} from '@/lib/user-avatar-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import {
+  deleteAvatar,
+  uploadAvatar,
+} from '@/lib/client-api/profile-client'
+import { invalidateUserAvatar } from '@/lib/user-avatar-cache'
+import type { Profile } from '@/types/profile'
+
+import { ProfileAvatarDisplay } from './profile-avatar-display'
+import { ProfileAvatarSkeleton } from './profile-skeletons'
 
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const ACCEPTED_EXT_LABEL = 'PNG / JPG / WEBP / GIF'
 const MAX_BYTES = 5 * 1024 * 1024
 
 interface ProfileAvatarTabProps {
-  userId: string | null
-  onAvatarUpdated?: (newUrl: string | null) => Promise<void> | void
+  profile: Profile | null
+  loading: boolean
+  onRefetch: () => Promise<void>
 }
 
-interface ProfileResponse {
-  avatar_url: string | null
-  email?: string
-  name?: string
-}
-
-export function ProfileAvatarTab({ userId, onAvatarUpdated }: ProfileAvatarTabProps) {
+export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarTabProps) {
   const { notify } = useNotifications()
-
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [previewSrc, setPreviewSrc] = React.useState<string | null>(null)
-  const [previewFromCache, setPreviewFromCache] = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
   const [removing, setRemoving] = React.useState(false)
   const [refreshTick, setRefreshTick] = React.useState(0)
-
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // Load profile on mount + when refreshTick changes
-  React.useEffect(() => {
-    let cancelled = false
-    fetch('/api/user/profile', { cache: 'no-store' })
-      .then(async (res) => {
-        const body = (await res.json()) as Partial<ProfileResponse> & { message?: string }
-        if (!res.ok) throw new Error(body.message || '加载失败')
-        if (cancelled) return
-        setAvatarUrl(body.avatar_url ?? null)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        notify({ type: 'error', title: normalizeErrorMessage(err, '加载资料失败') })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [notify, refreshTick])
-
-  // Resolve the avatar blob URL (cache-first)
-  React.useEffect(() => {
-    let cancelled = false
-    let activeUrl: string | null = null
-
-    if (!userId || !avatarUrl) {
-      setPreviewSrc(null)
-      setPreviewFromCache(false)
-      return
-    }
-
-    loadUserAvatar(userId, avatarUrl)
-      .then((cached: CachedAvatar | null) => {
-        if (cancelled || !cached) return
-        activeUrl = cached.objectUrl
-        setPreviewSrc(cached.objectUrl)
-        setPreviewFromCache(cached.fromCache)
-      })
-      .catch(() => {
-        // Failure to decode is non-fatal: the avatar component will fall
-        // back to the initials avatar below.
-      })
-
-    return () => {
-      cancelled = true
-      if (activeUrl) URL.revokeObjectURL(activeUrl)
-    }
-  }, [userId, avatarUrl])
+  const userId = profile?.id ?? null
+  const avatarUrl = profile?.avatar_url ?? null
 
   const onPickFile = () => {
     fileInputRef.current?.click()
@@ -109,24 +57,9 @@ export function ProfileAvatarTab({ userId, onAvatarUpdated }: ProfileAvatarTabPr
 
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file, file.name)
-
-      const res = await fetch('/api/user/avatar', {
-        method: 'POST',
-        body: formData,
-      })
-      const body = (await res.json()) as
-        | { avatar_url: string; size: number; content_type: string }
-        | { message?: string }
-      if (!res.ok || !('avatar_url' in body) || !body.avatar_url) {
-        throw new Error('message' in body && body.message ? body.message : '上传失败')
-      }
-
-      // Invalidate the previous URL so future loads bypass the stale cache.
+      await uploadAvatar(file)
       if (userId && avatarUrl) invalidateUserAvatar(userId, avatarUrl)
-      setAvatarUrl(body.avatar_url)
-      await onAvatarUpdated?.(body.avatar_url)
+      await onRefetch()
       notify({ type: 'success', title: '头像已更新' })
     } catch (err) {
       notify({ type: 'error', title: normalizeErrorMessage(err, '上传失败') })
@@ -139,14 +72,9 @@ export function ProfileAvatarTab({ userId, onAvatarUpdated }: ProfileAvatarTabPr
     if (!avatarUrl) return
     setRemoving(true)
     try {
-      const res = await fetch('/api/user/avatar', { method: 'DELETE' })
-      const body = (await res.json()) as { ok?: boolean; message?: string }
-      if (!res.ok || !body.ok) {
-        throw new Error(body.message || '删除失败')
-      }
+      await deleteAvatar()
       if (userId && avatarUrl) invalidateUserAvatar(userId, avatarUrl)
-      setAvatarUrl(null)
-      await onAvatarUpdated?.(null)
+      await onRefetch()
       notify({ type: 'success', title: '已恢复默认头像' })
     } catch (err) {
       notify({ type: 'error', title: normalizeErrorMessage(err, '删除失败') })
@@ -161,21 +89,17 @@ export function ProfileAvatarTab({ userId, onAvatarUpdated }: ProfileAvatarTabPr
     notify({ type: 'info', title: '正在重新获取头像...' })
   }
 
+  if (loading && !profile) {
+    return <ProfileAvatarSkeleton />
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
-      <div className="flex flex-col items-center gap-3">
-        <Avatar className="h-40 w-40 rounded-2xl border border-border/60 shadow-sm">
-          {previewSrc ? (
-            <AvatarImage src={previewSrc} alt="当前头像" />
-          ) : null}
-          <AvatarFallback className="rounded-2xl bg-muted text-3xl font-semibold text-muted-foreground">
-            <Camera className="h-12 w-12" />
-          </AvatarFallback>
-        </Avatar>
-        <p className="text-xs text-muted-foreground">
-          {previewFromCache ? '已从本地缓存加载' : avatarUrl ? '已从 R2 加载' : '尚未上传头像'}
-        </p>
-      </div>
+      <ProfileAvatarDisplay
+        userId={userId}
+        avatarUrl={avatarUrl}
+        refreshTick={refreshTick}
+      />
 
       <div className="space-y-4">
         <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4">
@@ -185,7 +109,11 @@ export function ProfileAvatarTab({ userId, onAvatarUpdated }: ProfileAvatarTabPr
             图片会保存到 Cloudflare R2，并自动在浏览器本地缓存以加速加载。
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" onClick={onPickFile} disabled={uploading || removing}>
+            <Button
+              type="button"
+              onClick={onPickFile}
+              disabled={uploading || removing}
+            >
               {uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
