@@ -4,6 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## 🍎 macOS 端（BEL-147）
+
+`macos/` 下是 SwiftUI App，最低 macOS 14，Bundle ID `com.passwii.believeboy.macos`。
+
+- 工程由 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 从 `macos/project.yml` 生成；不要手编 `xcodeproj`，**`xcodeproj` 已在 .gitignore 中**。
+- 后端复用 `backend/`（FastAPI + PostgreSQL），API 类型最终从 OpenAPI 同步到 `macos/BelieveBoyMac/Models/`。
+- 前端（`frontend/`）和 macOS 端是**双前端**关系，没有强制依赖，可独立发布。
+- 侧栏配置在 `macos/BelieveBoyMac/Routes/RouteConfig.swift`，是 `frontend/lib/sidebar-config.ts` 的镜像；web 侧栏变化时要同步更新。
+- 启动方法见 `macos/README.md`；进度追踪见 issue [BEL-147](https://multica/issues/BEL-147)。
+
+---
+
 ## ⚡ CodeGraph 语义知识图谱（实测版 v0.9.9）
 
 本项目已初始化 **CodeGraph**，通过语义知识图谱实现代码库的即时查找，比文件扫描快 10-100 倍。
