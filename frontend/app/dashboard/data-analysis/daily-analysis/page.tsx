@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -947,6 +948,17 @@ function FilterSkeleton() {
   )
 }
 
+/**
+ * 把 CHART_METRICS + SINGLE_METRIC_CHART_CONFIG 投影成 MetricSwitcherCard 需要的 MetricDef[]。
+ * 保留 daily-analysis 原有的 format / isNegativeBetter 语义（metricIncreaseIsGood 取反）。
+ */
+const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => ({
+  key: m.key,
+  label: SINGLE_METRIC_CHART_CONFIG[m.key]?.label ?? m.label,
+  isNegativeBetter: !metricIncreaseIsGood(m.key),
+  format: (val: number) => formatMetricCardValue(m.key, val),
+}))
+
 function DailyMetricChart({
   rows,
   metric,
@@ -1255,6 +1267,9 @@ export default function DailyAnalysisPage() {
   const selectedSkuRef = useRef('')
   const [metricCardPage, setMetricCardPage] = useState(0)
   const METRICS_PER_PAGE = 6
+  // 图表视图模式：'classic' = 旧版 DailyMetricChart（Bar/Line 切换）；'switcher' = 新版 MetricSwitcherCard
+  // 旧版为默认值，保持现有用户习惯；用户可手动切换到新版查看 line-charts-6 效果
+  const [chartViewMode, setChartViewMode] = useState<'classic' | 'switcher'>('switcher')
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -2132,43 +2147,91 @@ export default function DailyAnalysisPage() {
               </div>
 
               <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
-                <div className={cn('mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
-                  <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
-                    <span
-                      className='h-2.5 w-2.5 rounded-full'
-                      style={{
-                        backgroundColor:
-                          SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
-                      }}
-                    />
-                    当前周期
+                <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
+                      <span
+                        className='h-2.5 w-2.5 rounded-full'
+                        style={{
+                          backgroundColor:
+                            SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
+                        }}
+                      />
+                      当前周期
+                    </div>
+                    {hasComparisonData ? (
+                      <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
+                        <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
+                        上一个周期
+                      </div>
+                    ) : null}
                   </div>
-                  {hasComparisonData ? (
-                    isBarMetric(activeChartMetric) ? (
-                      <div className='inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]'>
-                        <span
-                          className='h-3 w-3 rounded-sm border border-border/70'
-                          style={{ backgroundColor: 'rgba(148,163,184,0.28)' }}
-                        />
-                        上一个周期
-                      </div>
-                    ) : (
-                      <div className='inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]'>
-                        <span className='w-5 border-t-2 border-dashed border-border/70' />
-                        上一个周期
-                      </div>
-                    )
-                  ) : null}
+                  {/* 视图切换：classic (旧版 Bar/Line 切换) vs switcher (新版 MetricSwitcherCard) */}
+                  <div className="inline-flex h-7 items-center rounded-full border border-border/70 bg-background/72 p-0.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setChartViewMode('classic')}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 font-medium transition-colors',
+                        chartViewMode === 'classic'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Bar/Line
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartViewMode('switcher')}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 font-medium transition-colors',
+                        chartViewMode === 'switcher'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      单线 + 切换
+                    </button>
+                  </div>
                 </div>
 
-                <DailyMetricChart
-                  rows={chartRows as DailyChartRow[]}
-                  metric={activeChartMetric}
-                  isBar={isBarMetric(activeChartMetric)}
-                  color={getChartColor(activeChartMetric)}
-                  showComparison={hasComparisonData}
-                  isMobile={isMobile}
-                />
+                {chartViewMode === 'switcher' ? (
+                  <div className="rounded-md border border-border/60 bg-background/40 p-2 sm:p-3">
+                    <MetricSwitcherCard<ChartMetricKey>
+                      metrics={LINE_METRICS}
+                      defaultMetric={activeChartMetric}
+                      colors={Object.fromEntries(
+                        LINE_METRICS.map((m) => [
+                          m.key,
+                          SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
+                        ]),
+                      ) as Partial<Record<ChartMetricKey, string>>}
+                      heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+                      getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+                      getPrevious={(k) =>
+                        comparisonDataRows.length > 0
+                          ? aggregateMetric(comparisonDataRows, k)
+                          : null
+                      }
+                      renderLine={() => chartRows as Array<Record<string, unknown>>}
+                      tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+                      yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+                      xTickFormatter={(value) => {
+                        const [, month, day] = value.split('-')
+                        return isMobile ? `${month}/${day}` : `${month}月${day}日`
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <DailyMetricChart
+                    rows={chartRows as DailyChartRow[]}
+                    metric={activeChartMetric}
+                    isBar={isBarMetric(activeChartMetric)}
+                    color={getChartColor(activeChartMetric)}
+                    showComparison={hasComparisonData}
+                    isMobile={isMobile}
+                  />
+                )}
               </div>
             </>
           ) : (
