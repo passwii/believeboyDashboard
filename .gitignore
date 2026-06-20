@@ -130,3 +130,20 @@ autoReportUpload/__pycache__/
 backend/scripts/test_db_capacity.py
 DB_CAPACITY_REPORT.md
 db_capacity_results.json
+
+# macOS / Xcode (BEL-147)
+/macos/**/*.xcodeproj/
+!/macos/**/*.xcodeproj/project.pbxproj
+/macos/**/*.xcworkspace/
+/macos/**/DerivedData/
+/macos/**/build/
+/macos/**/.build/
+/macos/**/.swiftpm/
+/macos/**/Packages/
+/macos/**/*.xcuserstate
+/macos/**/*.xcuserdatad/
+/macos/**/xcuserdata/
+/macos/**/Package.resolved
+*.dSYM
+/macos/dist/
+/macos/.DS_Store
