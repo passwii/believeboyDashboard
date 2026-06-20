@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FolderKanban, UserCog } from 'lucide-react'
+import { ArrowRight, ChevronRight, FolderKanban, UserCog } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -59,7 +59,17 @@ export default function ProfileClient() {
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex flex-col gap-1 px-1">
+        <nav className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" aria-label="面包屑">
+          <a href="/dashboard" className="shrink-0 hover:text-foreground transition-colors">管理</a>
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <span className="truncate">个人中心</span>
+        </nav>
+        <h1 className="text-2xl font-semibold tracking-tight">我的资料</h1>
+        <p className="text-sm text-muted-foreground">管理你的个人信息、头像以及参与的项目。</p>
+      </div>
+
       <DataCard>
         <DataCardHeader
           badge={
@@ -85,7 +95,7 @@ export default function ProfileClient() {
         />
         <DataCardContent>
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-            <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+            <TabsList className="sticky top-0 z-10 w-full justify-center rounded-2xl border border-border/70 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]/95">
               <TabsMotionGroup id="profile-tabs">
                 <SlidingTabsTrigger value="info" activeValue={tab} layoutId="profile-tabs">
                   <UserCog className="h-4 w-4" />
@@ -134,9 +144,10 @@ export default function ProfileClient() {
         想修改密码？前往{' '}
         <a
           href="/dashboard/change-password"
-          className="text-primary underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline transition-colors"
         >
           修改密码
+          <ArrowRight className="h-3 w-3" />
         </a>
         。
       </p>
