@@ -1,11 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { ExternalLink } from 'lucide-react'
+import { ArrowUpRight, Crown, ShieldCheck, UserCog } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
-import { type ProjectItem, formatCommission } from './profile-projects-tab-shared'
+import {
+  type ProjectItem,
+  TIER_BADGE_CLASS,
+  formatCommission,
+} from './profile-projects-tab-shared'
 
 interface ProfileProjectsCardProps {
   items: ProjectItem[]
@@ -13,64 +18,69 @@ interface ProfileProjectsCardProps {
   roleFor: (item: ProjectItem) => string | null
 }
 
+function RoleIcon({ role }: { role: string }) {
+  if (role === '主运营') return <Crown className="mr-1 h-3 w-3" />
+  if (role === '助理运营') return <UserCog className="mr-1 h-3 w-3" />
+  if (role === '管理员') return <ShieldCheck className="mr-1 h-3 w-3" />
+  return null
+}
+
 export function ProfileProjectsCard({ items, isAdmin, roleFor }: ProfileProjectsCardProps) {
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
       {items.map((item) => {
         const role = isAdmin ? '管理员' : roleFor(item)
+        const href = `/dashboard/system-management/project-info?projectId=${item.id}`
         return (
-          <div key={item.id} className="dashboard-surface space-y-3 p-4">
-            <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
-              <div className="min-w-0">
-                <div className="truncate font-semibold">{item.name}</div>
+          <Link
+            key={item.id}
+            href={href}
+            className={cn(
+              'dashboard-surface block min-h-[120px] space-y-3 rounded-xl border border-border/60 p-4 transition-all',
+              'hover:border-border hover:shadow-md hover:bg-card/80 active:scale-[0.99]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-foreground">{item.name}</div>
                 <div className="truncate text-xs text-muted-foreground">
                   {[item.brand_name, item.store_address].filter(Boolean).join(' · ') || '—'}
                 </div>
               </div>
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
               {item.project_tier ? (
-                <Badge variant="outline">{item.project_tier}</Badge>
+                <Badge variant="outline" className={TIER_BADGE_CLASS[item.project_tier] ?? ''}>
+                  {item.project_tier}
+                </Badge>
+              ) : null}
+              <Badge
+                variant={item.is_active ? 'default' : 'secondary'}
+                className={item.is_active ? '' : 'opacity-70'}
+              >
+                {item.is_active ? '启用' : '停用'}
+              </Badge>
+              {role ? (
+                <Badge
+                  variant="outline"
+                  className="border-primary/30 bg-primary/10 text-primary"
+                >
+                  <RoleIcon role={role} />
+                  {role}
+                </Badge>
               ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">状态</div>
-                <Badge
-                  variant={item.is_active ? 'default' : 'secondary'}
-                  className={item.is_active ? '' : 'opacity-70'}
-                >
-                  {item.is_active ? '启用' : '停用'}
-                </Badge>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">我的角色</div>
-                {role ? (
-                  <Badge
-                    variant="outline"
-                    className="border-primary/30 bg-primary/10 text-primary"
-                  >
-                    {role}
-                  </Badge>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </div>
-              <div className="col-span-2">
-                <div className="text-xs text-muted-foreground">佣金比例</div>
-                <div>{formatCommission(item.commission_basis, item.commission_rate)}</div>
-              </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>佣金比例</span>
+              <span className="font-medium text-foreground">
+                {formatCommission(item.commission_basis, item.commission_rate)}
+              </span>
             </div>
-
-            <div className="border-t border-border/70 pt-2">
-              <Link
-                href={`/dashboard/system-management/project-info?projectId=${item.id}`}
-                className="inline-flex h-9 min-h-[44px] items-center gap-1 text-xs text-primary hover:underline"
-              >
-                查看项目
-                <ExternalLink className="h-3 w-3" />
-              </Link>
-            </div>
-          </div>
+          </Link>
         )
       })}
     </div>
