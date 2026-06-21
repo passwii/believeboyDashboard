@@ -81,6 +81,8 @@
     --motion-slow: 320ms;
     --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --motion-ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+    --blf-clr: hsl(214 18% 16%);
+    --blf-bkg: hsl(210 28% 97%);
   }
 
   .dark {
@@ -138,6 +140,8 @@
     --shadow-soft: 0 18px 40px -24px rgba(4, 8, 18, 0.68);
     --shadow-raised: 0 24px 56px -28px rgba(4, 8, 18, 0.78);
     --shadow-overlay: 0 32px 84px -34px rgba(2, 6, 16, 0.86);
+    --blf-clr: hsl(220 25% 96%);
+    --blf-bkg: hsl(226 38% 11%);
   }
 
   * {
@@ -802,6 +806,149 @@
 
 .animate-scroll-btn-exit {
   animation: scroll-btn-exit 0.15s ease-in both;
+}
+
+/* ============================================================
+ * Custom BLF loader (B / L / F)
+ * ------------------------------------------------------------
+ * 三段动画时长一致（3s）、循环同步。颜色走 --clr / --bkg 适配
+ * dark mode：浅色下黑笔画深底；dark mode 下白笔画深底。组件本身
+ * 不依赖全局 loading 状态，仅作 demo 使用。
+ * ============================================================ */
+
+.blf-loader-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px;
+}
+
+.blf-loader {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.blf-svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--blf-clr);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  --motion-ease: linear;
+  display: block;
+}
+
+.blf-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation-duration: 3s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: stroke-dashoffset;
+}
+
+.blf-path-b {
+  stroke-dasharray: 252;
+  animation-name: blf-path-b;
+}
+
+.blf-path-l {
+  stroke-dasharray: 104;
+  animation-name: blf-path-l;
+}
+
+.blf-path-f {
+  stroke-dasharray: 144;
+  animation-name: blf-path-f;
+}
+
+.blf-dot {
+  fill: var(--blf-clr);
+  stroke: none;
+  animation-duration: 3s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.blf-dot-b {
+  animation-name: blf-dot-b;
+}
+
+.blf-dot-l {
+  animation-name: blf-dot-l;
+}
+
+.blf-dot-f {
+  animation-name: blf-dot-f;
+}
+
+/* B：左竖 64 + 下弧~50 + 中横 22 + 中横回描 22 + 上弧~50 + 顶横 22 ≈ 252 */
+@keyframes blf-path-b {
+  0%   { stroke-dashoffset: 0; }
+  25%  { stroke-dashoffset: 63; }
+  50%  { stroke-dashoffset: 126; }
+  75%  { stroke-dashoffset: 189; }
+  100% { stroke-dashoffset: 252; }
+}
+
+/* L：64 竖 + 40 横 = 104 */
+@keyframes blf-path-l {
+  0%   { stroke-dashoffset: 0; }
+  25%  { stroke-dashoffset: 26; }
+  50%  { stroke-dashoffset: 52; }
+  75%  { stroke-dashoffset: 78; }
+  100% { stroke-dashoffset: 104; }
+}
+
+/* F：48 顶横 + 64 左竖 + 32 中横 = 144 */
+@keyframes blf-path-f {
+  0%   { stroke-dashoffset: 0; }
+  25%  { stroke-dashoffset: 36; }
+  50%  { stroke-dashoffset: 72; }
+  75%  { stroke-dashoffset: 108; }
+  100% { stroke-dashoffset: 144; }
+}
+
+/* B dot：从 (14,8) 出发，沿轮廓滑到末点后再回到起点 */
+@keyframes blf-dot-b {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(0, 64); }
+  50%  { transform: translate(36, 48); }
+  75%  { transform: translate(26, 24); }
+  100% { transform: translate(0, 0); }
+}
+
+/* L dot：(24,8) → (24,72) → (64,72) */
+@keyframes blf-dot-l {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(0, 26); }
+  50%  { transform: translate(0, 52); }
+  75%  { transform: translate(14, 64); }
+  100% { transform: translate(40, 64); }
+}
+
+/* F dot：(64,8) → (16,8) → (16,72)，子路径再扫到 (16,40) */
+@keyframes blf-dot-f {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-36, 0); }
+  50%  { transform: translate(-48, 24); }
+  75%  { transform: translate(-48, 60); }
+  100% { transform: translate(-48, 32); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blf-path,
+  .blf-dot {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
