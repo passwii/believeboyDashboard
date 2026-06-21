@@ -2399,6 +2399,44 @@
         "title": "AvailableReportsResponse",
         "type": "object"
       },
+      "AvatarDeleteResponse": {
+        "description": "Return value for ``DELETE /system-management/profile/avatar``.",
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "AvatarDeleteResponse",
+        "type": "object"
+      },
+      "AvatarUploadResponse": {
+        "description": "Return value for ``POST /system-management/profile/avatar``.",
+        "properties": {
+          "avatar_url": {
+            "title": "Avatar Url",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avatar_url",
+          "size",
+          "content_type"
+        ],
+        "title": "AvatarUploadResponse",
+        "type": "object"
+      },
       "BackupInfoResponse": {
         "description": "Raw pgBackRest info output.",
         "properties": {
@@ -2867,6 +2905,20 @@
           "pdf_file"
         ],
         "title": "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post",
+        "type": "object"
+      },
+      "Body_upload_avatar_api_v1_system_management_profile_avatar_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_avatar_api_v1_system_management_profile_avatar_post",
         "type": "object"
       },
       "Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post": {
@@ -8625,6 +8677,24 @@
         "title": "ExchangeRateUploadResponse",
         "type": "object"
       },
+      "FilterOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "FilterOption",
+        "type": "object"
+      },
       "FnskuLabelUploadResponse": {
         "description": "FNSKU 标签上传响应",
         "properties": {
@@ -12781,6 +12851,16 @@
           "income_zh": {
             "title": "Income Zh",
             "type": "string"
+          },
+          "kind": {
+            "default": "detail",
+            "enum": [
+              "detail",
+              "spacer",
+              "total"
+            ],
+            "title": "Kind",
+            "type": "string"
           }
         },
         "required": [
@@ -13894,6 +13974,478 @@
           "report_month"
         ],
         "title": "OperatorPerformanceResponse",
+        "type": "object"
+      },
+      "OrderInfoExportRequest": {
+        "description": "导出 CSV 请求；filter 与 list 接口对齐",
+        "properties": {
+          "asin_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin Keyword"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "fulfillment_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fulfillment Channels",
+            "type": "array"
+          },
+          "order_id_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id Keyword"
+          },
+          "order_statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Order Statuses",
+            "type": "array"
+          },
+          "project_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Project Ids",
+            "type": "array"
+          },
+          "sku_keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku Keyword"
+          }
+        },
+        "title": "OrderInfoExportRequest",
+        "type": "object"
+      },
+      "OrderInfoExportResponse": {
+        "properties": {
+          "content_base64": {
+            "title": "Content Base64",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "content_base64"
+        ],
+        "title": "OrderInfoExportResponse",
+        "type": "object"
+      },
+      "OrderInfoFilterOptions": {
+        "description": "筛选器下拉选项（项目 / 订单状态 / 订单类型 / 国家 / 币种）",
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "fulfillment_channels": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "title": "Fulfillment Channels",
+            "type": "array"
+          },
+          "order_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "title": "Order Statuses",
+            "type": "array"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "title": "Projects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "projects",
+          "order_statuses",
+          "fulfillment_channels",
+          "countries",
+          "currencies"
+        ],
+        "title": "OrderInfoFilterOptions",
+        "type": "object"
+      },
+      "OrderInfoItem": {
+        "description": "单条订单（一条 = 一个 SKU 行）",
+        "properties": {
+          "amazon_order_id": {
+            "title": "Amazon Order Id",
+            "type": "string"
+          },
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "brand_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "fulfillment_channel": {
+            "title": "Fulfillment Channel",
+            "type": "string"
+          },
+          "fulfillment_label": {
+            "title": "Fulfillment Label",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_counted_sales": {
+            "title": "Is Counted Sales",
+            "type": "boolean"
+          },
+          "item_price": {
+            "title": "Item Price",
+            "type": "number"
+          },
+          "order_status": {
+            "title": "Order Status",
+            "type": "string"
+          },
+          "postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postal Code"
+          },
+          "product_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Name"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "purchase_at_pt": {
+            "format": "date-time",
+            "title": "Purchase At Pt",
+            "type": "string"
+          },
+          "purchase_at_utc": {
+            "format": "date-time",
+            "title": "Purchase At Utc",
+            "type": "string"
+          },
+          "purchase_date_pt": {
+            "title": "Purchase Date Pt",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "ship_service_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ship Service Level"
+          },
+          "shipping_price": {
+            "title": "Shipping Price",
+            "type": "number"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "source_file_id": {
+            "title": "Source File Id",
+            "type": "integer"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "source_file_id",
+          "purchase_at_utc",
+          "purchase_at_pt",
+          "purchase_date_pt",
+          "amazon_order_id",
+          "order_status",
+          "fulfillment_channel",
+          "fulfillment_label",
+          "quantity",
+          "item_price",
+          "shipping_price",
+          "country",
+          "is_counted_sales",
+          "created_at"
+        ],
+        "title": "OrderInfoItem",
+        "type": "object"
+      },
+      "OrderInfoListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrderInfoItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "OrderInfoListResponse",
+        "type": "object"
+      },
+      "OrderInfoPageData": {
+        "description": "一次性返回：列表 + 筛选器选项 + 顶部统计（前端首屏渲染用）",
+        "properties": {
+          "filter_options": {
+            "$ref": "#/components/schemas/OrderInfoFilterOptions"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrderInfoItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/OrderInfoStats"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "stats",
+          "filter_options"
+        ],
+        "title": "OrderInfoPageData",
+        "type": "object"
+      },
+      "OrderInfoStats": {
+        "description": "顶部 stat bar 数据",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "fba_count": {
+            "default": 0,
+            "title": "Fba Count",
+            "type": "integer"
+          },
+          "fbm_count": {
+            "default": 0,
+            "title": "Fbm Count",
+            "type": "integer"
+          },
+          "total_amount": {
+            "default": 0.0,
+            "title": "Total Amount",
+            "type": "number"
+          },
+          "total_orders": {
+            "default": 0,
+            "title": "Total Orders",
+            "type": "integer"
+          },
+          "total_quantity": {
+            "default": 0,
+            "title": "Total Quantity",
+            "type": "integer"
+          }
+        },
+        "title": "OrderInfoStats",
         "type": "object"
       },
       "PDFUploadResponse": {
@@ -16508,6 +17060,157 @@
         "title": "ProductCalculationRunResponse",
         "type": "object"
       },
+      "ProfileResponse": {
+        "description": "The shape returned by ``GET /system-management/profile``.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_admin": {
+            "title": "Is Admin",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "operator_name_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Name Zh"
+          },
+          "password_changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Changed At"
+          },
+          "role_type": {
+            "$ref": "#/components/schemas/UserRoleType",
+            "default": "operator"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "is_admin",
+          "is_active"
+        ],
+        "title": "ProfileResponse",
+        "type": "object"
+      },
+      "ProfileUpdate": {
+        "description": "Payload for ``PATCH /system-management/profile``.\n\nEvery field is optional; only the keys that are present will be\nupdated. Empty strings are normalised to ``None`` server-side so a\nblank input clears a field rather than persisting whitespace.",
+        "properties": {
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "operator_name_zh": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Name Zh"
+          }
+        },
+        "title": "ProfileUpdate",
+        "type": "object"
+      },
       "ProjectContextResponse": {
         "description": "API response for project context endpoints.",
         "properties": {
@@ -18803,6 +19506,289 @@
           "items"
         ],
         "title": "RpaReportStatusResponseSchema",
+        "type": "object"
+      },
+      "SeasonalReplenishmentListItem": {
+        "description": "季节性补货分析单行。\n\n与 ``InventoryReplenishmentListItem`` 的区别：\n- 4 个主窗口 DMS (90/30/14/7)，不含 3D\n- 可选去年同期对照 (90/30/14/7 YoY)\n- 风险状态**不判定**（``risk_status`` 字段不存在）\n- 售卖截止锚点 = ``to_date`` + sellable_days（不是 ``date.today()``）",
+        "properties": {
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "available_inventory": {
+            "title": "Available Inventory",
+            "type": "integer"
+          },
+          "base_dms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Dms"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "dms_14": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 14"
+          },
+          "dms_14_yoy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 14 Yoy"
+          },
+          "dms_30": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 30"
+          },
+          "dms_30_yoy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 30 Yoy"
+          },
+          "dms_7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 7"
+          },
+          "dms_7_yoy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 7 Yoy"
+          },
+          "dms_90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 90"
+          },
+          "dms_90_yoy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dms 90 Yoy"
+          },
+          "estimated_replenishment_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Replenishment Quantity"
+          },
+          "in_transit_quantity": {
+            "title": "In Transit Quantity",
+            "type": "integer"
+          },
+          "product_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Name"
+          },
+          "production_lead_days": {
+            "title": "Production Lead Days",
+            "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "sellable_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sellable Days"
+          },
+          "sellout_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sellout Date"
+          },
+          "sellout_date_with_transit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sellout Date With Transit"
+          },
+          "shipping_days": {
+            "title": "Shipping Days",
+            "type": "integer"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "weighted_dms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weighted Dms"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "sku",
+          "country",
+          "available_inventory",
+          "in_transit_quantity",
+          "production_lead_days",
+          "shipping_days"
+        ],
+        "title": "SeasonalReplenishmentListItem",
+        "type": "object"
+      },
+      "SeasonalReplenishmentListResponse": {
+        "description": "季节性补货分析响应。\n\n复用 ``InventoryReplenishmentSummary``：季节性页面不判定风险，所以\n``out_of_stock_risk_count`` / ``slow_moving_count`` / ``pending_data_count``\n固定返回 0，前端不应展示对应统计卡。",
+        "properties": {
+          "compare_year_offset": {
+            "title": "Compare Year Offset",
+            "type": "integer"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "has_next": {
+            "title": "Has Next",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonalReplenishmentListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/InventoryReplenishmentSummary"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "summary",
+          "page",
+          "page_size",
+          "total",
+          "has_next",
+          "from_date",
+          "to_date",
+          "compare_year_offset"
+        ],
+        "title": "SeasonalReplenishmentListResponse",
         "type": "object"
       },
       "ShipmentCostCalculateRequest": {
@@ -38475,6 +39461,866 @@
         ]
       }
     },
+    "/api/v1/order-info/export": {
+      "post": {
+        "operationId": "export_orders_api_v1_order_info_export_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderInfoExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderInfoExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Orders",
+        "tags": [
+          "order-info"
+        ]
+      }
+    },
+    "/api/v1/order-info/filter-options": {
+      "get": {
+        "operationId": "get_filter_options_api_v1_order_info_filter_options_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderInfoFilterOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Filter Options",
+        "tags": [
+          "order-info"
+        ]
+      }
+    },
+    "/api/v1/order-info/list": {
+      "get": {
+        "operationId": "list_orders_api_v1_order_info_list_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Ids"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fulfillment_channels",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fulfillment Channels"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_statuses",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Statuses"
+            }
+          },
+          {
+            "in": "query",
+            "name": "countries",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Countries"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currencies",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currencies"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderIdKeyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Orderidkeyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asin_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asin Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "required": false,
+            "schema": {
+              "default": "purchase_at_pt",
+              "title": "Sort By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "title": "Sort Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderInfoListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Orders",
+        "tags": [
+          "order-info"
+        ]
+      }
+    },
+    "/api/v1/order-info/page": {
+      "get": {
+        "operationId": "get_order_info_page_api_v1_order_info_page_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Ids"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fulfillment_channels",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fulfillment Channels"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_statuses",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Statuses"
+            }
+          },
+          {
+            "in": "query",
+            "name": "countries",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Countries"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currencies",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currencies"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_id_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Id Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asin_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asin Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "required": false,
+            "schema": {
+              "default": "purchase_at_pt",
+              "title": "Sort By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "title": "Sort Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderInfoPageData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Order Info Page",
+        "tags": [
+          "order-info"
+        ]
+      }
+    },
+    "/api/v1/order-info/stats": {
+      "get": {
+        "operationId": "get_stats_api_v1_order_info_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Ids"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fulfillment_channels",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fulfillment Channels"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_statuses",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Statuses"
+            }
+          },
+          {
+            "in": "query",
+            "name": "countries",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Countries"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currencies",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currencies"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderIdKeyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Orderidkeyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asin_keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asin Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderInfoStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stats",
+        "tags": [
+          "order-info"
+        ]
+      }
+    },
     "/api/v1/platform-revenues": {
       "get": {
         "operationId": "list_platform_revenues_api_v1_platform_revenues_get",
@@ -39706,6 +41552,25 @@
               ],
               "description": "按国家筛选（如 US, DE, UK）",
               "title": "Country"
+            }
+          },
+          {
+            "description": "按产品名/创建人模糊搜索（大小写不敏感，命中 product_name 或 created_by）",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "按产品名/创建人模糊搜索（大小写不敏感，命中 product_name 或 created_by）",
+              "title": "Keyword"
             }
           },
           {
@@ -44568,6 +46433,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "ai_model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Model"
+            }
+          },
+          {
             "in": "header",
             "name": "X-Is-Admin",
             "required": false,
@@ -45305,6 +47186,192 @@
           }
         },
         "summary": "Trigger Report Dispatch"
+      }
+    },
+    "/api/v1/seasonal-replenishment-analysis": {
+      "get": {
+        "description": "季节性补货分析接口。\n\n与 ``/inventory-replenishment-analysis`` 的区别：\n  - 销量窗口由 ``from_date`` / ``to_date`` 决定（不是 date.today()）\n  - 加权权重 90D×40% + 30D×30% + 14D×20% + 7D×10%\n  - 不判定 risk_status\n  - 可选去年同期对比（``compare_year_offset``）",
+        "operationId": "list_seasonal_replenishment_analysis_endpoint_api_v1_seasonal_replenishment_analysis_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "description": "历史窗口左端，YYYY-MM-DD；与 to_date 一起决定加权 DMS 窗口",
+            "in": "query",
+            "name": "from_date",
+            "required": true,
+            "schema": {
+              "description": "历史窗口左端，YYYY-MM-DD；与 to_date 一起决定加权 DMS 窗口",
+              "format": "date",
+              "title": "From Date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "历史窗口右端（同时作为售卖截止/可售天数的锚点），YYYY-MM-DD",
+            "in": "query",
+            "name": "to_date",
+            "required": true,
+            "schema": {
+              "description": "历史窗口右端（同时作为售卖截止/可售天数的锚点），YYYY-MM-DD",
+              "format": "date",
+              "title": "To Date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "0=关闭去年同期，1=去年同期，2=前年同期",
+            "in": "query",
+            "name": "compare_year_offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "0=关闭去年同期，1=去年同期，2=前年同期",
+              "maximum": 2,
+              "minimum": 0,
+              "title": "Compare Year Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeasonalReplenishmentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Seasonal Replenishment Analysis Endpoint"
       }
     },
     "/api/v1/shipment-schedules": {
@@ -51228,6 +53295,378 @@
         "summary": "Heartbeat",
         "tags": [
           "presence"
+        ]
+      }
+    },
+    "/api/v1/system-management/profile": {
+      "get": {
+        "operationId": "get_profile_api_v1_system_management_profile_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Profile",
+        "tags": [
+          "profile"
+        ]
+      },
+      "patch": {
+        "operationId": "update_profile_api_v1_system_management_profile_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Profile",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/api/v1/system-management/profile/avatar": {
+      "delete": {
+        "operationId": "delete_avatar_api_v1_system_management_profile_avatar_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Avatar",
+        "tags": [
+          "profile"
+        ]
+      },
+      "post": {
+        "operationId": "upload_avatar_api_v1_system_management_profile_avatar_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_avatar_api_v1_system_management_profile_avatar_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvatarUploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Avatar",
+        "tags": [
+          "profile"
         ]
       }
     },

@@ -2118,6 +2118,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/order-info/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export Orders */
+        post: operations["export_orders_api_v1_order_info_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/filter-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Filter Options */
+        get: operations["get_filter_options_api_v1_order_info_filter_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Orders */
+        get: operations["list_orders_api_v1_order_info_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Order Info Page */
+        get: operations["get_order_info_page_api_v1_order_info_page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stats */
+        get: operations["get_stats_api_v1_order_info_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/platform-revenues": {
         parameters: {
             query?: never;
@@ -3173,6 +3258,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seasonal-replenishment-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Seasonal Replenishment Analysis Endpoint
+         * @description 季节性补货分析接口。
+         *
+         *     与 ``/inventory-replenishment-analysis`` 的区别：
+         *       - 销量窗口由 ``from_date`` / ``to_date`` 决定（不是 date.today()）
+         *       - 加权权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
+         *       - 不判定 risk_status
+         *       - 可选去年同期对比（``compare_year_offset``）
+         */
+        get: operations["list_seasonal_replenishment_analysis_endpoint_api_v1_seasonal_replenishment_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shipment-schedules": {
         parameters: {
             query?: never;
@@ -4120,6 +4231,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system-management/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile */
+        get: operations["get_profile_api_v1_system_management_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Profile */
+        patch: operations["update_profile_api_v1_system_management_profile_patch"];
+        trace?: never;
+    };
+    "/api/v1/system-management/profile/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Avatar */
+        post: operations["upload_avatar_api_v1_system_management_profile_avatar_post"];
+        /** Delete Avatar */
+        delete: operations["delete_avatar_api_v1_system_management_profile_avatar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-management/users": {
         parameters: {
             query?: never;
@@ -5022,6 +5169,26 @@ export interface components {
             total: number;
         };
         /**
+         * AvatarDeleteResponse
+         * @description Return value for ``DELETE /system-management/profile/avatar``.
+         */
+        AvatarDeleteResponse: {
+            /** Ok */
+            ok: boolean;
+        };
+        /**
+         * AvatarUploadResponse
+         * @description Return value for ``POST /system-management/profile/avatar``.
+         */
+        AvatarUploadResponse: {
+            /** Avatar Url */
+            avatar_url: string;
+            /** Content Type */
+            content_type: string;
+            /** Size */
+            size: number;
+        };
+        /**
          * BackupInfoResponse
          * @description Raw pgBackRest info output.
          */
@@ -5257,6 +5424,14 @@ export interface components {
              * Format: binary
              */
             pdf_file: string;
+        };
+        /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
+        Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
@@ -7337,6 +7512,13 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** FilterOption */
+        FilterOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /**
          * FnskuLabelUploadResponse
          * @description FNSKU 标签上传响应
@@ -8720,6 +8902,12 @@ export interface components {
             income_source: string;
             /** Income Zh */
             income_zh: string;
+            /**
+             * Kind
+             * @default detail
+             * @enum {string}
+             */
+            kind: "detail" | "spacer" | "total";
         };
         /** MonthlyFinancialSeriesResponse */
         MonthlyFinancialSeriesResponse: {
@@ -9099,6 +9287,182 @@ export interface components {
             items?: components["schemas"]["OperatorPerformanceItem"][];
             /** Report Month */
             report_month: string;
+        };
+        /**
+         * OrderInfoExportRequest
+         * @description 导出 CSV 请求；filter 与 list 接口对齐
+         */
+        OrderInfoExportRequest: {
+            /** Asin Keyword */
+            asin_keyword?: string | null;
+            /** Countries */
+            countries?: string[];
+            /** Date From */
+            date_from?: string | null;
+            /** Date To */
+            date_to?: string | null;
+            /** Fulfillment Channels */
+            fulfillment_channels?: string[];
+            /** Order Id Keyword */
+            order_id_keyword?: string | null;
+            /** Order Statuses */
+            order_statuses?: string[];
+            /** Project Ids */
+            project_ids?: number[];
+            /** Sku Keyword */
+            sku_keyword?: string | null;
+        };
+        /** OrderInfoExportResponse */
+        OrderInfoExportResponse: {
+            /** Content Base64 */
+            content_base64: string;
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+        };
+        /**
+         * OrderInfoFilterOptions
+         * @description 筛选器下拉选项（项目 / 订单状态 / 订单类型 / 国家 / 币种）
+         */
+        OrderInfoFilterOptions: {
+            /** Countries */
+            countries: components["schemas"]["FilterOption"][];
+            /** Currencies */
+            currencies: components["schemas"]["FilterOption"][];
+            /** Fulfillment Channels */
+            fulfillment_channels: components["schemas"]["FilterOption"][];
+            /** Order Statuses */
+            order_statuses: components["schemas"]["FilterOption"][];
+            /** Projects */
+            projects: components["schemas"]["FilterOption"][];
+        };
+        /**
+         * OrderInfoItem
+         * @description 单条订单（一条 = 一个 SKU 行）
+         */
+        OrderInfoItem: {
+            /** Amazon Order Id */
+            amazon_order_id: string;
+            /** Asin */
+            asin?: string | null;
+            /** Brand Name */
+            brand_name?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency?: string | null;
+            /** Fulfillment Channel */
+            fulfillment_channel: string;
+            /** Fulfillment Label */
+            fulfillment_label: string;
+            /** Id */
+            id: number;
+            /** Is Counted Sales */
+            is_counted_sales: boolean;
+            /** Item Price */
+            item_price: number;
+            /** Order Status */
+            order_status: string;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Purchase At Pt
+             * Format: date-time
+             */
+            purchase_at_pt: string;
+            /**
+             * Purchase At Utc
+             * Format: date-time
+             */
+            purchase_at_utc: string;
+            /** Purchase Date Pt */
+            purchase_date_pt: string;
+            /** Quantity */
+            quantity: number;
+            /** Ship Service Level */
+            ship_service_level?: string | null;
+            /** Shipping Price */
+            shipping_price: number;
+            /** Sku */
+            sku?: string | null;
+            /** Source File Id */
+            source_file_id: number;
+            /** State */
+            state?: string | null;
+        };
+        /** OrderInfoListResponse */
+        OrderInfoListResponse: {
+            /** Items */
+            items: components["schemas"]["OrderInfoItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderInfoPageData
+         * @description 一次性返回：列表 + 筛选器选项 + 顶部统计（前端首屏渲染用）
+         */
+        OrderInfoPageData: {
+            filter_options: components["schemas"]["OrderInfoFilterOptions"];
+            /** Items */
+            items: components["schemas"]["OrderInfoItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            stats: components["schemas"]["OrderInfoStats"];
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderInfoStats
+         * @description 顶部 stat bar 数据
+         */
+        OrderInfoStats: {
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Fba Count
+             * @default 0
+             */
+            fba_count: number;
+            /**
+             * Fbm Count
+             * @default 0
+             */
+            fbm_count: number;
+            /**
+             * Total Amount
+             * @default 0
+             */
+            total_amount: number;
+            /**
+             * Total Orders
+             * @default 0
+             */
+            total_orders: number;
+            /**
+             * Total Quantity
+             * @default 0
+             */
+            total_quantity: number;
         };
         /** PDFUploadResponse */
         PDFUploadResponse: {
@@ -10171,6 +10535,52 @@ export interface components {
             total_periods: number;
         };
         /**
+         * ProfileResponse
+         * @description The shape returned by ``GET /system-management/profile``.
+         */
+        ProfileResponse: {
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Id */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Admin */
+            is_admin: boolean;
+            /** Name */
+            name: string;
+            /** Operator Name Zh */
+            operator_name_zh?: string | null;
+            /** Password Changed At */
+            password_changed_at?: string | null;
+            /** @default operator */
+            role_type: components["schemas"]["UserRoleType"];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * ProfileUpdate
+         * @description Payload for ``PATCH /system-management/profile``.
+         *
+         *     Every field is optional; only the keys that are present will be
+         *     updated. Empty strings are normalised to ``None`` server-side so a
+         *     blank input clears a field rather than persisting whitespace.
+         */
+        ProfileUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Operator Name Zh */
+            operator_name_zh?: string | null;
+        };
+        /**
          * ProjectContextResponse
          * @description API response for project context endpoints.
          */
@@ -10933,6 +11343,99 @@ export interface components {
             country: string;
             /** Items */
             items: components["schemas"]["ProjectReportStatusSchema"][];
+        };
+        /**
+         * SeasonalReplenishmentListItem
+         * @description 季节性补货分析单行。
+         *
+         *     与 ``InventoryReplenishmentListItem`` 的区别：
+         *     - 4 个主窗口 DMS (90/30/14/7)，不含 3D
+         *     - 可选去年同期对照 (90/30/14/7 YoY)
+         *     - 风险状态**不判定**（``risk_status`` 字段不存在）
+         *     - 售卖截止锚点 = ``to_date`` + sellable_days（不是 ``date.today()``）
+         */
+        SeasonalReplenishmentListItem: {
+            /** Asin */
+            asin?: string | null;
+            /** Available Inventory */
+            available_inventory: number;
+            /** Base Dms */
+            base_dms?: number | null;
+            /** Country */
+            country: string;
+            /** Dms 14 */
+            dms_14?: number | null;
+            /** Dms 14 Yoy */
+            dms_14_yoy?: number | null;
+            /** Dms 30 */
+            dms_30?: number | null;
+            /** Dms 30 Yoy */
+            dms_30_yoy?: number | null;
+            /** Dms 7 */
+            dms_7?: number | null;
+            /** Dms 7 Yoy */
+            dms_7_yoy?: number | null;
+            /** Dms 90 */
+            dms_90?: number | null;
+            /** Dms 90 Yoy */
+            dms_90_yoy?: number | null;
+            /** Estimated Replenishment Quantity */
+            estimated_replenishment_quantity?: number | null;
+            /** In Transit Quantity */
+            in_transit_quantity: number;
+            /** Product Name */
+            product_name?: string | null;
+            /** Production Lead Days */
+            production_lead_days: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Sellable Days */
+            sellable_days?: number | null;
+            /** Sellout Date */
+            sellout_date?: string | null;
+            /** Sellout Date With Transit */
+            sellout_date_with_transit?: string | null;
+            /** Shipping Days */
+            shipping_days: number;
+            /** Sku */
+            sku: string;
+            /** Weighted Dms */
+            weighted_dms?: number | null;
+        };
+        /**
+         * SeasonalReplenishmentListResponse
+         * @description 季节性补货分析响应。
+         *
+         *     复用 ``InventoryReplenishmentSummary``：季节性页面不判定风险，所以
+         *     ``out_of_stock_risk_count`` / ``slow_moving_count`` / ``pending_data_count``
+         *     固定返回 0，前端不应展示对应统计卡。
+         */
+        SeasonalReplenishmentListResponse: {
+            /** Compare Year Offset */
+            compare_year_offset: number;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /** Has Next */
+            has_next: boolean;
+            /** Items */
+            items: components["schemas"]["SeasonalReplenishmentListItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            summary: components["schemas"]["InventoryReplenishmentSummary"];
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /** Total */
+            total: number;
         };
         /** ShipmentCostCalculateRequest */
         ShipmentCostCalculateRequest: {
@@ -18014,6 +18517,206 @@ export interface operations {
             };
         };
     };
+    export_orders_api_v1_order_info_export_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderInfoExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoExportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_filter_options_api_v1_order_info_filter_options_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoFilterOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orders_api_v1_order_info_list_get: {
+        parameters: {
+            query?: {
+                project_ids?: number[] | null;
+                fulfillment_channels?: string[] | null;
+                order_statuses?: string[] | null;
+                countries?: string[] | null;
+                currencies?: string[] | null;
+                sku_keyword?: string | null;
+                orderIdKeyword?: string | null;
+                asin_keyword?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                page_size?: number;
+                sort_by?: string;
+                sort_dir?: string;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_info_page_api_v1_order_info_page_get: {
+        parameters: {
+            query?: {
+                project_ids?: number[] | null;
+                fulfillment_channels?: string[] | null;
+                order_statuses?: string[] | null;
+                countries?: string[] | null;
+                currencies?: string[] | null;
+                sku_keyword?: string | null;
+                order_id_keyword?: string | null;
+                asin_keyword?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                page_size?: number;
+                sort_by?: string;
+                sort_dir?: string;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoPageData"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stats_api_v1_order_info_stats_get: {
+        parameters: {
+            query?: {
+                project_ids?: number[] | null;
+                fulfillment_channels?: string[] | null;
+                order_statuses?: string[] | null;
+                countries?: string[] | null;
+                currencies?: string[] | null;
+                sku_keyword?: string | null;
+                orderIdKeyword?: string | null;
+                asin_keyword?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoStats"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_platform_revenues_api_v1_platform_revenues_get: {
         parameters: {
             query?: {
@@ -18473,6 +19176,8 @@ export interface operations {
                 exclude_project_id?: boolean;
                 /** @description 按国家筛选（如 US, DE, UK） */
                 country?: string | null;
+                /** @description 按产品名/创建人模糊搜索（大小写不敏感，命中 product_name 或 created_by） */
+                keyword?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
@@ -20221,6 +20926,7 @@ export interface operations {
         parameters: {
             query?: {
                 force?: boolean;
+                ai_model?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
@@ -20468,6 +21174,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TriggerReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_seasonal_replenishment_analysis_endpoint_api_v1_seasonal_replenishment_analysis_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                /** @description 历史窗口左端，YYYY-MM-DD；与 to_date 一起决定加权 DMS 窗口 */
+                from_date: string;
+                /** @description 历史窗口右端（同时作为售卖截止/可售天数的锚点），YYYY-MM-DD */
+                to_date: string;
+                /** @description 0=关闭去年同期，1=去年同期，2=前年同期 */
+                compare_year_offset?: number;
+                keyword?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonalReplenishmentListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22676,6 +23428,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PresenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_profile_api_v1_system_management_profile_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_profile_api_v1_system_management_profile_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_avatar_api_v1_system_management_profile_avatar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_avatar_api_v1_system_management_profile_avatar_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_avatar_api_v1_system_management_profile_avatar_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarDeleteResponse"];
                 };
             };
             /** @description Validation Error */

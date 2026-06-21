@@ -3,7 +3,6 @@
 import { type ChangeEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowDownToLine,
-  CalendarRange,
   ChevronDown,
   ChevronUp,
   Filter,
@@ -558,7 +557,6 @@ export default function OrderInfoPage() {
                 setDateTo(formatPickerDateInputValue(range?.to))
                 setPage(1)
               }}
-              icon={<CalendarRange className="h-4 w-4 text-muted-foreground" />}
               placeholder="选择下单 PT 日期范围"
             />
           </div>
@@ -604,8 +602,8 @@ export default function OrderInfoPage() {
                 <TableRow>
                   <TableCell colSpan={10} className={DENSE_CELL}>
                     <EmptyTableState
-                      title="暂无订单数据"
-                      description="调整筛选条件或等待新的销售报告上传后重试。"
+                      colSpan={10}
+                      message="暂无订单数据 — 调整筛选条件或等待新的销售报告上传后重试"
                     />
                   </TableCell>
                 </TableRow>

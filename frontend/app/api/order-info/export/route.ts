@@ -47,7 +47,10 @@ export async function POST(request: NextRequest) {
   try {
     const response = await fetch(buildBackendUrl('api/v1/order-info/export'), {
       method: 'POST',
-      headers: buildBackendProxyHeaders(session, request.headers, { 'Content-Type': 'application/json' }),
+      headers: {
+        ...buildBackendProxyHeaders(session, request.headers),
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(buildPayload(body)),
       cache: 'no-store',
     })
