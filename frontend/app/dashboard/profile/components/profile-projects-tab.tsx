@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { ExternalLink } from 'lucide-react'
+import { Crown, ExternalLink, ShieldCheck, UserCog } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -110,6 +110,18 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
     return deriveRole(item, operatorNames)
   }
 
+  const RoleBadge = ({ role }: { role: string }) => (
+    <Badge
+      variant="outline"
+      className="border-primary/30 bg-primary/10 text-primary"
+    >
+      {role === '主运营' && <Crown className="mr-1 h-3 w-3" />}
+      {role === '助理运营' && <UserCog className="mr-1 h-3 w-3" />}
+      {role === '管理员' && <ShieldCheck className="mr-1 h-3 w-3" />}
+      {role}
+    </Badge>
+  )
+
   return (
     <div className="space-y-2">
       <DataTableCard>
@@ -120,26 +132,27 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
         <DataTableCardBody>
           {/* Desktop */}
           <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>项目名</TableHead>
-                  <TableHead>品牌</TableHead>
-                  <TableHead>店铺地址</TableHead>
-                  <TableHead>等级</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>我的角色</TableHead>
-                  <TableHead>佣金比例</TableHead>
-                  <TableHead className="w-[80px]" />
-                </TableRow>
-              </TableHeader>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[860px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">项目名</TableHead>
+                    <TableHead>品牌</TableHead>
+                    <TableHead>店铺地址</TableHead>
+                    <TableHead>等级</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>我的角色</TableHead>
+                    <TableHead>佣金比例</TableHead>
+                    <TableHead className="w-[80px]" />
+                  </TableRow>
+                </TableHeader>
               <TableBody>
                 {visibleItems.map((item) => {
                   const role = isAdmin ? '管理员' : roleFor(item)
                   const tierClass = item.project_tier ? TIER_BADGE_CLASS[item.project_tier] : ''
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                    <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
+                      <TableCell className="sticky left-0 z-10 bg-background/95 font-medium text-foreground backdrop-blur supports-[backdrop-filter]:bg-background/60">{item.name}</TableCell>
                       <TableCell className="text-muted-foreground">{item.brand_name || '—'}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {item.store_address || '—'}
@@ -162,16 +175,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {role ? (
-                          <Badge
-                            variant="outline"
-                            className="border-primary/30 bg-primary/10 text-primary"
-                          >
-                            {role}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        {role ? <RoleBadge role={role} /> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatCommission(item.commission_basis, item.commission_rate)}
@@ -190,6 +194,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
 
           {/* Mobile */}
