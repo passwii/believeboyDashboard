@@ -14183,7 +14183,6 @@
             "type": "string"
           },
           "created_at": {
-            "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
@@ -14253,12 +14252,10 @@
             "type": "string"
           },
           "purchase_at_pt": {
-            "format": "date-time",
             "title": "Purchase At Pt",
             "type": "string"
           },
           "purchase_at_utc": {
-            "format": "date-time",
             "title": "Purchase At Utc",
             "type": "string"
           },

@@ -122,11 +122,16 @@ function formatBeijingTime(isoUtc: string | null | undefined): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
-function formatLocalDate(isoUtc: string | null | undefined): string {
-  if (!isoUtc) return '—'
-  const d = new Date(isoUtc)
+function formatLocalDate(isoStr: string | null | undefined): string {
+  if (!isoStr) return '—'
+  const d = new Date(isoStr)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  // purchase_at_pt 是 naive datetime（不带 tz），仅按 UTC 字段取 YYYY-MM-DD，
+  // 避免被运行时环境时区影响（例如本机 TZ=Asia/Shanghai 时走错日界）。
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {

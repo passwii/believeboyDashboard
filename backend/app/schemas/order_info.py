@@ -8,10 +8,10 @@ BEL-157 订单信息页面 Schemas
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class OrderInfoItem(BaseModel):
@@ -59,6 +59,26 @@ class OrderInfoItem(BaseModel):
     # ===== 元信息 =====
     is_counted_sales: bool
     created_at: datetime
+
+    @field_serializer("purchase_at_utc", "created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        """强制以 UTC 发出，避免后端 PG session TZ（Shanghai）影响前端换算。
+
+        后端 PG 连接 session timezone = Asia/Shanghai 时，`timestamptz` 列读取后会显示为 +08:00
+        但其实代表同一瞬间。给前端时统一换成 UTC ISO 字符串，前端自己负责转北京时间展示。
+        """
+        if value is None:
+            return ""
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+
+    @field_serializer("purchase_at_pt")
+    def _serialize_naive(self, value: datetime) -> str:
+        """PT 列是 naive datetime（PG `timestamp` 不带 tz），保持原样序列化即可。"""
+        if value is None:
+            return ""
+        return value.isoformat()
 
 
 class OrderInfoListResponse(BaseModel):
