@@ -1,12 +1,22 @@
 // Root view: drives the main NavigationSplitView and the auth-gated login window.
 //
-// BEL-147 stage 1 — main navigation skeleton (placeholder pages). Real
-// route implementations land in stages 2/3 per the BEL-147 evaluation.
+// BEL-147 stage 1 — main navigation wired to FastAPI auth. The view tree:
+//
+//   BelieveBoyMacApp
+//     ├─ WindowGroup "main"  → ContentView → MainShell | WelcomeView
+//     └─ Window "auth"       → LoginView
+//
+// `ContentView` is the bridge that opens/closes the auth window when
+// `AppSession.phase` changes. Real route implementations still land in
+// stages 2/3 per the BEL-147 evaluation; this stage ships the auth +
+// sidebar skeleton only.
 
 import SwiftUI
 
 struct ContentView: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Group {
@@ -21,6 +31,24 @@ struct ContentView: View {
         }
         .task {
             await session.bootstrap()
+        }
+        .onChange(of: session.phaseChangeToken) { _, _ in
+            // React to any explicit sign-in / sign-out / bootstrap flip
+            // by syncing the auth window's visibility.
+            syncAuthWindow()
+        }
+        .onAppear {
+            // Cover the cold-launch case where bootstrap() completes
+            // before `.onChange` is wired up.
+            syncAuthWindow()
+        }
+    }
+
+    private func syncAuthWindow() {
+        if session.isAuthenticated {
+            dismissWindow(id: "auth")
+        } else {
+            openWindow(id: "auth")
         }
     }
 }
@@ -55,6 +83,36 @@ struct MainShell: View {
             }
         }
         .navigationTitle(selectedItem?.title ?? "BelieveBoy")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                AccountMenu()
+            }
+        }
+    }
+}
+
+/// Account menu in the toolbar — shows the current user, role, and a
+/// Sign-out button. Used in stage 1 to verify role-based sidebar filtering
+/// and to provide an in-app way to clear Keychain.
+struct AccountMenu: View {
+    @Environment(AppSession.self) private var session
+
+    var body: some View {
+        Menu {
+            if let user = session.currentUser {
+                Section(user.name) {
+                    Text(user.email)
+                    Text("Role: \(user.role.rawValue)")
+                    if user.isAdmin { Text("Admin") }
+                }
+            }
+            Divider()
+            Button("Sign out", role: .destructive) {
+                Task { await session.signOut() }
+            }
+        } label: {
+            Label(session.currentUser?.name ?? "Account", systemImage: "person.crop.circle")
+        }
     }
 }
 
@@ -93,8 +151,6 @@ struct DashboardPlaceholder: View {
 }
 
 struct WelcomeView: View {
-    @Environment(AppSession.self) private var session
-
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "macwindow")
@@ -102,16 +158,10 @@ struct WelcomeView: View {
                 .foregroundStyle(.tint)
             Text("BelieveBoy Mac")
                 .font(.largeTitle)
-            Text("Sign in via the auth window (⌘N or Window menu).")
+            Text("Sign in via the auth window.")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task {
-            // Open the auth window if the user has no token yet.
-            if !session.isAuthenticated {
-                session.openAuthWindow()
-            }
-        }
     }
 }
 
