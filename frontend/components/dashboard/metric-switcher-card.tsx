@@ -249,8 +249,11 @@ export function MetricSwitcherCard<K extends string>({
                 onClick={() => setSelected(m.key)}
                 className={cn(
                   "flex-1 cursor-pointer border-b border-r border-border/60 p-4 text-start transition-colors last:border-b-0",
+                  // 移动端 / 平板：3 列布局，最后一行不补满
                   "sm:[&:nth-child(3n)]:border-r-0 sm:[&:nth-child(3n+1)]:border-r",
+                  // 桌面端 lg+：6 列布局
                   "lg:border-b-0 lg:[&:nth-child(6n)]:border-r-0 lg:[&:nth-child(6n+1)]:border-r lg:[&:nth-child(odd)]:border-r",
+                  // 11 metrics 时：6+5 两行；5 那行的最后一个 metric 也不需要 border-r
                   "lg:[&:nth-last-child(-n+5):nth-child(6n+5)]:border-r-0",
                   isActive && "bg-muted/50",
                 )}
@@ -259,6 +262,7 @@ export function MetricSwitcherCard<K extends string>({
                   <span className="truncate text-sm text-muted-foreground">
                     {m.label}
                   </span>
+                  {/* 激活状态下永远显示变化标签：mChange 有值显示数字，否则显示 -- */}
                   {isActive && (
                     <Badge
                       variant="secondary"

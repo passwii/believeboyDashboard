@@ -976,6 +976,7 @@ export default function DailyAnalysisPage() {
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
   const selectedSkuRef = useRef('')
+  // 视图模式：BEL-144 已彻底移除 Bar/Line 旧版 (DailyMetricChart)，统一使用 MetricSwitcherCard
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
