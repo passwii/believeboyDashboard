@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 后端复用 `backend/`（FastAPI + PostgreSQL），API 类型最终从 OpenAPI 同步到 `macos/BelieveBoyMac/Models/`。
 - 前端（`frontend/`）和 macOS 端是**双前端**关系，没有强制依赖，可独立发布。
 - 侧栏配置在 `macos/BelieveBoyMac/Routes/RouteConfig.swift`，是 `frontend/lib/sidebar-config.ts` 的镜像；web 侧栏变化时要同步更新。
+- **鉴权没有用 JWT，也没有 `/api/v1/auth/refresh`**。后端用 Redis 滑动窗口 session（`X-Session-Id` + `X-User-Id` + `X-User-Email` 头部）；401 直接清 Keychain 退回登录窗，不要尝试自动 refresh。详见 `macos/README.md` 顶部"阶段 1 鉴权契约"和 `Networking/APIClient.swift::applySessionContext`。
 - 启动方法见 `macos/README.md`；进度追踪见 issue [BEL-147](https://multica/issues/BEL-147)。
 
 ---

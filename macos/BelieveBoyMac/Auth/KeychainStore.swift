@@ -1,8 +1,17 @@
-// Keychain wrapper for JWT + refresh tokens.
+// Keychain wrapper for the macOS client's session state.
 //
-// BEL-147: keeps tokens out of UserDefaults. We use `kSecClassGenericPassword`
-// keyed by `access_token` / `refresh_token`. Service identifier mirrors the
-// bundle ID so tokens are isolated per-app.
+// BEL-147 stage 1: the backend uses Redis-backed sliding-window sessions
+// (see `backend/app/services/infra/redis.py::write_session`) — there is no
+// JWT and no refresh endpoint. We persist the entire `SessionContext` (user
+// id, email, role, session_id, …) that the backend returned at login time,
+// so `AppSession.bootstrap()` can rehydrate on next launch without forcing
+// the user to log in again. The session_id is the actual bearer — it gets
+// sent as `X-Session-Id` on every request and is the only thing the backend
+// uses to validate the call (along with `X-User-Id`).
+//
+// We use `kSecClassGenericPassword` keyed by a single `session` account;
+// the value is a JSON blob. Service identifier mirrors the bundle ID so
+// tokens are isolated per-app.
 
 import Foundation
 import Security
@@ -16,28 +25,22 @@ actor KeychainStore {
         self.service = service
     }
 
-    // MARK: - Access token
+    // MARK: - Session persistence
 
-    func saveAccessToken(_ token: String, refreshToken: String?) async {
-        try? write(value: token, account: "access_token")
-        if let refresh = refreshToken {
-            try? write(value: refresh, account: "refresh_token")
-        }
+    func saveSession(_ context: SessionContext) async {
+        guard let data = try? JSONEncoder().encode(context) else { return }
+        try? write(data: data, account: "session")
     }
 
-    func loadAccessToken() async -> String? {
-        try? read(account: "access_token")
-    }
-
-    func loadRefreshToken() async -> String? {
-        try? read(account: "refresh_token")
+    func loadSession() async -> SessionContext? {
+        guard let data = try? read(account: "session") else { return nil }
+        return try? JSONDecoder().decode(SessionContext.self, from: data)
     }
 
     // MARK: - Lifecycle
 
     func clear() async {
-        deleteItem(account: "access_token")
-        deleteItem(account: "refresh_token")
+        deleteItem(account: "session")
     }
 
     // MARK: - Keychain primitives
@@ -46,9 +49,7 @@ actor KeychainStore {
         case unhandled(OSStatus)
     }
 
-    private func write(value: String, account: String) throws {
-        guard let data = value.data(using: .utf8) else { return }
-
+    private func write(data: Data, account: String) throws {
         // Delete existing entry first to avoid duplicate-item errors.
         deleteItem(account: account)
 
@@ -63,7 +64,7 @@ actor KeychainStore {
         guard status == errSecSuccess else { throw KeychainError.unhandled(status) }
     }
 
-    private func read(account: String) throws -> String? {
+    private func read(account: String) throws -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -77,10 +78,7 @@ actor KeychainStore {
             if status == errSecItemNotFound { return nil }
             throw KeychainError.unhandled(status)
         }
-        guard let data = item as? Data, let str = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        return str
+        return item as? Data
     }
 
     private func deleteItem(account: String) {
@@ -91,4 +89,17 @@ actor KeychainStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+}
+
+/// Wire-shape of the session blob we keep in Keychain. Mirrors what the
+/// backend returns from `/api/v1/auth/login` and reuses the relevant
+/// subset from `/api/v1/auth/me` on bootstrap.
+struct SessionContext: Codable, Equatable {
+    var userId: String
+    var email: String
+    var userName: String?
+    var operatorName: String?
+    var roleType: String
+    var isAdmin: Bool
+    var sessionId: String
 }
