@@ -972,6 +972,7 @@ export default function DailyAnalysisPage() {
   const [skuLoading, setSkuLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState('')
   const selectedSkuRef = useRef('')
+  // 视图模式：BEL-144 已彻底移除 Bar/Line 旧版 (DailyMetricChart)，统一使用 MetricSwitcherCard
   const latestLoadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -1673,31 +1674,78 @@ export default function DailyAnalysisPage() {
             </div>
           )}
           {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
-            <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-2 sm:p-3'>
-              <MetricSwitcherCard<ChartMetricKey>
-                metrics={LINE_METRICS}
-                defaultMetric={activeChartMetric}
-                colors={Object.fromEntries(
-                  LINE_METRICS.map((m) => [
-                    m.key,
-                    SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
-                  ]),
-                ) as Partial<Record<ChartMetricKey, string>>}
-                heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
-                getCurrent={(k) => aggregateMetric(chartDataRows, k)}
-                getPrevious={(k) =>
-                  comparisonDataRows.length > 0
-                    ? aggregateMetric(comparisonDataRows, k)
-                    : null
-                }
-                renderLine={() => chartRows as Array<Record<string, unknown>>}
-                tooltipFormatter={(value, key) => formatMetricValue(key, value)}
-                yAxisFormatter={(value, key) => formatAxisValue(key, value)}
-                xTickFormatter={(value) => {
-                  const [, month, day] = value.split('-')
-                  return isMobile ? `${month}/${day}` : `${month}月${day}日`
-                }}
-              />
+            <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
+              <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
+                    <span
+                      className='h-2.5 w-2.5 rounded-full'
+                      style={{
+                        backgroundColor:
+                          SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
+                      }}
+                    />
+                    当前周期
+                  </div>
+                  {hasComparisonData ? (
+                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
+                      <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
+                      上一个周期
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+
+              <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
+                <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
+                      <span
+                        className='h-2.5 w-2.5 rounded-full'
+                        style={{
+                          backgroundColor:
+                            SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
+                        }}
+                      />
+                      当前周期
+                    </div>
+                    {hasComparisonData ? (
+                      <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
+                        <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
+                        上一个周期
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-border/60 bg-background/40 p-2 sm:p-3">
+                  <MetricSwitcherCard<ChartMetricKey>
+                    metrics={LINE_METRICS}
+                    defaultMetric={activeChartMetric}
+                    colors={Object.fromEntries(
+                      LINE_METRICS.map((m) => [
+                        m.key,
+                        SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
+                      ]),
+                    ) as Partial<Record<ChartMetricKey, string>>}
+                    heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+                    getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+                    getPrevious={(k) =>
+                      comparisonDataRows.length > 0
+                        ? aggregateMetric(comparisonDataRows, k)
+                        : null
+                    }
+                    renderLine={() => chartRows as Array<Record<string, unknown>>}
+                    tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+                    yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+                    xTickFormatter={(value) => {
+                      const [, month, day] = value.split('-')
+                      return isMobile ? `${month}/${day}` : `${month}月${day}日`
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <div className='flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center'>
