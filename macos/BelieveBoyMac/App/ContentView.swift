@@ -122,6 +122,24 @@ struct RouteHost: View {
     let item: SidebarItem
 
     var body: some View {
+        // Stage 2 wires up two pages on top of the BEL-150 template. Every
+        // other route still falls through to the friendly placeholder so
+        // stage 3 can pick them up without breaking the shell.
+        switch item.id {
+        case "operations/site-navigation":
+            SiteNavigationView()
+        case "data-management/exchange-rate":
+            ExchangeRateView()
+        default:
+            PlaceholderView(item: item)
+        }
+    }
+}
+
+struct PlaceholderView: View {
+    let item: SidebarItem
+
+    var body: some View {
         VStack(spacing: 12) {
             Image(systemName: item.systemImage)
                 .font(.system(size: 36, weight: .light))
