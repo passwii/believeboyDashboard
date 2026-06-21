@@ -197,7 +197,7 @@ export function MetricSwitcherCard<K extends string>({
         </CardHeader>
       )}
       <CardHeader className="p-0">
-        <div className="grid grid-cols-2 @2xl:grid-cols-4 grow">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow">
           {metrics.map((m) => {
             const isActive = m.key === selected
             const cur = getCurrentForCard(m.key)
@@ -220,38 +220,52 @@ export function MetricSwitcherCard<K extends string>({
                 onClick={() => setSelected(m.key)}
                 className={cn(
                   "flex-1 cursor-pointer border-b border-r border-border/60 p-4 text-start transition-colors last:border-b-0",
-                  "@2xl:[&:nth-child(2n)]:border-r-0 @2xl:[&:nth-child(odd)]:border-r",
-                  "@3xl:border-b-0 @3xl:[&:nth-child(odd)]:border-r @3xl:[&:nth-child(2n)]:border-r @3xl:[&:nth-child(4n)]:border-r-0",
+                  // 移动端 / 平板：3 列布局，最后一行不补满
+                  "sm:[&:nth-child(3n)]:border-r-0 sm:[&:nth-child(3n+1)]:border-r",
+                  // 桌面端 lg+：6 列布局
+                  "lg:border-b-0 lg:[&:nth-child(6n)]:border-r-0 lg:[&:nth-child(6n+1)]:border-r lg:[&:nth-child(odd)]:border-r",
+                  // 11 metrics 时：6+5 两行；5 那行的最后一个 metric 也不需要 border-r
+                  "lg:[&:nth-last-child(-n+5):nth-child(6n+5)]:border-r-0",
                   isActive && "bg-muted/50",
                 )}
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
+                <div className="mb-2 flex items-center justify-between gap-1.5">
+                  <span className="truncate text-sm text-muted-foreground">
                     {m.label}
                   </span>
-                  {isActive && showChange && mChange !== null && (
+                  {/* 激活状态下永远显示变化标签：mChange 有值显示数字，否则显示 -- */}
+                  {isActive && (
                     <Badge
                       variant="secondary"
                       className={cn(
-                        "gap-1 text-[10px]",
-                        mIsPositive
-                          ? "bg-secondary/10 text-secondary"
-                          : "bg-destructive/10 text-destructive",
+                        "shrink-0 gap-1 text-[10px]",
+                        mChange === null
+                          ? "bg-muted/40 text-muted-foreground"
+                          : mIsPositive
+                            ? "bg-secondary/10 text-secondary"
+                            : "bg-destructive/10 text-destructive",
                       )}
                     >
-                      {mIsPositive ? (
-                        <ArrowUp className="size-3" />
+                      {mChange === null ? (
+                        "--"
+                      ) : mIsPositive ? (
+                        <>
+                          <ArrowUp className="size-3" />
+                          {Math.abs(mChange).toFixed(1)}%
+                        </>
                       ) : (
-                        <ArrowDown className="size-3" />
+                        <>
+                          <ArrowDown className="size-3" />
+                          {Math.abs(mChange).toFixed(1)}%
+                        </>
                       )}
-                      {Math.abs(mChange).toFixed(1)}%
                     </Badge>
                   )}
                 </div>
-                <div className="text-2xl font-bold tabular-nums">
+                <div className="truncate text-2xl font-bold tabular-nums">
                   {m.format(cur)}
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <div className="mt-1 truncate text-xs text-muted-foreground">
                   {mHasPrev && prev !== null
                     ? `对比 ${m.format(prev)}`
                     : getDaysLabel()}
