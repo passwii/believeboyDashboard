@@ -2,7 +2,26 @@
 
 macOS 原生客户端（SwiftUI），复用现有 FastAPI 后端。
 
-> **进度**：BEL-147 阶段 0 — 仅工程骨架与导航占位。所有路由暂以 `RouteHost` 占位页显示；阶段 1 起会按 BEL-147 §三 阶段 3 顺序逐页替换。
+> **进度**：BEL-147 阶段 1 — 登录 + 主导航接通 FastAPI。所有路由仍走 `RouteHost` 占位；阶段 2 起会按 BEL-147 §三 阶段 3 顺序逐页替换。
+
+## 阶段 1 鉴权契约
+
+后端没有用 JWT，也没有 `/api/v1/auth/refresh`。它用 Redis 滑动窗口的 session（`backend/app/services/infra/redis.py::write_session`），登录拿到 `session_id`，后续每次请求都发 `X-Session-Id` + `X-User-Id` + `X-User-Email` + ... 这组 header。具体看 `backend/app/api/v1/endpoints/auth.py::get_current_user`。
+
+macOS 端的请求头镜像：
+
+| Header | 取值 | 用途 |
+|---|---|---|
+| `X-API-Key` | `APIClient.defaultAPIKey`（dev 默认） | 后端 `require_api_key` 校验 |
+| `X-User-Id` | `SessionContext.userId` | 后端 `get_request_user_id` |
+| `X-User-Email` | URL-encoded `SessionContext.email` | 后端 user lookup |
+| `X-User-Name` | URL-encoded `SessionContext.userName` | 日志/审计 |
+| `X-Operator` | URL-encoded `SessionContext.operatorName` | 日志/审计 |
+| `X-Role-Type` | `SessionContext.roleType` (`admin` / `operator` / `businessdev` / `factory`) | 后端角色判断 |
+| `X-Is-Admin` | `"true"` if `SessionContext.isAdmin` | 后端 admin 短路 |
+| `X-Session-Id` | `SessionContext.sessionId` | Redis 滑动窗口校验 |
+
+详见 `Networking/APIClient.swift::applySessionContext` 和 `Auth/KeychainStore.swift`。
 
 ## 环境要求
 
@@ -118,9 +137,7 @@ xcrun notarytool submit ./dist/BelieveBoyMac.dmg \
 
 ## 已知未做事项
 
-- ❌ 实际登录鉴权流程（占位 LoginView）
-- ❌ Token 自动刷新（401 retry）
-- ❌ 真实页面实现（45 个侧栏项都是 `RouteHost` 占位）
+- ❌ 真实业务页面（45 个侧栏项都是 `RouteHost` 占位）
 - ❌ SwiftUI Charts 图表封装
 - ❌ PDF / Excel 导入导出
 - ❌ SSE 流式 AI Chat
@@ -128,7 +145,7 @@ xcrun notarytool submit ./dist/BelieveBoyMac.dmg \
 - ❌ XCTest 单测 + XCUITest UI 测试
 - ❌ 打包 / 公证 CI
 
-按 BEL-147 阶段 1–4 逐项填入。
+按 BEL-147 阶段 2–4 逐项填入。
 
 ## 参考资料
 

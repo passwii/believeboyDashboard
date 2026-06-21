@@ -144,6 +144,7 @@ db_capacity_results.json
 /macos/**/*.xcuserdatad/
 /macos/**/xcuserdata/
 /macos/**/Package.resolved
+/macos/**/Resources/Info.plist
 *.dSYM
 /macos/dist/
 /macos/.DS_Store
