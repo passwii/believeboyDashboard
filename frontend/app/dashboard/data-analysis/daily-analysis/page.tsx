@@ -922,12 +922,16 @@ function FilterSkeleton() {
 /**
  * 把 CHART_METRICS + SINGLE_METRIC_CHART_CONFIG 投影成 MetricSwitcherCard 需要的 MetricDef[]。
  * 保留 daily-analysis 原有的 format / isNegativeBetter 语义（metricIncreaseIsGood 取反）。
+ * preferredChart 标注业务偏好：量级类（订单/销售额/曝光/点击/广告花费/广告订单/页面浏览/销量/访问量）
+ * → bar；比率类（CPC/转化率）→ line。
  */
 const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => ({
   key: m.key,
   label: SINGLE_METRIC_CHART_CONFIG[m.key]?.label ?? m.label,
   isNegativeBetter: !metricIncreaseIsGood(m.key),
   format: (val: number) => formatMetricCardValue(m.key, val),
+  preferredChart:
+    m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
 }))
 
 // 已下线 — DailyMetricChart（Bar/Line 切换）已被 MetricSwitcherCard 单线视图替代，
@@ -1467,10 +1471,6 @@ export default function DailyAnalysisPage() {
     ? filteredComparisonRows
     : comparisonSummaryRows
 
-  const comparisonRange = useMemo(
-    () => getPreviousPeriodRange(dateRange),
-    [dateRange],
-  )
   const hasComparisonData = comparisonDataRows.length > 0
   const chartRows = useMemo(() => {
     const normalizedRange = normalizeDateRange(dateRange)
@@ -1651,102 +1651,35 @@ export default function DailyAnalysisPage() {
       </DataCard>
 
       <DataCard>
-        <DataCardContent className='space-y-4'>
-          {country === 'ALL' && (
-            <div className='flex flex-wrap items-center gap-2'>
-              <Badge
-                variant='outline'
-                className='border-emerald-500/40 bg-emerald-50 px-3 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200'
-              >
-                全部站点聚合：金额字段已按当月 CNY 中转折算为 USD（汇率取自
-                exchange_rates 表），跨币种可比；非金额字段（订单 / 曝光 / 点击 / 库存等）保持原值。
-              </Badge>
-            </div>
-          )}
-          {comparisonDataRows.length > 0 && (
-            <div className='flex flex-wrap items-center gap-2'>
-              <Badge
-                variant='outline'
-                className='border-border/60 bg-background/85 px-3 py-1 text-foreground'
-              >
-                对比区间：{formatRangeLabel(comparisonRange)}
-              </Badge>
-            </div>
-          )}
+        <DataCardContent>
           {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
-            <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
-              <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
-                    <span
-                      className='h-2.5 w-2.5 rounded-full'
-                      style={{
-                        backgroundColor:
-                          SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
-                      }}
-                    />
-                    当前周期
-                  </div>
-                  {hasComparisonData ? (
-                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
-                      <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
-                      上一个周期
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-
-              <div className={cn('rounded-lg bg-[hsl(var(--surface-soft))]/82', isMobile ? 'px-1 pt-2 pb-0' : 'p-4 md:p-5')}>
-                <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground', isMobile && 'mb-2 gap-2 px-1')}>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className={cn('inline-flex items-center gap-2 rounded-full bg-background/72 px-3 py-1.5', isMobile && 'px-2 py-1 text-[10px]')}>
-                      <span
-                        className='h-2.5 w-2.5 rounded-full'
-                        style={{
-                          backgroundColor:
-                            SINGLE_METRIC_CHART_CONFIG[activeChartMetric].color,
-                        }}
-                      />
-                      当前周期
-                    </div>
-                    {hasComparisonData ? (
-                      <div className={cn('inline-flex items-center gap-2 rounded-full bg-[hsl(var(--surface-soft))] px-3 py-1.5 dark:bg-[hsl(var(--surface-strong))]', isMobile && 'px-2 py-1 text-[10px]')}>
-                        <span className={isMobile ? 'w-3 border-t-2 border-dashed border-border/70' : 'w-5 border-t-2 border-dashed border-border/70'} />
-                        上一个周期
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-md border border-border/60 bg-background/40 p-2 sm:p-3">
-                  <MetricSwitcherCard<ChartMetricKey>
-                    metrics={LINE_METRICS}
-                    defaultMetric={activeChartMetric}
-                    colors={Object.fromEntries(
-                      LINE_METRICS.map((m) => [
-                        m.key,
-                        SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
-                      ]),
-                    ) as Partial<Record<ChartMetricKey, string>>}
-                    heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
-                    getCurrent={(k) => aggregateMetric(chartDataRows, k)}
-                    getPrevious={(k) =>
-                      comparisonDataRows.length > 0
-                        ? aggregateMetric(comparisonDataRows, k)
-                        : null
-                    }
-                    renderLine={() => chartRows as Array<Record<string, unknown>>}
-                    tooltipFormatter={(value, key) => formatMetricValue(key, value)}
-                    yAxisFormatter={(value, key) => formatAxisValue(key, value)}
-                    xTickFormatter={(value) => {
-                      const [, month, day] = value.split('-')
-                      return isMobile ? `${month}/${day}` : `${month}月${day}日`
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
+            // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 wrapper
+            <MetricSwitcherCard<ChartMetricKey>
+              metrics={LINE_METRICS}
+              defaultMetric={activeChartMetric}
+              chartKind="auto"
+              showChartKindToggle
+              colors={Object.fromEntries(
+                LINE_METRICS.map((m) => [
+                  m.key,
+                  SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
+                ]),
+              ) as Partial<Record<ChartMetricKey, string>>}
+              heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+              getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+              getPrevious={(k) =>
+                comparisonDataRows.length > 0
+                  ? aggregateMetric(comparisonDataRows, k)
+                  : null
+              }
+              renderLine={() => chartRows as Array<Record<string, unknown>>}
+              tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+              yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+              xTickFormatter={(value) => {
+                const [, month, day] = value.split('-')
+                return isMobile ? `${month}/${day}` : `${month}月${day}日`
+              }}
+            />
           ) : (
             <div className='flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center'>
               <div className='space-y-2'>

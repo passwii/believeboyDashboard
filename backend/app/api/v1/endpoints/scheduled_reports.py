@@ -222,6 +222,7 @@ def get_scheduled_report_ledger(
 def resend_scheduled_report_ledger_entry(
     ledger_key: str,
     force: bool = False,
+    ai_model: Optional[str] = None,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -231,8 +232,11 @@ def resend_scheduled_report_ledger_entry(
 
     from app.services.scheduled_report.ledger_service import resend_ledger_entry_async
 
+    # 前端可临时覆盖订阅预设模型；为空或纯空白则使用订阅预设
+    override_ai_model = ai_model.strip() if ai_model else None
+
     success, delivery_log_id, new_status, message = resend_ledger_entry_async(
-        db, ledger_key=ledger_key, ignore_status=force
+        db, ledger_key=ledger_key, ignore_status=force, override_ai_model=override_ai_model
     )
     if new_status == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
