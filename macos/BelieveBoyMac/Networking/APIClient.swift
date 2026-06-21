@@ -86,12 +86,59 @@ actor APIClient {
         try await perform(method: "POST", path: path, query: [], body: body, authenticated: authenticated)
     }
 
-    /// Multipart upload helper. Used by `ExchangeRateView.uploadImage(...)`
-    /// to push files to `/exchange-rates/upload-image`. The caller is
-    /// responsible for assembling the multipart body and supplying the
-    /// matching boundary string.
-    func upload<T: Decodable>(path: String, multipartBody: Data, boundary: String) async throws -> T {
-        try await performUpload(path: path, body: multipartBody, boundary: boundary, authenticated: true)
+    func put<B: Encodable, T: Decodable>(path: String, body: B, authenticated: Bool = true) async throws -> T {
+        try await perform(method: "PUT", path: path, query: [], body: body, authenticated: authenticated)
+    }
+
+    /// DELETE that returns `EmptyResponse` (the standard 204 body).
+    @discardableResult
+    func delete(path: String, authenticated: Bool = true) async throws -> EmptyResponse {
+        try await perform(method: "DELETE", path: path, query: [], body: Optional<Empty>.none, authenticated: authenticated)
+    }
+
+    /// Multipart upload of a single file. The backend (e.g.
+    /// `/api/v1/exchange-rates/upload-image`) accepts `multipart/form-data`
+    /// with a single `file` field; we construct the body manually because
+    /// Swift's URLSession does not provide a built-in multipart helper.
+    func uploadFile<T: Decodable>(
+        path: String,
+        fileData: Data,
+        filename: String,
+        contentType: String,
+        fieldName: String = "file"
+    ) async throws -> T {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
+            throw APIError.invalidURL
+        }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        if let ctx = await keychain.loadSession() {
+            applySessionContext(ctx, to: &request)
+        }
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(contentType)\r\n\r\n".data(using: .utf8)!)
+        body.append(fileData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.transport }
+        switch http.statusCode {
+        case 200..<300: return try decoder.decode(T.self, from: data)
+        case 401:       throw APIError.unauthorized
+        case 403:       throw APIError.forbidden
+        case 404:       throw APIError.notFound
+        case 422:       throw APIError.validation(stripped(data))
+        case 500..<600: throw APIError.server(http.statusCode)
+        default:        throw APIError.unexpected(http.statusCode)
+        }
     }
 
     private struct Empty: Codable {}
@@ -175,40 +222,6 @@ actor APIClient {
 
     private func stripped(_ data: Data) -> String {
         String(data: data, encoding: .utf8) ?? ""
-    }
-
-    /// Multipart upload helper. Used by `ExchangeRateView.uploadImage(...)`
-    /// to push files to `/exchange-rates/upload-image`. The caller is
-    /// responsible for assembling the multipart body and supplying the
-    /// matching boundary string.
-    private func performUpload<T: Decodable>(
-        path: String,
-        body: Data,
-        boundary: String,
-        authenticated: Bool
-    ) async throws -> T {
-        guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.invalidURL }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
-        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
-        if authenticated, let ctx = await keychain.loadSession() {
-            applySessionContext(ctx, to: &request)
-        }
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw APIError.transport }
-        switch http.statusCode {
-        case 200..<300: return try decoder.decode(T.self, from: data)
-        case 401: throw APIError.unauthorized
-        case 403: throw APIError.forbidden
-        case 404: throw APIError.notFound
-        case 422: throw APIError.validation(stripped(data))
-        case 429: throw APIError.rateLimited(stripped(data))
-        case 500..<600: throw APIError.server(http.statusCode)
-        default: throw APIError.unexpected(http.statusCode)
-        }
     }
 }
 
