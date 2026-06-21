@@ -922,12 +922,16 @@ function FilterSkeleton() {
 /**
  * 把 CHART_METRICS + SINGLE_METRIC_CHART_CONFIG 投影成 MetricSwitcherCard 需要的 MetricDef[]。
  * 保留 daily-analysis 原有的 format / isNegativeBetter 语义（metricIncreaseIsGood 取反）。
+ * preferredChart 标注业务偏好：量级类（订单/销售额/曝光/点击/广告花费/广告订单/页面浏览/销量/访问量）
+ * → bar；比率类（CPC/转化率）→ line。
  */
 const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => ({
   key: m.key,
   label: SINGLE_METRIC_CHART_CONFIG[m.key]?.label ?? m.label,
   isNegativeBetter: !metricIncreaseIsGood(m.key),
   format: (val: number) => formatMetricCardValue(m.key, val),
+  preferredChart:
+    m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
 }))
 
 // 已下线 — DailyMetricChart（Bar/Line 切换）已被 MetricSwitcherCard 单线视图替代，
@@ -1677,6 +1681,8 @@ export default function DailyAnalysisPage() {
             <MetricSwitcherCard<ChartMetricKey>
               metrics={LINE_METRICS}
               defaultMetric={activeChartMetric}
+              chartKind="auto"
+              showChartKindToggle
               colors={Object.fromEntries(
                 LINE_METRICS.map((m) => [
                   m.key,
