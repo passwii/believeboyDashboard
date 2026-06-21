@@ -317,7 +317,13 @@ def refresh_ledger(
     return LedgerListResponse(items=[_to_item(db, row) for row in rows], total=total, summary=summary)
 
 
-def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bool = False) -> tuple[bool, int | None, str, str]:
+def resend_ledger_entry_async(
+    db: Session,
+    *,
+    ledger_key: str,
+    ignore_status: bool = False,
+    override_ai_model: str | None = None,
+) -> tuple[bool, int | None, str, str]:
     """异步补发:立即创建 delivery_log 并在后台执行发送.
 
     验证 ledger entry 后,创建 delivery_log(初始 stage = preparing),
@@ -325,6 +331,7 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bo
 
     Args:
         ignore_status: 为 True 时跳过状态检查,强制补发(管理员强制补发)
+        override_ai_model: 临时覆盖订阅预设模型,为 None/空时使用订阅本身的 ai_model
     """
     entry = db.execute(
         select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
@@ -359,6 +366,13 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bo
     entry.status = LedgerStatus.MISSING.value
     db.commit()
 
+    # 解析实际使用的 AI 模型：override 优先（自动去除首尾空白），否则用订阅预设
+    if override_ai_model:
+        normalized_override = override_ai_model.strip()
+        effective_ai_model = normalized_override or getattr(subscription, "ai_model", None)
+    else:
+        effective_ai_model = getattr(subscription, "ai_model", None)
+
     # 启动后台线程执行实际发送
     import threading
     from app.services.scheduled_report.dispatcher import _dispatch_one_async
@@ -371,7 +385,7 @@ def resend_ledger_entry_async(db: Session, *, ledger_key: str, ignore_status: bo
             subscription.project_id_list or None,
             subscription.country,
             subscription.frequency,
-            getattr(subscription, "ai_model", None),
+            effective_ai_model,
             log.id,
             ledger_key,
             entry.expected_date,

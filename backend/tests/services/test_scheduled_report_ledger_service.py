@@ -41,6 +41,7 @@ def add_subscription(
     email: str = "ops@example.com",
     project_ids: str = "15",
     country: str = "US",
+    ai_model: str | None = None,
     created_at: datetime | None = None,
 ) -> ScheduledReportSubscription:
     sub = ScheduledReportSubscription(
@@ -53,6 +54,7 @@ def add_subscription(
         dispatch_minute=dispatch_minute,
         dispatch_weekday=dispatch_weekday,
         dispatch_day=dispatch_day,
+        ai_model=ai_model,
         enabled=True,
         created_at=created_at or datetime(2026, 1, 1, tzinfo=ZoneInfo("Asia/Shanghai")),
     )
@@ -327,6 +329,136 @@ def test_resend_async_multi_country_bypasses_report_cache(db: Session, monkeypat
     assert log is not None
     assert log.status == DeliveryStatus.SENT.value
     assert log.stage == DeliveryStage.DONE.value
+
+
+def test_resend_async_uses_subscription_ai_model_when_no_override(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+):
+    """未传 override_ai_model 时，后台线程应使用订阅本身预设的 ai_model。"""
+    from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
+    import app.services.scheduled_report.ledger_service as ledger_service
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    sub = add_subscription(db, frequency="daily", ai_model="preset-model-v1")
+    ledger = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+    ledger_key = ledger.items[0].ledger_key
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 5, 23)
+
+    monkeypatch.setattr(ledger_service, "date", FixedDate)
+    monkeypatch.setattr(dispatcher, "SessionLocal", lambda: db)
+    monkeypatch.setattr(dispatcher, "_build_report_with_throttle", lambda *args, **kwargs: {"ai_summary": "ok"})
+    monkeypatch.setattr(dispatcher, "send_scheduled_report_email", lambda *args, **kwargs: (True, "resend-id"))
+
+    captured_args = []
+
+    class NoOpThread:
+        """只捕获 args，不实际执行 target —— 避免在同一 db session 上同步跑后台逻辑。"""
+
+        def __init__(self, target, args, daemon):
+            captured_args.append(args)
+            self.daemon = daemon
+
+        def start(self):
+            return
+
+    import threading
+    monkeypatch.setattr(threading, "Thread", NoOpThread)
+
+    success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
+    assert success is True
+
+    # args[5] = ai_model
+    assert captured_args[0][5] == "preset-model-v1"
+
+
+def test_resend_async_overrides_ai_model_when_provided(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+):
+    """传 override_ai_model 时，后台线程应使用覆盖值而非订阅预设。"""
+    from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
+    import app.services.scheduled_report.ledger_service as ledger_service
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    sub = add_subscription(db, frequency="daily", ai_model="preset-model-v1")
+    ledger = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+    ledger_key = ledger.items[0].ledger_key
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 5, 23)
+
+    monkeypatch.setattr(ledger_service, "date", FixedDate)
+    monkeypatch.setattr(dispatcher, "SessionLocal", lambda: db)
+    monkeypatch.setattr(dispatcher, "_build_report_with_throttle", lambda *args, **kwargs: {"ai_summary": "ok"})
+    monkeypatch.setattr(dispatcher, "send_scheduled_report_email", lambda *args, **kwargs: (True, "resend-id"))
+
+    captured_args = []
+
+    class NoOpThread:
+        def __init__(self, target, args, daemon):
+            captured_args.append(args)
+            self.daemon = daemon
+
+        def start(self):
+            return
+
+    import threading
+    monkeypatch.setattr(threading, "Thread", NoOpThread)
+
+    success, _, _, _ = resend_ledger_entry_async(
+        db, ledger_key=ledger_key, override_ai_model="override-model-v2"
+    )
+    assert success is True
+
+    # args[5] = ai_model：应为覆盖值
+    assert captured_args[0][5] == "override-model-v2"
+
+
+def test_resend_async_empty_override_falls_back_to_subscription_ai_model(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+):
+    """override_ai_model 为空字符串/纯空白时，应回退到订阅预设。"""
+    from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
+    import app.services.scheduled_report.ledger_service as ledger_service
+    import app.services.scheduled_report.dispatcher as dispatcher
+
+    sub = add_subscription(db, frequency="daily", ai_model="preset-model-v1")
+    ledger = refresh_ledger(db, start_date="2026-05-23", end_date="2026-05-23")
+    ledger_key = ledger.items[0].ledger_key
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 5, 23)
+
+    monkeypatch.setattr(ledger_service, "date", FixedDate)
+    monkeypatch.setattr(dispatcher, "SessionLocal", lambda: db)
+    monkeypatch.setattr(dispatcher, "_build_report_with_throttle", lambda *args, **kwargs: {"ai_summary": "ok"})
+    monkeypatch.setattr(dispatcher, "send_scheduled_report_email", lambda *args, **kwargs: (True, "resend-id"))
+
+    captured_args = []
+
+    class NoOpThread:
+        def __init__(self, target, args, daemon):
+            captured_args.append(args)
+            self.daemon = daemon
+
+        def start(self):
+            return
+
+    import threading
+    monkeypatch.setattr(threading, "Thread", NoOpThread)
+
+    success, _, _, _ = resend_ledger_entry_async(
+        db, ledger_key=ledger_key, override_ai_model="   "
+    )
+    assert success is True
+    assert captured_args[0][5] == "preset-model-v1"
 
 
 def test_refresh_ledger_multi_country_subscription_creates_single_entry(db: Session):
