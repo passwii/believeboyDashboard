@@ -32,6 +32,12 @@ import {
  *   - `'auto'`（默认）：按 metric.preferredChart 自动选
  *   - `'line' / 'area' / 'bar'`：手动指定
  *
+ * 形态自适应规则（auto 模式）：
+ *   - 业务侧在 MetricDef.preferredChart 里标注
+ *   - 量级类指标（订单量/销售额/曝光量）→ bar
+ *   - 趋势连续类指标（转化率/CPC/百分比）→ line
+ *   - 累计/堆叠类（如果未来需要）→ area
+ *
  * 三层组件关系：
  *   line-charts-6.tsx          ← ChartContainer + tooltip 样式
  *   MetricSwitcherCard.tsx     ← 单 chart + KPI grid（当前）
@@ -93,6 +99,7 @@ export interface MetricSwitcherCardProps<K extends string> {
   /** 计算模式：传入 tooltip formatter */
   tooltipFormatter?: (value: number, metricKey: K) => React.ReactNode
   /** 计算模式：传入 y 轴 formatter；不传则用 metric.format */
+
   yAxisFormatter?: (value: number, metricKey: K) => string
 }
 
@@ -327,6 +334,7 @@ export function MetricSwitcherCard<K extends string>({
           config={config}
           className={cn("w-full", heightClass)}
         >
+
           {renderChart(
             effectiveKind,
             chartData,
@@ -414,6 +422,7 @@ function renderChart<K extends string>(
 ) {
   // 共享 axes + tooltip：XAxis/YAxis/ChartTooltip 三件套所有形态共用，
   // 让 hover 时始终能看到横坐标日期 + 纵坐标数值 + tooltip 弹层。
+
   const sharedAxes = (
     <>
       <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
