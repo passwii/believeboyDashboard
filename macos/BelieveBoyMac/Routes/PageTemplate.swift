@@ -1,95 +1,111 @@
-// PageTemplate — reusable View skeleton for BEL-147 stage 2 pages.
+// PageTemplate — standard scaffold for BEL-147 stage 2 pages.
 //
-// Every leaf page in the macOS rewrite shares the same scaffolding:
+// Every page in the macOS client follows the same skeleton:
 //
-//   1. A small `@Observable` view model that owns loading / error / data
-//      state and exposes a single `load() async` method.
-//   2. A `.task { await vm.load() }` modifier on the root view, so the
-//      load runs as soon as the page appears AND cancels if it disappears.
-//   3. A standard set of "view states":
-//        - `.idle` / `.loading` -> centered ProgressView
-//        - `.error(msg)` -> .alert(...) with the friendly APIError text
-//        - `.empty` -> ContentUnavailableView (macOS 14+)
-//        - `.loaded(data)` -> caller-supplied viewBuilder
+//   - Header strip with title + optional actions
+//   - Body that switches on LoadingState: loading / empty / error / loaded
+//   - Inline error message + retry hook
 //
-// Stage 2 wires up two pages (SiteNavigationView, ExchangeRateView) on top
-// of this; stage 3 will reuse it for the 45-page rollout. The template is
-// intentionally tiny — it is NOT a router / store / dependency container.
-// Page-specific state lives in the per-page view model; the template only
-// owns the cross-cutting "loading | error | empty | loaded" presentation
-// language.
+// Pages built on top of this scaffold get a consistent loading / empty /
+// error UX for free, and the route table (`Routes/ContentView.swift` ->
+// `RouteHost`) can stay narrow.
+//
+// Reusable for BEL-147-S3 (page fan-out) — once a page fills in
+// `viewModel`, `title`, `state`, and `content`, the rest is shared.
 
 import SwiftUI
 
-/// Generic page state machine.
-enum PageState<Element> {
-    case idle
+/// What the page is currently showing. Drives the scaffold body.
+enum LoadingState: Equatable {
+    /// Initial / idle — show a centered large progress view.
     case loading
+    /// Data loaded but the list is empty — show `ContentUnavailableView`.
     case empty
-    case loaded(Element)
-    case error(String)
-}
+    /// Page failed to load — show an error empty state with a Retry button
+    /// that calls `onRetry` on tap.
+    case error(message: String)
+    /// Data is ready — render `content`.
+    case loaded
 
-/// The view-model protocol every page-specific view model conforms to.
-///
-/// `Element` is the page's primary data type (e.g. `[ExchangeRateItem]`).
-/// The default `load()` does nothing — pages override it. State lives in
-/// `state`; views observe it via `@Observable` semantics (Swift 5.9+).
-@MainActor
-@Observable
-class PageViewModel<Element> {
-    var state: PageState<Element> = .idle
-
-    /// Override in subclasses. Default is a no-op so `#Preview` can use
-    /// a default-initialised view model without firing any network call.
-    func load() async {
-        // Subclasses override.
-    }
-
-    /// Helper for catching the common `do { ... } catch let e as APIError`
-    /// pattern and translating it into a `.error(...)` page state.
-    func translate(catch error: Error) -> String {
-        if let apiError = error as? APIError {
-            return apiError.errorDescription ?? "Unknown error"
+    static func == (lhs: LoadingState, rhs: LoadingState) -> Bool {
+        switch (lhs, rhs) {
+        case (.loading, .loading): return true
+        case (.empty, .empty):     return true
+        case (.loaded, .loaded):   return true
+        case (.error(let a), .error(let b)): return a == b
+        default: return false
         }
-        return error.localizedDescription
     }
 }
 
-/// The standard view layout. Pages do NOT need to subclass this; they
-/// just supply a content builder for the `.loaded` branch.
-struct PageTemplate<Element, Content: View>: View {
-    let state: PageState<Element>
-    let retry: () async -> Void
-    @ViewBuilder let content: (Element) -> Content
+/// Standard page scaffold.
+///
+/// Use the static `PageScaffold(title:state:onRetry:)` constructor when
+/// you don't need a header strip; use the `PageScaffold { header } content:`
+/// form when you need toolbar / filter chips / search bar / etc.
+struct PageScaffold<Header: View, Content: View>: View {
+    let title: String
+    let state: LoadingState
+    let onRetry: (() -> Void)?
+    @ViewBuilder var header: () -> Header
+    @ViewBuilder var content: () -> Content
+
+    init(
+        title: String,
+        state: LoadingState,
+        onRetry: (() -> Void)? = nil,
+        @ViewBuilder header: @escaping () -> Header = { EmptyView() },
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.state = state
+        self.onRetry = onRetry
+        self.header = header
+        self.content = content
+    }
 
     var body: some View {
+        VStack(spacing: 0) {
+            header()
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            Divider()
+            body(for: state)
+        }
+        .navigationTitle(title)
+    }
+
+    @ViewBuilder
+    private func body(for state: LoadingState) -> some View {
         switch state {
-        case .idle, .loading:
-            ProgressView()
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .loading:
+            VStack {
+                ProgressView()
+                    .controlSize(.large)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
             ContentUnavailableView(
-                "No data yet",
+                "暂无数据",
                 systemImage: "tray",
-                description: Text("There is nothing to show for the current filters.")
+                description: Text("稍后再来或检查筛选条件")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .loaded(let element):
-            content(element)
         case .error(let message):
             ContentUnavailableView {
-                Label("Couldn't load", systemImage: "exclamationmark.triangle")
+                Label("加载失败", systemImage: "exclamationmark.triangle")
             } description: {
                 Text(message)
             } actions: {
-                Button("Retry") {
-                    Task { await retry() }
+                if let onRetry {
+                    Button("重试") { onRetry() }
+                        .keyboardShortcut(.defaultAction)
                 }
-                .controlSize(.large)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .loaded:
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

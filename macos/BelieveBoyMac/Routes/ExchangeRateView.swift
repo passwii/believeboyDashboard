@@ -1,388 +1,410 @@
-// ExchangeRateView — BEL-147 stage 2's data-table prototype.
+// ExchangeRateView — paged list, edit sheet, image upload.
 //
-// Wires the macOS shell to backend `/api/v1/exchange-rates`:
-//   - GET /exchange-rates       → Table (currency, year_month, rate, description)
-//   - GET /exchange-rates/{id}  → (not used in stage 2; row click could open it later)
-//   - POST /exchange-rates/upload-image → image attachment via FileImporter
+// BEL-147 stage 2: full end-to-end exercise of the macOS client against
+// the existing FastAPI exchange-rate endpoints. Mirrors
+// `frontend/app/dashboard/data-management/exchange-rate/page.tsx`.
 //
-// The view model extends `PageViewModel<[ExchangeRateDTO]>` so it picks up
-// the standard loading / error / empty states from `PageTemplate.swift`.
+// Endpoints used:
+//   - GET    /api/v1/exchange-rates?page=&page_size=&currency=&year_month=
+//   - POST   /api/v1/exchange-rates                       (admin)
+//   - PUT    /api/v1/exchange-rates/{id}                  (admin)
+//   - DELETE /api/v1/exchange-rates/{id}                  (admin)
+//   - POST   /api/v1/exchange-rates/upload-image          (multipart, admin)
 //
-// Why DTO + mapping: `APIClient`'s default `JSONDecoder` uses
-// `.convertFromSnakeCase`, but we still want a clean Swift struct for the
-// view. The DTOs here mirror `backend/app/schemas/exchange_rate.py`.
+// UX:
+//   - List is paginated; rows are read-only for non-admins.
+//   - Admins see "新增 / 编辑 / 删除" actions; edit / create open a sheet.
+//   - Image upload uses `FileImporter` (macOS 11+) → multipart POST →
+//     appended to the form's `noteImages`.
+//   - 4xx (validation / 409) stay inline in the sheet; transport / 5xx
+//     surface as a `ToastCenter` banner.
 
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ExchangeRateView: View {
-    @State private var model = ExchangeRateModel()
-    @State private var showImporter = false
-    @State private var uploadError: String?
-    @State private var uploadSuccess: String?
-    @State private var editingItem: ExchangeRateDTO?
+// MARK: - View
 
-    var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-            Divider()
-            PageTemplate(state: model.state, retry: { await model.load() }) { rows in
-                TableContent(rows: rows, onEdit: { editingItem = $0 })
+struct ExchangeRateView: View {
+    @Environment(AppSession.self) private var session
+    @Environment(ToastCenter.self) private var toasts
+
+    @State private var viewModel = ExchangeRateViewModel()
+    @State private var sheet: SheetKind?
+
+    enum SheetKind: Identifiable {
+        case create
+        case edit(ExchangeRateItem)
+        case delete(ExchangeRateItem)
+
+        var id: String {
+            switch self {
+            case .create: return "create"
+            case .edit(let item): return "edit-\(item.id)"
+            case .delete(let item): return "delete-\(item.id)"
             }
-        }
-        .navigationTitle("汇率信息")
-        .task { await model.load() }
-        .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.image],
-                      allowsMultipleSelection: false) { result in
-            handleImport(result)
-        }
-        .sheet(item: $editingItem) { item in
-            ExchangeRateEditSheet(item: item) { updated in
-                Task { await model.applyLocalUpdate(updated) }
-            }
-        }
-        .alert("Upload failed",
-               isPresented: Binding(get: { uploadError != nil },
-                                    set: { if !$0 { uploadError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(uploadError ?? "")
-        }
-        .alert("Uploaded",
-               isPresented: Binding(get: { uploadSuccess != nil },
-                                    set: { if !$0 { uploadSuccess = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(uploadSuccess ?? "")
         }
     }
+
+    private var isAdmin: Bool { session.currentUser?.isAdmin == true }
+
+    var body: some View {
+        PageScaffold(
+            title: "汇率信息",
+            state: viewModel.state.asLoadingState,
+            onRetry: { Task { await viewModel.load() } }
+        ) {
+            toolbar
+        } content: {
+            VStack(spacing: 0) {
+                listSection
+                pagination
+            }
+        }
+        .task { await viewModel.load() }
+        .sheet(item: $sheet) { kind in
+            switch kind {
+            case .create:
+                ExchangeRateEditSheet(
+                    mode: .create,
+                    onSubmit: { payload in
+                        switch payload {
+                        case .create(let body):
+                            await viewModel.create(payload: body, onSuccess: { toasts.success("汇率已添加") })
+                        case .update:
+                            break // unreachable
+                        }
+                    },
+                    onUpload: { data, name, type in
+                        try await viewModel.uploadImage(data: data, filename: name, contentType: type)
+                    }
+                )
+            case .edit(let item):
+                ExchangeRateEditSheet(
+                    mode: .edit(item),
+                    onSubmit: { payload in
+                        switch payload {
+                        case .update(let body):
+                            await viewModel.update(id: item.id, payload: body, onSuccess: { toasts.success("汇率已更新") })
+                        case .create:
+                            break // unreachable
+                        }
+                    },
+                    onUpload: { data, name, type in
+                        try await viewModel.uploadImage(data: data, filename: name, contentType: type)
+                    }
+                )
+            case .delete(let item):
+                DeleteConfirmationSheet(item: item, onConfirm: {
+                    await viewModel.delete(id: item.id, onSuccess: { toasts.success("汇率记录已删除") })
+                })
+            }
+        }
+    }
+
+    // MARK: - Toolbar (filters)
 
     private var toolbar: some View {
         HStack(spacing: 12) {
-            Text("\(model.totalCount) records")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            FilterPicker(
+                label: "货币",
+                options: viewModel.currencyOptions,
+                selection: $viewModel.filterCurrency
+            )
+            FilterPicker(
+                label: "年份",
+                options: viewModel.yearOptions,
+                selection: $viewModel.filterYear
+            )
+            FilterPicker(
+                label: "月份",
+                options: monthOptions,
+                selection: $viewModel.filterMonth
+            )
+            Button {
+                Task { await viewModel.reload() }
+            } label: {
+                Label("重置", systemImage: "arrow.counterclockwise")
+                    .labelStyle(.titleOnly)
+            }
+            .help("重置筛选并刷新")
             Spacer()
-            Picker("Currency", selection: $model.currencyFilter) {
-                Text("All").tag("")
-                ForEach(model.currencies, id: \.self) { option in
-                    Text(option.label).tag(option.value.description)
+            if isAdmin {
+                Button {
+                    sheet = .create
+                } label: {
+                    Label("新增汇率", systemImage: "plus")
                 }
+                .keyboardShortcut("n", modifiers: [.command])
             }
-            .frame(width: 180)
-            Button {
-                showImporter = true
-            } label: {
-                Label("Upload image", systemImage: "arrow.up.doc")
-            }
-            Button {
-                Task { await model.load() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .keyboardShortcut("r", modifiers: [.command])
         }
-        .onChange(of: model.currencyFilter) { _, _ in
-            Task { await model.load() }
-        }
+        .onChange(of: viewModel.filterCurrency) { _, _ in Task { await viewModel.reload() } }
+        .onChange(of: viewModel.filterYear) { _, _ in Task { await viewModel.reload() } }
+        .onChange(of: viewModel.filterMonth) { _, _ in Task { await viewModel.reload() } }
     }
 
-    private func handleImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            Task { await model.uploadImage(from: url,
-                                           onError: { uploadError = $0 },
-                                           onSuccess: { uploadSuccess = $0 }) }
-        case .failure(let error):
-            uploadError = error.localizedDescription
-        }
+    private var monthOptions: [FilterOption] {
+        (1...12).map { FilterOption(value: String(format: "%02d", $0), label: "\($0)月") }
     }
-}
 
-@MainActor
-@Observable
-final class ExchangeRateModel: PageViewModel<[ExchangeRateDTO]> {
-    var totalCount: Int = 0
-    var currencies: [ExchangeRateOptionDTO] = []
-    var currencyFilter: String = ""
+    // MARK: - List + pagination
 
-    override func load() async {
-        state = .loading
-        var query: [URLQueryItem] = [
-            URLQueryItem(name: "page", value: "1"),
-            URLQueryItem(name: "page_size", value: "100"),
-        ]
-        if !currencyFilter.isEmpty {
-            query.append(URLQueryItem(name: "currency", value: currencyFilter))
-        }
-        do {
-            let response: ExchangeRateListDTO = try await APIClient.shared.get(
-                path: "/api/v1/exchange-rates",
-                query: query
+    @ViewBuilder
+    private var listSection: some View {
+        if viewModel.items.isEmpty {
+            ContentUnavailableView(
+                "暂无汇率数据",
+                systemImage: "dollarsign.arrow.circlepath",
+                description: Text(isAdmin ? "点击右上角按钮新增汇率" : "稍后再来或检查筛选条件")
             )
-            totalCount = response.total
-            if currencies.isEmpty {
-                await refreshOptions()
-            }
-            state = response.items.isEmpty ? .empty : .loaded(response.items)
-        } catch {
-            state = .error(translate(catch: error))
-        }
-    }
-
-    /// Light refresh after a local edit: mutate the in-memory list only;
-    /// no need to re-hit the full list endpoint.
-    func applyLocalUpdate(_ updated: ExchangeRateDTO) async {
-        if case .loaded(var rows) = state {
-            if let idx = rows.firstIndex(where: { $0.id == updated.id }) {
-                rows[idx] = updated
-            }
-            state = .loaded(rows)
-        }
-    }
-
-    func refreshOptions() async {
-        do {
-            let opts: ExchangeRateOptionsDTO = try await APIClient.shared.get(
-                path: "/api/v1/exchange-rates/options"
-            )
-            currencies = opts.currencies
-        } catch {
-            // Options are a convenience for the picker; ignore failures.
-        }
-    }
-
-    func uploadImage(from fileURL: URL,
-                     onError: @escaping (String) -> Void,
-                     onSuccess: @escaping (String) -> Void) async {
-        let didStart = fileURL.startAccessingSecurityScopedResource()
-        defer { if didStart { fileURL.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: fileURL) else {
-            onError("Couldn't read the selected file.")
-            return
-        }
-        let filename = fileURL.lastPathComponent
-        let mime = mimeType(for: fileURL.pathExtension)
-        let boundary = "----bb-mac-\(UUID().uuidString)"
-        var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
-        body.append(data)
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        do {
-            let response: ExchangeRateUploadDTO = try await APIClient.shared.upload(
-                path: "/api/v1/exchange-rates/upload-image",
-                multipartBody: body,
-                boundary: boundary
-            )
-            onSuccess("Uploaded \(response.filename) (\(formatBytes(response.size)))")
-        } catch {
-            onError(translate(catch: error))
-        }
-    }
-
-    private func mimeType(for ext: String) -> String {
-        switch ext.lowercased() {
-        case "jpg", "jpeg": return "image/jpeg"
-        case "png":         return "image/png"
-        case "webp":        return "image/webp"
-        case "gif":         return "image/gif"
-        default:            return "application/octet-stream"
-        }
-    }
-
-    private func formatBytes(_ n: Int) -> String {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f.string(fromByteCount: Int64(n))
-    }
-}
-
-struct TableContent: View {
-    let rows: [ExchangeRateDTO]
-    let onEdit: (ExchangeRateDTO) -> Void
-
-    var body: some View {
-        Table(rows) {
-            TableColumn("Currency") { row in
-                HStack(spacing: 6) {
-                    Text(row.currency).font(.body.monospaced())
-                    if let name = row.currencyName, !name.isEmpty {
-                        Text(name).font(.caption).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                ForEach(viewModel.items) { item in
+                    ExchangeRateRow(item: item, isAdmin: isAdmin) {
+                        sheet = .edit(item)
+                    } onDelete: {
+                        sheet = .delete(item)
                     }
                 }
             }
-            .width(min: 80, ideal: 110)
-
-            TableColumn("Year-Month") { row in
-                Text(row.yearMonth).font(.body.monospaced())
-            }
-            .width(min: 90, ideal: 100)
-
-            TableColumn("Rate") { row in
-                Text(String(format: "%.4f", row.rate))
-                    .font(.body.monospaced())
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .width(min: 90, ideal: 110)
-
-            TableColumn("Description") { row in
-                Text(row.description ?? "—")
-                    .foregroundStyle(row.description == nil ? .tertiary : .primary)
-                    .lineLimit(1)
-            }
-
-            TableColumn("Updated") { row in
-                Text(formatDate(row.updatedAt))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .width(min: 140, ideal: 170)
-
-            TableColumn("") { row in
-                Button("Edit") { onEdit(row) }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-            }
-            .width(50)
+            .listStyle(.inset)
         }
     }
 
-    private func formatDate(_ iso: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = formatter.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) {
-            let display = DateFormatter()
-            display.dateStyle = .short
-            display.timeStyle = .short
-            return display.string(from: d)
+    private var pagination: some View {
+        HStack {
+            Button {
+                Task { await viewModel.prevPage() }
+            } label: {
+                Label("上一页", systemImage: "chevron.left")
+            }
+            .disabled(!viewModel.canGoPrev)
+            Spacer()
+            Text("第 \(viewModel.page) / \(viewModel.totalPages) 页 · 共 \(viewModel.total) 条")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                Task { await viewModel.nextPage() }
+            } label: {
+                Label("下一页", systemImage: "chevron.right")
+            }
+            .disabled(!viewModel.canGoNext)
         }
-        return iso
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 }
 
-struct ExchangeRateEditSheet: View {
-    let item: ExchangeRateDTO
-    let onSave: (ExchangeRateDTO) -> Void
+// MARK: - Row
+
+private struct ExchangeRateRow: View {
+    let item: ExchangeRateItem
+    let isAdmin: Bool
+    var onEdit: () -> Void
+    var onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            currencyBadge
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.currencyName ?? item.currency)
+                    .font(.system(size: 13, weight: .medium))
+                if let year = item.year, let month = item.month {
+                    Text("\(year)年\(month)月")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(String(format: "%.6f", item.rate))
+                    .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                Text(item.description ?? "—")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if !item.noteImages.isEmpty {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .foregroundStyle(.secondary)
+                    .help("\(item.noteImages.count) 张备注图片")
+            }
+            if isAdmin {
+                Menu {
+                    Button("编辑", systemImage: "pencil", action: onEdit)
+                    Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 16))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var currencyBadge: some View {
+        let meta = ExchangeRateStyling.badgeMeta(for: item.currency)
+        return HStack(spacing: 4) {
+            Text(meta.symbol).font(.system(size: 14, weight: .bold))
+            Text(item.currency)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(meta.background, in: Capsule())
+        .overlay(Capsule().strokeBorder(meta.border, lineWidth: 1))
+        .foregroundStyle(meta.foreground)
+    }
+}
+
+// MARK: - Filter picker
+
+struct FilterOption: Hashable, Identifiable {
+    let value: String
+    let label: String
+    var id: String { value }
+}
+
+private struct FilterPicker: View {
+    let label: String
+    let options: [FilterOption]
+    @Binding var selection: String?
+
+    var body: some View {
+        Menu {
+            Button("全部\(label)") { selection = nil }
+            Divider()
+            ForEach(options) { option in
+                Button(option.label) { selection = option.value }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(currentLabel)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private var currentLabel: String {
+        if let sel = selection, let match = options.first(where: { $0.value == sel }) {
+            return match.label
+        }
+        return "全部\(label)"
+    }
+}
+
+// MARK: - Delete confirmation sheet
+
+private struct DeleteConfirmationSheet: View {
+    let item: ExchangeRateItem
+    var onConfirm: () async -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var description: String
-    @State private var rate: String
-
-    init(item: ExchangeRateDTO, onSave: @escaping (ExchangeRateDTO) -> Void) {
-        self.item = item
-        self.onSave = onSave
-        self._description = State(initialValue: item.description ?? "")
-        self._rate = State(initialValue: String(item.rate))
-    }
+    @State private var isDeleting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(item.currency).font(.headline.monospaced())
-                Text(item.yearMonth).font(.callout).foregroundStyle(.secondary)
+            Text("确认删除").font(.title3).fontWeight(.semibold)
+            Text("此操作不可恢复。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                row(label: "货币", value: "\(item.currency) (\(item.currencyName ?? "—"))")
+                if let year = item.year, let month = item.month {
+                    row(label: "时间", value: "\(year)年\(month)月")
+                }
+                row(label: "汇率", value: String(format: "%.6f", item.rate))
             }
-            Form {
-                TextField("Rate", text: $rate)
-                TextField("Description", text: $description, axis: .vertical)
-                    .lineLimit(3...6)
-            }
+            .padding(12)
+            .background(.background.opacity(0.5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("取消", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    var updated = item
-                    updated.description = description.isEmpty ? nil : description
-                    if let r = Double(rate) { updated.rate = r }
-                    onSave(updated)
-                    dismiss()
+                Button(role: .destructive) {
+                    Task {
+                        isDeleting = true
+                        await onConfirm()
+                        isDeleting = false
+                        dismiss()
+                    }
+                } label: {
+                    if isDeleting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("确认删除")
+                    }
                 }
+                .disabled(isDeleting)
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(minWidth: 420)
+        .frame(width: 360)
+    }
+
+    private func row(label: String, value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).fontWeight(.medium)
+        }
+        .font(.callout)
     }
 }
 
-// MARK: - DTOs
-//
-// Wire-shape mirror of `backend/app/schemas/exchange_rate.py`. Field names
-// are converted from snake_case to camelCase by `APIClient`'s decoder
-// (`keyDecodingStrategy = .convertFromSnakeCase`).
+// MARK: - Currency badge styling
 
-struct ExchangeRateDTO: Identifiable, Hashable, Codable {
-    var id: Int
-    let currency: String
-    let currencyName: String?
-    let yearMonth: String
-    var rate: Double
-    var description: String?
-    let noteImages: [ExchangeRateNoteImageDTO]
-    let createdAt: String
-    let updatedAt: String
-}
+enum ExchangeRateStyling {
+    struct BadgeMeta {
+        let symbol: String
+        let background: Color
+        let foreground: Color
+        let border: Color
+    }
 
-struct ExchangeRateNoteImageDTO: Identifiable, Hashable, Codable {
-    let id: String
-    let url: String
-    let thumbnailUrl: String?
-    let filename: String
-    let contentType: String
-    let size: Int
-    let uploadedAt: String
-}
-
-struct ExchangeRateListDTO: Decodable {
-    let items: [ExchangeRateDTO]
-    let total: Int
-    let page: Int
-    let pageSize: Int
-}
-
-struct ExchangeRateOptionDTO: Hashable, Decodable {
-    let value: StringOrInt
-    let label: String
-
-    enum StringOrInt: Hashable, Decodable {
-        case string(String)
-        case int(Int)
-        case bool(Bool)
-
-        init(from decoder: Decoder) throws {
-            let c = try decoder.singleValueContainer()
-            if let s = try? c.decode(String.self) { self = .string(s); return }
-            if let i = try? c.decode(Int.self) { self = .int(i); return }
-            if let b = try? c.decode(Bool.self) { self = .bool(b); return }
-            throw DecodingError.dataCorruptedError(in: c, debugDescription: "Expected string|int|bool")
-        }
-        var description: String {
-            switch self {
-            case .string(let s): return s
-            case .int(let i):    return String(i)
-            case .bool(let b):   return String(b)
-            }
+    static func badgeMeta(for currency: String) -> BadgeMeta {
+        switch currency.uppercased() {
+        case "USD":
+            return BadgeMeta(
+                symbol: "$",
+                background: Color.green.opacity(0.12),
+                foreground: Color.green,
+                border: Color.green.opacity(0.35)
+            )
+        case "EUR":
+            return BadgeMeta(
+                symbol: "€",
+                background: Color.blue.opacity(0.12),
+                foreground: Color.blue,
+                border: Color.blue.opacity(0.35)
+            )
+        default:
+            return BadgeMeta(
+                symbol: "¤",
+                background: Color.gray.opacity(0.10),
+                foreground: Color.primary,
+                border: Color.gray.opacity(0.30)
+            )
         }
     }
 }
 
-struct ExchangeRateOptionsDTO: Decodable {
-    let currencies: [ExchangeRateOptionDTO]
-    let years: [ExchangeRateOptionDTO]
-    let months: [ExchangeRateOptionDTO]
-}
-
-struct ExchangeRateUploadDTO: Decodable {
-    let id: String
-    let url: String
-    let thumbnailUrl: String?
-    let filename: String
-    let size: Int
-    let uploadedAt: String
+#Preview {
+    ExchangeRateView()
+        .environment(AppSession.preview)
+        .environment(ToastCenter.shared)
+        .frame(width: 1000, height: 700)
 }
