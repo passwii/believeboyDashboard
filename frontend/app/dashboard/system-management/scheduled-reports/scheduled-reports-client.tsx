@@ -651,6 +651,138 @@ const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周�
 // 周报周一最早 16:00
 const MIN_HOUR_FOR_MONDAY = 16
 
+/**
+ * 台账行内的"重发/补发"操作单元：点击后弹出 Popover 让用户选择模型。
+ * - 管理员总是可以触发（包括强制补发）
+ * - 非管理员仅在 item.can_resend 为 true 时可触发
+ * - 弹窗内提供"使用订阅预设模型"显式选项 + 完整模型列表（含高级/基础分组）
+ */
+function LedgerResendCell({
+  item,
+  resendingStage,
+  canResend,
+  modelConfig,
+  isLoadingModelConfig,
+  fallbackModel,
+  onSubmit,
+  onLoading,
+}: {
+  item: LedgerItem
+  resendingStage: ResendStage | undefined
+  canResend: boolean
+  modelConfig: AIModelConfig | null
+  isLoadingModelConfig: boolean
+  fallbackModel: string
+  onSubmit: (overrideAiModel: string | null) => void
+  onLoading: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const actionLabel = item.status === 'failed' ? '重试' : '补发'
+  const defaultModel = fallbackModel || modelConfig?.defaultModel || ''
+  // "preset" 标记：用户选择了"使用订阅预设模型"（与列表中真实模型名区分）
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel)
+
+  // 弹窗打开时重置为默认
+  useEffect(() => {
+    if (open) setSelectedModel(defaultModel)
+  }, [open, defaultModel])
+
+  if (!canResend) {
+    return <span className="text-xs text-muted-foreground">—</span>
+  }
+
+  if (resendingStage) {
+    return (
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        <span className={cn('text-sm', RESEND_STAGE_COLORS[resendingStage])}>
+          {RESEND_STAGE_LABELS[resendingStage]}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline">
+          <RotateCcw className="mr-1 h-3 w-3" />
+          {actionLabel}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-3" align="end">
+        <div className="space-y-2">
+          <div className="text-sm font-medium">{actionLabel}报告</div>
+          <p className="text-xs text-muted-foreground">
+            临时选择本次执行使用的 AI 模型（不影响订阅的默认模型设置）
+          </p>
+          <div>
+            <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
+            <Select
+              value={selectedModel}
+              onValueChange={setSelectedModel}
+              disabled={isLoadingModelConfig || !modelConfig?.models.length}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+              </SelectTrigger>
+              <SelectContent>
+                {/* "使用订阅预设"选项：值与 defaultModel 不同则单独成组 */}
+                {defaultModel && (
+                  <SelectItem value={defaultModel}>
+                    <span className="flex items-center gap-1">
+                      <span className="text-muted-foreground">订阅预设：</span>
+                      <span>{defaultModel}</span>
+                    </span>
+                  </SelectItem>
+                )}
+                {(modelConfig?.premiumModels.length || 0) > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>高级模型</SelectLabel>
+                    {modelConfig?.premiumModels.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {(modelConfig?.basicModels.length || 0) > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>基础模型</SelectLabel>
+                    {modelConfig?.basicModels.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {modelConfig?.models
+                  .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m) && m !== defaultModel)
+                  .map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              size="sm"
+              className="flex-1"
+              disabled={!selectedModel}
+              onClick={() => {
+                onLoading()
+                setOpen(false)
+                onSubmit(selectedModel)
+              }}
+            >
+              确认{actionLabel}
+            </Button>
+            <Button size="sm" variant="ghost" className="flex-1" onClick={() => setOpen(false)}>
+              取消
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function authHeaders(): Record<string, string> {
   return {}
 }
@@ -1054,18 +1186,28 @@ export function ScheduledReportsClient() {
 
   const isAdmin = session?.user?.roleType === 'admin'
 
-  const handleResendLedger = async (item: LedgerItem) => {
+  const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
-    if (!await confirm({ title: `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？` })) return
+    const usingOverride = overrideAiModel != null && overrideAiModel.trim() !== ''
+    const confirmTitle = usingOverride
+      ? `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？（使用模型：${overrideAiModel}）`
+      : `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？`
+    if (!await confirm({ title: confirmTitle })) return
 
     // 初始化状态为 preparing
     setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
 
-    // 管理员强制补发，无视原状态
-    const forceParam = isAdmin ? '&force=true' : ''
+    // 临时覆盖模型（覆盖订阅预设）
+    const params = new URLSearchParams()
+    if (isAdmin) params.set('force', 'true')
+    if (usingOverride) params.set('ai_model', overrideAiModel!.trim())
+    const queryString = params.toString()
+    const url = queryString
+      ? resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend?${queryString}`)
+      : resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend`)
 
     try {
-      const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(item.ledger_key)}/resend?${forceParam.slice(1)}`), {
+      const res = await fetch(url, {
         method: 'POST',
         headers: authHeadersWithAdmin(),
       })
@@ -1546,36 +1688,26 @@ export function ScheduledReportsClient() {
                             </TableCell>
                             <TableCell className="text-muted-foreground text-xs max-w-[120px] truncate" title={item.error_message || ''}>{item.error_message || '—'}</TableCell>
                             <TableCell>
-                              {isAdmin && (
-                                resendingStates[item.ledger_key] ? (
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                    <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
-                                      {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
-                                    <RotateCcw className="mr-1 h-3 w-3" />
-                                    {item.status === 'failed' ? '重试' : '补发'}
-                                  </Button>
+                              {(() => {
+                                const canTrigger = isAdmin || item.can_resend
+                                if (!canTrigger) return <span className="text-xs text-muted-foreground">—</span>
+                                const sub = subscriptions.find(s => s.id === item.subscription_id)
+                                const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
+                                return (
+                                  <LedgerResendCell
+                                    item={item}
+                                    resendingStage={resendingStates[item.ledger_key]}
+                                    canResend
+                                    modelConfig={modelConfig}
+                                    isLoadingModelConfig={isLoadingModelConfig}
+                                    fallbackModel={fallbackModel}
+                                    onLoading={() => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
+                                    onSubmit={(overrideAiModel) => {
+                                      void handleResendLedger(item, overrideAiModel)
+                                    }}
+                                  />
                                 )
-                              )}
-                              {!isAdmin && item.can_resend ? (
-                                resendingStates[item.ledger_key] ? (
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                    <span className={cn("text-sm", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
-                                      {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)}>
-                                    <RotateCcw className="mr-1 h-3 w-3" />
-                                    {item.status === 'failed' ? '重试' : '补发'}
-                                  </Button>
-                                )
-                              ) : !isAdmin && <span className="text-xs text-muted-foreground">—</span>}
+                              })()}
                             </TableCell>
                           </TableRow>
                         )
@@ -1646,19 +1778,26 @@ export function ScheduledReportsClient() {
                             </button>
                           )}
                           <div className="ml-auto">
-                            {resendingStates[item.ledger_key] ? (
-                              <div className="flex items-center gap-1.5">
-                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                <span className={cn("text-xs", RESEND_STAGE_COLORS[resendingStates[item.ledger_key]])}>
-                                  {RESEND_STAGE_LABELS[resendingStates[item.ledger_key]]}
-                                </span>
-                              </div>
-                            ) : isAdmin || item.can_resend ? (
-                              <Button size="sm" variant="outline" onClick={() => handleResendLedger(item)} className="text-xs">
-                                <RotateCcw className="h-3 w-3 mr-1" />
-                                {item.status === 'failed' ? '重试' : '补发'}
-                              </Button>
-                            ) : null}
+                            {(() => {
+                              const canTrigger = isAdmin || item.can_resend
+                              if (!canTrigger) return null
+                              const sub = subscriptions.find(s => s.id === item.subscription_id)
+                              const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
+                              return (
+                                <LedgerResendCell
+                                  item={item}
+                                  resendingStage={resendingStates[item.ledger_key]}
+                                  canResend
+                                  modelConfig={modelConfig}
+                                  isLoadingModelConfig={isLoadingModelConfig}
+                                  fallbackModel={fallbackModel}
+                                  onLoading={() => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
+                                  onSubmit={(overrideAiModel) => {
+                                    void handleResendLedger(item, overrideAiModel)
+                                  }}
+                                />
+                              )
+                            })()}
                           </div>
                         </div>
                       </div>
