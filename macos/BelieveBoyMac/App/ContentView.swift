@@ -88,6 +88,47 @@ struct MainShell: View {
                 AccountMenu()
             }
         }
+        .overlay(alignment: .top) { ToastHost() }
+    }
+}
+
+/// Route dispatch — maps `SidebarItem.id` (the route key) to the
+/// concrete page view. BEL-147 stage 2 ships two real pages; the rest
+/// of the 43 leaf items fall back to the stage-1 `RouteHost` placeholder
+/// until stage 3 fans out the backlog.
+struct RouteHost: View {
+    let item: SidebarItem
+
+    var body: some View {
+        switch item.id {
+        case "operations/site-navigation":
+            SiteNavigationView()
+        case "data-management/exchange-rate":
+            ExchangeRateView()
+        default:
+            RoutePlaceholder(item: item)
+        }
+    }
+}
+
+/// Placeholder for routes that have not been implemented yet. Real pages
+/// will replace these as we walk through the BEL-147 stage 3 backlog.
+struct RoutePlaceholder: View {
+    let item: SidebarItem
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: item.systemImage)
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(.tint)
+            Text(item.title)
+                .font(.title2)
+            Text("This page is part of the macOS rewrite backlog.\nImplementation lands in stage 3.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
     }
 }
 
@@ -113,27 +154,6 @@ struct AccountMenu: View {
         } label: {
             Label(session.currentUser?.name ?? "Account", systemImage: "person.crop.circle")
         }
-    }
-}
-
-/// Placeholder for routes that have not been implemented yet. Real pages
-/// will replace these as we walk through the BEL-147 stage 3 backlog.
-struct RouteHost: View {
-    let item: SidebarItem
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: item.systemImage)
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.tint)
-            Text(item.title)
-                .font(.title2)
-            Text("This page is part of the macOS rewrite backlog.\nImplementation lands in stage 3.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 }
 
@@ -168,4 +188,5 @@ struct WelcomeView: View {
 #Preview {
     ContentView()
         .environment(AppSession.preview)
+        .environment(ToastCenter.shared)
 }
