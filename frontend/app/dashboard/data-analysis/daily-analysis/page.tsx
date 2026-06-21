@@ -1471,10 +1471,6 @@ export default function DailyAnalysisPage() {
     ? filteredComparisonRows
     : comparisonSummaryRows
 
-  const comparisonRange = useMemo(
-    () => getPreviousPeriodRange(dateRange),
-    [dateRange],
-  )
   const hasComparisonData = comparisonDataRows.length > 0
   const chartRows = useMemo(() => {
     const normalizedRange = normalizeDateRange(dateRange)
@@ -1655,28 +1651,7 @@ export default function DailyAnalysisPage() {
       </DataCard>
 
       <DataCard>
-        <DataCardContent className='space-y-4'>
-          {country === 'ALL' && (
-            <div className='flex flex-wrap items-center gap-2'>
-              <Badge
-                variant='outline'
-                className='border-emerald-500/40 bg-emerald-50 px-3 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200'
-              >
-                全部站点聚合：金额字段已按当月 CNY 中转折算为 USD（汇率取自
-                exchange_rates 表），跨币种可比；非金额字段（订单 / 曝光 / 点击 / 库存等）保持原值。
-              </Badge>
-            </div>
-          )}
-          {comparisonDataRows.length > 0 && (
-            <div className='flex flex-wrap items-center gap-2'>
-              <Badge
-                variant='outline'
-                className='border-border/60 bg-background/85 px-3 py-1 text-foreground'
-              >
-                对比区间：{formatRangeLabel(comparisonRange)}
-              </Badge>
-            </div>
-          )}
+        <DataCardContent>
           {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
             // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 wrapper
             <MetricSwitcherCard<ChartMetricKey>

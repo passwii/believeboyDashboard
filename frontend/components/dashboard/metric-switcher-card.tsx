@@ -32,12 +32,6 @@ import {
  *   - `'auto'`（默认）：按 metric.preferredChart 自动选
  *   - `'line' / 'area' / 'bar'`：手动指定
  *
- * 形态自适应规则（auto 模式）：
- *   - 业务侧在 MetricDef.preferredChart 里标注
- *   - 量级类指标（订单量/销售额/曝光量）→ bar
- *   - 趋势连续类指标（转化率/CPC/百分比）→ line
- *   - 累计/堆叠类（如果未来需要）→ area
- *
  * 三层组件关系：
  *   line-charts-6.tsx          ← ChartContainer + tooltip 样式
  *   MetricSwitcherCard.tsx     ← 单 chart + KPI grid（当前）
@@ -98,7 +92,7 @@ export interface MetricSwitcherCardProps<K extends string> {
 
   /** 计算模式：传入 tooltip formatter */
   tooltipFormatter?: (value: number, metricKey: K) => React.ReactNode
-  /** 计算模式：传入 y 轴 formatter */
+  /** 计算模式：传入 y 轴 formatter；不传则用 metric.format */
   yAxisFormatter?: (value: number, metricKey: K) => string
 }
 
@@ -226,8 +220,8 @@ export function MetricSwitcherCard<K extends string>({
         </CardHeader>
       )}
       <CardHeader className="p-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow">
-          {metrics.map((m) => {
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-border/60">
+          {metrics.map((m, idx) => {
             const isActive = m.key === selected
             const cur = getCurrentForCard(m.key)
             const prev = getPrevious?.(m.key) ?? null
@@ -242,19 +236,19 @@ export function MetricSwitcherCard<K extends string>({
                 : m.isNegativeBetter
                   ? mChange < 0
                   : mChange > 0
+            const totalInRow = metrics.length
+            const isLastInRow = (idx + 1) % 6 === 0 || idx === totalInRow - 1
             return (
               <button
                 key={m.key}
                 type="button"
                 onClick={() => setSelected(m.key)}
                 className={cn(
-                  "flex-1 cursor-pointer border-b border-r border-border/60 p-4 text-start transition-colors last:border-b-0",
-                  // 移动端 / 平板：3 列布局，最后一行不补满
-                  "sm:[&:nth-child(3n)]:border-r-0 sm:[&:nth-child(3n+1)]:border-r",
-                  // 桌面端 lg+：6 列布局
-                  "lg:border-b-0 lg:[&:nth-child(6n)]:border-r-0 lg:[&:nth-child(6n+1)]:border-r lg:[&:nth-child(odd)]:border-r",
-                  // 11 metrics 时：6+5 两行；5 那行的最后一个 metric 也不需要 border-r
-                  "lg:[&:nth-last-child(-n+5):nth-child(6n+5)]:border-r-0",
+                  // 上下边框：divide-y 自动处理
+                  // 右侧边框：6 列布局里除最右列外都有；最后一行不满 6 时去掉最后一个 border-r
+                  "cursor-pointer p-4 text-start transition-colors",
+                  // 强制使用 fixed height 避免点击不同 metric 时卡片高度跳动 → y 轴偏移修复
+                  "min-h-[112px]",
                   isActive && "bg-muted/50",
                 )}
               >
@@ -262,41 +256,48 @@ export function MetricSwitcherCard<K extends string>({
                   <span className="truncate text-sm text-muted-foreground">
                     {m.label}
                   </span>
-                  {/* 激活状态下永远显示变化标签：mChange 有值显示数字，否则显示 -- */}
-                  {isActive && (
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "shrink-0 gap-1 text-[10px]",
-                        mChange === null
+                  {/* 所有 metric 都永远显示对比信息：active 显示变化百分比（无对比显示 --），
+                      非 active 显示"对比 X"。避免 active 卡片凭空多出一个 Badge。 */}
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "shrink-0 gap-1 text-[10px]",
+                      isActive
+                        ? mChange === null
                           ? "bg-muted/40 text-muted-foreground"
                           : mIsPositive
                             ? "bg-secondary/10 text-secondary"
-                            : "bg-destructive/10 text-destructive",
-                      )}
-                    >
-                      {mChange === null ? (
-                        "--"
-                      ) : mIsPositive ? (
-                        <>
-                          <ArrowUp className="size-3" />
-                          {Math.abs(mChange).toFixed(1)}%
-                        </>
-                      ) : (
-                        <>
-                          <ArrowDown className="size-3" />
-                          {Math.abs(mChange).toFixed(1)}%
-                        </>
-                      )}
-                    </Badge>
-                  )}
+                            : "bg-destructive/10 text-destructive"
+                        : "bg-transparent text-muted-foreground/70",
+                    )}
+                  >
+                    {!isActive && mHasPrev && prev !== null
+                      ? `对比 ${m.format(prev)}`
+                      : mChange === null
+                        ? "--"
+                        : mIsPositive
+                          ? (
+                            <>
+                              <ArrowUp className="size-3" />
+                              {Math.abs(mChange).toFixed(1)}%
+                            </>
+                          )
+                          : (
+                            <>
+                              <ArrowDown className="size-3" />
+                              {Math.abs(mChange).toFixed(1)}%
+                            </>
+                          )}
+                  </Badge>
                 </div>
                 <div className="truncate text-2xl font-bold tabular-nums">
                   {m.format(cur)}
                 </div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">
-                  {mHasPrev && prev !== null
-                    ? `对比 ${m.format(prev)}`
+                  {isActive
+                    ? mHasPrev && prev !== null
+                      ? `对比 ${m.format(prev)}`
+                      : getDaysLabel()
                     : getDaysLabel()}
                 </div>
               </button>
@@ -319,7 +320,13 @@ export function MetricSwitcherCard<K extends string>({
       </CardHeader>
 
       <CardContent className="px-2.5 py-6">
-        <ChartContainer config={config} className={cn("w-full", heightClass)}>
+        {/* 用 key={effectiveKind} 强制 remount：切换 chartKind 时整个图表重新挂载，
+            保证 line ↔ bar 跨形态切换也有干净的 enter 动画（同形态切换靠 recharts 内部） */}
+        <ChartContainer
+          key={effectiveKind}
+          config={config}
+          className={cn("w-full", heightClass)}
+        >
           {renderChart(
             effectiveKind,
             chartData,
@@ -405,7 +412,8 @@ function renderChart<K extends string>(
   tooltipFormatter: ((value: number, key: K) => React.ReactNode) | undefined,
   hasCompareData: boolean,
 ) {
-  // 共享 axes + tooltip
+  // 共享 axes + tooltip：XAxis/YAxis/ChartTooltip 三件套所有形态共用，
+  // 让 hover 时始终能看到横坐标日期 + 纵坐标数值 + tooltip 弹层。
   const sharedAxes = (
     <>
       <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
