@@ -13997,6 +13997,13 @@
             "title": "Countries",
             "type": "array"
           },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
           "date_from": {
             "anyOf": [
               {

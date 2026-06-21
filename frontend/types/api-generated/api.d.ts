@@ -9297,6 +9297,8 @@ export interface components {
             asin_keyword?: string | null;
             /** Countries */
             countries?: string[];
+            /** Currencies */
+            currencies?: string[];
             /** Date From */
             date_from?: string | null;
             /** Date To */
@@ -9352,10 +9354,7 @@ export interface components {
             city?: string | null;
             /** Country */
             country: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Currency */
             currency?: string | null;
@@ -9379,15 +9378,9 @@ export interface components {
             project_id: number;
             /** Project Name */
             project_name: string;
-            /**
-             * Purchase At Pt
-             * Format: date-time
-             */
+            /** Purchase At Pt */
             purchase_at_pt: string;
-            /**
-             * Purchase At Utc
-             * Format: date-time
-             */
+            /** Purchase At Utc */
             purchase_at_utc: string;
             /** Purchase Date Pt */
             purchase_date_pt: string;

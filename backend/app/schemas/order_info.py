@@ -133,6 +133,7 @@ class OrderInfoExportRequest(BaseModel):
     fulfillment_channels: list[str] = Field(default_factory=list)  # Amazon / Merchant
     order_statuses: list[str] = Field(default_factory=list)
     countries: list[str] = Field(default_factory=list)
+    currencies: list[str] = Field(default_factory=list)
     sku_keyword: str | None = None
     order_id_keyword: str | None = None
     asin_keyword: str | None = None
