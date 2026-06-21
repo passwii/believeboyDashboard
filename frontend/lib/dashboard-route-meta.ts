@@ -32,6 +32,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/operations/store-navigation', title: '店铺导航' },
  { match: '/ai-insights', title: 'AI洞察' },
  { match: '/special/markdown-to-word', title: 'Markdown 转 Word' },
+ { match: '/special/blf-loader-demo', title: 'BLF Loader Demo' },
  { match: '/ai-chat', title: 'AI Chat' },
  { match: '/ai/ad-analysis', title: 'AI 广告分析' },
  { match: '/data-analysis/research-analysis', title: '调研分析' },

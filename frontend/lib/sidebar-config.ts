@@ -238,6 +238,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  },
  { title: '更新日志', url: '/dashboard/changelog', icon: IconMap.History },
  { title: 'Markdown 转换', url: '/dashboard/special/markdown-to-word', icon: IconMap.FileText },
+ { title: 'BLF Loader Demo', url: '/dashboard/special/blf-loader-demo', icon: IconMap.Sparkles },
  ],
  },
 
