@@ -1,6 +1,12 @@
 "use client"
 
 import * as React from "react"
+import {
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useSpring,
+} from "framer-motion"
 import { ArrowDown, ArrowUp, BarChart3, LineChart as LineIcon, Square } from "lucide-react"
 import {
   Area,
@@ -22,6 +28,12 @@ import {
   ChartTooltip,
   type ChartConfig,
 } from "@/components/ui/line-charts-6"
+
+/**
+ * Project-standard motion easing. Mirrors `--motion-ease-out` in
+ * `app/globals.css` and the easing used in `components/ui/tab-motion.tsx`.
+ */
+const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const
 
 /**
  * MetricSwitcherCard
@@ -121,6 +133,7 @@ export function MetricSwitcherCard<K extends string>({
   tooltipFormatter,
   yAxisFormatter,
 }: MetricSwitcherCardProps<K>) {
+  const prefersReducedMotion = useReducedMotion()
   const [selected, setSelected] = React.useState<K>(defaultMetric)
   // 用户手动 override 的 chart kind。null 表示跟随 chartKind / auto 模式
   const [overrideKind, setOverrideKind] = React.useState<ChartKind | null>(null)
@@ -210,7 +223,7 @@ export function MetricSwitcherCard<K extends string>({
   const hasCompareData = chartData.some((row) => row.compareMetricValue != null)
 
   return (
-    <Card>
+    <Card className="hover-lift animate-enter overflow-hidden transition-shadow duration-200">
       {(title || description) && (
         <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] py-3">
           <div className="space-y-1">
@@ -226,87 +239,18 @@ export function MetricSwitcherCard<K extends string>({
         </CardHeader>
       )}
       <CardHeader className="p-0">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-border/60">
-          {metrics.map((m, idx) => {
-            const isActive = m.key === selected
-            const cur = getCurrentForCard(m.key)
-            const prev = getPrevious?.(m.key) ?? null
-            const mHasPrev = prev !== null && prev > 0
-            const mChange =
-              mHasPrev && prev !== null
-                ? ((cur - prev) / prev) * 100
-                : null
-            const mIsPositive =
-              mChange === null
-                ? true
-                : m.isNegativeBetter
-                  ? mChange < 0
-                  : mChange > 0
-            const totalInRow = metrics.length
-            const isLastInRow = (idx + 1) % 6 === 0 || idx === totalInRow - 1
+        <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-border/60">
+          {metrics.map((m) => {
             return (
-              <button
+              <MetricCell<K>
                 key={m.key}
-                type="button"
-                onClick={() => setSelected(m.key)}
-                className={cn(
-                  // 上下边框：divide-y 自动处理
-                  // 右侧边框：6 列布局里除最右列外都有；最后一行不满 6 时去掉最后一个 border-r
-                  "cursor-pointer p-4 text-start transition-colors",
-                  // 强制使用 fixed height 避免点击不同 metric 时卡片高度跳动 → y 轴偏移修复
-                  "min-h-[112px]",
-                  isActive && "bg-muted/50",
-                )}
-              >
-                <div className="mb-2 flex items-center justify-between gap-1.5">
-                  <span className="truncate text-sm text-muted-foreground">
-                    {m.label}
-                  </span>
-                  {/* 所有 metric 都永远显示对比信息：active 显示变化百分比（无对比显示 --），
-                      非 active 显示"对比 X"。避免 active 卡片凭空多出一个 Badge。 */}
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "shrink-0 gap-1 text-[10px]",
-                      isActive
-                        ? mChange === null
-                          ? "bg-muted/40 text-muted-foreground"
-                          : mIsPositive
-                            ? "bg-secondary/10 text-secondary"
-                            : "bg-destructive/10 text-destructive"
-                        : "bg-transparent text-muted-foreground/70",
-                    )}
-                  >
-                    {!isActive && mHasPrev && prev !== null
-                      ? `对比 ${m.format(prev)}`
-                      : mChange === null
-                        ? "--"
-                        : mIsPositive
-                          ? (
-                            <>
-                              <ArrowUp className="size-3" />
-                              {Math.abs(mChange).toFixed(1)}%
-                            </>
-                          )
-                          : (
-                            <>
-                              <ArrowDown className="size-3" />
-                              {Math.abs(mChange).toFixed(1)}%
-                            </>
-                          )}
-                  </Badge>
-                </div>
-                <div className="truncate text-2xl font-bold tabular-nums">
-                  {m.format(cur)}
-                </div>
-                <div className="mt-1 truncate text-xs text-muted-foreground">
-                  {isActive
-                    ? mHasPrev && prev !== null
-                      ? `对比 ${m.format(prev)}`
-                      : getDaysLabel()
-                    : getDaysLabel()}
-                </div>
-              </button>
+                metric={m}
+                isActive={m.key === selected}
+                currentValue={getCurrentForCard(m.key)}
+                previousValue={getPrevious?.(m.key) ?? null}
+                daysLabel={getDaysLabel()}
+                onSelect={() => setSelected(m.key)}
+              />
             )
           })}
         </div>
@@ -327,28 +271,251 @@ export function MetricSwitcherCard<K extends string>({
 
       <CardContent className="px-2.5 py-6">
         {/* 用 key={effectiveKind} 强制 remount：切换 chartKind 时整个图表重新挂载，
-            保证 line ↔ bar 跨形态切换也有干净的 enter 动画（同形态切换靠 recharts 内部） */}
-        <ChartContainer
-          key={effectiveKind}
-          config={config}
+            保证 line ↔ bar 跨形态切换也有干净的 enter 动画（同形态切换靠 recharts 内部）。
+            外层 motion.div 用来掩盖 remount 之间的视觉空隙 —— 不做 morph
+            （recharts 的 findChildByType 依赖直接 children 关系，wrap 会破坏），
+            只做 fade-in + 轻微上推。 */}
+        <motion.div
+          key={`chart-${effectiveKind}`}
+          initial={
+            prefersReducedMotion
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 6 }
+          }
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: MOTION_EASE_OUT }}
           className={cn("w-full", heightClass)}
         >
-          {renderChart(
-            effectiveKind,
-            chartData,
-            selected,
-            metric,
-            metrics,
-            config,
-            effectiveXKey,
-            xTickFormatter,
-            yAxisFormatter,
-            tooltipFormatter,
-            hasCompareData,
-          )}
-        </ChartContainer>
+          <ChartContainer
+            config={config}
+            className={cn("w-full", heightClass)}
+          >
+            {renderChart(
+              effectiveKind,
+              chartData,
+              selected,
+              metric,
+              metrics,
+              config,
+              effectiveXKey,
+              xTickFormatter,
+              yAxisFormatter,
+              tooltipFormatter,
+              hasCompareData,
+            )}
+          </ChartContainer>
+        </motion.div>
       </CardContent>
     </Card>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* MetricCell — single KPI tile inside the metric grid                        */
+/*                                                                             */
+/* Owns three polish behaviours:                                              */
+/*   1. Active-cell count-up: only the active cell mounts ActiveMetricCell,    */
+/*      which runs a useSpring on raw `currentValue` and re-applies           */
+/*      `metric.format` each frame so currency / percent / unit suffixes      */
+/*      stay correct as the number rolls. Inactive cells render a plain       */
+/*      string with no spring — six idle springs would tick every frame       */
+/*      for no visible benefit.                                               */
+/*   2. Sliding bottom accent indicator via `layoutId="metric-cell-indicator"`:*/
+/*      only the active cell renders the indicator span; framer-motion         */
+/*      tweens it between cells when the user picks a different metric.       */
+/*   3. Active-state visual: bg-primary/[0.04] tint + foreground-colored      */
+/*      digit + change Badge in success/destructive colors. Inactive cells    */
+/*      stay muted (text-muted-foreground/80) and dim their change Badge.     */
+/* -------------------------------------------------------------------------- */
+
+interface MetricCellProps<K extends string> {
+  metric: MetricDef<K>
+  isActive: boolean
+  currentValue: number
+  previousValue: number | null
+  daysLabel: string
+  onSelect: () => void
+}
+
+function MetricCell<K extends string>({
+  metric,
+  isActive,
+  currentValue,
+  previousValue,
+  daysLabel,
+  onSelect,
+}: MetricCellProps<K>) {
+  // Display math (shared with the legacy inline version)
+  const prev = previousValue
+  const hasPrev = prev !== null && prev > 0
+  const change =
+    hasPrev && prev !== null ? ((currentValue - prev) / prev) * 100 : null
+  const isPositive =
+    change === null
+      ? true
+      : metric.isNegativeBetter
+        ? change < 0
+        : change > 0
+
+  // Spring-driven count-up only for the active cell — six idle springs would
+  // tick every frame for no visible benefit. ActiveMetricCell mounts fresh on
+  // each activation, giving the user a count-up from the new cell's value.
+  const subLabel = isActive
+    ? hasPrev && prev !== null
+      ? `对比 ${metric.format(prev)}`
+      : daysLabel
+    : daysLabel
+
+  if (isActive) {
+    return (
+      <ActiveMetricCell
+        metric={metric}
+        currentValue={currentValue}
+        subLabel={subLabel}
+        change={change}
+        isPositive={isPositive}
+        onSelect={onSelect}
+      />
+    )
+  }
+  // Inactive cell — plain render, no spring. The shared accent indicator is
+  // handled here too (only the active cell renders it via layoutId).
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={false}
+      className={cn(
+        "relative cursor-pointer p-4 text-start transition-colors duration-150",
+        "min-h-[112px]",
+        "hover:bg-muted/40",
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-1.5">
+        <span className="truncate text-sm text-muted-foreground">
+          {metric.label}
+        </span>
+        <Badge
+          variant="secondary"
+          className={cn(
+            "shrink-0 gap-1 text-[10px]",
+            "bg-transparent text-muted-foreground/70",
+          )}
+        >
+          {hasPrev && previousValue !== null
+            ? `对比 ${metric.format(previousValue)}`
+            : "--"}
+        </Badge>
+      </div>
+      <div className="truncate text-2xl font-bold tabular-nums text-muted-foreground/80">
+        {metric.format(currentValue)}
+      </div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">
+        {subLabel}
+      </div>
+    </button>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* ActiveMetricCell — same as MetricCell but owns the spring count-up. Only    */
+/* mounted for the active cell, so we only ever run one spring at a time.    */
+/* -------------------------------------------------------------------------- */
+
+interface ActiveMetricCellProps<K extends string> {
+  metric: MetricDef<K>
+  currentValue: number
+  subLabel: string
+  change: number | null
+  isPositive: boolean
+  onSelect: () => void
+}
+
+function ActiveMetricCell<K extends string>({
+  metric,
+  currentValue,
+  subLabel,
+  change,
+  isPositive,
+  onSelect,
+}: ActiveMetricCellProps<K>) {
+  // useReducedMotion is required at the top of every framer-motion consumer
+  // that respects the OS preference, even if we don't branch on its value
+  // here — keeps the rules-of-hooks invariant intact.
+  useReducedMotion()
+  const springValue = useSpring(currentValue, {
+    stiffness: 220,
+    damping: 28,
+    mass: 0.6,
+  })
+  // Push new targets into the spring whenever upstream value changes.
+  // Without this, the spring would freeze on its initial target forever.
+  React.useEffect(() => {
+    springValue.set(currentValue)
+  }, [springValue, currentValue])
+  const [displayValue, setDisplayValue] = React.useState(() =>
+    metric.format(currentValue),
+  )
+  useMotionValueEvent(springValue, "change", (latest) => {
+    setDisplayValue(metric.format(latest))
+  })
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={true}
+      className={cn(
+        "relative cursor-pointer p-4 text-start transition-colors duration-150",
+        "min-h-[112px]",
+        "bg-primary/[0.04]",
+      )}
+    >
+      <motion.span
+        layoutId="metric-cell-indicator"
+        aria-hidden
+        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary"
+        transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      />
+      <div className="mb-2 flex items-center justify-between gap-1.5">
+        <span className="truncate text-sm text-muted-foreground">
+          {metric.label}
+        </span>
+        <Badge
+          variant="secondary"
+          className={cn(
+            "shrink-0 gap-1 text-[10px]",
+            change === null
+              ? "bg-muted/40 text-muted-foreground"
+              : isPositive
+                ? "bg-secondary/10 text-secondary"
+                : "bg-destructive/10 text-destructive",
+          )}
+        >
+          {change === null
+            ? "--"
+            : isPositive
+              ? (
+                <>
+                  <ArrowUp className="size-3" />
+                  {Math.abs(change).toFixed(1)}%
+                </>
+              )
+              : (
+                <>
+                  <ArrowDown className="size-3" />
+                  {Math.abs(change).toFixed(1)}%
+                </>
+              )}
+        </Badge>
+      </div>
+      <div className="truncate text-2xl font-bold tabular-nums text-foreground">
+        {displayValue}
+      </div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">
+        {subLabel}
+      </div>
+    </button>
   )
 }
 
@@ -370,6 +537,7 @@ function ChartKindToggle({
     { kind: "area", label: "面积", icon: Square },
     { kind: "bar", label: "柱状", icon: BarChart3 },
   ]
+  const prefersReducedMotion = useReducedMotion()
   return (
     <div
       className={cn(
@@ -386,16 +554,41 @@ function ChartKindToggle({
             type="button"
             onClick={() => onChange(opt.kind)}
             disabled={disabled}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors",
-              isActive
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
             aria-pressed={isActive}
+            className={cn(
+              "relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors",
+              // When reduced motion is on we skip the layoutId pill and fall
+              // back to Tailwind classes on the button itself.
+              isActive && prefersReducedMotion && "bg-primary text-primary-foreground shadow-sm",
+            )}
           >
-            <Icon className="size-3" />
-            <span>{opt.label}</span>
+            {/* Sliding pill — only the active option renders it; layoutId
+                makes framer-motion tween it between buttons. */}
+            {isActive && !prefersReducedMotion && (
+              <motion.span
+                layoutId="chart-kind-pill"
+                aria-hidden
+                className="absolute inset-0 -z-10 rounded-full bg-primary shadow-sm"
+                transition={{
+                  type: "spring",
+                  stiffness: 380,
+                  damping: 30,
+                }}
+              />
+            )}
+            <span
+              className={cn(
+                "relative z-10 inline-flex items-center gap-1 transition-colors",
+                isActive
+                  ? prefersReducedMotion
+                    ? "text-primary-foreground"
+                    : "text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3" />
+              <span>{opt.label}</span>
+            </span>
           </button>
         )
       })}
@@ -628,6 +821,7 @@ function MetricSwitcherTooltip<K extends string>({
   payload,
   label,
 }: MetricSwitcherTooltipProps<K>) {
+  const prefersReducedMotion = useReducedMotion()
   if (!active || !payload || payload.length === 0) return null
 
   // BarChart 下第一个 payload 项可能是底层画上去的辅助图元（value=null），
@@ -638,7 +832,16 @@ function MetricSwitcherTooltip<K extends string>({
   if (items.length === 0) return null
 
   return (
-    <div className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]">
+    <motion.div
+      initial={
+        prefersReducedMotion
+          ? { opacity: 1, y: 0 }
+          : { opacity: 0, y: 4 }
+      }
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, ease: MOTION_EASE_OUT }}
+      className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]"
+    >
       {label !== undefined && label !== null && (
         <div className="font-medium text-foreground">{String(label)}</div>
       )}
@@ -684,7 +887,7 @@ function MetricSwitcherTooltip<K extends string>({
           )
         })}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
