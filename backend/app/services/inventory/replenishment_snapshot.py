@@ -103,6 +103,19 @@ def create_replenishment_snapshot(
         page_size=99999,
     )
 
+    # 在 INSERT 新快照之前，先把同 (project, country) 旧 is_current=true 的快照全部
+    # 置为 false。新行本身 is_current=true，partial unique index 会保证全局只有一条
+    # 当前快照。先 UPDATE 再 INSERT 让 partial unique 在 INSERT 时校验，rollback 干净。
+    db.execute(
+        update(InventoryReplenishmentSnapshot)
+        .where(
+            InventoryReplenishmentSnapshot.project_id == project_id,
+            InventoryReplenishmentSnapshot.country == country,
+            InventoryReplenishmentSnapshot.is_current.is_(True),
+        )
+        .values(is_current=False)
+    )
+
     # 创建快照记录
     snapshot = InventoryReplenishmentSnapshot(
         project_id=project_id,
@@ -152,17 +165,6 @@ def create_replenishment_snapshot(
             risk_anchor_date=row.get('risk_anchor_date'),
         )
         db.add(item)
-
-    # 更新旧快照的 is_current 标记
-    db.execute(
-        update(InventoryReplenishmentSnapshot)
-        .where(
-            InventoryReplenishmentSnapshot.project_id == project_id,
-            InventoryReplenishmentSnapshot.country == country,
-            InventoryReplenishmentSnapshot.id != snapshot.id,
-        )
-        .values(is_current=False)
-    )
 
     db.commit()
     db.refresh(snapshot)

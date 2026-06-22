@@ -15,8 +15,8 @@ from sqlalchemy import (
     JSON,
     Numeric,
     String,
-    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,12 +27,23 @@ class InventoryReplenishmentSnapshot(Base):
     """库存补货分析快照表
 
     存储补货分析计算结果的完整快照，支持版本管理和历史查看。
+
+    唯一性约束：partial unique index ``(project_id, country) WHERE is_current = TRUE``
+    由 Alembic 迁移 ``20260622_167`` 在 PostgreSQL/SQLite 双方言上创建。
+    原 ``UniqueConstraint('project_id', 'country', 'snapshot_date')`` 已被该 partial unique
+    替换——同一天同一项目可保留多张历史快照（按 ``created_at`` 排序），但"当前快照"每
+    ``(project, country)`` 全局唯一。
     """
     __tablename__ = 'inventory_replenishment_snapshots'
     __table_args__ = (
-        UniqueConstraint(
-            'project_id', 'country', 'snapshot_date',
-            name='uq_inventory_replenishment_snapshot_project_country_date',
+        # Partial unique index: at most one current snapshot per (project, country).
+        # The actual DDL is executed by the Alembic migration to keep PG/SQLite in sync.
+        Index(
+            'uq_inventory_replenishment_snapshots_current',
+            'project_id', 'country',
+            unique=True,
+            postgresql_where=text('is_current IS TRUE'),
+            sqlite_where=text('is_current = 1'),
         ),
         Index('idx_inventory_replenishment_snapshots_project_id', 'project_id'),
         Index('idx_inventory_replenishment_snapshots_project_country', 'project_id', 'country'),
