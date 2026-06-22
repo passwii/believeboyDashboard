@@ -1,10 +1,12 @@
 'use client'
 
 import { type ChangeEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   ArrowDownToLine,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   Filter,
   Loader2,
   RefreshCcw,
@@ -641,8 +643,40 @@ export default function OrderInfoPage() {
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
                           <div className="flex flex-col leading-tight">
-                            <span className="font-mono text-xs">{item.sku ?? '—'}</span>
-                            <span className="text-xs text-muted-foreground">ASIN {item.asin ?? '—'}</span>
+                            {item.sku ? (
+                              <Link
+                                href={(() => {
+                                  const params = new URLSearchParams()
+                                  if (item.project_name) params.set('project_name', item.project_name)
+                                  params.set('sku', item.sku)
+                                  if (item.asin) params.set('asin', item.asin)
+                                  return `/dashboard/data-management/sku-info?${params.toString()}`
+                                })()}
+                                className="font-mono text-xs text-foreground hover:text-primary hover:underline"
+                                title="跳转到 SKU 信息页面（带入项目 + SKU + ASIN）"
+                              >
+                                {item.sku}
+                              </Link>
+                            ) : (
+                              <span className="font-mono text-xs">—</span>
+                            )}
+                            {item.asin ? (
+                              <Link
+                                href={(() => {
+                                  const params = new URLSearchParams()
+                                  if (item.project_name) params.set('project_name', item.project_name)
+                                  if (item.sku) params.set('sku', item.sku)
+                                  params.set('asin', item.asin)
+                                  return `/dashboard/data-management/sku-info?${params.toString()}`
+                                })()}
+                                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                title="跳转到 SKU 信息页面（按 ASIN 查询）"
+                              >
+                                ASIN {item.asin}
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">ASIN —</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className={cn(DENSE_CELL, 'max-w-[260px]')}>
@@ -677,12 +711,19 @@ export default function OrderInfoPage() {
                           </button>
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
-                          <div className="flex flex-col leading-tight">
-                            <span className="text-sm">{item.project_name}</span>
+                          <Link
+                            href={`/dashboard/system-management/project-info?configure=${item.project_id}`}
+                            className="flex flex-col leading-tight hover:opacity-80"
+                            title={`跳转到「${item.project_name}」的项目设置`}
+                          >
+                            <span className="inline-flex items-center gap-1 text-sm text-foreground hover:text-primary hover:underline">
+                              {item.project_name}
+                              <ExternalLink className="h-3 w-3" />
+                            </span>
                             {item.brand_name && (
                               <span className="text-xs text-muted-foreground">{item.brand_name}</span>
                             )}
-                          </div>
+                          </Link>
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
                           <Badge variant={fulfillmentVariant(item.fulfillment_label)}>
