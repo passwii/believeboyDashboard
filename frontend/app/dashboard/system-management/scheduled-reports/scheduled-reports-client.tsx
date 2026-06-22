@@ -1189,12 +1189,8 @@ export function ScheduledReportsClient() {
   const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
     const usingOverride = overrideAiModel != null && overrideAiModel.trim() !== ''
-    const confirmTitle = usingOverride
-      ? `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？（使用模型：${overrideAiModel}）`
-      : `确认${actionLabel} ${item.expected_date} 的 ${FREQUENCY_LABELS[item.frequency]} 报告？`
-    if (!await confirm({ title: confirmTitle })) return
 
-    // 初始化状态为 preparing
+    // 初始化状态为 preparing（页内 LedgerResendCell 的 Popover 已经做了模型选择确认，不再额外弹 Dialog）
     setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
 
     // 临时覆盖模型（覆盖订阅预设）
