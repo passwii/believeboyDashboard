@@ -340,6 +340,7 @@ export function MetricSwitcherCard<K extends string>({
             chartData,
             selected,
             metric,
+            metrics,
             config,
             effectiveXKey,
             xTickFormatter,
@@ -413,6 +414,7 @@ function renderChart<K extends string>(
   data: Array<Record<string, unknown>>,
   selected: K,
   metric: MetricDef<K>,
+  metrics: MetricDef<K>[],
   config: ChartConfig,
   xKey: string,
   xTickFormatter: ((value: string) => string) | undefined,
@@ -459,14 +461,20 @@ function renderChart<K extends string>(
           <ChartTooltipContent
             indicator={kind === "bar" ? "dot" : "line"}
             labelFormatter={(value) => String(value)}
-            formatter={(value, name) => {
+            formatter={(value, _name, item) => {
+              // 注意：recharts 注入的 `item.name` 是 <Line name={metric.label} />
+              // 设置的中文 label（如"订单"），不是 dataKey。tooltipFormatter / metric.format
+              // 期望的是 metric key（"order_qty" 等），所以从 `item.dataKey` 反查最可靠；
+              // 同时 fallback 到 `selected` 以防某些形态（area）下 dataKey 缺失。
               const numVal = Number(value)
-              const mKey = String(name) as K
+              const rawKey = String(item?.dataKey ?? selected)
+              const mKey: K =
+                (metrics.find((m) => m.key === rawKey)?.key ?? selected) as K
               if (tooltipFormatter) {
                 return (
                   <div className="flex w-full items-center justify-between gap-4">
                     <span className="font-medium">
-                      {config[mKey]?.label ?? String(name)}
+                      {config[mKey]?.label ?? metric.label}
                     </span>
                     <span className="font-mono font-medium text-foreground">
                       {tooltipFormatter(numVal, mKey)}
@@ -474,13 +482,15 @@ function renderChart<K extends string>(
                   </div>
                 )
               }
+              const itemMetric =
+                metrics.find((m) => m.key === mKey) ?? metric
               return (
                 <div className="flex w-full items-center justify-between gap-4">
                   <span className="font-medium">
-                    {config[mKey]?.label ?? String(name)}
+                    {config[mKey]?.label ?? itemMetric.label}
                   </span>
                   <span className="font-mono font-medium text-foreground">
-                    {metric.format(numVal)}
+                    {itemMetric.format(numVal)}
                   </span>
                 </div>
               )
