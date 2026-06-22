@@ -1650,50 +1650,46 @@ export default function DailyAnalysisPage() {
         </div>
       </DataCard>
 
-      <DataCard>
-        <DataCardContent>
-          {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
-            // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 wrapper
-            <MetricSwitcherCard<ChartMetricKey>
-              metrics={LINE_METRICS}
-              defaultMetric={activeChartMetric}
-              chartKind="auto"
-              showChartKindToggle
-              colors={Object.fromEntries(
-                LINE_METRICS.map((m) => [
-                  m.key,
-                  SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
-                ]),
-              ) as Partial<Record<ChartMetricKey, string>>}
-              heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
-              getCurrent={(k) => aggregateMetric(chartDataRows, k)}
-              getPrevious={(k) =>
-                comparisonDataRows.length > 0
-                  ? aggregateMetric(comparisonDataRows, k)
-                  : null
-              }
-              renderLine={() => chartRows as Array<Record<string, unknown>>}
-              tooltipFormatter={(value, key) => formatMetricValue(key, value)}
-              yAxisFormatter={(value, key) => formatAxisValue(key, value)}
-              xTickFormatter={(value) => {
-                const [, month, day] = value.split('-')
-                return isMobile ? `${month}/${day}` : `${month}月${day}日`
-              }}
-            />
-          ) : (
-            <div className='flex min-h-[320px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center'>
-              <div className='space-y-2'>
-                <div className='text-base font-semibold text-foreground'>
-                  图表区域暂时没有内容
-                </div>
-                <div className='text-sm text-muted-foreground'>
-                  当前筛选范围内暂无可用于绘图的数据
-                </div>
-              </div>
+      {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
+        // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
+        <MetricSwitcherCard<ChartMetricKey>
+          metrics={LINE_METRICS}
+          defaultMetric={activeChartMetric}
+          chartKind="auto"
+          showChartKindToggle
+          colors={Object.fromEntries(
+            LINE_METRICS.map((m) => [
+              m.key,
+              SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
+            ]),
+          ) as Partial<Record<ChartMetricKey, string>>}
+          heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+          getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+          getPrevious={(k) =>
+            comparisonDataRows.length > 0
+              ? aggregateMetric(comparisonDataRows, k)
+              : null
+          }
+          renderLine={() => chartRows as Array<Record<string, unknown>>}
+          tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+          yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+          xTickFormatter={(value) => {
+            const [, month, day] = value.split('-')
+            return isMobile ? `${month}/${day}` : `${month}月${day}日`
+          }}
+        />
+      ) : (
+        <div className='dashboard-surface flex min-h-[320px] items-center justify-center rounded-lg px-6 text-center'>
+          <div className='space-y-2'>
+            <div className='text-base font-semibold text-foreground'>
+              图表区域暂时没有内容
             </div>
-          )}
-        </DataCardContent>
-      </DataCard>
+            <div className='text-sm text-muted-foreground'>
+              当前筛选范围内暂无可用于绘图的数据
+            </div>
+          </div>
+        </div>
+      )}
 
       <Tabs
         value={activeTab}
