@@ -420,52 +420,66 @@ function renderChart<K extends string>(
   tooltipFormatter: ((value: number, key: K) => React.ReactNode) | undefined,
   hasCompareData: boolean,
 ) {
-  // 共享 axes + tooltip：XAxis/YAxis/ChartTooltip 三件套所有形态共用，
-  // 让 hover 时始终能看到横坐标日期 + 纵坐标数值 + tooltip 弹层。
-
-  const sharedAxes = (
-    <>
-      <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
-      <XAxis
-        dataKey={xKey}
-        axisLine={false}
-        tickLine={false}
-        tickMargin={8}
-        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-        tickFormatter={(value) => {
-          if (xTickFormatter) return xTickFormatter(String(value))
-          const s = String(value)
-          return s.length >= 10 ? s.slice(5) : s
-        }}
-      />
-      <YAxis
-        axisLine={false}
-        tickLine={false}
-        tickMargin={8}
-        tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-        tickCount={6}
-        tickFormatter={(value) =>
-          yAxisFormatter
-            ? yAxisFormatter(Number(value), selected)
-            : metric.format(Number(value))
+  // 共享 axes + tooltip：XAxis/YAxis/CartesianGrid/Tooltip 几件套所有形态共用。
+  // 关键：recharts 内部用 findChildByType(children, XAxis/YAxis/Tooltip) 在 LineChart
+  // props.children 上直接遍历查找类型 — 一旦放在 Fragment 里，有些 recharts 版本
+  // 的查找会被 Fragment 切断，导致 XAxis/YAxis/Tooltip 都不挂载到 DOM。
+  // 这里把每件组件都做成独立的 React element 放进数组，三种 chart 都用 spread
+  // 展开，作为 LineChart/AreaChart/BarChart 的直接 children。
+  //
+  // 另外：recharts 在 BarChart 模式下，cursor 默认渲染为 Rectangle（覆盖整个柱宽）
+  // 遮住柱状图。这里 kind="bar" 时用 cursor={false} 完全禁用 cursor，
+  // kind="line"/"area" 时用虚线 vertical line cursor。
+  const tooltipProps =
+    kind === "bar"
+      ? { cursor: false as const }
+      : {
+          cursor: {
+            stroke: "hsl(var(--muted-foreground))",
+            strokeDasharray: "4 4",
+          },
         }
-      />
-      <ChartTooltip
-        cursor={{
-          stroke: "hsl(var(--muted-foreground))",
-          strokeDasharray: "4 4",
-        }}
-        content={
-          <MetricSwitcherTooltip<K>
-            kind={kind}
-            metrics={metrics}
-            selected={selected}
-            tooltipFormatter={tooltipFormatter}
-          />
-        }
-      />
-    </>
-  )
+  const sharedAxes = [
+    <CartesianGrid key="grid" vertical={false} stroke="rgba(148,163,184,0.18)" />,
+    <XAxis
+      key="xaxis"
+      dataKey={xKey}
+      axisLine={false}
+      tickLine={false}
+      tickMargin={8}
+      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+      tickFormatter={(value) => {
+        if (xTickFormatter) return xTickFormatter(String(value))
+        const s = String(value)
+        return s.length >= 10 ? s.slice(5) : s
+      }}
+    />,
+    <YAxis
+      key="yaxis"
+      axisLine={false}
+      tickLine={false}
+      tickMargin={8}
+      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+      tickCount={6}
+      tickFormatter={(value) =>
+        yAxisFormatter
+          ? yAxisFormatter(Number(value), selected)
+          : metric.format(Number(value))
+      }
+    />,
+    <ChartTooltip
+      key="tooltip"
+      {...tooltipProps}
+      content={
+        <MetricSwitcherTooltip<K>
+          kind={kind}
+          metrics={metrics}
+          selected={selected}
+          tooltipFormatter={tooltipFormatter}
+        />
+      }
+    />,
+  ]
 
   if (kind === "bar") {
     return (
@@ -488,20 +502,6 @@ function renderChart<K extends string>(
           radius={[6, 6, 0, 0]}
           isAnimationActive
           animationDuration={360}
-        />
-        <ChartTooltip
-          cursor={{
-            stroke: "hsl(var(--muted-foreground))",
-            strokeDasharray: "4 4",
-          }}
-          content={
-            <MetricSwitcherTooltip<K>
-              kind={kind}
-              metrics={metrics}
-              selected={selected}
-              tooltipFormatter={tooltipFormatter}
-            />
-          }
         />
       </BarChart>
     )
@@ -555,20 +555,6 @@ function renderChart<K extends string>(
             strokeWidth: 2,
           }}
         />
-        <ChartTooltip
-          cursor={{
-            stroke: "hsl(var(--muted-foreground))",
-            strokeDasharray: "4 4",
-          }}
-          content={
-            <MetricSwitcherTooltip<K>
-              kind={kind}
-              metrics={metrics}
-              selected={selected}
-              tooltipFormatter={tooltipFormatter}
-            />
-          }
-        />
       </AreaChart>
     )
   }
@@ -605,20 +591,6 @@ function renderChart<K extends string>(
           stroke: "white",
           strokeWidth: 2,
         }}
-      />
-      <ChartTooltip
-        cursor={{
-          stroke: "hsl(var(--muted-foreground))",
-          strokeDasharray: "4 4",
-        }}
-        content={
-          <MetricSwitcherTooltip<K>
-            kind={kind}
-            metrics={metrics}
-            selected={selected}
-            tooltipFormatter={tooltipFormatter}
-          />
-        }
       />
     </LineChart>
   )
