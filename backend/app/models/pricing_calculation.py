@@ -84,6 +84,9 @@ class PricingCalculationRun(Base):
 
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    competitor_url: Mapped[str | None] = mapped_column(
+        String(1000), nullable=True, comment="竞品链接（Amazon/竞品 listing URL，http(s):// 开头，最长 1000 字符）"
+    )
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     project_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, 'sqlite'), nullable=True, index=True)
     sku: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)

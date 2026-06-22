@@ -9790,6 +9790,8 @@ export interface components {
              * @default 0.15
              */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @default US
@@ -9856,6 +9858,8 @@ export interface components {
              * @default 0.15
              */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @default US
@@ -9937,6 +9941,8 @@ export interface components {
              * @default 0.15
              */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @description 德国(DE)或英国(UK)
@@ -10003,6 +10009,8 @@ export interface components {
              * @default 0.15
              */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @default US
@@ -10010,6 +10018,8 @@ export interface components {
             country: string;
             /** Delivery Fee Usd */
             delivery_fee_usd: number;
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb: number;
             /** Fob Product Cost Rmb */
             fob_product_cost_rmb: number;
             /** Full Container Price Rmb */
@@ -10127,6 +10137,8 @@ export interface components {
              * @default 0.15
              */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @default US
@@ -10193,6 +10205,8 @@ export interface components {
             calculation_type: "profit_calc" | "profit_reverse" | "cost_reverse" | "fbm_calc" | "eu_accounting";
             /** Commission Rate */
             commission_rate: number;
+            /** Competitor Url */
+            competitor_url?: string | null;
             /**
              * Country
              * @default US
@@ -18514,7 +18528,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18549,7 +18566,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18595,7 +18615,10 @@ export interface operations {
                 sort_dir?: string;
             };
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18641,7 +18664,10 @@ export interface operations {
                 sort_dir?: string;
             };
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18683,7 +18709,10 @@ export interface operations {
                 date_to?: string | null;
             };
             header?: {
+                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;

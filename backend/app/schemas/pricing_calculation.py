@@ -2,13 +2,33 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
 CalculationType = Literal["profit_calc", "profit_reverse", "cost_reverse", "fbm_calc", "eu_accounting"]
 
 
-class PricingCalculationCreateRequest(BaseModel):
+class _CompetitorUrlMixin(BaseModel):
+    """校验/规范化竞品链接：空串视为 None；必须 http(s):// 开头；最长 1000 字符。"""
+
+    competitor_url: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("competitor_url")
+    @classmethod
+    def _validate_competitor_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if normalized == "":
+            return None
+        if len(normalized) > 1000:
+            raise ValueError("竞品链接不能超过 1000 字符")
+        if not (normalized.startswith("http://") or normalized.startswith("https://")):
+            raise ValueError("竞品链接必须以 http:// 或 https:// 开头")
+        return normalized
+
+
+class PricingCalculationCreateRequest(_CompetitorUrlMixin):
     country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
@@ -30,7 +50,7 @@ class PricingCalculationCreateRequest(BaseModel):
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
 
-class PricingCalculationReverseRequest(BaseModel):
+class PricingCalculationReverseRequest(_CompetitorUrlMixin):
     country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
@@ -52,7 +72,7 @@ class PricingCalculationReverseRequest(BaseModel):
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
 
-class PricingCalculationCostReverseRequest(BaseModel):
+class PricingCalculationCostReverseRequest(_CompetitorUrlMixin):
     country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
@@ -74,7 +94,7 @@ class PricingCalculationCostReverseRequest(BaseModel):
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
 
-class PricingCalculationFbmRequest(BaseModel):
+class PricingCalculationFbmRequest(_CompetitorUrlMixin):
     country: str = Field(default="US", max_length=10)
     product_name: str = Field(min_length=1, max_length=255)
     package_length_cm: float = Field(gt=0, le=1000)
@@ -82,6 +102,8 @@ class PricingCalculationFbmRequest(BaseModel):
     package_height_cm: float = Field(gt=0, le=1000)
     weight_kg: float = Field(gt=0, le=1000)
     fob_product_cost_rmb: float = Field(ge=0, le=100000000)
+    # FBM 的"头程"由前端按"整柜价格 / 整柜数量"计算后传入；后端不二次计算。
+    first_leg_cost_rmb: float = Field(ge=0, le=100000000)
     full_container_quantity: float = Field(gt=0, le=100000)
     full_container_price_rmb: float = Field(ge=0, le=100000000)
     delivery_fee_usd: float = Field(ge=0, le=100000)
@@ -97,7 +119,7 @@ class PricingCalculationFbmRequest(BaseModel):
     usd_to_rmb_rate: float | None = Field(default=None, gt=0, le=1000)
 
 
-class PricingCalculationEURequest(BaseModel):
+class PricingCalculationEURequest(_CompetitorUrlMixin):
     """欧洲（德国/英国）店铺 SKU 核算请求"""
     country: Literal["DE", "UK"] = Field(description="德国(DE)或英国(UK)")
     product_name: str = Field(min_length=1, max_length=255)
@@ -205,6 +227,7 @@ class PricingCalculationRunItem(BaseModel):
     delivery_fee_usd: float = 0.0
     full_container_quantity: float = 0.0
     full_container_price_rmb: float = 0.0
+    competitor_url: str | None = None
 
 
 class PricingCalculationRunListResponse(BaseModel):
