@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/line-charts-6"
 
@@ -458,43 +457,11 @@ function renderChart<K extends string>(
           strokeDasharray: "4 4",
         }}
         content={
-          <ChartTooltipContent
-            indicator={kind === "bar" ? "dot" : "line"}
-            labelFormatter={(value) => String(value)}
-            formatter={(value, _name, item) => {
-              // 注意：recharts 注入的 `item.name` 是 <Line name={metric.label} />
-              // 设置的中文 label（如"订单"），不是 dataKey。tooltipFormatter / metric.format
-              // 期望的是 metric key（"order_qty" 等），所以从 `item.dataKey` 反查最可靠；
-              // 同时 fallback 到 `selected` 以防某些形态（area）下 dataKey 缺失。
-              const numVal = Number(value)
-              const rawKey = String(item?.dataKey ?? selected)
-              const mKey: K =
-                (metrics.find((m) => m.key === rawKey)?.key ?? selected) as K
-              if (tooltipFormatter) {
-                return (
-                  <div className="flex w-full items-center justify-between gap-4">
-                    <span className="font-medium">
-                      {config[mKey]?.label ?? metric.label}
-                    </span>
-                    <span className="font-mono font-medium text-foreground">
-                      {tooltipFormatter(numVal, mKey)}
-                    </span>
-                  </div>
-                )
-              }
-              const itemMetric =
-                metrics.find((m) => m.key === mKey) ?? metric
-              return (
-                <div className="flex w-full items-center justify-between gap-4">
-                  <span className="font-medium">
-                    {config[mKey]?.label ?? itemMetric.label}
-                  </span>
-                  <span className="font-mono font-medium text-foreground">
-                    {itemMetric.format(numVal)}
-                  </span>
-                </div>
-              )
-            }}
+          <MetricSwitcherTooltip<K>
+            kind={kind}
+            metrics={metrics}
+            selected={selected}
+            tooltipFormatter={tooltipFormatter}
           />
         }
       />
@@ -613,6 +580,98 @@ function renderChart<K extends string>(
         }}
       />
     </LineChart>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* 自定义 Tooltip — 直接消费 recharts 注入的 active/payload，               */
+/* 不依赖 ChartTooltipContent 的 formatter 路径（之前因为 item.name 是中文    */
+/* label、item.value=0 时不渲染、payload 为空时直接 return null 等原因       */
+/* 多个 corner case 让 hover 数值显示异常）。                                */
+/* -------------------------------------------------------------------------- */
+
+interface MetricSwitcherTooltipProps<K extends string> {
+  kind: ChartKind
+  metrics: MetricDef<K>[]
+  selected: K
+  tooltipFormatter?: (value: number, key: K) => React.ReactNode
+  active?: boolean
+  payload?: Array<{
+    dataKey?: string | number
+    name?: string | number
+    value?: number | string | Array<number | string>
+    color?: string
+    payload?: Record<string, unknown>
+  }>
+  label?: string | number
+}
+
+function MetricSwitcherTooltip<K extends string>({
+  kind,
+  metrics,
+  selected,
+  tooltipFormatter,
+  active,
+  payload,
+  label,
+}: MetricSwitcherTooltipProps<K>) {
+  if (!active || !payload || payload.length === 0) return null
+
+  // BarChart 下第一个 payload 项可能是底层画上去的辅助图元（value=null），
+  // 过滤掉无效项，保留有 value 的项。
+  const items = payload.filter(
+    (item) => item.value !== undefined && item.value !== null,
+  )
+  if (items.length === 0) return null
+
+  return (
+    <div className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]">
+      {label !== undefined && label !== null && (
+        <div className="font-medium text-foreground">{String(label)}</div>
+      )}
+      <div className="grid gap-1.5">
+        {items.map((item, index) => {
+          const rawKey = String(item.dataKey ?? "")
+          const itemMetric =
+            metrics.find((m) => m.key === rawKey) ??
+            metrics.find((m) => m.key === selected) ??
+            metrics[0]
+          if (!itemMetric) return null
+          const numVal = Number(item.value)
+          const indicatorColor = item.color ?? "hsl(var(--chart-1))"
+          const displayValue = tooltipFormatter
+            ? tooltipFormatter(numVal, itemMetric.key)
+            : itemMetric.format(numVal)
+          const isCompare = rawKey === "compareMetricValue"
+          return (
+            <div
+              key={`${rawKey}-${index}`}
+              className="flex w-full items-center justify-between gap-3"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                {kind === "bar" ? (
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                    style={{ backgroundColor: indicatorColor }}
+                  />
+                ) : (
+                  <span
+                    className="inline-block h-0.5 w-3 shrink-0"
+                    style={{ backgroundColor: indicatorColor }}
+                  />
+                )}
+                <span className="truncate text-muted-foreground">
+                  {isCompare ? "上一周期" : itemMetric.label}
+                </span>
+              </div>
+              <span className="font-mono font-medium tabular-nums text-foreground">
+                {displayValue}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
