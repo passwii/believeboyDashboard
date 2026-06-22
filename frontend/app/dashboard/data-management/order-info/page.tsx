@@ -411,8 +411,8 @@ export default function OrderInfoPage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-3">
-          {/* 第一行：4 个短筛选项（6/8）+ 订单号（2/8） */}
-          <div className="grid gap-3 md:grid-cols-8">
+          {/* 第一行：5 个等宽筛选项（店铺 / 订单类型 / 订单状态 / 国家 / 订单号） */}
+          <div className="grid gap-3 md:grid-cols-10">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
               <Select value={projectId} onValueChange={setProjectId}>
@@ -440,7 +440,7 @@ export default function OrderInfoPage() {
               />
             </div>
 
-            <div className="md:col-span-1">
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">订单状态</label>
               <MultiSelect
                 options={filterOptions?.order_statuses ?? []}
@@ -450,7 +450,7 @@ export default function OrderInfoPage() {
               />
             </div>
 
-            <div className="md:col-span-1">
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">国家</label>
               <MultiSelect
                 options={COUNTRY_OPTIONS}
@@ -474,9 +474,9 @@ export default function OrderInfoPage() {
             </div>
           </div>
 
-          {/* 第二行：日期区间 + SKU + ASIN */}
-          <div className="mt-3 grid gap-3 md:grid-cols-8">
-            <div className="md:col-span-3">
+          {/* 第二行：日期区间 + SKU + ASIN（4/3/3） */}
+          <div className="mt-3 grid gap-3 md:grid-cols-10">
+            <div className="md:col-span-4">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">日期区间</label>
               <DateRangePicker
                 value={parseDateRangeInputValue(dateFrom, dateTo)}
@@ -489,7 +489,7 @@ export default function OrderInfoPage() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">SKU</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
