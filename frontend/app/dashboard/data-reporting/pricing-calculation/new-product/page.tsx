@@ -232,6 +232,7 @@ type PricingCalculationRunItem = {
   created_by: string | null
   created_at: string
   updated_at: string
+  competitor_url?: string | null
 }
 
 type ListResponse = {
@@ -308,6 +309,7 @@ type StoreSkuPricingSnapshotItem = {
   created_by: string | null
   created_at: string
   updated_at: string
+  competitor_url?: string | null
 }
 
 type StoreSkuPricingSnapshotListResponse = {
@@ -384,6 +386,7 @@ type ShipmentSkuSummaryResponse = {
 
 type FormState = {
   product_name: string
+  competitor_url: string
   package_length_cm: string
   package_width_cm: string
   package_height_cm: string
@@ -434,6 +437,7 @@ type StoreSkuRowState = {
 
 const INITIAL_FORM: FormState = {
   product_name: '',
+  competitor_url: '',
   package_length_cm: '',
   package_width_cm: '',
   package_height_cm: '',
@@ -690,6 +694,17 @@ function toNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+// 派生头程成本(RMB)：优先用 run.first_leg_cost_rmb；若为 0 但 FBM 整柜字段有值，则回退到整柜分摊
+// 用于历史脏数据展示（修复前 fbm_calc run 的 first_leg_cost_rmb 持久化为 0）
+function deriveFirstLegCostRmb(run: PricingCalculationRunItem): number {
+  const stored = run.first_leg_cost_rmb ?? 0
+  if (stored > 0) return stored
+  const qty = run.full_container_quantity ?? 0
+  const price = run.full_container_price_rmb ?? 0
+  if (qty > 0 && price > 0) return price / qty
+  return 0
+}
+
 function formatCompactDate(value: string) {
   if (!value) return '-'
   const date = new Date(value)
@@ -835,8 +850,8 @@ function getComparisonSections(): ComparisonSection[] {
         },
         {
           label: '头程',
-          getDisplayValue: (run) => formatRmb(run.first_leg_cost_rmb),
-          getExportValue: (run) => run.first_leg_cost_rmb,
+          getDisplayValue: (run) => formatRmb(deriveFirstLegCostRmb(run)),
+          getExportValue: (run) => deriveFirstLegCostRmb(run),
           valueType: 'currency_rmb',
         },
         {
@@ -1035,6 +1050,12 @@ function getExportComparisonSections(): ComparisonSection[] {
           getDisplayValue: (run) => formatCompactDate(run.created_at),
           getExportValue: (run) => run.created_at,
         },
+        {
+          label: '竞品链接',
+          getDisplayValue: (run) => run.competitor_url ?? '-',
+          getExportValue: (run) => run.competitor_url ?? '-',
+          valueType: 'text',
+        },
       )
       rows.push(
         {
@@ -1119,7 +1140,7 @@ async function exportComparisonMatrixToExcel(
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('测算对比矩阵', {
-    views: [{ state: 'frozen', ySplit: 3, xSplit: 2, showGridLines: false }],
+    views: [{ state: 'frozen', ySplit: 1, xSplit: 2, showGridLines: false }],
   })
 
   worksheet.pageSetup = {
@@ -1138,8 +1159,6 @@ async function exportComparisonMatrixToExcel(
   }
 
   const prefix = productNamePrefix ?? '测算对比'
-  const title = `${prefix} - 测算对比矩阵`
-  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
   const sections = getExportComparisonSections()
   const lastColumn = runs.length + 2
 
@@ -1153,39 +1172,7 @@ async function exportComparisonMatrixToExcel(
     ...runs.map(() => ({ width: columnDataWidth })),
   ]
 
-  worksheet.mergeCells(1, 1, 1, lastColumn)
-  const titleCell = worksheet.getCell(1, 1)
-  titleCell.value = title
-  titleCell.font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  titleCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
-  titleCell.alignment = { vertical: 'middle', horizontal: 'left' }
-
-  worksheet.mergeCells(2, 1, 2, lastColumn)
-  const subtitleCell = worksheet.getCell(2, 1)
-  subtitleCell.value =
-    `导出时间：${exportedAt}    对比方案：${runs.length} 个`
-  subtitleCell.font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  subtitleCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-  subtitleCell.alignment = { vertical: 'middle', horizontal: 'left' }
-
-  const headerRow = worksheet.getRow(3)
+  const headerRow = worksheet.getRow(1)
   headerRow.height = 40
   headerRow.values = [
     '指标',
@@ -1220,7 +1207,7 @@ async function exportComparisonMatrixToExcel(
     }
   })
 
-  let currentRowIndex = 4
+  let currentRowIndex = 2
   sections.forEach((section) => {
     const startRow = currentRowIndex
     const colors = palette[section.title] ?? {
@@ -2301,6 +2288,7 @@ export default function PricingCalculationPage() {
         calculationMode,
         country: selectedCountry,
         product_name: form.product_name.trim(),
+        competitor_url: form.competitor_url.trim() || undefined,
         package_length_cm: Number(form.package_length_cm),
         package_width_cm: Number(form.package_width_cm),
         package_height_cm: Number(form.package_height_cm),
@@ -2380,6 +2368,7 @@ export default function PricingCalculationPage() {
 
     setForm({
       product_name: run.product_name ?? '',
+      competitor_url: run.competitor_url ?? '',
       package_length_cm: run.package_length_cm > 0 ? String(run.package_length_cm) : '',
       package_width_cm: run.package_width_cm > 0 ? String(run.package_width_cm) : '',
       package_height_cm: run.package_height_cm > 0 ? String(run.package_height_cm) : '',
@@ -2739,10 +2728,25 @@ export default function PricingCalculationPage() {
                                       )
                                     }
                                     required
-                                  />
-                                </Field>
+                                />
+                              </Field>
                               )}
                             </div>
+                            <Field label='竞品链接（Amazon / 竞品 listing URL，可选）'>
+                              <Input
+                                type='url'
+                                inputMode='url'
+                                value={form.competitor_url}
+                                onChange={(event) =>
+                                  updateField(
+                                    'competitor_url',
+                                    event.target.value,
+                                  )
+                                }
+                                placeholder='https://www.amazon.com/dp/...'
+                                maxLength={1000}
+                              />
+                            </Field>
                             <div className='grid gap-3 grid-cols-2 sm:grid-cols-4'>
                               <Field label='长(cm)'>
                                 <Input
@@ -3470,6 +3474,7 @@ async function requestPricingCalculation(payload: {
   calculationMode: CalculationMode
   country: string
   product_name: string
+  competitor_url?: string
   package_length_cm: number
   package_width_cm: number
   package_height_cm: number
@@ -3509,6 +3514,7 @@ async function requestPricingCalculation(payload: {
     body: JSON.stringify({
       country: payload.country,
       product_name: payload.product_name,
+      ...(payload.competitor_url ? { competitor_url: payload.competitor_url } : {}),
       package_length_cm: payload.package_length_cm,
       package_width_cm: payload.package_width_cm,
       package_height_cm: payload.package_height_cm,

@@ -95,6 +95,7 @@ def create_pricing_run(
         created_by=(operator or "").strip() or None,
         project_id=getattr(payload, "project_id", None),
         sku=getattr(payload, "sku", None),
+        competitor_url=getattr(payload, "competitor_url", None),
     )
     db.add(row)
     db.flush()
@@ -199,6 +200,7 @@ def create_pricing_fbm_run(
         created_by=(operator or "").strip() or None,
         project_id=getattr(payload, "project_id", None),
         sku=getattr(payload, "sku", None),
+        competitor_url=getattr(payload, "competitor_url", None),
     )
     db.add(row)
     db.flush()
@@ -275,6 +277,7 @@ def create_pricing_eu_run(
         created_by=(operator or "").strip() or None,
         project_id=getattr(payload, "project_id", None),
         sku=getattr(payload, "sku", None),
+        competitor_url=getattr(payload, "competitor_url", None),
     )
     db.add(row)
     db.flush()
@@ -444,6 +447,7 @@ def serialize_pricing_run(row: PricingCalculationRun) -> dict[str, object]:
         "platform_fee_usd": float(row.platform_fee_usd) if row.platform_fee_usd is not None else 0.0,
         "full_container_quantity": float(row.full_container_quantity) if row.full_container_quantity is not None else 0.0,
         "full_container_price_rmb": float(row.full_container_price_rmb) if row.full_container_price_rmb is not None else 0.0,
+        "competitor_url": getattr(row, "competitor_url", None),
     }
 
 
@@ -472,4 +476,5 @@ def _build_create_payload(
         storage_months=getattr(source, "storage_months", 1),
         inbound_placement_mode=getattr(source, "inbound_placement_mode", "single_destination"),
         usd_to_rmb_rate=getattr(source, "usd_to_rmb_rate", None),
+        competitor_url=getattr(source, "competitor_url", None),
     )
