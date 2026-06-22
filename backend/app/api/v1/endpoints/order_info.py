@@ -10,10 +10,10 @@ import base64
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.order_info import (
     OrderInfoExportRequest,
     OrderInfoExportResponse,
@@ -65,6 +65,8 @@ def get_order_info_page(
     sort_by: str = "purchase_at_pt",
     sort_dir: str = "desc",
     db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> OrderInfoPageData:
     df, dt = _normalize_date_range(date_from, date_to)
     return order_info_service.get_page_data(
@@ -83,6 +85,8 @@ def get_order_info_page(
         page_size=page_size,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
 
 
@@ -103,6 +107,8 @@ def list_orders(
     sort_by: str = "purchase_at_pt",
     sort_dir: str = "desc",
     db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> OrderInfoListResponse:
     df, dt = _normalize_date_range(date_from, date_to)
     return order_info_service.list_orders(
@@ -121,6 +127,8 @@ def list_orders(
         page_size=page_size,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
 
 
@@ -137,6 +145,8 @@ def get_stats(
     date_from: str | None = None,
     date_to: str | None = None,
     db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> OrderInfoStats:
     df, dt = _normalize_date_range(date_from, date_to)
     return order_info_service.compute_stats(
@@ -151,18 +161,28 @@ def get_stats(
         asin_keyword=asin_keyword,
         date_from=df,
         date_to=dt,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
 
 
 @router.get("/filter-options", response_model=OrderInfoFilterOptions)
-def get_filter_options(db: Session = Depends(get_read_db_session)) -> OrderInfoFilterOptions:
-    return order_info_service.collect_filter_options(db)
+def get_filter_options(
+    db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+) -> OrderInfoFilterOptions:
+    return order_info_service.collect_filter_options(
+        db, operator=operator, is_admin=bool(is_admin)
+    )
 
 
 @router.post("/export", response_model=OrderInfoExportResponse)
 def export_orders(
     payload: OrderInfoExportRequest,
     db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ) -> OrderInfoExportResponse:
     df = order_info_service.parse_date_input(payload.date_from)
     dt = order_info_service.parse_date_input(payload.date_to)
@@ -178,6 +198,8 @@ def export_orders(
         asin_keyword=payload.asin_keyword,
         date_from=df,
         date_to=dt,
+        operator=operator,
+        is_admin=bool(is_admin),
     )
     return OrderInfoExportResponse(
         filename=filename,

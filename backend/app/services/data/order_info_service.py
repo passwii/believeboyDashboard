@@ -139,7 +139,12 @@ def serialize_order_row(row: AnalysisSalesOrderRow, *, project: Project | None) 
 # ===== Query building =====
 
 def _build_base_query() -> Select:
-    """所有"按项目归类"的订单查询都基于此 — 通过 source_file → source_file.project_id 过滤项目"""
+    """所有"按项目归类"的订单查询都基于此 — 通过 source_file → source_file.project_id 过滤项目
+
+    注意：始终只取 `AnalysisSourceFile.is_current = TRUE` 的报告版本；
+    被新版本取代的 source_file 下的订单行会从视图里消失（与销售报告上传时
+    `replace_current_pointer` 把旧版本置为 is_current=false 的语义一致）。
+    """
 
     stmt: Select = select(AnalysisSalesOrderRow, Project).join(
         AnalysisSourceFile,
@@ -147,8 +152,49 @@ def _build_base_query() -> Select:
     ).join(
         Project,
         Project.id == AnalysisSourceFile.project_id,
+    ).where(
+        AnalysisSourceFile.is_current.is_(True)
     )
     return stmt
+
+
+def _ensure_project_access_for_orders(
+    db: Session,
+    *,
+    candidate_project_ids: list[int] | None,
+    operator: str | None,
+    is_admin: bool,
+) -> list[int] | None:
+    """对齐 ad/analysis._ensure_project_access：对非 admin 操作员返回其有权限访问的 project_id 列表。
+
+    - admin：原样返回 candidate_project_ids（不限制）。
+    - 非 admin 且 operator 为空：返回空列表（不抛 403，与 ad/analysis 行为一致
+      —— 让上层 0 行结果自然出现；endpoint 仍由 `protected` 守住鉴权）。
+    - 非 admin 且 operator 非空：从候选集合中过滤"运营关联包含该 operator"的项目。
+    """
+    from app.services.ad.helpers import _ensure_project_access
+    from app.services import project_service
+
+    if is_admin:
+        return candidate_project_ids
+
+    if not operator:
+        return []
+
+    if not candidate_project_ids:
+        # 没传 project 过滤时，operator 只被允许看自己运营的活跃项目
+        return project_service.list_accessible_project_ids(db, operator=operator, is_admin=False)
+
+    allowed: list[int] = []
+    for pid in candidate_project_ids:
+        try:
+            _ensure_project_access(
+                db, project_id=int(pid), operator=operator, is_admin=False
+            )
+        except Exception:
+            continue
+        allowed.append(int(pid))
+    return allowed
 
 
 def _extract_fulfillment_channel(row: AnalysisSalesOrderRow) -> str:
@@ -269,18 +315,34 @@ def list_orders(
     page_size: int = DEFAULT_PAGE_SIZE,
     sort_by: str = "purchase_at_pt",
     sort_dir: str = "desc",
+    operator: str | None = None,
+    is_admin: bool = True,
 ) -> OrderInfoListResponse:
     safe_page = max(int(page or 1), 1)
     safe_page_size = min(max(int(page_size or DEFAULT_PAGE_SIZE), 1), MAX_PAGE_SIZE)
 
+    # 非 admin 操作员的项目过滤（admin 透传候选集合，非 admin 缩到自己有权限的）
+    scoped_project_ids = _ensure_project_access_for_orders(
+        db,
+        candidate_project_ids=project_ids,
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if scoped_project_ids is not None and not scoped_project_ids:
+        # 非 admin 且无权限项目 → 直接返回空
+        return OrderInfoListResponse(items=[], total=0, page=safe_page, page_size=safe_page_size)
+
     # total: 应用层先按 SQL 过滤拿到候选总数，再按 fulfillment-channel 过滤得到精确 total
+    # 注意：count_sql 单独构建，不走 _build_base_query，要自己加 is_current 过滤
     count_sql = select(func.count(AnalysisSalesOrderRow.id)).join(
         AnalysisSourceFile,
         AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+    ).where(
+        AnalysisSourceFile.is_current.is_(True)
     )
     count_sql = apply_sql_filters(
         count_sql,
-        project_ids=project_ids,
+        project_ids=scoped_project_ids,
         order_statuses=order_statuses,
         countries=countries,
         currencies=currencies,
@@ -315,7 +377,7 @@ def list_orders(
         stmt = _build_base_query()
         stmt = apply_sql_filters(
             stmt,
-            project_ids=project_ids,
+            project_ids=scoped_project_ids,
             order_statuses=order_statuses,
             countries=countries,
             currencies=currencies,
@@ -338,7 +400,7 @@ def list_orders(
         full_stmt = _build_base_query()
         full_stmt = apply_sql_filters(
             full_stmt,
-            project_ids=project_ids,
+            project_ids=scoped_project_ids,
             order_statuses=order_statuses,
             countries=countries,
             currencies=currencies,
@@ -365,7 +427,7 @@ def list_orders(
         stmt = _build_base_query()
         stmt = apply_sql_filters(
             stmt,
-            project_ids=project_ids,
+            project_ids=scoped_project_ids,
             order_statuses=order_statuses,
             countries=countries,
             currencies=currencies,
@@ -405,13 +467,31 @@ def compute_stats(
     asin_keyword: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    operator: str | None = None,
+    is_admin: bool = True,
 ) -> OrderInfoStats:
     """顶部 stat bar：当前筛选条件下的 订单数 / 数量 / 金额（取主导币种）/ FBA·FBM 分布"""
+
+    scoped_project_ids = _ensure_project_access_for_orders(
+        db,
+        candidate_project_ids=project_ids,
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if scoped_project_ids is not None and not scoped_project_ids:
+        return OrderInfoStats(
+            total_orders=0,
+            total_quantity=0,
+            total_amount=0.0,
+            currency=None,
+            fba_count=0,
+            fbm_count=0,
+        )
 
     stmt = _build_base_query()
     stmt = apply_sql_filters(
         stmt,
-        project_ids=project_ids,
+        project_ids=scoped_project_ids,
         order_statuses=order_statuses,
         countries=countries,
         currencies=currencies,
@@ -472,18 +552,45 @@ def compute_stats(
     )
 
 
-def collect_filter_options(db: Session) -> OrderInfoFilterOptions:
-    """首屏渲染用的筛选项下拉数据。轻量 distinct 查询。"""
+def collect_filter_options(
+    db: Session,
+    *,
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> OrderInfoFilterOptions:
+    """首屏渲染用的筛选项下拉数据。轻量 distinct 查询。
 
-    projects = db.execute(
-        select(Project.id, Project.project_name, Project.brand_name)
-        .where(Project.is_active.is_(True))
-        .order_by(Project.project_name.asc())
-    ).all()
+    - admin：所有 active project + 所有 current source_file 下的 status/country/currency。
+    - 非 admin：项目下拉按 `list_accessible_project_ids` 缩到该 operator 有权限的项目；
+      其他 distinct 自动受 `_build_base_query` 的 is_current 约束。
+    """
+
+    if is_admin:
+        project_rows = db.execute(
+            select(Project.id, Project.project_name, Project.brand_name)
+            .where(Project.is_active.is_(True))
+            .order_by(Project.project_name.asc())
+        ).all()
+    else:
+        from app.services import project_service
+
+        accessible_ids = (
+            project_service.list_accessible_project_ids(db, operator=operator, is_admin=False)
+            if operator
+            else []
+        )
+        if not accessible_ids:
+            project_rows = []
+        else:
+            project_rows = db.execute(
+                select(Project.id, Project.project_name, Project.brand_name)
+                .where(Project.is_active.is_(True), Project.id.in_(accessible_ids))
+                .order_by(Project.project_name.asc())
+            ).all()
 
     project_options: list[FilterOption] = []
     seen_pid: set[int] = set()
-    for pid, pname, brand in projects:
+    for pid, pname, brand in project_rows:
         if pid in seen_pid:
             continue
         seen_pid.add(int(pid))
@@ -492,8 +599,15 @@ def collect_filter_options(db: Session) -> OrderInfoFilterOptions:
             label = f"{pname}（{brand}）"
         project_options.append(FilterOption(value=str(int(pid)), label=label))
 
+    # status / country / currency 走 is_current-only 的 source_file，避免筛选项里
+    # 出现"已被新版本取代的旧报告"里残留的状态/币种。
     order_statuses = db.execute(
         select(AnalysisSalesOrderRow.order_status)
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .where(AnalysisSourceFile.is_current.is_(True))
         .distinct()
         .order_by(AnalysisSalesOrderRow.order_status.asc())
     ).all()
@@ -510,6 +624,11 @@ def collect_filter_options(db: Session) -> OrderInfoFilterOptions:
 
     countries = db.execute(
         select(AnalysisSalesOrderRow.country)
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .where(AnalysisSourceFile.is_current.is_(True))
         .distinct()
         .order_by(AnalysisSalesOrderRow.country.asc())
     ).all()
@@ -521,7 +640,14 @@ def collect_filter_options(db: Session) -> OrderInfoFilterOptions:
 
     currencies = db.execute(
         select(AnalysisSalesOrderRow.currency)
-        .where(AnalysisSalesOrderRow.currency.is_not(None))
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .where(
+            AnalysisSalesOrderRow.currency.is_not(None),
+            AnalysisSourceFile.is_current.is_(True),
+        )
         .distinct()
         .order_by(AnalysisSalesOrderRow.currency.asc())
     ).all()
@@ -557,6 +683,8 @@ def get_page_data(
     page_size: int = DEFAULT_PAGE_SIZE,
     sort_by: str = "purchase_at_pt",
     sort_dir: str = "desc",
+    operator: str | None = None,
+    is_admin: bool = True,
 ) -> OrderInfoPageData:
     """一次性返回 list + stats + filter_options，减少前端首屏请求次数"""
 
@@ -576,6 +704,8 @@ def get_page_data(
         page_size=page_size,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        operator=operator,
+        is_admin=is_admin,
     )
     stats = compute_stats(
         db,
@@ -589,8 +719,10 @@ def get_page_data(
         asin_keyword=asin_keyword,
         date_from=date_from,
         date_to=date_to,
+        operator=operator,
+        is_admin=is_admin,
     )
-    options = collect_filter_options(db)
+    options = collect_filter_options(db, operator=operator, is_admin=is_admin)
     return OrderInfoPageData(
         items=listing.items,
         total=listing.total,
@@ -648,13 +780,29 @@ def export_orders_to_csv(
     date_from: date | None = None,
     date_to: date | None = None,
     max_rows: int = EXPORT_MAX_ROWS,
+    operator: str | None = None,
+    is_admin: bool = True,
 ) -> tuple[str, str]:
     """导出当前筛选条件下的订单 CSV。返回 (filename, csv_text)。"""
+
+    scoped_project_ids = _ensure_project_access_for_orders(
+        db,
+        candidate_project_ids=project_ids,
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if scoped_project_ids is not None and not scoped_project_ids:
+        # 非 admin 且无权限 → 返回只含表头的空 CSV
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(ORDER_CSV_HEADERS)
+        filename = f"order-info-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+        return filename, buffer.getvalue()
 
     stmt = _build_base_query()
     stmt = apply_sql_filters(
         stmt,
-        project_ids=project_ids,
+        project_ids=scoped_project_ids,
         order_statuses=order_statuses,
         countries=countries,
         currencies=currencies,

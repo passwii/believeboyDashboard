@@ -222,6 +222,14 @@ export const proxy = auth(async (request) => {
     if (pathname.startsWith('/dashboard/system-management') && !(user.isAdmin || user.roleType === 'admin')) {
       return NextResponse.redirect(new URL('/dashboard?forbidden=1', request.url))
     }
+
+    // 订单信息页面：仅 admin / operator 可见（与 ad/analysis 同款"行级 + 页级"组合）。
+    if (
+      pathname.startsWith('/dashboard/data-management/order-info') &&
+      !(user.isAdmin || user.roleType === 'admin' || user.roleType === 'operator')
+    ) {
+      return NextResponse.redirect(new URL('/dashboard?forbidden=1', request.url))
+    }
   }
 
   return NextResponse.next()

@@ -241,5 +241,108 @@ class TestConstants:
     def test_default_page_size_sane(self):
         assert 1 <= DEFAULT_PAGE_SIZE <= MAX_PAGE_SIZE
 
-    def test_max_page_size_capped(self):
+    def test_max_page_size_sane(self):
         assert MAX_PAGE_SIZE <= 1000
+
+
+# ---------- is_current 过滤 ----------
+
+class TestCurrentFilter:
+    """验证 _build_base_query / list_orders 的 count_sql 都强制走
+    AnalysisSourceFile.is_current = TRUE。
+    """
+
+    def test_base_query_includes_is_current(self):
+        from sqlalchemy.dialects import sqlite
+
+        stmt = order_info_service._build_base_query()
+        compiled = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
+        # is_current 过滤必须出现在 SQL 文本里
+        assert "is_current" in compiled
+        # 同时 boolean 表达式 true（或 1）也应存在
+        assert ("true" in compiled) or ("1" in compiled) or ("IS TRUE" in compiled.upper())
+
+    def test_list_orders_count_sql_includes_is_current(self, monkeypatch):
+        """通过 stub db 验证 list_orders 的 count_sql 路径也带 is_current。"""
+        from app.services.data import order_info_service as svc
+
+        captured: dict[str, object] = {}
+
+        class _FakeResult:
+            def scalar(self):
+                return 0
+
+            def all(self):
+                return []
+
+        class _FakeDB:
+            def execute(self, stmt):
+                from sqlalchemy.dialects import sqlite
+
+                compiled = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
+                # 只关心第一次调用（count_sql），记下文本即可
+                if "count(" in compiled and "count_sql" not in captured:
+                    captured["count_sql"] = compiled
+                return _FakeResult()
+
+        db = _FakeDB()
+        result = svc.list_orders(
+            db,
+            project_ids=None,
+            operator="someone",
+            is_admin=True,
+        )
+        assert "is_current" in captured.get("count_sql", "")
+
+
+# ---------- operator / is_admin 行为 ----------
+
+class TestOperatorAccess:
+    """非 admin 操作员的项目范围缩窄：admin 透传、非 admin 按 _ensure_project_access 过滤。"""
+
+    def test_admin_returns_candidate_unchanged(self):
+        from app.services.data import order_info_service as svc
+
+        db = MagicMock()
+        result = svc._ensure_project_access_for_orders(
+            db, candidate_project_ids=[1, 2, 3], operator="op1", is_admin=True
+        )
+        assert result == [1, 2, 3]
+
+    def test_non_admin_without_operator_returns_empty(self):
+        from app.services.data import order_info_service as svc
+
+        db = MagicMock()
+        result = svc._ensure_project_access_for_orders(
+            db, candidate_project_ids=[1, 2], operator=None, is_admin=False
+        )
+        assert result == []
+
+    def test_non_admin_with_candidate_filters_via_ensure_access(self, monkeypatch):
+        """非 admin + 传了 candidate_project_ids 时，调用 _ensure_project_access 过滤；
+        抛 403 的项目会被剔除。
+        """
+        from app.services.data import order_info_service as svc
+
+        seen: list[int] = []
+
+        def fake_ensure(db, *, project_id, operator, is_admin):
+            seen.append(int(project_id))
+            if project_id == 2:
+                # 模拟无权限
+                from fastapi import HTTPException
+                raise HTTPException(status_code=403, detail="no access")
+            return MagicMock()
+
+        monkeypatch.setattr(svc, "_ensure_project_access_for_orders", svc._ensure_project_access_for_orders)
+        monkeypatch.setattr(
+            "app.services.ad.helpers._ensure_project_access", fake_ensure
+        )
+
+        db = MagicMock()
+        result = svc._ensure_project_access_for_orders(
+            db, candidate_project_ids=[1, 2, 3], operator="op1", is_admin=False
+        )
+        # project 2 被拒，应只留 [1, 3]
+        assert result == [1, 3]
+        assert seen == [1, 2, 3]
