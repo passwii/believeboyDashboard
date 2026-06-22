@@ -333,7 +333,6 @@ export function MetricSwitcherCard<K extends string>({
           config={config}
           className={cn("w-full", heightClass)}
         >
-
           {renderChart(
             effectiveKind,
             chartData,
@@ -490,6 +489,20 @@ function renderChart<K extends string>(
           isAnimationActive
           animationDuration={360}
         />
+        <ChartTooltip
+          cursor={{
+            stroke: "hsl(var(--muted-foreground))",
+            strokeDasharray: "4 4",
+          }}
+          content={
+            <MetricSwitcherTooltip<K>
+              kind={kind}
+              metrics={metrics}
+              selected={selected}
+              tooltipFormatter={tooltipFormatter}
+            />
+          }
+        />
       </BarChart>
     )
   }
@@ -542,6 +555,20 @@ function renderChart<K extends string>(
             strokeWidth: 2,
           }}
         />
+        <ChartTooltip
+          cursor={{
+            stroke: "hsl(var(--muted-foreground))",
+            strokeDasharray: "4 4",
+          }}
+          content={
+            <MetricSwitcherTooltip<K>
+              kind={kind}
+              metrics={metrics}
+              selected={selected}
+              tooltipFormatter={tooltipFormatter}
+            />
+          }
+        />
       </AreaChart>
     )
   }
@@ -578,6 +605,20 @@ function renderChart<K extends string>(
           stroke: "white",
           strokeWidth: 2,
         }}
+      />
+      <ChartTooltip
+        cursor={{
+          stroke: "hsl(var(--muted-foreground))",
+          strokeDasharray: "4 4",
+        }}
+        content={
+          <MetricSwitcherTooltip<K>
+            kind={kind}
+            metrics={metrics}
+            selected={selected}
+            tooltipFormatter={tooltipFormatter}
+          />
+        }
       />
     </LineChart>
   )
