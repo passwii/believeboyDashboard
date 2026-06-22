@@ -411,9 +411,9 @@ export default function OrderInfoPage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-3">
-          {/* 第一行：4 个短筛选项（店铺 / 订单类型 / 订单状态 / 国家） */}
-          <div className="grid gap-3 md:grid-cols-4">
-            <div>
+          {/* 第一行：4 个短筛选项（6/8）+ 订单号（2/8） */}
+          <div className="grid gap-3 md:grid-cols-8">
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger>
@@ -430,7 +430,7 @@ export default function OrderInfoPage() {
               </Select>
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">订单类型</label>
               <MultiSelect
                 options={filterOptions?.fulfillment_channels ?? []}
@@ -440,29 +440,26 @@ export default function OrderInfoPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-1">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">订单状态</label>
               <MultiSelect
                 options={filterOptions?.order_statuses ?? []}
                 selected={orderStatuses}
                 onChange={setOrderStatuses}
-                placeholder={filterOptionsLoading ? '加载中…' : '已发货 / 发货中 / 处理中 / 已取消'}
+                placeholder={filterOptionsLoading ? '加载中…' : '全部'}
               />
             </div>
 
-            <div>
+            <div className="md:col-span-1">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">国家</label>
               <MultiSelect
                 options={COUNTRY_OPTIONS}
                 selected={countries}
                 onChange={setCountries}
-                placeholder={filterOptionsLoading ? '加载中…' : '美国站 / 英国站 / 德国站'}
+                placeholder={filterOptionsLoading ? '加载中…' : '全部'}
               />
             </div>
-          </div>
 
-          {/* 第二行：3 个长筛选项（订单号 / SKU / ASIN）和 日期 */}
-          <div className="mt-3 grid gap-3 md:grid-cols-6">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">订单号</label>
               <div className="relative">
@@ -474,6 +471,22 @@ export default function OrderInfoPage() {
                   className="pl-8"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* 第二行：日期区间 + SKU + ASIN */}
+          <div className="mt-3 grid gap-3 md:grid-cols-8">
+            <div className="md:col-span-3">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">日期区间</label>
+              <DateRangePicker
+                value={parseDateRangeInputValue(dateFrom, dateTo)}
+                onChange={(range) => {
+                  setDateFrom(formatPickerDateInputValue(range?.from))
+                  setDateTo(formatPickerDateInputValue(range?.to))
+                  setPage(1)
+                }}
+                placeholder="选择下单 PT 日期范围"
+              />
             </div>
 
             <div className="md:col-span-2">
@@ -489,7 +502,7 @@ export default function OrderInfoPage() {
               </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">ASIN</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -500,19 +513,6 @@ export default function OrderInfoPage() {
                   className="pl-8"
                 />
               </div>
-            </div>
-
-            <div className="md:col-span-6">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">下单 PT 日期区间</label>
-              <DateRangePicker
-                value={parseDateRangeInputValue(dateFrom, dateTo)}
-                onChange={(range) => {
-                  setDateFrom(formatPickerDateInputValue(range?.from))
-                  setDateTo(formatPickerDateInputValue(range?.to))
-                  setPage(1)
-                }}
-                placeholder="选择下单 PT 日期范围"
-              />
             </div>
           </div>
         </DataCardContent>
