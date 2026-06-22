@@ -17,9 +17,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  DataCard,
+  DataCardContent,
+  DataCardHeader,
   DataTableCard,
   DataTableCardBody,
   DataTableCardHeader,
+  DataTableCardStatBar,
 } from '@/components/ui/data-card'
 import { DateRangePicker, formatDateInputValue as formatPickerDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -42,8 +46,10 @@ import {
 } from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { cn } from '@/lib/utils'
-import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
+import { DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import { getOrderStatusLabel } from '@/lib/order-status'
+import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
 
 // ======================== 类型 ========================
 
@@ -163,7 +169,6 @@ export default function OrderInfoPage() {
   const [fulfillmentChannels, setFulfillmentChannels] = useState<string[]>([])
   const [orderStatuses, setOrderStatuses] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
-  const [currencies, setCurrencies] = useState<string[]>([])
   const [skuKeyword, setSkuKeyword] = useState('')
   const [orderIdKeyword, setOrderIdKeyword] = useState('')
   const [asinKeyword, setAsinKeyword] = useState('')
@@ -217,7 +222,6 @@ export default function OrderInfoPage() {
     fulfillmentChannels.forEach((v) => params.append('fulfillment_channels', v))
     orderStatuses.forEach((v) => params.append('order_statuses', v))
     countries.forEach((v) => params.append('countries', v))
-    currencies.forEach((v) => params.append('currencies', v))
     if (skuKeyword.trim()) params.set('sku_keyword', skuKeyword.trim())
     if (orderIdKeyword.trim()) params.set('order_id_keyword', orderIdKeyword.trim())
     if (asinKeyword.trim()) params.set('asin_keyword', asinKeyword.trim())
@@ -233,7 +237,6 @@ export default function OrderInfoPage() {
     fulfillmentChannels,
     orderStatuses,
     countries,
-    currencies,
     skuKeyword,
     orderIdKeyword,
     asinKeyword,
@@ -285,9 +288,6 @@ export default function OrderInfoPage() {
     void fetchData()
   }, [fetchData])
 
-  // ====== 翻页时也触发（page 由 fetchData 自身依赖，不放这里） ======
-  // 已由 fetchData 依赖 page 自动覆盖
-
   // ====== 操作 handlers ======
   const handleRefresh = () => {
     void fetchData()
@@ -298,7 +298,6 @@ export default function OrderInfoPage() {
     setFulfillmentChannels([])
     setOrderStatuses([])
     setCountries([])
-    setCurrencies([])
     setSkuKeyword('')
     setOrderIdKeyword('')
     setAsinKeyword('')
@@ -318,7 +317,6 @@ export default function OrderInfoPage() {
           fulfillment_channels: fulfillmentChannels,
           order_statuses: orderStatuses,
           countries,
-          currencies,
           sku_keyword: skuKeyword.trim() || null,
           order_id_keyword: orderIdKeyword.trim() || null,
           asin_keyword: asinKeyword.trim() || null,
@@ -383,23 +381,12 @@ export default function OrderInfoPage() {
         </div>
       )}
 
-      {/* ====== 订单信息总卡：筛选 + StatBar + 表格 + 翻页 ====== */}
-      <DataTableCard>
-        <DataTableCardHeader
-          title="订单信息"
-          description="集中查看各店铺订单的下单时间、SKU、商品、收货地、订单类型等明细"
+      {/* ====== 第一层：筛选区 ====== */}
+      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+        <DataCardHeader
+          title="筛选"
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={loading}
-                className="gap-1"
-              >
-                <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
-                刷新
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -411,15 +398,141 @@ export default function OrderInfoPage() {
                 清空筛选
               </Button>
               <Button
+                variant="outline"
                 size="sm"
-                onClick={handleExport}
-                disabled={exporting || loading}
+                onClick={handleRefresh}
+                disabled={loading}
                 className="gap-1"
               >
-                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
-                导出 CSV
+                <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
+                刷新
               </Button>
             </div>
+          }
+        />
+        <DataCardContent className="p-0 px-4 pb-4 pt-3">
+          {/* 第一行：4 个短筛选项（店铺 / 订单类型 / 订单状态 / 国家） */}
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="全部店铺" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEFAULT_PROJECT_VALUE}>全部店铺</SelectItem>
+                  {filterOptions?.projects.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">订单类型</label>
+              <MultiSelect
+                options={filterOptions?.fulfillment_channels ?? []}
+                selected={fulfillmentChannels}
+                onChange={setFulfillmentChannels}
+                placeholder={filterOptionsLoading ? '加载中…' : 'FBA / FBM'}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">订单状态</label>
+              <MultiSelect
+                options={filterOptions?.order_statuses ?? []}
+                selected={orderStatuses}
+                onChange={setOrderStatuses}
+                placeholder={filterOptionsLoading ? '加载中…' : '已发货 / 发货中 / 处理中 / 已取消'}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">国家</label>
+              <MultiSelect
+                options={COUNTRY_OPTIONS}
+                selected={countries}
+                onChange={setCountries}
+                placeholder={filterOptionsLoading ? '加载中…' : '美国站 / 英国站 / 德国站'}
+              />
+            </div>
+          </div>
+
+          {/* 第二行：3 个长筛选项（订单号 / SKU / ASIN）和 日期 */}
+          <div className="mt-3 grid gap-3 md:grid-cols-6">
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">订单号</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={orderIdKeyword}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setOrderIdKeyword(e.target.value)}
+                  placeholder="例如 111-3084457-..."
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">SKU</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={skuKeyword}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setSkuKeyword(e.target.value)}
+                  placeholder="例如 JDB-4341-29PCS"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">ASIN</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={asinKeyword}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setAsinKeyword(e.target.value)}
+                  placeholder="例如 B0C12345"
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-6">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">下单 PT 日期区间</label>
+              <DateRangePicker
+                value={parseDateRangeInputValue(dateFrom, dateTo)}
+                onChange={(range) => {
+                  setDateFrom(formatPickerDateInputValue(range?.from))
+                  setDateTo(formatPickerDateInputValue(range?.to))
+                  setPage(1)
+                }}
+                placeholder="选择下单 PT 日期范围"
+              />
+            </div>
+          </div>
+        </DataCardContent>
+      </DataCard>
+
+      {/* ====== 第二层：订单区（三段） ====== */}
+      <DataTableCard>
+        {/* 第一段：订单信息（标题 + 导出按钮） */}
+        <DataTableCardHeader
+          title="订单信息"
+          action={
+            <Button
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting || loading}
+              className="gap-1"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+              导出 CSV
+            </Button>
           }
         />
 
@@ -452,119 +565,7 @@ export default function OrderInfoPage() {
           ]}
         />
 
-        {/* 第三段：筛选条件（与表格顶之间用分割线隔开） */}
-        <div className="grid gap-3 border-t border-border/60 bg-[hsl(var(--surface-subtle))] px-4 py-4 md:grid-cols-12 md:px-6">
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger>
-                <SelectValue placeholder="全部店铺" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT_PROJECT_VALUE}>全部店铺</SelectItem>
-                {filterOptions?.projects.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">订单类型</label>
-            <MultiSelect
-              options={filterOptions?.fulfillment_channels ?? []}
-              selected={fulfillmentChannels}
-              onChange={setFulfillmentChannels}
-              placeholder={filterOptionsLoading ? '加载中…' : 'FBA / FBM'}
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">订单状态</label>
-            <MultiSelect
-              options={filterOptions?.order_statuses ?? []}
-              selected={orderStatuses}
-              onChange={setOrderStatuses}
-              placeholder={filterOptionsLoading ? '加载中…' : 'Shipped / Pending …'}
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">国家</label>
-            <MultiSelect
-              options={filterOptions?.countries ?? []}
-              selected={countries}
-              onChange={setCountries}
-              placeholder={filterOptionsLoading ? '加载中…' : 'US / UK / DE'}
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">币种</label>
-            <MultiSelect
-              options={filterOptions?.currencies ?? []}
-              selected={currencies}
-              onChange={setCurrencies}
-              placeholder={filterOptionsLoading ? '加载中…' : 'USD / EUR / GBP'}
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">SKU 搜索</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={skuKeyword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setSkuKeyword(e.target.value)}
-                placeholder="例如 JDB-4341-29PCS"
-                className="pl-8"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">订单号</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={orderIdKeyword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setOrderIdKeyword(e.target.value)}
-                placeholder="例如 111-3084457-..."
-                className="pl-8"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">ASIN</label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={asinKeyword}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setAsinKeyword(e.target.value)}
-                placeholder="例如 B0C12345"
-                className="pl-8"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-6">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">下单 PT 日期区间</label>
-            <DateRangePicker
-              value={parseDateRangeInputValue(dateFrom, dateTo)}
-              onChange={(range) => {
-                setDateFrom(formatPickerDateInputValue(range?.from))
-                setDateTo(formatPickerDateInputValue(range?.to))
-                setPage(1)
-              }}
-              placeholder="选择下单 PT 日期范围"
-            />
-          </div>
-        </div>
-
-        {/* 第四段：主表格（横向滚动容器） */}
+        {/* 第三段：主表格（横向滚动容器） */}
         <DataTableCardBody>
           <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
             <TableHeader>
@@ -605,7 +606,7 @@ export default function OrderInfoPage() {
                 </TableRow>
               ) : (
                 items.map((item) => {
-                  const fullAddress = [item.city, item.state, item.postal_code, item.country]
+                  const fullAddress = [item.city, item.state, item.postal_code, getCountryLabel(item.country)]
                     .filter(Boolean)
                     .join(', ')
                   return (
@@ -718,7 +719,9 @@ export default function OrderInfoPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className={DENSE_CELL}>
-                        <Badge variant={statusVariant(item.order_status)}>{item.order_status}</Badge>
+                        <Badge variant={statusVariant(item.order_status)}>
+                          {getOrderStatusLabel(item.order_status)}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   )
@@ -728,7 +731,7 @@ export default function OrderInfoPage() {
           </Table>
         </DataTableCardBody>
 
-        {/* 第五段：翻页（贴在表格下沿，与表格之间用分割线） */}
+        {/* 表格下沿：翻页（与表格之间用分割线） */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 text-sm text-muted-foreground md:px-6">
           <span>
             共 {total.toLocaleString('zh-CN')} 行 · 每页 {PAGE_SIZE} 行 · 第 {page} / {totalPages || 1} 页
