@@ -1,17 +1,15 @@
 'use client'
 
-import { type ChangeEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowDownToLine,
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Filter,
   Loader2,
   RefreshCcw,
   Search,
-  ShoppingBag,
   X,
 } from 'lucide-react'
 
@@ -42,7 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
-import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
 
 // ======================== 类型 ========================
@@ -107,6 +105,10 @@ type SortKey = 'purchase_at_pt' | 'quantity' | 'item_price'
 const PAGE_SIZE = 50
 const ALL_VALUE = '__all__'
 const DEFAULT_PROJECT_VALUE = '__all__'
+
+// 表格横向滚动容器：与 shipment-management / 其他宽表格页面保持一致
+const TABLE_SCROLL_CONTAINER_CLASS =
+  'w-full max-w-full overflow-x-auto overflow-y-visible rounded-[inherit] [-webkit-overflow-scrolling:touch] overscroll-x-contain'
 
 // ======================== 工具函数 ========================
 
@@ -175,9 +177,6 @@ export default function OrderInfoPage() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  // 折叠的收货详情（按 order id 缓存）
-  const [expandedOrders, setExpandedOrders] = useState<Record<number, boolean>>({})
 
   // ====== 拉取筛选项（一次性） ======
   useEffect(() => {
@@ -361,104 +360,86 @@ export default function OrderInfoPage() {
     [total]
   )
 
-  const toggleExpand = (id: number) => {
-    setExpandedOrders((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
-
   // ====== 渲染 ======
   return (
-    <div className="space-y-4 px-4 pb-10 pt-4 md:px-6 lg:px-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-xl font-semibold leading-none tracking-tight">订单信息</h1>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            集中查看各店铺订单的下单时间、SKU、商品、收货地、订单类型等明细。
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="gap-1"
-          >
-            <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
-            刷新
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResetFilters}
-            disabled={loading}
-            className="gap-1"
-          >
-            <X className="h-4 w-4" />
-            清空筛选
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleExport}
-            disabled={exporting || loading}
-            className="gap-1"
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
-            导出 CSV
-          </Button>
-        </div>
-      </div>
-
+    <div className="min-w-0 space-y-6 text-foreground">
       {errorMessage && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {errorMessage}
         </div>
       )}
 
-      {/* ====== 顶部 stat bar ====== */}
+      {/* ====== 订单信息总卡：筛选 + StatBar + 表格 + 翻页 ====== */}
       <DataTableCard>
-        <div className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 md:px-6">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            筛选与聚合
-          </div>
-        </div>
-        <div className="px-4 py-4 md:px-6">
-          <DataTableCardStatBar
-            items={[
-              {
-                label: '订单数',
-                value: stats ? stats.total_orders.toLocaleString('zh-CN') : '—',
-              },
-              {
-                label: '总数量',
-                value: stats ? stats.total_quantity.toLocaleString('zh-CN') : '—',
-              },
-              {
-                label: '总金额（主导币种）',
-                value: stats
-                  ? `${stats.total_amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} ${stats.currency ?? ''}`.trim()
-                  : '—',
-              },
-              {
-                label: 'FBA 行数',
-                value: stats ? stats.fba_count.toLocaleString('zh-CN') : '—',
-              },
-              {
-                label: 'FBM 行数',
-                value: stats ? stats.fbm_count.toLocaleString('zh-CN') : '—',
-              },
-            ]}
-          />
-        </div>
-      </DataTableCard>
+        <DataTableCardHeader
+          title="订单信息"
+          description="集中查看各店铺订单的下单时间、SKU、商品、收货地、订单类型等明细"
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={loading}
+                className="gap-1"
+              >
+                <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
+                刷新
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetFilters}
+                disabled={loading}
+                className="gap-1"
+              >
+                <X className="h-4 w-4" />
+                清空筛选
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting || loading}
+                className="gap-1"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+                导出 CSV
+              </Button>
+            </div>
+          }
+        />
 
-      {/* ====== 筛选条 ====== */}
-      <DataTableCard>
-        <DataTableCardHeader title="筛选条件" description="支持多选店铺 / 订单类型 / 状态；按 SKU / 订单号 / ASIN 搜索；按下单 PT 日期区间筛选" />
-        <div className="grid gap-3 px-4 py-4 md:grid-cols-12 md:px-6">
+        {/* 第二段：聚合指标条 */}
+        <DataTableCardStatBar
+          items={[
+            {
+              label: '订单数',
+              value: stats ? stats.total_orders.toLocaleString('zh-CN') : '—',
+            },
+            {
+              label: '总数量',
+              value: stats ? stats.total_quantity.toLocaleString('zh-CN') : '—',
+            },
+            {
+              label: '总金额（主导币种）',
+              value: stats
+                ? `${stats.total_amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} ${stats.currency ?? ''}`.trim()
+                : '—',
+              highlight: true,
+            },
+            {
+              label: 'FBA 行数',
+              value: stats ? stats.fba_count.toLocaleString('zh-CN') : '—',
+            },
+            {
+              label: 'FBM 行数',
+              value: stats ? stats.fbm_count.toLocaleString('zh-CN') : '—',
+            },
+          ]}
+        />
+
+        {/* 第三段：筛选条件（与表格顶之间用分割线隔开） */}
+        <div className="grid gap-3 border-t border-border/60 bg-[hsl(var(--surface-subtle))] px-4 py-4 md:grid-cols-12 md:px-6">
           <div className="md:col-span-3">
             <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
             <Select value={projectId} onValueChange={setProjectId}>
@@ -568,38 +549,32 @@ export default function OrderInfoPage() {
             />
           </div>
         </div>
-      </DataTableCard>
 
-      {/* ====== 主表格 ====== */}
-      <DataTableCard>
-        <DataTableCardHeader
-          title="订单列表"
-          description={`共 ${total.toLocaleString('zh-CN')} 行，当前第 ${page} / ${totalPages || 1} 页`}
-        />
+        {/* 第四段：主表格（横向滚动容器） */}
         <DataTableCardBody>
-          <Table>
+          <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
             <TableHeader>
-              <TableRow>
-                <TableHead className={DENSE_HEAD}>下单时间</TableHead>
-                <TableHead className={DENSE_HEAD}>订单号</TableHead>
-                <TableHead className={DENSE_HEAD}>SKU / ASIN</TableHead>
+              <TableRow className="bg-[hsl(var(--surface-subtle))]">
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>下单时间</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>订单号</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>SKU / ASIN</TableHead>
                 <TableHead className={DENSE_HEAD}>产品</TableHead>
                 <TableHead
-                  className={cn(DENSE_HEAD, 'cursor-pointer select-none')}
+                  className={cn(DENSE_HEAD, 'whitespace-nowrap text-right cursor-pointer select-none')}
                   onClick={() => handleSort('quantity')}
                 >
                   数量 {sortIndicator('quantity')}
                 </TableHead>
                 <TableHead
-                  className={cn(DENSE_HEAD, 'cursor-pointer select-none')}
+                  className={cn(DENSE_HEAD, 'whitespace-nowrap text-right cursor-pointer select-none')}
                   onClick={() => handleSort('item_price')}
                 >
                   金额 {sortIndicator('item_price')}
                 </TableHead>
-                <TableHead className={DENSE_HEAD}>收货地</TableHead>
-                <TableHead className={DENSE_HEAD}>店铺</TableHead>
-                <TableHead className={DENSE_HEAD}>类型</TableHead>
-                <TableHead className={DENSE_HEAD}>状态</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>收货地</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>店铺</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>类型</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -616,184 +591,154 @@ export default function OrderInfoPage() {
                 </TableRow>
               ) : (
                 items.map((item) => {
-                  const isExpanded = !!expandedOrders[item.id]
+                  const fullAddress = [item.city, item.state, item.postal_code, item.country]
+                    .filter(Boolean)
+                    .join(', ')
                   return (
-                    <Fragment key={item.id}>
-                      <TableRow key={item.id} className="hover:bg-muted/40">
-                        <TableCell className={DENSE_CELL}>
-                          <div className="flex flex-col leading-tight">
-                            <span className="text-sm font-medium">
-                              {formatBeijingTime(item.purchase_at_utc)}
-                              <span className="ml-1 text-xs font-normal text-muted-foreground">(北京时间)</span>
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              PT {formatLocalDate(item.purchase_at_pt)}（PDT）
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>
-                          <a
-                            href={`https://www.amazon.com/dp/${item.asin ?? ''}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-foreground hover:underline"
-                          >
-                            {item.amazon_order_id}
-                          </a>
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <div className="flex flex-col leading-tight">
-                            {item.sku ? (
-                              <Link
-                                href={(() => {
-                                  const params = new URLSearchParams()
-                                  if (item.project_name) params.set('project_name', item.project_name)
-                                  params.set('sku', item.sku)
-                                  if (item.asin) params.set('asin', item.asin)
-                                  return `/dashboard/data-management/sku-info?${params.toString()}`
-                                })()}
-                                className="font-mono text-xs text-foreground hover:text-primary hover:underline"
-                                title="跳转到 SKU 信息页面（带入项目 + SKU + ASIN）"
-                              >
-                                {item.sku}
-                              </Link>
-                            ) : (
-                              <span className="font-mono text-xs">—</span>
-                            )}
-                            {item.asin ? (
-                              <Link
-                                href={(() => {
-                                  const params = new URLSearchParams()
-                                  if (item.project_name) params.set('project_name', item.project_name)
-                                  if (item.sku) params.set('sku', item.sku)
-                                  params.set('asin', item.asin)
-                                  return `/dashboard/data-management/sku-info?${params.toString()}`
-                                })()}
-                                className="text-xs text-muted-foreground hover:text-primary hover:underline"
-                                title="跳转到 SKU 信息页面（按 ASIN 查询）"
-                              >
-                                ASIN {item.asin}
-                              </Link>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">ASIN —</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className={cn(DENSE_CELL, 'max-w-[260px]')}>
-                          <span className="line-clamp-2 text-sm" title={item.product_name ?? ''}>
-                            {item.product_name ?? '—'}
+                    <TableRow key={item.id} className="hover:bg-muted/40">
+                      <TableCell className={DENSE_CELL}>
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-sm font-medium tabular-nums">
+                            {formatBeijingTime(item.purchase_at_utc)}
                           </span>
-                        </TableCell>
-                        <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>{item.quantity}</TableCell>
-                        <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
-                          <div className="flex flex-col leading-tight">
-                            <span>
-                              {item.item_price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}{' '}
-                              {item.currency ?? ''}
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            PT {formatLocalDate(item.purchase_at_pt)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'font-mono text-xs whitespace-nowrap')}>
+                        <a
+                          href={`https://www.amazon.com/dp/${item.asin ?? ''}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground hover:underline"
+                        >
+                          {item.amazon_order_id}
+                        </a>
+                      </TableCell>
+                      <TableCell className={DENSE_CELL}>
+                        <div className="flex flex-col leading-tight">
+                          {item.sku ? (
+                            <Link
+                              href={(() => {
+                                const params = new URLSearchParams()
+                                if (item.project_name) params.set('project_name', item.project_name)
+                                params.set('sku', item.sku)
+                                if (item.asin) params.set('asin', item.asin)
+                                return `/dashboard/data-management/sku-info?${params.toString()}`
+                              })()}
+                              className="font-mono text-xs text-foreground hover:text-primary hover:underline"
+                              title="跳转到 SKU 信息页面（带入项目 + SKU + ASIN）"
+                            >
+                              {item.sku}
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-xs">—</span>
+                          )}
+                          {item.asin ? (
+                            <Link
+                              href={(() => {
+                                const params = new URLSearchParams()
+                                if (item.project_name) params.set('project_name', item.project_name)
+                                if (item.sku) params.set('sku', item.sku)
+                                params.set('asin', item.asin)
+                                return `/dashboard/data-management/sku-info?${params.toString()}`
+                              })()}
+                              className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                              title="跳转到 SKU 信息页面（按 ASIN 查询）"
+                            >
+                              ASIN {item.asin}
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">ASIN —</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'max-w-[260px]')}>
+                        <span className="line-clamp-2 text-sm" title={item.product_name ?? ''}>
+                          {item.product_name ?? '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>{item.quantity}</TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                        <div className="flex flex-col leading-tight">
+                          <span>
+                            {item.item_price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}{' '}
+                            {item.currency ?? ''}
+                          </span>
+                          {item.shipping_price > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              + 运费 {item.shipping_price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                             </span>
-                            {item.shipping_price > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                + 运费 {item.shipping_price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <button
-                            type="button"
-                            className="text-left text-sm hover:underline"
-                            onClick={() => toggleExpand(item.id)}
-                          >
-                            {[item.city, item.state, item.postal_code, item.country].filter(Boolean).join(', ') || '—'}
-                            <Badge variant="outline" className="ml-1">
-                              {isExpanded ? '收起' : '展开'}
-                            </Badge>
-                          </button>
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <Link
-                            href={`/dashboard/system-management/project-info?configure=${item.project_id}`}
-                            className="flex flex-col leading-tight hover:opacity-80"
-                            title={`跳转到「${item.project_name}」的项目设置`}
-                          >
-                            <span className="inline-flex items-center gap-1 text-sm text-foreground hover:text-primary hover:underline">
-                              {item.project_name}
-                              <ExternalLink className="h-3 w-3" />
-                            </span>
-                            {item.brand_name && (
-                              <span className="text-xs text-muted-foreground">{item.brand_name}</span>
-                            )}
-                          </Link>
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <Badge variant={fulfillmentVariant(item.fulfillment_label)}>
-                            {item.fulfillment_label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={DENSE_CELL}>
-                          <Badge variant={statusVariant(item.order_status)}>{item.order_status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && (
-                        <TableRow className="bg-muted/30">
-                          <TableCell colSpan={10} className={DENSE_CELL}>
-                            <div className="grid grid-cols-1 gap-2 px-2 py-1 text-xs text-muted-foreground md:grid-cols-4">
-                              <div>
-                                <span className="font-medium text-foreground">收货：</span>
-                                {[item.city, item.state, item.postal_code, item.country].filter(Boolean).join(', ') || '—'}
-                              </div>
-                              <div>
-                                <span className="font-medium text-foreground">服务等级：</span>
-                                {item.ship_service_level ?? '—'}
-                              </div>
-                              <div>
-                                <span className="font-medium text-foreground">国家代码：</span>
-                                {item.country}
-                              </div>
-                              <div>
-                                <span className="font-medium text-foreground">数据源：</span>
-                                source_file #{item.source_file_id}
-                              </div>
-                              <div className="text-amber-600 dark:text-amber-400 md:col-span-4">
-                                注：买家姓名 / 电话 / 详细街道地址当前数据源（Amazon SKU 维度报告）不包含，后续接入 Order Detail 报表后可补充。
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Fragment>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        className={DENSE_CELL}
+                        title={
+                          fullAddress
+                            ? `服务等级：${item.ship_service_level ?? '—'} · 数据源：source_file #${item.source_file_id}`
+                            : undefined
+                        }
+                      >
+                        <span className="text-sm">{fullAddress || '—'}</span>
+                      </TableCell>
+                      <TableCell className={DENSE_CELL}>
+                        <Link
+                          href={`/dashboard/system-management/project-info?configure=${item.project_id}`}
+                          className="flex flex-col leading-tight hover:opacity-80"
+                          title={`跳转到「${item.project_name}」的项目设置`}
+                        >
+                          <span className="inline-flex items-center gap-1 text-sm text-foreground hover:text-primary hover:underline">
+                            {item.project_name}
+                            <ExternalLink className="h-3 w-3" />
+                          </span>
+                          {item.brand_name && (
+                            <span className="text-xs text-muted-foreground">{item.brand_name}</span>
+                          )}
+                        </Link>
+                      </TableCell>
+                      <TableCell className={DENSE_CELL}>
+                        <Badge variant={fulfillmentVariant(item.fulfillment_label)}>
+                          {item.fulfillment_label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={DENSE_CELL}>
+                        <Badge variant={statusVariant(item.order_status)}>{item.order_status}</Badge>
+                      </TableCell>
+                    </TableRow>
                   )
                 })
               )}
             </TableBody>
           </Table>
         </DataTableCardBody>
-      </DataTableCard>
 
-      {/* ====== 翻页 ====== */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          共 {total.toLocaleString('zh-CN')} 行 · 每页 {PAGE_SIZE} 行 · 第 {page} / {totalPages || 1} 页
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            上一页
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages || loading}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            下一页
-          </Button>
+        {/* 第五段：翻页（贴在表格下沿，与表格之间用分割线） */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 text-sm text-muted-foreground md:px-6">
+          <span>
+            共 {total.toLocaleString('zh-CN')} 行 · 每页 {PAGE_SIZE} 行 · 第 {page} / {totalPages || 1} 页
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              下一页
+            </Button>
+          </div>
         </div>
-      </div>
+      </DataTableCard>
     </div>
   )
 }
