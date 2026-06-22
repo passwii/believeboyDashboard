@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import {
   ArrowDownToLine,
   ChevronDown,
@@ -42,6 +43,7 @@ import {
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { cn } from '@/lib/utils'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
+import { buildBackendClientHeaders } from '@/lib/backend-auth'
 
 // ======================== 类型 ========================
 
@@ -153,6 +155,9 @@ function fulfillmentVariant(label: string): 'default' | 'secondary' {
 // ======================== 主组件 ========================
 
 export default function OrderInfoPage() {
+  // session：用于向后端注入 X-Operator / X-Is-Admin（数据级权限控制）
+  const { data: session } = useSession()
+
   // 筛选状态
   const [projectId, setProjectId] = useState<string>(DEFAULT_PROJECT_VALUE)
   const [fulfillmentChannels, setFulfillmentChannels] = useState<string[]>([])
@@ -184,7 +189,10 @@ export default function OrderInfoPage() {
     async function load() {
       setFilterOptionsLoading(true)
       try {
-        const res = await fetch('/api/order-info/filter-options', { cache: 'no-store' })
+        const res = await fetch('/api/order-info/filter-options', {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        })
         if (!res.ok) throw new Error('筛选选项加载失败')
         const data = (await res.json()) as FilterOptions
         if (!cancelled) setFilterOptions(data)
@@ -198,7 +206,7 @@ export default function OrderInfoPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [session])
 
   // ====== 构建请求 query ======
   const buildQuery = useCallback(() => {
@@ -243,8 +251,14 @@ export default function OrderInfoPage() {
     try {
       const params = buildQuery()
       const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/order-info/list?${params.toString()}`, { cache: 'no-store' }),
-        fetch(`/api/order-info/stats?${params.toString()}`, { cache: 'no-store' }),
+        fetch(`/api/order-info/list?${params.toString()}`, {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        }),
+        fetch(`/api/order-info/stats?${params.toString()}`, {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        }),
       ])
       if (!listRes.ok) {
         const txt = await listRes.text().catch(() => '')
@@ -264,7 +278,7 @@ export default function OrderInfoPage() {
     } finally {
       setLoading(false)
     }
-  }, [buildQuery])
+  }, [buildQuery, session])
 
   // ====== 副作用：任何筛选变化触发 fetch ======
   useEffect(() => {
@@ -298,7 +312,7 @@ export default function OrderInfoPage() {
     try {
       const res = await fetch('/api/order-info/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({
           project_ids: projectId && projectId !== DEFAULT_PROJECT_VALUE ? [Number(projectId)] : [],
           fulfillment_channels: fulfillmentChannels,
