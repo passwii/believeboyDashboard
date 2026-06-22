@@ -1,6 +1,7 @@
 'use client'
 
-import { type ChangeEvent, Fragment, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { FileDown, FileText, Image as ImageIcon, Package2, RefreshCw, Ruler, Tag, Upload } from 'lucide-react'
 
@@ -298,6 +299,8 @@ function TableSkeletonRows({
 export default function SkuInfoPage() {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
+  const searchParams = useSearchParams()
+  const initialSearchTriggeredRef = useRef(false)
   const [activeTab, setActiveTab] = useState<ActiveTab>('cost')
   const [items, setItems] = useState<ProductCostItem[]>([])
   const [page, setPage] = useState(1)
@@ -492,6 +495,39 @@ export default function SkuInfoPage() {
       setLoading(false)
     }
   }
+
+  // 从 URL search params 自动触发一次查询（关联跳转场景：从「订单信息」点击 SKU/ASIN 进入）
+  // 仅触发一次；触发后用户再修改筛选条件走正常 onSearch 流程
+  useEffect(() => {
+    if (initialSearchTriggeredRef.current) return
+    if (projectsLoading) return
+    // 项目列表加载失败时跳过（不要展示误导性空结果）
+    if (projectLoadError) return
+
+    const urlProjectName = (searchParams.get('project_name') ?? '').trim()
+    const urlSku = (searchParams.get('sku') ?? '').trim()
+    const urlAsin = (searchParams.get('asin') ?? '').trim()
+
+    if (!urlProjectName && !urlSku && !urlAsin) return
+
+    // 将 URL 参数同步到筛选输入框（让用户看到查询条件）
+    if (urlProjectName) setProjectFilter(urlProjectName)
+    if (urlSku) setSkuFilter(urlSku)
+    if (urlAsin) setAsinFilter(urlAsin)
+
+    // 显式传 filters，避免依赖尚未提交到 state 的值
+    void loadData(
+      {
+        project_name: urlProjectName,
+        sku: urlSku,
+        asin: urlAsin,
+      },
+      { resetPage: true },
+    )
+
+    initialSearchTriggeredRef.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectsLoading, projectLoadError, searchParams])
 
   useEffect(() => {
     if (!projectFilter.trim()) return
