@@ -20,6 +20,7 @@ import {
   Receipt,
   Repeat2,
   RotateCcw,
+  ShoppingBag,
   Shield,
   ShieldUser,
   Sparkles,
@@ -89,6 +90,7 @@ const IconMap = {
   Banknote,
   Zap,
   Truck,
+  ShoppingBag,
   ShieldUser,
   Sparkles,
   ChartColumnBig,
@@ -193,6 +195,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '发货管理', url: '/dashboard/data-management/shipment-management', icon: IconMap.Package },
+ { title: '订单信息', url: '/dashboard/data-management/order-info', icon: IconMap.ShoppingBag },
  { title: 'SKU 信息', url: '/dashboard/data-management/sku-info', icon: IconMap.FileBarChart },
  { title: '报表核对', url: '/dashboard/data-management/report-reconciliation', icon: IconMap.Shield },
  { title: '平台巡检', url: '/dashboard/data-management/platform-inspection', icon: IconMap.Shield },

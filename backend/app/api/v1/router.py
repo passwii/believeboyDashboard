@@ -17,6 +17,7 @@ from app.api.v1.endpoints.ai_file_upload import router as ai_file_upload_router
 from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
+from app.api.v1.endpoints.order_info import router as order_info_router
 from app.api.v1.endpoints.inventory_replenishment import router as inventory_replenishment_router
 from app.api.v1.endpoints.inventory_replenishment_snapshots import router as inventory_replenishment_snapshots_router
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
@@ -44,6 +45,7 @@ api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(health_router)
 api_router.include_router(exchange_rates_router)
+api_router.include_router(order_info_router)
 api_router.include_router(projects_router)
 api_router.include_router(sku_info_router)
 api_router.include_router(pricing_calculation_router)
