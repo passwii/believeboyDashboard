@@ -179,37 +179,7 @@ def _list_sku_records_endpoint(
     )
     db.commit()
     return SkuRecordsPage(
-        items=[
-            SkuRecordItem(
-                id=row.id,
-                project_name=row.project_name,
-                sku=row.sku,
-                asin=row.asin,
-                fnsku=row.fnsku,
-                product_name=row.product_name,
-                fob_unit_cost=float(row.fob_unit_cost),
-                first_leg_cost_rmb=float(row.first_leg_cost_rmb),
-                package_length_cm=float(row.package_length_cm),
-                package_width_cm=float(row.package_width_cm),
-                package_height_cm=float(row.package_height_cm),
-                weight_kg=float(row.weight_kg),
-                carton_length_cm=float(row.carton_length_cm),
-                carton_width_cm=float(row.carton_width_cm),
-                carton_height_cm=float(row.carton_height_cm),
-                carton_weight_kg=float(row.carton_weight_kg),
-                units_per_carton=int(row.units_per_carton),
-                currency=row.currency,
-                country=row.country,
-                sort_order=int(row.sort_order),
-                is_active=bool(row.is_active),
-                sku_factory_info=row.sku_factory_info,
-                sku_factory_info_updated_at=row.sku_factory_info_updated_at,
-                sku_factory_info_updated_by=row.sku_factory_info_updated_by,
-                fnsku_label_r2_key=getattr(row, 'fnsku_label_r2_key', None),
-                fnsku_label_r2_url=getattr(row, 'fnsku_label_r2_url', None),
-            )
-            for row in rows
-        ],
+        items=[SkuRecordItem(**_serialize_sku_record(row)) for row in rows],
         page=page,
         page_size=page_size,
         total=total,
