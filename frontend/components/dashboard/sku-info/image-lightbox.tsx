@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
-import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 interface ImageLightboxProps {
   open: boolean
@@ -24,42 +24,55 @@ export function ImageLightbox({
   alt,
   meta,
 }: ImageLightboxProps) {
-  useEffect(() => {
-    if (!open) return
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(false)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [open, onOpenChange])
-
-  if (!open) return null
+  const [zoomed, setZoomed] = useState(false)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
-      onClick={() => onOpenChange(false)}
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // 关闭时重置 zoomed 状态，避免下次打开还残留
+        if (!next) setZoomed(false)
+        onOpenChange(next)
+      }}
     >
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute right-4 top-4 h-9 w-9 rounded-full bg-white/10 text-white hover:bg-white/20"
-        onClick={() => onOpenChange(false)}
-        aria-label="关闭"
+      <DialogContent
+        className={cn(
+          // 覆盖 DialogContent 默认的 bg-background / border / shadow，
+          // 让 DialogContent 自身透明，只承载布局，背景由 DialogOverlay 黑色遮罩负责
+          'flex flex-col items-center gap-3 border-0 bg-transparent p-2 shadow-none sm:p-4 dark:bg-transparent',
+          // 默认 max-w-lg；lightbox 用 max-w-3xl，zoomed 状态接近全屏
+          zoomed ? '!max-w-[96vw]' : '!max-w-3xl',
+        )}
       >
-        <X className="h-5 w-5" />
-      </Button>
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
 
-      <div
-        className="flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={alt}
-          className="max-h-[80vh] max-w-[90vw] rounded-md object-contain"
-        />
+        <div
+          className={cn(
+            'flex w-full items-center justify-center overflow-hidden rounded-md text-center',
+            zoomed ? 'cursor-zoom-out' : 'cursor-zoom-in',
+          )}
+          style={{ maxHeight: zoomed ? 'calc(100vh - 8rem)' : '85vh' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            setZoomed((z) => !z)
+          }}
+          title={zoomed ? '点击缩小' : '点击放大'}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt}
+            className="rounded-md transition-all duration-300"
+            style={{
+              maxHeight: zoomed ? 'calc(100vh - 8rem)' : '85vh',
+              maxWidth: zoomed ? '96vw' : '100%',
+              width: zoomed ? '96vw' : 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+            }}
+          />
+        </div>
+
         {meta && (
           <div className="rounded-md bg-black/60 px-4 py-2 text-sm text-white">
             {meta.sku && (
@@ -78,7 +91,16 @@ export function ImageLightbox({
             )}
           </div>
         )}
-      </div>
-    </div>
+
+        <p
+          className={cn(
+            'text-xs text-white/60 transition-opacity',
+            zoomed ? 'opacity-100' : 'opacity-0',
+          )}
+        >
+          点击图片{zoomed ? '缩小' : '放大'}
+        </p>
+      </DialogContent>
+    </Dialog>
   )
 }
