@@ -426,7 +426,7 @@ def calculate_shipment_schedule_costs(
             detail=f"以下 SKU 未找到可用的 SKU 信息：{missing_preview}",
         )
 
-    # 计算费用
+    # 计算费用（按单箱核算：实际重/体积重基于单箱尺寸与重量，乘以外箱数）
     total_volume = DECIMAL_ZERO
     total_chargeable_weight = DECIMAL_ZERO
     total_price = DECIMAL_ZERO
@@ -434,45 +434,89 @@ def calculate_shipment_schedule_costs(
     for item in row.items:
         sku_info = sku_info_map[item.sku]
         quantity = Decimal(str(int(item.quantity)))
-        package_length = Decimal(str(sku_info.package_length_cm or 0))
-        package_width = Decimal(str(sku_info.package_width_cm or 0))
-        package_height = Decimal(str(sku_info.package_height_cm or 0))
-        unit_weight = Decimal(str(sku_info.weight_kg or 0))
         units_per_carton = int(sku_info.units_per_carton or 0)
-        carton_count = int(quantity) // units_per_carton if units_per_carton > 0 else 0
 
-        # 体积计算
-        unit_volume_m3 = package_length * package_width * package_height / Decimal("1000000")
-        volume_m3 = (unit_volume_m3 * quantity).quantize(VOLUME_QUANT, rounding=ROUND_HALF_UP)
+        # 1) 外箱数：整箱 + 尾箱向上取整（与 FBA 详情 outer_box_text 口径一致）
+        if units_per_carton > 0:
+            full_carton_count = int(quantity) // units_per_carton
+            partial_carton_units = int(quantity) % units_per_carton
+            carton_count = full_carton_count + (1 if partial_carton_units > 0 else 0)
+        else:
+            carton_count = 0
 
-        # 重量计算
-        actual_weight_kg = (unit_weight * quantity).quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP)
+        # 2) 选择单箱尺寸（优先 carton_*，缺失则回退 package_*）
+        has_carton_size = (
+            float(sku_info.carton_length_cm or 0) > 0
+            and float(sku_info.carton_width_cm or 0) > 0
+            and float(sku_info.carton_height_cm or 0) > 0
+        )
+        use_carton_dims = has_carton_size and carton_count > 0
+        if use_carton_dims:
+            length_cm = Decimal(str(sku_info.carton_length_cm or 0))
+            width_cm = Decimal(str(sku_info.carton_width_cm or 0))
+            height_cm = Decimal(str(sku_info.carton_height_cm or 0))
+        else:
+            length_cm = Decimal(str(sku_info.package_length_cm or 0))
+            width_cm = Decimal(str(sku_info.package_width_cm or 0))
+            height_cm = Decimal(str(sku_info.package_height_cm or 0))
+        # 体积重/实际重的乘数：按箱路径用 carton_count，否则回退 quantity（与原单品口径一致）
+        weight_multiplier = Decimal(str(carton_count)) if use_carton_dims else quantity
+
+        # 3) 体积 m³（按选定尺寸 × 乘数）
+        unit_volume_m3 = length_cm * width_cm * height_cm / Decimal("1000000")
+        volume_m3 = (unit_volume_m3 * weight_multiplier).quantize(
+            VOLUME_QUANT, rounding=ROUND_HALF_UP
+        )
+
+        # 4) 实际重：优先 carton_weight_kg × carton_count，否则回退 weight_kg × quantity
+        if (
+            float(sku_info.carton_weight_kg or 0) > 0
+            and carton_count > 0
+        ):
+            actual_weight_kg = (
+                Decimal(str(sku_info.carton_weight_kg)) * Decimal(str(carton_count))
+            ).quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP)
+        else:
+            actual_weight_kg = (Decimal(str(sku_info.weight_kg or 0)) * quantity).quantize(
+                WEIGHT_QUANT, rounding=ROUND_HALF_UP
+            )
+
+        # 5) 体积重：尺寸 × /6000 × 乘数
         volumetric_weight_kg = (
-            package_length * package_width * package_height / Decimal("6000") * quantity
+            length_cm * width_cm * height_cm / Decimal("6000") * weight_multiplier
         ).quantize(WEIGHT_QUANT, rounding=ROUND_HALF_UP)
         chargeable_weight_kg = max(actual_weight_kg, volumetric_weight_kg)
 
-        # 费用计算
+        # 6) 发货费用：计费重 × 单价
         estimated_logistics_cost = (chargeable_weight_kg * unit_price).quantize(
             MONEY_QUANT, rounding=ROUND_HALF_UP
         )
-        average_logistics_unit_price = (estimated_logistics_cost / quantity).quantize(
-            Decimal("0.0001"), rounding=ROUND_HALF_UP
-        )
 
-        # 更新明细
+        # 更新明细（average_logistics_unit_price 留到循环外统一赋值，依赖全批次汇总）
         item.volume_m3 = volume_m3
         item.actual_weight_kg = actual_weight_kg
         item.volumetric_weight_kg = volumetric_weight_kg
         item.chargeable_weight_kg = chargeable_weight_kg
         item.estimated_logistics_cost = estimated_logistics_cost
-        item.average_logistics_unit_price = average_logistics_unit_price
         item.carton_count = carton_count
 
         # 累计
         total_volume += volume_m3
         total_chargeable_weight += chargeable_weight_kg
         total_price += estimated_logistics_cost
+
+    # 7) 全批次平均单价 = 总发货费用 / 全批次总数量（所有 item 共享同一值）
+    total_quantity_whole = sum(int(item.quantity) for item in row.items)
+    total_quantity_decimal = Decimal(str(total_quantity_whole))
+    if total_quantity_decimal > 0:
+        avg_unit_price = (
+            total_price.quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
+            / total_quantity_decimal
+        ).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    else:
+        avg_unit_price = DECIMAL_ZERO
+    for item in row.items:
+        item.average_logistics_unit_price = avg_unit_price
 
     # 更新计划
     row.logistics_unit_price = unit_price
@@ -488,7 +532,7 @@ def calculate_shipment_schedule_costs(
     db.refresh(row)
     row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
     sku_count = len(row.items)
-    total_quantity = sum(int(item.quantity) for item in row.items)
+    total_quantity = total_quantity_whole
     return row, sku_count, total_quantity
 
 
