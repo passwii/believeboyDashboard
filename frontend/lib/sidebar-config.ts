@@ -183,6 +183,13 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  { title: '退货分析', url: '/dashboard/data-analysis/return-analysis', icon: IconMap.RotateCcw },
  { title: '项目目标', url: '/dashboard/data-analysis/project-goals', icon: IconMap.TrendingUp },
  { title: '调研分析', url: '/dashboard/data-analysis/research-analysis', icon: IconMap.FileSearch },
+ {
+ title: '定时报告',
+ url: '/dashboard/data-analysis/scheduled-reports',
+ matchPrefixes: ['/dashboard/data-analysis/scheduled-reports'],
+ roles: ['admin', 'operator'],
+ icon: IconMap.Zap,
+ },
  ],
  },
 
@@ -260,7 +267,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  { title: '佣金管理', url: '/dashboard/system-management/commission-management', icon: IconMap.Coins },
  { title: '日志查看', url: '/dashboard/system-management/logs', icon: IconMap.History },
  { title: '通知设置', url: '/dashboard/system-management/notification-settings', icon: IconMap.Bell },
- { title: '定时报告', url: '/dashboard/system-management/scheduled-reports', icon: IconMap.Zap },
  { title: '备份管理', url: '/dashboard/system-management/backup-management', icon: IconMap.Database },
  ],
  },
