@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.models.scheduled_report import ScheduledReportSubscription
 from app.schemas.scheduled_report import (
     DeliveryLogItem,
     DeliveryLogListResponse,
@@ -43,6 +44,30 @@ def _get_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")
         return int(x_user_id.strip())
     except (ValueError, TypeError):
         return None
+
+
+def require_admin(is_admin: bool = Header(default=False, alias="X-Is-Admin")) -> bool:
+    """管理员专属依赖：手动触发调度、ledger 补发等。"""
+    if not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+    return True
+
+
+def assert_subscription_owner(
+    subscription: "ScheduledReportSubscription | None",
+    user_id: int | None,
+    is_admin: bool,
+) -> None:
+    """订阅归属校验：admin 可跨用户操作；operator 仅能管理自己的订阅。
+
+    非 admin 看不到、也改不了他人订阅，统一返回 404 防枚举。
+    """
+    if is_admin:
+        return
+    if subscription is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
+    if user_id is None or subscription.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
 
 @router.get("/scheduled-reports/subscriptions", response_model=SubscriptionListResponse)
@@ -84,6 +109,8 @@ def update_subscription_endpoint(
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
 ):
     user_id = _get_user_id(x_user_id)
+    existing = db.get(ScheduledReportSubscription, subscription_id)
+    assert_subscription_owner(existing, user_id, is_admin)
     subscription = update_subscription(db, subscription_id, data)
     if not subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
@@ -98,6 +125,9 @@ def delete_subscription_endpoint(
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
 ):
+    user_id = _get_user_id(x_user_id)
+    existing = db.get(ScheduledReportSubscription, subscription_id)
+    assert_subscription_owner(existing, user_id, is_admin)
     deleted = delete_subscription(db, subscription_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
@@ -225,11 +255,8 @@ def resend_scheduled_report_ledger_entry(
     ai_model: Optional[str] = None,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+    _: bool = Depends(require_admin),
 ):
-    if not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可执行补发")
-
     from app.services.scheduled_report.ledger_service import resend_ledger_entry_async
 
     # 前端可临时覆盖订阅预设模型；为空或纯空白则使用订阅预设
@@ -255,14 +282,12 @@ def resend_scheduled_report_ledger_entry(
 def trigger_report_dispatch(
     frequency: str = "daily",
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+    _: bool = Depends(require_admin),
 ):
     """手动触发指定频率的报告调度（仅管理员）。
 
     用于测试或补发，会走完整的 dispatcher 流程（限流 + 缓存）。
     """
-    if not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可触发报告调度")
     if frequency not in ("daily", "weekly", "monthly"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="frequency 必须为 daily/weekly/monthly")
 

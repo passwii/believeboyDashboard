@@ -1184,7 +1184,13 @@ export function ScheduledReportsClient() {
     }
   }
 
-  const isAdmin = session?.user?.roleType === 'admin'
+  const roleType = session?.user?.roleType
+  const isAdmin = roleType === 'admin'
+  const isOperator = roleType === 'operator'
+  // admin / operator 均可管理自己的订阅；其他角色（如 factory、businessdev）只读
+  const canManage = isAdmin || isOperator
+  // 仅 admin 可触发手动调度 / 补发 ledger
+  const canTriggerResend = isAdmin
 
   const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
     const actionLabel = item.status === 'failed' ? '重试' : '补发'
@@ -1316,9 +1322,11 @@ export function ScheduledReportsClient() {
                       className="w-[200px] h-9"
                     />
                     <div className="ml-auto">
-                      <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-                        <Plus className="mr-1 h-4 w-4" />新增订阅
-                      </Button>
+                      {canManage && (
+                        <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                          <Plus className="mr-1 h-4 w-4" />新增订阅
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {/* 手机端工具栏：2 列网格 */}
@@ -1365,9 +1373,11 @@ export function ScheduledReportsClient() {
                       className="col-span-2 h-9"
                     />
                     <div className="col-span-2">
-                      <Button size="sm" className="w-full" onClick={() => setShowCreateDialog(true)}>
-                        <Plus className="mr-1 h-4 w-4" />新增订阅
-                      </Button>
+                      {canManage && (
+                        <Button size="sm" className="w-full" onClick={() => setShowCreateDialog(true)}>
+                          <Plus className="mr-1 h-4 w-4" />新增订阅
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1435,15 +1445,19 @@ export function ScheduledReportsClient() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex gap-1 justify-end">
-                                    <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)} title={sub.enabled ? '暂停' : '启用'}>
-                                      <Power className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {canManage && (
+                                      <>
+                                        <Button size="sm" variant="ghost" onClick={() => handleToggle(sub)} title={sub.enabled ? '暂停' : '启用'}>
+                                          <Power className="h-4 w-4" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={() => handleEdit(sub)}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(sub.id)}>
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1487,15 +1501,19 @@ export function ScheduledReportsClient() {
                             <div className="text-xs text-muted-foreground mb-3 truncate" title={sub.email}>{sub.email}</div>
                             {sub.ai_model && <div className="text-xs text-muted-foreground mb-3 truncate">AI: {sub.ai_model}</div>}
                             <div className="flex gap-2">
-                              <Button size="sm" variant="outline" className="flex-1" onClick={() => handleToggle(sub)}>
-                                <Power className="h-4 w-4 mr-1" />{sub.enabled ? '暂停' : '启用'}
-                              </Button>
-                              <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(sub)}>
-                                <Pencil className="h-4 w-4 mr-1" />编辑
-                              </Button>
-                              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive min-w-[44px]" onClick={() => handleDelete(sub.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {canManage && (
+                                <>
+                                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleToggle(sub)}>
+                                    <Power className="h-4 w-4 mr-1" />{sub.enabled ? '暂停' : '启用'}
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(sub)}>
+                                    <Pencil className="h-4 w-4 mr-1" />编辑
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive min-w-[44px]" onClick={() => handleDelete(sub.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </div>
                         )
