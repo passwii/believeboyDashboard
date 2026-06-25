@@ -28,7 +28,7 @@ actor APIClient {
     /// Default backend base URL. Mirrors the frontend's
     /// `BACKEND_API_BASE_URL` env var; overridable via UserDefaults
     /// `believeBoy.baseURL` for staging toggles.
-    static let defaultBaseURL = URL(string: "http://127.0.0.1:8000")!
+    static let defaultBaseURL = URL(string: "http://127.0.0.1:8100")!
 
     /// Shared API key. Matches `BACKEND_API_KEY` / `API_KEY` on the web side.
     /// Stored in Keychain so it can rotate without code changes; for now we

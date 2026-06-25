@@ -21,9 +21,9 @@ def get_frontend_url() -> str:
     """Get frontend URL from settings."""
     try:
         from app.core.config import get_settings
-        return get_settings().frontend_url or "http://localhost:3000"
+        return get_settings().frontend_url or "http://localhost:3200"
     except Exception:
-        return "http://localhost:3000"
+        return "http://localhost:3200"
 
 
 def trigger_reconciliation_alert(

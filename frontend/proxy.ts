@@ -71,7 +71,7 @@ const BACKEND_FAILURE_COOLDOWN_MS = 30_000
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.BACKEND_API_BASE_URL ||
-  'http://localhost:8000'
+  'http://localhost:8100'
 
 const API_KEY = process.env.BACKEND_API_KEY || ''
 

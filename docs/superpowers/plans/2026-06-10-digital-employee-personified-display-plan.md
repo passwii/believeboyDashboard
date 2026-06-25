@@ -1414,7 +1414,7 @@ pnpm dev
 
 - [ ] **步骤 5：浏览器验证**
 
-打开 `http://localhost:3000/dashboard/digital-employees/<employee_id>`
+打开 `http://localhost:3200/dashboard/digital-employees/<employee_id>`
 
 预期看到：
 - ✅ "拟人化工作状态"卡片在基本信息卡和任务历史卡之间

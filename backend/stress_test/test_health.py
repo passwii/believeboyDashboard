@@ -20,7 +20,7 @@ API_KEY: str | None = None  # set via env API_KEY
 
 import os as _os
 
-BASE_URL = _os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
+BASE_URL = _os.environ.get("BACKEND_URL", "http://127.0.0.1:8100")
 API_KEY = _os.environ.get("API_KEY", "change-me-in-dev")
 
 

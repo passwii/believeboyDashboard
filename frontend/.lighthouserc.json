@@ -38,9 +38,9 @@
         "skipAudits": ["uses-http2", "is-on-https"]
       },
       "url": [
-        "http://localhost:3000/dashboard",
-        "http://localhost:3000/dashboard/data-analysis/ad-analysis/overview",
-        "http://localhost:3000/dashboard/data-reporting/monthly-report"
+        "http://localhost:3200/dashboard",
+        "http://localhost:3200/dashboard/data-analysis/ad-analysis/overview",
+        "http://localhost:3200/dashboard/data-reporting/monthly-report"
       ]
     },
     "assert": {

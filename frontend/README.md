@@ -24,10 +24,10 @@ cp .env.example .env.local
 ```env
 # NextAuth 配置
 NEXTAUTH_SECRET=your-secret-key
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3200
 
 # 后端 API 地址（仅服务端使用，不暴露到浏览器）
-BACKEND_API_BASE_URL=http://localhost:8000
+BACKEND_API_BASE_URL=http://localhost:8100
 BACKEND_API_KEY=replace_with_backend_api_key
 ```
 
@@ -36,7 +36,7 @@ BACKEND_API_KEY=replace_with_backend_api_key
 - 前端 `.env.local` 不需要配置 `DATABASE_URL`、`PGHOST` 之类的数据库变量。
 - AI Provider 相关变量也不要放前端；`AI_CHAT_PROVIDER_API_KEY`、`AI_CHAT_PROVIDER_BASE_URL`、`AI_CHAT_DEFAULT_MODEL` 等统一放在 `backend/.env`。
 - 数据库连接只由后端读取，放在 `backend/.env`。
-- 如果前后端部署在同一台 VPS，`BACKEND_API_BASE_URL` 推荐写成 `http://127.0.0.1:8000`。
+- 如果前后端部署在同一台 VPS，`BACKEND_API_BASE_URL` 推荐写成 `http://127.0.0.1:8100`。
 
 ### 启动开发服务器
 
@@ -44,7 +44,7 @@ BACKEND_API_KEY=replace_with_backend_api_key
 pnpm dev
 ```
 
-前端将在 `http://localhost:3000` 启动。
+前端将在 `http://localhost:3200` 启动。
 
 ## 📦 构建与部署
 
@@ -169,5 +169,5 @@ frontend/types/api-generated/api.d.ts          ← git 跟踪
 | --- | --- |
 | `pnpm gen:api-types:check` 报 `Drift detected` | 跑 `cd backend && make openapi-export`，再 `cd frontend && pnpm gen:api-types`，提交两个文件 |
 | `tsc` 报 `Type 'X \| null' is not assignable to type 'X'` | 字段在 Pydantic 里是 `Optional[...] = None`；前端访问前用 `?? ''` / `?? null` 处理 |
-| `make openapi-export` 报 `database_url Field required` | 临时给环境变量（开发用）：`DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/db API_KEY=test-key FRONTEND_URL=http://localhost:3000 make openapi-export` |
+| `make openapi-export` 报 `database_url Field required` | 临时给环境变量（开发用）：`DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/db API_KEY=test-key FRONTEND_URL=http://localhost:3200 make openapi-export` |
 | 新加 schema 但 `pnpm build` 没漂移检测 | 检查 `frontend/package.json` 的 `build` 脚本是否含 `gen:api-types:check && ...` |

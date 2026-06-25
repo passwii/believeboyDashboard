@@ -36,7 +36,7 @@ app.state.limiter = limiter
 if not settings.frontend_url:
     raise Exception(
         "frontend_url must be set in backend .env. "
-        "Add FRONTEND_URL=http://localhost:3000 (dev) or your production URL to backend/.env"
+        "Add FRONTEND_URL=http://localhost:3200 (dev) or your production URL to backend/.env"
     )
 
 app.add_middleware(

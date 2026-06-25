@@ -7,7 +7,7 @@ Usage:
     source .venv/bin/activate
 
     # 方式 1：同步到 Dashboard（需要先配置环境变量）
-    export DIGITAL_EMPLOYEE_API_BASE_URL=http://localhost:3000
+    export DIGITAL_EMPLOYEE_API_BASE_URL=http://localhost:3200
     export DIGITAL_EMPLOYEE_ID=6
     export DIGITAL_EMPLOYEE_API_SECRET=your-secret
     python scripts/agent_testing_cli.py

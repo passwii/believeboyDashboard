@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 interface PortraitScreenshotDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  src: string
+  src: string | null
   alt: string
   /** 图片区域最大高度，默认 85vh */
   maxHeight?: string
@@ -33,6 +33,9 @@ export function PortraitScreenshotDialog({
     if (open) setZoomed(false)
   }, [open])
 
+  // 空 src 时不渲染 <img>，避免触发 "An empty string was passed to the src attribute" 警告
+  const hasImage = typeof src === 'string' && src.length > 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
@@ -47,23 +50,30 @@ export function PortraitScreenshotDialog({
           )}
           style={{ maxHeight: zoomed ? undefined : maxHeight }}
           onClick={(e) => {
+            if (!hasImage) return
             e.stopPropagation()
             setZoomed(z => !z)
           }}
-          title={zoomed ? "点击缩小" : "点击放大"}
+          title={zoomed ? "点击缩小" : (hasImage ? "点击放大" : "暂无图片")}
         >
-          <img
-            src={src}
-            alt={alt}
-            className="rounded-md"
-            style={{
-              width: zoomed ? "100%" : "auto",
-              maxWidth: zoomed ? "none" : "100%",
-              height: "auto",
-              objectFit: "contain",
-              transition: "width 300ms ease",
-            }}
-          />
+          {hasImage ? (
+            <img
+              src={src as string}
+              alt={alt}
+              className="rounded-md"
+              style={{
+                width: zoomed ? "100%" : "auto",
+                maxWidth: zoomed ? "none" : "100%",
+                height: "auto",
+                objectFit: "contain",
+                transition: "width 300ms ease",
+              }}
+            />
+          ) : (
+            <div className="flex h-32 w-full items-center justify-center text-sm text-muted-foreground">
+              暂无图片可预览
+            </div>
+          )}
         </div>
         <p className={cn("text-xs text-muted-foreground mt-2 transition-opacity", zoomed ? "opacity-100" : "opacity-0")}>
           点击图片缩小

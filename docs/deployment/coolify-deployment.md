@@ -37,7 +37,7 @@
    ║  │  ┌──────────────────┐  ┌──────────────────────────┐  │  ║
    ║  │  │ frontend         │  │ backend                  │  │  ║
    ║  │  │ Next.js 16       │──▶ FastAPI 0.115            │  │  ║
-   ║  │  │ :3000            │  │ Uvicorn :8000            │  │  ║
+   ║  │  │ :3200            │  │ Uvicorn :8100            │  │  ║
    ║  │  │ Nixpacks build   │  │ Dockerfile build         │  │  ║
    ║  │  └──────────────────┘  └──────┬───────────────────┘  │  ║
    ║  │                               │                      │  ║
@@ -55,7 +55,7 @@
    ║  │  └──────────────────┘  └──────────────────────────┘   │  ║
    ║  │                                                      │  ║
    ║  │  全部走 believeboy_net 内网通信                      │  ║
-   ║  │  5432/6379/8000 端口**不**对外暴露                   │  ║
+   ║  │  5432/6379/8100 端口**不**对外暴露                   │  ║
    ║  └──────────────────────────────────────────────────────┘  ║
    ║                                                            ║
    ║  ┌──────────────────────────────────────────────────────┐  ║
@@ -68,8 +68,8 @@
 **关键设计原则**：
 - ✅ **单 VPS 全栈**——frontend/backend/worker/postgres/redis 全部在同一台，**内网（Docker bridge）通信**
 - ✅ **零端口暴露**——VPS 上 80/443/5432/6379 全部不开放公网，**只让 cloudflared 出站连 Cloudflare 边缘**
-- ✅ **唯一公网入口**——`https://dashboard.believeboy.com` 经 Cloudflare → cloudflared → Traefik → frontend:3000
-- ✅ **后端通过前端 `/api/backend/*` 反代**——前端内部反代到 `backend:8000`（已存在的 `app/api/backend/[...path]/route.ts` 路径）
+- ✅ **唯一公网入口**——`https://dashboard.believeboy.com` 经 Cloudflare → cloudflared → Traefik → frontend:3200
+- ✅ **后端通过前端 `/api/backend/*` 反代**——前端内部反代到 `backend:8100`（已存在的 `app/api/backend/[...path]/route.ts` 路径）
 - ✅ **应急冷启动**——保留现有 `backend/deploy/systemd/believeboy-api.service` 作为故障兜底
 
 ## 2. 前置条件
@@ -322,19 +322,19 @@ COPY . .
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
 
-EXPOSE 8000
+EXPOSE 8100
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/api/v1/health || exit 1
+  CMD curl -fsS http://127.0.0.1:8100/api/v1/health || exit 1
 
 # 启动
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log", "--workers", "4"]
 ```
 
 #### 6.1.3 端口
 
-- Internal Port: **8000**
+- Internal Port: **8100**
 - ⚠️ **不要**勾 "Expose as public"——只内网
 
 #### 6.1.4 环境变量
@@ -380,7 +380,7 @@ Destination: /app/uploads
 Coolify Dashboard → `believeboy-api` → **Terminal**：
 
 ```bash
-curl -s http://127.0.0.1:8000/api/v1/health
+curl -s http://127.0.0.1:8100/api/v1/health
 # 期望: {"status":"ok",...}
 
 # 跑 alembic 迁移（首次部署）
@@ -472,11 +472,11 @@ Coolify Dashboard → `believeboy-frontend` → **Domains**：
 
 | 变量 | 值 |
 |---|---|
-| `BACKEND_API_BASE_URL` | `http://believeboy-api:8000`（**内网** Docker 网络） |
+| `BACKEND_API_BASE_URL` | `http://believeboy-api:8100`（**内网** Docker 网络） |
 | `BACKEND_API_KEY` | 同 backend |
 | `NEXTAUTH_URL` | `https://dashboard.believeboy.com` |
 | `NEXTAUTH_SECRET` | 同 backend |
-| `NEXT_PUBLIC_API_BASE_URL` | `https://dashboard.believeboy.com/api/backend`（**同源**，CF 终止 TLS 后走 Traefik 回到 :3000，然后前端反代到 backend:8000） |
+| `NEXT_PUBLIC_API_BASE_URL` | `https://dashboard.believeboy.com/api/backend`（**同源**，CF 终止 TLS 后走 Traefik 回到 :3200，然后前端反代到 backend:8100） |
 | `NEXT_PUBLIC_BACKEND_API_BASE_URL` | 同上 |
 
 ### 8.6 资源限制
@@ -527,13 +527,13 @@ cloudflared（VPS 上的 systemd 服务）
   │ 转发到 coolify-traefik:80
   ▼
 Traefik（Coolify 的反代）
-  │ 路由匹配 dashboard.believeboy.com → frontend:3000
+  │ 路由匹配 dashboard.believeboy.com → frontend:3200
   ▼
-frontend（Next.js :3000）
+frontend（Next.js :3200）
   │ /api/backend/* 路径匹配 app/api/backend/[...path]/route.ts
-  │ 它内部用 BACKEND_API_BASE_URL=http://believeboy-api:8000
+  │ 它内部用 BACKEND_API_BASE_URL=http://believeboy-api:8100
   ▼
-backend（FastAPI :8000）
+backend（FastAPI :8100）
   │ 查询数据库
   ▼
 postgres（:5432）
@@ -544,7 +544,7 @@ postgres（:5432）
 
 **所有内网通信**：HTTP（不加 TLS），因为都是同一台机器的容器之间。
 
-**VPS 上 5432/6379/8000 都不监听 `0.0.0.0`**——只监听 Docker bridge。
+**VPS 上 5432/6379/8100 都不监听 `0.0.0.0`**——只监听 Docker bridge。
 
 ## 10. GitHub Webhook 集成
 
@@ -616,7 +616,7 @@ sudo systemctl status cloudflared
 | Service Type | `HTTP` |
 | URL | `coolify-traefik:80`（Traefik 在 `coolify-infra` 网络里的服务名） |
 
-> **为什么是 `coolify-traefik:80` 而不是 `frontend:3000`？**
+> **为什么是 `coolify-traefik:80` 而不是 `frontend:3200`？**
 > 因为 Traefik 负责基于 Host header 路由（dashboard.believeboy.com → frontend），让 Traefik 来分流比 cloudflared 直连 frontend 更灵活（以后加 flower / 其他子域名都走 Traefik）。
 
 > **如何让 cloudflared 能解析 `coolify-traefik`？**
@@ -663,7 +663,7 @@ sudo journalctl -u cloudflared -f
                   Traefik（监听 80 或 443）
                        │
                        ▼
-                  frontend:3000
+                  frontend:3200
 ```
 
 **两种模式**：
@@ -736,7 +736,7 @@ import sys
 
 checks = [
     ("https://dashboard.believeboy.com", "Frontend"),
-    ("http://127.0.0.1:8000/api/v1/health", "Backend"),
+    ("http://127.0.0.1:8100/api/v1/health", "Backend"),
 ]
 
 failed = []
@@ -783,11 +783,11 @@ docker exec -it $(docker ps -q -f name=believeboy-api) alembic downgrade -1
 sudo systemctl start believeboy-api
 sudo systemctl enable believeboy-api
 
-# 把前端反代到 backend 的 :8000/api/backend 路由指向 :8000
+# 把前端反代到 backend 的 :8100/api/backend 路由指向 :8100
 # 临时改 /etc/nginx/sites-enabled/believeboy-frontend
-# 反代 backend:8000 和 frontend:3000
+# 反代 backend:8100 和 frontend:3200
 
-# 或者：临时切换 Cloudflare Tunnel 路由到 :3000 直连 frontend
+# 或者：临时切换 Cloudflare Tunnel 路由到 :3200 直连 frontend
 ```
 
 ## 16. 与现有 systemd 服务的过渡
@@ -843,7 +843,7 @@ Coolify 接 webhook 后，**不再需要 SSH 部署脚本**。但是：
 **解决**：Coolify → backend → Configuration → **Depends On** → 勾 `believeboy-postgres`。或者在启动命令前加等待：
 
 ```bash
-CMD ["sh", "-c", "until pg_isready -h believeboy-postgres -p 5432; do sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "until pg_isready -h believeboy-postgres -p 5432; do sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8100"]
 ```
 
 ### 18.2 cloudflared tunnel 连接失败
@@ -912,7 +912,7 @@ services:
         EXPOSE 3000
         CMD ["pnpm", "start"]
     environment:
-      BACKEND_API_BASE_URL: http://backend:8000
+      BACKEND_API_BASE_URL: http://backend:8100
       NEXTAUTH_URL: https://dashboard.believeboy.com
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       BACKEND_API_KEY: ${BACKEND_API_KEY}
