@@ -1463,7 +1463,7 @@ cd /Users/damon/DamonProjects/believeboyDashboard/frontend && pnpm build 2>&1 | 
 
 - [ ] **步骤 3：手动业务测试**
 
-启动前后端，访问 http://localhost:3000/dashboard/data-management/sku-info，按规格 §8.3 业务测试清单逐项执行：
+启动前后端，访问 http://localhost:3200/dashboard/data-management/sku-info，按规格 §8.3 业务测试清单逐项执行：
 
 1. 进入 SKU Info → 产品图片 tab — 显示项目下所有 SKU 表格
 2. 上传 1 张有效图 — 缩略图显示在表格中

@@ -51,7 +51,7 @@ Skill 在 VPS 上执行以下步骤：
 - **后端路径**: `/home/damon/believeboyDashboard/backend/`
 - **虚拟环境**: `/home/damon/believeboyDashboard/backend/.venv/`
 - **服务名称**: `believeboy-api`
-- **API 端口**: `8000`（通过 systemd）
+- **API 端口**: `8100`（通过 systemd）
 
 ### 服务管理命令
 ```bash
@@ -136,7 +136,7 @@ fi
 | 数据库迁移 | `alembic upgrade head` | INFO: Context impl PostgresqlImpl |
 | 服务停止 | `systemctl stop believeboy-api` | `Deactivated successfully` |
 | 服务启动 | `systemctl start believeboy-api` | `active (running)` |
-| API 健康检查 | `curl http://127.0.0.1:8000/api/v1/health` | `{"status":"ok"}` |
+| API 健康检查 | `curl http://127.0.0.1:8100/api/v1/health` | `{"status":"ok"}` |
 
 ## 失败诊断功能
 
@@ -158,7 +158,7 @@ fi
 | ModuleNotFoundError | Python 模块缺失 | pip install -r requirements.txt |
 | ImportError | 依赖问题或代码冲突 | 检查新增导入语句 |
 | alembic error | 数据库迁移失败 | 检查迁移脚本语法 |
-| port bind | 端口 8000 被占用 | lsof -i:8000 查看进程 |
+| port bind | 端口 8100 被占用 | lsof -i:8100 查看进程 |
 | Permission denied | 权限不足 | 检查 systemd User/Group |
 | connection refused | 数据库连接失败 | 检查 DATABASE_URL |
 
@@ -194,7 +194,7 @@ fi
 
 ### 服务启动失败
 → 查看日志: `journalctl -u believeboy-api -n 50`
-→ 检查端口: `ss -tlnp | grep 8000`
+→ 检查端口: `ss -tlnp | grep 8100`
 
 ## 维护操作
 

@@ -313,7 +313,7 @@ def update_project_context_endpoint(
 **验证方式**：
 ```bash
 # 启动服务后测试
-curl -X GET "http://127.0.0.1:8000/api/v1/projects/1/context" \
+curl -X GET "http://127.0.0.1:8100/api/v1/projects/1/context" \
   -H "X-API-Key: YOUR_API_KEY"
 # 预期：返回当前项目的 context（空对象或已有数据）
 ```
@@ -352,7 +352,7 @@ ProjectItem(
 
 **验证方式**：
 ```bash
-curl "http://127.0.0.1:8000/api/v1/projects/manage" \
+curl "http://127.0.0.1:8100/api/v1/projects/manage" \
   -H "X-API-Key: YOUR_API_KEY" | jq '.[0].has_context'
 ```
 
@@ -394,16 +394,16 @@ python -c "from app.models import Project; p = Project(project_name='test', proj
 
 ```bash
 # 测试 GET
-curl -s "http://127.0.0.1:8000/api/v1/projects/1/context" -H "X-API-Key: xxx" | jq .
+curl -s "http://127.0.0.1:8100/api/v1/projects/1/context" -H "X-API-Key: xxx" | jq .
 
 # 测试 PATCH
-curl -s -X PATCH "http://127.0.0.1:8000/api/v1/projects/1/context" \
+curl -s -X PATCH "http://127.0.0.1:8100/api/v1/projects/1/context" \
   -H "X-API-Key: xxx" \
   -H "Content-Type: application/json" \
   -d '{"project_context": {"factory": {"description": "测试工厂"}}}' | jq .
 
 # 测试列表 has_context
-curl -s "http://127.0.0.1:8000/api/v1/projects/manage" -H "X-API-Key: xxx" | jq '.[0] | {name, has_context}'
+curl -s "http://127.0.0.1:8100/api/v1/projects/manage" -H "X-API-Key: xxx" | jq '.[0] | {name, has_context}'
 ```
 
 ---

@@ -4,7 +4,7 @@ set -e
 echo "=== Phase 1: Pre-stress test setup ==="
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BACKEND_URL=${BACKEND_URL:-"http://127.0.0.1:8000"}
+BACKEND_URL=${BACKEND_URL:-"http://127.0.0.1:8100"}
 API_KEY=${API_KEY:-"<REDACTED-ROTATE-OLD-API-KEY>"}
 PROJECT_NAME=${PROJECT_NAME:-"TestProject"}
 

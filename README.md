@@ -173,7 +173,7 @@ cp .env.example .env.local  # 配置环境变量
 pnpm dev
 ```
 
-前端将在 `http://localhost:3000` 启动。
+前端将在 `http://localhost:3200` 启动。
 
 ### 后端设置
 
@@ -188,7 +188,7 @@ cp .env.example .env  # 配置环境变量
 ./run_api.sh
 ```
 
-API 服务器将在 `http://localhost:8000` 启动。
+API 服务器将在 `http://localhost:8100` 启动。
 
 ### 数据库初始化
 

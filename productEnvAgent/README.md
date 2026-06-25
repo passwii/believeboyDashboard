@@ -48,7 +48,7 @@ python deploy_vps.py --dry-run
 - **服务名称**: `believeboy-api`
 - **Systemd 配置**: `/etc/systemd/system/believeboy-api.service`
 - **运行方式**: Python 3 + uvicorn (FastAPI)
-- **API 端口**: http://127.0.0.1:8000
+- **API 端口**: http://127.0.0.1:8100
 - **虚拟环境**: `/home/damon/believeboyDashboard/backend/.venv/`
 
 ## 失败诊断
@@ -69,7 +69,7 @@ python deploy_vps.py --dry-run
 |---------|---------|---------|
 | ModuleNotFoundError | Python 模块缺失 | 检查 requirements.txt，运行 pip install |
 | ImportError | 依赖问题或代码冲突 | 检查新增的导入语句 |
-| 端口占用 | 8000 端口被占用 | lsof -i:8000 查看占用进程 |
+| 端口占用 | 8100 端口被占用 | lsof -i:8100 查看占用进程 |
 | 权限不足 | Systemd 配置问题 | 检查 service 文件的 User/Group |
 | 数据库连接失败 | DATABASE_URL 配置错误 | 检查环境变量配置 |
 

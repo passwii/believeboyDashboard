@@ -37,7 +37,7 @@
    ║  │  ┌──────────────────┐  ┌──────────────────────────┐  │  ║
    ║  │  │ frontend         │  │ backend                  │  │  ║
    ║  │  │ Next.js 16       │──▶ FastAPI 0.115            │  │  ║
-   ║  │  │ :3000            │  │ Uvicorn :8000            │  │  ║
+   ║  │  │ :3200            │  │ Uvicorn :8100            │  │  ║
    ║  │  │ Nixpacks build   │  │ Dockerfile build         │  │  ║
    ║  │  └──────────────────┘  └──────┬───────────────────┘  │  ║
    ║  │                               │                      │  ║
@@ -55,7 +55,7 @@
    ║  │  └──────────────────┘  └──────────────────────────┘   │  ║
    ║  │                                                      │  ║
    ║  │  全部走 dokploy-network 内网通信                     │  ║
-   ║  │  5432/6379/8000 端口**不**对外暴露                   │  ║
+   ║  │  5432/6379/8100 端口**不**对外暴露                   │  ║
    ║  └──────────────────────────────────────────────────────┘  ║
    ║                                                            ║
    ║  ┌──────────────────────────────────────────────────────┐  ║
@@ -68,7 +68,7 @@
 **关键设计原则**（和 Coolify 方案一致）：
 - ✅ **单 VPS 全栈**——frontend/backend/worker/postgres/redis 全部在同一台
 - ✅ **零端口暴露**——80/443/5432/6379 全部不开放公网
-- ✅ **唯一公网入口**——`https://dashboard.believeboy.com` 经 Cloudflare → cloudflared → Traefik → frontend:3000
+- ✅ **唯一公网入口**——`https://dashboard.believeboy.com` 经 Cloudflare → cloudflared → Traefik → frontend:3200
 - ✅ **后端通过前端 `/api/backend/*` 反代**（已存在的 `app/api/backend/[...path]/route.ts`）
 - ✅ **应急冷启动**——保留现有 systemd 服务
 
@@ -310,12 +310,12 @@ COPY . .
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
 
-EXPOSE 8000
+EXPOSE 8100
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/api/v1/health || exit 1
+  CMD curl -fsS http://127.0.0.1:8100/api/v1/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log", "--workers", "4"]
 ```
 
 #### 6.1.3 端口
@@ -360,7 +360,7 @@ Destination: /app/uploads
 Dokploy Dashboard → `believeboy-api` → **Console**：
 
 ```bash
-curl -s http://127.0.0.1:8000/api/v1/health
+curl -s http://127.0.0.1:8100/api/v1/health
 # 期望: {"status":"ok",...}
 
 alembic upgrade head
@@ -415,7 +415,7 @@ Dokploy Dashboard → **Create Service** → **Application**：
 
 ### 8.3 端口
 
-- Container Port: **3000**
+- Container Port: **3200**
 - Expose: **✅ Public**（让 Dokploy 配 Traefik 路由）
 
 ### 8.4 域名
@@ -426,7 +426,7 @@ Dokploy Dashboard → `believeboy-frontend` → **Domains** → Add：
 |---|---|
 | Host | `dashboard.believeboy.com` |
 | HTTPS | ✅（Dokploy 会申请 Let's Encrypt 证书） |
-| Container Port | 3000 |
+| Container Port | 3200 |
 
 > **重要**：因为走 cloudflared tunnel，CF 边缘终止 TLS。Dokploy 申请证书可选（双层 TLS）。**推荐方案**：在 CF Dashboard → SSL/TLS → Origin Server 创建 Origin Certificate，传到 Dokploy。
 
@@ -434,7 +434,7 @@ Dokploy Dashboard → `believeboy-frontend` → **Domains** → Add：
 
 | 变量 | 值 |
 |---|---|
-| `BACKEND_API_BASE_URL` | `http://believeboy-api:8000`（内网） |
+| `BACKEND_API_BASE_URL` | `http://believeboy-api:8100`（内网） |
 | `BACKEND_API_KEY` | 同 backend |
 | `NEXTAUTH_URL` | `https://dashboard.believeboy.com` |
 | `NEXTAUTH_SECRET` | 同 backend |
@@ -479,13 +479,13 @@ cloudflared（systemd）
   │ 转发到 127.0.0.1:80（Dokploy Traefik）
   ▼
 Dokploy Traefik
-  │ 路由匹配 dashboard.believeboy.com → frontend:3000
+  │ 路由匹配 dashboard.believeboy.com → frontend:3200
   ▼
-frontend（Next.js :3000）
+frontend（Next.js :3200）
   │ /api/backend/* 匹配 app/api/backend/[...path]/route.ts
-  │ BACKEND_API_BASE_URL=http://believeboy-api:8000
+  │ BACKEND_API_BASE_URL=http://believeboy-api:8100
   ▼
-backend（FastAPI :8000）
+backend（FastAPI :8100）
   │ 内网
   ▼
 postgres（:5432）
@@ -494,7 +494,7 @@ postgres（:5432）
 
 **所有内网通信**：HTTP（不加 TLS），因为同机容器间。
 
-**VPS 上 5432/6379/8000 都不监听 `0.0.0.0`**——只 Docker bridge。
+**VPS 上 5432/6379/8100 都不监听 `0.0.0.0`**——只 Docker bridge。
 
 ## 10. GitHub Webhook 集成
 
@@ -641,7 +641,7 @@ Dokploy 没有自动 DB 回滚，要手动。
 
 ```bash
 sudo systemctl start believeboy-api
-# Cloudflare Tunnel 路由临时改到 127.0.0.1:8000（绕过 Dokploy）
+# Cloudflare Tunnel 路由临时改到 127.0.0.1:8100（绕过 Dokploy）
 ```
 
 ## 16. 与现有 systemd 的过渡
@@ -669,7 +669,7 @@ Dokploy Dashboard → `believeboy-api` → **Configuration** → **Depends On** 
 或者改 Dockerfile 的 CMD：
 
 ```dockerfile
-CMD ["sh", "-c", "until pg_isready -h believeboy-postgres -p 5432; do sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "until pg_isready -h believeboy-postgres -p 5432; do sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8100"]
 ```
 
 ### 18.2 cloudflared tunnel 连接失败
@@ -731,10 +731,10 @@ services:
         RUN pnpm install --frozen-lockfile
         COPY . .
         RUN pnpm gen:api-types && pnpm build
-        EXPOSE 3000
+        EXPOSE 3200
         CMD ["pnpm", "start"]
     environment:
-      BACKEND_API_BASE_URL: http://backend:8000
+      BACKEND_API_BASE_URL: http://backend:8100
       NEXTAUTH_URL: https://dashboard.believeboy.com
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       BACKEND_API_KEY: ${BACKEND_API_KEY}

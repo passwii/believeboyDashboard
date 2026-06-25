@@ -110,7 +110,7 @@ BelieveBoy Dashboard is a cross-border e-commerce operations management platform
 
 ### Frontend
 ```bash
-cd frontend && pnpm install && pnpm dev        # http://localhost:3000
+cd frontend && pnpm install && pnpm dev        # http://localhost:3200
 pnpm build && pnpm start                      # production
 pnpm lint                                     # linter
 ```
@@ -127,7 +127,7 @@ cd backend
 conda activate <your-env-name>  # or skip if using base environment
 pip install -r requirements.txt
 cp .env.example .env                          # fill in DATABASE_URL + API_KEY
-./run_api.sh                                  # http://localhost:8000
+./run_api.sh                                  # http://localhost:8100
 alembic upgrade head                          # run migrations
 pytest                                        # run tests (cd backend first)
 pytest tests/path/to/test_file.py::test_name  # single test
@@ -145,7 +145,7 @@ pytest tests/path/to/test_file.py::test_name  # single test
 ## Architecture
 
 ### Frontend → Backend Communication
-The frontend **never connects to PostgreSQL directly**. All backend calls go through a Next.js API route proxy at `frontend/app/api/backend/[...path]/route.ts`, which forwards to `BACKEND_API_BASE_URL` (default `http://127.0.0.1:8000`) with `X-API-Key`, `X-User-Id`, `X-User-Name`, `X-Operator`, and `X-Is-Admin` headers. The backend validates the `X-API-Key` header via `app/core/security.py`.
+The frontend **never connects to PostgreSQL directly**. All backend calls go through a Next.js API route proxy at `frontend/app/api/backend/[...path]/route.ts`, which forwards to `BACKEND_API_BASE_URL` (default `http://127.0.0.1:8100`) with `X-API-Key`, `X-User-Id`, `X-User-Name`, `X-Operator`, and `X-Is-Admin` headers. The backend validates the `X-API-Key` header via `app/core/security.py`.
 
 ### Backend API
 - Entry: `backend/app/main.py`
@@ -204,7 +204,7 @@ Uses an external AI provider configured via `AI_CHAT_PROVIDER_*` env vars. Web s
 ## Environment Variables
 
 **Frontend** (`frontend/.env.local`):
-- `BACKEND_API_BASE_URL` — backend URL (e.g. `http://127.0.0.1:8000`)
+- `BACKEND_API_BASE_URL` — backend URL (e.g. `http://127.0.0.1:8100`)
 - `BACKEND_API_KEY` — shared API key
 - `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
 

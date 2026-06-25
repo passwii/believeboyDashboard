@@ -13,7 +13,7 @@
 2. 在 staging 将 API 进程数调整到 4：
    ```bash
    cd backend
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+   uvicorn app.main:app --host 0.0.0.0 --port 8100 --workers 4
    ```
 
 3. 创建一条月报任务并确认创建接口立即返回 `job_id`：

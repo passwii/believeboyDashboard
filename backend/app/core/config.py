@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_name: str = "believeboy-backend"
     app_env: str = "development"
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 8100
 
     database_url: str = Field(min_length=1)
     # BEL-55-P5 / BEL-73: optional read-replica URL. When empty, all

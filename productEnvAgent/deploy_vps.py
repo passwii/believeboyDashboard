@@ -153,8 +153,8 @@ def analyze_logs(logs):
         report["recommendations"].append("检查迁移脚本语法，或手动运行 alembic 排查")
 
     if "port" in error_log.lower() and ("bind" in error_log.lower() or "address" in error_log.lower()):
-        report["likely_causes"].append("端口 8000 被占用")
-        report["recommendations"].append("运行 lsof -i:8000 查看占用进程，然后 kill 或重启该进程")
+        report["likely_causes"].append("端口 8100 被占用")
+        report["recommendations"].append("运行 lsof -i:8100 查看占用进程，然后 kill 或重启该进程")
 
     if "Permission denied" in error_log:
         report["likely_causes"].append("权限不足")
@@ -308,7 +308,7 @@ def deploy(dry_run=False, auto_confirm=False):
     # 检查服务是否真正启动
     print("\n>>> 步骤 6: 确认服务健康状态...")
     rc, out, err = run_ssh_command(
-        f"curl -s http://127.0.0.1:8000/api/v1/health || echo 'HEALTH_CHECK_FAILED'",
+        f"curl -s http://127.0.0.1:8100/api/v1/health || echo 'HEALTH_CHECK_FAILED'",
         dry_run=dry_run,
         timeout=10
     )

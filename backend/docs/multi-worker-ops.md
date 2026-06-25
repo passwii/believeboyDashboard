@@ -16,7 +16,7 @@
 
 | 单元文件 | 作用 | 关键命令 |
 | --- | --- | --- |
-| `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8000，nginx 转发 `/api/*` |
+| `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
 | `deploy/systemd/believeboy-worker.service` | Celery worker（`-c 4`） | 消费 `default,reports,insights` 三个队列 |
 | `deploy/systemd/believeboy-flower.service` | Flower Web UI（basic auth） | 本机 `:5555`，Cloudflare 隧道转发 `flower.believeboy.com` |
 

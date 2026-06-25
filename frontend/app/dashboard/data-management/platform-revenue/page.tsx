@@ -125,6 +125,50 @@ const formatCurrency = (amount: string | number, currency: string) => {
   return `${symbol}${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// 解析用户输入的金额字符串，支持：
+//   - 千分位逗号：1,234.56 / 1,234,567.89
+//   - 欧洲逗号小数：11693,69 / 1.234,56
+//   - 含空格：1 234.56
+//   - 货币符号前缀：$ 1,234.56 / ¥11,693.69
+// 返回 null 表示无法解析为有效正数。
+const parseAmount = (raw: string | number | null | undefined): number | null => {
+  if (raw === null || raw === undefined) return null
+  const str = String(raw).trim()
+  if (!str) return null
+
+  // 去掉常见货币符号与空白字符（含中文空格 \u3000）
+  let cleaned = str.replace(/[\s ¥$€£￥]/g, '')
+
+  // 形如 "1.234,56" → "1234.56"；形如 "1,234.56" → "1234.56"
+  // 判断规则：最后一个分隔符是小数点 → 千分位是逗号；最后一个分隔符是逗号 → 小数点是逗号
+  const lastDot = cleaned.lastIndexOf('.')
+  const lastComma = cleaned.lastIndexOf(',')
+  if (lastDot === -1 && lastComma === -1) {
+    // 没有分隔符
+  } else if (lastComma > lastDot) {
+    // 逗号在小数位（欧洲写法），把剩余逗号当千分位去掉
+    cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.')
+  } else {
+    // 点在小数位（英语写法），去掉所有逗号
+    cleaned = cleaned.replace(/,/g, '')
+  }
+
+  // 只允许数字 + 一个可选小数点
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null
+
+  const num = Number(cleaned)
+  if (!Number.isFinite(num)) return null
+  return num
+}
+
+// 格式化金额输入框显示（剥千分位逗号，保留用户原始小数）
+const formatAmountInput = (raw: string): string => {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  // 直接把逗号去掉，保留点和数字，方便用户继续输入
+  return trimmed.replace(/,/g, '')
+}
+
 // 计算合计金额（按币种分组）
 const calculateTotals = (revenues: PlatformRevenue[]) => {
   const totals: Record<string, number> = {}
@@ -414,9 +458,38 @@ export default function PlatformRevenuePage() {
   // 提交表单
   const handleSubmit = async () => {
     try {
-      // 验证必填字段
-      if (!formData.project_id || !formData.country || !formData.received_date || !formData.amount) {
-        notify({ type: 'error', title: '请填写必填字段' })
+      // 验证必填字段（按字段精确定位缺失项，避免笼统提示）
+      const missingFields: string[] = []
+      if (!formData.project_id) missingFields.push('项目')
+      if (!formData.country) missingFields.push('站点')
+      if (!formData.received_date) missingFields.push('回款日期')
+      if (!formData.amount || !formData.amount.trim()) missingFields.push('回款金额')
+
+      if (missingFields.length > 0) {
+        notify({
+          type: 'error',
+          title: '请填写必填字段',
+          message: `以下字段为必填：${missingFields.join('、')}`,
+        })
+        return
+      }
+
+      // 金额格式校验（支持千分位逗号 / 欧洲逗号小数）
+      const parsedAmount = parseAmount(formData.amount)
+      if (parsedAmount === null) {
+        notify({
+          type: 'error',
+          title: '请输入有效金额',
+          message: '请检查金额格式，例如 11693.69 或 1,234.56',
+        })
+        return
+      }
+      if (parsedAmount <= 0) {
+        notify({
+          type: 'error',
+          title: '金额需大于 0',
+          message: `当前金额：${parsedAmount}`,
+        })
         return
       }
 
@@ -425,7 +498,7 @@ export default function PlatformRevenuePage() {
             // PATCH: only send mutable fields (no project_id)
             country: formData.country,
             received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
-            amount: parseFloat(formData.amount),
+            amount: parsedAmount,
             currency: formData.currency,
             revenue_type: formData.revenue_type,
             note: formData.note || null,
@@ -443,7 +516,7 @@ export default function PlatformRevenuePage() {
             project_id: parseInt(formData.project_id),
             country: formData.country,
             received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
-            amount: parseFloat(formData.amount),
+            amount: parsedAmount,
             currency: formData.currency,
             revenue_type: formData.revenue_type,
             note: formData.note || null,
@@ -1319,13 +1392,15 @@ export default function PlatformRevenuePage() {
                 </Label>
                 <Input
                   id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={formData.amount}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, amount: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    // 允许粘贴带千分位逗号的金额（如 "11,693.69"），
+                    // 同时阻止用户连续输入多个逗号以外的非法字符
+                    const formatted = formatAmountInput(e.target.value)
+                    setFormData((prev) => ({ ...prev, amount: formatted }))
+                  }}
                   placeholder="0.00"
                   className="w-full"
                 />
@@ -1539,7 +1614,7 @@ export default function PlatformRevenuePage() {
       <PortraitScreenshotDialog
         open={!!previewImage}
         onOpenChange={(open) => !open && setPreviewImage(null)}
-        src={previewImage ?? ''}
+        src={previewImage}
         alt="图片预览"
       />
     </div>
