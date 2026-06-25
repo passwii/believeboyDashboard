@@ -13,7 +13,7 @@ type UserItem = {
   operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
-  role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
+  role_type: 'admin' | 'operator' | 'businessdev'
   created_at: string
   updated_at: string
 }
@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     name?: string
     fullName?: string
     isActive?: boolean
-    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
+    roleType?: 'admin' | 'operator' | 'businessdev'
     password?: string
     operator_name_zh?: string | null
   }

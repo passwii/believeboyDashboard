@@ -153,7 +153,10 @@
 
 ### 6. 工厂模式（Factory Dashboard）
 
-保持不变，`roleType === 'factory'` 时仍渲染 `FactoryDashboard`。
+> **2026-06-24 更新**：工厂（`factory`）角色已下线，`FactoryDashboard` 组件
+> 及其在首页的 `roleType === 'factory'` 分支已删除；该组件文件
+> `frontend/components/dashboard/factory-dashboard.tsx` 也已移除。
+> 历史决策可参考本节原始描述。
 
 ## 数据流
 

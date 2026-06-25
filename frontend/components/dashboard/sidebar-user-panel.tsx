@@ -36,7 +36,6 @@ const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
   operator: '运营',
   businessdev: '招商',
-  factory: '工厂',
 }
 
 function getRoleLabel(roleType: string | undefined): string | null {

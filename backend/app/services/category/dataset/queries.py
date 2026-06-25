@@ -13,7 +13,6 @@ from app.models import (
     CategoryResearchProductDetail,
     CategoryResearchSalesTrend,
 )
-from app.schemas.system_management import UserRoleType
 
 
 # --- List & Query ---
@@ -24,8 +23,6 @@ def list_datasets(
     marketplace: str | None = None,
     category_keyword_en: str | None = None,
     current_only: bool = True,
-    role_type: str | None = None,
-    operator: str | None = None,
 ) -> list[CategoryResearchDataset]:
     """List category research datasets with optional filtering."""
     from app.services.category.dataset_parsers import _normalize_marketplace, _normalize_category_keyword
@@ -41,8 +38,6 @@ def list_datasets(
         stmt = stmt.where(CategoryResearchDataset.marketplace == _normalize_marketplace(marketplace))
     if category_keyword_en:
         stmt = stmt.where(CategoryResearchDataset.category_keyword_en == _normalize_category_keyword(category_keyword_en))
-    if role_type == UserRoleType.factory.value and operator:
-        stmt = stmt.where(CategoryResearchDataset.created_by == operator)
 
     return list(db.execute(stmt).scalars().all())
 

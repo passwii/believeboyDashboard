@@ -1506,7 +1506,6 @@ export default function CategoryResearchPage() {
   const operatorName = session?.user?.operatorNameZh ?? null
   const displayName = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || '').trim()
   const roleType = session?.user?.roleType
-  const isFactoryWithoutOperatorName = roleType === 'factory' && !operatorName
 
   const [marketplace, setMarketplace] = useState('US')
   const [keywordEn, setKeywordEn] = useState('')
@@ -2101,14 +2100,6 @@ export default function CategoryResearchPage() {
           </div>
         </div>
         </>
-      ) : isFactoryWithoutOperatorName ? (
-        <div className="dashboard-surface flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <ShieldAlert className="h-10 w-10 text-muted-foreground" />
-          <div>
-            <p className="font-semibold">无法访问分析数据</p>
-            <p className="mt-1 text-sm text-muted-foreground">您的账号未设置运营姓名，无法加载调研记录。请联系管理员完善账号信息后重试。</p>
-          </div>
-        </div>
       ) : (
         <>
         <div className="dashboard-surface overflow-hidden border-border/80">
@@ -2186,11 +2177,11 @@ export default function CategoryResearchPage() {
                 {datasetLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
                 加载版本
               </Button>
-              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId || roleType === 'factory'}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeCurrent()} disabled={recomputingCurrent || !selectedDatasetId}>
                 {recomputingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算当前版本
               </Button>
-              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim() || roleType === 'factory'}>
+              <Button variant="outline" className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void onRecomputeHistory()} disabled={recomputingHistory || !analysisKeyword.trim()}>
                 {recomputingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 重算历史版本
               </Button>

@@ -4,7 +4,6 @@ export const ROLE_LABELS: Record<ProfileRoleType, string> = {
   admin: '管理员',
   operator: '运营',
   businessdev: '招商',
-  factory: '工厂',
 }
 
 export function getRoleLabel(role: ProfileRoleType): string {

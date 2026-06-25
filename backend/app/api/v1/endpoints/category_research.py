@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, get_request_role_type, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.core.config import Settings, get_settings
 from app.schemas.category_research import (
     CategoryResearchManualDimensionUpsertRequest,
@@ -42,16 +42,6 @@ from app.services.category import (
 )
 
 router = APIRouter(dependencies=[Depends(protected)])
-
-
-def _check_factory_can_access(dataset_id: int, db: Session, operator: str | None) -> None:
-    """Raise 403 if the requesting factory user does not own the dataset."""
-    if operator is None:
-        return
-    from app.models.category_research import CategoryResearchDataset
-    dataset = db.get(CategoryResearchDataset, dataset_id)
-    if dataset is not None and dataset.created_by != operator:
-        raise HTTPException(status_code=403, detail='您没有权限查看此调研记录')
 
 
 @router.post('/category-research/datasets/import', response_model=CategoryResearchImportResponse)
@@ -94,8 +84,6 @@ def list_category_research_datasets(
     current_only: bool = Query(default=True),
     include_history: bool = Query(default=False),
     db: Session = Depends(get_read_db_session),
-    operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> list[CategoryResearchDatasetItem]:
     effective_current_only = False if include_history else current_only
     rows = list_datasets(
@@ -103,8 +91,6 @@ def list_category_research_datasets(
         marketplace=marketplace,
         category_keyword_en=category_keyword_en,
         current_only=effective_current_only,
-        role_type=role_type,
-        operator=operator,
     )
     return [_to_dataset_item(item) for item in rows]
 
@@ -116,11 +102,8 @@ def get_category_research_dataset(
     price_band_breaks: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchOverviewResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         payload = get_dataset_overview(
             db,
             dataset_id,
@@ -155,11 +138,8 @@ def recompute_category_research_dataset(
     dataset_id: int,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchRecomputeResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         dataset = recompute_dataset_from_history(db, dataset_id)
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
@@ -180,10 +160,7 @@ def recompute_category_research_datasets(
     category_keyword_en: str | None = Query(default=None),
     include_history: bool = Query(default=True),
     db: Session = Depends(get_primary_db_session),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchBatchRecomputeResponse:
-    if role_type == 'factory':
-        raise HTTPException(status_code=403, detail='您没有权限使用批量重算')
     try:
         payload = recompute_datasets_from_history(
             db,
@@ -213,11 +190,8 @@ def list_category_research_products(
     price_band_breaks: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchProductsResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         rows, has_next = list_dataset_products(
             db,
             dataset_id=dataset_id,
@@ -252,11 +226,8 @@ def upsert_category_research_manual_dimensions(
     payload: CategoryResearchManualDimensionUpsertRequest,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchManualDimensionUpsertResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         result = upsert_manual_dimensions(
             db,
             dataset_id=dataset_id,
@@ -279,11 +250,8 @@ def get_category_research_asin_trend(
     asin: str = Query(..., min_length=1),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchTrendResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         rows = list_dataset_trend_points(db, dataset_id=dataset_id, asin=asin)
     except ValueError as exc:
         if str(exc) == 'Dataset not found':
@@ -304,11 +272,8 @@ def get_category_research_market_trend(
     months: int = Query(default=24, ge=1, le=60),
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchMarketTrendResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         points = get_dataset_market_trend_points(
             db,
             dataset_id=dataset_id,
@@ -332,11 +297,8 @@ def list_category_research_exports(
     db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ) -> CategoryResearchExportListResponse:
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         items = list_available_exports(
             db,
             settings=settings,
@@ -362,11 +324,8 @@ def download_category_research_export(
     db: Session = Depends(get_read_db_session),
     settings: Settings = Depends(get_settings),
     operator: str | None = Depends(get_request_operator),
-    role_type: str | None = Depends(get_request_role_type),
 ):
     try:
-        if role_type == 'factory' and operator:
-            _check_factory_can_access(dataset_id, db, operator)
         payload = build_export_payload(
             db,
             settings=settings,

@@ -40,7 +40,7 @@ import {
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  */
 
-export type RoleType = 'admin' | 'businessdev' | 'operator' | 'factory' | string
+export type RoleType = 'admin' | 'businessdev' | 'operator' | string
 
 export type SidebarSubItem = {
  title: string

@@ -136,7 +136,6 @@ struct SessionUser: Equatable, Codable {
         case admin
         case businessdev
         case `operator`
-        case factory
     }
 
     static let placeholder = SessionUser(

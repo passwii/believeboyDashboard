@@ -6,7 +6,7 @@ the browser's cookie session to call API endpoints through the frontend proxy.
 This verifies:
   - Backend enforces role-based access (403 on unauthorized calls)
   - Frontend proxy correctly forwards auth headers
-  - Admin vs operator vs factory isolation
+  - Admin vs operator vs businessdev isolation
 """
 import sys
 from pathlib import Path
@@ -68,17 +68,17 @@ class TestAPIPermissions:
         assert resp.status in (302, 403), \
             f"[P2] Operator should get 403, got {resp.status}: {resp.text()}"
 
-    def test_factory_cannot_list_accounts(self, page: Page):
+    def test_businessdev_cannot_list_accounts(self, page: Page):
         """
-        P4 (API): Factory calling GET /api/v1/system-management/accounts → 403.
+        P4 (API): Businessdev calling GET /api/v1/system-management/accounts → 403.
         """
-        cfg = TEST_ACCOUNTS["factory"]
+        cfg = TEST_ACCOUNTS["businessdev"]
         login_as(page, cfg["email"], cfg["password"])
 
         api = new_api_context(page)
         resp = api.get(f"{FRONTEND_URL}/api/backend/system-management/accounts")
         assert resp.status in (302, 403), \
-            f"[P4] Factory should get 403, got {resp.status}: {resp.text()}"
+            f"[P4] Businessdev should get 403, got {resp.status}: {resp.text()}"
 
     def test_admin_can_list_exchange_rates(self, page: Page):
         """
@@ -145,7 +145,7 @@ class TestBackendRoleHeaderPassthrough:
     based on the NextAuth session role.
     """
 
-    @pytest.mark.parametrize("role_key", ["admin", "operator", "factory"])
+    @pytest.mark.parametrize("role_key", ["admin", "operator", "businessdev"])
     def test_role_type_header_sent(self, page: Page, role_key: str):
         """
         After login, the backend should receive the correct X-Role-Type header

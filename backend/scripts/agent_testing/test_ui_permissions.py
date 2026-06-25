@@ -33,27 +33,6 @@ def assert_contains_text(page: Page, text: str, timeout: int = 5000):
 class TestUIPermissions:
     """Playwright tests verifying UI-level permission controls."""
 
-    def test_factory_recompute_button_disabled(self, page: Page):
-        """
-        P7: Factory role → research-analysis "重新计算" button is disabled.
-        Verified via UI, not just API.
-        """
-        cfg = TEST_ACCOUNTS["factory"]
-        login_as(page, cfg["email"], cfg["password"])
-
-        page.goto(f"{FRONTEND_URL}/dashboard/data-analysis/research-analysis", wait_until="networkidle")
-
-        # The page may show a dataset selector; click the first dataset row if present
-        first_dataset = page.locator("[data-testid='dataset-row'], .dataset-item, tr:has-text('SKU')").first
-        if first_dataset.count() > 0:
-            first_dataset.click()
-            page.wait_for_timeout(500)
-
-        recompute = page.get_by_role("button", name="重新计算")
-        if recompute.count() > 0:
-            assert recompute.is_disabled(), \
-                f"[P7] Factory user should NOT be able to recompute, but button is enabled"
-
     def test_operator_exchange_rate_edit_disabled(self, page: Page):
         """
         P6: Operator role → exchange-rate edit button is disabled.
@@ -91,16 +70,16 @@ class TestUIPermissions:
         assert "?forbidden=1" in page.url or page.url.endswith("/dashboard"), \
             f"[P2] Operator should be redirected from system-management, got: {page.url}"
 
-    def test_middleware_redirect_factory(self, page: Page):
+    def test_middleware_redirect_businessdev(self, page: Page):
         """
-        P4: Factory attempting to access /system-management → redirect to forbidden.
+        P4: Businessdev attempting to access /system-management → redirect to forbidden.
         """
-        cfg = TEST_ACCOUNTS["factory"]
+        cfg = TEST_ACCOUNTS["businessdev"]
         login_as(page, cfg["email"], cfg["password"])
 
         page.goto(f"{FRONTEND_URL}/dashboard/system-management/account-management")
         assert "?forbidden=1" in page.url or page.url.endswith("/dashboard"), \
-            f"[P4] Factory should be redirected from system-management, got: {page.url}"
+            f"[P4] Businessdev should be redirected from system-management, got: {page.url}"
 
     def test_admin_can_access_system_management(self, page: Page):
         """

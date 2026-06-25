@@ -783,7 +783,6 @@ import { useSession } from 'next-auth/react'
 
 import { DashboardSalesChart } from '@/components/dashboard/dashboard-sales-chart'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
-import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
 import { DashboardToolbar, type ViewMode } from '@/components/dashboard/dashboard-toolbar'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
@@ -878,16 +877,12 @@ export default function DashboardPage() {
   const days = viewMode === 'today' ? 1 : 7
 
   const { data: overviewData, loading: overviewLoading, refresh: overviewRefresh } = useDashboardOverview({
-    enabled: status === 'authenticated' && roleType !== 'factory',
+    enabled: status === 'authenticated',
     days,
   })
 
   if (status === 'loading') {
     return <DashboardPageLoading />
-  }
-
-  if (roleType === 'factory') {
-    return <FactoryDashboard operatorName={operatorName} />
   }
 
   const metrics = overviewData ? buildMetricProps(overviewData, viewMode) : undefined
