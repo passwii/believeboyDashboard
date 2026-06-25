@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
-import { FactoryDashboard } from '@/components/dashboard/factory-dashboard'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
 import { DashboardAlertWidget } from '@/components/dashboard/dashboard-alert-widget'
@@ -493,10 +492,6 @@ if (requestId !== latestRequestRef.current) return
 
   if (status === 'loading') {
     return <DashboardPageLoading />
-  }
-
-  if (roleType === 'factory') {
-    return <FactoryDashboard operatorName={operatorName} />
   }
 
   return (

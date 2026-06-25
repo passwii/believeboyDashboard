@@ -6,7 +6,7 @@ declare module 'next-auth' {
       id: string
       isAdmin: boolean
       operatorNameZh?: string | null
-      roleType: 'admin' | 'operator' | 'businessdev' | 'factory'
+      roleType: 'admin' | 'operator' | 'businessdev'
       sessionId?: string
     } & DefaultSession['user']
   }
@@ -15,7 +15,7 @@ declare module 'next-auth' {
     id: string
     isAdmin: boolean
     operatorNameZh?: string | null
-    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
+    roleType?: 'admin' | 'operator' | 'businessdev'
     sessionId?: string
   }
 }
@@ -25,7 +25,7 @@ declare module 'next-auth/jwt' {
     uid?: string
     isAdmin?: boolean
     operatorNameZh?: string | null
-    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
+    roleType?: 'admin' | 'operator' | 'businessdev'
     sessionId?: string
   }
 }

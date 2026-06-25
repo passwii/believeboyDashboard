@@ -26,7 +26,7 @@ macOS 端的请求头镜像：
 | `X-User-Email` | URL-encoded `SessionContext.email` | 后端 user lookup |
 | `X-User-Name` | URL-encoded `SessionContext.userName` | 日志/审计 |
 | `X-Operator` | URL-encoded `SessionContext.operatorName` | 日志/审计 |
-| `X-Role-Type` | `SessionContext.roleType` (`admin` / `operator` / `businessdev` / `factory`) | 后端角色判断 |
+| `X-Role-Type` | `SessionContext.roleType` (`admin` / `operator` / `businessdev`) | 后端角色判断 |
 | `X-Is-Admin` | `"true"` if `SessionContext.isAdmin` | 后端 admin 短路 |
 | `X-Session-Id` | `SessionContext.sessionId` | Redis 滑动窗口校验 |
 

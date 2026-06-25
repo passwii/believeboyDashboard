@@ -33,10 +33,6 @@ TEST_ACCOUNTS = {
         "email": os.getenv("TEST_BUSINESSDEV_EMAIL", "test_businessdev@believeboy.com"),
         "password": os.getenv("TEST_BUSINESSDEV_PASSWORD", "TestPassword123"),
     },
-    "factory": {
-        "email": os.getenv("TEST_FACTORY_EMAIL", "test_factory@believeboy.com"),
-        "password": os.getenv("TEST_FACTORY_PASSWORD", "TestPassword123"),
-    },
 }
 
 

@@ -259,6 +259,6 @@ extension SidebarGroup {
                         routePath: "/system-management/digital-display",
                         systemImage: "tv", allowedRoles: [.admin]),
         ],
-        allowedRoles: [.admin, .operator, .businessdev, .factory]
+        allowedRoles: [.admin, .operator, .businessdev]
     )
 }

@@ -13,7 +13,7 @@ type UserItem = {
   operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
-  role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
+  role_type: 'admin' | 'operator' | 'businessdev'
   created_at: string
   updated_at: string
 }
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     fullName?: string
     password?: string
     isAdmin?: boolean
-    roleType?: 'admin' | 'operator' | 'businessdev' | 'factory'
+    roleType?: 'admin' | 'operator' | 'businessdev'
     operator_name_zh?: string | null
   }
 

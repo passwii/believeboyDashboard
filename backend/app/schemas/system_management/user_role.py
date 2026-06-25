@@ -8,4 +8,3 @@ class UserRoleType(str, Enum):
     admin = "admin"
     operator = "operator"
     businessdev = "businessdev"
-    factory = "factory"

@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { Factory, Loader2, MoreHorizontal, RefreshCw, Shield, Store } from 'lucide-react'
+import { Loader2, MoreHorizontal, RefreshCw, Shield, Store } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,13 +35,12 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 
-type UserRoleType = 'admin' | 'operator' | 'businessdev' | 'factory'
+type UserRoleType = 'admin' | 'operator' | 'businessdev'
 
 const ROLE_TYPE_OPTIONS: { value: UserRoleType; label: string; icon: React.ReactNode }[] = [
   { value: 'admin', label: '管理员', icon: <Shield className="h-3 w-3" /> },
   { value: 'operator', label: '运营', icon: <Shield className="h-3 w-3" /> },
   { value: 'businessdev', label: '招商', icon: <Store className="h-3 w-3" /> },
-  { value: 'factory', label: '工厂', icon: <Factory className="h-3 w-3" /> },
 ]
 
 function RoleTypeBadge({ roleType }: { roleType: UserRoleType }) {
@@ -85,8 +84,7 @@ function getAccountDisplayName(item: Pick<UserItem, 'name' | 'email'>) {
 
 const NEXT_ROLE_TYPE: Record<Exclude<UserRoleType, 'admin'>, Exclude<UserRoleType, 'admin'>> = {
   operator: 'businessdev',
-  businessdev: 'factory',
-  factory: 'operator',
+  businessdev: 'operator',
 }
 
 export default function AccountManagementPage() {
@@ -542,9 +540,7 @@ export default function AccountManagementPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {createRoleType === 'factory'
-                  ? '工厂角色仅可访问新建产品报价页面。'
-                  : createRoleType === 'admin'
+                {createRoleType === 'admin'
                   ? '管理员拥有系统全局权限。'
                   : '选择用户的业务角色属性。'}
               </p>

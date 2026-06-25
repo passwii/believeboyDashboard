@@ -12,6 +12,10 @@ class NetworkAuthError extends CredentialsSignin {
 type UserCredentials = Partial<Record<'email' | 'password', unknown>>
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Cloudflare Tunnel 会改 Host 头；这里显式声明信任，避免 v5 在生产模式
+  // 下抛 `UntrustedHost: Host must be trusted` (errors.authjs.dev#untrustedhost)。
+  // NEXTAUTH_URL=https://dash.believeboy.com 仍然作为 callback / cookie 的 origin 基址。
+  trustHost: true,
   session: {
     strategy: 'jwt',
     maxAge: 8 * 60 * 60, // 8小时 — 活跃续期由 Redis 滑动窗口控制
@@ -38,7 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             operator_name_zh: string | null
             is_admin: boolean
             is_active: boolean
-            role_type: 'admin' | 'operator' | 'businessdev' | 'factory'
+            role_type: 'admin' | 'operator' | 'businessdev'
             session_id: string
           }>('/api/v1/auth/login', {
             method: 'POST',
@@ -85,7 +89,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.uid = user.id
         token.isAdmin = Boolean(user.isAdmin)
         token.operatorNameZh = typeof user.operatorNameZh === 'string' ? user.operatorNameZh : null
-        token.roleType = (user.roleType as 'admin' | 'operator' | 'businessdev' | 'factory') ?? (user.isAdmin ? 'admin' : 'operator')
+        token.roleType = (user.roleType as 'admin' | 'operator' | 'businessdev') ?? (user.isAdmin ? 'admin' : 'operator')
         token.sessionId = user.sessionId
       }
       return token
@@ -95,7 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = String(token.uid ?? '')
         session.user.isAdmin = Boolean(token.isAdmin)
         session.user.operatorNameZh = typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
-        session.user.roleType = (token.roleType as 'admin' | 'operator' | 'businessdev' | 'factory') ?? (token.isAdmin ? 'admin' : 'operator')
+        session.user.roleType = (token.roleType as 'admin' | 'operator' | 'businessdev') ?? (token.isAdmin ? 'admin' : 'operator')
         session.user.sessionId = typeof token.sessionId === 'string' ? token.sessionId : undefined
       }
       return session

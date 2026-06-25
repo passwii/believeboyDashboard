@@ -88,7 +88,7 @@ frontend/types/profile.ts                     (新 — Profile / ProfileUpdate �
 ### 4.4 共享类型（`frontend/types/profile.ts`）
 
 ```ts
-export type ProfileRoleType = 'admin' | 'operator' | 'businessdev' | 'factory'
+export type ProfileRoleType = 'admin' | 'operator' | 'businessdev'
 
 export interface Profile {
   id: string
@@ -163,7 +163,7 @@ interface UseProfileResult {
 
 - `DataCard` 替换旧 `Card` + 自定义渐变：使用 `DataCardHeader`（title + badge + description + action）+ `DataCardContent` 默认 padding。`profile-client.tsx` 顶部的 "个人中心 / 我的资料" 卡片统一走 `DataCard`，badge "个人中心" 用 `border-cyan-500/30 bg-cyan-500/10` 与 `account-management` 对齐。
 - `TabsList` 改成 `rounded-2xl border border-border/70 bg-muted/25 p-1`（从 `operator-management` 复制），3 个 `SlidingTabsTrigger` 用同一 `layoutId="profile-tabs"`。
-- 角色 badge：保留右上角 `Badge` 显式显示（`admin / 运营 / 招商 / 工厂`），与 sidebar 的 `roleLabel` 视觉一致。
+- 角色 badge：保留右上角 `Badge` 显式显示（`admin / 运营 / 招商`），与 sidebar 的 `roleLabel` 视觉一致。
 
 ## 6. 测试 / 验收
 
@@ -179,7 +179,7 @@ cd frontend && pnpm build
 
 1. `/dashboard/profile` 默认进入"资料设置" tab。
 2. 顶部 URL 同步：`/dashboard/profile?tab=avatar` 直接打开头像 tab；刷新后保持。
-3. 切到"我的项目" tab：管理员看见所有项目；运营/招商/工厂看见自己作为运营或助理的项目；空状态出现 "暂无可管理的项目" 提示。
+3. 切到"我的项目" tab：管理员看见所有项目；运营/招商看见自己作为运营或助理的项目；空状态出现 "暂无可管理的项目" 提示。
 4. 移动端（<768px）打开"我的项目"：表格隐藏，卡片列表渲染；点击卡片"查看"链接跳转 `project-info?projectId=...`。
 5. 头像 tab：上传 PNG/JPG/WEBP/GIF 之一（≤5MB）→ 头像更新 + sidebar 头像同步 + "已从 R2 加载"提示。
 6. 头像 tab：点"刷新"按钮 → 重新拉头像（`refreshTick` 行为保留）。

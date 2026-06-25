@@ -13132,7 +13132,7 @@ export interface components {
          * UserRoleType
          * @enum {string}
          */
-        UserRoleType: "admin" | "operator" | "businessdev" | "factory";
+        UserRoleType: "admin" | "operator" | "businessdev";
         /** UsersResponse */
         UsersResponse: {
             /** Items */

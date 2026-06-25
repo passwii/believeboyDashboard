@@ -13,7 +13,6 @@ const ROLE_DESCRIPTIONS: Record<ProfileRoleType, string> = {
   admin: '系统全局权限',
   operator: '业务运营权限',
   businessdev: '招商业务权限',
-  factory: '工厂相关页面权限',
 }
 
 interface StatCardProps {

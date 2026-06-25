@@ -47,7 +47,7 @@
 按规格 §4.4 落地：
 
 ```ts
-export type ProfileRoleType = 'admin' | 'operator' | 'businessdev' | 'factory'
+export type ProfileRoleType = 'admin' | 'operator' | 'businessdev'
 
 export interface Profile {
   id: string
@@ -262,7 +262,6 @@ export const ROLE_LABELS: Record<ProfileRoleType, string> = {
   admin: '管理员',
   operator: '运营',
   businessdev: '招商',
-  factory: '工厂',
 }
 
 export function getRoleLabel(role: ProfileRoleType): string {

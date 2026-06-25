@@ -1,4 +1,4 @@
-"""Seed test accounts (operator, businessdev, factory) for permission testing.
+"""Seed test accounts (operator, businessdev) for permission testing.
 
 Usage:
     cd backend && source .venv/bin/activate
@@ -38,12 +38,6 @@ TEST_ACCOUNTS = [
         "name": "测试招商",
         "operator_name_zh": "测试招商",
         "role_type": "businessdev",
-    },
-    {
-        "email": "test_factory@believeboy.com",
-        "name": "测试工厂",
-        "operator_name_zh": "测试工厂",
-        "role_type": "factory",
     },
 ]
 
@@ -132,7 +126,6 @@ def main() -> int:
     print("\nAll test accounts ready. Update conftest.py env vars if needed:")
     print(f"  TEST_OPERATOR_EMAIL=test_operator@believeboy.com")
     print(f"  TEST_BUSINESSDEV_EMAIL=test_businessdev@believeboy.com")
-    print(f"  TEST_FACTORY_EMAIL=test_factory@believeboy.com")
     return 0
 
 
