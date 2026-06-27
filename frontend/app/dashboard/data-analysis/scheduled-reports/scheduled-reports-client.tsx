@@ -1018,7 +1018,14 @@ export function ScheduledReportsClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 选项变化时自动刷新台账（邮箱输入防抖 400ms，其余选项立即刷新）
+  // 台账工具栏：Select / DateRange 变化 → 立即刷新
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    void loadLedger()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgerStartDate, ledgerEndDate, ledgerFrequency, ledgerStatus])
+
+  // 台账工具栏：邮箱输入 → 400ms 防抖后刷新（避免每个按键都打接口）
   useEffect(() => {
     if (!initialLoadDone.current) return
     const handle = setTimeout(() => {
@@ -1026,7 +1033,7 @@ export function ScheduledReportsClient() {
     }, 400)
     return () => clearTimeout(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ledgerStartDate, ledgerEndDate, ledgerFrequency, ledgerStatus, ledgerEmail])
+  }, [ledgerEmail])
 
   const handleCreate = async () => {
     if (!formEmail.trim()) {
