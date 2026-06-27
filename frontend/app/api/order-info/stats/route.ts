@@ -41,7 +41,6 @@ function buildBackendParams(request: NextRequest): URLSearchParams {
 
   passString('sku_keyword')
   passString('order_id_keyword')
-  passString('orderIdKeyword')
   passString('asin_keyword')
   passString('date_from')
   passString('date_to')
