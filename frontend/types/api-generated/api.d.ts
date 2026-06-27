@@ -2203,6 +2203,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/order-info/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order
+         * @description FBM 订单补录/编辑（carrier / tracking_no / shipped_at / updated_by）。
+         */
+        patch: operations["update_order_api_v1_order_info__order_id__patch"];
+        trace?: never;
+    };
     "/api/v1/platform-revenues": {
         parameters: {
             query?: never;
@@ -9324,6 +9344,20 @@ export interface components {
             filename: string;
         };
         /**
+         * OrderInfoUpdate
+         * @description FBM 订单补录/编辑请求体。所有字段可选，未传入则不改。
+         */
+        OrderInfoUpdate: {
+            /** Carrier */
+            carrier?: string | null;
+            /** Shipped At */
+            shipped_at?: string | null;
+            /** Tracking No */
+            tracking_no?: string | null;
+            /** Updated By */
+            updated_by?: string | null;
+        };
+        /**
          * OrderInfoFilterOptions
          * @description 筛选器下拉选项（项目 / 订单状态 / 订单类型 / 国家 / 币种）
          */
@@ -9370,6 +9404,16 @@ export interface components {
             item_price: number;
             /** Order Status */
             order_status: string;
+            /** Carrier */
+            carrier?: string | null;
+            /** Shipped At */
+            shipped_at?: string | null;
+            /** Tracking No */
+            tracking_no?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By */
+            updated_by?: string | null;
             /** Postal Code */
             postal_code?: string | null;
             /** Product Name */
@@ -18720,6 +18764,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderInfoStats"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_api_v1_order_info__order_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Operator"?: string | null;
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string;
+                "X-Session-Id"?: string | null;
+            };
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderInfoUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoItem"];
                 };
             };
             /** @description Validation Error */

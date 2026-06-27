@@ -1,14 +1,16 @@
 'use client'
 
-import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import {
   ArrowDownToLine,
   ChevronDown,
   ChevronUp,
+  Copy,
   ExternalLink,
   Loader2,
+  Pencil,
   RefreshCcw,
   Search,
   X,
@@ -50,6 +52,12 @@ import { DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { getOrderStatusLabel } from '@/lib/order-status'
 import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
+import { useNotifications } from '@/components/notifications'
+import { normalizeErrorMessage } from '@/lib/error-utils'
+import {
+  OrderEditDialog,
+  type OrderEditResponsePayload,
+} from './components/OrderEditDialog'
 
 // ======================== 类型 ========================
 
@@ -80,6 +88,12 @@ type OrderItem = {
   postal_code: string | null
   is_counted_sales: boolean
   created_at: string
+  // ===== FBM 自发货补录字段（2026-06-27 迁移 200 新增）=====
+  carrier: string | null
+  tracking_no: string | null
+  shipped_at: string | null // UTC ISO
+  updated_by: string | null
+  updated_at: string | null // UTC ISO
 }
 
 type OrderStats = {
@@ -163,15 +177,20 @@ function fulfillmentVariant(label: string): 'default' | 'secondary' {
 export default function OrderInfoPage() {
   // session：用于向后端注入 X-Operator / X-Is-Admin（数据级权限控制）
   const { data: session } = useSession()
+  const { notify } = useNotifications()
 
-  // 筛选状态
+  // 筛选状态（关键字类用 _committed 版本做 debounce，原始 input 用 onChange 实时）
   const [projectId, setProjectId] = useState<string>(DEFAULT_PROJECT_VALUE)
   const [fulfillmentChannels, setFulfillmentChannels] = useState<string[]>([])
   const [orderStatuses, setOrderStatuses] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
+  const [currencies, setCurrencies] = useState<string[]>([])
   const [skuKeyword, setSkuKeyword] = useState('')
+  const [skuKeywordCommitted, setSkuKeywordCommitted] = useState('')
   const [orderIdKeyword, setOrderIdKeyword] = useState('')
+  const [orderIdKeywordCommitted, setOrderIdKeywordCommitted] = useState('')
   const [asinKeyword, setAsinKeyword] = useState('')
+  const [asinKeywordCommitted, setAsinKeywordCommitted] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('purchase_at_pt')
@@ -187,6 +206,32 @@ export default function OrderInfoPage() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // FBM 编辑 Dialog 状态
+  const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  // ====== 关键字输入 debounce（250ms）======
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSkuKeywordCommitted(skuKeyword.trim())
+      setOrderIdKeywordCommitted(orderIdKeyword.trim())
+      setAsinKeywordCommitted(asinKeyword.trim())
+      setPage(1)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [skuKeyword, orderIdKeyword, asinKeyword])
+
+  // 当前登录用户名（默认填到 updated_by）
+  const currentUserName = useMemo(() => {
+    const u = session?.user
+    if (!u) return undefined
+    const candidates = [u.operatorNameZh, u.name, u.email]
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim()) return c.trim()
+    }
+    return undefined
+  }, [session])
 
   // ====== 拉取筛选项（一次性） ======
   useEffect(() => {
@@ -222,9 +267,10 @@ export default function OrderInfoPage() {
     fulfillmentChannels.forEach((v) => params.append('fulfillment_channels', v))
     orderStatuses.forEach((v) => params.append('order_statuses', v))
     countries.forEach((v) => params.append('countries', v))
-    if (skuKeyword.trim()) params.set('sku_keyword', skuKeyword.trim())
-    if (orderIdKeyword.trim()) params.set('order_id_keyword', orderIdKeyword.trim())
-    if (asinKeyword.trim()) params.set('asin_keyword', asinKeyword.trim())
+    currencies.forEach((v) => params.append('currencies', v))
+    if (skuKeywordCommitted) params.set('sku_keyword', skuKeywordCommitted)
+    if (orderIdKeywordCommitted) params.set('order_id_keyword', orderIdKeywordCommitted)
+    if (asinKeywordCommitted) params.set('asin_keyword', asinKeywordCommitted)
     if (dateFrom) params.set('date_from', dateFrom)
     if (dateTo) params.set('date_to', dateTo)
     params.set('page', String(page))
@@ -237,9 +283,10 @@ export default function OrderInfoPage() {
     fulfillmentChannels,
     orderStatuses,
     countries,
-    skuKeyword,
-    orderIdKeyword,
-    asinKeyword,
+    currencies,
+    skuKeywordCommitted,
+    orderIdKeywordCommitted,
+    asinKeywordCommitted,
     dateFrom,
     dateTo,
     page,
@@ -284,9 +331,14 @@ export default function OrderInfoPage() {
   }, [buildQuery, session])
 
   // ====== 副作用：任何筛选变化触发 fetch ======
+  // 等 filter-options 至少回来一次再拉数据，避免在 Next.js App Router 偶发的
+  // session / X-Operator 头时序窗口内，与 filter-options 并行发出的 list 请求
+  // 被后端 _ensure_project_access_for_orders 命中 "operator 为空 → 空结果" 分支，
+  // 导致用户看到 "店铺下拉还是空的、列表已经是空" 的死锁。
   useEffect(() => {
+    if (!filterOptions) return
     void fetchData()
-  }, [fetchData])
+  }, [fetchData, filterOptions])
 
   // ====== 操作 handlers ======
   const handleRefresh = () => {
@@ -298,9 +350,13 @@ export default function OrderInfoPage() {
     setFulfillmentChannels([])
     setOrderStatuses([])
     setCountries([])
+    setCurrencies([])
     setSkuKeyword('')
+    setSkuKeywordCommitted('')
     setOrderIdKeyword('')
+    setOrderIdKeywordCommitted('')
     setAsinKeyword('')
+    setAsinKeywordCommitted('')
     setDateFrom('')
     setDateTo('')
     setPage(1)
@@ -317,9 +373,10 @@ export default function OrderInfoPage() {
           fulfillment_channels: fulfillmentChannels,
           order_statuses: orderStatuses,
           countries,
-          sku_keyword: skuKeyword.trim() || null,
-          order_id_keyword: orderIdKeyword.trim() || null,
-          asin_keyword: asinKeyword.trim() || null,
+          currencies,
+          sku_keyword: skuKeywordCommitted || null,
+          order_id_keyword: orderIdKeywordCommitted || null,
+          asin_keyword: asinKeywordCommitted || null,
           date_from: dateFrom || null,
           date_to: dateTo || null,
         }),
@@ -340,8 +397,11 @@ export default function OrderInfoPage() {
       a.download = data.filename
       a.click()
       URL.revokeObjectURL(url)
+      notify({ type: 'success', title: '导出已开始', message: data.filename })
     } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : '导出失败')
+      const msg = e instanceof Error ? e.message : '导出失败'
+      setErrorMessage(msg)
+      notify({ type: 'error', title: '导出失败', message: normalizeErrorMessage(e, '导出失败') })
     } finally {
       setExporting(false)
     }
@@ -356,6 +416,55 @@ export default function OrderInfoPage() {
       setSortDir('desc')
     }
     setPage(1)
+  }
+
+  // ====== FBM 编辑：打开 / 局部刷新 ======
+  const handleOpenEditDialog = (item: OrderItem) => {
+    setEditingOrder(item)
+    setDialogOpen(true)
+  }
+
+  const handleEditSaved = (updated: OrderEditResponsePayload) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === updated.id
+          ? {
+              ...it,
+              carrier: updated.carrier,
+              tracking_no: updated.tracking_no,
+              shipped_at: updated.shipped_at,
+              updated_by: updated.updated_by,
+              updated_at: updated.updated_at,
+            }
+          : it
+      )
+    )
+  }
+
+  // ====== 复制订单号 ======
+  const handleCopyOrderId = async (amazonOrderId: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(amazonOrderId)
+      } else {
+        // 兼容旧浏览器：textarea 兜底
+        const ta = document.createElement('textarea')
+        ta.value = amazonOrderId
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      notify({ type: 'success', title: '已复制订单号', message: amazonOrderId })
+    } catch (err) {
+      notify({
+        type: 'error',
+        title: '复制失败',
+        message: normalizeErrorMessage(err, '浏览器拒绝复制'),
+      })
+    }
   }
 
   const sortIndicator = (key: SortKey) =>
@@ -411,8 +520,8 @@ export default function OrderInfoPage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-3">
-          {/* 第一行：5 个等宽筛选项（店铺 / 订单类型 / 订单状态 / 国家 / 订单号） */}
-          <div className="grid gap-3 md:grid-cols-10">
+          {/* 第一行：6 个等宽筛选项（店铺 / 订单类型 / 订单状态 / 国家 / 币种 / 订单号） */}
+          <div className="grid gap-3 md:grid-cols-12">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
               <Select value={projectId} onValueChange={setProjectId}>
@@ -461,6 +570,16 @@ export default function OrderInfoPage() {
             </div>
 
             <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">币种</label>
+              <MultiSelect
+                options={filterOptions?.currencies ?? []}
+                selected={currencies}
+                onChange={setCurrencies}
+                placeholder={filterOptionsLoading ? '加载中…' : '全部币种'}
+              />
+            </div>
+
+            <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">订单号</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -474,8 +593,8 @@ export default function OrderInfoPage() {
             </div>
           </div>
 
-          {/* 第二行：日期区间 + SKU + ASIN（4/3/3） */}
-          <div className="mt-3 grid gap-3 md:grid-cols-10">
+          {/* 第二行：日期区间 + SKU + ASIN（4/4/4） */}
+          <div className="mt-3 grid gap-3 md:grid-cols-12">
             <div className="md:col-span-4">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">日期区间</label>
               <DateRangePicker
@@ -489,7 +608,7 @@ export default function OrderInfoPage() {
               />
             </div>
 
-            <div className="md:col-span-3">
+            <div className="md:col-span-4">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">SKU</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -502,7 +621,7 @@ export default function OrderInfoPage() {
               </div>
             </div>
 
-            <div className="md:col-span-3">
+            <div className="md:col-span-4">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">ASIN</label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -567,7 +686,11 @@ export default function OrderInfoPage() {
 
         {/* 第三段：主表格（横向滚动容器） */}
         <DataTableCardBody>
-          <Table containerClassName={TABLE_SCROLL_CONTAINER_CLASS} className="w-full min-w-[1320px]">
+          <Table
+            containerClassName={TABLE_SCROLL_CONTAINER_CLASS}
+            className="w-full min-w-[1480px]"
+            aria-label="订单列表"
+          >
             <TableHeader>
               <TableRow className="bg-[hsl(var(--surface-subtle))]">
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>下单时间</TableHead>
@@ -590,17 +713,42 @@ export default function OrderInfoPage() {
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>店铺</TableHead>
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>类型</TableHead>
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>状态</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>物流</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap text-right')}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeletonRows columns={10} rows={8} />
+                <TableSkeletonRows columns={12} rows={8} />
+              ) : errorMessage ? (
+                <TableRow>
+                  <TableCell colSpan={12} className={DENSE_CELL}>
+                    <EmptyTableState
+                      colSpan={12}
+                      message={`加载失败：${errorMessage} — 可点击右上角"刷新"重试`}
+                    />
+                  </TableCell>
+                </TableRow>
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className={DENSE_CELL}>
+                  <TableCell colSpan={12} className={DENSE_CELL}>
                     <EmptyTableState
-                      colSpan={10}
-                      message="暂无订单数据 — 调整筛选条件或等待新的销售报告上传后重试"
+                      colSpan={12}
+                      message={
+                        // 区分筛选无结果 vs 暂无订单
+                        skuKeywordCommitted ||
+                        orderIdKeywordCommitted ||
+                        asinKeywordCommitted ||
+                        projectId !== DEFAULT_PROJECT_VALUE ||
+                        fulfillmentChannels.length > 0 ||
+                        orderStatuses.length > 0 ||
+                        countries.length > 0 ||
+                        currencies.length > 0 ||
+                        dateFrom ||
+                        dateTo
+                          ? '当前筛选条件下无订单 — 可调整筛选或点击"清空筛选"重置'
+                          : '暂无订单数据 — 等待新的销售报告上传后重试'
+                      }
                     />
                   </TableCell>
                 </TableRow>
@@ -609,8 +757,13 @@ export default function OrderInfoPage() {
                   const fullAddress = [item.city, item.state, item.postal_code, getCountryLabel(item.country)]
                     .filter(Boolean)
                     .join(', ')
+                  const isFbm = item.fulfillment_channel === 'Merchant'
                   return (
-                    <TableRow key={item.id} className="hover:bg-muted/40">
+                    <TableRow
+                      key={item.id}
+                      className="hover:bg-muted/40"
+                      aria-label={`订单 ${item.amazon_order_id} · ${item.project_name} · ${item.fulfillment_label}`}
+                    >
                       <TableCell className={DENSE_CELL}>
                         <div className="flex flex-col leading-tight">
                           <span className="text-sm font-medium tabular-nums">
@@ -622,14 +775,20 @@ export default function OrderInfoPage() {
                         </div>
                       </TableCell>
                       <TableCell className={cn(DENSE_CELL, 'font-mono text-xs whitespace-nowrap')}>
-                        <a
-                          href={`https://www.amazon.com/dp/${item.asin ?? ''}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-foreground hover:underline"
-                        >
-                          {item.amazon_order_id}
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <span className="text-foreground" title={`订单号 ${item.amazon_order_id}`}>
+                            {item.amazon_order_id}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyOrderId(item.amazon_order_id)}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                            aria-label={`复制订单号 ${item.amazon_order_id}`}
+                            title="复制订单号"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
                       </TableCell>
                       <TableCell className={DENSE_CELL}>
                         <div className="flex flex-col leading-tight">
@@ -689,14 +848,14 @@ export default function OrderInfoPage() {
                         </div>
                       </TableCell>
                       <TableCell
-                        className={DENSE_CELL}
+                        className={cn(DENSE_CELL, 'max-w-[200px]')}
                         title={
                           fullAddress
-                            ? `服务等级：${item.ship_service_level ?? '—'} · 数据源：source_file #${item.source_file_id}`
+                            ? `${fullAddress} · 服务等级：${item.ship_service_level ?? '—'} · 数据源：source_file #${item.source_file_id}`
                             : undefined
                         }
                       >
-                        <span className="text-sm">{fullAddress || '—'}</span>
+                        <span className="line-clamp-1 text-sm">{fullAddress || '—'}</span>
                       </TableCell>
                       <TableCell className={DENSE_CELL}>
                         <Link
@@ -722,6 +881,50 @@ export default function OrderInfoPage() {
                         <Badge variant={statusVariant(item.order_status)}>
                           {getOrderStatusLabel(item.order_status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell className={DENSE_CELL}>
+                        {isFbm ? (
+                          <div className="flex flex-col gap-0.5 text-xs leading-tight" aria-label="FBM 物流信息">
+                            {item.carrier && (
+                              <span className="font-medium text-foreground">{item.carrier}</span>
+                            )}
+                            {item.tracking_no && (
+                              <span className="font-mono text-muted-foreground" title={item.tracking_no}>
+                                {item.tracking_no.length > 14
+                                  ? `${item.tracking_no.slice(0, 14)}…`
+                                  : item.tracking_no}
+                              </span>
+                            )}
+                            {item.shipped_at && (
+                              <span className="text-muted-foreground">
+                                发货 {formatLocalDate(item.shipped_at)}
+                              </span>
+                            )}
+                            {!item.carrier && !item.tracking_no && !item.shipped_at && (
+                              <span className="text-muted-foreground italic">未填写</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'text-right')}>
+                        {isFbm ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEditDialog(item)}
+                            disabled={loading}
+                            className="gap-1"
+                            title="编辑 FBM 物流信息"
+                            aria-label={`编辑订单 ${item.amazon_order_id} 的物流信息`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            编辑
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -756,6 +959,36 @@ export default function OrderInfoPage() {
           </div>
         </div>
       </DataTableCard>
+
+      {/* ====== FBM 编辑 Dialog ====== */}
+      {editingOrder && (
+        <OrderEditDialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) {
+              // 关闭后清掉 editingOrder，避免下次打开残留旧值
+              setTimeout(() => setEditingOrder(null), 150)
+            }
+          }}
+          order={{
+            id: editingOrder.id,
+            amazon_order_id: editingOrder.amazon_order_id,
+            sku: editingOrder.sku,
+            asin: editingOrder.asin,
+            product_name: editingOrder.product_name,
+            project_name: editingOrder.project_name,
+            quantity: editingOrder.quantity,
+            country: editingOrder.country,
+          }}
+          authHeaders={() => buildBackendClientHeaders(session, { contentType: 'application/json' })}
+          defaultUpdatedBy={currentUserName}
+          onSaved={(updated) => {
+            handleEditSaved(updated)
+            setEditingOrder(null)
+          }}
+        />
+      )}
     </div>
   )
 }

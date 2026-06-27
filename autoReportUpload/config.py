@@ -73,6 +73,8 @@ PROJECTS = [
     "博智1店",
     "博智2店",
     "犀牛",
+    # 2026-06-27 增量：瑞迪特（WESTTHOR）— 之前未在白名单导致新订单无法入库
+    "瑞迪特",
 ]
 
 # How often (in minutes) the monitor loop checks for new files

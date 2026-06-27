@@ -156,12 +156,24 @@ class TestSerializeOrderRow:
         project.project_name = "测试项目"
         project.brand_name = "TestBrand"
 
+        # 2026-06-27 迁移 200 新增字段：mock 默认会返回 MagicMock 字符串，显式置 None
+        row.carrier = None
+        row.tracking_no = None
+        row.shipped_at = None
+        row.updated_by = None
+        row.updated_at = None
+
         item = serialize_order_row(row, project=project)
 
         assert isinstance(item, OrderInfoItem)
         assert item.id == 1
         assert item.project_id == 15
         assert item.project_name == "测试项目"
+        assert item.carrier is None
+        assert item.tracking_no is None
+        assert item.shipped_at is None
+        assert item.updated_by is None
+        assert item.updated_at is None
         assert item.brand_name == "TestBrand"
         assert item.amazon_order_id == "111-2222222-3333333"
         assert item.sku == "TEST-SKU-001"
@@ -203,6 +215,12 @@ class TestSerializeOrderRow:
         project.project_name = "P"
         project.brand_name = None
 
+        row.carrier = None
+        row.tracking_no = None
+        row.shipped_at = None
+        row.updated_by = None
+        row.updated_at = None
+
         item = serialize_order_row(row, project=project)
 
         assert item.fulfillment_channel == "SOMETHING_NEW"
@@ -227,6 +245,12 @@ class TestSerializeOrderRow:
         row.is_counted_sales = False
         row.created_at = datetime(2026, 6, 17, 2, 0, 0, tzinfo=timezone.utc)
         row.raw_row = {}
+
+        row.carrier = None
+        row.tracking_no = None
+        row.shipped_at = None
+        row.updated_by = None
+        row.updated_at = None
 
         item = serialize_order_row(row, project=None)
 
@@ -346,3 +370,191 @@ class TestOperatorAccess:
         # project 2 被拒，应只留 [1, 3]
         assert result == [1, 3]
         assert seen == [1, 2, 3]
+
+
+# ---------- update_order_by_id (FBM 补录) ----------
+
+class TestUpdateOrderById:
+    """FBM 补录逻辑。Mock DB.execute.first() 返回 (row, project)，验证：写入列、权限、updated_at 兜底。"""
+
+    def _make_row(self):
+        row = MagicMock()
+        row.id = 100
+        row.source_file_id = 10
+        row.carrier = None
+        row.tracking_no = None
+        row.shipped_at = None
+        row.updated_by = None
+        row.updated_at = None
+        row.purchase_at_utc = datetime(2026, 6, 17, 1, 40, 20, tzinfo=timezone.utc)
+        row.purchase_at_pt = datetime(2026, 6, 16, 18, 40, 20)
+        row.purchase_date_pt = date(2026, 6, 16)
+        row.amazon_order_id = "111-FBM-001"
+        row.order_status = "Pending"
+        row.sku = "SKU-FBM"
+        row.asin = "B0FBM0001"
+        row.quantity = 1
+        row.item_price = 9.99
+        row.shipping_price = 0.0
+        row.currency = "USD"
+        row.country = "US"
+        row.is_counted_sales = False
+        row.created_at = datetime(2026, 6, 17, 2, 0, 0, tzinfo=timezone.utc)
+        row.raw_row = {"fulfillment-channel": "Merchant"}
+        return row
+
+    def _make_project(self, pid=15):
+        project = MagicMock()
+        project.id = pid
+        project.project_name = "FBM 测试店铺"
+        project.brand_name = "FB"
+        return project
+
+    def _make_db(self, row, project):
+        class _Result:
+            def first(inner_self):
+                return (row, project) if row else None
+        return _Result()
+
+    def _make_db_full(self, row, project):
+        """完整 mock db：execute().first() + flush()"""
+        class _R:
+            def first(inner_self_):
+                return (row, project)
+
+        class _DB:
+            def execute(inner_self, stmt):
+                return _R()
+
+            def flush(inner_self):
+                return None
+        return _DB()
+
+    def test_admin_can_update_carrier_and_tracking(self, monkeypatch):
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        row = self._make_row()
+        project = self._make_project()
+
+        # 模拟 db.execute(stmt).first() → (row, project)
+        db = self._make_db_full(row, project)
+        payload = OrderInfoUpdate(carrier="UPS", tracking_no="1Z999AA10123456784")
+        updated = svc.update_order_by_id(
+            db, 100, payload, operator="admin_user", is_admin=True
+        )
+
+        assert row.carrier == "UPS"
+        assert row.tracking_no == "1Z999AA10123456784"
+        assert row.shipped_at is None  # 未传
+        assert row.updated_by is None  # 未传
+        assert row.updated_at is not None  # 兜底填
+        assert updated.carrier == "UPS"
+        assert updated.tracking_no == "1Z999AA10123456784"
+        assert updated.fulfillment_channel == "Merchant"
+
+    def test_admin_can_set_shipped_at(self, monkeypatch):
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        row = self._make_row()
+        project = self._make_project()
+        shipped = datetime(2026, 6, 18, 9, 0, 0, tzinfo=timezone.utc)
+
+        db = self._make_db_full(row, project)
+        payload = OrderInfoUpdate(shipped_at=shipped, updated_by="operator_zhang")
+        updated = svc.update_order_by_id(
+            db, 100, payload, operator="admin_user", is_admin=True
+        )
+
+        assert row.shipped_at == shipped
+        assert row.updated_by == "operator_zhang"
+        assert updated.shipped_at == shipped
+
+    def test_operator_without_access_raises_forbidden(self, monkeypatch):
+        """operator 编辑无访问权的店铺订单 → OrderInfoForbidden"""
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        row = self._make_row()
+        project = self._make_project()
+
+        db = self._make_db_full(row, project)
+
+        # 强制 _ensure_project_access_for_orders 返回 []（模拟 operator 无权）
+        monkeypatch.setattr(
+            svc,
+            "_ensure_project_access_for_orders",
+            lambda db, *, candidate_project_ids, operator, is_admin: [],
+        )
+
+        payload = OrderInfoUpdate(carrier="USPS")
+        with pytest.raises(svc.OrderInfoForbidden):
+            svc.update_order_by_id(
+                db, 100, payload, operator="op1", is_admin=False
+            )
+
+    def test_not_found_raises_order_info_not_found(self, monkeypatch):
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        class _DB:
+            def execute(inner_self, stmt):
+                class _R:
+                    def first(inner_self_):
+                        return None
+                return _R()
+
+        payload = OrderInfoUpdate(carrier="DHL")
+        with pytest.raises(svc.OrderInfoNotFound):
+            svc.update_order_by_id(
+                _DB(), 9999, payload, operator="admin_user", is_admin=True
+            )
+
+    def test_updated_by_falls_back_to_operator_when_empty(self, monkeypatch):
+        """payload.updated_by 显式为空串 → 清空；不传则由 endpoint 兜底填 operator（service 不动）"""
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        row = self._make_row()
+        project = self._make_project()
+
+        db = self._make_db_full(row, project)
+
+        # 显式传空串 → 清空
+        payload = OrderInfoUpdate(updated_by="")
+        svc.update_order_by_id(
+            db, 100, payload, operator="admin_user", is_admin=True
+        )
+        assert row.updated_by is None
+
+    def test_carrier_whitespace_normalized_to_none(self, monkeypatch):
+        """纯空白 carrier 应当被 _safe_str 归一化为 None"""
+        from app.schemas.order_info import OrderInfoUpdate
+        from app.services.data import order_info_service as svc
+
+        row = self._make_row()
+        project = self._make_project()
+
+        db = self._make_db_full(row, project)
+        payload = OrderInfoUpdate(carrier="   ", tracking_no="  ABC123  ")
+        updated = svc.update_order_by_id(
+            db, 100, payload, operator="admin_user", is_admin=True
+        )
+        assert row.carrier is None  # 空白被 trim 后视为 None
+        assert row.tracking_no == "ABC123"
+        assert updated.carrier is None
+        assert updated.tracking_no == "ABC123"
+
+
+# ---------- CSV headers 含新列 ----------
+
+class TestOrderCsvHeaders:
+    def test_csv_headers_include_carrier_tracking(self):
+        from app.services.data.order_info_service import ORDER_CSV_HEADERS
+
+        assert "物流商" in ORDER_CSV_HEADERS
+        assert "物流单号" in ORDER_CSV_HEADERS
+        assert "发货时间" in ORDER_CSV_HEADERS
+        assert "更新人" in ORDER_CSV_HEADERS
+        assert "更新时间" in ORDER_CSV_HEADERS

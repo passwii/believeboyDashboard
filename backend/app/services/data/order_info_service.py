@@ -133,6 +133,11 @@ def serialize_order_row(row: AnalysisSalesOrderRow, *, project: Project | None) 
         or _safe_str(raw.get("ship postal code")),
         is_counted_sales=bool(row.is_counted_sales),
         created_at=row.created_at,
+        carrier=_safe_str(row.carrier),
+        tracking_no=_safe_str(row.tracking_no),
+        shipped_at=row.shipped_at,
+        updated_by=_safe_str(row.updated_by),
+        updated_at=row.updated_at,
     )
 
 
@@ -742,6 +747,79 @@ def parse_date_input(value: str | None) -> date | None:
         return None
 
 
+# ===== Mutation (FBM 补录) =====
+
+class OrderInfoNotFound(LookupError):
+    """订单行 id 不存在"""
+
+
+class OrderInfoForbidden(PermissionError):
+    """operator 无权编辑该项目下的订单"""
+
+
+def update_order_by_id(
+    db: Session,
+    order_id: int,
+    payload,
+    *,
+    operator: str | None,
+    is_admin: bool,
+):
+    """FBM 订单补录/编辑。
+
+    - 仅允许更新迁移 200 新增的 4 个字段（carrier / tracking_no / shipped_at / updated_by）。
+    - 权限：复用 _ensure_project_access_for_orders，admin 可改任何项目，operator 仅可改
+      "运营关联" 项目下的订单；跨店铺访问 → 抛 OrderInfoForbidden。
+    - 不修改 fulfilled_at/订单状态/任何只读字段。
+    """
+    from app.schemas.order_info import OrderInfoUpdate
+
+    stmt = (
+        select(AnalysisSalesOrderRow, Project)
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .join(Project, Project.id == AnalysisSourceFile.project_id)
+        .where(AnalysisSourceFile.is_current.is_(True))
+        .where(AnalysisSalesOrderRow.id == order_id)
+    )
+    result = db.execute(stmt).first()
+    if not result:
+        raise OrderInfoNotFound(f"order {order_id} not found")
+    order_row, project = result
+
+    # 权限校验（admin 透传；operator 必须对 project 有访问权）
+    scoped = _ensure_project_access_for_orders(
+        db,
+        candidate_project_ids=[int(project.id)],
+        operator=operator,
+        is_admin=is_admin,
+    )
+    if scoped == [] or (scoped is not None and int(project.id) not in scoped):
+        raise OrderInfoForbidden("无权限编辑该项目下的订单")
+
+    if not isinstance(payload, OrderInfoUpdate):
+        # 允许外部直接传 dict（兼容测试）
+        payload = OrderInfoUpdate.model_validate(payload)
+
+    data = payload.model_dump(exclude_unset=True)
+    if "carrier" in data:
+        order_row.carrier = _safe_str(data["carrier"])
+    if "tracking_no" in data:
+        order_row.tracking_no = _safe_str(data["tracking_no"])
+    if "shipped_at" in data:
+        # 允许传 null 表示清空
+        order_row.shipped_at = data["shipped_at"]
+    if "updated_by" in data:
+        # payload 显式传空串/null → 清空；未传 → 留空（由 endpoint 兜底填 operator）
+        order_row.updated_by = _safe_str(data["updated_by"])
+
+    order_row.updated_at = datetime.now(timezone.utc)
+    db.flush()
+    return serialize_order_row(order_row, project=project)
+
+
 # ===== CSV Export =====
 
 ORDER_CSV_HEADERS = [
@@ -763,6 +841,11 @@ ORDER_CSV_HEADERS = [
     "州",
     "城市",
     "邮编",
+    "物流商",
+    "物流单号",
+    "发货时间",
+    "更新人",
+    "更新时间",
 ]
 
 
@@ -856,6 +939,11 @@ def export_orders_to_csv(
             item.state or "",
             item.city or "",
             item.postal_code or "",
+            item.carrier or "",
+            item.tracking_no or "",
+            _to_beijing_str(item.shipped_at) if item.shipped_at else "",
+            item.updated_by or "",
+            _to_beijing_str(item.updated_at) if item.updated_at else "",
         ])
 
     csv_text = buffer.getvalue()
@@ -869,11 +957,14 @@ __all__ = [
     "DEFAULT_PAGE_SIZE",
     "MAX_PAGE_SIZE",
     "EXPORT_MAX_ROWS",
+    "OrderInfoNotFound",
+    "OrderInfoForbidden",
     "serialize_order_row",
     "list_orders",
     "compute_stats",
     "collect_filter_options",
     "get_page_data",
     "parse_date_input",
+    "update_order_by_id",
     "export_orders_to_csv",
 ]
