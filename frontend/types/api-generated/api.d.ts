@@ -11282,6 +11282,12 @@ export interface components {
         ReturnRankingItem: {
             /** Asin */
             asin: string | null;
+            /** Avg Return Cycle Days */
+            avg_return_cycle_days?: number | null;
+            /** Max Return Cycle Days */
+            max_return_cycle_days?: number | null;
+            /** Min Return Cycle Days */
+            min_return_cycle_days?: number | null;
             /** Product Name */
             product_name: string | null;
             /** Return Count */
@@ -15705,9 +15711,6 @@ export interface operations {
             };
             header?: {
                 "X-API-Key"?: string | null;
-                "X-Operator"?: string | null;
-                "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15780,7 +15783,6 @@ export interface operations {
             };
             header?: {
                 "X-API-Key"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15817,7 +15819,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -15853,7 +15854,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -15893,7 +15893,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -15932,7 +15931,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -15971,7 +15969,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -16015,7 +16012,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -16051,7 +16047,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -16089,7 +16084,6 @@ export interface operations {
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
-                "X-Role-Type"?: string | null;
             };
             path: {
                 dataset_id: number;
@@ -18605,7 +18599,7 @@ export interface operations {
                 countries?: string[] | null;
                 currencies?: string[] | null;
                 sku_keyword?: string | null;
-                orderIdKeyword?: string | null;
+                order_id_keyword?: string | null;
                 asin_keyword?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
@@ -18703,7 +18697,7 @@ export interface operations {
                 countries?: string[] | null;
                 currencies?: string[] | null;
                 sku_keyword?: string | null;
-                orderIdKeyword?: string | null;
+                order_id_keyword?: string | null;
                 asin_keyword?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
@@ -20951,10 +20945,10 @@ export interface operations {
                 ai_model?: string | null;
             };
             header?: {
-                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
+                "X-Is-Admin"?: boolean;
             };
             path: {
                 ledger_key: string;
@@ -21179,10 +21173,10 @@ export interface operations {
                 frequency?: string;
             };
             header?: {
-                "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
+                "X-Is-Admin"?: boolean;
             };
             path?: never;
             cookie?: never;
