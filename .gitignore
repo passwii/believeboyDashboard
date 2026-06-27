@@ -65,6 +65,9 @@ update_extensions.sql
 /frontend/.vercel/
 /frontend/.env*.local
 !/frontend/.env.local
+# 兜底：避免任何位置出现意外的 .next/ 目录污染 untracked 列表
+# （根目录 .next/ 在 2026-06-27 出现过一次，可能是 build 落点错误）
+/.next/
 
 # vitest 覆盖率/缓存产物（VAT 发票模块新增）
 /frontend/coverage/
