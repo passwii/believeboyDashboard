@@ -4,19 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## 🍎 macOS 端（BEL-147）
-
-`macos/` 下是 SwiftUI App，最低 macOS 14，Bundle ID `com.passwii.believeboy.macos`。
-
-- 工程由 [XcodeGen](https://github.com/yonaskolb/XcodeGen) 从 `macos/project.yml` 生成；不要手编 `xcodeproj`，**`xcodeproj` 已在 .gitignore 中**。
-- 后端复用 `backend/`（FastAPI + PostgreSQL），API 类型最终从 OpenAPI 同步到 `macos/BelieveBoyMac/Models/`。
-- 前端（`frontend/`）和 macOS 端是**双前端**关系，没有强制依赖，可独立发布。
-- 侧栏配置在 `macos/BelieveBoyMac/Routes/RouteConfig.swift`，是 `frontend/lib/sidebar-config.ts` 的镜像；web 侧栏变化时要同步更新。
-- **鉴权没有用 JWT，也没有 `/api/v1/auth/refresh`**。后端用 Redis 滑动窗口 session（`X-Session-Id` + `X-User-Id` + `X-User-Email` 头部）；401 直接清 Keychain 退回登录窗，不要尝试自动 refresh。详见 `macos/README.md` 顶部"阶段 1 鉴权契约"和 `Networking/APIClient.swift::applySessionContext`。
-- 启动方法见 `macos/README.md`；进度追踪见 issue [BEL-147](https://multica/issues/BEL-147)。
-
----
-
 ## ⚡ CodeGraph 语义知识图谱（实测版 v0.9.9）
 
 本项目已初始化 **CodeGraph**，通过语义知识图谱实现代码库的即时查找，比文件扫描快 10-100 倍。
@@ -92,55 +79,61 @@ codegraph status .          # `.` 可省；看到 "Index is up to date" 即可
 
 > 💡 **实战沉淀 / 启动提示 / BEL-93/127/131 沉淀** 已迁到 [`docs/superpowers/lessons-learned/codegraph-v099.md`](docs/superpowers/lessons-learned/codegraph-v099.md)。本文是规范，沉淀请去那边查。
 
-### 团队确认机制（BEL-93 后续执行）
+## Production Deployment / Restart Services
 
-- **PR 模板强制勾选**：所有涉及代码定位、重构、bug 修复的 PR 都勾选 "已优先使用 CodeGraph 定位代码"（CLI 或 MCP 都算）。
-- **Reviewer 检查点**：如果 PR 描述或评论中出现 "用 grep/glob 扫了一遍"，reviewer 应要求补充 CodeGraph 调用记录；公共函数修改必须补充 `callers/callees/impact` 结果。CLI 跑出来的结果同样有效（`codegraph callers|callees|impact` 输出就是证据）。
-- **Agent 启动提示**：Explore / coding agent 的任务 prompt 默认加一句：定位代码时先用 CodeGraph（CLI 走 `query` + `Read`，MCP 走 `explore` / `node` / `search`），只有在 CodeGraph 无结果时才 fallback 到 Read/Grep/Glob；并明确 "bash 里不要跑 `mcp__codegraph__*`"。
-- **抽样审计**：每周随机抽查 3-5 个 PR，确认 PR 描述、评论或 commit message 中有 CodeGraph 使用痕迹（CLI 输出或 MCP 调用记录均可）；连续 2 周达标即可认为团队习惯已建立。
-- **无法靠 CI 证明积极性**：MCP 工具调用发生在仓库外，CI 不能直接证明"积极使用"。可确认的是流程证据：PR 模板、review gate、抽样审计和 agent prompt 是否持续存在。
+> **这台机器（Linux 7.0.0-22-generic）上的服务用 systemd 管理。** 改完代码需要让线上生效时，**不要直接 `pkill`**，直接走 `systemctl restart`。
 
----
+### 服务清单（systemd units）
 
-## Project Overview
+| Unit 名 | 进程 | 监听 | 备注 |
+|---|---|---|---|
+| `believeboy-api.service`   | `uvicorn app.main:app`     | `0.0.0.0:8100` | FastAPI 后端；OpenAPI 文档在 `/docs` |
+| `believeboy-web.service`   | `next-server`              | `0.0.0.0:3200` | Next.js 前端（**不是 3000**，启动日志会打印 `Local: http://localhost:3200`） |
+| `believeboy-worker.service` | Celery worker             | —              | 后台任务 |
+| `believeboy-flower.service` | Celery Flower             | —              | 任务监控，带 basic auth |
 
-BelieveBoy Dashboard is a cross-border e-commerce operations management platform. It has a **Next.js 14 frontend** and a **FastAPI backend**, both in a single monorepo under `frontend/` and `backend/`.
+来源：`/etc/systemd/system/believeboy-*.service`；git 工作树：`/home/damon/believeboyDashboard`。
 
-## Running the Project
-
-### Frontend
-```bash
-cd frontend && pnpm install && pnpm dev        # http://localhost:3200
-pnpm build && pnpm start                      # production
-pnpm lint                                     # linter
-```
-
-### Backend
-
-**Local Development Environment (Miniconda)**
-
-This project uses **Miniconda** for local development, not `venv`. The Python interpreter is located at `/Users/damon/miniconda3/bin/python3` (Python 3.12.7).
+### 常见操作
 
 ```bash
-cd backend
-# Activate the conda environment (if using one) or use python3 directly
-conda activate <your-env-name>  # or skip if using base environment
-pip install -r requirements.txt
-cp .env.example .env                          # fill in DATABASE_URL + API_KEY
-./run_api.sh                                  # http://localhost:8100
-alembic upgrade head                          # run migrations
-pytest                                        # run tests (cd backend first)
-pytest tests/path/to/test_file.py::test_name  # single test
+# 查看状态
+systemctl status believeboy-api.service believeboy-web.service
+systemctl is-active believeboy-api.service believeboy-web.service
+
+# 重启（用户提问"重启前后端"的标准动作）
+sudo systemctl restart believeboy-api.service believeboy-web.service
+
+# ⚠️ 改前端代码 → 必须先 `pnpm build` 再 `systemctl restart believeboy-web`。
+#    `next start` 直接服务 .next/ 产物，**不会**自动重 build；少了 build 步骤，
+#    新加的 route / page、改的 `app/api/.../[id]/route.ts` 会一直返回旧版
+#    （典型症状：新 BFF 路由 404、新 page 不出现、TypeScript 错误未被 build 拦截）。
+cd /home/damon/believeboyDashboard/frontend && pnpm build
+sudo systemctl restart believeboy-web.service
+
+# 只看日志
+sudo journalctl -u believeboy-api.service -n 50 --no-pager
+sudo journalctl -u believeboy-web.service -n 50 --no-pager
+
+# 健康检查
+curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8100/docs
+curl -s -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:3200/
 ```
 
-> **Important**: When running tests or scripts, the system may default to `.venv`. Always ensure you're using the correct Miniconda Python interpreter. Verify with `which python3` before running commands.
+### 复盘：为什么不要 `pkill uvicorn` / `pkill next`
 
-### One-off Backend Scripts
-- `python scripts/seed_admin_user.py` — create admin user (use `--reset-password` to rotate)
-- `python scripts/init_and_import_projects.py --file=/path/to.csv` — init projects table + import CSV
-- `python scripts/init_user_accounts.py` — init user accounts + seed admin in one step
-- `python scripts/import_blf_basic_info.py --file=/path/to/BLF_Basic_Info.csv` — import product data
-- `alembic revision --autogenerate -m "desc"` — create migration; `alembic upgrade head` to apply
+- systemd 会在你杀掉进程后**自动重新拉起**它，但拉起时它读到的可能仍是**旧**代码 / **旧** `.env`，还可能撞端口（`Address already in use`），最终进入 `activating (auto-restart)` 死循环。
+- 走 `systemctl restart` 会按 unit file 的 `ExecStart` 顺序：先 SIGTERM 旧 PID → 等待 `TimeoutStopSec` → 再 `ExecStart` 新进程，监听端口也由 systemd 接管，不会留 orphan 进程。
+- 改 backend 代码（包括 schema / endpoint / service）→ **必须** `restart believeboy-api`，uvicorn 没有 `--reload`（unit 里 `--no-access-log` 也没开 reload）。改 Next.js route / page → `restart believeboy-web`，`next start` 也不会自动热更。
+- **改前端代码的完整顺序：`pnpm build` → `systemctl restart believeboy-web`**。`next start` 只服务 `.next/` 产物，**不会自动 build**；漏 build 会让新加的 route / page / BFF handler 一直 404。详见"常见操作"段的 ⚠️ 注释。
+- 改 backend 后端 → `alembic upgrade head`（如有新迁移）→ `systemctl restart believeboy-api`。uvicorn 重启后会重新 import 所有模块，新 schema / endpoint 立刻生效。
+
+### 已知坑
+
+- `ss -ltnp` 在沙箱里看不到非自己用户的 socket，**用 `journalctl -u <unit> -n 5` + `ps -ef | grep` 双确认**比 `curl` 探针更可靠。
+- 前端访问入口是 **`3200`** 不是 3000；老文档里偶尔写 3000 是历史遗留，别被误导。
+- 重启后用 `curl http://127.0.0.1:8100/docs` 探活比 `/health` 靠谱：项目里目前没挂 `/health` 路由（返回 404 是正常的，不代表服务挂了）。
+- **BFF 路由 404 通常是漏 `pnpm build`**：`app/api/.../[id]/route.ts` 改了之后必须 build，新路由才会出现在 `.next/server/app/api/...`。先用 `journalctl -u believeboy-web -n 20` 看启动日志里 `✓ Ready in Xms` 之前的 route 列表确认。
 
 ## Architecture
 
@@ -237,38 +230,13 @@ Alembic 迁移脚本命名格式：`YYYYMMDD_NNN_description.py`
 ```bash
 cd backend && ls alembic/versions/ | grep "^202605" | sort | tail -5
 # 或查看分支情况
-/Users/damon/miniconda3/bin/python3 -m alembic heads
+cd backend && .venv/bin/alembic heads
 ```
 
 ## Additional Docs
 - `backend/README.md` — detailed backend documentation
 - `backend/REDIS_PLAN.md` — Redis integration plan (Celery/Redis are optional)
 - `backend/docs/report-processing-sync-spec.md` — report processing sync specification
-
-## Design Context
-
-### Users
-Operations teams managing cross-border e-commerce on Amazon. They live in the dashboard daily — monitoring KPIs, uploading reports, running AI-generated analysis. They are power users who need efficiency, clarity, and trust in the data. They are not casual consumers; the interface should respect their expertise and time.
-
-### Brand Personality
-**Professional, data-driven, calm confidence.** Like Linear or Stripe — tools that feel precise and in-control. Not playful, not corporate-stiff. The brand name "BelieveBoy" suggests human warmth beneath the professionalism.
-
-Three-word personality: **Precise · Clear · Trusted**
-
-### Aesthetic Direction
-B2B SaaS dashboard with a light-mode-first design. Inspired by Linear's information density and clarity, Vercel's clean white surfaces, and Stripe's confident use of color for data semantics. Anti-references: busy enterprise dashboards with cluttered cards, or generic dark-only tech UIs.
-
-- Light mode primary, dark mode fully supported
-- Frosted glass surfaces (`.dashboard-surface`) for visual layering without clutter
-- Data colors: green (positive), amber (warning), red (negative), neutral gray — semantic, not decorative
-- Generous but purposeful whitespace; information density is okay on data tables
-
-### Design Principles
-1. **Data clarity first** — Every visual decision serves the numbers. Charts, colors, and spacing must make data easier to read, not prettier to look at.
-2. **Calm surfaces, confident accents** — Light neutral backgrounds with a single strong blue primary. Color appears mostly on data (charts, status badges) and interactive elements.
-3. **Motion with purpose** — Animations communicate state (streaming, loading, transitions). Never decorative. Respect `prefers-reduced-motion`.
-4. **Consistent surface language** — Use `.dashboard-surface`, `.dashboard-panel`, `.dashboard-toolbar` consistently. Avoid ad-hoc card styling.
-5. **Typography creates hierarchy** — Space Grotesk for display/numbers, Manrope for UI text. Large display numbers for KPIs, small kicker labels for metadata.
 
 ## 测试规则
 
@@ -382,10 +350,6 @@ This project uses a **post-push hook** at `.git/hooks/post-push` to automaticall
 The hook script is at `.git/hooks/post-push` — it takes two arguments: the local ref (e.g. `refs/heads/main`) and the remote URL.
 
 ## Key Conventions
-- Backend uses Pydantic v2 (`pydantic-settings` for env config)
-- Frontend uses React 18 with TanStack Table v8 and Recharts
-- Next.js App Router pages are split: `page.tsx` (server component) + `*-client.tsx` (client component) when interactivity is needed
-- All backend API endpoints follow `/api/v1/{resource}/` naming
 - **Projects API**: 前端获取项目列表必须使用 `/api/v1/projects/manage` 而非 `/api/v1/projects`，因为 `/projects/manage` 有基于 `X-Operator` header 的权限控制，会根据当前用户过滤可访问的项目
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->

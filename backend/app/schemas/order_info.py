@@ -60,7 +60,14 @@ class OrderInfoItem(BaseModel):
     is_counted_sales: bool
     created_at: datetime
 
-    @field_serializer("purchase_at_utc", "created_at")
+    # ===== FBM 自发货补录字段（迁移 20260627_200 新增）=====
+    carrier: str | None = None
+    tracking_no: str | None = None
+    shipped_at: datetime | None = None
+    updated_by: str | None = None
+    updated_at: datetime | None = None
+
+    @field_serializer("purchase_at_utc", "created_at", "shipped_at", "updated_at")
     def _serialize_utc(self, value: datetime) -> str:
         """强制以 UTC 发出，避免后端 PG session TZ（Shanghai）影响前端换算。
 
@@ -145,6 +152,18 @@ class OrderInfoExportResponse(BaseModel):
     filename: str
     content_type: str
     content_base64: str  # utf-8 csv 内容 base64 编码
+
+
+class OrderInfoUpdate(BaseModel):
+    """FBM 订单补录/编辑请求体。所有字段可选，未传入则不改。
+
+    与 sku_info.SkuRecordUpdate 风格一致，使用 model_dump(exclude_unset=True) 做增量更新。
+    """
+
+    carrier: str | None = None
+    tracking_no: str | None = None
+    shipped_at: datetime | None = None
+    updated_by: str | None = None
 
 
 OrderInfoFilterOptions.model_rebuild()

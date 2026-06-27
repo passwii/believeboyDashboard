@@ -392,6 +392,13 @@ class AnalysisSalesOrderRow(Base):
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    # ===== FBM 自发货补录字段（2026-06-27 迁移 200 新增）=====
+    carrier: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tracking_no: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     source_file: Mapped[AnalysisSourceFile] = relationship(back_populates='sales_order_rows')
 
 
