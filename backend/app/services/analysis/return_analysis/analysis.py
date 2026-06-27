@@ -110,6 +110,102 @@ def _build_sales_aggregates(
     return sku_sales, date_sales
 
 
+def _build_cycle_days_by_sku(
+    db: Session,
+    project_id: int,
+    country: str,
+    records: list,
+) -> dict[str, dict]:
+    """按 SKU 聚合退货周期(天)统计。
+
+    退货周期 = 退货日期(return_date, PT) - 原单日期(purchase_date_pt, PT)。
+    匹配规则: 按 (amazon_order_id == return.order_id AND sku == return.sku) 精准匹配,
+    并限定同项目 + 同国家 + is_current=True 的 sales source,避免跨项目串号。
+
+    Args:
+        db: 数据库 session。
+        project_id: 项目 ID。
+        country: 国家代码。
+        records: AnalysisReturnRow 列表(return_date 已规范化为 ISO 字符串)。
+
+    Returns:
+        dict[sku] -> {"avg": float, "min": int, "max": int, "count": int},无可用数据时为空 dict。
+    """
+    if not records:
+        return {}
+    from statistics import mean
+
+    from app.models import AnalysisSalesOrderRow
+
+    # 1) 收集需要的 (order_id, sku) 对,去重
+    keys: set[tuple[str, str]] = set()
+    for r in records:
+        if r.order_id and r.sku:
+            keys.add((r.order_id, r.sku))
+    if not keys:
+        return {}
+
+    # 2) 单次 SQL: 查所有 (amazon_order_id, sku) 对应的 purchase_date_pt
+    order_ids = list({k[0] for k in keys})
+    sales_q = (
+        db.query(
+            AnalysisSalesOrderRow.amazon_order_id,
+            AnalysisSalesOrderRow.sku,
+            AnalysisSalesOrderRow.purchase_date_pt,
+        )
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .filter(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.report_type == "sales_report",
+            AnalysisSourceFile.is_current == True,
+            AnalysisSalesOrderRow.amazon_order_id.in_(order_ids),
+            AnalysisSalesOrderRow.is_counted_sales == True,
+        )
+        .all()
+    )
+
+    # 3) 构建 (order_id, sku) -> purchase_date_pt lookup
+    purchase_lookup: dict[tuple[str, str], date] = {}
+    for oid, sku, pdate in sales_q:
+        if pdate:
+            purchase_lookup[(oid, sku)] = pdate
+
+    # 4) 计算每个 return row 的 cycle_days,按 sku 聚合
+    sku_cycles: dict[str, list[int]] = {}
+    for r in records:
+        pdate = purchase_lookup.get((r.order_id, r.sku))
+        if not pdate or not r.return_date:
+            continue
+        try:
+            return_date = (
+                date.fromisoformat(r.return_date)
+                if isinstance(r.return_date, str)
+                else r.return_date
+            )
+            days = (return_date - pdate).days
+            # 过滤异常数据:退货日期早于原单日期
+            if days < 0:
+                continue
+            sku_cycles.setdefault(r.sku, []).append(days)
+        except Exception:
+            continue
+
+    # 5) 聚合
+    return {
+        sku: {
+            "avg": round(mean(v), 1) if v else None,
+            "min": min(v) if v else None,
+            "max": max(v) if v else None,
+            "count": len(v),
+        }
+        for sku, v in sku_cycles.items()
+    }
+
+
 def _build_summary_text(
     total_returns: int,
     total_quantity: int,
@@ -628,9 +724,13 @@ def build_return_analysis(
     total_sales_amount = sum(v["amount"] for v in sku_sales.values())
     overall_return_rate = _safe_rate(total_quantity, total_sales_quantity)
 
+    # 退货周期(天) 按 SKU 聚合:平均/最快/最慢
+    sku_cycle_stats = _build_cycle_days_by_sku(db, project_id, country, records)
+
     ranking_rows: list[ReturnRankingItem] = []
     for v in sku_data.values():
         s = sku_sales.get(v["sku"], {"quantity": 0, "amount": 0.0})
+        cycle = sku_cycle_stats.get(v["sku"]) or {}
         ranking_rows.append(
             ReturnRankingItem(
                 sku=v["sku"],
@@ -640,6 +740,9 @@ def build_return_analysis(
                 return_count=v["return_count"],
                 sales_quantity=s["quantity"],
                 return_rate=_safe_rate(v["total_quantity"], s["quantity"]),
+                avg_return_cycle_days=cycle.get("avg"),
+                min_return_cycle_days=cycle.get("min"),
+                max_return_cycle_days=cycle.get("max"),
             )
         )
     ranking_rows.sort(key=lambda x: x.total_quantity, reverse=True)
@@ -925,6 +1028,7 @@ def build_return_analysis(
 __all__ = [
     "_safe_rate",
     "_build_sales_aggregates",
+    "_build_cycle_days_by_sku",
     "_build_summary_text",
     "build_return_analysis",
 ]

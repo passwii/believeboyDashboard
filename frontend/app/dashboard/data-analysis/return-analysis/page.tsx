@@ -126,6 +126,10 @@ type ReturnRankingItem = {
   return_count: number
   sales_quantity: number
   return_rate: number
+  // 退货周期(天)= 退货日期 - 原单日期,按 (order_id, sku) 精准匹配
+  avg_return_cycle_days: number | null
+  min_return_cycle_days: number | null
+  max_return_cycle_days: number | null
 }
 
 type ReturnReasonItem = {
@@ -389,10 +393,14 @@ export default function ReturnAnalysisPage() {
       // ── Sheet 1: 退货排行 ──
       {
         const ws = workbook.addWorksheet('退货排行')
-        const headers = ['SKU', 'ASIN', '产品名称', '退货数量', '退货单数', '销售数量', '退货率(%)']
+        const headers = [
+          'SKU', 'ASIN', '产品名称', '退货数量', '退货单数', '销售数量', '退货率(%)',
+          '平均退货周期(天)', '最快退货周期(天)', '最慢退货周期(天)',
+        ]
         ws.columns = [
           { width: 18 }, { width: 16 }, { width: 30 },
           { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 },
+          { width: 18 }, { width: 18 }, { width: 18 },
         ]
         addTitleAndMeta(ws, '退货排行', data.ranking_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
@@ -408,6 +416,9 @@ export default function ReturnAnalysisPage() {
             row.return_count,
             row.sales_quantity,
             row.sales_quantity > 0 ? parseFloat(row.return_rate.toFixed(2)) : null,
+            row.avg_return_cycle_days != null ? row.avg_return_cycle_days : '',
+            row.min_return_cycle_days != null ? row.min_return_cycle_days : '',
+            row.max_return_cycle_days != null ? row.max_return_cycle_days : '',
           ])
           r.font = { name: 'Microsoft YaHei' }
           r.eachCell((cell) => { applyBorder(cell) })
@@ -729,16 +740,25 @@ export default function ReturnAnalysisPage() {
                       { width: 96 },
                       { width: 80 },
                       { width: 80 },
+                      { width: 80 },
+                      { width: 80 },
+                      { width: 80 },
                     ]} />
                     <TableHeader>
                       <TableRow>
-                        <TableHead>SKU</TableHead>
-                        <TableHead>品名</TableHead>
-                        <TableHead>ASIN</TableHead>
-                        <TableHead className="text-right">退货数量</TableHead>
-                        <TableHead className="text-right">退货单数</TableHead>
-                        <TableHead className="text-right">销售数量</TableHead>
-                        <TableHead className="text-right">退货率</TableHead>
+                        <TableHead rowSpan={2} className="align-middle">SKU</TableHead>
+                        <TableHead rowSpan={2} className="align-middle">品名</TableHead>
+                        <TableHead rowSpan={2} className="align-middle">ASIN</TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">退货数量</TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">退货单数</TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">销售数量</TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">退货率</TableHead>
+                        <TableHead colSpan={3} className="text-center">退货周期(天)</TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-right">平均</TableHead>
+                        <TableHead className="text-right">最快</TableHead>
+                        <TableHead className="text-right">最慢</TableHead>
                       </TableRow>
                     </TableHeader>
                     <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
@@ -749,6 +769,9 @@ export default function ReturnAnalysisPage() {
                             <TableCell><div className="h-4 w-28 animate-pulse rounded bg-muted" /></TableCell>
                             <TableCell><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
                             <TableCell className="text-right"><div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
                             <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
                             <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
                             <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
@@ -768,10 +791,13 @@ export default function ReturnAnalysisPage() {
                             }`}>
                               {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
                             </TableCell>
+                            <TableCell className="text-right">{row.avg_return_cycle_days != null ? row.avg_return_cycle_days.toFixed(1) : '--'}</TableCell>
+                            <TableCell className="text-right text-green-600">{row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}</TableCell>
+                            <TableCell className="text-right text-amber-600">{row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}</TableCell>
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">暂无退货排行数据</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="py-12 text-center text-muted-foreground">暂无退货排行数据</TableCell></TableRow>
                       )}
                     </RefreshProgressBar>
                   </Table>
