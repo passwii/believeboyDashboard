@@ -1472,6 +1472,13 @@ export default function DailyAnalysisPage() {
     : comparisonSummaryRows
 
   const hasComparisonData = comparisonDataRows.length > 0
+  // 对比语义：当前周期第 N 天 ↔ 上一周期第 N 天（同位日 position-aligned）。
+  // 不能用"绝对 date 匹配"——上一周期是另一段时间（如 6/13~6/19），里面根本不会有 6/20；
+  // 也不能用"按当前周期 index 取上一周期数组"——上一周期长度可能不同、且首日缺数据时索引会整体偏移。
+  // 正确做法：用与 loadData 同一份 getPreviousPeriodRange 算出上一周期起止，
+  // 再按"上一周期起始日 + N 天"在上一周期数据 Map（key = 上一周期自己的 date 字符串）里查。
+  // 边界：上一周期某天缺数据时返回 null，recharts LineChart 会断点、BarChart 会缺柱，
+  // KPI 卡片的 getPrevious 仍走 aggregateMetric(comparisonDataRows, k) 全量求和，行为与图表解耦。
   const chartRows = useMemo(() => {
     const normalizedRange = normalizeDateRange(dateRange)
     if (!normalizedRange?.from || !normalizedRange?.to) {
@@ -1481,15 +1488,60 @@ export default function DailyAnalysisPage() {
       normalizedRange.from,
       normalizedRange.to,
     )
+    const previousRange = getPreviousPeriodRange(normalizedRange)
+    const previousStart = previousRange?.from
+    if (!previousStart || !previousRange?.to) {
+      // 上一周期不可计算时只画当前周期；MetricSwitcherCard 看到 compareMetricValue
+      // 全为 null 不会渲染对比 bar/line，仅显示当前周期。
+      const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
+      const existingData = new Map(
+        filteredDetailRows.map((row) => [row.date, row]),
+      )
+      return allDates.map((date) =>
+        selectedSku
+          ? {
+              date,
+              [activeChartMetric]: existingData.get(date)?.[activeChartMetric] ?? 0,
+              compareMetricValue: null,
+            }
+          : {
+              date,
+              order_qty: summaryData.get(date)?.order_qty ?? 0,
+              sales_amount: summaryData.get(date)?.sales_amount ?? 0,
+              impressions: summaryData.get(date)?.impressions ?? 0,
+              clicks: summaryData.get(date)?.clicks ?? 0,
+              cpc: summaryData.get(date)?.cpc ?? 0,
+              ad_spend: summaryData.get(date)?.ad_spend ?? 0,
+              ad_orders: summaryData.get(date)?.ad_orders ?? 0,
+              available_qty: summaryData.get(date)?.available_qty ?? 0,
+              page_views: summaryData.get(date)?.page_views ?? 0,
+              units_ordered: summaryData.get(date)?.units_ordered ?? 0,
+              sessions: summaryData.get(date)?.sessions ?? 0,
+              ordered_sales_amount:
+                summaryData.get(date)?.ordered_sales_amount ?? 0,
+              conversion_rate: summaryData.get(date)?.conversion_rate ?? 0,
+              compareMetricValue: null,
+            },
+      )
+    }
 
     if (selectedSku) {
       const existingData = new Map(
         filteredDetailRows.map((row) => [row.date, row]),
       )
-      const comparisonDataByIndex = filteredComparisonRows
+      // filteredComparisonRows 已经按 sku 过滤；按"上一周期自己的 date"建 Map。
+      const comparisonDataByDate = new Map<string, DailyAnalysisDetailRow>()
+      for (const compareRow of filteredComparisonRows) {
+        if (compareRow.sku === selectedSku) {
+          comparisonDataByDate.set(compareRow.date, compareRow)
+        }
+      }
+
       return allDates.map((date, index) => {
         const row = existingData.get(date)
-        const compareRow = comparisonDataByIndex[index]
+        // 当前周期第 index 天 → 上一周期第 index 天（同位日）
+        const compareDate = formatYMD(addDays(previousStart, index))
+        const compareRow = comparisonDataByDate.get(compareDate)
         return {
           date,
           [activeChartMetric]: row ? row[activeChartMetric] : 0,
@@ -1499,11 +1551,16 @@ export default function DailyAnalysisPage() {
     }
 
     const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
-    const comparisonDataByIndex = comparisonSummaryRows
+    // 后端 summary_rows 已按 date 升序且同 date 唯一，Map 安全。
+    const comparisonDataByDate = new Map(
+      comparisonSummaryRows.map((row) => [row.date, row]),
+    )
 
     return allDates.map((date, index) => {
       const row = summaryData.get(date)
-      const compareRow = comparisonDataByIndex[index]
+      // 当前周期第 index 天 → 上一周期第 index 天（同位日）
+      const compareDate = formatYMD(addDays(previousStart, index))
+      const compareRow = comparisonDataByDate.get(compareDate)
       return {
         date,
         order_qty: row?.order_qty ?? 0,

@@ -19452,6 +19452,39 @@
             ],
             "title": "Asin"
           },
+          "avg_return_cycle_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Return Cycle Days"
+          },
+          "max_return_cycle_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Return Cycle Days"
+          },
+          "min_return_cycle_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Return Cycle Days"
+          },
           "product_name": {
             "anyOf": [
               {
@@ -24812,8 +24845,7 @@
         "enum": [
           "admin",
           "operator",
-          "businessdev",
-          "factory"
+          "businessdev"
         ],
         "title": "UserRoleType",
         "type": "string"
@@ -32233,54 +32265,6 @@
               ],
               "title": "X-Api-Key"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Operator",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Operator"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-User-Name",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
-            }
           }
         ],
         "responses": {
@@ -32461,22 +32445,6 @@
               ],
               "title": "X-Api-Key"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
-            }
           }
         ],
         "responses": {
@@ -32597,22 +32565,6 @@
               ],
               "title": "X-User-Name"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
-            }
           }
         ],
         "responses": {
@@ -32699,22 +32651,6 @@
                 }
               ],
               "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
             }
           }
         ],
@@ -32812,22 +32748,6 @@
                 }
               ],
               "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
             }
           }
         ],
@@ -32958,22 +32878,6 @@
               ],
               "title": "X-User-Name"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
-            }
           }
         ],
         "responses": {
@@ -33070,22 +32974,6 @@
                 }
               ],
               "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
             }
           }
         ],
@@ -33278,22 +33166,6 @@
               ],
               "title": "X-User-Name"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
-            }
           }
         ],
         "responses": {
@@ -33380,22 +33252,6 @@
                 }
               ],
               "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
             }
           }
         ],
@@ -33493,22 +33349,6 @@
                 }
               ],
               "title": "X-User-Name"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Role-Type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Role-Type"
             }
           }
         ],
@@ -39852,7 +39692,7 @@
           },
           {
             "in": "query",
-            "name": "orderIdKeyword",
+            "name": "order_id_keyword",
             "required": false,
             "schema": {
               "anyOf": [
@@ -39863,7 +39703,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Orderidkeyword"
+              "title": "Order Id Keyword"
             }
           },
           {
@@ -40464,7 +40304,7 @@
           },
           {
             "in": "query",
-            "name": "orderIdKeyword",
+            "name": "order_id_keyword",
             "required": false,
             "schema": {
               "anyOf": [
@@ -40475,7 +40315,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Orderidkeyword"
+              "title": "Order Id Keyword"
             }
           },
           {
@@ -46742,16 +46582,6 @@
           },
           {
             "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-API-Key",
             "required": false,
             "schema": {
@@ -46796,6 +46626,16 @@
                 }
               ],
               "title": "X-User-Name"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
             }
           }
         ],
@@ -47398,16 +47238,6 @@
           },
           {
             "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-API-Key",
             "required": false,
             "schema": {
@@ -47452,6 +47282,16 @@
                 }
               ],
               "title": "X-User-Name"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
             }
           }
         ],
