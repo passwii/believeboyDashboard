@@ -12,6 +12,10 @@ class ReturnRankingItem(BaseModel):
     return_count: int
     sales_quantity: int = 0  # 同周期销售数量
     return_rate: float = 0.0  # 退货率（退货数量/销售数量），百分比
+    # 退货周期（天）= 退货日期 - 原单日期（purchase_date_pt），按 (order_id, sku) 精准匹配
+    avg_return_cycle_days: float | None = None  # 平均退货周期
+    min_return_cycle_days: int | None = None  # 最快退货周期
+    max_return_cycle_days: int | None = None  # 最慢退货周期
 
 
 class ReturnReasonItem(BaseModel):
