@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -13,6 +14,10 @@ from app.services.audit_log_service import (
     append_operation_view_log,
 )
 from app.services.infra import delete_user_sessions
+from app.services.r2_lifecycle import record_delete_failure
+from app.services.r2_service import extract_key_from_url, try_delete_file_from_r2
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/system-management/users", tags=["users"], dependencies=[Depends(protected)]
@@ -366,7 +371,8 @@ def delete_user(
               is_active,
               role_type,
               created_at,
-              updated_at
+              updated_at,
+              avatar_url
             from public.user_accounts
             where id::text = :user_id
             """
@@ -384,7 +390,15 @@ def delete_user(
     if before_item.name.lower() in ("yawei",) or before_item.email.lower().startswith("yawei@"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Yawei 账号不允许删除")
 
+    # Capture R2 avatar key before row is deleted. Without this, the avatar
+    # PNG stays in R2 forever as orphan sediment (LEAK-005).
+    captured_avatar_key = _avatar_url_to_key(before_row.get("avatar_url"))
+
     db.execute(text("delete from public.user_accounts where id::text = :user_id"), {"user_id": user_id})
+    # NOTE: legacy raw-SQL DELETE — user_accounts is not in SQLAlchemy ORM.
+    # caller's db.commit() happens via get_db_session dependency; no explicit
+    # commit needed here. R2 cleanup happens AFTER DB transaction so we don't
+    # leak a half-deleted state if cleanup itself fails (dead-letter catches).
     try:
         append_operation_audit_log(
             db,
@@ -398,7 +412,57 @@ def delete_user(
     except Exception:
         pass  # non-critical
     db.commit()
+
+    # P1 LEAK-005: clean up user's R2 avatar after DB commit.
+    # Failure -> dead-letter (sync delete + never raise).
+    if captured_avatar_key:
+        _cleanup_user_avatar_r2(
+            captured_avatar_key,
+            context={"user_id": user_id},
+        )
+
     return None
+
+
+def _avatar_url_to_key(avatar_url: str | None) -> str | None:
+    """Extract R2 object key from a public URL. Returns None for empty / external.
+
+    Examples:
+      https://bucket.believeboy.com/avatars/u123/abc.jpg -> "avatars/u123/abc.jpg"
+      None / "" / "https://cdn.discordapp.com/..." (not R2) -> None
+    """
+    if not avatar_url or not isinstance(avatar_url, str):
+        return None
+    key = extract_key_from_url(avatar_url)
+    return key if key else None
+
+
+def _cleanup_user_avatar_r2(r2_key: str, *, context: dict) -> None:
+    """Best-effort sync R2 delete + dead-letter on failure.
+
+    Never raises. Logged as WARNING if R2 call fails.
+    """
+    try:
+        from app.core.config import get_settings
+        settings = get_settings()
+        result = try_delete_file_from_r2(settings, r2_key, log_failure=False)
+    except Exception:
+        # Defensive: if anything unexpected crashes the R2 call site, log + return.
+        # (try_delete_file_from_r2 itself already swallows ClientError/BotoCoreError/OSError,
+        # but other RuntimeErrors etc. could escape.)
+        logger.exception("[r2] cleanup_user_avatar_r2 raised for key=%s", r2_key)
+        return
+
+    if not result.success:
+        logger.warning(
+            "[r2] failed to delete avatar key=%s err=%s - dead-lettered",
+            r2_key, result.error_class,
+        )
+        record_delete_failure(
+            r2_key, result,
+            source="user_delete",
+            context=context,
+        )
 
 
 @router.post("/{user_id}/revoke-sessions")
