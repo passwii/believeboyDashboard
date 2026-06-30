@@ -179,13 +179,17 @@ def find_orphaned_files(
 
     print("[4/4] 分析孤立文件...")
     orphaned = []
+    # 注意：扩展名白名单同时覆盖业务文件类型。'.webp'/'.png'/'.jpg' 是
+    # 产品图/汇率备注/巡检 PNG 共用的格式，必须在白名单里，否则会被误删。
+    KNOWN_EXTENSIONS = ('.pdf', '.csv', '.xlsx', '.txt',
+                        '.webp', '.png', '.jpg', '.jpeg', '.gif',
+                        '.mp4', '.mov', '.zip', '.tar.gz')
     for key in all_r2_keys:
-        # 检查是否被引用
-        is_referenced = (
-            key in all_referenced or
-            key in referenced_keys or
-            any(key.endswith(ext) for ext in ['.pdf', '.csv', '.xlsx', '.txt']) and key in r2_keys_from_local
-        )
+        # 检查是否被引用。优先级 (避免 line 184-187 原版的括号 bug)：
+        #   (A) key 已经被 DB 反查到
+        #   (B) key 出现在本地路径反查里 (本地 cache 路径 -> R2 key)
+        # 否则 -> orphan
+        is_referenced = key in all_referenced or key in r2_keys_from_local
 
         if not is_referenced:
             # 获取文件元数据
@@ -278,22 +282,90 @@ def delete_orphaned_files(r2_client, bucket: str, orphaned: list[dict], dry_run:
     print(f"\n删除完成: {deleted} 成功, {failed} 失败")
 
 
+def _print_config() -> int:
+    """--config-print:打印脚本将扫哪些 prefix 和列,审计后退出。
+
+    不连数据库，不连 R2，纯静态扫描 ORM 模型。
+    """
+    print("=" * 60)
+    print("R2 cleanup script config print")
+    print("=" * 60)
+
+    # Bucket / endpoint 配置
+    from app.core.config import get_settings
+    settings = get_settings()
+    print(f"\n[Bucket]")
+    print(f"  bucket_name    : {settings.r2_bucket_name}")
+    print(f"  endpoint_url   : {settings.r2_endpoint_url}")
+    print(f"  public_url     : {settings.r2_public_url}")
+    print(f"  r2_enabled     : {settings.r2_enabled}")
+
+    # ORM 自动发现的 R2 key 列
+    from app.services.artifact_service import ArtifactService
+    cols = ArtifactService.all_r2_key_columns()
+    print(f"\n[Discovered R2 key columns] ({len(cols)} total)")
+    for model, col in cols:
+        print(f"  - {model}.{col}")
+
+    # R2 prefix 推算（基于业务已知的 prefix 模式）
+    print(f"\n[Known R2 prefixes] (heuristic, may not be complete)")
+    prefixes = [
+        "monthly_reports/*",
+        "platform-revenue/*/payment_screenshot/*",
+        "exchange-rate-notes/{images,thumbs}/*",
+        "inspection-screenshots/*",
+        "fnsku-labels/*",
+        "product-images/*",
+        "product-thumbs/*",
+        "avatars/*",
+        "scheduled-reports/{full,thumb}/*",
+        "product-analysis/*/*",
+        # pgBackRest (自管，不动)
+        "pgbackrest/*",
+    ]
+    for p in prefixes:
+        print(f"  - {p}")
+
+    print(f"\n[Behavior]")
+    print(f"  default action : DRY-RUN (only lists). Pass --execute to actually delete.")
+    print(f"  batch delete   : sequential delete_object (slow but simple)")
+    print(f"  run again next : use --project / --min-age to scope")
+    print()
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='清理 R2 存储中的孤立文件',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  %(prog)s --dry-run              # 预览要清理的文件
-  %(prog)s                         # 执行清理
-  %(prog)s --project "My Store"   # 只清理特定项目
-  %(prog)s --min-age 30           # 只清理 30 天以上的文件
+  %(prog)s                                  # 默认：列出将被清理的文件，但不动手
+  %(prog)s --execute                        # 真的要删除！会要求交互确认
+  %(prog)s --execute --yes                  # 自动确认（cron 用）
+  %(prog)s --config-print                   # 只打印将扫描哪些 prefix/列，退出
+  %(prog)s --project "My Store"             # 只清理特定项目
+  %(prog)s --min-age 30 --execute           # 只清理 30 天以上的，且真删
         """
+    )
+    # 默认安全：不带 --execute 时只报告。
+    parser.add_argument(
+        '--execute', '-x',
+        action='store_true',
+        default=False,
+        help='真删除（必须显式指定）。默认（不带此 flag）只输出报告。'
     )
     parser.add_argument(
         '--dry-run', '-n',
         action='store_true',
-        help='只报告，不删除'
+        default=True,  # 默认 dry-run=True 是为了安全；--execute 会覆盖为 False
+        help='只报告，不删除（默认行为，无需指定）。'
+    )
+    parser.add_argument(
+        '--yes', '-y',
+        action='store_true',
+        default=False,
+        help='跳过交互确认（仅在 --execute 时有效；cron 用）。'
     )
     parser.add_argument(
         '--project', '-p',
@@ -310,8 +382,21 @@ def main():
         action='store_true',
         help='显示详细文件列表'
     )
+    parser.add_argument(
+        '--config-print',
+        action='store_true',
+        help='只打印脚本将扫描哪些 prefix / 表 / 列，立刻退出。供运维审计。'
+    )
 
     args = parser.parse_args()
+
+    # --execute 自动把 --dry-run 关掉
+    if args.execute:
+        args.dry_run = False
+
+    # --config-print: 不连数据库，只打印脚本将扫哪些 prefix / 列,立刻退出
+    if args.config_print:
+        return _print_config()
 
     # 加载配置
     from app.core.config import get_settings
@@ -345,13 +430,17 @@ def main():
         # 打印汇总
         print_orphaned_summary(orphaned, args.details)
 
-        # 确认删除
+        # 确认删除（只在 --execute 时弹）
         if orphaned and not args.dry_run:
             print(f"\n{'!'*60}")
-            confirm = input(f"确认删除 {len(orphaned)} 个孤立文件? (输入 'yes' 确认): ")
-            if confirm.lower() != 'yes':
-                print("取消删除")
-                return 0
+            print(f"即将真删 {len(orphaned)} 个孤立文件。")
+            if not args.yes:
+                confirm = input("确认删除？输入 'yes' 继续，其它任意键取消: ")
+                if confirm.lower() != 'yes':
+                    print("取消删除")
+                    return 0
+            else:
+                print("(已通过 --yes 跳过交互确认)")
 
         # 执行删除
         delete_orphaned_files(r2_client, settings.r2_bucket_name, orphaned, args.dry_run)

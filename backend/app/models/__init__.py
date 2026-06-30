@@ -1,4 +1,5 @@
 from app.models.job import Job, JobRun, JobStatus
+from app.models.r2_delete_failure import R2DeleteFailure
 from app.models.monthly_report import (
     MonthlyReport,
     MonthlyReportPT3Calculation,
@@ -99,6 +100,7 @@ from app.models.platform_revenue import PlatformRevenue
 from app.models.inspection import InspectionPeriod, InspectionReport, InspectionScreenshot
 from app.models.ad_agent_run import AdAgentRun
 from app.models.ad_agent_dimension_health import AdAgentDimensionHealth
+from app.models.r2_delete_failure import R2DeleteFailure
 
 __all__ = [
     'SkuRecord',
@@ -106,6 +108,7 @@ __all__ = [
     'Job',
     'JobRun',
     'JobStatus',
+    'R2DeleteFailure',
     'AIConversation',
     'AIMessage',
     'AIInsight',
