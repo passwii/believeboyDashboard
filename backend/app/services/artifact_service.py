@@ -28,12 +28,76 @@ from app.services.r2_service import (
 class ArtifactService:
     """统一的云存储工件服务"""
 
-    # 注册的 R2 key 字段（用于孤立文件追踪）
-    # 格式: (model_class, field_name)
+    # 显式注册的 R2 key 字段（用于孤立文件追踪 & ORM hook）
+    # 格式: (model_class_name, field_name)
+    # 这些是 anchor，绝大部分 *_r2_key 列会自动发现（见 all_r2_key_columns()）
     REGISTERED_R2_FIELDS: list[tuple[str, str]] = [
         ("MonthlyReport", "summary_pdf_r2_key"),
         ("PlatformRevenue", "screenshot_r2_key"),
     ]
+
+    # 不规则命名的 key 列（不以 _r2_key 结尾，需要白名单显式收纳）
+    # 例如 InspectionScreenshot 直接叫 r2_key / thumbnail_key
+    # 例如 ScheduledReportDeliveryLog 缩略图叫 screenshot_r2_thumb_key
+    _IRREGULAR_KEY_COLUMNS: list[tuple[str, str]] = [
+        ("InspectionScreenshot", "r2_key"),
+        ("InspectionScreenshot", "thumbnail_key"),
+        ("ScheduledReportDeliveryLog", "screenshot_r2_thumb_key"),
+    ]
+
+    @classmethod
+    def discover_r2_key_columns(cls) -> list[tuple[str, str]]:
+        """扫描所有 ORM model，返回所有以 _r2_key 结尾的列 (model_name, field_name)。
+
+        自动发现的设计目的：新加 R2 列不用手动改注册表，只要命名符合约定就被纳入。
+        返回的 key 是排序去重后的。
+
+        注意：SQLAlchemy 2.0 的 Base.registry 只持有已被 import 的 mapper。
+        所以此处显式 import app.models 以确保所有模型都已注册。
+        """
+        from app.db.session import Base  # noqa: F401
+        import app.models  # noqa: F401  确保所有 model class 已被 import 过
+
+        result: set[tuple[str, str]] = set()
+        for mapper in Base.registry.mappers:
+            cls_obj = mapper.class_
+            for col in mapper.columns:
+                if col.key.endswith("_r2_key"):
+                    result.add((cls_obj.__name__, col.key))
+        return sorted(result)
+
+    @classmethod
+    def all_r2_key_columns(cls) -> list[tuple[str, str]]:
+        """返回所有需要被清理的 R2 key 列 = 自动发现 + 显式 anchor + 不规则命名白名单。
+
+        用于：
+        - cleanup_r2_orphaned_files.py 的引用集合
+        - P2 阶段 r2_lifecycle.py 的 ORM hook
+        """
+        auto = cls.discover_r2_key_columns()
+        merged = set(auto) | set(cls.REGISTERED_R2_FIELDS) | set(cls._IRREGULAR_KEY_COLUMNS)
+        return sorted(merged)
+
+    @classmethod
+    def extract_image_r2_keys(cls, images: list | None) -> set[str]:
+        """从 note_images 风格的 dict 列表里抽出所有 r2_key / thumbnail_key。
+
+        用于 ORM hook 处理 JSON 内嵌 R2 key (e.g. exchange_rates.note_images)。
+        返回 set[str]，key 顺序不保证。
+        空字符串 / 全空白 / 非字符串被视为缺失。
+        """
+        result: set[str] = set()
+        if not images:
+            return result
+        for img in images:
+            if not isinstance(img, dict):
+                continue
+            for k in (img.get("r2_key"), img.get("thumbnail_key")):
+                if isinstance(k, str):
+                    k_stripped = k.strip()
+                    if k_stripped:
+                        result.add(k_stripped)
+        return result
 
     @staticmethod
     def build_public_url(key: str) -> str:

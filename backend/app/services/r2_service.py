@@ -6,15 +6,36 @@ Provides S3-compatible storage using Cloudflare R2.
 from __future__ import annotations
 
 import io
+import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 from urllib.parse import quote
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class R2DeleteResult:
+    """R2 删除的结构化结果。
+
+    - success=True:对象在 R2 上不存在或被删除。
+    - success=False:调用 R2 失败,error_class / error_message 给出原因。
+      调用方应把这类结果写入 r2_delete_failures 表等下次重试。
+
+    永不抛错（即使网络挂 / bucket 不可达也只返回 success=False），
+    这样可以被 ORM after_commit hook 安全调用。
+    """
+    success: bool
+    key: str
+    error_class: str | None = None
+    error_message: str | None = None
 
 
 # Singleton client
@@ -119,17 +140,58 @@ def upload_bytes_to_r2(
     )
 
 
-def delete_file_from_r2(settings: Settings, key: str) -> bool:
-    """Delete a file from R2 storage."""
+def delete_file_from_r2(
+    settings: Settings,
+    key: str,
+    *,
+    log_failure: bool = True,
+) -> bool:
+    """Delete a single object from R2. Returns True on success, False on failure.
+
+    行为约定：
+    - key 为空字符串 / None：视为 nothing-to-do，返回 True。
+    - 捕获 ClientError（4xx）+ BotoCoreError + OSError（网络/超时）。
+    - 永不抛错。True/False 都可被业务代码当 bool 用。
+
+    如需详细错误信息（用于写入死信表），请用 try_delete_file_from_r2()。
+    """
+    return try_delete_file_from_r2(settings, key, log_failure=log_failure).success
+
+
+def try_delete_file_from_r2(
+    settings: Settings,
+    key: str,
+    *,
+    log_failure: bool = True,
+) -> R2DeleteResult:
+    """Delete a single object from R2. Returns R2DeleteResult with success / error_class.
+
+    行为约定：
+    - key 为空字符串 / None：返回 success=True（避免向上抛错）。
+    - 捕获 ClientError（4xx）+ BotoCoreError + OSError。
+    - 永不抛错。P1 / P2 阶段应使用本接口，以拿到结构化失败原因写入死信表。
+    """
+    if not key:
+        return R2DeleteResult(success=True, key=key or "")
+
     client = get_r2_client(settings)
     try:
-        client.delete_object(
-            Bucket=settings.r2_bucket_name,
-            Key=key,
+        client.delete_object(Bucket=settings.r2_bucket_name, Key=key)
+        return R2DeleteResult(success=True, key=key)
+    except (ClientError, BotoCoreError, OSError) as exc:
+        if log_failure:
+            logger.warning(
+                "[r2] delete failed key=%s err=%s",
+                key,
+                exc.__class__.__name__,
+                exc_info=True,
+            )
+        return R2DeleteResult(
+            success=False,
+            key=key,
+            error_class=exc.__class__.__name__,
+            error_message=str(exc),
         )
-        return True
-    except ClientError:
-        return False
 
 
 def get_file_url(settings: Settings, key: str) -> str:
