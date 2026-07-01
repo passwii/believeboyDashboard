@@ -19,6 +19,8 @@ JSON, with snake_case field names.
 |---|---|---|---|
 | 1 | GET | `/external/projects` | List projects (filterable by `status=active\|archived\|all`) |
 | 2 | GET | `/external/projects/{id}/ad-upload-files` | List `AdUploadFile` metadata for a project |
+| 3 | GET | `/external/projects/{id}/orders/summary` | **NEW** Deduplicated orders/sales for TACoS |
+| 4 | GET | `/external/projects/{id}/business-summary` | **NEW** Business dashboard (traffic + cost/profit) |
 
 ### 1.2 Row data (10 report types)
 
@@ -131,7 +133,141 @@ GET /external/projects/1/ad-campaigns?period=custom&start_date=2099-01-01&end_da
 
 ---
 
-## 4. `order_by` whitelist
+## 4. Orders Summary — `GET /external/projects/{id}/orders/summary`
+
+Returns deduplicated real orders/sales data for TACoS calculation.
+
+### 4.1 Query parameters
+
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `period` | ✅ | — | `7d`, `14d`, `28d`, `30d`, `60d`, `90d`, `this_month`, `last_month`, `ytd`, or `custom` |
+| `start_date` | `custom` only | — | `YYYY-MM-DD` (required when `period=custom`) |
+| `end_date` | `custom` only | — | `YYYY-MM-DD` (required when `period=custom`) |
+| `country` | ✅ | — | ISO-2 code (e.g., `US`, `UK`, `DE`). **Must be supplied** — no default. |
+| `include_cancelled` | ❌ | `false` | Include `order_status='Cancelled'` rows |
+| `include_pending` | ❌ | `true` | Include pending/unshipped rows |
+| `aggregate` | ❌ | `true` | Include top-level `aggregate` object in response |
+| `limit` | ❌ | `50000` | Max rows (1–50000) |
+| `offset` | ❌ | `0` | Pagination offset |
+
+### 4.2 Core logic
+
+1. Select current `sales_report` files: `AnalysisSourceFile.is_current=true` + `ingestion_status='success'`
+2. Join `AnalysisSalesOrderRow` → filter `is_counted_sales=true`
+3. Exclude `order_status='Cancelled'` unless `include_cancelled=true`
+4. Exclude pending unless `include_pending=true`
+5. Deduplication is implicit via `is_current=true` (only latest version per period)
+
+### 4.3 Response shape (200)
+
+```json
+{
+  "project_id": 1,
+  "period": { "type": "relative", "value": "14d", "start_date": "2026-06-01", "end_date": "2026-06-14" },
+  "country": "US",
+  "data": [
+    {
+      "amazon_order_id": "111-2222222-3333333",
+      "purchase_date_pt": "2026-06-10",
+      "order_status": "Shipped",
+      "fulfillment_channel": "Amazon",
+      "fulfillment_label": "FBA（亚马逊配送）",
+      "sku": "SKU-001",
+      "asin": "B0000001",
+      "product_name": "Product A",
+      "quantity": 2,
+      "item_price": 29.99,
+      "shipping_price": 0.0,
+      "currency": "USD",
+      "country": "US",
+      "is_counted_sales": true
+    }
+  ],
+  "aggregate": {
+    "total_orders": 150,
+    "total_quantity": 320,
+    "total_sales_amount": 8945.20,
+    "currency": "USD",
+    "fba_orders": 120,
+    "fbm_orders": 30
+  },
+  "summary": { "...": "same as aggregate for backwards compatibility" }
+}
+```
+
+---
+
+## 5. Business Summary — `GET /external/projects/{id}/business-summary`
+
+Returns business dashboard data: traffic quality (PV, sessions, CVR) aggregated by ASIN from `analysis_business_rows`, plus cost/profit/breakeven from `shop_calculation` snapshot.
+
+### 5.1 Query parameters
+
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `period` | ✅ | — | Same aliases as orders/summary |
+| `start_date` | `custom` only | — | `YYYY-MM-DD` |
+| `end_date` | `custom` only | — | `YYYY-MM-DD` |
+| `country` | ✅ | — | ISO-2 code — **must be supplied** |
+
+### 5.2 Core logic
+
+1. Select current `business_report` files (same version selection as ad endpoints)
+2. `GROUP BY asin` on `AnalysisBusinessRow` → SUM `page_views`, `sessions`, `units_ordered`, `ordered_sales_amount`
+3. Compute `CVR = units / sessions * 100` (percent)
+4. Join latest `ShopCalculation` per `(project_id, asin, country)` for cost/profit/breakeven
+5. Return detail rows + aggregate totals
+
+### 5.3 Response shape (200)
+
+```json
+{
+  "project_id": 1,
+  "period": { "type": "relative", "value": "14d", "start_date": "2026-06-01", "end_date": "2026-06-14" },
+  "country": "US",
+  "detail": [
+    {
+      "asin": "B0000001",
+      "page_views": 1250,
+      "sessions": 480,
+      "units_ordered": 95,
+      "ordered_sales_amount": 2849.05,
+      "cvr": 19.79,
+      "cost_total": 1420.00,
+      "profit": 420.50,
+      "profit_rate": 14.76,
+      "breakeven_units": 72
+    }
+  ],
+  "aggregate": {
+    "total_asins": 12,
+    "total_page_views": 15000,
+    "total_sessions": 5800,
+    "total_units_ordered": 1150,
+    "total_sales_amount": 34500.0,
+    "total_cost": 18200.0,
+    "total_profit": 4200.0,
+    "overall_cvr": 19.83,
+    "overall_profit_rate": 12.17
+  },
+  "summary": { "...": "alias of aggregate" }
+}
+```
+
+---
+
+## 6. Error conventions (shared)
+
+| HTTP | Condition |
+|------|-----------|
+| 400 | `period` missing / invalid / `custom` without dates / alias combined with `start_date`/`end_date` / `country` missing / invalid / `limit` out of range |
+| 404 | `project_id` not found |
+| 200 | Empty `data` / `detail` when no current file overlaps the requested window |
+
+---
+
+## 7. `order_by` whitelist
 
 `order_by` is **strictly whitelisted per table**. Unknown columns return 400.
 This protects against slow queries on un-indexed fields and prevents
