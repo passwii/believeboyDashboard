@@ -51,7 +51,9 @@ def fetch_multi_project_context(
     else:
         rows = (
             db.execute(
-                select(Project).where(Project.id.in_(project_ids))
+                select(Project)
+                .where(Project.id.in_(project_ids))
+                .order_by(Project.id)
             )
             .scalars()
             .all()
@@ -77,12 +79,10 @@ def fetch_multi_project_context(
             if pc:
                 merged_project_ctx[row.project_name] = pc
             if sc:
+                # 统一带项目名前缀，避免单/多项目路径 key 形状不一致
+                # （同一 sku_key 在多个项目中同名时也能区分归属）
                 for sku_key, sku_val in sc.items():
-                    if sku_key in merged_sku_ctx:
-                        # Prefix with project name to avoid collision
-                        merged_sku_ctx[f"{row.project_name}/{sku_key}"] = sku_val
-                    else:
-                        merged_sku_ctx[sku_key] = sku_val
+                    merged_sku_ctx[f"{row.project_name}/{sku_key}"] = sku_val
         except Exception:
             logger.warning("Failed to fetch context for project %s", row.id, exc_info=True)
             continue
