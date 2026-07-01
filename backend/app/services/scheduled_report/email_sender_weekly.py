@@ -15,6 +15,10 @@ from app.services.scheduled_report.email_sender import (
     _render_country_sub_header,
     _scale_html_fonts,
 )
+from app.services.scheduled_report._name_utils import (
+    sanitize_filename_segment,
+    truncate_project_name_for_subject,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1031,12 +1035,12 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_call
                 for_screenshot=True,
             )
             labels = [_country_label(c) for c in country_list]
-            subject = f"BelieveBoy | {project_name} · {'/'.join(labels)} · {report_date[:4]} 第 {week_number} 周 周报"
+            subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {'/'.join(labels)} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = "+".join(country_list)
         else:
             html = _render_weekly_report_html(report_data, include_summary=True)
             screenshot_html = _render_weekly_report_html(report_data, include_summary=False, for_screenshot=True)
-            subject = f"BelieveBoy | {project_name} · {report_date[:4]} 第 {week_number} 周 周报"
+            subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = country_list[0] if country_list else "US"
 
         params: dict[str, Any] = {
@@ -1052,7 +1056,7 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_call
             if stage_callback:
                 from app.models.scheduled_report import DeliveryStage
                 stage_callback(DeliveryStage.CAPTURING_SCREENSHOT.value)
-            email_attachment_name = f"周报_{project_name}_{country_for_file}_{week_number}.png"
+            email_attachment_name = f"周报_{sanitize_filename_segment(project_name)}_{country_for_file}_{week_number}.png"
             process_screenshot_and_upload(
                 screenshot_html,
                 report_data,

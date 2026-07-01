@@ -5,7 +5,46 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+# 单次订阅允许选择的最大项目数（含「全部项目」不计）。
+MAX_PROJECT_IDS = 100
+
+
+def _normalize_project_ids(v: str | None) -> str | None:
+    """归一化 project_ids：
+    - None / "" → "*"
+    - "*" → "*"
+    - 逗号串：去重保序、非空 strip、必须全为正整数、上限 MAX_PROJECT_IDS
+    """
+    if v is None or v == "":
+        return "*"
+    if v == "*":
+        return "*"
+    parts = [p.strip() for p in v.split(",") if p.strip()]
+    if not parts:
+        return "*"
+    try:
+        ids = [int(p) for p in parts]
+    except ValueError as e:
+        raise ValueError(
+            "project_ids 必须是 '*' 或逗号分隔的正整数 ID（收到的非数字片段：%r）" % e
+        ) from e
+    if any(i <= 0 for i in ids):
+        raise ValueError("project_ids 不允许 0 或负数")
+    # 去重保序
+    seen: set[int] = set()
+    dedup: list[int] = []
+    for i in ids:
+        if i not in seen:
+            seen.add(i)
+            dedup.append(i)
+    if len(dedup) > MAX_PROJECT_IDS:
+        raise ValueError(
+            f"project_ids 一次最多选择 {MAX_PROJECT_IDS} 个项目（实际 {len(dedup)}）"
+        )
+    return ",".join(str(i) for i in dedup)
 
 
 class SubscriptionCreate(BaseModel):
@@ -18,6 +57,11 @@ class SubscriptionCreate(BaseModel):
     dispatch_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="周报发送日（0=周一..6=周日）")
     dispatch_day: Optional[int] = Field(default=None, ge=2, le=28, description="月报发送日（2-28）")
     ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
+
+    @field_validator("project_ids")
+    @classmethod
+    def _validate_project_ids(cls, v: str) -> str:
+        return _normalize_project_ids(v)  # type: ignore[arg-type]
 
     @model_validator(mode="after")
     def validate_frequency_fields(self) -> "SubscriptionCreate":
@@ -44,6 +88,13 @@ class SubscriptionUpdate(BaseModel):
     dispatch_day: Optional[int] = Field(default=None, ge=2, le=28, description="月报发送日（2-28）")
     ai_model: Optional[str] = Field(default=None, max_length=64)
     enabled: Optional[bool] = None
+
+    @field_validator("project_ids")
+    @classmethod
+    def _validate_project_ids(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None  # 未提交，ORM 不动
+        return _normalize_project_ids(v)
 
     @model_validator(mode="after")
     def validate_frequency_fields(self) -> "SubscriptionUpdate":
@@ -114,11 +165,19 @@ class DeliveryLogListResponse(BaseModel):
 
 
 class TestEmailRequest(BaseModel):
+    # Pydantic schema named like a pytest test class — opt out of collection.
+    __test__ = False
+
     email: str = Field(..., max_length=256)
     frequency: str = Field(default="daily", pattern="^(daily|weekly|monthly)$")
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
     country: str = Field(default="US", max_length=256)
     ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
+
+    @field_validator("project_ids")
+    @classmethod
+    def _validate_project_ids(cls, v: str) -> str:
+        return _normalize_project_ids(v)  # type: ignore[arg-type]
 
 
 class TestEmailResponse(BaseModel):

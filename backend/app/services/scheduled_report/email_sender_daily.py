@@ -16,6 +16,10 @@ from app.services.scheduled_report.email_sender import (
     _currency_code, _render_country_sub_header,
     _scale_html_fonts,
 )
+from app.services.scheduled_report._name_utils import (
+    sanitize_filename_segment,
+    truncate_project_name_for_subject,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -934,13 +938,13 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
                 for_screenshot=True,
             )
             labels = [_country_label(c) for c in country_list]
-            subject = f"BelieveBoy | {project_name} · {'/'.join(labels)} · {freq_label}运营报告 · {report_date}"
+            subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {'/'.join(labels)} · {freq_label}运营报告 · {report_date}"
             country_for_file = "+".join(country_list)
         else:
             # Single-country path (existing behavior)
             email_html = _render_daily_report_html(report_data, include_summary=True)
             screenshot_html = _render_daily_report_html(report_data, include_summary=False, for_screenshot=True)
-            subject = f"BelieveBoy | {project_name} · {freq_label}运营报告 · {report_date}"
+            subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {freq_label}运营报告 · {report_date}"
             country_for_file = country_list[0] if country_list else "US"
 
         params: dict[str, Any] = {
@@ -956,7 +960,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
             if stage_callback:
                 from app.models.scheduled_report import DeliveryStage
                 stage_callback(DeliveryStage.CAPTURING_SCREENSHOT.value)
-            email_attachment_name = f"{freq_label}报告_{project_name}_{country_for_file}_{report_date}.png"
+            email_attachment_name = f"{freq_label}报告_{sanitize_filename_segment(project_name)}_{country_for_file}_{report_date}.png"
             process_screenshot_and_upload(
                 screenshot_html,
                 report_data,
