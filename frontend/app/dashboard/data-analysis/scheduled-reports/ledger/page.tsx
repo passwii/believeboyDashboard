@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import type { DateRange } from 'react-day-picker'
-import type { Frequency, LedgerItem, LedgerSummary, ResendStage, Subscription } from '../_components/types'
+import type { Frequency, LedgerItem, ResendStage, Subscription } from '../_components/types'
 import {
   fetchLedger,
   fetchModelConfig,
@@ -30,7 +30,6 @@ import {
   pollDeliveryLogStatus,
   resendLedgerEntry,
 } from '../_components/api'
-import { LedgerSummaryCards } from '../_components/LedgerSummaryCards'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
 import type { AIModelConfig } from '../_components/types'
 
@@ -69,7 +68,6 @@ export default function LedgerPage() {
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([])
-  const [ledgerSummary, setLedgerSummary] = useState<LedgerSummary | null>(null)
   const [ledgerLoading, setLedgerLoading] = useState(false)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
   const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
@@ -117,9 +115,8 @@ export default function LedgerPage() {
         statusFilter: ledgerStatus,
         email: ledgerEmail,
       },
-      (items, summary) => {
+      (items) => {
         setLedgerItems(items)
-        setLedgerSummary(summary)
       },
       (error) => setLedgerError(error),
     )
@@ -207,7 +204,7 @@ export default function LedgerPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* 工具栏 */}
       <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
         <CardContent className="p-4 space-y-4">
@@ -281,8 +278,9 @@ export default function LedgerPage() {
             </Button>
           </div>
 
-          <LedgerSummaryCards summary={ledgerSummary} loading={ledgerLoading} />
-          {ledgerError && <p className="text-sm text-destructive">{ledgerError}</p>}
+          {ledgerError && (
+            <p className="mt-3 text-sm text-destructive">{ledgerError}</p>
+          )}
         </CardContent>
       </Card>
 
