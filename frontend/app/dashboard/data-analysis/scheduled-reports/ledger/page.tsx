@@ -31,6 +31,7 @@ import {
   resendLedgerEntry,
 } from '../_components/api'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
+import { LedgerDayGroup } from '../_components/LedgerDayGroup'
 import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG, STATUS_LABELS } from '../_components/ledger-constants'
 import type { AIModelConfig } from '../_components/types'
 
@@ -60,6 +61,36 @@ export default function LedgerPage() {
   const [ledgerStatus, setLedgerStatus] = useState<string>('all')
   const [ledgerEmail, setLedgerEmail] = useState('')
   const initialLoadDone = useRef(false)
+
+  // 按 expected_date 分组（后端已按 yyyy-MM-dd 返回）
+  const groupedByDay = useMemo(() => {
+    const buckets: Record<string, LedgerItem[]> = {}
+    for (const item of ledgerItems) {
+      ;(buckets[item.expected_date] ??= []).push(item)
+    }
+    return Object.fromEntries(
+      Object.entries(buckets).sort(([a], [b]) => b.localeCompare(a)),
+    )
+  }, [ledgerItems])
+
+  // 展开状态
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
+
+  // 末日展开锚点（仅当 ledgerStartDate / ledgerEndDate 变化时重置）
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  useEffect(() => {
+    if (!ledgerEndDate) return
+    setExpandedDates(new Set([ledgerEndDate]))
+  }, [ledgerStartDate, ledgerEndDate])
+
+  const toggleDate = useCallback((date: string) => {
+    setExpandedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
+  }, [])
 
   const handleLedgerDateRangeChange = (range: DateRange | undefined) => {
     setLedgerStartDate(range?.from ? format(range.from, 'yyyy-MM-dd') : '')
@@ -262,96 +293,45 @@ export default function LedgerPage() {
       <Card className="border-border/70 bg-[hsl(var(--surface-panel))]">
         <CardContent className="p-0">
           {/* 桌面端表格 */}
-          <div className="hidden md:block overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>应发时间</TableHead>
-                  <TableHead>频率</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ledgerItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12">
-                      {ledgerLoading ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">台账加载中...</span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <RotateCcw className="h-8 w-8 text-muted-foreground/30" />
-                          <span className="text-sm text-muted-foreground">暂无台账记录</span>
-                          <span className="text-xs text-muted-foreground/60">调整筛选条件或点击「刷新台账」</span>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ) : ledgerItems.map(item => {
-                  const sub = subscriptions.find(s => s.id === item.subscription_id)
-                  const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
-                  const canTrigger = canTriggerResend || item.can_resend
-
-                  return (
-                    <TableRow
-                      key={item.ledger_key}
-                      className="cursor-pointer hover:bg-accent/50 transition-colors"
-                      onClick={() => openDetailSheet(item)}
-                    >
-                      <TableCell className="p-1" onClick={e => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => openDetailSheet(item)}
-                          className="p-1 hover:bg-accent rounded transition-colors"
-                        >
-                          <ChevronDown className="h-4 w-4 text-muted-foreground -rotate-90" />
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {new Date(item.expected_at).toLocaleString('zh-CN', {
-                          month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn('text-xs', FREQUENCY_COLORS[item.frequency])}>
-                          {FREQUENCY_LABELS[item.frequency]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border', STATUS_BG[item.status])}>
-                          {item.status === 'sent' && '✓'}
-                          {item.status === 'failed' && '✗'}
-                          {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
-                          {STATUS_LABELS[item.status]}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right" onClick={e => e.stopPropagation()}>
-                        {canTrigger ? (
-                          <LedgerResendCell
-                            item={item}
-                            resendingStage={resendingStates[item.ledger_key]}
-                            canResend
-                            modelConfig={modelConfig}
-                            isLoadingModelConfig={isLoadingModelConfig}
-                            fallbackModel={fallbackModel}
-                            onLoading={() => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
-                            onSubmit={(overrideAiModel) => {
-                              void handleResendLedger(item, overrideAiModel)
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          <div className="hidden md:block">
+            {ledgerItems.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                {ledgerLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">台账加载中...</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-8 w-8 text-muted-foreground/30" />
+                    <span className="text-sm text-muted-foreground">暂无台账记录</span>
+                    <span className="text-xs text-muted-foreground/60">调整筛选条件或点击「刷新台账」</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div>
+                {Object.entries(groupedByDay).map(([date, items]) => (
+                  <LedgerDayGroup
+                    key={date}
+                    date={date}
+                    items={items}
+                    expanded={expandedDates.has(date)}
+                    onToggle={() => toggleDate(date)}
+                    isAnchor={date === ledgerEndDate}
+                    isToday={date === todayStr}
+                    subscriptions={subscriptions}
+                    modelConfig={modelConfig}
+                    isLoadingModelConfig={isLoadingModelConfig}
+                    resendingStates={resendingStates}
+                    onRowClick={openDetailSheet}
+                    onResend={(item, overrideAiModel) => { void handleResendLedger(item, overrideAiModel) }}
+                    onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
+                    canTriggerResend={canTriggerResend}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 手机端卡片列表 */}
