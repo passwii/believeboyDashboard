@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import type { DateRange } from 'react-day-picker'
-import type { Frequency, LedgerItem, ResendStage, Subscription } from '../_components/types'
+import type { LedgerItem, ResendStage, Subscription } from '../_components/types'
 import {
   fetchLedger,
   fetchModelConfig,
@@ -31,34 +31,8 @@ import {
   resendLedgerEntry,
 } from '../_components/api'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
+import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG, STATUS_LABELS } from '../_components/ledger-constants'
 import type { AIModelConfig } from '../_components/types'
-
-const FREQUENCY_LABELS: Record<Frequency, string> = {
-  daily: '每日',
-  weekly: '每周',
-  monthly: '每月',
-}
-const FREQUENCY_COLORS: Record<Frequency, string> = {
-  daily: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  weekly: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-  monthly: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  sent: '成功',
-  failed: '失败',
-  missing: '缺失',
-}
-const STATUS_COLORS: Record<string, string> = {
-  sent: 'text-emerald-600 dark:text-emerald-400',
-  failed: 'text-destructive',
-  missing: 'text-amber-600 dark:text-amber-400',
-}
-const STATUS_BG: Record<string, string> = {
-  sent: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-  failed: 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
-  missing: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-}
 
 export default function LedgerPage() {
   const { data: session } = useSession()
