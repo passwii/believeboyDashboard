@@ -1,0 +1,1 @@
+"""External API Pydantic schemas (whitelisted external integrations)."""
