@@ -83,6 +83,15 @@ export const animationStyles = `
     animation: bb-stop-pulse 1.5s ease-in-out infinite;
   }
 
+  /* Message list entrance */
+  @keyframes bb-fade-slide-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-slide-up {
+    animation: bb-fade-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
   /* Mobile Safe Area Support */
   .safe-area-inset-top {
     padding-top: env(safe-area-inset-top);

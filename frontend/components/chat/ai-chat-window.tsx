@@ -13,6 +13,7 @@ import { AnnouncementBadge } from './announcement-badge'
 import { FloatingParticles } from './floating-particles'
 import { ChatMessageList } from './chat-message-list'
 import { ConversationSidebar } from './conversation-sidebar'
+import { SuggestionChips } from './suggestion-chips'
 import { useChatStream, type UseChatStreamCallbacks, type ChatStreamOptions } from './hooks/use-chat-stream'
 
 import {
@@ -80,12 +81,9 @@ function toClientMessage(server: ServerChatMessage): ChatMessage {
 }
 
 export function AIChatWindow({
-  title = '今天你想',
-  titleHighlight = '构建',
-  subtitle = '从今天出发，用 AI Agent 创造新高度',
   announcementText = 'BelieveBoy AI 助手',
   announcementHref = '#',
-  placeholder = '你想构建什么？',
+  placeholder = '输入消息，开始对话...',
   showInput = true,
   onSend,
 }: AIChatWindowProps) {
@@ -122,6 +120,15 @@ export function AIChatWindow({
   const stopBtnRef = useRef<HTMLButtonElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const stopBtnShownRef = useRef(false)
+  // Ref-based conversation ID so useChatStream always reads the latest value
+  // (fixes the bug where landing→chat creates the conversation inside a
+  // setTimeout but sendStream was captured with conversationId=0).
+  const activeServerIdRef = useRef<number | null>(null)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeServerIdRef.current = activeServerId
+  }, [activeServerId])
 
   // ── Config: load once on mount so the top-level "AI Provider 未配置" hint
   // ── can render as soon as the user lands on the page. Components like
@@ -132,11 +139,7 @@ export function AIChatWindow({
       .catch(() => setProviderConfigured(false))
   }, [])
 
-  // ── Load conversations whenever refreshKey changes. We don't use the
-  // ── `useApiQuery` hook because (a) it caps at 5s timeout which is too
-  // ── short for an initial conversation list, and (b) we want fine-grained
-  // ── control over the empty-state UX (the chat window stays usable even
-  // ── before the list arrives).
+  // ── Load conversations whenever refreshKey changes.
   useEffect(() => {
     let cancelled = false
     setLoadingConversations(true)
@@ -170,9 +173,6 @@ export function AIChatWindow({
   }, [refreshKey])
 
   // ── Sync showSidebar with phase: 首屏默认折叠，聊天页默认展开。
-  // ── Users can still toggle manually; the next phase transition re-syncs.
-  // ── We use a ref to skip the very first run so the initial phase value
-  // ── (landing) sets showSidebar=false without flashing.
   const phaseSyncRanRef = useRef(false)
   useEffect(() => {
     if (!phaseSyncRanRef.current) {
@@ -195,8 +195,7 @@ export function AIChatWindow({
       .then((rows) => {
         if (cancelled) return
         const mapped = rows.map(toClientMessage)
-        // Filter out messages the user deleted in a previous session —
-        // backend still has them, but we treat the local delete as sticky.
+        // Filter out messages the user deleted in a previous session.
         const visible = hiddenForConv.size > 0
           ? mapped.filter((m) => m.serverId == null || !hiddenForConv.has(m.serverId))
           : mapped
@@ -215,9 +214,9 @@ export function AIChatWindow({
     }
   }, [activeServerId, locallyDeletedIds])
 
-  // ── Chat stream hook (only mounted when we have a real server-side
-  // ── conversation; the placeholder "new conversation" state creates one
-  // ── first via `createConversation`).
+  // ── Chat stream hook — uses ref-based conversation ID so send() always
+  // ── resolves to the current server ID, even when the conversation is
+  // ── created mid-flow (e.g. landing→chat transition).
   const streamCallbacksRef = useRef<UseChatStreamCallbacks>({})
   const {
     send: sendStream,
@@ -225,10 +224,9 @@ export function AIChatWindow({
     error: streamHookError,
     toolState,
     pendingSources,
-  } = useChatStream(activeServerId ?? 0, streamCallbacksRef)
+  } = useChatStream(activeServerIdRef, streamCallbacksRef)
 
-  // Surface stream-hook errors as a transient banner. The hook's `error`
-  // state is cleared on the next `send`, so this naturally re-syncs.
+  // Surface stream-hook errors as a transient banner.
   useEffect(() => {
     if (streamHookError) setStreamError(streamHookError)
   }, [streamHookError])
@@ -278,6 +276,7 @@ export function AIChatWindow({
   )
 
   // ── Auto-scroll ──────────────────────────────────────────────────
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTo({
@@ -288,24 +287,17 @@ export function AIChatWindow({
   }, [messages])
 
   const isLanding = phase === 'landing'
+  const isTransitioning = phase === 'transitioning'
   const isChat = phase === 'chat'
   const hasMessages = messages.length > 0
   // Derived from message data — true if any assistant message in this
-  // conversation was produced via web search. Drives the sticky
-  // "本对话已开启联网" status bar in <ChatMessageList />.
+  // conversation was produced via web search.
   const usedWebSearch = useMemo(
     () => messages.some((m) => m.role === 'assistant' && (m.searchSources?.length ?? 0) > 0),
     [messages]
   )
 
-  // ── Stream callback bridge: route events into the React state for the
-  // ── active assistant message. The assistant message is identified by a
-  // ── temporary local id; once the `done` event arrives we replace it
-  // ── with the persisted server id so message actions can reference it.
-  //
-  // For regenerate flows there is no corresponding optimistic user message,
-  // so `userLocalId` is optional. When omitted, the `onDone` handler skips
-  // the user-message reconciliation step.
+  // ── Stream callback bridge ───────────────────────────────────────
   const wireStreamCallbacks = useCallback(
     (assistantLocalId: string, userLocalId?: string) => {
       streamCallbacksRef.current = {
@@ -346,7 +338,6 @@ export function AIChatWindow({
               {
                 ...target,
                 searchSources: sources,
-                // [BEL-81.B] 把后端透传的 time_range / query 落到消息上
                 searchTimeRange: meta?.timeRange ?? target.searchTimeRange ?? null,
                 searchQuery: meta?.query ?? target.searchQuery ?? null,
                 searchSearching: false,
@@ -355,7 +346,6 @@ export function AIChatWindow({
             ]
           })
         },
-        // [BEL-81.B] tool_searching 时显示骨架卡占位
         onToolState: (state) => {
           if (!state.searching) return
           setMessages((prev) => {
@@ -392,9 +382,6 @@ export function AIChatWindow({
           })
         },
         onDone: (payload) => {
-          // Replace the optimistic placeholder with the persisted message —
-          // same role, real server id, real content (in case any trailing
-          // chunk arrived after `done`).
           setMessages((prev) => {
             const aiIdx = prev.findIndex((m) => m.id === assistantLocalId)
             const userIdx = userLocalId ? prev.findIndex((m) => m.id === userLocalId) : -1
@@ -414,17 +401,13 @@ export function AIChatWindow({
             return next
           })
           setIsStreaming(false)
-          // Bump the conversation list so the title / updatedAt reflect the
-          // newly-committed turn (and any regenerated title).
           refreshConversations()
         },
         onUserMessageId: () => {
-          // The user message's local id stays — we already display its
-          // content. We only refresh the conversation list on the assistant
-          // id below.
+          // No-op — reconciliation happens in `onDone`.
         },
         onAssistantId: () => {
-          // The reconciliation happens in `onDone`; nothing to do here.
+          // No-op — reconciliation happens in `onDone`.
         },
         onTitleUpdate: (newTitle) => {
           setConversations((prev) =>
@@ -461,6 +444,21 @@ export function AIChatWindow({
   }, [stopStream])
 
   // ── Conversation management ───────────────────────────────────────
+  const ensureServerConversation = useCallback(async (): Promise<number | null> => {
+    if (activeServerId != null) return activeServerId
+    try {
+      const created = await createConversation()
+      const mapped = toClientConversation(created)
+      setConversations((prev) => [mapped, ...prev])
+      setActiveConvId(mapped.id)
+      setActiveServerId(mapped.serverId ?? null)
+      return mapped.serverId ?? null
+    } catch (err) {
+      console.error('[ai-chat] auto-create conversation failed', err)
+      return null
+    }
+  }, [activeServerId])
+
   const handleCreateConversation = useCallback(async () => {
     try {
       const created = await createConversation()
@@ -490,7 +488,6 @@ export function AIChatWindow({
     async (id: string, title: string) => {
       const conv = conversations.find((c) => c.id === id)
       if (!conv?.serverId) return
-      // Optimistic update — the rename is fire-and-forget from the UI's POV.
       setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)))
       try {
         const updated = await renameConversation(conv.serverId, title)
@@ -499,7 +496,6 @@ export function AIChatWindow({
         )
       } catch (err) {
         console.error('[ai-chat] renameConversation failed', err)
-        // Roll back on failure.
         setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: conv.title } : c)))
       }
     },
@@ -510,12 +506,9 @@ export function AIChatWindow({
     async (id: string) => {
       const conv = conversations.find((c) => c.id === id)
       if (!conv?.serverId) {
-        // Pure-local conversation — just drop it from the list.
         setConversations((prev) => {
           const filtered = prev.filter((c) => c.id !== id)
-          if (filtered.length === 0) {
-            return []
-          }
+          if (filtered.length === 0) return []
           if (activeConvId === id) {
             const next = filtered[0]
             setActiveConvId(next.id)
@@ -552,15 +545,12 @@ export function AIChatWindow({
   )
 
   // ── Message operations ─────────────────────────────────────────────
-  // Regenerate: re-stream the assistant message by pointing at its
-  // `serverId`. The user content is irrelevant — backend reads from history.
   const handleRegenerateMessage = useCallback(
     async (messageId: string) => {
       if (activeServerId == null || isStreaming) return
       const target = messages.find((m) => m.id === messageId)
       if (!target?.serverId) return
       const newAssistantId = `assistant-${Date.now()}`
-      // Replace the assistant message with a fresh placeholder
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.id === messageId)
         if (idx === -1) return prev
@@ -578,8 +568,6 @@ export function AIChatWindow({
       })
       setIsStreaming(true)
       setStreamError(null)
-      // Forward the user's current model / reasoning / web-search choices to
-      // the regenerated stream — same as `handleSend` does.
       const cfg = getConfig()
       const model = selectedModel ?? cfg?.defaultModel
       const reasoningSupported = model
@@ -596,7 +584,6 @@ export function AIChatWindow({
       try {
         await sendStream('', options)
       } catch (err) {
-        // The hook already pushed the error to onError; nothing more to do.
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('[ai-chat] regenerate failed', err)
         }
@@ -614,20 +601,11 @@ export function AIChatWindow({
     ]
   )
 
-  // Edit / Delete on individual messages are TODO — the backend has no
-  // message-level endpoint yet. We perform a local-only remove so the UI
-  // stays consistent in the meantime.
   const handleEditMessage = useCallback((_messageId: string) => {
     // TODO: wire to a real PATCH /messages/{id} once the backend ships it.
   }, [])
 
   const handleDeleteMessage = useCallback((messageId: string) => {
-    // Drop the message (and the following assistant message if paired) from
-    // the local list, then record the deleted server-side ids in
-    // `locallyDeletedIds` so a refresh / conversation re-load doesn't bring
-    // them back. The conversation-level cache key keeps the list scoped —
-    // we never want a delete in conversation A to hide a message in B that
-    // happens to share an id (won't happen today, but defensive).
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.id === messageId)
       if (idx === -1) return prev
@@ -644,13 +622,9 @@ export function AIChatWindow({
           return { ...prevDeleted, [activeServerId]: next }
         })
       }
-      // If the deleted message is followed by an assistant message, drop
-      // the pair (mirrors the pre-refactor behavior). Otherwise just
-      // remove the single message.
       if (deleted[1] && deleted[1].role === 'assistant') {
         return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
       }
-      // TODO: server-side delete once the backend adds the endpoint.
       return prev.filter((m) => m.id !== messageId)
     })
   }, [activeServerId])
@@ -677,115 +651,72 @@ export function AIChatWindow({
         setIsStreaming(true)
       }
 
-      const ensureServerConversation = async (): Promise<number | null> => {
-        if (activeServerId != null) return activeServerId
-        try {
-          const created = await createConversation()
-          const mapped = toClientConversation(created)
-          setConversations((prev) => [mapped, ...prev])
-          setActiveConvId(mapped.id)
-          setActiveServerId(mapped.serverId ?? null)
-          return mapped.serverId ?? null
-        } catch (err) {
-          console.error('[ai-chat] auto-create conversation failed', err)
-          return null
-        }
-      }
-
-      // Landing → chat transition
+      // Landing → chat: create conversation first (so the ref-based hook
+      // has the real server ID), then animate the transition, then send.
       if (phase === 'landing') {
-        setPhase('transitioning')
-        setArcsUp(true)
-        // Wait for the transition animation before flipping to `chat`
-        // and kicking off the request. We can't `await` GSAP from here
-        // cleanly, so use a fixed 800ms (matches the previous build).
-        setTimeout(async () => {
-          setPhase('chat')
-          const serverId = await ensureServerConversation()
-          if (serverId == null) {
-            setIsStreaming(false)
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantLocalId ? { ...m, streaming: false, error: true } : m
-              )
-            )
-            return
-          }
-          // Re-mount the stream hook with the new server id by triggering a
-          // state update — useChatStream is recreated by the parent
-          // component. Easiest path: bump activeServerId, then call
-          // sendStream in a microtask.
-          enterChat()
-          wireStreamCallbacks(assistantLocalId, userLocalId)
-          const cfg = getConfig()
-          try {
-            const model = selectedModel ?? cfg?.defaultModel
-            const reasoningSupported = model
-              ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
-              : false
-            await sendStream(message, {
-              enableWebSearch: streamOptions.enableWebSearch ?? false,
-              ...streamOptions,
-              model,
-              reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
-            })
-          } catch (err) {
-            if (!(err instanceof DOMException && err.name === 'AbortError')) {
-              console.error('[ai-chat] send failed', err)
-            }
-          }
-        }, 800)
-        return
-      }
-
-      // Mid-chat: if there is no server-side conversation yet (e.g. user
-      // clicked a brand-new sidebar entry that hasn't been created on the
-      // backend), create one before sending.
-      let serverId = activeServerId
-      if (serverId == null) {
-        const created = await ensureServerConversation()
-        if (created == null) {
-          setMessages((prev) => [
-            ...prev,
-            { ...userMsg },
-            { ...assistantMsg, streaming: false, error: true },
-          ])
+        const serverId = await ensureServerConversation()
+        if (serverId == null) {
           setIsStreaming(false)
           return
         }
-        serverId = created
+        // The ref is now pointing at the real serverId because
+        // ensureServerConversation set activeServerId which synced the ref.
+        setPhase('transitioning')
+        setArcsUp(true)
+        // Animate for 600ms, then flip to chat and stream.
+        setTimeout(() => {
+          setPhase('chat')
+          enterChat()
+          wireStreamCallbacks(assistantLocalId, userLocalId)
+          const cfg = getConfig()
+          const model = selectedModel ?? cfg?.defaultModel
+          const reasoningSupported = model
+            ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+            : false
+          sendStream(message, {
+            enableWebSearch: streamOptions.enableWebSearch ?? false,
+            ...streamOptions,
+            model,
+            reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
+          }).catch((err) => {
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+              console.error('[ai-chat] send failed', err)
+            }
+          })
+        }, 600)
+        return
       }
+
+      // Mid-chat: conversation should already exist.
       enterChat()
       wireStreamCallbacks(assistantLocalId, userLocalId)
       const cfg = getConfig()
-      try {
-        const model = selectedModel ?? cfg?.defaultModel
-        const reasoningSupported = model
-          ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
-          : false
-        await sendStream(message, {
-          enableWebSearch: streamOptions.enableWebSearch ?? false,
-          ...streamOptions,
-          model,
-          reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
-        })
-      } catch (err) {
+      const model = selectedModel ?? cfg?.defaultModel
+      const reasoningSupported = model
+        ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+        : false
+      sendStream(message, {
+        enableWebSearch: streamOptions.enableWebSearch ?? false,
+        ...streamOptions,
+        model,
+        reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
+      }).catch((err) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('[ai-chat] send failed', err)
         }
-      }
+      })
     },
-    [showInput, onSend, phase, activeServerId, sendStream, wireStreamCallbacks, reasoningEffort, selectedModel],
+    [showInput, onSend, phase, ensureServerConversation, sendStream, wireStreamCallbacks, reasoningEffort, selectedModel],
   )
 
-  // ── Typewriter segments ──────────────────────────────────────────
-  const typewriterSegments: TextSegment[] = useMemo(
-    () => [
-      { text: title, speed: 80 },
-      { text: titleHighlight, highlight: true, speed: 100 },
-      { text: ' 什么？', speed: 80 },
-    ],
-    [title, titleHighlight]
+  // ── Handle suggestion chip clicks ────────────────────────────────
+  const handleSuggestionClick = useCallback(
+    (prompt: string) => {
+      handleSend(prompt, {
+        enableWebSearch: prompt.toLowerCase().includes('数据') || prompt.toLowerCase().includes('趋势'),
+      })
+    },
+    [handleSend]
   )
 
   return (
@@ -796,11 +727,7 @@ export function AIChatWindow({
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
-      {/* Layer 1: Background — same paddingLeft shift as the chat / input
-          layers so the gradient rays, glows and floating particles
-          "follow" the foreground when the sidebar opens. Without this
-          the background looks pinned while everything else slides
-          right, breaking the unified "camera pan" feel. */}
+      {/* Layer 1: Background */}
       <div
         className="absolute inset-0"
         style={{
@@ -812,11 +739,7 @@ export function AIChatWindow({
         <FloatingParticles />
       </div>
 
-      {/* Sidebar toggle — always visible on landing + chat. Sits at the root
-          (not inside the chat messages layer) so 首屏 can open 对话历史.
-          z-30 keeps it under the sidebar (z-40) and the input strip (z-40),
-          but above the landing hero / chat messages (z-0). Hidden when the
-          caller passes showInput={false} (e.g. the /dashboard/ai entry page). */}
+      {/* Sidebar toggle */}
       {showInput && !showSidebar && (
         <button
           type="button"
@@ -828,13 +751,7 @@ export function AIChatWindow({
         </button>
       )}
 
-      {/* Provider-unconfigured banner — shown only when the backend reports
-          `providerConfigured: false` (most often because the .env lacks
-          AI_CHAT_PROVIDER_API_KEY). It surfaces above the input so the user
-          understands why nothing happens. Width matches the input box (max
-          680px centered) so it never bleeds left into the conversation
-          sidebar's header (where the new-conversation / close buttons
-          live). */}
+      {/* Provider-unconfigured banner */}
       {showInput && providerConfigured === false && (
         <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 w-full max-w-[680px] px-3 sm:px-4">
           <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
@@ -847,13 +764,7 @@ export function AIChatWindow({
         </div>
       )}
 
-      {/* Layer 2: Sidebar — z-40 + `pointer-events-none` on the outer
-          GSAP-stripped wrapper, and the ConversationSidebar's own
-          z-index keeps it on top of the chat layer (z-30). The input
-          layer below uses z-40 / pointer-events: none on its outer strip,
-          with `pointer-events-auto` only on the centered input box, so
-          the sidebar's footer / new-conversation button stay clickable
-          even when the input strip sits visually below the sidebar. */}
+      {/* Layer 2: Sidebar */}
       {showSidebar && (
         <div ref={sidebarRef} className="pointer-events-none absolute inset-0 z-40">
           <ConversationSidebar
@@ -868,9 +779,9 @@ export function AIChatWindow({
         </div>
       )}
 
-      {/* Layer 3: Landing */}
+      {/* Layer 3: Landing — redesigned welcome screen */}
       <div
-        className="absolute inset-0 flex flex-col items-center transition-opacity duration-300"
+        className="absolute inset-0 flex flex-col items-center transition-opacity duration-500"
         style={{
           opacity: isLanding ? 1 : 0,
           pointerEvents: isLanding ? 'auto' : 'none',
@@ -883,21 +794,29 @@ export function AIChatWindow({
           />
         </div>
 
-        <div className="absolute left-1/2 top-[32%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-full px-6 sm:px-4">
-          <div className="text-center mb-4 sm:mb-6">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight mb-3 min-h-[1.2em]">
+        {/* Greeting + suggestion chips — positioned between top badge and input */}
+        <div className="absolute left-1/2 top-[22%] -translate-x-1/2 w-full max-w-[600px] px-6 sm:px-4">
+          <div className="text-center mb-6 sm:mb-8">
+            <h1 className="text-[28px] sm:text-[36px] md:text-[42px] font-bold text-white tracking-tight leading-[1.15]">
               <TypewriterText
-                segments={typewriterSegments}
-                startDelay={800}
+                segments={[
+                  { text: '今天想', speed: 80 },
+                  { text: '分析', highlight: true, speed: 100 },
+                  { text: '什么？', speed: 80 },
+                ]}
+                startDelay={500}
               />
             </h1>
             <p
-              className="text-sm sm:text-base md:text-lg font-semibold text-[#8a8a8f] bb-anim-fade-up"
-              style={{ animationDelay: '3s' }}
+              className="mt-3 text-sm sm:text-base text-[#8a8a8f] bb-anim-fade-up"
+              style={{ animationDelay: '2.5s' }}
             >
-              {subtitle}
+              用 AI 探索数据 — 销售趋势、运营指标、异常洞察
             </p>
           </div>
+
+          {/* Suggestion chips — animated entrance */}
+          <SuggestionChips onSelect={handleSuggestionClick} />
         </div>
       </div>
 
@@ -946,11 +865,6 @@ export function AIChatWindow({
                 onRetry={
                   messages.length >= 2 && isStreaming === false
                     ? () => {
-                        // Retry the most recent assistant message by
-                        // re-running regenerate on it. If the assistant
-                        // has no serverId yet (e.g. network died before
-                        // the first `done`), fall back to regenerating the
-                        // last user message instead.
                         const last = messages[messages.length - 1]
                         if (!last) return
                         if (last.serverId) {
@@ -970,28 +884,25 @@ export function AIChatWindow({
                 <p className="text-xs text-[#5a5a5f]">正在加载历史会话…</p>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
         </div>
       )}
 
-      {/* Layer 5: Input — outer wrapper is `pointer-events-none` so the
-          full-width strip doesn't intercept clicks meant for the
-          conversation sidebar's bottom region (footer / last list items).
-          Only the inner centered 680px input box re-enables
-          `pointer-events-auto`. */}
+      {/* Layer 5: Input */}
       {showInput && (
         <div
           className="absolute left-0 right-0 w-full px-3 sm:px-4 pointer-events-none"
           style={{
             paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
-            ...(isLanding
-              ? { top: '55%', transform: 'translateY(-50%)' }
+            ...(isLanding || isTransitioning
+              ? { top: '58%', transform: 'translateY(-50%)' }
               : {
                   bottom: '0',
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
                 }),
             transition:
-              'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.7s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
+              'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
             zIndex: 40,
           }}
         >

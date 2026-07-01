@@ -423,6 +423,50 @@ function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
   return rows.reduce((sum, row) => sum + row[metric], 0)
 }
 
+/**
+ * 把 summary 行展开为 chart row：date + 全部 metric 字段（保证 <Bar dataKey={selected}> /
+ * <Line dataKey={selected}> 在 selected 切换时总能取到正确字段）+ compareMetricValue。
+ *
+ * `row` 可能 undefined（缺数据），用 0 兜底；`compareValue` 可能 null（缺对比数据），
+ * 直接透传（recharts 对 null 会断点 / 缺柱）。
+ */
+function spreadSummaryRow(
+  row: DailyAnalysisRow | undefined,
+  date: string,
+  compareValue: number | null,
+): Record<string, unknown> {
+  return {
+    date,
+    order_qty: row?.order_qty ?? 0,
+    sales_amount: row?.sales_amount ?? 0,
+    impressions: row?.impressions ?? 0,
+    clicks: row?.clicks ?? 0,
+    cpc: row?.cpc ?? 0,
+    ad_spend: row?.ad_spend ?? 0,
+    ad_orders: row?.ad_orders ?? 0,
+    available_qty: row?.available_qty ?? 0,
+    page_views: row?.page_views ?? 0,
+    units_ordered: row?.units_ordered ?? 0,
+    sessions: row?.sessions ?? 0,
+    ordered_sales_amount: row?.ordered_sales_amount ?? 0,
+    conversion_rate: row?.conversion_rate ?? 0,
+    compareMetricValue: compareValue,
+  }
+}
+
+/**
+ * 同上，但是针对 selectedSku 分支的 detail 行。注意 sku/asin/in_transit_qty 不参与
+ * 图表渲染（MetricSwitcherCard 只看 metric 字段 + compareMetricValue + date），
+ * 所以这里无需展开这三个字段；只需把 13 个 metric 字段全部写上。
+ */
+function spreadDetailRow(
+  row: DailyAnalysisDetailRow | undefined,
+  date: string,
+  compareValue: number | null,
+): Record<string, unknown> {
+  return spreadSummaryRow(row, date, compareValue)
+}
+
 function formatRangeLabel(range?: DateRange) {
   const normalized = normalizeDateRange(range)
   if (!normalized?.from || !normalized?.to) return '--'
@@ -924,15 +968,30 @@ function FilterSkeleton() {
  * 保留 daily-analysis 原有的 format / isNegativeBetter 语义（metricIncreaseIsGood 取反）。
  * preferredChart 标注业务偏好：量级类（订单/销售额/曝光/点击/广告花费/广告订单/页面浏览/销量/访问量）
  * → bar；比率类（CPC/转化率）→ line。
+ *
+ * precision 标注 KPI 卡片 spring count-up 时对 raw 中间值四舍五入到的小数位数：
+ *   - 整数量级（订单/曝光/点击/广告订单/页面浏览/销量/访问量/可售库存）→ 0
+ *     否则 spring 中间值会出现 `1,234.5678` 这种小数。
+ *   - 货币 / 比率（销售额/广告花费/CPC/转化率）→ 不设 precision，
+ *     让 format 函数里的 toFixed 自己量化，避免二次量化出错。
  */
-const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => ({
-  key: m.key,
-  label: SINGLE_METRIC_CHART_CONFIG[m.key]?.label ?? m.label,
-  isNegativeBetter: !metricIncreaseIsGood(m.key),
-  format: (val: number) => formatMetricCardValue(m.key, val),
-  preferredChart:
-    m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
-}))
+const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => {
+  const format = (val: number) => formatMetricCardValue(m.key, val)
+  const isQuantizedByFormat =
+    m.key === 'sales_amount' ||
+    m.key === 'ad_spend' ||
+    m.key === 'cpc' ||
+    m.key === 'conversion_rate'
+  return {
+    key: m.key,
+    label: SINGLE_METRIC_CHART_CONFIG[m.key]?.label ?? m.label,
+    isNegativeBetter: !metricIncreaseIsGood(m.key),
+    format,
+    precision: isQuantizedByFormat ? undefined : 0,
+    preferredChart:
+      m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
+  }
+})
 
 // 已下线 — DailyMetricChart（Bar/Line 切换）已被 MetricSwitcherCard 单线视图替代，
 // 函数体内联删除以减少 ~270 行死代码。如需重新启用 Bar 视图，请参考 git 历史 `dbb77e7`。
@@ -952,8 +1011,6 @@ export default function DailyAnalysisPage() {
     defaultRange,
   )
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
-  const [activeChartMetric, setActiveChartMetric] =
-    useState<ChartMetricKey>('order_qty')
 
   const [goalProgress, setGoalProgress] = useState<{
     target_amount: number
@@ -1455,9 +1512,6 @@ export default function DailyAnalysisPage() {
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
     [projects, projectId],
   )
-  const activeChartMetricLabel =
-    CHART_METRICS.find((item) => item.key === activeChartMetric)?.label ??
-    '订单'
 
   const chartDataRows = selectedSku ? filteredDetailRows : summaryRows
 
@@ -1479,115 +1533,94 @@ export default function DailyAnalysisPage() {
   // 再按"上一周期起始日 + N 天"在上一周期数据 Map（key = 上一周期自己的 date 字符串）里查。
   // 边界：上一周期某天缺数据时返回 null，recharts LineChart 会断点、BarChart 会缺柱，
   // KPI 卡片的 getPrevious 仍走 aggregateMetric(comparisonDataRows, k) 全量求和，行为与图表解耦。
-  const chartRows = useMemo(() => {
-    const normalizedRange = normalizeDateRange(dateRange)
-    if (!normalizedRange?.from || !normalizedRange?.to) {
-      return []
-    }
-    const allDates = generateDateRangeStrings(
-      normalizedRange.from,
-      normalizedRange.to,
-    )
-    const previousRange = getPreviousPeriodRange(normalizedRange)
-    const previousStart = previousRange?.from
-    if (!previousStart || !previousRange?.to) {
-      // 上一周期不可计算时只画当前周期；MetricSwitcherCard 看到 compareMetricValue
-      // 全为 null 不会渲染对比 bar/line，仅显示当前周期。
-      const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
-      const existingData = new Map(
-        filteredDetailRows.map((row) => [row.date, row]),
+  //
+  // 关键：buildChartRows 接收 `selected` 参数（MetricSwitcherCard 内部当前选中 metric），
+  // ——不在闭包里绑定任何 page.tsx 的"当前 metric" state。每次 selected 变化时由
+  // renderLine(selected) 重新调用，保证 compareMetricValue 跟随 metric 切换。
+  // 同时两个分支都展开所有 metric 字段到 row 上，让 <Bar dataKey={selected}> / <Line dataKey={selected}>
+  // 在切换 metric 时也能立刻取到正确字段（不再依赖 [activeChartMetric] 这种动态 key）。
+  const buildChartRows = useCallback(
+    (selected: ChartMetricKey): Array<Record<string, unknown>> => {
+      const normalizedRange = normalizeDateRange(dateRange)
+      if (!normalizedRange?.from || !normalizedRange?.to) {
+        return []
+      }
+      const allDates = generateDateRangeStrings(
+        normalizedRange.from,
+        normalizedRange.to,
       )
-      return allDates.map((date) =>
-        selectedSku
-          ? {
-              date,
-              [activeChartMetric]: existingData.get(date)?.[activeChartMetric] ?? 0,
-              compareMetricValue: null,
-            }
-          : {
-              date,
-              order_qty: summaryData.get(date)?.order_qty ?? 0,
-              sales_amount: summaryData.get(date)?.sales_amount ?? 0,
-              impressions: summaryData.get(date)?.impressions ?? 0,
-              clicks: summaryData.get(date)?.clicks ?? 0,
-              cpc: summaryData.get(date)?.cpc ?? 0,
-              ad_spend: summaryData.get(date)?.ad_spend ?? 0,
-              ad_orders: summaryData.get(date)?.ad_orders ?? 0,
-              available_qty: summaryData.get(date)?.available_qty ?? 0,
-              page_views: summaryData.get(date)?.page_views ?? 0,
-              units_ordered: summaryData.get(date)?.units_ordered ?? 0,
-              sessions: summaryData.get(date)?.sessions ?? 0,
-              ordered_sales_amount:
-                summaryData.get(date)?.ordered_sales_amount ?? 0,
-              conversion_rate: summaryData.get(date)?.conversion_rate ?? 0,
-              compareMetricValue: null,
-            },
-      )
-    }
-
-    if (selectedSku) {
-      const existingData = new Map(
-        filteredDetailRows.map((row) => [row.date, row]),
-      )
-      // filteredComparisonRows 已经按 sku 过滤；按"上一周期自己的 date"建 Map。
-      const comparisonDataByDate = new Map<string, DailyAnalysisDetailRow>()
-      for (const compareRow of filteredComparisonRows) {
-        if (compareRow.sku === selectedSku) {
-          comparisonDataByDate.set(compareRow.date, compareRow)
-        }
+      const previousRange = getPreviousPeriodRange(normalizedRange)
+      const previousStart = previousRange?.from
+      if (!previousStart || !previousRange?.to) {
+        // 上一周期不可计算时只画当前周期；MetricSwitcherCard 看到 compareMetricValue
+        // 全为 null 不会渲染对比 bar/line，仅显示当前周期。
+        const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
+        const existingData = new Map(
+          filteredDetailRows.map((row) => [row.date, row]),
+        )
+        return allDates.map((date) =>
+          selectedSku
+            ? spreadDetailRow(
+                existingData.get(date),
+                date,
+                null,
+              )
+            : spreadSummaryRow(summaryData.get(date), date, null),
+        )
       }
 
+      if (selectedSku) {
+        const existingData = new Map(
+          filteredDetailRows.map((row) => [row.date, row]),
+        )
+        // filteredComparisonRows 已经按 sku 过滤；按"上一周期自己的 date"建 Map。
+        const comparisonDataByDate = new Map<string, DailyAnalysisDetailRow>()
+        for (const compareRow of filteredComparisonRows) {
+          if (compareRow.sku === selectedSku) {
+            comparisonDataByDate.set(compareRow.date, compareRow)
+          }
+        }
+
+        return allDates.map((date, index) => {
+          const row = existingData.get(date)
+          // 当前周期第 index 天 → 上一周期第 index 天（同位日）
+          const compareDate = formatYMD(addDays(previousStart, index))
+          const compareRow = comparisonDataByDate.get(compareDate)
+          return spreadDetailRow(
+            row,
+            date,
+            compareRow ? compareRow[selected] : null,
+          )
+        })
+      }
+
+      const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
+      // 后端 summary_rows 已按 date 升序且同 date 唯一，Map 安全。
+      const comparisonDataByDate = new Map(
+        comparisonSummaryRows.map((row) => [row.date, row]),
+      )
+
       return allDates.map((date, index) => {
-        const row = existingData.get(date)
+        const row = summaryData.get(date)
         // 当前周期第 index 天 → 上一周期第 index 天（同位日）
         const compareDate = formatYMD(addDays(previousStart, index))
         const compareRow = comparisonDataByDate.get(compareDate)
-        return {
+        return spreadSummaryRow(
+          row,
           date,
-          [activeChartMetric]: row ? row[activeChartMetric] : 0,
-          compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
-        }
+          compareRow ? compareRow[selected] : null,
+        )
       })
-    }
-
-    const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
-    // 后端 summary_rows 已按 date 升序且同 date 唯一，Map 安全。
-    const comparisonDataByDate = new Map(
-      comparisonSummaryRows.map((row) => [row.date, row]),
-    )
-
-    return allDates.map((date, index) => {
-      const row = summaryData.get(date)
-      // 当前周期第 index 天 → 上一周期第 index 天（同位日）
-      const compareDate = formatYMD(addDays(previousStart, index))
-      const compareRow = comparisonDataByDate.get(compareDate)
-      return {
-        date,
-        order_qty: row?.order_qty ?? 0,
-        sales_amount: row?.sales_amount ?? 0,
-        impressions: row?.impressions ?? 0,
-        clicks: row?.clicks ?? 0,
-        cpc: row?.cpc ?? 0,
-        ad_spend: row?.ad_spend ?? 0,
-        ad_orders: row?.ad_orders ?? 0,
-        available_qty: row?.available_qty ?? 0,
-        page_views: row?.page_views ?? 0,
-        units_ordered: row?.units_ordered ?? 0,
-        sessions: row?.sessions ?? 0,
-        ordered_sales_amount: row?.ordered_sales_amount ?? 0,
-        conversion_rate: row?.conversion_rate ?? 0,
-        compareMetricValue: compareRow ? compareRow[activeChartMetric] : null,
-      }
-    })
-  }, [
-    selectedSku,
-    filteredDetailRows,
-    filteredComparisonRows,
-    summaryRows,
-    comparisonSummaryRows,
-    activeChartMetric,
-    dateRange,
-  ])
+    },
+    [
+      selectedSku,
+      filteredDetailRows,
+      filteredComparisonRows,
+      summaryRows,
+      comparisonSummaryRows,
+      dateRange,
+    ],
+  )
 
   const summaryTableRows = selectedSku ? filteredDetailRows : summaryRows
   const dateRangeDisplay = consoleData
@@ -1709,9 +1742,11 @@ export default function DailyAnalysisPage() {
 
       {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
         // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
+        // 不传 defaultMetric —— MetricSwitcherCard 内部 selected 用 metrics[0] = 'order_qty' 初始化。
+        // 选中 metric 由 MetricSwitcherCard 内部 state 管理；renderLine 接收其当前 selected
+        // 并按 selected 现场重算 chart rows（compareMetricValue 跟随 metric 切换）。
         <MetricSwitcherCard<ChartMetricKey>
           metrics={LINE_METRICS}
-          defaultMetric={activeChartMetric}
           chartKind="auto"
           showChartKindToggle
           colors={Object.fromEntries(
@@ -1727,7 +1762,7 @@ export default function DailyAnalysisPage() {
               ? aggregateMetric(comparisonDataRows, k)
               : null
           }
-          renderLine={() => chartRows as Array<Record<string, unknown>>}
+          renderLine={(selected) => buildChartRows(selected)}
           tooltipFormatter={(value, key) => formatMetricValue(key, value)}
           yAxisFormatter={(value, key) => formatAxisValue(key, value)}
           xTickFormatter={(value) => {

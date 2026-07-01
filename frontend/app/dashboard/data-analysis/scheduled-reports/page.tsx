@@ -1,10 +1,5 @@
-import { Suspense } from 'react'
-import { ScheduledReportsClient } from './scheduled-reports-client'
+import { redirect } from 'next/navigation'
 
 export default function ScheduledReportsPage() {
-  return (
-    <Suspense fallback={<div className="p-6">加载中...</div>}>
-      <ScheduledReportsClient />
-    </Suspense>
-  )
+  redirect('/dashboard/data-analysis/scheduled-reports/subscriptions')
 }

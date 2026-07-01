@@ -63,7 +63,7 @@ export type UseChatStreamResult = {
 }
 
 export function useChatStream(
-  conversationId: number,
+  conversationIdRef: React.RefObject<number | null>,
   callbacksRef: React.MutableRefObject<UseChatStreamCallbacks>,
 ): UseChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
@@ -88,6 +88,13 @@ export function useChatStream(
 
   const send = useCallback(
     async (content: string, options: ChatStreamOptions = {}): Promise<StreamDonePayload> => {
+      const cid = conversationIdRef.current
+      if (cid == null) {
+        const msg = 'No active conversation'
+        setError(msg)
+        throw new Error(msg)
+      }
+
       // Cancel any in-flight request before starting a new one.
       abortRef.current?.abort()
       const controller = new AbortController()
@@ -137,7 +144,7 @@ export function useChatStream(
 
       try {
         const res = await fetch(
-          `/api/ai-chat/conversations/${conversationId}/messages/stream`,
+          `/api/ai-chat/conversations/${cid}/messages/stream`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
@@ -175,7 +182,7 @@ export function useChatStream(
         throw err
       }
     },
-    [conversationId, callbacksRef, resetTurnState],
+    [conversationIdRef, callbacksRef, resetTurnState],
   )
 
   // Make sure to abort on unmount — otherwise React will warn about state
