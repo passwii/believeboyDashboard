@@ -12,6 +12,8 @@ from pathlib import Path
 from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
 from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
+from recognition import B_TABLE_AD_REPORT_TYPES
+from models import AutoReportUploadLog
 
 
 _A_TABLE_REPORT_TYPE_LABELS: dict[str, str] = {
@@ -200,14 +202,25 @@ class RunLogger:
     def error(self, msg: str, *args) -> None:
         self.logger.error(msg, *args)
 
-    def result(self, file_path: Path, project: str, result: ProcessResult) -> None:
+    def result(
+        self,
+        file_path: Path,
+        project: str,
+        result: ProcessResult,
+        *,
+        db: Session | None = None,
+        duration_seconds: float | None = None,
+    ) -> None:
         # 状态标签
         if result.skipped:
-            status = "跳过"
+            status_label = "跳过"
+            db_status = "skipped"
         elif result.success:
-            status = "OK"
+            status_label = "OK"
+            db_status = "success"
         else:
-            status = "FAIL"
+            status_label = "FAIL"
+            db_status = "failed"
 
         # 国家
         country = result.country or "-"
@@ -243,16 +256,48 @@ class RunLogger:
 
         if result.success:
             self.logger.info(
-                f"{status}|{country}|{project}|{report_type_cn}|{report_date}"
+                f"{status_label}|{country}|{project}|{report_type_cn}|{report_date}"
             )
         elif result.skipped:
             self.logger.info(
-                f"{status}|{country}|{project}|{report_type_cn}|{report_date}|{result.reason}"
+                f"{status_label}|{country}|{project}|{report_type_cn}|{report_date}|{result.reason}"
             )
         else:
             self.logger.error(
-                f"{status}|{country}|{project}|{report_type_cn}|{report_date}|{result.error}"
+                f"{status_label}|{country}|{project}|{report_type_cn}|{report_date}|{result.error}"
             )
+
+        # ── Write to DB ──────────────────────────────────────────────────
+        if db is not None:
+            try:
+                # Determine source table: B-table ad types go to C (ad_upload_files),
+                # everything else goes to A (analysis_source_files).
+                source_table = (
+                    "C" if result.report_type in B_TABLE_AD_REPORT_TYPES else "A"
+                ) if result.report_type else None
+
+                db.add(AutoReportUploadLog(
+                    run_id=self.run_ts,
+                    status=db_status,
+                    country=country,
+                    project_name=project,
+                    report_type_label=report_type_cn,
+                    report_date_display=report_date,
+                    report_type=result.report_type,
+                    original_filename=file_path.name,
+                    source_id=result.source_id,
+                    source_table=source_table,
+                    row_count=result.row_count,
+                    detected_start_date=result.detected_start_date,
+                    detected_end_date=result.detected_end_date,
+                    duration_seconds=duration_seconds,
+                    error_message=result.error or (result.reason if not result.success else None),
+                    note=result.reason if result.success else None,
+                ))
+                db.commit()
+            except Exception as exc:
+                self.logger.warning(f"[DB_LOG] 写入运行时日志失败: {exc}")
+                db.rollback()
 
     @property
     def log_file(self) -> Path:
@@ -307,8 +352,10 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             for file_path in sorted(files):
                 stats["files_seen"] += 1
 
+                t0 = time.time()
                 result = process_file(file_path, project_name, db, dry_run=dry_run)
-                logger.result(file_path, project_name, result)
+                duration = time.time() - t0
+                logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
                 if result.skipped:
                     stats["skipped"] += 1
                 elif result.success:
@@ -394,14 +441,18 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                 return
 
             try:
+                t0 = time.time()
                 result = process_file(file_path, project_name, db, dry_run=self.dry_run)
-                logger.result(file_path, project_name, result)
+                duration = time.time() - t0
+                logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
 
                 if result.skipped and "未匹配任何报表类型" in (result.reason or ""):
                     self.logger.info(f"  [watchdog] 5 秒后重试未识别文件: {file_path.name}")
                     time.sleep(5)
+                    t0 = time.time()
                     result = process_file(file_path, project_name, db, dry_run=self.dry_run)
-                    logger.result(file_path, project_name, result)
+                    duration = time.time() - t0
+                    logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
             except Exception as exc:
                 logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
             finally:

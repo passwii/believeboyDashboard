@@ -333,6 +333,28 @@ class TestOperatorAccess:
         )
         assert result == [1, 2, 3]
 
+    def test_admin_with_empty_candidate_returns_none_for_unrestricted(self):
+        """admin + 没传 project_ids（前端默认「全部店铺」）→ 返回 None，让 caller
+        的 SQL 不带 project_id 过滤，而不是被「空列表 → 0 行」早返回误伤。
+        """
+        from app.services.data import order_info_service as svc
+
+        db = MagicMock()
+        result = svc._ensure_project_access_for_orders(
+            db, candidate_project_ids=[], operator="admin_user", is_admin=True
+        )
+        assert result is None
+
+    def test_admin_with_none_candidate_returns_none_for_unrestricted(self):
+        """admin + candidate_project_ids=None 也应返回 None（不限）。"""
+        from app.services.data import order_info_service as svc
+
+        db = MagicMock()
+        result = svc._ensure_project_access_for_orders(
+            db, candidate_project_ids=None, operator="admin_user", is_admin=True
+        )
+        assert result is None
+
     def test_non_admin_without_operator_returns_empty(self):
         from app.services.data import order_info_service as svc
 
@@ -558,3 +580,91 @@ class TestOrderCsvHeaders:
         assert "发货时间" in ORDER_CSV_HEADERS
         assert "更新人" in ORDER_CSV_HEADERS
         assert "更新时间" in ORDER_CSV_HEADERS
+
+
+class TestCollectFilterOptionsProjects:
+    """collect_filter_options 的项目下拉应该与全站其他页面（daily-analysis /
+    shipment-management / sku-info / auto-upload / ai-insights / report-upload）
+    共用 `project_service.list_project_items` 的顺序——即 `sort_order.asc(), id.asc()`，
+    而不是 `project_name.asc()`。否则两边下拉顺序不一致，用户体验割裂。
+    """
+
+    def _fake_project(self, pid, name, brand=None, sort_order=0):
+        row = MagicMock()
+        row.id = pid
+        row.project_name = name
+        row.brand_name = brand
+        row.sort_order = sort_order
+        return row
+
+    def test_collect_filter_options_delegates_to_list_project_items(self, monkeypatch):
+        """admin + 任意 operator：项目下拉必须按 list_project_items 的返回顺序（已含
+        sort_order.asc() 排序），而不是按 project_name 字母序。
+        """
+        # list_project_items 已经按 sort_order.asc() 排好的顺序
+        rows = [
+            self._fake_project(3, "Charlie", sort_order=10),
+            self._fake_project(1, "Alpha", brand="A牌", sort_order=20),
+            self._fake_project(2, "Bravo", sort_order=30),
+        ]
+        captured_kwargs: dict = {}
+
+        def fake_list_project_items(db, **kwargs):
+            captured_kwargs.update(kwargs)
+            return rows
+
+        # collect_filter_options 通过 `from app.services import project_service` 后
+        # 调用 project_service.list_project_items；monkeypatch 打在原模块上即可。
+        monkeypatch.setattr(
+            "app.services.project_service.list_project_items", fake_list_project_items
+        )
+
+        result = order_info_service.collect_filter_options(
+            MagicMock(), operator="op1", is_admin=True
+        )
+
+        # 顺序与 list_project_items 返回一致（Charlie / Alpha / Bravo），而不是
+        # 按字母序的 Alpha / Bravo / Charlie
+        assert [opt.value for opt in result.projects] == ["3", "1", "2"]
+        assert [opt.label for opt in result.projects] == [
+            "Charlie",
+            "Alpha（A牌）",
+            "Bravo",
+        ]
+        # include_inactive 必须 False（筛选项只显示激活店铺）
+        assert captured_kwargs.get("include_inactive") is False
+
+    def test_collect_filter_options_passes_operator_for_non_admin_scope(self, monkeypatch):
+        """非 admin 必须把 operator 透传给 list_project_items，让它做权限过滤。"""
+        captured_kwargs: dict = {}
+
+        def fake_list_project_items(db, **kwargs):
+            captured_kwargs.update(kwargs)
+            return []
+
+        monkeypatch.setattr(
+            "app.services.project_service.list_project_items", fake_list_project_items
+        )
+
+        order_info_service.collect_filter_options(
+            MagicMock(), operator="张三", is_admin=False
+        )
+
+        assert captured_kwargs.get("operator") == "张三"
+        assert captured_kwargs.get("is_admin") is False
+
+    def test_collect_filter_options_dedupes_repeated_ids(self, monkeypatch):
+        """list_project_items 理论上不会重复，但前端拼成 FilterOption 时要兜底去重。"""
+        rows = [
+            self._fake_project(7, "Same", sort_order=1),
+            self._fake_project(7, "Same-dup", sort_order=2),
+        ]
+        monkeypatch.setattr(
+            "app.services.project_service.list_project_items",
+            lambda db, **kw: rows,
+        )
+
+        result = order_info_service.collect_filter_options(
+            MagicMock(), operator="op", is_admin=True
+        )
+        assert [opt.value for opt in result.projects] == ["7"]

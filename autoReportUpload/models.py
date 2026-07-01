@@ -39,6 +39,7 @@ from app.models import (  # noqa: E402
     ReportUploadLog,
     ReturnCustomerComment,
     SkuRecord as ProductCost,  # product_costs table — backend calls it SkuRecord
+    AutoReportUploadLog,
     # Ad C 表 (ad_upload_*) — needed for ad report persistence
     AdUploadFile,
     AdUploadBudgetRow,
