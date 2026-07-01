@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -34,6 +35,10 @@ from app.schemas.order_info import (
     OrderInfoPageData,
     OrderInfoStats,
 )
+
+# ===== Logger =====
+
+logger = logging.getLogger("app.request")
 
 # ===== Constants =====
 
@@ -172,16 +177,20 @@ def _ensure_project_access_for_orders(
 ) -> list[int] | None:
     """对齐 ad/analysis._ensure_project_access：对非 admin 操作员返回其有权限访问的 project_id 列表。
 
-    - admin：原样返回 candidate_project_ids（不限制）。
+    - admin：候选集合为空时返回 None（表示「不限项目」，让 caller 的 SQL 走全量）；
+            候选非空时原样透传。
     - 非 admin 且 operator 为空：返回空列表（不抛 403，与 ad/analysis 行为一致
       —— 让上层 0 行结果自然出现；endpoint 仍由 `protected` 守住鉴权）。
-    - 非 admin 且 operator 非空：从候选集合中过滤"运营关联包含该 operator"的项目。
+    - 非 admin 且 operator 非空：从候选集合中过滤"运营关联包含该 operator"的项目；
+            没传候选时，按 `list_accessible_project_ids` 缩到 operator 有权限的活跃项目。
     """
     from app.services.ad.helpers import _ensure_project_access
     from app.services import project_service
 
     if is_admin:
-        return candidate_project_ids
+        # admin 透传候选；若前端没传（默认"全部店铺"），返回 None 让 caller 不带
+        # project_id 过滤，避免被「scoped_project_ids=[] → 0 行」的早返回误伤。
+        return candidate_project_ids if candidate_project_ids else None
 
     if not operator:
         return []
@@ -335,6 +344,11 @@ def list_orders(
     )
     if scoped_project_ids is not None and not scoped_project_ids:
         # 非 admin 且无权限项目 → 直接返回空
+        logger.warning(
+            "[order-info] list_orders empty: operator=%r has no accessible projects "
+            "(candidate_project_ids=%r, is_admin=%r)",
+            operator, project_ids, is_admin,
+        )
         return OrderInfoListResponse(items=[], total=0, page=safe_page, page_size=safe_page_size)
 
     # total: 应用层先按 SQL 过滤拿到候选总数，再按 fulfillment-channel 过滤得到精确 total
@@ -484,6 +498,11 @@ def compute_stats(
         is_admin=is_admin,
     )
     if scoped_project_ids is not None and not scoped_project_ids:
+        logger.warning(
+            "[order-info] compute_stats empty: operator=%r has no accessible projects "
+            "(candidate_project_ids=%r, is_admin=%r)",
+            operator, project_ids, is_admin,
+        )
         return OrderInfoStats(
             total_orders=0,
             total_quantity=0,
@@ -565,44 +584,36 @@ def collect_filter_options(
 ) -> OrderInfoFilterOptions:
     """首屏渲染用的筛选项下拉数据。轻量 distinct 查询。
 
-    - admin：所有 active project + 所有 current source_file 下的 status/country/currency。
-    - 非 admin：项目下拉按 `list_accessible_project_ids` 缩到该 operator 有权限的项目；
-      其他 distinct 自动受 `_build_base_query` 的 is_current 约束。
+    - 项目下拉：委托给 `project_service.list_project_items`，与全站其他页面
+      （daily-analysis / shipment-management / sku-info / auto-upload / report-upload /
+      ai-insights）共用同一份逻辑，按 `Project.sort_order.asc(), Project.id.asc()`
+      排序——避免这边再写一遍 SQL 后跟主页面顺序不一致。非 admin 自动按
+      operator 缩到有权限的活跃项目，include_inactive=False。
+    - 其他 distinct 自动受 `_build_base_query` 的 is_current 约束。
     """
 
-    if is_admin:
-        project_rows = db.execute(
-            select(Project.id, Project.project_name, Project.brand_name)
-            .where(Project.is_active.is_(True))
-            .order_by(Project.project_name.asc())
-        ).all()
-    else:
-        from app.services import project_service
+    from app.services import project_service
 
-        accessible_ids = (
-            project_service.list_accessible_project_ids(db, operator=operator, is_admin=False)
-            if operator
-            else []
-        )
-        if not accessible_ids:
-            project_rows = []
-        else:
-            project_rows = db.execute(
-                select(Project.id, Project.project_name, Project.brand_name)
-                .where(Project.is_active.is_(True), Project.id.in_(accessible_ids))
-                .order_by(Project.project_name.asc())
-            ).all()
+    project_rows = project_service.list_project_items(
+        db,
+        operator=operator,
+        is_admin=is_admin,
+        include_inactive=False,
+    )
 
     project_options: list[FilterOption] = []
     seen_pid: set[int] = set()
-    for pid, pname, brand in project_rows:
+    for row in project_rows:
+        pid = int(row.id)
         if pid in seen_pid:
             continue
-        seen_pid.add(int(pid))
-        label = str(pname)
+        seen_pid.add(pid)
+        pname = str(row.project_name)
+        brand = _safe_str(row.brand_name)
+        label = pname
         if brand:
             label = f"{pname}（{brand}）"
-        project_options.append(FilterOption(value=str(int(pid)), label=label))
+        project_options.append(FilterOption(value=str(pid), label=label))
 
     # status / country / currency 走 is_current-only 的 source_file，避免筛选项里
     # 出现"已被新版本取代的旧报告"里残留的状态/币种。

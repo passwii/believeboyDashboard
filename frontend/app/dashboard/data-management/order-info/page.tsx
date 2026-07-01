@@ -4,6 +4,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import {
+  AlertCircle,
   ArrowDownToLine,
   ChevronDown,
   ChevronUp,
@@ -239,7 +240,7 @@ export default function OrderInfoPage() {
     async function load() {
       setFilterOptionsLoading(true)
       try {
-        const res = await fetch('/api/order-info/filter-options', {
+        const res = await fetch('/api/backend/api/v1/order-info/filter-options', {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
         })
@@ -301,11 +302,11 @@ export default function OrderInfoPage() {
     try {
       const params = buildQuery()
       const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/order-info/list?${params.toString()}`, {
+        fetch(`/api/backend/api/v1/order-info/list?${params.toString()}`, {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
         }),
-        fetch(`/api/order-info/stats?${params.toString()}`, {
+        fetch(`/api/backend/api/v1/order-info/stats?${params.toString()}`, {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
         }),
@@ -365,7 +366,7 @@ export default function OrderInfoPage() {
   const handleExport = async () => {
     setExporting(true)
     try {
-      const res = await fetch('/api/order-info/export', {
+      const res = await fetch('/api/backend/api/v1/order-info/export', {
         method: 'POST',
         headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
         body: JSON.stringify({
@@ -481,6 +482,15 @@ export default function OrderInfoPage() {
     [total]
   )
 
+  // 当前账号没有可见店铺：filterOptions 已加载完成且返回了 0 个项目。
+  // 后端 _ensure_project_access_for_orders 在非 admin + operator 不在任一项目
+  // 的 project_operator / assistant_operator token 里时，会返回空列表——
+  // 这里把这条"权限投影层 = 0"的失败模式单独提示，避免用户误以为是「真没数据」。
+  const hasNoAccessibleProjects = useMemo(
+    () => !!filterOptions && filterOptions.projects.length === 0,
+    [filterOptions]
+  )
+
   // ====== 渲染 ======
   return (
     <div className="min-w-0 space-y-6 text-foreground">
@@ -529,7 +539,13 @@ export default function OrderInfoPage() {
                   <SelectValue placeholder="全部店铺" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={DEFAULT_PROJECT_VALUE}>全部店铺</SelectItem>
+                  <SelectItem
+                    value={DEFAULT_PROJECT_VALUE}
+                    disabled={hasNoAccessibleProjects}
+                  >
+                    全部店铺
+                    {hasNoAccessibleProjects ? '（无可用店铺）' : ''}
+                  </SelectItem>
                   {filterOptions?.projects.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
@@ -639,6 +655,23 @@ export default function OrderInfoPage() {
 
       {/* ====== 第二层：订单区（三段） ====== */}
       <DataTableCard>
+        {/* 账号未关联任何店铺时的醒目提示（filterOptions 返回 0 个项目） */}
+        {hasNoAccessibleProjects && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="flex items-start gap-3 border-b border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="space-y-1">
+              <div className="font-medium">当前账号未关联任何店铺</div>
+              <div className="text-xs leading-relaxed text-amber-800/90 dark:text-amber-200/90">
+                本页订单数据已按账号权限做了过滤——你的中文运营名未出现在任何店铺的「主运营」或「运营助理」字段里。请联系管理员把你的名字补录到目标店铺后再访问本页。
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 第一段：订单信息（标题 + 导出按钮） */}
         <DataTableCardHeader
           title="订单信息"
@@ -735,17 +768,22 @@ export default function OrderInfoPage() {
                     <EmptyTableState
                       colSpan={12}
                       message={
-                        // 区分筛选无结果 vs 暂无订单
-                        skuKeywordCommitted ||
-                        orderIdKeywordCommitted ||
-                        asinKeywordCommitted ||
-                        projectId !== DEFAULT_PROJECT_VALUE ||
-                        fulfillmentChannels.length > 0 ||
-                        orderStatuses.length > 0 ||
-                        countries.length > 0 ||
-                        currencies.length > 0 ||
-                        dateFrom ||
-                        dateTo
+                        // 三档优先级：
+                        // 1) 账号未关联任何店铺（filterOptions 已加载完成、projects 为空）
+                        // 2) 当前筛选条件下无订单
+                        // 3) 真实「暂无订单数据」
+                        hasNoAccessibleProjects
+                          ? '当前账号未关联任何店铺 — 请联系管理员把你的名字补录到目标店铺的「主运营」或「运营助理」字段'
+                          : skuKeywordCommitted ||
+                            orderIdKeywordCommitted ||
+                            asinKeywordCommitted ||
+                            projectId !== DEFAULT_PROJECT_VALUE ||
+                            fulfillmentChannels.length > 0 ||
+                            orderStatuses.length > 0 ||
+                            countries.length > 0 ||
+                            currencies.length > 0 ||
+                            dateFrom ||
+                            dateTo
                           ? '当前筛选条件下无订单 — 可调整筛选或点击"清空筛选"重置'
                           : '暂无订单数据 — 等待新的销售报告上传后重试'
                       }
