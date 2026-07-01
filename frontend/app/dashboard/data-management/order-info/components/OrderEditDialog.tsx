@@ -129,7 +129,7 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
         return
       }
 
-      const response = await fetch(`/api/order-info/${order.id}`, {
+      const response = await fetch(`/api/backend/api/v1/order-info/${order.id}`, {
         method: 'PATCH',
         headers: { ...Object.fromEntries(authHeaders().entries()), 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
