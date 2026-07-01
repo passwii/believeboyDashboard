@@ -325,7 +325,7 @@ export default function LedgerPage() {
                     isLoadingModelConfig={isLoadingModelConfig}
                     resendingStates={resendingStates}
                     onRowClick={openDetailSheet}
-                    onResend={(item, overrideAiModel) => { void handleResendLedger(item, overrideAiModel) }}
+                    onResend={handleResendLedger}
                     onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
                     canTriggerResend={canTriggerResend}
                   />
