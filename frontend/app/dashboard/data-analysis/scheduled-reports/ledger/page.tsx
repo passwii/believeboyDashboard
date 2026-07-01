@@ -279,7 +279,7 @@ export default function LedgerPage() {
           </div>
 
           {ledgerError && (
-            <p className="mt-3 text-sm text-destructive">{ledgerError}</p>
+            <p className="text-sm text-destructive">{ledgerError}</p>
           )}
         </CardContent>
       </Card>
