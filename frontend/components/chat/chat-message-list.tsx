@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Brain, Bot, Globe, RefreshCw, User } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Brain, Bot, Globe, RefreshCw, Sparkles, User } from 'lucide-react'
+import gsap from 'gsap'
 import { AIChatMessageContent } from '@/components/ai-chat-message-content'
 import { AIChatSearchSources } from '@/components/ai-chat-search-sources'
 import { TypingIndicator } from './typing-indicator'
@@ -18,13 +19,9 @@ interface ChatMessageListProps {
    *  next to the most recent assistant message with a retry CTA. */
   streamError?: string | null
   onRetry?: () => void
-  /** In-flight web-search status for the latest assistant turn. When the
-   *  message has no content yet and the backend reports a tool call is
-   *  searching, we render a dedicated "正在搜索…" badge instead of the
-   *  generic typing dots so the user knows the wait is meaningful. */
+  /** In-flight web-search status for the latest assistant turn. */
   pendingSearchState?: { searching: boolean; sources: SearchSource[] } | null
-  /** True when any message in this conversation used web search
-   *  (searchSources.length > 0). Drives the sticky "已在线" status bar. */
+  /** True when any message in this conversation used web search. */
   usedWebSearch?: boolean
 }
 
@@ -82,6 +79,39 @@ export function ChatMessageList({
   pendingSearchState,
   usedWebSearch = false,
 }: ChatMessageListProps) {
+  // GSAP entrance animation for new messages
+  const messageRefs = useRef(new Map<string, HTMLDivElement>())
+  const prevLengthRef = useRef(0)
+
+  useEffect(() => {
+    // Animate new messages that were just added
+    if (messages.length > prevLengthRef.current) {
+      const newIndices: number[] = []
+      for (let i = prevLengthRef.current; i < messages.length; i++) {
+        newIndices.push(i)
+      }
+      newIndices.forEach((idx) => {
+        const msg = messages[idx]
+        const el = messageRefs.current.get(msg.id)
+        if (el) {
+          gsap.fromTo(
+            el,
+            { opacity: 0, y: 16, scale: 0.98 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.35,
+              delay: idx * 0.04,
+              ease: 'power3.out',
+            }
+          )
+        }
+      })
+    }
+    prevLengthRef.current = messages.length
+  }, [messages.length])
+
   // Find the last assistant message so we can attach the top-level stream
   // error to it (with a retry button).
   const lastAssistantIndex = (() => {
@@ -93,10 +123,7 @@ export function ChatMessageList({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 sm:space-y-7">
-      {/* Sticky "已在线" status bar — surfaces whenever any message in
-          this conversation was produced via web search, so the user
-          can see at a glance why a given answer is grounded in fresh
-          data. Fades in on first appearance. */}
+      {/* Sticky "已在线" status bar */}
       {usedWebSearch && (
         <div
           role="status"
@@ -107,13 +134,29 @@ export function ChatMessageList({
           <span>本对话已开启联网</span>
         </div>
       )}
+
+      {messages.length === 0 && !pendingSearchState?.searching && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Sparkles className="size-8 text-[#3a3a3f] mb-3" />
+          <p className="text-sm text-[#5a5a5f]">
+            开始对话，AI 将帮助你分析数据
+          </p>
+          <p className="text-xs text-[#4a4a4f] mt-1">
+            在下方输入问题或选择推荐问题开始
+          </p>
+        </div>
+      )}
+
       {messages.map((msg, index) => (
         <div
           key={msg.id}
-          className={`group relative animate-enter ${
+          ref={(el) => {
+            if (el) messageRefs.current.set(msg.id, el)
+            else messageRefs.current.delete(msg.id)
+          }}
+          className={`group relative ${
             msg.role === 'user' ? 'justify-end' : 'justify-start'
           }`}
-          style={{ animationDelay: `${index * 60}ms` }}
         >
           <div
             className={`flex gap-3 sm:gap-4 ${
@@ -156,11 +199,6 @@ export function ChatMessageList({
                     className="text-[15px] sm:text-[16px] leading-7 sm:leading-[1.75] text-[#e6e6e8] [&_p]:text-[15px] sm:[&_p]:text-[16px] [&_p]:leading-7 sm:[&_p]:leading-[1.75] [&_p]:text-[#e6e6e8] [&_strong]:text-white [&_em]:text-[#e6e6e8] [&_h2]:mt-5 [&_h2]:text-[17px] sm:[&_h2]:text-[19px] [&_h2]:font-semibold [&_h2]:text-white [&_h3]:mt-4 [&_h3]:text-[15px] sm:[&_h3]:text-[16px] [&_h3]:font-semibold [&_h3]:text-white [&_li]:text-[#d8d8db] [&_li]:leading-7 sm:[&_li]:leading-[1.75]"
                   />
                 ) : msg.streaming && pendingSearchState?.searching ? (
-                  // Web-search tool is in flight: surface a dedicated badge
-                  // so the wait reads as "fetching the web" rather than a
-                  // generic typing pulse. Once the first token arrives the
-                  // `msg.content` branch above takes over and this naturally
-                  // disappears — no manual teardown needed.
                   <div className="flex items-center gap-2 text-xs text-blue-300/80">
                     <span className="size-1.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_6px_rgba(96,165,250,0.6)]" />
                     <Globe className="size-3" />
@@ -178,10 +216,7 @@ export function ChatMessageList({
                 )}
               </div>
 
-              {/* Search sources — render whenever the message has sources OR
-                  is still waiting for them. The `searching` flag drives the
-                  skeleton cards (B3), `searchTimeRange` powers the time-range
-                  chip (B2). */}
+              {/* Search sources */}
               {msg.role === 'assistant' &&
                 (msg.searchSearching ||
                   (msg.searchSources && msg.searchSources.length > 0)) && (
@@ -193,14 +228,12 @@ export function ChatMessageList({
                   />
                 )}
 
-              {/* Token / duration footer — only on completed assistant messages. */}
+              {/* Token / duration footer */}
               {msg.role === 'assistant' && !msg.streaming && (
                 <TokenFooter message={msg} />
               )}
 
-              {/* Streaming indicator — blue-300 (matches the web-search
-                  toggle) while we're in the search phase, blue-400/50
-                  (quieter) during the pure generation phase. */}
+              {/* Streaming indicator */}
               {msg.streaming && msg.content && (
                 <span
                   className={`flex items-center gap-1 px-1 text-xs ${
@@ -224,7 +257,7 @@ export function ChatMessageList({
                 </span>
               )}
 
-              {/* Top-level stream error attached to the last assistant message. */}
+              {/* Top-level stream error */}
               {streamError && index === lastAssistantIndex && !msg.streaming && onRetry && (
                 <div className="mt-1 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-xs text-red-400">
                   <span className="flex-1">{streamError}</span>
@@ -239,7 +272,7 @@ export function ChatMessageList({
                 </div>
               )}
 
-              {/* Action toolbar — hidden while streaming to avoid stale state. */}
+              {/* Action toolbar */}
               {!msg.streaming && msg.content && (
                 <div className="px-1">
                   <MessageActions

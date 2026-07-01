@@ -24,6 +24,8 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
  { match: '/system-management/operator-management', title: '运营管理' },
  { match: '/system-management/commission-management', title: '佣金管理' },
  { match: '/system-management/logs', title: '日志查看' },
+ { match: '/data-analysis/scheduled-reports/subscriptions', title: '订阅管理' },
+ { match: '/data-analysis/scheduled-reports/ledger', title: '调度记录' },
  { match: '/data-analysis/scheduled-reports', title: '定时报告' },
  { match: '/data-management/auto-upload', title: '报表自动化' },
  { match: '/data-management/vat-invoice', title: 'VAT 发票生成器' },

@@ -36,6 +36,25 @@ import {
 const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const
 
 /**
+ * Round a spring-interpolated value to the metric's declared precision before
+ * handing it to `format`. The KPI active cell runs a framer-motion spring on
+ * the raw number, so each animation frame produces a fractional value (e.g.
+ * `1234.5678`); without rounding, integer-typed metrics (订单/曝光/点击/销量…)
+ * display decimal noise during the count-up.
+ *
+ * Semantics: `precision` is "number of decimal places to keep in the raw
+ * value before formatting". For integer-typed metrics set `precision: 0`.
+ * Currency / percent metrics whose `format` function already quantizes via
+ * `toFixed` should leave this undefined (no rounding applied — the raw
+ * spring value flows through to the format function untouched).
+ */
+function roundToPrecision(value: number, precision: number | undefined): number {
+  if (precision === undefined) return value
+  const factor = 10 ** precision
+  return Math.round(value * factor) / factor
+}
+
+/**
  * MetricSwitcherCard
  *
  * 单 chart + 顶部 metric 切换的通用卡片，包装 `line-charts-6`。
@@ -64,6 +83,14 @@ export type MetricDef<K extends string> = {
   isNegativeBetter?: boolean
   /** 把 raw number 渲染为中文/带单位的字符串 */
   format: (val: number) => string
+/**
+ * KPI 卡片 spring count-up 时，对中间值四舍五入到的小数位数（raw value 的小数位）。
+ * 用于"订单 / 曝光 / 点击 / 销量"等整数量级 metric，避免动效过程出现 `1,234.5678`
+ * 这种小数。值为 `0` 表示强制整数。
+ * 货币 / 百分比这种 `format` 函数自带 `toFixed` 量化的 metric 应当省略此字段，
+ * 让 spring 的 raw 中间值原样传给 `format`，避免二次量化出错。
+ */
+  precision?: number
   /** 自选 chart 形态（auto 模式下生效）。不填默认 line。 */
   preferredChart?: ChartKind
 }
@@ -75,7 +102,8 @@ export interface MetricSwitcherCardProps<K extends string> {
   data?: Array<Record<string, unknown>>
   xKey?: string
   metrics: MetricDef<K>[]
-  defaultMetric: K
+  /** 默认选中 metric；不传则用 metrics[0] */
+  defaultMetric?: K
   /** 颜色表：每个 metric 的颜色，未提供则回退到 chart-* CSS 变量 */
   colors?: Partial<Record<K, string>>
   heightClass?: string
@@ -134,7 +162,10 @@ export function MetricSwitcherCard<K extends string>({
   yAxisFormatter,
 }: MetricSwitcherCardProps<K>) {
   const prefersReducedMotion = useReducedMotion()
-  const [selected, setSelected] = React.useState<K>(defaultMetric)
+  // 不传 defaultMetric 时回退到 metrics[0]
+  const [selected, setSelected] = React.useState<K>(
+    defaultMetric ?? (metrics[0]?.key as K),
+  )
   // 用户手动 override 的 chart kind。null 表示跟随 chartKind / auto 模式
   const [overrideKind, setOverrideKind] = React.useState<ChartKind | null>(null)
   const metric = metrics.find((m) => m.key === selected) ?? metrics[0]
@@ -357,12 +388,19 @@ function MetricCell<K extends string>({
         ? change < 0
         : change > 0
 
+  // Round the displayed values to the metric's declared precision so that
+  // inactive cells stay consistent with the active cell's count-up animation
+  // (no decimal noise mid-roll, no fractional residue on first paint).
+  const displayCurrent = roundToPrecision(currentValue, metric.precision)
+  const displayPrevious =
+    previousValue === null ? null : roundToPrecision(previousValue, metric.precision)
+
   // Spring-driven count-up only for the active cell — six idle springs would
   // tick every frame for no visible benefit. ActiveMetricCell mounts fresh on
   // each activation, giving the user a count-up from the new cell's value.
   const subLabel = isActive
-    ? hasPrev && prev !== null
-      ? `对比 ${metric.format(prev)}`
+    ? hasPrev && displayPrevious !== null
+      ? `对比 ${metric.format(displayPrevious)}`
       : daysLabel
     : daysLabel
 
@@ -402,13 +440,13 @@ function MetricCell<K extends string>({
             "bg-transparent text-muted-foreground/70",
           )}
         >
-          {hasPrev && previousValue !== null
-            ? `对比 ${metric.format(previousValue)}`
+          {hasPrev && displayPrevious !== null
+            ? `对比 ${metric.format(displayPrevious)}`
             : "--"}
         </Badge>
       </div>
       <div className="truncate text-2xl font-bold tabular-nums text-muted-foreground/80">
-        {metric.format(currentValue)}
+        {metric.format(displayCurrent)}
       </div>
       <div className="mt-1 truncate text-xs text-muted-foreground">
         {subLabel}
@@ -453,11 +491,13 @@ function ActiveMetricCell<K extends string>({
   React.useEffect(() => {
     springValue.set(currentValue)
   }, [springValue, currentValue])
+  // Round the initial display value too — otherwise the very first paint
+  // would inherit any fractional residue from a previously-completed spring.
   const [displayValue, setDisplayValue] = React.useState(() =>
-    metric.format(currentValue),
+    metric.format(roundToPrecision(currentValue, metric.precision)),
   )
   useMotionValueEvent(springValue, "change", (latest) => {
-    setDisplayValue(metric.format(latest))
+    setDisplayValue(metric.format(roundToPrecision(latest, metric.precision)))
   })
 
   return (

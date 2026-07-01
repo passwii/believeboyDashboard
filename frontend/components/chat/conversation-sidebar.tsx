@@ -12,6 +12,8 @@ import {
   X,
   PanelLeftClose,
   Search,
+  Sparkles,
+  History,
 } from 'lucide-react'
 import type { Conversation } from './types'
 
@@ -40,6 +42,7 @@ export function ConversationSidebar({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const editRef = useRef<HTMLInputElement>(null)
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (editingId && editRef.current) {
@@ -67,7 +70,7 @@ export function ConversationSidebar({
         })
       }
     },
-    { scope: itemRefs }
+    { scope: listRef }
   )
 
   const filtered = conversations.filter((c) =>
@@ -118,6 +121,7 @@ export function ConversationSidebar({
       <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-white/[0.06]">
         <div className="min-w-0 flex-1 pr-3">
           <div className="flex items-center gap-2 min-w-0">
+            <History className="size-3.5 text-[#5a5a5f]" aria-hidden />
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5a5a5f]">
               对话历史
             </span>
@@ -165,27 +169,46 @@ export function ConversationSidebar({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索对话..."
-            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-8 pr-3 py-2 text-[13px] text-white placeholder-[#4a4a4f] outline-none focus:border-white/[0.12] transition-colors"
+            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-8 pr-3 py-2.5 text-[13px] text-white placeholder-[#4a4a4f] outline-none focus:border-white/[0.12] transition-colors"
           />
         </div>
       </div>
 
       {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5" data-sidebar>
+      <div ref={listRef} className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5" data-sidebar>
         {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <MessageSquare className="size-8 text-[#3a3a3f] mb-3" />
-            <p className="text-xs text-[#5a5a5f]">
-              {searchQuery ? '没有匹配的对话' : '还没有对话'}
-            </p>
-            {!searchQuery && (
-              <button
-                type="button"
-                onClick={onCreate}
-                className="mt-3 text-xs text-[#1488fc] hover:text-[#4da6ff] transition-colors"
-              >
-                开始新对话
-              </button>
+          <div className="flex flex-col items-center justify-center py-14 text-center px-4">
+            {searchQuery ? (
+              <>
+                <Search className="size-7 text-[#3a3a3f] mb-3" />
+                <p className="text-xs text-[#5a5a5f]">没有匹配的对话</p>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-xs text-[#5a5a5f] hover:text-white transition-colors underline underline-offset-2 decoration-white/10"
+                >
+                  清除搜索
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="relative mb-4">
+                  <MessageSquare className="size-8 text-[#3a3a3f]" />
+                  <Sparkles className="size-3 text-blue-500/40 absolute -top-1 -right-1" />
+                </div>
+                <p className="text-sm font-medium text-[#6a6a6f]">还没有对话</p>
+                <p className="text-xs text-[#4a4a4f] mt-1 mb-4">
+                  发送一条消息即可自动创建
+                </p>
+                <button
+                  type="button"
+                  onClick={onCreate}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-500/15 border border-blue-500/20 px-3 py-2 text-xs font-medium text-blue-300 hover:bg-blue-500/25 hover:text-blue-200 transition-all duration-200 active:scale-95"
+                >
+                  <Plus className="size-3.5" />
+                  开始新对话
+                </button>
+              </>
             )}
           </div>
         )}
@@ -205,13 +228,13 @@ export function ConversationSidebar({
             }}
             onMouseEnter={() => setHoveredId(conv.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
+            className={`group relative flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl cursor-pointer transition-all duration-200 min-h-[44px] sm:min-h-[auto] ${
               activeId === conv.id
                 ? 'bg-white/[0.08] text-white'
                 : 'text-[#a0a0a5] hover:text-white'
             }`}
           >
-            <MessageSquare className="size-4 shrink-0 opacity-60" />
+            <MessageSquare className="size-4 shrink-0 opacity-60 mt-0.5 self-start" />
 
             {editingId === conv.id ? (
               <div className="flex-1 flex items-center gap-1.5 min-w-0">
@@ -225,7 +248,7 @@ export function ConversationSidebar({
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 rounded-md bg-white/[0.06] border border-white/[0.12] px-2 py-1 text-[13px] text-white outline-none focus:border-[#1488fc] transition-colors"
+                  className="flex-1 min-w-0 rounded-md bg-white/[0.06] border border-white/[0.12] px-2 py-1.5 text-[13px] text-white outline-none focus:border-[#1488fc] transition-colors"
                 />
                 <button
                   type="button"
@@ -233,7 +256,7 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     commitRename()
                   }}
-                  className="shrink-0 p-1 rounded-md text-[#1488fc] hover:text-[#4da6ff] hover:bg-white/[0.08] transition-colors"
+                  className="shrink-0 p-1.5 rounded-md text-[#1488fc] hover:text-[#4da6ff] hover:bg-white/[0.08] transition-colors"
                   aria-label="确认重命名"
                 >
                   <Check className="size-3.5" />
@@ -244,7 +267,7 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     setEditingId(null)
                   }}
-                  className="shrink-0 p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
+                  className="shrink-0 p-1.5 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
                   aria-label="取消重命名"
                 >
                   <X className="size-3.5" />
@@ -252,9 +275,16 @@ export function ConversationSidebar({
               </div>
             ) : (
               <>
-                <span className="flex-1 min-w-0 text-[13px] font-medium truncate pr-1">
-                  {conv.title}
-                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-medium truncate pr-1">
+                    {conv.title}
+                  </span>
+                  {conv.messageCount > 0 && (
+                    <span className="text-[10px] text-[#5a5a5f] mt-0.5 block">
+                      {conv.messageCount} 条消息
+                    </span>
+                  )}
+                </div>
                 {hoveredId === conv.id && (
                   <div className="pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-md bg-gradient-to-l from-[#141416] via-[#141416] to-transparent pl-6 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <button
@@ -263,7 +293,7 @@ export function ConversationSidebar({
                         e.stopPropagation()
                         startRename(conv)
                       }}
-                      className="pointer-events-auto p-1 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
+                      className="pointer-events-auto p-1.5 rounded-md text-[#5a5a5f] hover:text-white hover:bg-white/[0.08] transition-colors"
                       aria-label="重命名"
                     >
                       <Pencil className="size-3.5" />
@@ -274,7 +304,7 @@ export function ConversationSidebar({
                         e.stopPropagation()
                         handleDeleteWithAnimation(conv.id)
                       }}
-                      className="pointer-events-auto p-1 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
+                      className="pointer-events-auto p-1.5 rounded-md text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.08] transition-colors"
                       aria-label="删除"
                     >
                       <Trash2 className="size-3.5" />
@@ -288,11 +318,13 @@ export function ConversationSidebar({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-white/[0.06]">
-        <p className="text-[10px] text-[#3a3a3f] text-center">
-          {conversations.length} 个对话
-        </p>
-      </div>
+      {conversations.length > 0 && (
+        <div className="px-4 py-3 border-t border-white/[0.06]">
+          <p className="text-[10px] text-[#3a3a3f] text-center">
+            {conversations.length} 个对话
+          </p>
+        </div>
+      )}
     </div>
   )
 }
