@@ -3,23 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
-import Image from 'next/image'
-import ReactMarkdown from 'react-markdown'
 import {
-  AlertTriangle, ChevronDown, Copy, ExternalLink, FileText, ImageIcon, Loader2, RotateCcw,
+  FileText, Loader2, RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
-import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { cn } from '@/lib/utils'
-import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import type { DateRange } from 'react-day-picker'
 import type { LedgerItem, ResendStage, Subscription } from '../_components/types'
@@ -32,7 +25,8 @@ import {
 } from '../_components/api'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
 import { LedgerDayGroup } from '../_components/LedgerDayGroup'
-import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG, STATUS_LABELS } from '../_components/ledger-constants'
+import { LedgerDetailSheet } from '../_components/LedgerDetailSheet'
+import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG } from '../_components/ledger-constants'
 import type { AIModelConfig } from '../_components/types'
 
 export default function LedgerPage() {
@@ -45,8 +39,6 @@ export default function LedgerPage() {
   const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(false)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
-  const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null)
-  const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
   const [selectedItem, setSelectedItem] = useState<LedgerItem | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -197,11 +189,6 @@ export default function LedgerPage() {
       await loadLedger()
     }
   }
-
-  const previewCopyText = useMemo(() => {
-    if (!previewSummary) return ''
-    return previewSummary.replace(/^[-•·●]\s*/gm, '◉ ')
-  }, [previewSummary])
 
   const openDetailSheet = (item: LedgerItem) => {
     setSelectedItem(item)
@@ -375,24 +362,6 @@ export default function LedgerPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    {item.screenshot_r2_thumb_url && (
-                      <button
-                        type="button"
-                        className="relative h-10 w-10 overflow-hidden rounded border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow shrink-0"
-                        onClick={e => { e.stopPropagation(); setPreviewScreenshotUrl(item.screenshot_r2_url) }}
-                      >
-                        <Image src={item.screenshot_r2_thumb_url} alt="报告截图" fill className="object-cover" unoptimized />
-                      </button>
-                    )}
-                    {item.ai_summary && (
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-[hsl(var(--chart-2))] text-[hsl(var(--chart-2))] hover:bg-[hsl(var(--chart-2))/10] transition-colors"
-                        onClick={e => { e.stopPropagation(); setPreviewSummary(item.ai_summary) }}
-                      >
-                        <FileText className="h-3.5 w-3.5" />AI 文案
-                      </button>
-                    )}
                     <div className="ml-auto" onClick={e => e.stopPropagation()}>
                       {canTrigger ? (
                         <LedgerResendCell
@@ -415,192 +384,23 @@ export default function LedgerPage() {
         </CardContent>
       </Card>
 
-      {/* ── 台账详情 Sheet ── */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="sm:max-w-md w-full overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle>台账详情</SheetTitle>
-          </SheetHeader>
-          {selectedItem && (() => {
-            const sub = subscriptions.find(s => s.id === selectedItem.subscription_id)
-            const fallbackModel = sub?.ai_model || modelConfig?.defaultModel || ''
-            const canTrigger = canTriggerResend || selectedItem.can_resend
-            const projectLabel = selectedItem.project_names?.length
-              ? selectedItem.project_names.join(', ')
-              : selectedItem.project_ids === '*' ? '全部项目' : selectedItem.project_ids
-            return (
-              <div className="space-y-5">
-                {/* 状态横幅 */}
-                <div className={cn(
-                  'rounded-lg px-4 py-3 text-sm font-medium flex items-center gap-2 border',
-                  STATUS_BG[selectedItem.status],
-                )}>
-                  {selectedItem.status === 'sent' && '✓ 发送成功'}
-                  {selectedItem.status === 'failed' && '✗ 发送失败'}
-                  {selectedItem.status === 'missing' && <><AlertTriangle className="h-4 w-4" /> 记录缺失</>}
-                </div>
-
-                {/* 基本信息 */}
-                <div className="space-y-3 text-sm">
-                  <InfoRow label="应发时间" value={new Date(selectedItem.expected_at).toLocaleString('zh-CN')} />
-                  <InfoRow label="频率" value={FREQUENCY_LABELS[selectedItem.frequency]} />
-                  <InfoRow label="项目" value={projectLabel} />
-                  <div>
-                    <span className="text-xs text-muted-foreground block mb-1">国家</span>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedItem.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
-                        <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <InfoRow label="邮箱" value={selectedItem.email} />
-                  {selectedItem.error_message && (
-                    <div>
-                      <span className="text-xs text-muted-foreground block mb-1">错误信息</span>
-                      <p className="text-xs text-destructive bg-destructive/5 rounded-md px-3 py-2 border border-destructive/20">
-                        {selectedItem.error_message}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 截图 */}
-                <div>
-                  <span className="text-xs text-muted-foreground block mb-2">报告截图</span>
-                  {selectedItem.screenshot_r2_url ? (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewScreenshotUrl(selectedItem.screenshot_r2_url)}
-                      className="relative w-full aspect-[3/4] max-h-[300px] overflow-hidden rounded-lg border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow group"
-                    >
-                      <Image
-                        src={selectedItem.screenshot_r2_thumb_url || selectedItem.screenshot_r2_url}
-                        alt="报告截图"
-                        fill
-                        className="object-contain bg-muted/30"
-                        unoptimized
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
-                        <ExternalLink className="h-6 w-6 text-white/0 group-hover:text-white/70 transition-colors" />
-                      </div>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-4 border border-dashed border-border/50">
-                      <ImageIcon className="h-4 w-4" />
-                      暂无截图
-                    </div>
-                  )}
-                </div>
-
-                {/* AI 文案 */}
-                <div>
-                  <span className="text-xs text-muted-foreground block mb-2">AI 文案</span>
-                  {selectedItem.ai_summary ? (
-                    <div className="bg-muted/20 rounded-lg border border-border/50 overflow-hidden">
-                      <div className="max-h-[200px] overflow-y-auto p-3 text-xs leading-relaxed
-                        prose prose-xs prose-neutral dark:prose-invert max-w-none
-                        [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold"
-                      >
-                        <ReactMarkdown>
-                          {selectedItem.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
-                        </ReactMarkdown>
-                      </div>
-                      <div className="border-t border-border/50 px-3 py-2 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              selectedItem.ai_summary!.replace(/^[-•·●]\s*/gm, '◉ '),
-                            )
-                            notify({ type: 'success', title: '已复制' })
-                          }}
-                          className="flex items-center gap-1 text-xs text-[hsl(var(--chart-2))] hover:underline"
-                        >
-                          <Copy className="h-3 w-3" />
-                          复制文案
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-4 border border-dashed border-border/50">
-                      <FileText className="h-4 w-4" />
-                      暂无 AI 文案
-                    </div>
-                  )}
-                </div>
-
-                {/* 重发操作 */}
-                {canTrigger && (
-                  <div className="pt-2 border-t border-border/60">
-                    <span className="text-xs text-muted-foreground block mb-2">操作</span>
-                    <LedgerResendCell
-                      item={selectedItem}
-                      resendingStage={resendingStates[selectedItem.ledger_key]}
-                      canResend
-                      modelConfig={modelConfig}
-                      isLoadingModelConfig={isLoadingModelConfig}
-                      fallbackModel={fallbackModel}
-                      onLoading={() => setResendingStates(prev => ({ ...prev, [selectedItem.ledger_key]: 'preparing' }))}
-                      onSubmit={(overrideAiModel) => {
-                        void handleResendLedger(selectedItem, overrideAiModel)
-                        setSheetOpen(false)
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })()}
-        </SheetContent>
-      </Sheet>
-
-      {/* 截图预览弹窗 */}
-      {previewScreenshotUrl && (
-        <PortraitScreenshotDialog
-          open
-          onOpenChange={(open) => !open && setPreviewScreenshotUrl(null)}
-          src={previewScreenshotUrl}
-          alt="报告截图"
-        />
-      )}
-
-      {/* AI 文案预览弹窗 */}
-      {previewSummary ? (
-        <Dialog open onOpenChange={() => setPreviewSummary(null)}>
-          <DialogContent className="max-w-2xl sm:max-w-[540px] max-h-[80vh] flex flex-col">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <DialogTitle className="text-base font-semibold text-[hsl(var(--chart-2))]">报表总结</DialogTitle>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(previewCopyText)
-                  setPreviewSummary(null)
-                }}
-                className="flex items-center justify-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-[hsl(var(--chart-2))] text-white hover:opacity-90 transition-opacity w-full sm:w-auto"
-              >
-                <Copy className="h-4 w-4" />复制文案
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto text-sm text-foreground leading-relaxed
-              prose prose-sm prose-neutral dark:prose-invert max-w-none
-              prose-headings:text-base prose-p:text-sm prose-ul:text-sm prose-li:text-sm
-              [&_ul]:my-1 [&_p]:my-1 [&_strong]:font-semibold [&_h2]:font-semibold [&_h2]:text-base"
-            >
-              <ReactMarkdown>{previewSummary.replace(/^[•·●]\s*/gm, '- ')}</ReactMarkdown>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </div>
-  )
-}
-
-/** 文本信息行 */
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="text-xs text-muted-foreground block mb-0.5">{label}</span>
-      <span className="text-sm">{value}</span>
+      {/* 台账详情 Sheet */}
+      <LedgerDetailSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        item={selectedItem}
+        subscriptions={subscriptions}
+        modelConfig={modelConfig}
+        isLoadingModelConfig={isLoadingModelConfig}
+        resendingStage={selectedItem ? resendingStates[selectedItem.ledger_key] : undefined}
+        canTriggerResend={canTriggerResend}
+        onResend={handleResendLedger}
+        onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
+        onCopy={text => {
+          navigator.clipboard.writeText(text)
+          notify({ type: 'success', title: '已复制' })
+        }}
+      />
     </div>
   )
 }
