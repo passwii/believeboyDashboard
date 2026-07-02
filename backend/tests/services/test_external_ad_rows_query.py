@@ -10,6 +10,7 @@ These tests mock SQLAlchemy execution so we don't depend on PG state.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
@@ -116,3 +117,149 @@ class TestListAdUploadFiles:
         assert result == []
         # db.execute was called exactly once
         assert db_session.execute.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# aggregate_search_terms targeting_type 字段契约(任务 3)
+# ---------------------------------------------------------------------------
+
+
+class TestAggregateSearchTermsTargetingType:
+    """Verify ``aggregate_search_terms`` wires ``ad_targeting`` helper correctly.
+
+    The current implementation uses a two-pass approach (Postgres JSON
+    has no equality operator) so GROUP BY stays on the 3 text keys and
+    a representative raw_row is fetched per group key.
+    """
+
+    def _mock_row(self, **overrides):
+        row = MagicMock()
+        row.campaign_name = overrides.get('campaign_name', 'Camp-A')
+        row.search_term = overrides.get('search_term', 'red shoes')
+        row.match_type = overrides.get('match_type', 'EXACT')
+        row.max_end_date = overrides.get('max_end_date', date(2026, 6, 15))
+        row.impressions = overrides.get('impressions', 10)
+        row.clicks = overrides.get('clicks', 1)
+        row.spend = overrides.get('spend', Decimal('1.50'))
+        row.sales_7d = overrides.get('sales_7d', Decimal('5.00'))
+        row.orders_7d = overrides.get('orders_7d', 1)
+        return row
+
+    def test_calls_build_cache_and_resolve_per_row(self, monkeypatch):
+        from app.services.external import aggregator
+
+        cache_calls = []
+
+        def fake_build_cache(db, *, project_id, country, date_from, date_to):
+            cache_calls.append({'project_id': project_id, 'country': country,
+                                'date_from': date_from, 'date_to': date_to})
+            return {('Camp-A', 'US'): '自动投放'}
+
+        resolve_calls = []
+
+        def fake_resolve(*, campaign_name, country, raw_row, campaign_targeting_map):
+            resolve_calls.append({
+                'campaign_name': campaign_name,
+                'country': country,
+                'raw_row': raw_row,
+            })
+            return raw_row.get('投放')
+
+        monkeypatch.setattr(aggregator.ad_targeting, 'build_campaign_targeting_cache', fake_build_cache)
+        monkeypatch.setattr(aggregator.ad_targeting, 'resolve_targeting_type', fake_resolve)
+
+        monkeypatch.setattr(
+            aggregator, '_select_file_ids',
+            lambda db, **kw: [101, 102],
+        )
+
+        # Two-pass: first call returns the grouped rows; second call returns
+        # a representative raw_row for the first group only (the second
+        # group will also fetch one).  Track call args.
+        exec_results = [
+            MagicMock(all=lambda: [
+                self._mock_row(),
+                self._mock_row(campaign_name='Camp-A', search_term='blue shoes'),
+            ]),
+            MagicMock(scalar_one_or_none=lambda: {'投放': 'close-match', '匹配类型': '-'}),
+            MagicMock(scalar_one_or_none=lambda: {'投放': 'substitutes', '匹配类型': '-'}),
+        ]
+        mock_db = MagicMock()
+        mock_db.execute.side_effect = exec_results
+
+        result = aggregator.aggregate_search_terms(
+            mock_db,
+            project_id=42,
+            country='US',
+            date_from=date(2026, 6, 1),
+            date_to=date(2026, 6, 30),
+        )
+
+        assert len(cache_calls) == 1
+        assert cache_calls[0] == {
+            'project_id': 42, 'country': 'US',
+            'date_from': date(2026, 6, 1), 'date_to': date(2026, 6, 30),
+        }
+        # Two resolve calls — one per aggregated row
+        assert len(resolve_calls) == 2
+        for call in resolve_calls:
+            assert call['campaign_name'] == 'Camp-A'
+            assert call['country'] == 'US'
+
+        assert len(result) == 2
+        seen = {r.targeting_type for r in result}
+        assert seen == {'close-match', 'substitutes'}
+
+        # Each aggregated row must NOT carry target_text (schema field removed).
+        for r in result:
+            assert 'target_text' not in r.model_dump()
+
+    def test_group_by_omits_raw_row_due_to_postgres_json(self, monkeypatch):
+        """Document current design: GROUP BY stays on 3 text keys (Postgres
+        `json` has no equality operator). raw_row is fetched per group key
+        via a second SELECT.
+        """
+        from app.services.external import aggregator
+
+        monkeypatch.setattr(
+            aggregator.ad_targeting, 'build_campaign_targeting_cache',
+            lambda *a, **kw: {},
+        )
+        monkeypatch.setattr(
+            aggregator.ad_targeting, 'resolve_targeting_type',
+            lambda **kw: None,
+        )
+        monkeypatch.setattr(
+            aggregator, '_select_file_ids',
+            lambda db, **kw: [101],
+        )
+
+        captured = {}
+
+        class _ExecResult:
+            def all(self_inner):
+                return []
+
+            def scalar_one_or_none(self_inner):
+                return None
+
+        def fake_execute(stmt):
+            captured.setdefault('stmts', []).append(stmt)
+            return _ExecResult()
+
+        mock_db = MagicMock()
+        mock_db.execute.side_effect = fake_execute
+
+        aggregator.aggregate_search_terms(
+            mock_db, project_id=1, country='US',
+            date_from=date(2026, 6, 1), date_to=date(2026, 6, 30),
+        )
+
+        from app.models import AdUploadSearchTermRow
+        # First stmt is the aggregate stmt; verify GROUP BY does NOT include raw_row.
+        agg_stmt = captured['stmts'][0]
+        group_by_cols = {getattr(g, 'key', None) for g in agg_stmt._group_by_clauses}
+        assert AdUploadSearchTermRow.raw_row.key not in group_by_cols
+        # And SELECT also omits raw_row (would trigger Postgres "must appear in GROUP BY").
+        selected_cols = {c.key for c in agg_stmt.selected_columns}
+        assert AdUploadSearchTermRow.raw_row.key not in selected_cols

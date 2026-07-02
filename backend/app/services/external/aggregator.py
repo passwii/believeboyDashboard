@@ -56,6 +56,7 @@ from app.schemas.external.aggregate import (
     AdTargetAggregateRow,
     AdTimeTrendAggregateRow,
 )
+from app.services.external import ad_targeting
 from app.utils.math_utils import (
     DECIMAL_ZERO,
     round_money,
@@ -541,11 +542,26 @@ def aggregate_search_terms(
     if not file_ids:
         return []
 
-    stmt = (
+    # Window-scoped (campaign_name -> campaign targeting_type) cache.
+    # Used to compute per-row targeting_type: Auto -> raw_row['投放'],
+    # Manual -> LOWER(raw_row['匹配类型']).
+    campaign_targeting_map = ad_targeting.build_campaign_targeting_cache(
+        db, project_id=project_id, country=country,
+        date_from=date_from, date_to=date_to,
+    )
+
+    # Two-pass aggregation: Postgres `json` columns have no equality
+    # operator and no MIN/MAX, so we cannot GROUP BY raw_row and cannot
+    # select raw_row without GROUP BY.  We split the query:
+    #   1. Aggregate metrics by (campaign_name, search_term, match_type).
+    #   2. Pick one representative raw_row per group key (most recent
+    #      report_end_date) for Python-side targeting_type resolution.
+    agg_stmt = (
         select(
             AdUploadSearchTermRow.campaign_name,
             AdUploadSearchTermRow.search_term,
             AdUploadSearchTermRow.match_type,
+            func.max(AdUploadSearchTermRow.report_end_date).label("max_end_date"),
             func.coalesce(func.sum(AdUploadSearchTermRow.impressions), 0).label("impressions"),
             func.coalesce(func.sum(AdUploadSearchTermRow.clicks), 0).label("clicks"),
             func.coalesce(func.sum(AdUploadSearchTermRow.spend), 0).label("spend"),
@@ -561,18 +577,43 @@ def aggregate_search_terms(
     )
 
     rows: list[AdSearchTermAggregateRow] = []
-    for r in db.execute(stmt).all():
+    for r in db.execute(agg_stmt).all():
         impressions = int(r.impressions or 0)
         clicks = int(r.clicks or 0)
         spend_d = Decimal(str(r.spend or 0))
         sales_d = Decimal(str(r.sales_7d or 0))
         orders = int(r.orders_7d or 0)
+
+        # Representative raw_row for this group: any row whose
+        # (campaign_name, search_term, match_type, report_end_date) matches
+        # the group key + the bucket's max_end_date.  Within a single
+        # ingest raw_row.投放 / raw_row.匹配类型 are stable per group,
+        # so any representative is fine.
+        rep = db.execute(
+            select(AdUploadSearchTermRow.raw_row)
+            .where(
+                AdUploadSearchTermRow.source_file_id.in_(file_ids),
+                AdUploadSearchTermRow.campaign_name == r.campaign_name,
+                AdUploadSearchTermRow.search_term == r.search_term,
+                AdUploadSearchTermRow.match_type == r.match_type,
+                AdUploadSearchTermRow.report_end_date == r.max_end_date,
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+
+        targeting_type = ad_targeting.resolve_targeting_type(
+            campaign_name=r.campaign_name,
+            country=country,
+            raw_row=rep if isinstance(rep, dict) else {},
+            campaign_targeting_map=campaign_targeting_map,
+        )
+
         rows.append(AdSearchTermAggregateRow(
             campaign_name=r.campaign_name,
             ad_group_name=None,
-            target_text=None,
             match_type=r.match_type,
             search_term=r.search_term,
+            targeting_type=targeting_type,
             impressions=impressions,
             clicks=clicks,
             spend=_money(spend_d),
