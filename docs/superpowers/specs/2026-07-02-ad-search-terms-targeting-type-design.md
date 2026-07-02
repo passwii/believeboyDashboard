@@ -320,6 +320,14 @@ BI 端按字符串消费即可。
 - **聚合分桶行为变化**:Auto 4 类以前被并到同一桶,现在拆成 4 桶。
   BI 端如果按 `total_spend` 排序看 "top-N",可能看到靠前的桶会变。
   这是预期收益。
+- **当前实现拆桶粒度较粗** (`aggregator.aggregate_search_terms` 用
+  `group_by=(..., raw_row)` 全字段 JSON 分桶):同 `(campaign, search_term,
+  match_type)` 但 `raw_row` JSON 其他字段(`__meta__`、`upload_filename` 等)
+  跨 ingest 变化时会被拆成多桶,导致 spend/impressions/sales 数字被分散。
+  这是规格 §包含的折衷方案(简单、易实现),不是 bug 但接受程度要 BI
+  端自行评估;真正稳定的拆桶应改用 `raw_row->>'投放'` 子键 GROUP BY(且
+  Auto/Manual 不能共用同一 SQL 表达式),那需要分两段聚合并代价大。
+  后续 PR 优化。
 - **`targeting_type` 计算依赖 campaign 行存在**:如果整个项目从未上传过
   campaign 报告,`targeting_type` 全 null。已在 §不包含 公开范围,
   后续 P2 可补 campaign-name-level 的 fallback(读广告活动名称里的
