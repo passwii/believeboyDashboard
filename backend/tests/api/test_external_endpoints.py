@@ -300,3 +300,27 @@ class TestAdSearchTermsTargetingType:
         for row in body['data']:
             assert 'target_text' not in row, row
             assert 'targeting_type' in row, row
+
+    def test_targeting_type_resolved_value_is_in_valid_set(self, client, db_session):
+        """Happy-path: when helper resolves successfully, the value must
+        be one of the 7 documented values (or None when campaign missing).
+
+        Validates the spec §测试策略 promise: close-match / loose-match /
+        substitutes / complements (Auto) + exact / phrase / broad (Manual).
+        """
+        proj = self._project(db_session)
+        valid = {
+            'close-match', 'loose-match', 'substitutes', 'complements',
+            'exact', 'phrase', 'broad',
+        }
+        resp = client.get(
+            f'/api/v1/external/projects/{proj.id}/ad-search-terms-raw'
+            '?period=90d&country=US&limit=50'
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        for row in body['data']:
+            tt = row.get('targeting_type')
+            assert tt is None or tt in valid, (
+                f"unexpected targeting_type: {tt!r}"
+            )
