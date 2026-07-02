@@ -1,0 +1,91 @@
+# 玥涵 PROJECT (id=4) — 词性分类项目级词典
+# 数据反推：2026-07-02
+# 用途：增强词性分类器，覆盖品牌识别 + 拼写变体 + SKU 模式
+# 维护方：运营/投手（与 project_config 同步维护）
+
+# ── 1. 自有品牌 ──
+# 用户手动维护
+brand_self:
+  - believeboy
+
+# ── 2. 竞品品牌 ──
+# 数据中出现频次（30d search-terms）:
+#   dewalt: 5 次
+#   drill hog: 5 次
+#   milwaukee: 4 次
+#   ryobi / bosch / makita / klein: 1 次
+competitors:
+  - dewalt
+  - drill hog
+  - milwaukee
+  - bosch
+  - makita
+  - ryobi
+  - irwin
+  - hilti
+  - klein
+  - neiko
+  - snadico
+  - kreg
+  - titan
+  - workpro
+  - craftsman
+
+# ── 3. SKU 前缀（用于识别自家 SKU 类搜索词）──
+# 数据中所有 SKU: RSD-8PCS, TWS-CF13SET, TWS-CF15SET, TWS-CF21SET,
+#               TWS-CF29SET, TWS-CM115SET, TWS-CS13P1-8, TWS-CS13SET,
+#               TWS-CS21SET-S, TWS-CS29SET
+sku_prefixes:
+  - TWS
+  - RSD
+
+# ── 4. 拼写变体（同义词映射） ──
+# 数据中发现: cobalt → cobolt（拼写错误）
+material_synonyms:
+  cobalt:
+    - cobolt
+    - coblat
+    - cobale
+  metric:
+    - metrical
+    - metrik
+  titanium:
+    - titanum
+    - titainium
+
+# ── 5. 品类专属词（项目级补充） ──
+# 数据中频次: drill(413), bits(135), cobalt(84), metal(64), steel(48)
+# 这是 drill_bits 项目的核心词根
+project_specific:
+  category_root: drill
+  sub_category: [bit, bits, set, kit, index, holder, sharpener, sharp]
+  materials: [cobalt, metal, steel, stainless, aluminum, titanium, carbide, m35, m42, hss]
+  specs: [metric, fractional, jobber, shank, hex, taper, twist, split, point, index]
+  sizes: [1/16, 1/8, 3/16, 1/4, 5/16, 3/8, 7/16, 1/2, large, small, mini]
+  attribute_words: [cobalt, m35, m42, hss, large, small, mini, fractional, metric, indexed, hardened]
+  scene_words: [metal, steel, wood, masonry, concrete, stainless, plastic, hardened, iron, brass, copper, alloy]
+
+# ── 6. 互补品 ASIN 候选（D2 反哺输出）──
+# 数据来源: ad-purchased-products 90d
+# 用途: 启动互补品 ASIN 投放（v2.2 D2 行动）
+complementary_asins:
+  - asin: B0DBH6Z3D4
+    source_ad_asin: B0DBH5QF5P  # TWS-CF29SET
+    association_sales: 164.97
+    association_orders: 3
+    suggested_action: small_budget_test
+  - asin: B0DBH66YJP
+    source_ad_asin: B0DBH5QF5P
+    association_sales: 129.99
+    association_orders: 1
+    suggested_action: small_budget_test
+  - asin: B0DNJT7YD3
+    source_ad_asin: B0DHC23P4C  # TWS-CS13SET
+    association_sales: 44.97
+    association_orders: 2
+    suggested_action: small_budget_test
+  - asin: B0DBH5L7BK
+    source_ad_asin: B0DNJT7YD3
+    association_sales: 38.97
+    association_orders: 2
+    suggested_action: small_budget_test
