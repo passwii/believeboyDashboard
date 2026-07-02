@@ -415,9 +415,7 @@ def _ingest_a_table(
         db,
         source_file_id=int(source.id),
         report_type=payload.report_type,
-        local_file_path=payload.local_file_path,
-        project_id=payload.project_id,
-        country=payload.country,
+        scopes=payload.scopes,
     )
     return int(source.id), version
 
@@ -551,17 +549,18 @@ def _write_a_table_detail_rows(
     *,
     source_file_id: int,
     report_type: str,
-    local_file_path: str,
-    project_id: int,
-    country: str,
+    scopes: list[Any],
 ) -> None:
-    """Parse the source file with the canonical row parser and bulk-insert
-    detail rows into the matching ``analysis_*`` / ``inventory_*`` table.
+    """Insert per-row detail rows for an A-table source row.
 
-    Uses ``app.utils.parsers.parse_*_rows`` (the same parsers the web upload
-    pipeline uses) instead of trusting whatever column names the daemon
-    sent in ``scope_rows``. The daemon's payload is the trigger; the source
-    of truth for row schema is the file on disk + the parser.
+    The daemon pre-translates each file's data rows into the canonical
+    schema field names (e.g. ``amazon_order_id``, ``purchase_at_utc``,
+    ``product_sales``) using ``app.utils.parsers.parse_*_rows`` *before*
+    sending them as ``scope_rows``. The backend just bulk-inserts what
+    the daemon sent — it does NOT touch the file. This keeps the daemon
+    ↔ backend path purely HTTP and avoids the cross-host file path
+    mismatch that would otherwise force the daemon to scp files to the
+    backend host first.
     """
     import pandas as pd
     from sqlalchemy import insert as sa_insert
@@ -574,87 +573,46 @@ def _write_a_table_detail_rows(
         AnalysisSalesOrderRow,
     )
     from app.models.product_analysis_source import InventorySnapshotRow
-    from app.utils.parsers import (
-        parse_ad_rows,
-        parse_business_rows,
-        parse_inventory_rows,
-        parse_payment_rows,
-        parse_return_rows,
-        parse_sales_rows,
-    )
 
     kind = _A_TABLE_DETAIL_DISPATCH.get(report_type)
     if kind is None:
         return
 
-    path = Path(local_file_path)
-    if not path.exists():
-        logger.warning(
-            "auto-report ingest: source file not found, skipping detail rows: %s",
-            local_file_path,
-        )
+    model = {
+        "sales": AnalysisSalesOrderRow,
+        "business": AnalysisBusinessRow,
+        "payment": AnalysisPaymentRow,
+        "return": AnalysisReturnRow,
+        "ad_product": AnalysisAdProductRow,
+        "inventory": InventorySnapshotRow,
+    }.get(kind)
+    if model is None:
         return
 
-    try:
-        if kind == "sales":
-            payloads, _, _ = parse_sales_rows(path, source_file_id, country=country)
-            model = AnalysisSalesOrderRow
-        elif kind == "business":
-            payloads, _, _ = parse_business_rows(path, source_file_id)
-            model = AnalysisBusinessRow
-        elif kind == "payment":
-            known_skus, known_asins = _load_known_product_keys(
-                db, project_id=project_id, country=country,
-            )
-            df = _read_a_table_dataframe(local_file_path, report_type)
-            payloads, _, _ = parse_payment_rows(
-                df, source_file_id, known_skus, known_asins,
-            )
-            model = AnalysisPaymentRow
-        elif kind == "return":
-            df = _read_a_table_dataframe(local_file_path, report_type)
-            payloads, _ = parse_return_rows(df)
-            # parse_return_rows returns rows without source_file_id / source_row_no;
-            # add them so the bulk insert lands on the new source.
-            for index, payload in enumerate(payloads, start=1):
-                payload["source_file_id"] = source_file_id
-                payload["source_row_no"] = index
-                # Convert return_date_raw (datetime) -> return_date (date)
-                if "return_date_raw" in payload:
-                    payload["return_date"] = payload["return_date_raw"].date() \
-                        if hasattr(payload["return_date_raw"], "date") \
-                        else payload["return_date_raw"]
-                    payload.pop("return_date_raw", None)
-            model = AnalysisReturnRow
-        elif kind == "inventory":
-            payloads, _, _ = parse_inventory_rows(path, source_file_id)
-            model = InventorySnapshotRow
-        elif kind == "ad_product":
-            known_skus, known_asins = _load_known_product_keys(
-                db, project_id=project_id, country=country,
-            )
-            payloads, _, _ = parse_ad_rows(
-                path, source_file_id, known_skus, known_asins,
-            )
-            model = AnalysisAdProductRow
-        else:
-            return
-    except Exception as exc:
-        logger.warning(
-            "auto-report ingest: %s parser failed for %s: %s",
-            kind, local_file_path, exc,
-        )
-        return
+    # Flatten every scope's rows into a single bulk-insert list. Daemon
+    # is responsible for keeping source_row_no correct; source_file_id
+    # is ALWAYS overwritten with the real source row id (the daemon
+    # doesn't know it yet because the source row is created by the
+    # backend in the same transaction).
+    raw_payloads: list[dict[str, Any]] = []
+    for scope in scopes:
+        for row_index, row in enumerate(scope.scope_rows or [], start=1):
+            payload = dict(row)
+            payload["source_file_id"] = source_file_id
+            payload.setdefault("source_row_no", row_index)
+            raw_payloads.append(payload)
 
-    if not payloads:
+    if not raw_payloads:
         return
 
     # Strip keys the target model doesn't know about, so bulk insert doesn't
-    # blow up on schema mismatches between the parser payload and the table.
+    # blow up on schema mismatches between the daemon's payload and the
+    # table (e.g. the dev DB is missing carrier/tracking_no columns the
+    # model declares).
     table_columns = {column.key for column in model.__table__.columns}
     payloads = [
         {k: v for k, v in payload.items() if k in table_columns}
-        for payload in payloads
+        for payload in raw_payloads
     ]
 
     try:

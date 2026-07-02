@@ -41,6 +41,70 @@ def _is_periodic_ad_report(result: RecognitionResult) -> bool:
     return False
 
 
+def _build_a_table_scope_rows(
+    file_path: Path, report_type: str, project_id: int, country: str,
+) -> list[dict[str, Any]]:
+    """Read the file, run the canonical parser, and return the schema-shaped
+    row dicts ready to be sent as ``scope_rows`` to the backend ingest API.
+
+    Uses the same parsers the web upload pipeline uses
+    (``app.utils.parsers.parse_*_rows``) so the daemon path never drifts
+    from the frontend path. Each row dict carries a synthetic
+    ``source_file_id`` placeholder (0) that the backend overwrites with
+    the real source id after it creates the AnalysisSourceFile.
+    """
+    import sys
+    sys.path.insert(0, str(file_path.parent.parent / "backend"))
+    from app.utils.payment_locale import read_payment_report_dataframe
+    from app.utils.parsers import (
+        parse_business_rows,
+        parse_inventory_rows,
+        parse_payment_rows,
+        parse_return_rows,
+        parse_sales_rows,
+    )
+
+    if report_type == "sales_report":
+        payloads, _, _ = parse_sales_rows(file_path, source_file_id=0, country=country)
+        return payloads
+    if report_type == "business_report":
+        payloads, _, _ = parse_business_rows(file_path, source_file_id=0)
+        return payloads
+    if report_type == "payment_report":
+        df = read_payment_report_dataframe(file_path, country=country)
+        # payment needs known SKU/ASIN sets to classify scope; without DB
+        # access from the daemon we punt to "excluded_unmapped" — the web
+        # upload path also reclassifies via its own ProductCost lookup.
+        payloads, _, _ = parse_payment_rows(
+            df, source_file_id=0, known_skus=set(), known_asins=set(),
+        )
+        return payloads
+    if report_type == "return_report":
+        import pandas as pd
+        df = pd.read_csv(file_path, sep="\t", encoding="utf-8-sig")
+        payloads, _ = parse_return_rows(df)
+        for index, payload in enumerate(payloads, start=1):
+            payload["source_file_id"] = 0
+            payload["source_row_no"] = index
+            if "return_date_raw" in payload and hasattr(payload["return_date_raw"], "date"):
+                payload["return_date"] = payload["return_date_raw"].date()
+                payload.pop("return_date_raw", None)
+        return payloads
+    if report_type == "inventory_report":
+        payloads, _, _ = parse_inventory_rows(file_path, source_file_id=0)
+        return payloads
+    if report_type == "ad_product_report":
+        # ad_product stays in A-table per BEL-54; mirror the payment
+        # behavior — no SKU/ASIN set means everything is "excluded_unmapped"
+        # and the row is recorded in raw_row for downstream analysis.
+        from app.utils.parsers import parse_ad_rows
+        payloads, _, _ = parse_ad_rows(
+            file_path, source_file_id=0, known_skus=set(), known_asins=set(),
+        )
+        return payloads
+    return []
+
+
 def _sha256_file(path: Path) -> str:
     import hashlib
     h = hashlib.sha256()
@@ -205,34 +269,42 @@ def process_file(
                 }
             )
     else:
-        from app.services.ad.upload.utils import _read_dataframe, _prepare_ingest_dataframe
+        scope_date = (
+            result.detected_start_date
+            or result.detected_end_date
+            or result.detected_date
+            or datetime.now().strftime("%Y-%m-%d")
+        )
         try:
-            raw_df = _read_dataframe(file_path)
-            source_df = _prepare_ingest_dataframe(raw_df)
-        except Exception:
-            source_df = None
-        if source_df is not None and len(source_df.index) > 0:
-            rows = source_df.to_dict(orient="records")
-            scope_date = (
-                result.detected_start_date
-                or result.detected_end_date
-                or result.detected_date
-                or datetime.now().strftime("%Y-%m-%d")
+            rows = _build_a_table_scope_rows(
+                file_path,
+                result.report_type,
+                project_id,
+                result.country or "US",
             )
+            if not rows:
+                # Parser couldn't extract anything — fall back to whatever
+                # was in the file (still better than 0 detail rows).
+                from app.services.ad.upload.utils import (
+                    _read_dataframe, _prepare_ingest_dataframe,
+                )
+                try:
+                    raw_df = _read_dataframe(file_path)
+                    source_df = _prepare_ingest_dataframe(raw_df)
+                    rows = source_df.to_dict(orient="records")
+                    for index, row in enumerate(rows, start=1):
+                        row.setdefault("source_row_no", index)
+                except Exception:
+                    rows = []
             scopes.append(
                 {
                     "scope_date": scope_date,
-                    "row_count_preview": int(len(rows)),
-                    "scope_rows": rows,
+                    "row_count_preview": int(len(rows)) if rows else int(result.row_count_preview or 0),
+                    "scope_rows": rows or [],
                 }
             )
-        else:
-            scope_date = (
-                result.detected_start_date
-                or result.detected_end_date
-                or result.detected_date
-                or datetime.now().strftime("%Y-%m-%d")
-            )
+        except Exception as exc:
+            logger.warning("A-table row builder failed for %s: %s", file_path.name, exc)
             scopes.append(
                 {
                     "scope_date": scope_date,

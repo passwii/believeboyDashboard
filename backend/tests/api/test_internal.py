@@ -302,6 +302,39 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session, tmp_p
     )
 
     try:
+        # Pre-parse the file into schema-shaped row dicts — this mirrors
+        # what the daemon does before sending scope_rows. The backend now
+        # trusts the daemon to translate column names, so the test must
+        # too.
+        import sys
+        sys.path.insert(0, str(file_path.parent.parent.parent / "backend"))
+        from app.utils.parsers import parse_sales_rows
+        from app.utils.utils import to_raw_row as _to_raw_row
+        scope_rows, _, _ = parse_sales_rows(
+            file_path, source_file_id=0, country="US",
+        )
+
+        # Coerce every value to a JSON-safe type (parse_sales_rows leaves
+        # datetime/Decimal objects on the row; the daemon will do the
+        # same conversion before posting to /ingest).
+        from decimal import Decimal as _Decimal
+        def _jsonable(value):
+            if hasattr(value, "isoformat"):
+                try:
+                    return value.isoformat()
+                except TypeError:
+                    pass
+            if isinstance(value, _Decimal):
+                return str(value)
+            if isinstance(value, dict):
+                return {k: _jsonable(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_jsonable(v) for v in value]
+            return value
+        for row in scope_rows:
+            for k, v in list(row.items()):
+                row[k] = _jsonable(v)
+
         r = client.post(
             "/api/v1/internal/auto-report/ingest",
             json={
@@ -319,8 +352,8 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session, tmp_p
                 "scopes": [
                     {
                         "scope_date": day.isoformat(),
-                        "row_count_preview": 2,
-                        "scope_rows": [],
+                        "row_count_preview": len(scope_rows),
+                        "scope_rows": scope_rows,
                     }
                 ],
                 "operator": "autoReportUpload",
