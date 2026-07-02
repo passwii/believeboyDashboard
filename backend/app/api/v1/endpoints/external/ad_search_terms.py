@@ -18,7 +18,7 @@ from app.api.v1.endpoints.external._whitelist import parse_order_by
 from app.models import AdUploadSearchTermRow
 from app.schemas.external.ad_raw import AdSearchTermRawRow
 from app.schemas.external.aggregate import RawResponse, RawSummary
-from app.services.external import ad_rows_query, projects_query
+from app.services.external import ad_rows_query, ad_targeting, projects_query
 
 
 router = APIRouter()
@@ -126,6 +126,20 @@ def get_external_ad_search_term_raw(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Enrich each ORM row with ``targeting_type`` computed from
+    # (window-scoped campaign targeting_type) + raw_row JSON.  Spec §3.
+    campaign_targeting_map = ad_targeting.build_campaign_targeting_cache(
+        db, project_id=project_id, country=normalized_country,
+        date_from=period_info.start_date, date_to=period_info.end_date,
+    )
+    for r in rows:
+        r.targeting_type = ad_targeting.resolve_targeting_type(  # type: ignore[attr-defined]
+            campaign_name=r.campaign_name,
+            country=normalized_country,
+            raw_row=r.raw_row or {},
+            campaign_targeting_map=campaign_targeting_map,
+        )
 
     return RawResponse[AdSearchTermRawRow](
         project_id=project_id,

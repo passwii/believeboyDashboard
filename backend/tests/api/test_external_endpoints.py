@@ -243,3 +243,46 @@ class TestAllRowEndpoints:
             f'/api/v1/external/projects/1/{endpoint}?period=7d&country=ZZ',
         )
         assert resp.status_code == 400, resp.text
+
+
+# ---------------------------------------------------------------------------
+# ad-search-terms aggregate / raw target_text and targeting_type contract
+# (task 4 of feature/ad-search-terms-targeting)
+# ---------------------------------------------------------------------------
+
+
+class TestAdSearchTermsTargetingType:
+    """contract: target_text 不再出现;targeting_type 字段出现且可空字符串。"""
+
+    def _project(self, db_session):
+        from app.models import Project
+        from sqlalchemy import select as _sel
+        proj = db_session.execute(_sel(Project).limit(1)).scalar_one_or_none()
+        if proj is None:
+            pytest.skip('no project in test DB')
+        return proj
+
+    def test_aggregate_response_omits_target_text(self, client, db_session):
+        proj = self._project(db_session)
+        resp = client.get(
+            f'/api/v1/external/projects/{proj.id}/ad-search-terms'
+            '?period=90d&country=US'
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        for row in body['data']:
+            assert 'target_text' not in row, row
+            assert 'targeting_type' in row, row
+
+    def test_raw_response_omits_target_text(self, client, db_session):
+        proj = self._project(db_session)
+        resp = client.get(
+            f'/api/v1/external/projects/{proj.id}/ad-search-terms-raw'
+            '?period=90d&country=US&limit=10'
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        # raw endpoint 在窗口空时 data=[]
+        for row in body['data']:
+            assert 'target_text' not in row, row
+            assert 'targeting_type' in row, row
