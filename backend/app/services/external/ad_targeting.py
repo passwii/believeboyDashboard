@@ -22,7 +22,8 @@ from typing import Any, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AdUploadCampaignRow, AdUploadFile
+from app.models import AdUploadCampaignRow
+from app.services.external.ad_rows_query import _select_file_ids
 
 _CAMPAIGN_REPORT_TYPE = "ad_campaign_report"
 
@@ -41,24 +42,23 @@ def build_campaign_targeting_cache(
     rows with different ``targeting_type`` (rare — operator error),
     the latest ``report_end_date`` wins.
 
-    Only includes rows from ``is_current=True`` /
+    File selection delegates to
+    ``ad_rows_query._select_file_ids``, which is the single source of
+    truth for the v1.0 multi-version contract: MAX(version) per
+    (project_id, report_type, country, report_date) with a
+    period_start/end overlap fallback for rows whose ``report_date``
+    is NULL.  Filtering by ``is_current=True`` /
     ``ingestion_status='success'`` /
-    ``recognition_status='recognized'`` files — mirrors the v1.0
-    multi-version contract used by ``ad_rows_query._select_file_ids``.
+    ``recognition_status='recognized'`` is applied there.
     """
-    file_ids_stmt = (
-        select(AdUploadFile.id)
-        .where(
-            AdUploadFile.project_id == project_id,
-            AdUploadFile.country == country,
-            AdUploadFile.report_type == _CAMPAIGN_REPORT_TYPE,
-            AdUploadFile.is_current.is_(True),
-            AdUploadFile.ingestion_status == 'success',
-            AdUploadFile.recognition_status == 'recognized',
-            AdUploadFile.report_date.between(date_from, date_to),
-        )
+    file_ids = _select_file_ids(
+        db,
+        project_id=project_id,
+        country=country,
+        report_type=_CAMPAIGN_REPORT_TYPE,
+        date_from=date_from,
+        date_to=date_to,
     )
-    file_ids = list(db.execute(file_ids_stmt).scalars().all())
     if not file_ids:
         return {}
 
