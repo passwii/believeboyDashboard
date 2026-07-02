@@ -8,21 +8,19 @@ frontend. Authentication is a static shared secret in the
 """
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
 from app.core.config import Settings, get_settings
 
 
 def require_internal_token(
     x_internal_token: str = Header(default="", alias="X-Internal-Token"),
-    settings: Settings = None,  # type: ignore[assignment]
+    settings: Settings = Depends(get_settings),
 ) -> None:
     """Verify the caller presents the configured internal token.
 
     Returns nothing on success; raises 401 on missing/mismatched token.
     """
-    if settings is None:
-        settings = get_settings()
     expected = (settings.internal_ingest_token or "").strip()
     if not expected:
         raise HTTPException(
