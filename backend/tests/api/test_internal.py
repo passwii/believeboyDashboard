@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -101,6 +102,7 @@ def test_recognize_unmatched_folder(client, auth_headers):
 
 def test_ingest_duplicate_sha256_returns_duplicate(client, auth_headers, db_session):
     """If a row with the same sha256 already exists, /ingest returns duplicate."""
+    from datetime import date, timedelta
     from app.models.product_analysis_source import AnalysisSourceFile
     from app.models.project import Project
 
@@ -109,21 +111,18 @@ def test_ingest_duplicate_sha256_returns_duplicate(client, auth_headers, db_sess
         pytest.skip("no project in test db, seed first")
     project_id = project.id
 
-    # Pick a unique period per run to avoid colliding with rows left by
-    # prior runs. The existing DB has 19 projects; a far-future date still
-    # collides after a failed first run. Derive both the sha and the day
-    # from os.urandom so reruns land on a fresh slot.
-    nonce = os.urandom(8)
-    sha = hashlib.sha256(b"test-content-1" + nonce).hexdigest()
-    day = (int(sha[:2], 16) % 28) + 1  # 1..28
-    period = date(2098, 1, day)
+    sha = hashlib.sha256(b"test-content-1").hexdigest()
+    # Pick a far-future date unique to this run (avoid unique constraint collisions
+    # when the test is re-run without the seed row being cleaned up).
+    import os
+    unique_day = date(2098, 1, 1) + timedelta(days=int.from_bytes(os.urandom(2), "big") % 365)
     existing = AnalysisSourceFile(
         project_id=project_id,
         report_type="sales_report",
         country="US",
-        report_date=period,
-        period_start_date=period,
-        period_end_date=period,
+        report_date=unique_day,
+        period_start_date=unique_day,
+        period_end_date=unique_day,
         version=1,
         is_current=True,
         upload_file_id="existing",
@@ -131,7 +130,7 @@ def test_ingest_duplicate_sha256_returns_duplicate(client, auth_headers, db_sess
         original_filename="existing.xlsx",
         stored_filename="existing",
         logical_filename="existing",
-        storage_key=f"analysis/existing/sales_report/{period.strftime('%Y%m%d')}_{period.strftime('%Y%m%d')}/v1/existing",
+        storage_key=f"analysis/existing/sales_report/{unique_day.strftime('%Y%m%d')}_{unique_day.strftime('%Y%m%d')}/v1/existing",
         file_size_bytes=100,
         file_sha256=sha,
         ingestion_status="success",
@@ -140,34 +139,45 @@ def test_ingest_duplicate_sha256_returns_duplicate(client, auth_headers, db_sess
     )
     db_session.add(existing)
     db_session.commit()
+    seeded_id = existing.id
 
-    r = client.post(
-        "/api/v1/internal/auto-report/ingest",
-        json={
-            "report_type": "sales_report",
-            "project_id": project_id,
-            "country": "US",
-            "original_filename": "test.xlsx",
-            "file_sha256": sha,
-            "file_size_bytes": 100,
-            "local_file_path": "/tmp/test.xlsx",
-            "matched_columns": [],
-            "warnings": [],
-            "report_label": "销售报告",
-            "report_date": "2099-01-01",
-            "scopes": [
-                {
-                    "scope_date": "2099-01-01",
-                    "row_count_preview": 5,
-                    "scope_rows": [],
-                }
-            ],
-            "operator": "autoReportUpload",
-        },
-        headers=auth_headers,
-    )
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["status"] == "duplicate"
-    assert body["duplicate_match_table"] == "A"
-    assert body["duplicate_source_id"] == existing.id
+    try:
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "sales_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": "test.xlsx",
+                "file_sha256": sha,
+                "file_size_bytes": 100,
+                "local_file_path": "/tmp/test.xlsx",
+                "matched_columns": [],
+                "warnings": [],
+                "report_label": "销售报告",
+                "report_date": "2099-01-01",
+                "scopes": [
+                    {
+                        "scope_date": "2099-01-01",
+                        "row_count_preview": 5,
+                        "scope_rows": [],
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "duplicate"
+        assert body["duplicate_match_table"] == "A"
+        assert body["duplicate_source_id"] == seeded_id
+    finally:
+        # Clean up: the seed row + any leftover same-sha rows from prior
+        # failed runs (dedup has no ORDER BY so a stale row would shadow
+        # the fresh seeded_id). Also remove upload log rows this test
+        # might have created (smoke-test-* runs and SHA-256 err msgs).
+        from sqlalchemy import text
+        db_session.execute(text("DELETE FROM auto_report_upload_logs WHERE run_id LIKE 'smoke-test-%' OR error_message LIKE '%SHA-256%'"))
+        db_session.execute(text(f"DELETE FROM analysis_source_files WHERE file_sha256 = '{sha}'"))
+        db_session.commit()
