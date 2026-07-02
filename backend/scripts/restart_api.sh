@@ -14,8 +14,25 @@
 set -euo pipefail
 
 SERVICE_NAME="${SERVICE_NAME:-believeboy-api}"
-REPO_ROOT="${REPO_ROOT:-/home/damon/believeboyDashboard}"
-USER_NAME="${USER_NAME:-damon}"
+
+# Auto-detect the repo root if not overridden. Looks for the backend
+# directory by walking up from this script's location, then falls back
+# to a few common production paths.
+if [ -z "${REPO_ROOT:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CANDIDATE="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    if [ -d "$CANDIDATE/backend" ]; then
+        REPO_ROOT="$CANDIDATE"
+    elif [ -d /root/believeboyDashboard/backend ]; then
+        REPO_ROOT=/root/believeboyDashboard
+    elif [ -d /home/damon/believeboyDashboard/backend ]; then
+        REPO_ROOT=/home/damon/believeboyDashboard
+    else
+        REPO_ROOT="$CANDIDATE"
+    fi
+fi
+
+USER_NAME="${USER_NAME:-$(stat -c %U "$REPO_ROOT" 2>/dev/null || echo root)}"
 
 cd "$REPO_ROOT"
 
