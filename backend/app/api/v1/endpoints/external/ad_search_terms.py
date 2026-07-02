@@ -129,6 +129,12 @@ def get_external_ad_search_term_raw(
 
     # Enrich each ORM row with ``targeting_type`` computed from
     # (window-scoped campaign targeting_type) + raw_row JSON.  Spec §3.
+    #
+    # ``AdUploadSearchTermRow`` has no ``targeting_type`` column — this
+    # handler writes the value as a transient Python attribute so
+    # ``AdSearchTermRawRow.model_validate(r)`` picks it up via
+    # ``from_attributes=True``.  Do not bypass this enrichment when
+    # reading ``AdUploadSearchTermRow`` directly (you'll lose the field).
     campaign_targeting_map = ad_targeting.build_campaign_targeting_cache(
         db, project_id=project_id, country=normalized_country,
         date_from=period_info.start_date, date_to=period_info.end_date,
