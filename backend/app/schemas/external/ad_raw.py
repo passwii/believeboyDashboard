@@ -101,9 +101,9 @@ class AdPlacementRawRow(_AdRawRowBase):
 class AdSearchTermRawRow(_AdRawRowBase):
     campaign_name: str | None = None
     ad_group_name: str | None = None
-    target_text: str | None = None
     match_type: str | None = None
     search_term: str | None = None
+    targeting_type: str | None = None
     impressions: int
     clicks: int
     ctr: float

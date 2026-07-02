@@ -172,11 +172,16 @@ class AdPlacementAggregateRow(BaseModel):
 
 
 class AdSearchTermAggregateRow(BaseModel):
+    """Aggregate by ``(search_term, targeting_type, match_type)`` —
+    see ``services/external/ad_targeting.py`` for ``targeting_type`` semantics."""
+
+    model_config = ConfigDict(from_attributes=True)
+
     campaign_name: Optional[str] = None
     ad_group_name: Optional[str] = None
-    target_text: Optional[str] = None
     match_type: Optional[str] = None
     search_term: Optional[str] = None
+    targeting_type: Optional[str] = None
     impressions: int = 0
     clicks: int = 0
     spend: float = 0.0
