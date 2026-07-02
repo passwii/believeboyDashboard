@@ -6,11 +6,9 @@ inside the FastAPI service via /api/v1/internal/auto-report/ingest.
 from __future__ import annotations
 
 import logging
-import re
 import shutil
 import time
-import uuid
-from datetime import date as _date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,15 +29,6 @@ def _is_periodic_ad_report(result: RecognitionResult) -> bool:
     if result.detected_start_date and result.detected_end_date:
         return result.detected_start_date != result.detected_end_date
     return False
-
-
-def _scope_rows_for_ad(df: pd.DataFrame, scope_date: str) -> list[dict[str, Any]]:
-    """Return the rows in df whose 日期 column matches scope_date."""
-    import pandas as _pd
-    if "日期" not in df.columns:
-        return []
-    sub = df[_pd.to_datetime(df["日期"], errors="coerce").dt.strftime("%Y-%m-%d") == scope_date]
-    return sub.to_dict(orient="records")
 
 
 def _sha256_file(path: Path) -> str:
@@ -121,6 +110,11 @@ def process_file(
 
     No DB session is taken — the APIClient handles all persistence via
     /recognize and /ingest.
+
+    NOTE: A-table 5 个 report_type (sales/business/payment/inventory/return) send
+    `scope_rows=[]` because backend _ingest_a_table is intentionally
+    detail-row-only-on-source (MVP). Backend writes source row + upload log;
+    A-table detail-row migration is a follow-up.
     """
     t0 = time.time()
 
@@ -167,9 +161,8 @@ def process_file(
         raw_df = _read_dataframe(file_path)
         source_df = _prepare_ingest_dataframe(raw_df)
         if "日期" in source_df.columns:
-            import pandas as _pd
             with_dates = source_df.copy()
-            with_dates["__row_date__"] = _pd.to_datetime(with_dates["日期"], errors="coerce")
+            with_dates["__row_date__"] = pd.to_datetime(with_dates["日期"], errors="coerce")
             normalized = with_dates.dropna(subset=["__row_date__"]).copy()
             if normalized.empty:
                 scope_date = result.detected_end_date or result.detected_start_date or datetime.now().strftime("%Y-%m-%d")
