@@ -55,33 +55,49 @@
      (来自 `raw_row.匹配类型` 大写 → 小写归一化)。
    - Campaign 行没有 `targeting_type` 记录(历史数据回溯不到)→ 返回 `null`。
 
-3. **向后兼容**:不动 `match_type` / `target_text` / 任何已有字段。
-4. **不引入新枚举映射**:值即 `raw_row` 原文 / 小写化原文。BI 端需要枚举语义时,
-   自行维护映射表。
+3. **删除 `target_text` 字段**:仅在 `ad-search-terms` aggregate + raw
+   两个响应里不暴露(用户决策 — 避免冗余,因为 `targeting_type`
+   已经替代了它的语义角色 — Auto 行是定位类型,Manual 行直接
+   从 raw_row 即可读取真投放词/ASIN)。
+   - 范围**严格限于**这两个 endpoint 的 response schema;ORM 列
+     `ad_upload_search_term_rows.target_text` 保留,alembic 不动,
+     ingest 不改,`ad-targets` / `ad-search-term-shares` /
+     `ad-purchased-products` / `ad-analysis` 端点不动。
+   - 前端 `targets-client.tsx` 等其他消费点不动。
+   - 后续若其他端点也要同样收口,起单独的 PR。
+4. **向后兼容已删字段**:`target_text` 直接从响应移除 — 不加 deprecation
+   header。用户接受 BI 端直接 break。
 
 ## 范围
 
 ### 包含
 
 - `backend/app/schemas/external/aggregate.py`
-  - `AdSearchTermAggregateRow` 增加 `targeting_type: Optional[str] = None`
+  - `AdSearchTermAggregateRow` **删除** `target_text` 字段;
+    **新增** `targeting_type: Optional[str] = None`
 - `backend/app/schemas/external/ad_raw.py`
-  - `AdSearchTermRawRow` 增加 `targeting_type: Optional[str] = None`
+  - `AdSearchTermRawRow` **删除** `target_text` 字段;
+    **新增** `targeting_type: Optional[str] = None`
 - `backend/app/services/external/aggregator.py`
   - `aggregate_search_terms(...)` 业务键从 `(search_term, match_type)`
     改为 `(search_term, targeting_type, match_type)` —
     防止 close-match / substitutes 被并到同一聚合桶。
   - 聚合输出里加 `targeting_type` 字段(取值规则见目标 #2)。
+  - 移除 `target_text=None` 那一行(L573) — 现在 schema 已经没这字段。
 - `backend/app/services/external/ad_rows_query.py`
   - `query_search_term_raw(...)` 每行输出加 `targeting_type`。
-  - `order_by` 白名单增加 `targeting_type`(可选,随主流程)。
+  - 不在 SQL ORDER BY 支持 `targeting_type`(见 §5)。
 
 ### 不包含
 
-- **不**重命名 / **不**改 `target_text` / `match_type` 语义。
+- **不**重命名 / **不**改 `match_type` 语义。
+- **不**改 `ad-search-term-share` / `ad-target` / `ad-purchased-product`
+  等其他端点的 `target_text` 字段 — 本任务不涉及。
 - **不**新建表 / **不**改 ingest pipeline / **不**重写历史 raw_row。
-- **不**改 `ad-search-term-share` / `ad-target` 等其他端点 —
-  以后按需扩展。
+- **不**删除 ORM `target_text` 列 / **不**写 alembic migration /
+  **不**改 `persistence.py:_ingest_search_term_rows`。
+- **不**改前端(`targets-client.tsx` 用的是 `ad-analysis` 端点,
+  不是 `external` API,不在本任务范围)。
 - **不**做 enum 类型校验 / Literal[...] 强制 —
   内部 raw_row 自由度高,API 端用 `Optional[str]` 兜底。
 - **不**处理 campaign 没有对应 `AdUploadCampaignRow` 的回溯情况
@@ -100,7 +116,7 @@ class AdSearchTermAggregateRow(BaseModel):
 
     campaign_name: Optional[str] = None
     ad_group_name: Optional[str] = None
-    target_text: Optional[str] = None
+    # target_text: Optional[str] = None  <-- 已删除(spec §范围)
     match_type: Optional[str] = None
     search_term: Optional[str] = None
     impressions: int = 0
@@ -116,13 +132,16 @@ class AdSearchTermAggregateRow(BaseModel):
 class AdSearchTermRawRow(_AdRawRowBase):
     campaign_name: str | None = None
     ad_group_name: str | None = None
-    target_text: str | None = None
+    # target_text: str | None = None  <-- 已删除(spec §范围)
     match_type: str | None = None
     search_term: str | None = None
     ...
     # 新增 — 同 §背景 的目标规则
     targeting_type: str | None = None
 ```
+
+**其他 `*AggregateRow` / `*RawRow` 的 `target_text` 字段不动** —
+本次只动 `AdSearchTermAggregateRow` / `AdSearchTermRawRow`。
 
 ### 2. 字段取值表达式(SQLAlchemy)
 
@@ -262,8 +281,10 @@ BI 端按字符串消费即可。
 ### 新增 / 修改
 
 1. `backend/tests/api/test_external_endpoints.py`
+   - 加 `assert "target_text" not in row` 断言,验证 aggregate
+     和 raw 响应里**不再包含** `target_text` 字段。
    - 加 `assert "targeting_type" in row` 断言,验证 aggregate
-     和 raw 响应里都出现新字段。
+     和 raw 响应里**新增** `targeting_type` 字段。
    - 加样例场景:
      - Auto Campaign 行:返回 4 个不同 `targeting_type` 值
        (`close-match` / `loose-match` / `substitutes` / `complements`)。
