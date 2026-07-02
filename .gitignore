@@ -153,3 +153,5 @@ db_capacity_results.json
 *.dSYM
 /macos/dist/
 /macos/.DS_Store
+
+openSourceProjects/
