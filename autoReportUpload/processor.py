@@ -21,9 +21,19 @@ from recognition import B_TABLE_AD_REPORT_TYPES, RecognitionResult, detect_repor
 logger = logging.getLogger(__name__)
 
 
+def _is_ad_report(result: RecognitionResult) -> bool:
+    """True when the report_type is one of the 10 B-table ad subtypes.
+
+    Applies to both single-day (start==end) and multi-day (start<end) ad
+    files — the canonical backend helper ``save_ad_upload_scope`` supports
+    both, and we want scope_rows to be populated either way so detail rows
+    actually land in the C-table.
+    """
+    return result.report_type in B_TABLE_AD_REPORT_TYPES
+
+
 def _is_periodic_ad_report(result: RecognitionResult) -> bool:
-    """True when the report_type is one of the 10 B-table ad subtypes
-    AND the file's date column suggests it covers multiple days."""
+    """True when the ad report covers multiple distinct days (has a "日期" column)."""
     if result.report_type not in B_TABLE_AD_REPORT_TYPES:
         return False
     if result.detected_start_date and result.detected_end_date:
@@ -156,7 +166,7 @@ def process_file(
     file_size_bytes = file_path.stat().st_size
 
     scopes: list[dict[str, Any]] = []
-    if _is_periodic_ad_report(result):
+    if _is_ad_report(result):
         from app.services.ad.upload.utils import _read_dataframe, _prepare_ingest_dataframe
         raw_df = _read_dataframe(file_path)
         source_df = _prepare_ingest_dataframe(raw_df)
@@ -186,6 +196,43 @@ def process_file(
                     )
         else:
             scope_date = result.detected_start_date or result.detected_end_date or datetime.now().strftime("%Y-%m-%d")
+            rows = source_df.to_dict(orient="records")
+            scopes.append(
+                {
+                    "scope_date": scope_date,
+                    "row_count_preview": int(len(rows)),
+                    "scope_rows": rows,
+                }
+            )
+    else:
+        from app.services.ad.upload.utils import _read_dataframe, _prepare_ingest_dataframe
+        try:
+            raw_df = _read_dataframe(file_path)
+            source_df = _prepare_ingest_dataframe(raw_df)
+        except Exception:
+            source_df = None
+        if source_df is not None and len(source_df.index) > 0:
+            rows = source_df.to_dict(orient="records")
+            scope_date = (
+                result.detected_start_date
+                or result.detected_end_date
+                or result.detected_date
+                or datetime.now().strftime("%Y-%m-%d")
+            )
+            scopes.append(
+                {
+                    "scope_date": scope_date,
+                    "row_count_preview": int(len(rows)),
+                    "scope_rows": rows,
+                }
+            )
+        else:
+            scope_date = (
+                result.detected_start_date
+                or result.detected_end_date
+                or result.detected_date
+                or datetime.now().strftime("%Y-%m-%d")
+            )
             scopes.append(
                 {
                     "scope_date": scope_date,
@@ -193,20 +240,6 @@ def process_file(
                     "scope_rows": [],
                 }
             )
-    else:
-        scope_date = (
-            result.detected_start_date
-            or result.detected_end_date
-            or result.detected_date
-            or datetime.now().strftime("%Y-%m-%d")
-        )
-        scopes.append(
-            {
-                "scope_date": scope_date,
-                "row_count_preview": int(result.row_count_preview or 0),
-                "scope_rows": [],
-            }
-        )
 
     try:
         ingest_resp = api_client.ingest(

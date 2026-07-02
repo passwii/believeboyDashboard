@@ -7,16 +7,25 @@ status grid) so the daemon path cannot drift from the frontend upload path.
 """
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from datetime import date as _date, datetime, timezone
-from typing import Literal
+from decimal import Decimal, InvalidOperation
+from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.ad_upload import AdUploadFile
-from app.models.product_analysis_source import AnalysisSourceFile
+from app.models.product_analysis_source import (
+    AnalysisAdProductRow,
+    AnalysisBusinessRow,
+    AnalysisPaymentRow,
+    AnalysisReturnRow,
+    AnalysisSalesOrderRow,
+    AnalysisSourceFile,
+)
 from app.models.project import Project
 from app.schemas.internal import (
     A_TABLE_REPORT_TYPES,
@@ -200,9 +209,15 @@ def perform_ingest(
     else:
         new_id, new_version = _ingest_a_table(db, payload)
 
-    if source_table == "A":
+    if source_table in ("A", "C"):
         from datetime import date as _date_module
         _today = _date_module.today()
+        # report_upload_logs.source_file_id has a FK to analysis_source_files.id
+        # (the A-table). For C-table ingests the source row lives in
+        # ad_upload_files, so we leave source_file_id NULL to avoid a
+        # ForeignKeyViolation; the project_id / report_type / upload_date
+        # triple is enough to flip the RPA status grid green.
+        log_source_file_id: int | None = new_id if source_table == "A" else None
         for scope in payload.scopes:
             write_report_upload_log(
                 db,
@@ -210,7 +225,7 @@ def perform_ingest(
                 country=payload.country,
                 report_type=payload.report_type,
                 upload_date=scope.scope_date,
-                source_file_id=new_id,
+                source_file_id=log_source_file_id,
                 has_real_data=scope.row_count_preview > 0,
                 row_count=scope.row_count_preview,
                 original_filename=payload.original_filename,
@@ -222,7 +237,7 @@ def perform_ingest(
                 country=payload.country,
                 report_type=payload.report_type,
                 upload_date=_today,
-                source_file_id=new_id,
+                source_file_id=log_source_file_id,
                 has_real_data=payload.scopes[0].row_count_preview > 0,
                 row_count=payload.scopes[0].row_count_preview,
                 original_filename=payload.original_filename,
@@ -309,19 +324,14 @@ def _ingest_c_table(
 def _ingest_a_table(
     db: Session, payload: AutoReportIngestRequest
 ) -> tuple[int, int]:
-    """Write a single AnalysisSourceFile for non-ad reports.
+    """Write a single AnalysisSourceFile for non-ad reports + per-row detail rows.
 
-    Detail rows are written by the existing parsers in
-    ``autoReportUpload/processor.py`` in a follow-up step. For the MVP
-    we only persist the source row + upload log; the detail rows
-    continue to be written by the daemon using the same SQLAlchemy
-    helpers (which it imports from backend) — this keeps the diff small.
-
-    NOTE: A-table MVP behaviour is intentionally limited to the source
-    row + upload log. See task 8 for detail-row migration.
-
-    WARN: 暂不写 detail rows(只写 source row + upload log),daemon 路径与
-    frontend 路径行为分叉,直到 task 8 完成
+    Detail rows are written here for the 5 A-table report types
+    (sales / business / payment / return / ad_product) using the
+    ``scope_rows`` the daemon sent in each ``IngestScopePayload``. This
+    closes the prior gap where the daemon path wrote only the source row
+    and left detail tables empty, breaking downstream sales-order
+    analytics and the RPA status grid.
     """
     from app.utils.persist_helpers import (
         next_version,
@@ -399,6 +409,13 @@ def _ingest_a_table(
     source.is_current = True
     source.superseded_at = None
     db.flush()
+
+    _write_a_table_detail_rows(
+        db,
+        source_file_id=int(source.id),
+        report_type=payload.report_type,
+        scopes=payload.scopes,
+    )
     return int(source.id), version
 
 
@@ -419,6 +436,303 @@ def _build_storage_key(
         f"{period_start.strftime('%Y%m%d')}_{period_end.strftime('%Y%m%d')}/"
         f"v{version}/{file_id}"
     )
+
+
+_A_TABLE_DETAIL_DISPATCH: dict[str, str] = {
+    "sales_report": "sales",
+    "business_report": "business",
+    "payment_report": "payment",
+    "return_report": "return",
+    "ad_product_report": "ad_product",
+}
+
+
+def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    if value is None or value == "":
+        return default
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return default
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None or value == "":
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    return text in {"true", "1", "yes", "y", "t"}
+
+
+def _json_dumps(value: Any) -> str:
+    """Serialize any value to a JSON string for raw INSERT into JSONB columns.
+
+    Decimal/datetime/date are coerced to strings; dicts/lists go through the
+    default encoder. The returned text is bound as a parameter and cast to
+    JSON on the SQL side, so the engine handles JSON encoding consistently.
+    """
+    def _default(obj: Any) -> Any:
+        if isinstance(obj, Decimal):
+            return str(obj)
+        if isinstance(obj, (_date, datetime)):
+            return obj.isoformat()
+        return str(obj)
+    return json.dumps(value, default=_default, ensure_ascii=False)
+
+
+def _write_sales_detail(
+    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
+) -> None:
+    from sqlalchemy import text as _text
+    for index, raw in enumerate(scope_rows, start=1):
+        db.execute(
+            _text(
+                """
+                INSERT INTO analysis_sales_order_rows (
+                    source_file_id, source_row_no, country, amazon_order_id,
+                    purchase_at_utc, purchase_at_pt, purchase_date_pt,
+                    order_status, sku, asin, quantity, item_price,
+                    shipping_price, currency, is_counted_sales,
+                    status_rule_version, raw_row
+                ) VALUES (
+                    :source_file_id, :source_row_no, :country, :amazon_order_id,
+                    :purchase_at_utc, :purchase_at_pt, :purchase_date_pt,
+                    :order_status, :sku, :asin, :quantity, :item_price,
+                    :shipping_price, :currency, :is_counted_sales,
+                    :status_rule_version, CAST(:raw_row AS JSON)
+                )
+                """
+            ),
+            {
+                "source_file_id": source_file_id,
+                "source_row_no": _to_int(raw.get("source_row_no"), index),
+                "country": str(raw.get("country", "US"))[:2],
+                "amazon_order_id": str(raw.get("amazon_order_id", ""))[:64] or "UNKNOWN",
+                "purchase_at_utc": raw.get("purchase_at_utc"),
+                "purchase_at_pt": raw.get("purchase_at_pt"),
+                "purchase_date_pt": raw["purchase_date_pt"],
+                "order_status": str(raw.get("order_status", ""))[:32] or "Unknown",
+                "sku": raw.get("sku"),
+                "asin": raw.get("asin"),
+                "quantity": _to_int(raw.get("quantity")),
+                "item_price": _to_decimal(raw.get("item_price")),
+                "shipping_price": _to_decimal(raw.get("shipping_price")),
+                "currency": raw.get("currency"),
+                "is_counted_sales": _to_bool(raw.get("is_counted_sales")),
+                "status_rule_version": _to_int(raw.get("status_rule_version"), 1),
+                "raw_row": _json_dumps(raw),
+            },
+        )
+
+
+def _write_business_detail(
+    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
+) -> None:
+    from sqlalchemy import text as _text
+    for index, raw in enumerate(scope_rows, start=1):
+        db.execute(
+            _text(
+                """
+                INSERT INTO analysis_business_rows (
+                    source_file_id, source_row_no, asin, page_views,
+                    units_ordered, sessions, ordered_sales_amount, raw_row
+                ) VALUES (
+                    :source_file_id, :source_row_no, :asin, :page_views,
+                    :units_ordered, :sessions, :ordered_sales_amount,
+                    CAST(:raw_row AS JSON)
+                )
+                """
+            ),
+            {
+                "source_file_id": source_file_id,
+                "source_row_no": _to_int(raw.get("source_row_no"), index),
+                "asin": raw.get("asin"),
+                "page_views": _to_int(raw.get("page_views")),
+                "units_ordered": _to_int(raw.get("units_ordered")),
+                "sessions": _to_int(raw.get("sessions")),
+                "ordered_sales_amount": _to_decimal(raw.get("ordered_sales_amount")),
+                "raw_row": _json_dumps(raw),
+            },
+        )
+
+
+def _write_payment_detail(
+    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
+) -> None:
+    from sqlalchemy import text as _text
+    for index, raw in enumerate(scope_rows, start=1):
+        db.execute(
+            _text(
+                """
+                INSERT INTO analysis_payment_rows (
+                    source_file_id, source_row_no, transaction_at, transaction_type,
+                    order_id, sku, asin, quantity, product_sales, shipping_credits,
+                    promotional_rebates, other_amount, selling_fees, fba_fees,
+                    total_amount, scope_status, scope_reason, transaction_status,
+                    transaction_release_date, raw_row
+                ) VALUES (
+                    :source_file_id, :source_row_no, :transaction_at, :transaction_type,
+                    :order_id, :sku, :asin, :quantity, :product_sales, :shipping_credits,
+                    :promotional_rebates, :other_amount, :selling_fees, :fba_fees,
+                    :total_amount, :scope_status, :scope_reason, :transaction_status,
+                    :transaction_release_date, CAST(:raw_row AS JSON)
+                )
+                """
+            ),
+            {
+                "source_file_id": source_file_id,
+                "source_row_no": _to_int(raw.get("source_row_no"), index),
+                "transaction_at": raw.get("transaction_at"),
+                "transaction_type": str(raw.get("transaction_type", "Unknown"))[:64],
+                "order_id": raw.get("order_id"),
+                "sku": raw.get("sku"),
+                "asin": raw.get("asin"),
+                "quantity": _to_int(raw.get("quantity")),
+                "product_sales": _to_decimal(raw.get("product_sales")),
+                "shipping_credits": _to_decimal(raw.get("shipping_credits")),
+                "promotional_rebates": _to_decimal(raw.get("promotional_rebates")),
+                "other_amount": _to_decimal(raw.get("other_amount")),
+                "selling_fees": _to_decimal(raw.get("selling_fees")),
+                "fba_fees": _to_decimal(raw.get("fba_fees")),
+                "total_amount": _to_decimal(raw.get("total_amount")),
+                "scope_status": str(raw.get("scope_status", "excluded_unmapped"))[:32],
+                "scope_reason": raw.get("scope_reason"),
+                "transaction_status": raw.get("transaction_status"),
+                "transaction_release_date": raw.get("transaction_release_date"),
+                "raw_row": _json_dumps(raw),
+            },
+        )
+
+
+def _write_ad_product_detail(
+    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
+) -> None:
+    from sqlalchemy import text as _text
+    for index, raw in enumerate(scope_rows, start=1):
+        db.execute(
+            _text(
+                """
+                INSERT INTO analysis_ad_product_rows (
+                    source_file_id, source_row_no, sku, asin, impressions,
+                    clicks, spend, sales_7d, orders_7d, scope_status,
+                    scope_reason, raw_row
+                ) VALUES (
+                    :source_file_id, :source_row_no, :sku, :asin, :impressions,
+                    :clicks, :spend, :sales_7d, :orders_7d, :scope_status,
+                    :scope_reason, CAST(:raw_row AS JSON)
+                )
+                """
+            ),
+            {
+                "source_file_id": source_file_id,
+                "source_row_no": _to_int(raw.get("source_row_no"), index),
+                "sku": raw.get("sku"),
+                "asin": raw.get("asin"),
+                "impressions": _to_int(raw.get("impressions")),
+                "clicks": _to_int(raw.get("clicks")),
+                "spend": _to_decimal(raw.get("spend")),
+                "sales_7d": _to_decimal(raw.get("sales_7d")),
+                "orders_7d": _to_int(raw.get("orders_7d")),
+                "scope_status": str(raw.get("scope_status", "excluded_unmapped"))[:32],
+                "scope_reason": raw.get("scope_reason"),
+                "raw_row": _json_dumps(raw),
+            },
+        )
+
+
+def _write_return_detail(
+    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
+) -> None:
+    from sqlalchemy import text as _text
+    for index, raw in enumerate(scope_rows, start=1):
+        db.execute(
+            _text(
+                """
+                INSERT INTO analysis_return_rows (
+                    source_file_id, source_row_no, return_date, order_id, sku,
+                    asin, fnsku, product_name, quantity, fulfillment_center_id,
+                    detailed_disposition, reason, status, license_plate_number,
+                    original_return_datetime, customer_comments, raw_row
+                ) VALUES (
+                    :source_file_id, :source_row_no, :return_date, :order_id, :sku,
+                    :asin, :fnsku, :product_name, :quantity, :fulfillment_center_id,
+                    :detailed_disposition, :reason, :status, :license_plate_number,
+                    :original_return_datetime, :customer_comments, CAST(:raw_row AS JSON)
+                )
+                """
+            ),
+            {
+                "source_file_id": source_file_id,
+                "source_row_no": _to_int(raw.get("source_row_no"), index),
+                "return_date": raw["return_date"],
+                "order_id": str(raw.get("order_id", ""))[:50] or "UNKNOWN",
+                "sku": str(raw.get("sku", ""))[:100] or "UNKNOWN",
+                "asin": raw.get("asin"),
+                "fnsku": raw.get("fnsku"),
+                "product_name": raw.get("product_name"),
+                "quantity": _to_int(raw.get("quantity"), 1),
+                "fulfillment_center_id": raw.get("fulfillment_center_id"),
+                "detailed_disposition": str(raw.get("detailed_disposition", "Unknown"))[:50],
+                "reason": str(raw.get("reason", "Unknown"))[:100],
+                "status": str(raw.get("status", "Unknown"))[:100],
+                "license_plate_number": str(raw.get("license_plate_number", ""))[:30],
+                "original_return_datetime": str(raw.get("original_return_datetime", ""))[:30],
+                "customer_comments": raw.get("customer_comments"),
+                "raw_row": _json_dumps(raw),
+            },
+        )
+
+
+_A_TABLE_DETAIL_WRITERS = {
+    "sales": _write_sales_detail,
+    "business": _write_business_detail,
+    "payment": _write_payment_detail,
+    "ad_product": _write_ad_product_detail,
+    "return": _write_return_detail,
+}
+
+
+def _write_a_table_detail_rows(
+    db: Session,
+    *,
+    source_file_id: int,
+    report_type: str,
+    scopes: list[Any],
+) -> None:
+    """Insert per-row detail rows for an A-table source row.
+
+    No-op when ``report_type`` is not one of the 5 detail-bearing A-table
+    types (e.g. ``inventory_report`` snapshots, which currently have no
+    separate detail table) or when the daemon sent empty ``scope_rows``
+    for every scope (the legacy fallback that previously wrote only the
+    source row).
+    """
+    kind = _A_TABLE_DETAIL_DISPATCH.get(report_type)
+    if kind is None:
+        return
+    writer = _A_TABLE_DETAIL_WRITERS[kind]
+    for scope in scopes:
+        rows = list(scope.scope_rows or [])
+        if not rows:
+            continue
+        writer(db, source_file_id=source_file_id, scope_rows=rows)
 
 
 def record_heartbeat(
