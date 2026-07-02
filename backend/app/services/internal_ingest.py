@@ -326,6 +326,8 @@ def _ingest_a_table(
         replace_current_pointer,
     )
 
+    now = datetime.now(timezone.utc)
+
     project = db.execute(
         select(Project).where(Project.id == payload.project_id)
     ).scalars().first()
@@ -363,7 +365,8 @@ def _ingest_a_table(
     storage_key = _build_storage_key(
         project_slug, payload.report_type, period_start, period_end, version, file_id
     )
-    logical_filename = f"{project_slug}_{payload.report_type}_{period_start.strftime('%Y%m%d')}_{version}{ext}"
+    date_part = period_start.strftime('%Y%m%d') if period_start else snapshot_at.strftime('%Y%m%d') if snapshot_at else now.strftime('%Y%m%d')
+    logical_filename = f"{project_slug}_{payload.report_type}_{date_part}_{version}{ext}"
 
     source = AnalysisSourceFile(
         project_id=payload.project_id,
