@@ -181,3 +181,312 @@ def test_ingest_duplicate_sha256_returns_duplicate(client, auth_headers, db_sess
         db_session.execute(text("DELETE FROM auto_report_upload_logs WHERE run_id LIKE 'smoke-test-%' OR error_message LIKE '%SHA-256%'"))
         db_session.execute(text(f"DELETE FROM analysis_source_files WHERE file_sha256 = '{sha}'"))
         db_session.commit()
+
+
+def _unique_day(label: str) -> "date":
+    """Pick a far-future date that won't collide with real data or other tests."""
+    import os as _os
+    return date(2097, 1, 1) + timedelta(days=int.from_bytes(_os.urandom(2), "big") % 30000) + timedelta(days=hash(label) % 365)
+
+
+def _cleanup_a_table(db_session, sha: str) -> None:
+    """Remove A-table artifacts created by a test ingest."""
+    from sqlalchemy import text
+    db_session.execute(
+        text("DELETE FROM analysis_sales_order_rows WHERE source_file_id IN (SELECT id FROM analysis_source_files WHERE file_sha256 = :s)"),
+        {"s": sha},
+    )
+    db_session.execute(
+        text("DELETE FROM analysis_business_rows WHERE source_file_id IN (SELECT id FROM analysis_source_files WHERE file_sha256 = :s)"),
+        {"s": sha},
+    )
+    db_session.execute(
+        text("DELETE FROM analysis_payment_rows WHERE source_file_id IN (SELECT id FROM analysis_source_files WHERE file_sha256 = :s)"),
+        {"s": sha},
+    )
+    db_session.execute(
+        text("DELETE FROM analysis_return_rows WHERE source_file_id IN (SELECT id FROM analysis_source_files WHERE file_sha256 = :s)"),
+        {"s": sha},
+    )
+    db_session.execute(
+        text("DELETE FROM analysis_ad_product_rows WHERE source_file_id IN (SELECT id FROM analysis_source_files WHERE file_sha256 = :s)"),
+        {"s": sha},
+    )
+    db_session.execute(
+        text("DELETE FROM report_upload_logs WHERE original_filename LIKE 'test-ingest-a-%'"),
+    )
+    db_session.execute(text("DELETE FROM analysis_source_files WHERE file_sha256 = :s"), {"s": sha})
+    db_session.commit()
+
+
+def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
+    """Bug 1: A-table /ingest must write analysis_sales_order_rows from scope_rows.
+
+    The current implementation only writes the source row (no detail rows).
+    This test feeds 2 scope_rows and asserts both land in the detail table.
+    """
+    from app.models.product_analysis_source import AnalysisSalesOrderRow
+    from app.models.project import Project
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(f"sales-detail-test-fixture-{os.urandom(8).hex()}".encode()).hexdigest()
+    day = _unique_day("sales-detail")
+
+    try:
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "sales_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": f"test-ingest-a-sales-{sha[:8]}.txt",
+                "file_sha256": sha,
+                "file_size_bytes": 1024,
+                "local_file_path": f"/tmp/test-ingest-a-sales-{sha[:8]}.txt",
+                "matched_columns": ["amazon-order-id", "sku", "purchase-date"],
+                "warnings": [],
+                "report_label": "销售报告",
+                "report_date": day.isoformat(),
+                "scopes": [
+                    {
+                        "scope_date": day.isoformat(),
+                        "row_count_preview": 2,
+                        "scope_rows": [
+                            {
+                                "source_row_no": 1,
+                                "amazon_order_id": "111-0000001-0000001",
+                                "sku": "SKU-A",
+                                "purchase_at_utc": f"{day.isoformat()}T12:00:00+00:00",
+                                "purchase_at_pt": f"{day.isoformat()}T05:00:00",
+                                "purchase_date_pt": day.isoformat(),
+                                "order_status": "Pending",
+                                "quantity": 1,
+                                "item_price": "9.99",
+                                "shipping_price": "0.00",
+                                "currency": "USD",
+                                "is_counted_sales": True,
+                            },
+                            {
+                                "source_row_no": 2,
+                                "amazon_order_id": "111-0000002-0000002",
+                                "sku": "SKU-B",
+                                "purchase_at_utc": f"{day.isoformat()}T13:00:00+00:00",
+                                "purchase_at_pt": f"{day.isoformat()}T06:00:00",
+                                "purchase_date_pt": day.isoformat(),
+                                "order_status": "Shipped",
+                                "quantity": 2,
+                                "item_price": "19.98",
+                                "shipping_price": "0.00",
+                                "currency": "USD",
+                                "is_counted_sales": True,
+                            },
+                        ],
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "created", body
+        source_id = body["source_id"]
+
+        from sqlalchemy import text
+        detail_count = db_session.execute(
+            text("SELECT count(*) FROM analysis_sales_order_rows WHERE source_file_id = :id"),
+            {"id": source_id},
+        ).scalar()
+        assert detail_count == 2, f"expected 2 detail rows, got {detail_count}"
+    finally:
+        _cleanup_a_table(db_session, sha)
+
+
+def test_ingest_ad_target_writes_detail_rows(client, auth_headers, db_session):
+    """Bug 2: C-table /ingest must write ad_upload_target_rows from scope_rows.
+
+    The current implementation calls save_ad_upload_scope, but the daemon
+    only sends scope_rows for multi-day ad reports — single-day ad reports
+    ship scope_rows=[]. This test feeds non-empty scope_rows (with the
+    Chinese column names the canonical helper expects) and asserts the
+    detail table receives them.
+    """
+    from app.models.ad_upload import AdUploadFile, AdUploadTargetRow
+    from app.models.project import Project
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(f"ad-target-detail-test-fixture-{os.urandom(8).hex()}".encode()).hexdigest()
+    day = _unique_day("ad-target-detail")
+
+    # Real ad_target_report row format the canonical helper consumes:
+    #   开始日期 / 结束日期 / 投放 / 匹配类型 / 展示量 / 点击量 / 花费 / 7天总销售额 ...
+    row1 = {
+        "开始日期": day.isoformat(),
+        "结束日期": day.isoformat(),
+        "广告活动名称": "Test Campaign A",
+        "投放": "keyword-A",
+        "匹配类型": "广泛匹配",
+        "展示量": 100,
+        "点击量": 5,
+        "花费": "1.50",
+        "7天总销售额": "9.99",
+        "7天总订单数(#)": 1,
+    }
+    row2 = {
+        "开始日期": day.isoformat(),
+        "结束日期": day.isoformat(),
+        "广告活动名称": "Test Campaign B",
+        "投放": "keyword-B",
+        "匹配类型": "精准匹配",
+        "展示量": 200,
+        "点击量": 10,
+        "花费": "3.00",
+        "7天总销售额": "19.98",
+        "7天总订单数(#)": 2,
+    }
+
+    try:
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "ad_target_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": f"test-ingest-c-target-{sha[:8]}.xlsx",
+                "file_sha256": sha,
+                "file_size_bytes": 2048,
+                "local_file_path": f"/tmp/test-ingest-c-target-{sha[:8]}.xlsx",
+                "matched_columns": ["开始日期", "结束日期", "广告活动名称", "投放", "匹配类型"],
+                "warnings": [],
+                "report_label": "广告投放报告",
+                "report_date": day.isoformat(),
+                "scopes": [
+                    {
+                        "scope_date": day.isoformat(),
+                        "row_count_preview": 2,
+                        "scope_rows": [row1, row2],
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "created", body
+        source_id = body["source_id"]
+
+        from sqlalchemy import text
+        detail_count = db_session.execute(
+            text("SELECT count(*) FROM ad_upload_target_rows WHERE source_file_id = :id"),
+            {"id": source_id},
+        ).scalar()
+        assert detail_count == 2, f"expected 2 detail rows, got {detail_count}"
+    finally:
+        from sqlalchemy import text
+        db_session.execute(
+            text("DELETE FROM ad_upload_target_rows WHERE source_file_id IN (SELECT id FROM ad_upload_files WHERE file_sha256 = :s)"),
+            {"s": sha},
+        )
+        db_session.execute(
+            text("DELETE FROM ad_upload_files WHERE file_sha256 = :s"),
+            {"s": sha},
+        )
+        db_session.commit()
+
+
+def test_ingest_ad_target_writes_upload_log(client, auth_headers, db_session):
+    """Bug 3: C-table /ingest must write a row to report_upload_logs.
+
+    Currently report_upload_logs is only written for A-table reports; the
+    C-table branch skips the write entirely, so the RPA status grid never
+    flips green for ad reports. This test asserts one row appears.
+    """
+    from app.models.project import Project
+    from app.models.ad_upload import AdUploadFile
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(f"ad-target-upload-log-test-fixture-{os.urandom(8).hex()}".encode()).hexdigest()
+    day = _unique_day("ad-target-upload-log")
+    original_filename = f"test-ingest-c-target-log-{sha[:8]}.xlsx"
+
+    row = {
+        "开始日期": day.isoformat(),
+        "结束日期": day.isoformat(),
+        "广告活动名称": "Upload Log Test",
+        "投放": "kw1",
+        "匹配类型": "广泛匹配",
+        "展示量": 10,
+        "点击量": 1,
+        "花费": "0.10",
+        "7天总销售额": "0.00",
+        "7天总订单数(#)": 0,
+    }
+
+    try:
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "ad_target_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": original_filename,
+                "file_sha256": sha,
+                "file_size_bytes": 1024,
+                "local_file_path": f"/tmp/{original_filename}",
+                "matched_columns": ["开始日期", "结束日期", "广告活动名称", "投放", "匹配类型"],
+                "warnings": [],
+                "report_label": "广告投放报告",
+                "report_date": day.isoformat(),
+                "scopes": [
+                    {
+                        "scope_date": day.isoformat(),
+                        "row_count_preview": 1,
+                        "scope_rows": [row],
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "created", body
+
+        from app.models.report_upload_log import ReportUploadLog
+        from sqlalchemy import text
+        log_count = db_session.execute(
+            text(
+                "SELECT count(*) FROM report_upload_logs "
+                "WHERE original_filename = :f AND report_type = 'ad_target_report'"
+            ),
+            {"f": original_filename},
+        ).scalar()
+        assert log_count >= 1, f"expected at least 1 upload log row, got {log_count}"
+    finally:
+        from sqlalchemy import text
+        db_session.execute(
+            text("DELETE FROM report_upload_logs WHERE original_filename = :f"),
+            {"f": original_filename},
+        )
+        db_session.execute(
+            text("DELETE FROM ad_upload_target_rows WHERE source_file_id IN (SELECT id FROM ad_upload_files WHERE file_sha256 = :s)"),
+            {"s": sha},
+        )
+        db_session.execute(
+            text("DELETE FROM ad_upload_files WHERE file_sha256 = :s"),
+            {"s": sha},
+        )
+        db_session.commit()
