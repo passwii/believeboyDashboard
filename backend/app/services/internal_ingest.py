@@ -200,31 +200,33 @@ def perform_ingest(
     else:
         new_id, new_version = _ingest_a_table(db, payload)
 
-    _today = _date.today()
-    for scope in payload.scopes:
-        write_report_upload_log(
-            db,
-            project_id=payload.project_id,
-            country=payload.country,
-            report_type=payload.report_type,
-            upload_date=scope.scope_date,
-            source_file_id=(new_id if source_table == "A" else None),
-            has_real_data=scope.row_count_preview > 0,
-            row_count=scope.row_count_preview,
-            original_filename=payload.original_filename,
-        )
-    if not any(s.scope_date == _today for s in payload.scopes):
-        write_report_upload_log(
-            db,
-            project_id=payload.project_id,
-            country=payload.country,
-            report_type=payload.report_type,
-            upload_date=_today,
-            source_file_id=(new_id if source_table == "A" else None),
-            has_real_data=payload.scopes[0].row_count_preview > 0,
-            row_count=payload.scopes[0].row_count_preview,
-            original_filename=payload.original_filename,
-        )
+    if source_table == "A":
+        from datetime import date as _date_module
+        _today = _date_module.today()
+        for scope in payload.scopes:
+            write_report_upload_log(
+                db,
+                project_id=payload.project_id,
+                country=payload.country,
+                report_type=payload.report_type,
+                upload_date=scope.scope_date,
+                source_file_id=new_id,
+                has_real_data=scope.row_count_preview > 0,
+                row_count=scope.row_count_preview,
+                original_filename=payload.original_filename,
+            )
+        if not any(s.scope_date == _today for s in payload.scopes):
+            write_report_upload_log(
+                db,
+                project_id=payload.project_id,
+                country=payload.country,
+                report_type=payload.report_type,
+                upload_date=_today,
+                source_file_id=new_id,
+                has_real_data=payload.scopes[0].row_count_preview > 0,
+                row_count=payload.scopes[0].row_count_preview,
+                original_filename=payload.original_filename,
+            )
 
     append_operation_audit_log(
         db,
