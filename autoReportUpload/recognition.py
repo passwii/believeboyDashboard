@@ -197,4 +197,7 @@ def detect_report_type(path: Path, country: str = "US") -> RecognitionResult | N
     except Exception:
         pass
 
-    return _detect_a_table_spec(path, country)
+    try:
+        return _detect_a_table_spec(path, country)
+    except Exception:
+        return None
