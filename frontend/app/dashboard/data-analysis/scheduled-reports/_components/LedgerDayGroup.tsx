@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { format } from 'date-fns'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, ColGroup } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { LedgerResendCell } from './LedgerResendCell'
 import {
@@ -103,26 +103,40 @@ export function LedgerDayGroup({
       </button>
 
       {expanded && (
-        <Table>
+        <Table tableLayout="fixed">
+          <ColGroup
+            columns={[
+              { width: 96 },
+              { width: 176 },
+              { width: 80 },
+              { width: 176 },
+              { width: 80 },
+              { width: 112 },
+              { width: 176 },
+            ]}
+          />
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">应发时间</TableHead>
+              <TableHead>应发时间</TableHead>
               <TableHead>项目</TableHead>
-              <TableHead className="w-24">国家</TableHead>
-              <TableHead className="w-44">邮箱</TableHead>
-              <TableHead className="w-16">频率</TableHead>
-              <TableHead className="w-24">状态</TableHead>
-              <TableHead className="w-28 text-right">操作</TableHead>
+              <TableHead>国家</TableHead>
+              <TableHead>邮箱</TableHead>
+              <TableHead>频率</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map(item => {
-              const projectLabel =
-                item.project_names?.length > 0
-                  ? item.project_names.join(' · ')
-                  : item.project_ids === '*'
-                    ? '全部项目'
-                    : item.project_ids
+              const projectNames = item.project_names?.length > 0
+                ? item.project_names
+                : item.project_ids === '*'
+                  ? ['全部项目']
+                  : item.project_ids.split(',').filter(Boolean)
+              const projectsFullLabel = projectNames.join(' · ')
+              const projectsDisplayLabel = projectNames.length <= 2
+                ? projectsFullLabel
+                : `${projectNames[0]} · ${projectNames[1]} +${projectNames.length - 2}`
               const countryList = item.country
                 .split(',')
                 .map(c => c.trim())
@@ -143,29 +157,27 @@ export function LedgerDayGroup({
                   className="cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => onRowClick(item)}
                 >
-                  <TableCell className="text-sm whitespace-nowrap tabular-nums">
+                  <TableCell className="whitespace-nowrap tabular-nums">
                     {format(new Date(item.expected_at), 'HH:mm')}
                   </TableCell>
-                  <TableCell>
-                    <span className="block max-w-[260px] truncate text-sm" title={projectLabel}>
-                      {projectLabel}
-                    </span>
+                  <TableCell className="truncate" title={projectsFullLabel}>
+                    {projectsDisplayLabel}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{countryLabel}</TableCell>
-                  <TableCell>
-                    <span className="block max-w-[180px] truncate text-xs text-muted-foreground" title={item.email}>
-                      {item.email}
-                    </span>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {countryLabel}
+                  </TableCell>
+                  <TableCell className="truncate text-xs text-muted-foreground" title={item.email}>
+                    {item.email}
                   </TableCell>
                   <TableCell>
-                    <Badge className={cn('text-[10px]', FREQUENCY_COLORS[item.frequency])}>
+                    <Badge className={cn('whitespace-nowrap text-[10px]', FREQUENCY_COLORS[item.frequency])}>
                       {FREQUENCY_LABELS[item.frequency]}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <span
                       className={cn(
-                        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+                        'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]',
                         STATUS_BG[item.status],
                       )}
                     >
@@ -175,7 +187,7 @@ export function LedgerDayGroup({
                       {STATUS_LABELS[item.status]}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                  <TableCell className="whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
                     {canTrigger ? (
                       <LedgerResendCell
                         item={item}
