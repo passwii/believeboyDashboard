@@ -10,6 +10,7 @@ These tests mock SQLAlchemy execution so we don't depend on PG state.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
@@ -116,3 +117,132 @@ class TestListAdUploadFiles:
         assert result == []
         # db.execute was called exactly once
         assert db_session.execute.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# aggregate_search_terms targeting_type 字段契约(任务 3)
+# ---------------------------------------------------------------------------
+
+
+class TestAggregateSearchTermsTargetingType:
+    """Verify ``aggregate_search_terms`` wires ``ad_targeting`` helper correctly
+    and that the SQL projection includes ``raw_row`` so GROUP BY keys cover
+    Auto campaign targeting-type buckets.
+    """
+
+    def _mock_row(self, **overrides):
+        row = MagicMock()
+        row.campaign_name = overrides.get('campaign_name', 'Camp-A')
+        row.search_term = overrides.get('search_term', 'red shoes')
+        row.match_type = overrides.get('match_type', 'EXACT')
+        row.raw_row = overrides.get('raw_row', {'投放': 'close-match', '匹配类型': '-'})
+        row.impressions = overrides.get('impressions', 10)
+        row.clicks = overrides.get('clicks', 1)
+        row.spend = overrides.get('spend', Decimal('1.50'))
+        row.sales_7d = overrides.get('sales_7d', Decimal('5.00'))
+        row.orders_7d = overrides.get('orders_7d', 1)
+        return row
+
+    def test_calls_build_cache_and_resolve_per_row(self, monkeypatch):
+        from app.services.external import aggregator
+
+        cache_calls = []
+
+        def fake_build_cache(db, *, project_id, country, date_from, date_to):
+            cache_calls.append({'project_id': project_id, 'country': country,
+                                'date_from': date_from, 'date_to': date_to})
+            return {('Camp-A', 'US'): '自动投放'}
+
+        resolve_calls = []
+
+        def fake_resolve(*, campaign_name, country, raw_row, campaign_targeting_map):
+            resolve_calls.append({
+                'campaign_name': campaign_name,
+                'country': country,
+                'raw_row': raw_row,
+            })
+            return 'close-match'
+
+        monkeypatch.setattr(aggregator.ad_targeting, 'build_campaign_targeting_cache', fake_build_cache)
+        monkeypatch.setattr(aggregator.ad_targeting, 'resolve_targeting_type', fake_resolve)
+
+        monkeypatch.setattr(
+            aggregator, '_select_file_ids',
+            lambda db, **kw: [101, 102],
+        )
+
+        mock_db = MagicMock()
+        rows_iter = MagicMock()
+        rows_iter.all.return_value = [
+            self._mock_row(),
+            self._mock_row(campaign_name='Camp-A', search_term='blue shoes'),
+        ]
+        mock_db.execute.return_value = rows_iter
+
+        result = aggregator.aggregate_search_terms(
+            mock_db,
+            project_id=42,
+            country='US',
+            date_from=date(2026, 6, 1),
+            date_to=date(2026, 6, 30),
+        )
+
+        assert len(cache_calls) == 1
+        assert cache_calls[0] == {
+            'project_id': 42, 'country': 'US',
+            'date_from': date(2026, 6, 1), 'date_to': date(2026, 6, 30),
+        }
+        assert len(resolve_calls) == 2
+        for call in resolve_calls:
+            assert call['campaign_name'] == 'Camp-A'
+            assert call['country'] == 'US'
+
+        assert len(result) == 2
+        for r in result:
+            dumped = r.model_dump()
+            assert 'target_text' not in dumped
+            assert dumped['targeting_type'] == 'close-match'
+
+    def test_select_statement_includes_raw_row_in_group_by(self, monkeypatch):
+        """Postgres requires raw_row to appear in both SELECT and GROUP BY
+        once we use it to derive targeting_type."""
+        from app.services.external import aggregator
+
+        monkeypatch.setattr(
+            aggregator.ad_targeting, 'build_campaign_targeting_cache',
+            lambda *a, **kw: {},
+        )
+        monkeypatch.setattr(
+            aggregator.ad_targeting, 'resolve_targeting_type',
+            lambda **kw: None,
+        )
+        monkeypatch.setattr(
+            aggregator, '_select_file_ids',
+            lambda db, **kw: [101],
+        )
+
+        captured = {}
+
+        class _ExecResult:
+            def all(self_inner):
+                return []
+
+        def fake_execute(stmt):
+            captured['stmt'] = stmt
+            return _ExecResult()
+
+        mock_db = MagicMock()
+        mock_db.execute.side_effect = fake_execute
+
+        aggregator.aggregate_search_terms(
+            mock_db, project_id=1, country='US',
+            date_from=date(2026, 6, 1), date_to=date(2026, 6, 30),
+        )
+
+        from app.models import AdUploadSearchTermRow
+        stmt = captured['stmt']
+        cols = {c.key for c in stmt.selected_columns}
+        assert AdUploadSearchTermRow.raw_row.key in cols
+
+        group_by_cols = {getattr(g, 'key', None) for g in stmt._group_by_clauses}
+        assert AdUploadSearchTermRow.raw_row.key in group_by_cols
