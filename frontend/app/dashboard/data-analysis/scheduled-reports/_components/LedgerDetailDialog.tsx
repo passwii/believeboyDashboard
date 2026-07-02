@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
@@ -31,7 +31,7 @@ const SECTION_LABEL = 'text-[10px] uppercase tracking-wider text-muted-foregroun
 
 const MAX_VISIBLE_PROJECTS = 8
 
-interface LedgerDetailSheetProps {
+interface LedgerDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   item: LedgerItem | null
@@ -45,7 +45,7 @@ interface LedgerDetailSheetProps {
   onCopy: (text: string) => void
 }
 
-export function LedgerDetailSheet({
+export function LedgerDetailDialog({
   open,
   onOpenChange,
   item,
@@ -57,7 +57,7 @@ export function LedgerDetailSheet({
   onResend,
   onResendLoading,
   onCopy,
-}: LedgerDetailSheetProps) {
+}: LedgerDetailDialogProps) {
   const [previewScreenshot, setPreviewScreenshot] = useState<string | null>(null)
   const [showAllProjects, setShowAllProjects] = useState(false)
 
@@ -78,18 +78,19 @@ export function LedgerDetailSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
           className={cn(
-            'sm:max-w-md w-full p-0 flex flex-col gap-0',
-            'border-l border-border/60',
+            'max-w-[calc(100%-2rem)] sm:max-w-xl md:max-w-3xl p-0 gap-0',
+            'flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden',
+            'dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]',
           )}
         >
           {item ? (
             <>
-              <SheetHeader
+              <DialogHeader
                 className={cn(
-                  'border-b px-5 py-4 space-y-1.5',
+                  'shrink-0 border-b px-6 py-4 text-left',
                   HERO_BG[item.status],
                 )}
               >
@@ -97,21 +98,24 @@ export function LedgerDetailSheet({
                   {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
                   {HERO_LABEL[item.status].text}
                 </div>
-                <SheetTitle className="text-xl font-semibold tracking-tight">
+                <DialogTitle className="text-xl font-semibold tracking-tight">
                   {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
-                </SheetTitle>
+                </DialogTitle>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>📨 {item.email}</span>
                   <span>{FREQUENCY_LABELS[item.frequency]}</span>
                   {countryList.length > 0 && <span>{countryList.map(getCountryLabel).join(' · ')}</span>}
                 </div>
-              </SheetHeader>
+              </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {item.status === 'failed' && item.error_message && (
-                  <div>
-                    <span className={SECTION_LABEL}>错误信息</span>
-                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 font-mono text-xs text-red-700 whitespace-pre-wrap dark:bg-red-950/30 dark:border-red-800 dark:text-red-300">
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:bg-red-950/30 dark:border-red-800">
+                    <div className="flex items-center gap-2 text-xs font-medium text-red-700 dark:text-red-300 mb-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      错误信息
+                    </div>
+                    <div className="font-mono text-xs text-red-700 dark:text-red-300 whitespace-pre-wrap">
                       {item.error_message}
                     </div>
                   </div>
@@ -159,20 +163,20 @@ export function LedgerDetailSheet({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <span className={SECTION_LABEL}>报告截图</span>
                     {item.screenshot_r2_url ? (
                       <button
                         type="button"
                         onClick={() => setPreviewScreenshot(item.screenshot_r2_url)}
-                        className="group relative w-full aspect-[3/4] overflow-hidden rounded-lg border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow"
+                        className="group relative w-full aspect-[3/4] max-h-[60vh] overflow-hidden rounded-lg border border-border/70 hover:ring-2 hover:ring-primary/50 transition-shadow bg-muted/30"
                       >
                         <Image
                           src={item.screenshot_r2_thumb_url || item.screenshot_r2_url}
                           alt="报告截图"
                           fill
-                          className="object-contain bg-muted/30"
+                          className="object-contain"
                           unoptimized
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
@@ -180,7 +184,7 @@ export function LedgerDetailSheet({
                         </div>
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-6 border border-dashed border-border/50 justify-center">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">
                         <ImageIcon className="h-4 w-4" />
                         暂无截图
                       </div>
@@ -203,18 +207,15 @@ export function LedgerDetailSheet({
                       )}
                     </div>
                     {item.ai_summary ? (
-                      <div className="rounded-lg border border-border/60 bg-muted/20 overflow-hidden">
-                        <div className="h-[200px] overflow-y-auto p-3 text-xs leading-relaxed
-                          prose prose-xs prose-neutral dark:prose-invert max-w-none
-                          [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold"
-                        >
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-3 max-h-[60vh] overflow-y-auto">
+                        <div className="text-xs leading-relaxed prose prose-xs prose-neutral dark:prose-invert max-w-none [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold">
                           <ReactMarkdown>
                             {item.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
                           </ReactMarkdown>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-6 border border-dashed border-border/50 justify-center h-[200px]">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">
                         <FileText className="h-4 w-4" />
                         暂无 AI 文案
                       </div>
@@ -226,7 +227,7 @@ export function LedgerDetailSheet({
           ) : null}
 
           {canTrigger && item && (
-            <div className="sticky bottom-0 border-t border-border/60 bg-background px-5 py-3 flex items-center justify-end gap-2">
+            <div className="shrink-0 border-t border-border/60 bg-background px-6 py-3 flex items-center justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
                 取消
               </Button>
@@ -245,8 +246,8 @@ export function LedgerDetailSheet({
               />
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {previewScreenshot && (
         <PortraitScreenshotDialog

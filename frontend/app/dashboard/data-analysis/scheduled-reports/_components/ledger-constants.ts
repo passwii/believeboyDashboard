@@ -1,5 +1,5 @@
 // ── Scheduled Reports / Ledger 共享常量 ──
-// 由多个组件（ledger/page.tsx, LedgerDayGroup, LedgerDetailSheet）共用，
+// 由多个组件（ledger/page.tsx, LedgerDayGroup, LedgerDetailDialog）共用，
 // 修改前请同步搜索。
 
 import type { Frequency, LedgerStatus } from './types'
