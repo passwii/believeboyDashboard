@@ -79,6 +79,17 @@ codegraph status .          # `.` 可省；看到 "Index is up to date" 即可
 
 > 💡 **实战沉淀 / 启动提示 / BEL-93/127/131 沉淀** 已迁到 [`docs/superpowers/lessons-learned/codegraph-v099.md`](docs/superpowers/lessons-learned/codegraph-v099.md)。本文是规范，沉淀请去那边查。
 
+## autoReportUpload 写入路径（HTTP-only）
+
+`autoReportUpload/` 守护进程不再直连 PostgreSQL。所有持久化通过
+FastAPI 内部端点 `/api/v1/internal/auto-report/{recognize,ingest,heartbeat}`
+完成，鉴权用 `X-Internal-Token` header（env `INTERNAL_INGEST_TOKEN`）。
+
+- **不在源码中硬编码任何 DB URL / R2 key** —— 见 BEL-75
+- 改 schema / 改 ingest 逻辑只动 `backend/app/services/internal_ingest.py` + `backend/app/schemas/internal.py`，不动 `autoReportUpload/`
+- 文件保留在 `WATCH_ROOT/<项目>/processed/`，`AdUploadFile.upload_file_path` 存本地路径字符串
+- 详见计划 `docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md`
+
 ## Production Deployment / Restart Services
 
 > **这台机器（Linux 7.0.0-22-generic）上的服务用 systemd 管理。** 改完代码需要让线上生效时，**不要直接 `pkill`**，直接走 `systemctl restart`。

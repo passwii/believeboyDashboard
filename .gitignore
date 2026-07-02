@@ -80,6 +80,8 @@ update_extensions.sql
 
 # Auto report upload
 autoReportUpload/__pycache__/
+autoReportUpload/.env
+!autoReportUpload/.env.example
 
 # Frontend build artifacts
 /frontend/build.log
