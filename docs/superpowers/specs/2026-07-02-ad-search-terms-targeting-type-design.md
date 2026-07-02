@@ -324,6 +324,14 @@ BI 端按字符串消费即可。
   campaign 报告,`targeting_type` 全 null。已在 §不包含 公开范围,
   后续 P2 可补 campaign-name-level 的 fallback(读广告活动名称里的
   "Auto"/"手动" 关键字 — 易错,先不做)。
+- **实现细节(2026-07-02)**:PostgreSQL `json` 列无 equality operator,
+  原始 GROUP BY + raw_row 方案不可行。最终方案:SELECT 加 `raw_row`(给
+  Python resolve 用)、GROUP BY 不含 raw_row,沿用 `(campaign, search_term,
+  match_type)` 3 键。Python 层 resolve_targeting_type 在同桶内一致
+  (同 campaign 同一 search_term + match_type 桶内 raw_row.投放 /
+  raw_row.匹配类型 应稳定)。如果未来发现桶内 raw_row.投放 跨 ingest
+  真有不一致,需要重新考虑拆桶方案(用 `raw_row->>'投放'` 子键 GROUP BY
+  的更窄方案)。
 
 ### 回滚
 

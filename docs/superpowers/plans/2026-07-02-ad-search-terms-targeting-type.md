@@ -1,5 +1,13 @@
 # ad-search-terms 端点 targeting_type 字段实现计划
 
+> ⚠️ **实现偏差(2026-07-02,任务 3 commit `49bf34d`)**:
+> 任务 3 实际采用 **"GROUP BY 3 text 键 + 每桶 representative 二次 SELECT"**,
+> 非本计划原写的 "GROUP BY 含 raw_row"。
+> 原因:PostgreSQL `json` 列无 equality operator、无 MIN/MAX,
+> `GROUP BY raw_row` 会触发 `psycopg.errors.GroupingError`。
+> 详细分析见 `docs/superpowers/specs/2026-07-02-ad-search-terms-targeting-type-design.md`
+> §风险(2026-07-02 段)。
+
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
 **目标：** 在 `GET /api/v1/external/projects/{id}/ad-search-terms` 与
