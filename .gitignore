@@ -121,6 +121,9 @@ autoReportUpload/.env
 # Backend storage
 /backend/storage/
 /storage/
+
+# Backend logs
+/backend/*.log
 /backend/tmp_upload_check/
 /backend/tmp_backup/
 
