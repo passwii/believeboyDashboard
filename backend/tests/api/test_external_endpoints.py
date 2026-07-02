@@ -286,3 +286,17 @@ class TestAdSearchTermsTargetingType:
         for row in body['data']:
             assert 'target_text' not in row, row
             assert 'targeting_type' in row, row
+
+    def test_raw_response_alias_route_also_exposes_targeting_type(self, client, db_session):
+        """The singular ``ad-search-term-raw`` alias must mirror the
+        plural contract (target_text gone, targeting_type present)."""
+        proj = self._project(db_session)
+        resp = client.get(
+            f'/api/v1/external/projects/{proj.id}/ad-search-term-raw'
+            '?period=90d&country=US&limit=10'
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        for row in body['data']:
+            assert 'target_text' not in row, row
+            assert 'targeting_type' in row, row
