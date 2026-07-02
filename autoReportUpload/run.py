@@ -7,10 +7,23 @@ Usage:
     python run.py --dry-run        # Dry-run: recognize files only, no DB writes, no file moves
     python run.py --once           # Run once (no periodic loop), useful for testing
     python run.py --mode polling   # 旧版定时轮询模式（每 5 分钟）
+
+Requires env (or autoReportUpload/.env):
+    API_BASE_URL=https://dash-api.believeboy.com
+    INTERNAL_INGEST_TOKEN=<32 字节随机串>
 """
 
 import argparse
 import sys
+from pathlib import Path
+
+from api_client import APIClient
+from config import API_BASE_URL, INTERNAL_INGEST_TOKEN
+from monitor import RunLogger, main_loop, run_cycle
+
+
+def _build_client() -> APIClient:
+    return APIClient(base_url=API_BASE_URL, token=INTERNAL_INGEST_TOKEN)
 
 
 def main() -> None:
@@ -36,24 +49,21 @@ def main() -> None:
     if args.dry_run:
         print("模式: dry-run（只识别，不入库，不移动文件）")
 
-    if args.once:
-        from pathlib import Path
-        from monitor import RunLogger, run_cycle
+    client = _build_client()
 
+    if args.once:
         logs_dir = Path(__file__).parent / "logs"
         logger = RunLogger(logs_dir)
         logger.info(">>> 一次性扫描模式")
 
-        stats = run_cycle(logger, dry_run=args.dry_run)
+        stats = run_cycle(logger, client, dry_run=args.dry_run)
         logger.info(
             f"完成: {stats['files_seen']} 文件, "
             f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
         )
-        print(f"\n日志文件: {logger.log_file}")
-        sys.exit(0)
+        return
 
-    from monitor import main_loop
-    main_loop(dry_run=args.dry_run, mode=args.mode)
+    main_loop(api_client=client, dry_run=args.dry_run, mode=args.mode)
 
 
 if __name__ == "__main__":
