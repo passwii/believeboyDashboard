@@ -128,6 +128,27 @@ curl -s -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:3200/
 - **改前端代码的完整顺序：`pnpm build` → `systemctl restart believeboy-web`**。`next start` 只服务 `.next/` 产物，**不会自动 build**；漏 build 会让新加的 route / page / BFF handler 一直 404。详见"常见操作"段的 ⚠️ 注释。
 - 改 backend 后端 → `alembic upgrade head`（如有新迁移）→ `systemctl restart believeboy-api`。uvicorn 重启后会重新 import 所有模块，新 schema / endpoint 立刻生效。
 
+### Mac 本地开发（launchd）
+
+> **Mac 上 API 用 launchd 管理（用户级 LaunchAgent）。** 仓库根 → [`deploy/launchd/`](./deploy/launchd/)，是 `backend/deploy/systemd/` 的 Mac 对应物。前端部署在 Vercel，**Mac 不起 web**。
+
+| 用途 | 命令 |
+|---|---|
+| 一次性注册 + 启动 | `deploy/launchd/bin/install.sh` |
+| 改完代码 / `.env` 后生效 | `deploy/launchd/bin/restart.sh`（= `launchctl kickstart -k`） |
+| 健康检查（launchctl + 端口 + `/docs`） | `deploy/launchd/bin/status.sh` |
+| 看日志 | `deploy/launchd/bin/logs.sh` |
+| 卸载 | `deploy/launchd/bin/uninstall.sh` |
+
+Mac 上的 **DB 走远程 VPS**（`192.168.100.113:5432`），不在 Mac 起 Postgres/Redis。`.env` 里 `PGHOST` / `DATABASE_URL` / `REDIS_HOST` 需要改远程值，模板见 [`deploy/launchd/.env.mac.example`](./deploy/launchd/.env.mac.example)。
+
+**Mac 上的核心坑**（细节见 `deploy/launchd/README.md`）：
+
+- `pkill uvicorn` 同样会把 launchd 拉进 `KeepAlive` 重启循环；改代码一律 `bin/restart.sh`。
+- **不加 `--reload`**（launchd 的 PID 跟踪会和 reload 的 watcher 子进程冲突），改完走 `bin/restart.sh`。
+- launchd 没有 `EnvironmentFile=` 语义，wrapper (`bin/run-api.sh`) 内部 `source .env`。
+- 前端在 Vercel，所以 Mac **不开 `believeboy-web`**；该 unit 仍只在 VPS 起。
+
 ### 已知坑
 
 - `ss -ltnp` 在沙箱里看不到非自己用户的 socket，**用 `journalctl -u <unit> -n 5` + `ps -ef | grep` 双确认**比 `curl` 探针更可靠。
