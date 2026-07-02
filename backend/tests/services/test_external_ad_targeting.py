@@ -73,6 +73,44 @@ def test_resolve_targeting_type_auto_uses_投放_value(db_session):
     assert result == 'close-match'
 
 
+@pytest.mark.parametrize("auto_value", [
+    'close-match',
+    'loose-match',
+    'substitutes',
+    'complements',
+])
+def test_resolve_targeting_type_auto_all_four_buckets(db_session, auto_value):
+    """All 4 Amazon 自动投放定位类型 → resolved verbatim from raw_row.投放.
+
+    Spec §测试策略 lists these 4 explicitly; unit test should cover all of them
+    so a refactor of `resolve_targeting_type` (e.g. accidental normalisation)
+    is caught immediately.
+    """
+    raw_row = {'投放': auto_value, '匹配类型': '-'}
+    campaign_map = {('A-Auto', 'US'): '自动投放'}
+    result = resolve_targeting_type(
+        campaign_name='A-Auto', country='US',
+        raw_row=raw_row, campaign_targeting_map=campaign_map,
+    )
+    assert result == auto_value
+
+
+@pytest.mark.parametrize("upper,lower", [
+    ('EXACT', 'exact'),
+    ('PHRASE', 'phrase'),
+    ('BROAD', 'broad'),
+])
+def test_resolve_targeting_type_manual_all_three_match_types(db_session, upper, lower):
+    """All 3 Amazon 手动投放 match types → resolved to lowercased form."""
+    raw_row = {'投放': 'some-keyword', '匹配类型': upper}
+    campaign_map = {('A-Manual', 'US'): '手动投放'}
+    result = resolve_targeting_type(
+        campaign_name='A-Manual', country='US',
+        raw_row=raw_row, campaign_targeting_map=campaign_map,
+    )
+    assert result == lower
+
+
 def test_resolve_targeting_type_manual_uses_lowered_match_type(db_session):
     raw_row = {'投放': 'electric ratchet', '匹配类型': 'EXACT'}
     campaign_map = {('A-Manual', 'US'): '手动投放'}
