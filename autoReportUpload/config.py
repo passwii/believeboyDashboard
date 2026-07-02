@@ -5,60 +5,58 @@ import sys
 from pathlib import Path
 
 
-def _require_database_url() -> str:
-    """Resolve DATABASE_URL strictly from the environment.
+def _require_api_config() -> tuple[str, str]:
+    """Resolve API_BASE_URL and INTERNAL_INGEST_TOKEN from the environment.
 
-    No IP fallback on purpose — see [BEL-75]. Production endpoints move over
-    time and the source of truth must be the runtime environment, not this
-    file. Operators should export DATABASE_URL (or place it in
-    ``autoReportUpload/.env``) before starting the service.
-
-    ``autoReportUpload/.env`` is auto-loaded if ``python-dotenv`` is
-    available; otherwise the variable must come from the shell.
+    Both are required — there is no IP fallback on purpose. See BEL-75.
+    Production endpoints move over time and the source of truth must be
+    the runtime environment, not this file.
     """
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if not url:
-        try:
-            from dotenv import load_dotenv
+    base_url = os.environ.get("API_BASE_URL", "").strip()
+    token = os.environ.get("INTERNAL_INGEST_TOKEN", "").strip()
 
-            env_path = Path(__file__).parent / ".env"
-            if env_path.exists():
-                load_dotenv(env_path, override=False)
-                url = os.environ.get("DATABASE_URL", "").strip()
-        except ImportError:
-            pass
-    if not url:
+    # autoReportUpload/.env is auto-loaded if python-dotenv is available.
+    try:
+        from dotenv import load_dotenv
+        env_path = Path(__file__).parent / ".env"
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
+            if not base_url:
+                base_url = os.environ.get("API_BASE_URL", "").strip()
+            if not token:
+                token = os.environ.get("INTERNAL_INGEST_TOKEN", "").strip()
+    except ImportError:
+        pass
+
+    if not base_url or not token:
         print(
-            "错误: 未配置 DATABASE_URL。\n"
-            "  请在 autoReportUpload/.env 写入 DATABASE_URL=postgresql+psycopg://<user>:<pass>@<host>:<port>/<db>\n"
-            "  或在启动前 export DATABASE_URL=...。\n"
-            "  此项目不再在源码中硬编码任何生产端 IP。",
+            "错误: 未配置 API_BASE_URL 或 INTERNAL_INGEST_TOKEN。\n"
+            "  请在 autoReportUpload/.env 写入:\n"
+            "    API_BASE_URL=https://dash-api.believeboy.com\n"
+            "    INTERNAL_INGEST_TOKEN=<32 字节随机串>\n"
+            "  或在启动前 export 这两个变量。",
             file=sys.stderr,
         )
         sys.exit(1)
-    return url
+    return base_url, token
 
 
-# Ensure DATABASE_URL is visible to backend Pydantic Settings (which only
-# reads os.environ, not Python module-level variables) once the URL has
-# been resolved above.
-DATABASE_URL = _require_database_url()
-os.environ["DATABASE_URL"] = DATABASE_URL
+API_BASE_URL, INTERNAL_INGEST_TOKEN = _require_api_config()
 
-# ─── Watch root ───────────────────────────────────────────────────────────────
-# 本地磁盘根目录 — 子文件夹以各项目命名
+
+# ─── Watch root (unchanged) ───────────────────────────────────────────────────
 WATCH_ROOT_DEFAULT = Path("/Users/damon/Documents/RPA")
 
-# 环境变量 WATCH_ROOT 优先，否则用默认路径
+
 def _resolve_watch_root() -> Path:
     env_path = os.environ.get("WATCH_ROOT", "").strip()
     if env_path:
         return Path(env_path)
     return WATCH_ROOT_DEFAULT
 
+
 WATCH_ROOT = _resolve_watch_root()
 
-# All project folder names (must match projects.project_name in the DB)
 PROJECTS = [
     "博朗姆",
     "金石",
@@ -73,29 +71,11 @@ PROJECTS = [
     "博智1店",
     "博智2店",
     "犀牛",
-    # 2026-06-27 增量：瑞迪特（WESTTHOR）— 之前未在白名单导致新订单无法入库
     "瑞迪特",
 ]
 
-# How often (in minutes) the monitor loop checks for new files
 CHECK_INTERVAL_MINUTES = 5
-
-# Sub-folder under each project folder where processed files are moved
 PROCESSED_SUBDIR = "processed"
-
-# Ad reports use a dedicated archive folder so 10 ad subtypes (promoted
-# product / campaign / placement / etc.) stay separate from general reports.
-# 10 ad subtypes are recognized by ``app.services.ad.upload.specs.REPORT_SPECS``.
 AD_PROCESSED_SUBDIR = "广告Processed"
-
-# Folder names to ignore entirely
 IGNORED_DIRS = {"sync.ffs_db"}
-
-# File extensions the service cares about
 SUPPORTED_EXTENSIONS = {".txt", ".csv", ".xlsx"}
-
-# ─── Database ─────────────────────────────────────────────────────────────────
-# DATABASE_URL is resolved at module load time from the environment only
-# (see _require_database_url() above). Callers should import it like:
-#     from config import DATABASE_URL
-# It is intentionally NOT a hardcoded fallback — see [BEL-75].

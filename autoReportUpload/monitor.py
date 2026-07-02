@@ -10,10 +10,8 @@ from datetime import datetime
 from pathlib import Path
 
 from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
-from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
+from api_client import APIClient
 from processor import ProcessResult, process_file
-from recognition import B_TABLE_AD_REPORT_TYPES
-from models import AutoReportUploadLog
 
 
 _A_TABLE_REPORT_TYPE_LABELS: dict[str, str] = {
@@ -208,19 +206,16 @@ class RunLogger:
         project: str,
         result: ProcessResult,
         *,
-        db: Session | None = None,
+        api_client: APIClient | None = None,
         duration_seconds: float | None = None,
     ) -> None:
         # 状态标签
         if result.skipped:
             status_label = "跳过"
-            db_status = "skipped"
         elif result.success:
             status_label = "OK"
-            db_status = "success"
         else:
             status_label = "FAIL"
-            db_status = "failed"
 
         # 国家
         country = result.country or "-"
@@ -267,37 +262,19 @@ class RunLogger:
                 f"{status_label}|{country}|{project}|{report_type_cn}|{report_date}|{result.error}"
             )
 
-        # ── Write to DB ──────────────────────────────────────────────────
-        if db is not None:
+        # ── Heartbeat to backend (replaces AutoReportUploadLog DB write) ──
+        if api_client is not None:
             try:
-                # Determine source table: B-table ad types go to C (ad_upload_files),
-                # everything else goes to A (analysis_source_files).
-                source_table = (
-                    "C" if result.report_type in B_TABLE_AD_REPORT_TYPES else "A"
-                ) if result.report_type else None
-
-                db.add(AutoReportUploadLog(
-                    run_id=self.run_ts,
-                    status=db_status,
-                    country=country,
-                    project_name=project,
-                    report_type_label=report_type_cn,
-                    report_date_display=report_date,
-                    report_type=result.report_type,
-                    original_filename=file_path.name,
-                    source_id=result.source_id,
-                    source_table=source_table,
-                    row_count=result.row_count,
-                    detected_start_date=result.detected_start_date,
-                    detected_end_date=result.detected_end_date,
-                    duration_seconds=duration_seconds,
-                    error_message=result.error or (result.reason if not result.success else None),
-                    note=result.reason if result.success else None,
-                ))
-                db.commit()
+                last_status = "ok" if result.success else ("warning" if result.skipped else "error")
+                detail = result.error or result.reason or ""
+                api_client.heartbeat(
+                    instance_id=self.run_ts,
+                    last_run_ts=datetime.now().strftime("%Y%m%d%H%M%S"),
+                    last_status=last_status,
+                    detail=detail,
+                )
             except Exception as exc:
-                self.logger.warning(f"[DB_LOG] 写入运行时日志失败: {exc}")
-                db.rollback()
+                self.logger.warning(f"[API] heartbeat 失败: {exc}")
 
     @property
     def log_file(self) -> Path:
@@ -325,7 +302,7 @@ def _collect_files(project_dir: Path) -> list[Path]:
     return collected
 
 
-def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
+def run_cycle(logger: RunLogger, api_client: APIClient, dry_run: bool = False) -> dict:
     """Scan all project folders and process new files. Returns summary stats."""
     stats = {"projects": 0, "files_seen": 0, "skipped": 0, "success": 0, "failed": 0}
 
@@ -339,23 +316,15 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             continue
 
         stats["projects"] += 1
-        db, needs_reconnect = get_db_session_with_retry()
-        if db is None:
-            # DB 完全不可用，跳过此轮
-            logger.error(f"[DB] 数据库连接失败，跳过 [{project_name}] 的文件处理")
-            stats["failed"] += len(files)
-            if needs_reconnect:
-                reconnect_engine()
-            continue
 
         try:
             for file_path in sorted(files):
                 stats["files_seen"] += 1
 
                 t0 = time.time()
-                result = process_file(file_path, project_name, db, dry_run=dry_run)
+                result = process_file(file_path, project_name, api_client, dry_run=dry_run)
                 duration = time.time() - t0
-                logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
+                logger.result(file_path, project_name, result, api_client=api_client, duration_seconds=duration)
                 if result.skipped:
                     stats["skipped"] += 1
                 elif result.success:
@@ -365,51 +334,21 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
         except Exception as exc:
             logger.error(f"[{project_name}] 处理循环异常: {exc}")
             stats["failed"] += 1
-        finally:
-            db.close()
 
     return stats
 
 
-def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
+def _start_watchdog_logger(logger: RunLogger, api_client: APIClient, dry_run: bool):
     """启动 watchdog 事件监控，文件创建立即触发处理（watchdog 模式）"""
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
 
     class ReportFileHandler(FileSystemEventHandler):
-        def __init__(self, logger: RunLogger, dry_run: bool):
+        def __init__(self, logger: RunLogger, api_client: APIClient, dry_run: bool):
             self.logger = logger
+            self.api_client = api_client
             self.dry_run = dry_run
-            self._pending: dict[str, float] = {}  # debounce: 忽略 2 秒内重复事件
-            self._db_session: Session | None = None
-            self._last_db_check: float = 0
-            self._db_check_interval: float = 60  # 每 60 秒检查一次 DB 健康状态
-
-        def _get_db_session(self) -> Session | None:
-            """获取 DB session，带健康检查和重连机制"""
-            now = time.time()
-            if now - self._last_db_check > self._db_check_interval:
-                self._last_db_check = now
-                if not check_db_health():
-                    reconnect_engine()
-                    logger.warning("[DB] 健康检查失败，已重建连接池")
-
-            db, needs_reconnect = get_db_session_with_retry()
-            if db is None and needs_reconnect:
-                reconnect_engine()
-                logger.warning("[DB] 重新获取 session 失败，已重建连接池")
-                db, _ = get_db_session_with_retry()
-
-            return db
-
-        def _close_session(self) -> None:
-            """安全关闭 session"""
-            if self._db_session is not None:
-                try:
-                    self._db_session.close()
-                except Exception:
-                    pass
-                self._db_session = None
+            self._pending: dict[str, float] = {}
 
         def on_created(self, event):
             if event.is_directory:
@@ -435,30 +374,23 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             except Exception:
                 return
 
-            db = self._get_db_session()
-            if db is None:
-                logger.error(f"  [watchdog] 无法获取数据库连接，跳过文件: {file_path.name}")
-                return
-
             try:
                 t0 = time.time()
-                result = process_file(file_path, project_name, db, dry_run=self.dry_run)
+                result = process_file(file_path, project_name, self.api_client, dry_run=self.dry_run)
                 duration = time.time() - t0
-                logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
+                self.logger.result(file_path, project_name, result, api_client=self.api_client, duration_seconds=duration)
 
                 if result.skipped and "未匹配任何报表类型" in (result.reason or ""):
                     self.logger.info(f"  [watchdog] 5 秒后重试未识别文件: {file_path.name}")
                     time.sleep(5)
                     t0 = time.time()
-                    result = process_file(file_path, project_name, db, dry_run=self.dry_run)
+                    result = process_file(file_path, project_name, self.api_client, dry_run=self.dry_run)
                     duration = time.time() - t0
-                    logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
+                    self.logger.result(file_path, project_name, result, api_client=self.api_client, duration_seconds=duration)
             except Exception as exc:
-                logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
-            finally:
-                db.close()
+                self.logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
 
-    handler = ReportFileHandler(logger, dry_run)
+    handler = ReportFileHandler(logger, api_client, dry_run)
     observer = Observer()
     for project_name in PROJECTS:
         project_dir = WATCH_ROOT / project_name
@@ -469,10 +401,10 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
     return observer
 
 
-def _main_loop_polling(logger: RunLogger, dry_run: bool) -> None:
+def _main_loop_polling(logger: RunLogger, api_client: APIClient, dry_run: bool) -> None:
     """原有定时轮询逻辑（polling 模式）"""
     logger.info("\n>>> 首次运行：全局扫描所有项目目录")
-    stats = run_cycle(logger, dry_run=dry_run)
+    stats = run_cycle(logger, api_client, dry_run=dry_run)
     logger.info(
         f"\n全局扫描完成: {stats['files_seen']} 文件, "
         f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
@@ -482,7 +414,7 @@ def _main_loop_polling(logger: RunLogger, dry_run: bool) -> None:
     while True:
         time.sleep(interval_secs)
 
-        stats = run_cycle(logger, dry_run=dry_run)
+        stats = run_cycle(logger, api_client, dry_run=dry_run)
         if stats["files_seen"] > 0:
             logger.info(
                 f"定时扫描完成: {stats['files_seen']} 文件, "
@@ -490,7 +422,7 @@ def _main_loop_polling(logger: RunLogger, dry_run: bool) -> None:
             )
 
 
-def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
+def main_loop(api_client: APIClient, dry_run: bool = False, mode: str = "watchdog") -> None:
     """Full main loop: initial global scan then periodic incremental checks."""
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
@@ -504,14 +436,12 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
 
     if mode == "watchdog":
         logger.info("监控模式: watchdog（文件事件触发）")
-        # ── 启动前先做一次全盘扫描 ──────────────────────────────────────────
-        stats = run_cycle(logger, dry_run=dry_run)
+        stats = run_cycle(logger, api_client, dry_run=dry_run)
         logger.info(
             f"全盘扫描完成: {stats['files_seen']} 文件, "
             f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
         )
-        # ── 然后启动 watchdog 持续监控新文件 ─────────────────────────────────
-        observer = _start_watchdog_logger(logger, dry_run)
+        observer = _start_watchdog_logger(logger, api_client, dry_run=dry_run)
         logger.info("watchdog 监控已启动，持续监听新文件...")
         try:
             while True:
@@ -521,4 +451,4 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
         observer.join()
     else:
         logger.info(f"监控模式: polling（每 {CHECK_INTERVAL_MINUTES} 分钟轮询）")
-        _main_loop_polling(logger, dry_run)
+        _main_loop_polling(logger, api_client, dry_run=dry_run)
