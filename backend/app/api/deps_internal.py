@@ -8,6 +8,8 @@ frontend. Authentication is a static shared secret in the
 """
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Depends, Header, HTTPException, status
 
 from app.core.config import Settings, get_settings
@@ -27,7 +29,7 @@ def require_internal_token(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="INTERNAL_INGEST_TOKEN is not configured on the server",
         )
-    if not x_internal_token or x_internal_token != expected:
+    if not x_internal_token or not hmac.compare_digest(x_internal_token, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing X-Internal-Token",
