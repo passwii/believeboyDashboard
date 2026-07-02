@@ -12,6 +12,7 @@ import logging
 import uuid
 from datetime import date as _date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any, Literal
 
 from sqlalchemy import select
@@ -414,7 +415,9 @@ def _ingest_a_table(
         db,
         source_file_id=int(source.id),
         report_type=payload.report_type,
-        scopes=payload.scopes,
+        local_file_path=payload.local_file_path,
+        project_id=payload.project_id,
+        country=payload.country,
     )
     return int(source.id), version
 
@@ -444,6 +447,7 @@ _A_TABLE_DETAIL_DISPATCH: dict[str, str] = {
     "payment_report": "payment",
     "return_report": "return",
     "ad_product_report": "ad_product",
+    "inventory_report": "inventory",
 }
 
 
@@ -497,216 +501,49 @@ def _json_dumps(value: Any) -> str:
     return json.dumps(value, default=_default, ensure_ascii=False)
 
 
-def _write_sales_detail(
-    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
-) -> None:
-    from sqlalchemy import text as _text
-    for index, raw in enumerate(scope_rows, start=1):
-        db.execute(
-            _text(
-                """
-                INSERT INTO analysis_sales_order_rows (
-                    source_file_id, source_row_no, country, amazon_order_id,
-                    purchase_at_utc, purchase_at_pt, purchase_date_pt,
-                    order_status, sku, asin, quantity, item_price,
-                    shipping_price, currency, is_counted_sales,
-                    status_rule_version, raw_row
-                ) VALUES (
-                    :source_file_id, :source_row_no, :country, :amazon_order_id,
-                    :purchase_at_utc, :purchase_at_pt, :purchase_date_pt,
-                    :order_status, :sku, :asin, :quantity, :item_price,
-                    :shipping_price, :currency, :is_counted_sales,
-                    :status_rule_version, CAST(:raw_row AS JSON)
-                )
-                """
-            ),
-            {
-                "source_file_id": source_file_id,
-                "source_row_no": _to_int(raw.get("source_row_no"), index),
-                "country": str(raw.get("country", "US"))[:2],
-                "amazon_order_id": str(raw.get("amazon_order_id", ""))[:64] or "UNKNOWN",
-                "purchase_at_utc": raw.get("purchase_at_utc"),
-                "purchase_at_pt": raw.get("purchase_at_pt"),
-                "purchase_date_pt": raw["purchase_date_pt"],
-                "order_status": str(raw.get("order_status", ""))[:32] or "Unknown",
-                "sku": raw.get("sku"),
-                "asin": raw.get("asin"),
-                "quantity": _to_int(raw.get("quantity")),
-                "item_price": _to_decimal(raw.get("item_price")),
-                "shipping_price": _to_decimal(raw.get("shipping_price")),
-                "currency": raw.get("currency"),
-                "is_counted_sales": _to_bool(raw.get("is_counted_sales")),
-                "status_rule_version": _to_int(raw.get("status_rule_version"), 1),
-                "raw_row": _json_dumps(raw),
-            },
+def _load_known_product_keys(
+    db: Session, *, project_id: int, country: str
+) -> tuple[set[str], set[str]]:
+    """Load the project's active SKU/ASIN set for payment scope classification.
+
+    Mirrors ``autoReportUpload.processor._load_project_product_mapping`` from
+    before the HTTP-only refactor; the same ProductCost table is the source
+    of truth for which products belong to the project.
+    """
+    from app.models.product_cost import ProductCost  # local import — avoids cycle
+    from app.models.project import Project
+    from app.utils.text_utils import normalize_sku as _normalize_sku, normalize_asin as _normalize_asin
+
+    rows = db.execute(
+        select(ProductCost.sku, ProductCost.asin)
+        .join(Project, Project.id == ProductCost.project_id)
+        .where(
+            ProductCost.project_id == project_id,
+            ProductCost.is_active.is_(True),
+            ProductCost.country == country,
         )
+    ).all()
+    skus = {_normalize_sku(s) for s, _ in rows if _normalize_sku(s)}
+    asins = {_normalize_asin(a) for _, a in rows if _normalize_asin(a)}
+    return skus, asins
 
 
-def _write_business_detail(
-    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
-) -> None:
-    from sqlalchemy import text as _text
-    for index, raw in enumerate(scope_rows, start=1):
-        db.execute(
-            _text(
-                """
-                INSERT INTO analysis_business_rows (
-                    source_file_id, source_row_no, asin, page_views,
-                    units_ordered, sessions, ordered_sales_amount, raw_row
-                ) VALUES (
-                    :source_file_id, :source_row_no, :asin, :page_views,
-                    :units_ordered, :sessions, :ordered_sales_amount,
-                    CAST(:raw_row AS JSON)
-                )
-                """
-            ),
-            {
-                "source_file_id": source_file_id,
-                "source_row_no": _to_int(raw.get("source_row_no"), index),
-                "asin": raw.get("asin"),
-                "page_views": _to_int(raw.get("page_views")),
-                "units_ordered": _to_int(raw.get("units_ordered")),
-                "sessions": _to_int(raw.get("sessions")),
-                "ordered_sales_amount": _to_decimal(raw.get("ordered_sales_amount")),
-                "raw_row": _json_dumps(raw),
-            },
-        )
+def _read_a_table_dataframe(file_path: str, report_type: str) -> "pd.DataFrame":
+    """Read the source file using the parser-friendly reader for its type.
 
+    Payment uses a locale-aware reader; everything else uses the standard
+    _read_dataframe (csv / xlsx) so the column names arrive at parsers
+    untouched.
+    """
+    import pandas as pd
+    from pathlib import Path
+    from app.services.ad.upload.utils import _read_dataframe
+    from app.utils.payment_locale import read_payment_report_dataframe
 
-def _write_payment_detail(
-    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
-) -> None:
-    from sqlalchemy import text as _text
-    for index, raw in enumerate(scope_rows, start=1):
-        db.execute(
-            _text(
-                """
-                INSERT INTO analysis_payment_rows (
-                    source_file_id, source_row_no, transaction_at, transaction_type,
-                    order_id, sku, asin, quantity, product_sales, shipping_credits,
-                    promotional_rebates, other_amount, selling_fees, fba_fees,
-                    total_amount, scope_status, scope_reason, transaction_status,
-                    transaction_release_date, raw_row
-                ) VALUES (
-                    :source_file_id, :source_row_no, :transaction_at, :transaction_type,
-                    :order_id, :sku, :asin, :quantity, :product_sales, :shipping_credits,
-                    :promotional_rebates, :other_amount, :selling_fees, :fba_fees,
-                    :total_amount, :scope_status, :scope_reason, :transaction_status,
-                    :transaction_release_date, CAST(:raw_row AS JSON)
-                )
-                """
-            ),
-            {
-                "source_file_id": source_file_id,
-                "source_row_no": _to_int(raw.get("source_row_no"), index),
-                "transaction_at": raw.get("transaction_at"),
-                "transaction_type": str(raw.get("transaction_type", "Unknown"))[:64],
-                "order_id": raw.get("order_id"),
-                "sku": raw.get("sku"),
-                "asin": raw.get("asin"),
-                "quantity": _to_int(raw.get("quantity")),
-                "product_sales": _to_decimal(raw.get("product_sales")),
-                "shipping_credits": _to_decimal(raw.get("shipping_credits")),
-                "promotional_rebates": _to_decimal(raw.get("promotional_rebates")),
-                "other_amount": _to_decimal(raw.get("other_amount")),
-                "selling_fees": _to_decimal(raw.get("selling_fees")),
-                "fba_fees": _to_decimal(raw.get("fba_fees")),
-                "total_amount": _to_decimal(raw.get("total_amount")),
-                "scope_status": str(raw.get("scope_status", "excluded_unmapped"))[:32],
-                "scope_reason": raw.get("scope_reason"),
-                "transaction_status": raw.get("transaction_status"),
-                "transaction_release_date": raw.get("transaction_release_date"),
-                "raw_row": _json_dumps(raw),
-            },
-        )
-
-
-def _write_ad_product_detail(
-    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
-) -> None:
-    from sqlalchemy import text as _text
-    for index, raw in enumerate(scope_rows, start=1):
-        db.execute(
-            _text(
-                """
-                INSERT INTO analysis_ad_product_rows (
-                    source_file_id, source_row_no, sku, asin, impressions,
-                    clicks, spend, sales_7d, orders_7d, scope_status,
-                    scope_reason, raw_row
-                ) VALUES (
-                    :source_file_id, :source_row_no, :sku, :asin, :impressions,
-                    :clicks, :spend, :sales_7d, :orders_7d, :scope_status,
-                    :scope_reason, CAST(:raw_row AS JSON)
-                )
-                """
-            ),
-            {
-                "source_file_id": source_file_id,
-                "source_row_no": _to_int(raw.get("source_row_no"), index),
-                "sku": raw.get("sku"),
-                "asin": raw.get("asin"),
-                "impressions": _to_int(raw.get("impressions")),
-                "clicks": _to_int(raw.get("clicks")),
-                "spend": _to_decimal(raw.get("spend")),
-                "sales_7d": _to_decimal(raw.get("sales_7d")),
-                "orders_7d": _to_int(raw.get("orders_7d")),
-                "scope_status": str(raw.get("scope_status", "excluded_unmapped"))[:32],
-                "scope_reason": raw.get("scope_reason"),
-                "raw_row": _json_dumps(raw),
-            },
-        )
-
-
-def _write_return_detail(
-    db: Session, *, source_file_id: int, scope_rows: list[dict[str, Any]]
-) -> None:
-    from sqlalchemy import text as _text
-    for index, raw in enumerate(scope_rows, start=1):
-        db.execute(
-            _text(
-                """
-                INSERT INTO analysis_return_rows (
-                    source_file_id, source_row_no, return_date, order_id, sku,
-                    asin, fnsku, product_name, quantity, fulfillment_center_id,
-                    detailed_disposition, reason, status, license_plate_number,
-                    original_return_datetime, customer_comments, raw_row
-                ) VALUES (
-                    :source_file_id, :source_row_no, :return_date, :order_id, :sku,
-                    :asin, :fnsku, :product_name, :quantity, :fulfillment_center_id,
-                    :detailed_disposition, :reason, :status, :license_plate_number,
-                    :original_return_datetime, :customer_comments, CAST(:raw_row AS JSON)
-                )
-                """
-            ),
-            {
-                "source_file_id": source_file_id,
-                "source_row_no": _to_int(raw.get("source_row_no"), index),
-                "return_date": raw["return_date"],
-                "order_id": str(raw.get("order_id", ""))[:50] or "UNKNOWN",
-                "sku": str(raw.get("sku", ""))[:100] or "UNKNOWN",
-                "asin": raw.get("asin"),
-                "fnsku": raw.get("fnsku"),
-                "product_name": raw.get("product_name"),
-                "quantity": _to_int(raw.get("quantity"), 1),
-                "fulfillment_center_id": raw.get("fulfillment_center_id"),
-                "detailed_disposition": str(raw.get("detailed_disposition", "Unknown"))[:50],
-                "reason": str(raw.get("reason", "Unknown"))[:100],
-                "status": str(raw.get("status", "Unknown"))[:100],
-                "license_plate_number": str(raw.get("license_plate_number", ""))[:30],
-                "original_return_datetime": str(raw.get("original_return_datetime", ""))[:30],
-                "customer_comments": raw.get("customer_comments"),
-                "raw_row": _json_dumps(raw),
-            },
-        )
-
-
-_A_TABLE_DETAIL_WRITERS = {
-    "sales": _write_sales_detail,
-    "business": _write_business_detail,
-    "payment": _write_payment_detail,
-    "ad_product": _write_ad_product_detail,
-    "return": _write_return_detail,
-}
+    p = Path(file_path)
+    if report_type == "payment_report":
+        return read_payment_report_dataframe(p, country="US")
+    return _read_dataframe(p)
 
 
 def _write_a_table_detail_rows(
@@ -714,25 +551,119 @@ def _write_a_table_detail_rows(
     *,
     source_file_id: int,
     report_type: str,
-    scopes: list[Any],
+    local_file_path: str,
+    project_id: int,
+    country: str,
 ) -> None:
-    """Insert per-row detail rows for an A-table source row.
+    """Parse the source file with the canonical row parser and bulk-insert
+    detail rows into the matching ``analysis_*`` / ``inventory_*`` table.
 
-    No-op when ``report_type`` is not one of the 5 detail-bearing A-table
-    types (e.g. ``inventory_report`` snapshots, which currently have no
-    separate detail table) or when the daemon sent empty ``scope_rows``
-    for every scope (the legacy fallback that previously wrote only the
-    source row).
+    Uses ``app.utils.parsers.parse_*_rows`` (the same parsers the web upload
+    pipeline uses) instead of trusting whatever column names the daemon
+    sent in ``scope_rows``. The daemon's payload is the trigger; the source
+    of truth for row schema is the file on disk + the parser.
     """
+    import pandas as pd
+    from sqlalchemy import insert as sa_insert
+
+    from app.models.product_analysis_source import (
+        AnalysisAdProductRow,
+        AnalysisBusinessRow,
+        AnalysisPaymentRow,
+        AnalysisReturnRow,
+        AnalysisSalesOrderRow,
+    )
+    from app.models.product_analysis_source import InventorySnapshotRow
+    from app.utils.parsers import (
+        parse_ad_rows,
+        parse_business_rows,
+        parse_inventory_rows,
+        parse_payment_rows,
+        parse_return_rows,
+        parse_sales_rows,
+    )
+
     kind = _A_TABLE_DETAIL_DISPATCH.get(report_type)
     if kind is None:
         return
-    writer = _A_TABLE_DETAIL_WRITERS[kind]
-    for scope in scopes:
-        rows = list(scope.scope_rows or [])
-        if not rows:
-            continue
-        writer(db, source_file_id=source_file_id, scope_rows=rows)
+
+    path = Path(local_file_path)
+    if not path.exists():
+        logger.warning(
+            "auto-report ingest: source file not found, skipping detail rows: %s",
+            local_file_path,
+        )
+        return
+
+    try:
+        if kind == "sales":
+            payloads, _, _ = parse_sales_rows(path, source_file_id, country=country)
+            model = AnalysisSalesOrderRow
+        elif kind == "business":
+            payloads, _, _ = parse_business_rows(path, source_file_id)
+            model = AnalysisBusinessRow
+        elif kind == "payment":
+            known_skus, known_asins = _load_known_product_keys(
+                db, project_id=project_id, country=country,
+            )
+            df = _read_a_table_dataframe(local_file_path, report_type)
+            payloads, _, _ = parse_payment_rows(
+                df, source_file_id, known_skus, known_asins,
+            )
+            model = AnalysisPaymentRow
+        elif kind == "return":
+            df = _read_a_table_dataframe(local_file_path, report_type)
+            payloads, _ = parse_return_rows(df)
+            # parse_return_rows returns rows without source_file_id / source_row_no;
+            # add them so the bulk insert lands on the new source.
+            for index, payload in enumerate(payloads, start=1):
+                payload["source_file_id"] = source_file_id
+                payload["source_row_no"] = index
+                # Convert return_date_raw (datetime) -> return_date (date)
+                if "return_date_raw" in payload:
+                    payload["return_date"] = payload["return_date_raw"].date() \
+                        if hasattr(payload["return_date_raw"], "date") \
+                        else payload["return_date_raw"]
+                    payload.pop("return_date_raw", None)
+            model = AnalysisReturnRow
+        elif kind == "inventory":
+            payloads, _, _ = parse_inventory_rows(path, source_file_id)
+            model = InventorySnapshotRow
+        elif kind == "ad_product":
+            known_skus, known_asins = _load_known_product_keys(
+                db, project_id=project_id, country=country,
+            )
+            payloads, _, _ = parse_ad_rows(
+                path, source_file_id, known_skus, known_asins,
+            )
+            model = AnalysisAdProductRow
+        else:
+            return
+    except Exception as exc:
+        logger.warning(
+            "auto-report ingest: %s parser failed for %s: %s",
+            kind, local_file_path, exc,
+        )
+        return
+
+    if not payloads:
+        return
+
+    # Strip keys the target model doesn't know about, so bulk insert doesn't
+    # blow up on schema mismatches between the parser payload and the table.
+    table_columns = {column.key for column in model.__table__.columns}
+    payloads = [
+        {k: v for k, v in payload.items() if k in table_columns}
+        for payload in payloads
+    ]
+
+    try:
+        db.execute(sa_insert(model.__table__), payloads)
+    except Exception as exc:
+        logger.warning(
+            "auto-report ingest: %s detail bulk insert failed for source %s: %s",
+            kind, source_file_id, exc,
+        )
 
 
 def record_heartbeat(
