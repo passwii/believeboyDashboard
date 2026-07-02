@@ -219,11 +219,13 @@ def _cleanup_a_table(db_session, sha: str) -> None:
     db_session.commit()
 
 
-def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
-    """Bug 1: A-table /ingest must write analysis_sales_order_rows from scope_rows.
+def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session, tmp_path):
+    """Bug 1: A-table /ingest must write analysis_sales_order_rows from the file.
 
-    The current implementation only writes the source row (no detail rows).
-    This test feeds 2 scope_rows and asserts both land in the detail table.
+    The backend now re-reads ``local_file_path`` through the canonical
+    ``parse_sales_rows`` helper rather than trusting the daemon's
+    ``scope_rows`` field, so this test creates a real on-disk Amazon sales
+    TSV with 2 data rows and asserts the bulk insert lands both.
     """
     from app.models.product_analysis_source import AnalysisSalesOrderRow
     from app.models.project import Project
@@ -236,6 +238,69 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
     sha = hashlib.sha256(f"sales-detail-test-fixture-{os.urandom(8).hex()}".encode()).hexdigest()
     day = _unique_day("sales-detail")
 
+    # Build a real Amazon sales TSV with 2 data rows so parse_sales_rows
+    # can ingest it. The parser is column-name-strict (lowercase
+    # 'amazon-order-id', 'purchase-date', etc.).
+    filename = f"test-ingest-a-sales-{sha[:8]}.txt"
+    file_path = tmp_path / filename
+    file_path.write_text(
+        "\t".join(
+            [
+                "amazon-order-id",
+                "merchant-order-id",
+                "purchase-date",
+                "last-updated-date",
+                "order-status",
+                "fulfillment-channel",
+                "sales-channel",
+                "sku",
+                "asin",
+                "quantity",
+                "item-price",
+                "shipping-price",
+                "currency",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-0000001-0000001",
+                "111-0000001-0000001",
+                f"{day.isoformat()}T12:00:00+00:00",
+                f"{day.isoformat()}T12:00:01+00:00",
+                "Pending",
+                "Amazon",
+                "Amazon.com",
+                "SKU-A",
+                "B0TEST00001",
+                "1",
+                "9.99",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-0000002-0000002",
+                "111-0000002-0000002",
+                f"{day.isoformat()}T13:00:00+00:00",
+                f"{day.isoformat()}T13:00:01+00:00",
+                "Shipped",
+                "Amazon",
+                "Amazon.com",
+                "SKU-B",
+                "B0TEST00002",
+                "2",
+                "19.98",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
     try:
         r = client.post(
             "/api/v1/internal/auto-report/ingest",
@@ -243,10 +308,10 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
                 "report_type": "sales_report",
                 "project_id": project_id,
                 "country": "US",
-                "original_filename": f"test-ingest-a-sales-{sha[:8]}.txt",
+                "original_filename": filename,
                 "file_sha256": sha,
-                "file_size_bytes": 1024,
-                "local_file_path": f"/tmp/test-ingest-a-sales-{sha[:8]}.txt",
+                "file_size_bytes": file_path.stat().st_size,
+                "local_file_path": str(file_path),
                 "matched_columns": ["amazon-order-id", "sku", "purchase-date"],
                 "warnings": [],
                 "report_label": "销售报告",
@@ -255,36 +320,7 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
                     {
                         "scope_date": day.isoformat(),
                         "row_count_preview": 2,
-                        "scope_rows": [
-                            {
-                                "source_row_no": 1,
-                                "amazon_order_id": "111-0000001-0000001",
-                                "sku": "SKU-A",
-                                "purchase_at_utc": f"{day.isoformat()}T12:00:00+00:00",
-                                "purchase_at_pt": f"{day.isoformat()}T05:00:00",
-                                "purchase_date_pt": day.isoformat(),
-                                "order_status": "Pending",
-                                "quantity": 1,
-                                "item_price": "9.99",
-                                "shipping_price": "0.00",
-                                "currency": "USD",
-                                "is_counted_sales": True,
-                            },
-                            {
-                                "source_row_no": 2,
-                                "amazon_order_id": "111-0000002-0000002",
-                                "sku": "SKU-B",
-                                "purchase_at_utc": f"{day.isoformat()}T13:00:00+00:00",
-                                "purchase_at_pt": f"{day.isoformat()}T06:00:00",
-                                "purchase_date_pt": day.isoformat(),
-                                "order_status": "Shipped",
-                                "quantity": 2,
-                                "item_price": "19.98",
-                                "shipping_price": "0.00",
-                                "currency": "USD",
-                                "is_counted_sales": True,
-                            },
-                        ],
+                        "scope_rows": [],
                     }
                 ],
                 "operator": "autoReportUpload",
@@ -302,6 +338,17 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session):
             {"id": source_id},
         ).scalar()
         assert detail_count == 2, f"expected 2 detail rows, got {detail_count}"
+
+        # Verify the data actually landed (not just row count) — the parser
+        # would have mapped the row dicts into schema fields.
+        amount_sum = db_session.execute(
+            text(
+                "SELECT COALESCE(SUM(item_price), 0) FROM analysis_sales_order_rows "
+                "WHERE source_file_id = :id"
+            ),
+            {"id": source_id},
+        ).scalar()
+        assert float(amount_sum) == 29.97, f"item_price sum mismatch: {amount_sum}"
     finally:
         _cleanup_a_table(db_session, sha)
 
