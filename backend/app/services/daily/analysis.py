@@ -399,14 +399,19 @@ def build_daily_analysis(
         },
     }
 
-    if sku is None and not no_cache:
-        redis_service.set_daily_analysis_cache(
-            project_id,
-            normalized_country,
-            normalized_start.isoformat(),
-            normalized_end.isoformat(),
-            result,
-        )
+    if sku is None:
+        if no_cache:
+            # 主动失效整个项目的 daily-analysis 缓存，让后续普通请求（刷新页面、
+            # 切换日期范围 / 国家）也读到刚刷出来的新数据，而不是继续命中旧缓存。
+            redis_service.invalidate_daily_analysis_cache(project_id)
+        else:
+            redis_service.set_daily_analysis_cache(
+                project_id,
+                normalized_country,
+                normalized_start.isoformat(),
+                normalized_end.isoformat(),
+                result,
+            )
     return result
 
 

@@ -19,7 +19,7 @@ SHIPMENT_COST_SUMMARY_TTL = 3600
 SHIPMENT_SKU_TTL = 1800
 
 DAILY_ANALYSIS_KEY_PREFIX = "cache:reports:daily"
-DAILY_ANALYSIS_TTL = 7200
+DAILY_ANALYSIS_TTL = 120  # 2 minutes; 短 TTL + 主动 invalidate，负载高时再放宽
 
 SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX = "cache:shipment:in-transit-qty"
 SHIPMENT_IN_TRANSIT_QTY_TTL = 1800  # 30 minutes
