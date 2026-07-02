@@ -25,7 +25,7 @@ import {
 } from '../_components/api'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
 import { LedgerDayGroup } from '../_components/LedgerDayGroup'
-import { LedgerDetailSheet } from '../_components/LedgerDetailSheet'
+import { LedgerDetailDialog } from '../_components/LedgerDetailDialog'
 import { FREQUENCY_COLORS, FREQUENCY_LABELS, STATUS_BG } from '../_components/ledger-constants'
 import type { AIModelConfig } from '../_components/types'
 
@@ -41,7 +41,7 @@ export default function LedgerPage() {
   const [ledgerError, setLedgerError] = useState<string | null>(null)
   const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
   const [selectedItem, setSelectedItem] = useState<LedgerItem | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const today = new Date()
   const thirtyDaysAgo = new Date(today)
@@ -190,9 +190,9 @@ export default function LedgerPage() {
     }
   }
 
-  const openDetailSheet = (item: LedgerItem) => {
+  const openDetail = (item: LedgerItem) => {
     setSelectedItem(item)
-    setSheetOpen(true)
+    setDetailOpen(true)
   }
 
   return (
@@ -311,7 +311,7 @@ export default function LedgerPage() {
                     modelConfig={modelConfig}
                     isLoadingModelConfig={isLoadingModelConfig}
                     resendingStates={resendingStates}
-                    onRowClick={openDetailSheet}
+                    onRowClick={openDetail}
                     onResend={handleResendLedger}
                     onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
                     canTriggerResend={canTriggerResend}
@@ -341,7 +341,7 @@ export default function LedgerPage() {
                 <div
                   key={item.ledger_key}
                   className="p-4 active:bg-accent/50 transition-colors"
-                  onClick={() => openDetailSheet(item)}
+                  onClick={() => openDetail(item)}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="min-w-0">
@@ -384,10 +384,10 @@ export default function LedgerPage() {
         </CardContent>
       </Card>
 
-      {/* 台账详情 Sheet */}
-      <LedgerDetailSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
+      {/* 台账详情 Dialog */}
+      <LedgerDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
         item={selectedItem}
         subscriptions={subscriptions}
         modelConfig={modelConfig}
