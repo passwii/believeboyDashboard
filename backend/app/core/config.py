@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     replica_failure_threshold: int = Field(default=5, ge=1, le=100)
     replica_cooldown_seconds: int = Field(default=30, ge=1, le=600)
     api_key: str = Field(default="change-me", min_length=8)
+    internal_ingest_token: str = Field(default="", min_length=0, max_length=256)
     ai_chat_provider_base_url: str = Field(default="", max_length=500)
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)

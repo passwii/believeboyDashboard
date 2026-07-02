@@ -43,3 +43,4 @@ BEL-127 的根因是平台注入的 `workdir/AGENTS.md` 模板（BEL-93 段）�
 - **CodeGraph 规范** → [CLAUDE.md §"CodeGraph 语义知识图谱（实测版 v0.9.9）"](./CLAUDE.md)
 - **Project Overview / Quick Reference** → [CLAUDE.md](./CLAUDE.md)
 - **Superpowers 技能** → [CLAUDE.md §"Superpowers-ZH 中文增强版"](./CLAUDE.md)
+- **autoReportUpload HTTP ingest 计划** → [`docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md`](./docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md)
