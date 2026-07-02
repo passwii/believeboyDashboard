@@ -56,6 +56,7 @@ from app.schemas.external.aggregate import (
     AdTargetAggregateRow,
     AdTimeTrendAggregateRow,
 )
+from app.services.external import ad_targeting
 from app.utils.math_utils import (
     DECIMAL_ZERO,
     round_money,
@@ -541,11 +542,17 @@ def aggregate_search_terms(
     if not file_ids:
         return []
 
+    campaign_targeting_map = ad_targeting.build_campaign_targeting_cache(
+        db, project_id=project_id, country=country,
+        date_from=date_from, date_to=date_to,
+    )
+
     stmt = (
         select(
             AdUploadSearchTermRow.campaign_name,
             AdUploadSearchTermRow.search_term,
             AdUploadSearchTermRow.match_type,
+            AdUploadSearchTermRow.raw_row,
             func.coalesce(func.sum(AdUploadSearchTermRow.impressions), 0).label("impressions"),
             func.coalesce(func.sum(AdUploadSearchTermRow.clicks), 0).label("clicks"),
             func.coalesce(func.sum(AdUploadSearchTermRow.spend), 0).label("spend"),
@@ -557,6 +564,7 @@ def aggregate_search_terms(
             AdUploadSearchTermRow.campaign_name,
             AdUploadSearchTermRow.search_term,
             AdUploadSearchTermRow.match_type,
+            AdUploadSearchTermRow.raw_row,
         )
     )
 
@@ -567,12 +575,18 @@ def aggregate_search_terms(
         spend_d = Decimal(str(r.spend or 0))
         sales_d = Decimal(str(r.sales_7d or 0))
         orders = int(r.orders_7d or 0)
+        targeting_type = ad_targeting.resolve_targeting_type(
+            campaign_name=r.campaign_name,
+            country=country,
+            raw_row=r.raw_row or {},
+            campaign_targeting_map=campaign_targeting_map,
+        )
         rows.append(AdSearchTermAggregateRow(
             campaign_name=r.campaign_name,
             ad_group_name=None,
-            target_text=None,
             match_type=r.match_type,
             search_term=r.search_term,
+            targeting_type=targeting_type,
             impressions=impressions,
             clicks=clicks,
             spend=_money(spend_d),
