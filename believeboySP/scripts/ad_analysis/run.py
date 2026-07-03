@@ -11,15 +11,22 @@ import argparse
 import sys
 
 from . import d1_signals, d2_associate, d3_terms, d4_targets, d5_burst
+from . import a_negatives, a_budget, b_chain
 from . import load_data
 
 
 SUBTHEMES = {
+    # 主题 D（增长）
     "d1": ("高 ROAS × 低曝光词", d1_signals.main),
     "d2": ("互补品反哺", d2_associate.main),
     "d3": ("词性 + matchType 矩阵", d3_terms.main),
     "d4": ("提价机会", d4_targets.main),
     "d5": ("爆发词识别", d5_burst.main),
+    # 主题 A（降本）
+    "a1": ("否定词候选（高 spend 0 单）", a_negatives.main),
+    "a5": ("预算利用率 + 加/减预算", a_budget.main),
+    # 主题 B（提效）
+    "b3": ("搜索词 → 目标 链路 ROAS", b_chain.main),
 }
 
 

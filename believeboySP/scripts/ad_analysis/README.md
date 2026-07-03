@@ -5,17 +5,20 @@
 
 ## 模块清单
 
-| 文件 | 职责 |
-|------|------|
-| `load_data.py` | 从 `dash-api.believeboy.com` 拉取所有广告端点 → 本地 JSON 缓存 |
-| `classify.py` | 词性分类器（8 类无词典版）+ 项目 taxonomy 加载 |
-| `metrics.py` | 置信度标签、单位价值、share_max 聚合等通用指标 |
-| `d1_signals.py` | D1 高 ROAS × 低曝光词 |
-| `d2_associate.py` | D2 互补品反哺（purchased-products） |
-| `d3_terms.py` | D3 词性 + matchType 矩阵 |
-| `d4_targets.py` | D4 提价机会（TopShare） |
-| `d5_burst.py` | D5 爆发词识别（14d vs 14d） |
-| `run.py` | CLI 主入口，一键跑主题 D 全部子主题 |
+| 文件 | 主题 | 职责 |
+|------|------|------|
+| `load_data.py` | 通用 | 从 `dash-api.believeboy.com` 拉取所有广告端点 → 本地 JSON 缓存 |
+| `classify.py` | 通用 | 词性分类器（8 类无词典版）+ 项目 taxonomy 加载 |
+| `metrics.py` | 通用 | 置信度标签、单位价值、share_max 聚合等通用指标 |
+| `d1_signals.py` | D 增长 | D1 高 ROAS × 低曝光词 |
+| `d2_associate.py` | D 增长 | D2 互补品反哺（purchased-products） |
+| `d3_terms.py` | D 增长 | D3 词性 + matchType 矩阵 |
+| `d4_targets.py` | D 增长 | D4 提价机会（TopShare） |
+| `d5_burst.py` | D 增长 | D5 爆发词识别（14d vs 14d） |
+| `a_negatives.py` | A 降本 | A1 + A6 否定词候选（高 spend 0 单 / 低 ROAS） |
+| `a_budget.py` | A 降本 | A5 预算利用率 + 加/减预算（missed_* 量化） |
+| `b_chain.py` | B 提效 | B3 搜索词 → 目标 链路 ROAS（跨端点 JOIN） |
+| `run.py` | 入口 | CLI 主入口，一键跑全部子主题 |
 
 ## 快速开始
 
@@ -33,11 +36,16 @@ python -m ad_analysis.run --project 4 --country US
 ### 2. 单独跑某个子主题
 
 ```bash
-# D1 强信号
+# 主题 D 增长
 python -m ad_analysis.d1_signals --project 4
-
-# D5 爆发词（自动拉 14d vs 14d）
 python -m ad_analysis.d5_burst --project 4
+
+# 主题 A 降本
+python -m ad_analysis.a_negatives --project 4
+python -m ad_analysis.a_budget --project 4
+
+# 主题 B 提效
+python -m ad_analysis.b_chain --project 4
 ```
 
 ### 3. 编程式调用
@@ -75,6 +83,16 @@ for s in strong[:10]:
 | D3 词性主力 | attribute_modifier（165 词 / 57 单 / ROAS 3.76）|
 | D4 提价机会 | 9 目标（TopShare<5% + ROAS≥3）|
 | D5 真爆发 | 1 个（`m35 cobalt drill bit set` ROAS 8.67）|
+
+## 主题 A + B 实战指标（v2.2 扩展）
+
+| 强信号 | 玥涵 30d 实测 |
+|--------|---------------|
+| A1 立即否定 | 16 词（spend≥$5 且 0 订单）|
+| A6 降级匹配 | 13 词（spend≥$3 且 ROAS<1）|
+| A5 释放预算 | 7 活动（利用率<60%）|
+| B3 Top 链路 | `115 cobalt drill bit set` ROAS 120 / $208 / 1单 |
+| B3 断点链路 | `cobalt drill bit set` 高 spend 0 单（多重 target type 重复）|
 
 ## 数据流
 
