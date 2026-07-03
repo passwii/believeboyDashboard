@@ -53,7 +53,7 @@ sudo journalctl -u believeboy-worker -p err -n 100 --no-pager
 
 ### 1.2 修改并发数
 
-`/home/damon/believeboyDashboard/backend/.env`：
+`/root/believeboyDashboard/backend/.env`：
 
 ```bash
 # CPU 几核就写几；VPS 升配后只需要改这里 + restart worker
@@ -78,7 +78,7 @@ CELERY_WORKER_CONCURRENCY=8
   flower，然后用 `http://127.0.0.1:5555` + `dev / dev` 登录。
 
 用户名固定为 `flower_admin`（在 systemd 单元里 hardcode 了），密码在
-`/home/damon/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。
+`/root/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。
 **不要把这个密码贴到 issue / Slack**，需要给同事开权限时让运维直接
 ssh 到 VPS 上加新的 `basic_auth=` 段（更稳的方案是接公司 SSO，但当前
 issue 不在范围内）。
@@ -207,7 +207,7 @@ Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置�
 
 ```bash
 # 在 VPS 上进项目 venv
-cd /home/damon/believeboyDashboard/backend
+cd /root/believeboyDashboard/backend
 source .venv/bin/activate
 
 # 列出 broker 中所有失败任务的 id（走 result backend）
@@ -315,7 +315,7 @@ connecting to ...`。
 并发槽位：
 
 ```bash
-cd /home/damon/believeboyDashboard/backend
+cd /root/believeboyDashboard/backend
 # 关掉 systemd 单元（不要同时跑）
 sudo systemctl stop believeboy-worker
 # 拉起 3 个 worker 进程

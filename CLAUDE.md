@@ -92,52 +92,52 @@ FastAPI 内部端点 `/api/v1/internal/auto-report/{recognize,ingest,heartbeat}`
 
 ## Production Deployment / Restart Services
 
-> **这台机器（Linux 7.0.0-22-generic）上的服务用 systemd 管理。** 改完代码需要让线上生效时，**不要直接 `pkill`**，直接走 `systemctl restart`。
+> **这台机器上的服务用 systemd 管理。** 改完代码需要让线上生效时，**不要直接 `pkill`**，直接走 `systemctl restart`。
 
-### 服务清单（systemd units）
+### 服务清单（systemd units，**仅后端**）
 
 | Unit 名 | 进程 | 监听 | 备注 |
 |---|---|---|---|
 | `believeboy-api.service`   | `uvicorn app.main:app`     | `0.0.0.0:8100` | FastAPI 后端；OpenAPI 文档在 `/docs` |
-| `believeboy-web.service`   | `next-server`              | `0.0.0.0:3200` | Next.js 前端（**不是 3000**，启动日志会打印 `Local: http://localhost:3200`） |
 | `believeboy-worker.service` | Celery worker             | —              | 后台任务 |
 | `believeboy-flower.service` | Celery Flower             | —              | 任务监控，带 basic auth |
 
-来源：`/etc/systemd/system/believeboy-*.service`；git 工作树：`/home/damon/believeboyDashboard`。
+> **前端不在本 VPS** — Next.js 部署在 [Vercel / 用户实际的外部平台]，**没有** `believeboy-web.service`。`frontend/deploy/systemd/believeboy-web.service` 仅作本机调试时的参考模板，不部署到 VPS。生产前端环境变量在部署平台的 dashboard 配置（不是 `frontend/.env.local`，那是 Mac 本地开发用）。
+
+来源：`/etc/systemd/system/believeboy-{api,worker,flower}.service`；git 工作树：`/root/believeboyDashboard`。
 
 ### 常见操作
 
 ```bash
 # 查看状态
-systemctl status believeboy-api.service believeboy-web.service
-systemctl is-active believeboy-api.service believeboy-web.service
+systemctl status believeboy-api.service believeboy-worker.service believeboy-flower.service
+systemctl is-active believeboy-api.service
 
-# 重启（用户提问"重启前后端"的标准动作）
-sudo systemctl restart believeboy-api.service believeboy-web.service
+# 重启后端
+sudo systemctl restart believeboy-api.service
 
-# ⚠️ 改前端代码 → 必须先 `pnpm build` 再 `systemctl restart believeboy-web`。
-#    `next start` 直接服务 .next/ 产物，**不会**自动重 build；少了 build 步骤，
-#    新加的 route / page、改的 `app/api/.../[id]/route.ts` 会一直返回旧版
-#    （典型症状：新 BFF 路由 404、新 page 不出现、TypeScript 错误未被 build 拦截）。
-cd /home/damon/believeboyDashboard/frontend && pnpm build
-sudo systemctl restart believeboy-web.service
+# 改 backend 代码（包括 schema / endpoint / service）→ `restart believeboy-api`。
+# uvicorn 没有 `--reload`（unit 里 `--no-access-log` 也没开 reload）。
+
+# 改 backend 涉及 DB schema → 先 `alembic upgrade head`（如有新迁移）再 `restart believeboy-api`。
+# uvicorn 重启后会重新 import 所有模块，新 schema / endpoint 立刻生效。
 
 # 只看日志
 sudo journalctl -u believeboy-api.service -n 50 --no-pager
-sudo journalctl -u believeboy-web.service -n 50 --no-pager
 
 # 健康检查
 curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8100/docs
-curl -s -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:3200/
 ```
+
+> **前端不在本 VPS** — 改 Next.js 代码的部署走前端平台（Vercel 等），不是 systemctl。重启顺序在那边管，不在本节讨论。
 
 ### 复盘：为什么不要 `pkill uvicorn` / `pkill next`
 
 - systemd 会在你杀掉进程后**自动重新拉起**它，但拉起时它读到的可能仍是**旧**代码 / **旧** `.env`，还可能撞端口（`Address already in use`），最终进入 `activating (auto-restart)` 死循环。
 - 走 `systemctl restart` 会按 unit file 的 `ExecStart` 顺序：先 SIGTERM 旧 PID → 等待 `TimeoutStopSec` → 再 `ExecStart` 新进程，监听端口也由 systemd 接管，不会留 orphan 进程。
-- 改 backend 代码（包括 schema / endpoint / service）→ **必须** `restart believeboy-api`，uvicorn 没有 `--reload`（unit 里 `--no-access-log` 也没开 reload）。改 Next.js route / page → `restart believeboy-web`，`next start` 也不会自动热更。
-- **改前端代码的完整顺序：`pnpm build` → `systemctl restart believeboy-web`**。`next start` 只服务 `.next/` 产物，**不会自动 build**；漏 build 会让新加的 route / page / BFF handler 一直 404。详见"常见操作"段的 ⚠️ 注释。
+- 改 backend 代码（包括 schema / endpoint / service）→ **必须** `restart believeboy-api`，uvicorn 没有 `--reload`（unit 里 `--no-access-log` 也没开 reload）。
 - 改 backend 后端 → `alembic upgrade head`（如有新迁移）→ `systemctl restart believeboy-api`。uvicorn 重启后会重新 import 所有模块，新 schema / endpoint 立刻生效。
+- **本 VPS 没有 `believeboy-web`** — 前端在外部平台，改前端代码不在本节服务管理范围内。
 
 ### Mac 本地开发（launchd）
 
@@ -151,21 +151,21 @@ curl -s -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:3200/
 | 看日志 | `deploy/launchd/bin/logs.sh` |
 | 卸载 | `deploy/launchd/bin/uninstall.sh` |
 
-Mac 上的 **DB 走远程 VPS**（`192.168.100.113:5432`），不在 Mac 起 Postgres/Redis。`.env` 里 `PGHOST` / `DATABASE_URL` / `REDIS_HOST` 需要改远程值，模板见 [`deploy/launchd/.env.mac.example`](./deploy/launchd/.env.mac.example)。
+Mac 上的 **DB 走远程 VPS**（`145.79.143.98:5432`），不在 Mac 起 Postgres/Redis。`.env` 里 `PGHOST` / `DATABASE_URL` / `REDIS_HOST` 需要改远程值，模板见 [`deploy/launchd/.env.mac.example`](./deploy/launchd/.env.mac.example)。
 
 **Mac 上的核心坑**（细节见 `deploy/launchd/README.md`）：
 
 - `pkill uvicorn` 同样会把 launchd 拉进 `KeepAlive` 重启循环；改代码一律 `bin/restart.sh`。
 - **不加 `--reload`**（launchd 的 PID 跟踪会和 reload 的 watcher 子进程冲突），改完走 `bin/restart.sh`。
 - launchd 没有 `EnvironmentFile=` 语义，wrapper (`bin/run-api.sh`) 内部 `source .env`。
-- 前端在 Vercel，所以 Mac **不开 `believeboy-web`**；该 unit 仍只在 VPS 起。
+- 前端不在 VPS（外部平台），所以 Mac **不开 `believeboy-web`**；该 unit 在新版也不再部署。
 
 ### 已知坑
 
 - `ss -ltnp` 在沙箱里看不到非自己用户的 socket，**用 `journalctl -u <unit> -n 5` + `ps -ef | grep` 双确认**比 `curl` 探针更可靠。
-- 前端访问入口是 **`3200`** 不是 3000；老文档里偶尔写 3000 是历史遗留，别被误导。
 - 重启后用 `curl http://127.0.0.1:8100/docs` 探活比 `/health` 靠谱：项目里目前没挂 `/health` 路由（返回 404 是正常的，不代表服务挂了）。
-- **BFF 路由 404 通常是漏 `pnpm build`**：`app/api/.../[id]/route.ts` 改了之后必须 build，新路由才会出现在 `.next/server/app/api/...`。先用 `journalctl -u believeboy-web -n 20` 看启动日志里 `✓ Ready in Xms` 之前的 route 列表确认。
+- **BFF 路由 404 通常是漏 `pnpm build`**：`app/api/.../[id]/route.ts` 改了之后必须 build，新路由才会出现在 `.next/server/app/api/...`。本节不适用（前端不在 VPS），详见前端平台的部署文档。
+- 前端开发服端口：本机 `pnpm dev` 用 `3000`/`3200` 看本地配置；旧文档说 "前端访问入口是 `3200`" 是当时 `believeboy-web.service` 跑在本 VPS 的历史遗留，已不适用。
 
 ## Architecture
 

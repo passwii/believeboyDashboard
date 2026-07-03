@@ -227,7 +227,7 @@ psql -U believeboy -d believeboy -c 'SELECT version();'
 pg_dump "$OLD_DATABASE_URL" --no-owner --no-acl -Fc -f backup.dump
 
 # 把 backup.dump 传到新 VPS
-scp backup.dump damon@192.168.100.113:/tmp/
+scp backup.dump root@145.79.143.98:/tmp/
 
 # 在新 Coolify postgres 容器里恢复
 docker exec -i $(docker ps -q -f name=believeboy-postgres) \

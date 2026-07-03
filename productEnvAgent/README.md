@@ -1,6 +1,6 @@
 # ProductEnvAgent - VPS 部署工具
 
-本目录包含用于自动化部署 BelieveBoy Dashboard 到生产服务器（192.168.100.113）的工具和配置。
+本目录包含用于自动化部署 BelieveBoy Dashboard 到生产服务器（145.79.143.98）的工具和配置。
 
 ## 快速开始
 
@@ -34,7 +34,7 @@ python deploy_vps.py --dry-run
 ## 部署流程
 
 1. SSH 连接到 VPS
-2. 切换到项目目录 `cd /home/damon/believeboyDashboard/`
+2. 切换到项目目录 `cd /root/believeboyDashboard/`
 3. 执行 `git pull`
 4. 切换到后端目录 `cd backend/`
 5. 激活虚拟环境 `source .venv/bin/activate`
@@ -49,7 +49,7 @@ python deploy_vps.py --dry-run
 - **Systemd 配置**: `/etc/systemd/system/believeboy-api.service`
 - **运行方式**: Python 3 + uvicorn (FastAPI)
 - **API 端口**: http://127.0.0.1:8100
-- **虚拟环境**: `/home/damon/believeboyDashboard/backend/.venv/`
+- **虚拟环境**: `/root/believeboyDashboard/backend/.venv/`
 
 ## 失败诊断
 
@@ -109,8 +109,8 @@ chmod +x ~/.git-templates/hooks/post-push
 ## 手动操作命令
 
 ```bash
-# SSH 连接到 VPS
-ssh damon@192.168.100.113
+# SSH 连接到 VPS（root + 密钥）
+ssh root@145.79.143.98
 
 # 在 VPS 上手动重启服务
 systemctl stop believeboy-api
