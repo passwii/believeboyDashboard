@@ -619,6 +619,238 @@ def test_ingest_sales_splits_per_purchase_date(client, auth_headers, db_session,
         _cleanup_a_table(db_session, sha)
 
 
+def test_ingest_sales_failure_no_source_row(client, auth_headers, db_session):
+    """Fail-loud: refuse to write an empty source file when the daemon
+    reports non-zero preview but ships zero ``scope_rows``.
+
+    Regression: 7.2 18:03:36 博朗姆 Orders-2026-07-02_18-03-36.txt went
+    through ``parse_sales_rows`` failure → fallback created a source
+    row with ``scope_rows=[]`` and 0 detail rows landed. daily-analysis
+    silently showed nothing for that file. We now raise 5xx so the
+    daemon's API client leaves the file in the watch root and the
+    failure is visible in the daemon log + monitoring.
+    """
+    from app.models.project import Project
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(
+        f"sales-fail-loud-{os.urandom(8).hex()}".encode()
+    ).hexdigest()
+    day = _unique_day("sales-fail-loud")
+
+    # The exact symptom of the 7.2 bug: preview says 12, but scope_rows
+    # is empty. Backend MUST refuse to write the source row.
+    try:
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "sales_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": f"test-fail-loud-{sha[:8]}.txt",
+                "file_sha256": sha,
+                "file_size_bytes": 4096,
+                "local_file_path": f"/tmp/test-fail-loud-{sha[:8]}.txt",
+                "matched_columns": ["amazon-order-id", "sku", "purchase-date"],
+                "warnings": [],
+                "report_label": "销售报告",
+                "report_date": day.isoformat(),
+                "scopes": [
+                    {
+                        "scope_date": day.isoformat(),
+                        "row_count_preview": 12,
+                        "scope_rows": [],
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        # Must be 5xx (FastAPI surfaces ValueError as 500).
+        assert r.status_code >= 500, (
+            f"expected 5xx for empty scope_rows with non-zero preview, "
+            f"got {r.status_code}: {r.text}"
+        )
+        body = r.json()
+        detail_text = str(body.get("detail", ""))
+        assert "empty scope_rows" in detail_text or "refusing" in detail_text, (
+            f"error message should mention 'empty scope_rows' or 'refusing', "
+            f"got: {detail_text!r}"
+        )
+
+        # DB must be untouched.
+        from sqlalchemy import text
+        sf_count = db_session.execute(
+            text(
+                "SELECT count(*) FROM analysis_source_files "
+                "WHERE file_sha256 = :s"
+            ),
+            {"s": sha},
+        ).scalar()
+        assert sf_count == 0, (
+            f"expected 0 source rows for fail-loud, got {sf_count}"
+        )
+        detail_count = db_session.execute(
+            text("SELECT count(*) FROM analysis_sales_order_rows "
+                 "WHERE source_file_id IN (SELECT id FROM analysis_source_files "
+                 "WHERE file_sha256 = :s)"),
+            {"s": sha},
+        ).scalar()
+        assert detail_count == 0, (
+            f"expected 0 detail rows for fail-loud, got {detail_count}"
+        )
+    finally:
+        _cleanup_a_table(db_session, sha)
+
+
+def test_ingest_stores_basename_not_absolute_path(
+    client, auth_headers, db_session, tmp_path
+):
+    """The A-table ingest path stores only the file basename in
+    ``analysis_source_files.upload_file_path``, not the absolute path
+    the daemon lives on.
+
+    Rationale: the daemon runs on Mac, the API runs on VPS, and the
+    VPS does NOT store report files. Storing the full Mac path
+    (e.g. ``/Users/damon/Documents/RPA/博朗姆/processed/Orders-...txt``)
+    in a column the backend never reads is a violation of the
+    "VPS does not store files" principle. We keep the column (so the
+    audit trail still names the file) but reduce it to the basename.
+    """
+    from app.models.product_analysis_source import AnalysisSalesOrderRow
+    from app.models.project import Project
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(
+        f"sales-basename-{os.urandom(8).hex()}".encode()
+    ).hexdigest()
+    day = _unique_day("sales-basename")
+
+    filename = f"test-basename-{sha[:8]}.txt"
+    # Fake a deeply-nested Mac-style absolute path the daemon would
+    # send. The basename of this path is the only thing the backend
+    # should ever persist.
+    mac_style_path = (
+        f"/Users/damon/Documents/RPA/博朗姆/processed/{filename}"
+    )
+    file_path = tmp_path / filename
+    file_path.write_text(
+        "\t".join(
+            [
+                "amazon-order-id",
+                "purchase-date",
+                "order-status",
+                "sku",
+                "asin",
+                "quantity",
+                "item-price",
+                "shipping-price",
+                "currency",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-9999001-0000001",
+                f"{day.isoformat()}T12:00:00+00:00",
+                "Shipped",
+                "SKU-BASE",
+                "B0TESTBASE1",
+                "1",
+                "9.99",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    try:
+        import sys
+        sys.path.insert(0, str(file_path.parent.parent.parent / "backend"))
+        from app.utils.parsers import parse_sales_rows
+        scope_rows, _, _ = parse_sales_rows(
+            file_path, source_file_id=0, country="US",
+        )
+
+        from decimal import Decimal as _Decimal
+        def _jsonable(value):
+            if hasattr(value, "isoformat"):
+                try:
+                    return value.isoformat()
+                except TypeError:
+                    pass
+            if isinstance(value, _Decimal):
+                return str(value)
+            if isinstance(value, dict):
+                return {k: _jsonable(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_jsonable(v) for v in value]
+            return value
+
+        for r in scope_rows:
+            for k, v in list(r.items()):
+                r[k] = _jsonable(v)
+
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "sales_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": filename,
+                "file_sha256": sha,
+                "file_size_bytes": file_path.stat().st_size,
+                "local_file_path": mac_style_path,
+                "matched_columns": ["amazon-order-id", "sku", "purchase-date"],
+                "warnings": [],
+                "report_label": "销售报告",
+                "report_date": day.isoformat(),
+                "scopes": [
+                    {
+                        "scope_date": day.isoformat(),
+                        "row_count_preview": len(scope_rows),
+                        "scope_rows": scope_rows,
+                    }
+                ],
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "created", body
+        source_id = body["source_id"]
+
+        # The source row must store ONLY the basename, not the full
+        # Mac path. Anything else violates the "VPS does not store
+        # files" principle.
+        from sqlalchemy import text
+        stored_path = db_session.execute(
+            text("SELECT upload_file_path FROM analysis_source_files WHERE id = :id"),
+            {"id": source_id},
+        ).scalar()
+        assert stored_path == filename, (
+            f"upload_file_path must be basename only; "
+            f"expected {filename!r}, got {stored_path!r}"
+        )
+        # Belt and suspenders: no directory separators survived.
+        assert "/" not in stored_path, (
+            f"upload_file_path must not contain '/': {stored_path!r}"
+        )
+    finally:
+        _cleanup_a_table(db_session, sha)
+
+
 def test_ingest_ad_target_writes_detail_rows(client, auth_headers, db_session):
     """Bug 2: C-table /ingest must write ad_upload_target_rows from scope_rows.
 
