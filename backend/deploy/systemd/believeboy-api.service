@@ -3,11 +3,11 @@ Description=Believeboy FastAPI service
 After=network.target
 
 [Service]
-User=damon
-Group=damon
-WorkingDirectory=/home/damon/believeboyDashboard/backend
-EnvironmentFile=/home/damon/believeboyDashboard/backend/.env
-ExecStart=/home/damon/believeboyDashboard/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100 --no-access-log
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/backend
+EnvironmentFile=/root/believeboyDashboard/backend/.env
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8100 --no-access-log
 Restart=always
 RestartSec=3
 

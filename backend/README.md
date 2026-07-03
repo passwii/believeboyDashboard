@@ -13,7 +13,7 @@ pip install -r requirements.txt
 
 `backend/.env` 用于后端自己的运行配置，其中 `DATABASE_URL`、`PGHOST`、`PGPORT`、`PGDATABASE`、`PGUSER`、`PGPASSWORD` 都只应保留在后端，不应放到前端的 `.env.local`。`AI_CHAT_PROVIDER_BASE_URL`、`AI_CHAT_PROVIDER_API_KEY`、`AI_CHAT_DEFAULT_MODEL`、`AI_CHAT_MODEL_ALLOWLIST`、`AI_CHAT_TIMEOUT_SECONDS` 也统一放在后端。`DATABASE_URL` 现在是必填项，未配置时后端和 Alembic 会直接报错，不再回退到本地 SQLite。
 
-> **2026-06-13 变更**：`.env` 现已加入 git 跟踪（仓库已私有化），所有 worktree 切分支时 `git pull` 即可同步。`API_KEY` 等敏感变量随仓库走。
+> **2026-07-02 变更**：`.env` 已从 git 追踪移除并加入 `.gitignore`（之前 2026-06-13 加入追踪是误判，仓库虽然私有化但 .env 不该入库）。`.env.example` 仍是模板，新成员按它填写。敏感变量（API_KEY、NEXTAUTH_SECRET、INTERNAL_INGEST_TOKEN、FLOWER_PASSWORD 等）通过本地 `backend/.env` + VPS `/root/believeboyDashboard/backend/.env` 各自维护，**不入库**。
 
 ## Run API
 

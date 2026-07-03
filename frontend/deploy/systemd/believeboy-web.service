@@ -3,12 +3,12 @@ Description=Believeboy Next.js web (frontend)
 After=network.target
 
 [Service]
-User=damon
-Group=damon
-WorkingDirectory=/home/damon/believeboyDashboard/frontend
-EnvironmentFile=/home/damon/believeboyDashboard/frontend/.env.local
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/frontend
+EnvironmentFile=/root/believeboyDashboard/frontend/.env.local
 # next start 不需要 H 参数：默认值就是 0.0.0.0，刚好能让 tunnel 在另一台机器转过来
-ExecStart=/home/damon/believeboyDashboard/frontend/node_modules/.bin/next start -p 3200
+ExecStart=/root/believeboyDashboard/frontend/node_modules/.bin/next start -p 3200
 Restart=always
 RestartSec=3
 

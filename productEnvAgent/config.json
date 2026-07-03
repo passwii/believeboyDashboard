@@ -1,7 +1,7 @@
 {
   "skill": {
     "name": "deploy-vps",
-    "description": "Deploys the BelieveBoy Dashboard to the production server (192.168.100.113)",
+    "description": "Deploys the BelieveBoy Dashboard to the production server (145.79.143.98)",
     "module": "deploy_vps.py",
     "entry_point": "main",
     "args_schema": {
@@ -37,15 +37,15 @@
     }
   },
   "vps": {
-    "host": "192.168.100.113",
-    "user": "damon",
-    "project_dir": "/home/damon/believeboyDashboard/",
-    "backend_dir": "/home/damon/believeboyDashboard/backend/",
+    "host": "145.79.143.98",
+    "user": "root",
+    "project_dir": "/root/believeboyDashboard/",
+    "backend_dir": "/root/believeboyDashboard/backend/",
     "service_name": "believeboy-api"
   },
   "workflow": {
     "steps": [
-      "cd /home/damon/believeboyDashboard/ && git pull",
+      "cd /root/believeboyDashboard/ && git pull",
       "cd backend/ && source .venv/bin/activate && alembic upgrade head",
       "systemctl stop believeboy-api",
       "systemctl start believeboy-api",

@@ -25,8 +25,6 @@ if [ -z "${REPO_ROOT:-}" ]; then
         REPO_ROOT="$CANDIDATE"
     elif [ -d /root/believeboyDashboard/backend ]; then
         REPO_ROOT=/root/believeboyDashboard
-    elif [ -d /home/damon/believeboyDashboard/backend ]; then
-        REPO_ROOT=/home/damon/believeboyDashboard
     else
         REPO_ROOT="$CANDIDATE"
     fi

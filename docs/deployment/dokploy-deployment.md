@@ -226,7 +226,7 @@ psql -U believeboy -d believeboy -c 'SELECT version();'
 ```bash
 # 在旧机器上
 pg_dump "$OLD_DATABASE_URL" --no-owner --no-acl -Fc -f backup.dump
-scp backup.dump damon@192.168.100.113:/tmp/
+scp backup.dump root@145.79.143.98:/tmp/
 
 # 在 Dokploy postgres 容器里恢复
 docker exec -i $(docker ps -q -f name=believeboy-postgres) \

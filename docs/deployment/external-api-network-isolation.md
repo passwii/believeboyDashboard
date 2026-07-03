@@ -159,7 +159,7 @@ To fix, edit the systemd unit:
 
 ```ini
 [Service]
-ExecStart=/home/damon/believeboyDashboard/backend/.venv/bin/uvicorn \
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/uvicorn \
     app.main:app \
     --host 0.0.0.0 \
     --port 8100 \
