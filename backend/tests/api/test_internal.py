@@ -386,6 +386,239 @@ def test_ingest_sales_writes_detail_rows(client, auth_headers, db_session, tmp_p
         _cleanup_a_table(db_session, sha)
 
 
+def test_ingest_sales_splits_per_purchase_date(client, auth_headers, db_session, tmp_path):
+    """Sales reports with rows across multiple ``purchase_date_pt`` values
+    must produce one ``analysis_source_files`` row per distinct date.
+
+    The daily-analysis aggregator filters on
+    ``AnalysisSourceFile.report_date``; without per-date source rows every
+    order in the file would land on whichever date the daemon picked as
+    ``scope_date`` (regression: prior refactor used ``detected_start_date``
+    as the only scope date, collapsing 3-day sales files into a single
+    bucket).
+    """
+    import sys
+    from decimal import Decimal as _Decimal
+
+    from app.models.product_analysis_source import AnalysisSalesOrderRow
+    from app.models.project import Project
+
+    project = db_session.query(Project).first()
+    if project is None:
+        pytest.skip("no project in test db, seed first")
+    project_id = project.id
+
+    sha = hashlib.sha256(
+        f"sales-per-date-fixture-{os.urandom(8).hex()}".encode()
+    ).hexdigest()
+    day_a = _unique_day("sales-per-date-a")
+    day_b = day_a + timedelta(days=1)
+
+    # Build a 3-row TSV: 2 rows on day_a, 1 row on day_b. We use
+    # _unique_day for day_a so it cannot collide with prior runs, and a
+    # +1 offset for day_b so the partition actually has two buckets.
+    filename = f"test-ingest-a-sales-per-date-{sha[:8]}.txt"
+    file_path = tmp_path / filename
+    file_path.write_text(
+        "\t".join(
+            [
+                "amazon-order-id",
+                "purchase-date",
+                "order-status",
+                "sku",
+                "asin",
+                "quantity",
+                "item-price",
+                "shipping-price",
+                "currency",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-1000001-0000001",
+                f"{day_a.isoformat()}T12:00:00+00:00",
+                "Shipped",
+                "SKU-A1",
+                "B0TEST00001",
+                "1",
+                "9.99",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-1000002-0000002",
+                f"{day_a.isoformat()}T13:00:00+00:00",
+                "Pending",
+                "SKU-A2",
+                "B0TEST00002",
+                "2",
+                "19.98",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n"
+        + "\t".join(
+            [
+                "111-1000003-0000003",
+                f"{day_b.isoformat()}T12:00:00+00:00",
+                "Shipped",
+                "SKU-B1",
+                "B0TEST00003",
+                "1",
+                "5.99",
+                "0.00",
+                "USD",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    try:
+        # Pre-parse the file the way the daemon does, then split scope_rows
+        # by ``purchase_date_pt`` so each bucket becomes its own scope.
+        sys.path.insert(0, str(file_path.parent.parent.parent / "backend"))
+        from app.utils.parsers import parse_sales_rows
+
+        all_rows, _, _ = parse_sales_rows(
+            file_path, source_file_id=0, country="US",
+        )
+
+        def _jsonable(value):
+            if hasattr(value, "isoformat"):
+                try:
+                    return value.isoformat()
+                except TypeError:
+                    pass
+            if isinstance(value, _Decimal):
+                return str(value)
+            if isinstance(value, dict):
+                return {k: _jsonable(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_jsonable(v) for v in value]
+            return value
+
+        grouped: dict[date, list[dict]] = {}
+        for row in all_rows:
+            pt = row.get("purchase_date_pt")
+            if isinstance(pt, date):
+                grouped.setdefault(pt, []).append(row)
+
+        scopes = []
+        for scope_date in sorted(grouped):
+            day_rows = grouped[scope_date]
+            for r in day_rows:
+                for k, v in list(r.items()):
+                    r[k] = _jsonable(v)
+            scopes.append(
+                {
+                    "scope_date": scope_date.isoformat(),
+                    "row_count_preview": len(day_rows),
+                    "scope_rows": day_rows,
+                }
+            )
+
+        assert len(scopes) == 2, f"expected 2 scopes (one per date), got {len(scopes)}"
+
+        r = client.post(
+            "/api/v1/internal/auto-report/ingest",
+            json={
+                "report_type": "sales_report",
+                "project_id": project_id,
+                "country": "US",
+                "original_filename": filename,
+                "file_sha256": sha,
+                "file_size_bytes": file_path.stat().st_size,
+                "local_file_path": str(file_path),
+                "matched_columns": ["amazon-order-id", "sku", "purchase-date"],
+                "warnings": [],
+                "report_label": "销售报告",
+                "report_date": day_b.isoformat(),
+                "scopes": scopes,
+                "operator": "autoReportUpload",
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "created", body
+
+        # Two AnalysisSourceFile rows: one per scope_date.
+        from sqlalchemy import text
+
+        rows = db_session.execute(
+            text(
+                "SELECT id, report_date FROM analysis_source_files "
+                "WHERE file_sha256 = :s ORDER BY report_date"
+            ),
+            {"s": sha},
+        ).all()
+        assert len(rows) == 2, f"expected 2 source rows, got {len(rows)}: {rows}"
+        report_dates = {row[1] for row in rows}
+        assert report_dates == {day_a, day_b}, (
+            f"source rows must own their purchase date, got {report_dates}"
+        )
+
+        # Build a date -> source_id map and verify detail rows are
+        # partitioned to the right source row.
+        date_to_source_id = {row[1]: row[0] for row in rows}
+
+        # day_a should have 2 detail rows; day_b should have 1.
+        for scope_date, expected_count in [(day_a, 2), (day_b, 1)]:
+            sid = date_to_source_id[scope_date]
+            detail_count = db_session.execute(
+                text(
+                    "SELECT count(*) FROM analysis_sales_order_rows "
+                    "WHERE source_file_id = :id"
+                ),
+                {"id": sid},
+            ).scalar()
+            assert detail_count == expected_count, (
+                f"scope_date={scope_date} source_id={sid}: "
+                f"expected {expected_count} detail rows, got {detail_count}"
+            )
+
+        # Cross-check: no detail row should be linked to the wrong source.
+        # Pick the day_a source id and assert none of its detail rows have
+        # purchase_date_pt on day_b (and vice versa).
+        from sqlalchemy import text as _text
+
+        for scope_date in (day_a, day_b):
+            sid = date_to_source_id[scope_date]
+            wrong_count = db_session.execute(
+                _text(
+                    "SELECT count(*) FROM analysis_sales_order_rows "
+                    "WHERE source_file_id = :id AND purchase_date_pt <> :d"
+                ),
+                {"id": sid, "d": scope_date},
+            ).scalar()
+            assert wrong_count == 0, (
+                f"source_id={sid} (scope_date={scope_date}) has "
+                f"{wrong_count} detail rows belonging to a different date"
+            )
+
+        # Last-but-not-least: only one row per scope should still be
+        # is_current (matches the new source row).
+        for scope_date in (day_a, day_b):
+            sid = date_to_source_id[scope_date]
+            is_current = db_session.execute(
+                _text(
+                    "SELECT is_current FROM analysis_source_files WHERE id = :id"
+                ),
+                {"id": sid},
+            ).scalar()
+            assert is_current is True, (
+                f"source_id={sid} (scope_date={scope_date}) must be is_current"
+            )
+    finally:
+        _cleanup_a_table(db_session, sha)
+
+
 def test_ingest_ad_target_writes_detail_rows(client, auth_headers, db_session):
     """Bug 2: C-table /ingest must write ad_upload_target_rows from scope_rows.
 
