@@ -12,6 +12,7 @@ import sys
 
 from . import d1_signals, d2_associate, d3_terms, d4_targets, d5_burst
 from . import a_negatives, a_budget, b_chain
+from . import c_risk
 from . import report as report_mod
 from . import load_data
 
@@ -28,6 +29,8 @@ SUBTHEMES = {
     "a5": ("预算利用率 + 加/减预算", a_budget.main),
     # 主题 B（提效）
     "b3": ("搜索词 → 目标 链路 ROAS", b_chain.main),
+    # 主题 C（风险）
+    "c": ("风险预警（7d 异常 + 无效流量 + 预算被卡）", c_risk.main),
 }
 
 

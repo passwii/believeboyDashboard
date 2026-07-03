@@ -23,6 +23,7 @@ from typing import Any
 from . import load_data
 from . import d1_signals, d2_associate, d3_terms, d4_targets
 from . import a_negatives, a_budget, b_chain
+from . import c_risk
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -78,7 +79,8 @@ def generate(
     data = load_data.fetch_all(
         project_id, country, period,
         endpoints=["search_terms", "search_term_shares", "targets",
-                   "budgets", "purchased_products", "campaigns"],
+                   "budgets", "purchased_products", "campaigns",
+                   "invalid_traffic"],
     )
 
     # 2. 跑各子主题
@@ -94,19 +96,28 @@ def generate(
                                       data["targets"]["data"])
     b3 = b_chain.find_chain_insights(b3_chains)
 
+    # C 子主题（7d vs 30d）
+    period_short = "7d"
+    short_st = load_data.fetch(project_id, "search_terms", country, period_short)["data"]
+    c1 = c_risk.find_roas_anomalies(short_st, data["search_terms"]["data"],
+                                      short_label=period_short, long_label=period)
+    c2 = c_risk.find_invalid_traffic_alerts(data["invalid_traffic"]["data"])
+    c3 = c_risk.find_budget_constraints(data["budgets"]["data"])
+
     camp_summary = data.get("campaigns", {}).get("summary", {})
 
     # 3. 渲染
     parts = [
         _header(project_id, country, period, cfg, camp_summary),
-        _summary(d1, d2_cand, d4, a1, a5, b3),
+        _summary(d1, d2_cand, d4, a1, a5, b3, c1, c2, c3),
         _d1_section(d1),
         _d2_section(d2_list, d2_cand),
         _d3_section(d3),
         _d4_section(d4),
         _a_section(a1, a5),
         _b_section(b3),
-        _actions(d1, d4, a1, a5, b3),
+        _c_section(c1, c2, c3),
+        _actions(d1, d4, a1, a5, b3, c1, c2, c3),
         _footer(project_id, cfg),
     ]
 
@@ -144,7 +155,7 @@ def _header(project_id, country, period, cfg, camp_summary):
 """
 
 
-def _summary(d1, d2_cand, d4, a1, a5, b3):
+def _summary(d1, d2_cand, d4, a1, a5, b3, c1, c2, c3):
     n_d1 = len(d1)
     n_d2 = len(d2_cand)
     n_d4 = len(d4)
@@ -153,6 +164,10 @@ def _summary(d1, d2_cand, d4, a1, a5, b3):
     n_a5_release = len(a5["decrease"])
     n_b3_top = len(b3["top_chains"])
     n_b3_broken = len(b3["broken_chains"])
+    n_c1_drop = len(c1["drop"])
+    n_c1_jump = len(c1["jump"])
+    n_c2 = len(c2)
+    n_c3 = len(c3)
 
     def badge(n, warn_threshold, danger_threshold):
         if n >= danger_threshold:
@@ -170,6 +185,10 @@ def _summary(d1, d2_cand, d4, a1, a5, b3):
         ["A5 释放预算", str(n_a5_release), badge(n_a5_release, 3, 8)],
         ["B3 Top 链路", str(n_b3_top), badge(n_b3_top, 1, 5)],
         ["B3 断点链路", str(n_b3_broken), badge(n_b3_broken, 5, 10)],
+        ["C1 ROAS 下跌预警", str(n_c1_drop), badge(n_c1_drop, 1, 5)],
+        ["C1 ROAS 上涨机会", str(n_c1_jump), badge(n_c1_jump, 1, 3)],
+        ["C2 无效流量异常", str(n_c2), badge(n_c2, 3, 8)],
+        ["C3 预算被卡", str(n_c3), badge(n_c3, 1, 3)],
     ]
 
     return f"""## 1. 摘要
@@ -182,7 +201,7 @@ def _summary(d1, d2_cand, d4, a1, a5, b3):
 
 1. **A1 立即否定**（如命中>0）— Top 5 加 amazon 否定词
 2. **D1/D4 加预算 + 提价** — 置信度 ★high 的项优先
-3. **A5 释放低利用率预算** — 重新分配到高 ROAS 活动
+3. **A5 释放低利用率预算 / C2 无效流量治理** — 重新分配到高 ROAS 活动
 """
 
 
@@ -475,7 +494,91 @@ def _b_section(b3):
 """
 
 
-def _actions(d1, d4, a1, a5, b3):
+def _c_section(c1, c2, c3):
+    rows_drop = []
+    for c in c1["drop"][:10]:
+        rows_drop.append([
+            f"`{c['term'][:35]}`",
+            f"{c['short_roas']:.2f}",
+            f"{c['long_roas']:.2f}",
+            f"{c['drop_pct']:.1f}%",
+            f"${c['short_spend']:.2f}",
+            str(c['short_orders']),
+        ])
+    rows_jump = []
+    for c in c1["jump"][:10]:
+        rows_jump.append([
+            f"`{c['term'][:35]}`",
+            f"{c['short_roas']:.2f}",
+            f"{c['long_roas']:.2f}",
+            f"{c['jump_pct']:.1f}%",
+            f"${c['short_spend']:.2f}",
+            str(c['short_orders']),
+        ])
+    rows_inv = []
+    for c in c2[:10]:
+        cn = (c["campaign"] or "")[:20]
+        rows_inv.append([
+            cn,
+            str(c["total_impressions"]),
+            str(c["invalid_impressions"]),
+            f"{c['invalid_impression_rate']:.2f}%",
+        ])
+    rows_budget = []
+    for c in c3[:10]:
+        cn = (c["campaign"] or "")[:20]
+        rows_budget.append([
+            cn,
+            f"${c['budget']:.2f}",
+            f"${c['spend']:.2f}",
+            f"{c['roas']:.2f}",
+            f"{c['util_rate']:.1f}%",
+            f"${c['missed_sales_min']:.2f}~${c['missed_sales_max']:.2f}",
+        ])
+
+    return f"""## 8. 主题 C — 风险预警
+
+### 8.1 C1 ROAS 突变（7d vs 30d）
+
+**下跌预警**: {len(c1['drop'])} 词 | **上涨机会**: {len(c1['jump'])} 词
+
+#### 下跌预警 Top 10
+
+{_md_table(
+    ["搜索词", "短期ROAS", "长期ROAS", "跌幅%", "短花", "短单"],
+    rows_drop
+)}
+
+#### 上涨机会 Top 10
+
+{_md_table(
+    ["搜索词", "短期ROAS", "长期ROAS", "涨幅%", "短花", "短单"],
+    rows_jump
+)}
+
+### 8.2 C2 无效流量异常（rate ≥ 20%）
+
+**异常活动**: {len(c2)} 个
+
+{_md_table(
+    ["Campaign", "总曝光", "无效曝光", "无效曝光率"],
+    rows_inv
+)}
+
+### 8.3 C3 预算被卡（util > 100% + missed_sales ≥ $5）
+
+**被卡活动**: {len(c3)} 个
+
+{_md_table(
+    ["Campaign", "预算", "实际", "ROAS", "利用率", "missed_sales(min~max)"],
+    rows_budget
+)}
+
+> 行动建议：下跌词查 listing / 暂停；上涨词加预算；无效流量高的活动查 listing 排名。
+"""
+
+
+def _actions(d1, d4, a1, a5, b3, c1, c2, c3):
     items_immediate = []
     items_week = []
     items_month = []
@@ -518,43 +621,47 @@ def _actions(d1, d4, a1, a5, b3):
     items_month.append("**B3 链路复盘** — Top 链路验证人工执行后效果")
     items_month.append("**D2 互补品** — Top 3 ASIN 小预算测试投放")
     items_month.append("**D5 爆发词** — 持续 14d vs 14d 监测新爆发")
-    items_month.append("**C 风险预警** — 加入 7d 异常检测、4 周期对比")
+    items_month.append("**C 风险预警** — 持续 7d 异常检测、4 周期对比")
+    if c2:
+        items_month.append(f"**C2 无效流量治理** — Top {min(3, len(c2))} 活动查 listing 排名 / 暂停")
+    if c1["jump"]:
+        items_month.append(f"**C1 上涨机会** — Top {min(3, len(c1['jump']))} 词加预算/提价")
 
     immediate_text = "\n\n".join(items_immediate) if items_immediate else "_无立即执行项_"
     week_text = "\n\n".join(items_week) if items_week else "_无本周执行项_"
     month_text = "\n\n".join(items_month)
 
-    return f"""## 8. 行动建议与优先级
+    return f"""## 9. 行动建议与优先级
 
-### 8.1 立即执行（24-48h）
+### 9.1 立即执行（24-48h）
 
 {immediate_text}
 
-### 8.2 本周执行
+### 9.2 本周执行
 
 {week_text}
 
-### 8.3 本月规划
+### 9.3 本月规划
 
 {month_text}
 """
 
 
 def _footer(project_id, cfg):
-    return f"""## 9. 附录
+    return f"""## 10. 附录
 
-### 9.1 数据来源
+### 10.1 数据来源
 
 - API: `https://dash-api.believeboy.com/api/v1/external/projects/{project_id}/...`
-- 端点：campaigns / search_terms / search_term_shares / targets / budgets / purchased_products
+- 端点：campaigns / search_terms / search_term_shares / targets / budgets / purchased_products / invalid_traffic
 
-### 9.2 框架引用
+### 10.2 框架引用
 
 - 主文档：`believeboySP/docs/ad-analysis-framework.md`
 - 配置文件：`believeboySP/project-configs/{project_id}-yuehan.yaml` + `-taxonomy.yaml`
 - 工具集：`believeboySP/scripts/ad_analysis/`
 
-### 9.3 复现命令
+### 10.3 复现命令
 
 ```bash
 cd believeboySP/scripts
