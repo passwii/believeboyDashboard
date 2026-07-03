@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { UploadZone } from '@/components/ui/upload-zone'
-import { Download, Eye, FileCode2, FileDown, FileText, Loader2, RefreshCcw, Trash2, Upload } from 'lucide-react'
+import { Download, Eye, FileCode2, FileDown, FileText, Loader2, Trash2, Upload } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 
@@ -19,28 +19,7 @@ import {
   readMarkdownFile,
 } from './lib/markdown-to-word'
 
-const DEFAULT_MARKDOWN = `# Markdown 转 Word
-
-在这里粘贴或上传 Markdown 内容，右侧会实时预览最终 Word 中的主要结构。
-
-## 支持内容
-
-- 标题
-- 普通段落
-- 无序列表
-- 有序列表
-- 表格
-- 代码块
-- 引用
-- 链接
-- **加粗**、*斜体*、~~删除线~~、\`行内代码\`
-
-| 商品 | 销售额 | 备注 |
-|---|---:|---|
-| A | 100 | **重点**商品 |
-| B | 80 | [查看明细](https://believeboy.com) |
-
-> 下载时会在浏览器本地生成 DOCX / PDF 文件，不会上传到服务器。`
+const DEFAULT_MARKDOWN = ''
 
 export default function MarkdownToWordClient() {
   const { notify } = useNotifications()
@@ -124,13 +103,6 @@ export default function MarkdownToWordClient() {
     }
   }, [isEmpty, markdown, notify, sourceFileName])
 
-  const handleReset = useCallback(() => {
-    setMarkdown(DEFAULT_MARKDOWN)
-    setSourceFileName(null)
-    setSourceFileSize(null)
-    notify({ type: 'success', title: '已重置示例内容' })
-  }, [notify])
-
   const handleClear = useCallback(() => {
     setMarkdown('')
     setSourceFileName(null)
@@ -138,9 +110,9 @@ export default function MarkdownToWordClient() {
   }, [])
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+    <div className="flex h-full flex-col gap-5 [&>*+*]:mt-0">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-2">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
@@ -155,7 +127,7 @@ export default function MarkdownToWordClient() {
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
             <UploadZone
               accept=".md,text/markdown,text/plain"
               maxSize={5}
@@ -164,16 +136,12 @@ export default function MarkdownToWordClient() {
               onUpload={handleUploadFile}
             />
 
-            <div className="space-y-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="markdown-input" className="text-sm font-medium text-foreground">
                   直接粘贴 Markdown
                 </label>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={handleReset} className="h-9 px-3">
-                    <RefreshCcw className="mr-1.5 h-4 w-4" />
-                    示例
-                  </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={handleClear} className="h-9 px-3">
                     <Trash2 className="mr-1.5 h-4 w-4" />
                     清空
@@ -185,7 +153,7 @@ export default function MarkdownToWordClient() {
                 value={markdown}
                 onChange={(event) => setMarkdown(event.target.value)}
                 placeholder="在这里粘贴 Markdown 内容..."
-                className="min-h-[280px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:bg-[hsl(var(--surface-subtle))]"
+                className="flex-1 min-h-[240px] w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:bg-[hsl(var(--surface-subtle))]"
                 spellCheck={false}
               />
             </div>
@@ -196,7 +164,7 @@ export default function MarkdownToWordClient() {
           </CardFooter>
         </Card>
 
-        <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
@@ -249,10 +217,10 @@ export default function MarkdownToWordClient() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex min-h-0 flex-1 flex-col">
             <div
               className={cn(
-                'min-h-[420px] max-h-[680px] overflow-y-auto rounded-2xl border border-border/70 bg-background/70 p-5 text-sm leading-7 text-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-subtle))]',
+                'flex-1 min-h-0 overflow-y-auto rounded-2xl border border-border/70 bg-background/70 p-5 text-sm leading-7 text-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-subtle))]',
                 'markdown-preview [&>blockquote]:border-l-primary/40 [&>blockquote]:bg-primary/5 [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-muted-foreground',
                 '[&>code]:rounded-md [&>code]:bg-muted [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:font-mono [&>pre]:overflow-x-auto [&>pre]:rounded-xl [&>pre]:bg-slate-950 [&>pre]:p-4 [&>pre]:text-slate-100',
                 '[&>h1]:mb-3 [&>h1]:text-2xl [&>h1]:font-semibold [&>h1]:tracking-tight [&>h2]:mb-3 [&>h2]:text-xl [&>h2]:font-semibold [&>h2]:tracking-tight [&>h3]:mb-2 [&>h3]:text-lg [&>h3]:font-semibold',
@@ -262,7 +230,7 @@ export default function MarkdownToWordClient() {
               )}
             >
               {isEmpty ? (
-                <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 text-center text-muted-foreground">
                   <FileText className="h-10 w-10 opacity-40" />
                   <div>
                     <p className="font-medium text-foreground">暂无 Markdown 内容</p>
