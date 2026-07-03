@@ -56,7 +56,7 @@ def build_chain(
         if not all(k for k in key):
             continue
         target_by_key[key].append({
-            "ad_group": ag,
+            "ad_group": r.get("ad_group_name"),  # 总是保留 target 端的 ad_group
             "target_text": r.get("target_text"),
             "match_type": r.get("match_type"),
             "spend": r.get("spend", 0) or 0,

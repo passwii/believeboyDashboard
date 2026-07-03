@@ -18,6 +18,7 @@
 | `a_negatives.py` | A 降本 | A1 + A6 否定词候选（高 spend 0 单 / 低 ROAS） |
 | `a_budget.py` | A 降本 | A5 预算利用率 + 加/减预算（missed_* 量化） |
 | `b_chain.py` | B 提效 | B3 搜索词 → 目标 链路 ROAS（跨端点 JOIN） |
+| `report.py` | 集成 | Markdown 报告生成器（汇总 D+A+B 全部） |
 | `run.py` | 入口 | CLI 主入口，一键跑全部子主题 |
 
 ## 快速开始
@@ -31,7 +32,19 @@ python -m ad_analysis.run --project 4 --country US
 
 输出：
 - 控制台：每个 D 子主题的 Top N 强信号 + 简表
-- 文件：`/tmp/ad-analysis/{project_id}/report.md`（Markdown 报告）
+
+### 1.1 一键生成 Markdown 报告
+
+```bash
+# 单独生成报告
+python -m ad_analysis.report --project 4
+
+# 跑全部 + 生成报告
+python -m ad_analysis.run --project 4 --report
+```
+
+输出：
+- `/tmp/ad-analysis/{project_id}/report_{period}_{date}.md`（约 12KB，9 节）
 
 ### 2. 单独跑某个子主题
 

@@ -12,6 +12,7 @@ import sys
 
 from . import d1_signals, d2_associate, d3_terms, d4_targets, d5_burst
 from . import a_negatives, a_budget, b_chain
+from . import report as report_mod
 from . import load_data
 
 
@@ -30,8 +31,16 @@ SUBTHEMES = {
 }
 
 
-def run(project: int, country: str, period: str, only: list[str] | None = None):
-    """依次跑选定的 D 子主题。"""
+def run(project: int, country: str, period: str, only: list[str] | None = None, generate_report: bool = False):
+    """依次跑选定的 D 子主题。
+
+    Args:
+        project: 项目 ID
+        country: 国家代码
+        period: 时间周期
+        only: 只跑指定子主题
+        generate_report: 跑完后生成 Markdown 报告
+    """
     targets = only or list(SUBTHEMES.keys())
     print(f"项目: {project} | 国家: {country} | 周期: {period}")
     print(f"运行子主题: {targets}")
@@ -60,6 +69,16 @@ def run(project: int, country: str, period: str, only: list[str] | None = None):
             print(f"[ERROR] {key} 失败: {e}")
         print("=" * 80)
 
+    if generate_report:
+        print(f"\n>>> 生成 Markdown 报告")
+        print("-" * 80)
+        try:
+            output = report_mod.generate(project, country, period)
+            print(f"报告已生成: {output} ({output.stat().st_size} bytes)")
+        except Exception as e:
+            print(f"[ERROR] 报告生成失败: {e}")
+        print("=" * 80)
+
 
 def main():
     parser = argparse.ArgumentParser(description="一键跑主题 D（D1-D5）")
@@ -70,10 +89,14 @@ def main():
         "--only", default=None,
         help="只跑指定子主题，逗号分隔，如 'd1,d5'。默认全跑",
     )
+    parser.add_argument(
+        "--report", action="store_true",
+        help="跑完后生成 Markdown 报告到 /tmp/ad-analysis/{id}/report.md",
+    )
     args = parser.parse_args()
 
     only = [s.strip() for s in args.only.split(",")] if args.only else None
-    run(args.project, args.country, args.period, only)
+    run(args.project, args.country, args.period, only, generate_report=args.report)
 
 
 if __name__ == "__main__":
