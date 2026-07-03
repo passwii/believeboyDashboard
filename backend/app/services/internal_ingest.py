@@ -290,7 +290,31 @@ def _ingest_c_table(
     if project is None:
         raise ValueError(f"Project not found: id={payload.project_id}")
 
+    # Same fail-loud as _ingest_a_table — the 7.2 regression also
+    # affected the C-table ad pipeline. See _ingest_a_table docstring.
+    if payload.scopes and all(
+        s.row_count_preview > 0 and not s.scope_rows
+        for s in payload.scopes
+    ):
+        total_preview = sum(s.row_count_preview for s in payload.scopes)
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"empty scope_rows with non-zero preview: "
+                f"file={payload.original_filename} "
+                f"sha256={payload.file_sha256[:12]} "
+                f"scopes={len(payload.scopes)} "
+                f"total_preview={total_preview} - refusing to write empty ad_upload row"
+            ),
+        )
+
     file_id = f"{uuid.uuid4().hex}_{slugify(payload.original_filename)}"
+    # Local file_path lives on the Mac daemon, not the VPS. save_ad_upload_scope
+    # stores it on the AdUploadFile row — pass the basename only so the VPS
+    # doesn't carry a path it cannot read. See
+    # docs/superpowers/specs/2026-07-03-auto-report-file-path-design.md
+    local_basename = Path(payload.local_file_path).name
     saved_ids: list[int] = []
     saved_version = 0
 
@@ -306,7 +330,7 @@ def _ingest_c_table(
             scope_df=scope_df,
             row_count_preview=scope.row_count_preview,
             file_id=file_id,
-            file_path=payload.local_file_path,
+            file_path=local_basename,
             original_filename=payload.original_filename,
             recognition_status="recognized",
             matched_columns=payload.matched_columns,
@@ -349,6 +373,15 @@ def _ingest_a_table(
     ``scope_source_ids`` maps each scope's ``scope_date`` to its freshly
     created source row id. ``perform_ingest`` uses the mapping to write
     ``report_upload_logs`` rows that point to the matching source row.
+
+    Fail-loud: when the daemon reports a non-zero ``row_count_preview``
+    for every scope but ships zero rows, we refuse to write an empty
+    source file. This catches the 7.2 18:03:36 博朗姆 regression where
+    ``parse_sales_rows`` raised inside the daemon, the fallback
+    created a marker source row with ``scope_rows=[]``, and zero
+    detail rows landed — daily-analysis silently showed nothing for
+    that file. Raising here surfaces the failure (5xx) so the daemon
+    leaves the file in the watch root and ops can fix the parser.
     """
     from app.utils.persist_helpers import (
         next_version,
@@ -362,6 +395,25 @@ def _ingest_a_table(
     ).scalars().first()
     if project is None:
         raise ValueError(f"Project not found: id={payload.project_id}")
+
+    if payload.scopes and all(
+        s.row_count_preview > 0 and not s.scope_rows
+        for s in payload.scopes
+    ):
+        total_preview = sum(s.row_count_preview for s in payload.scopes)
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"empty scope_rows with non-zero preview: "
+                f"file={payload.original_filename} "
+                f"sha256={payload.file_sha256[:12]} "
+                f"scopes={len(payload.scopes)} "
+                f"total_preview={total_preview} - refusing to write empty source file. "
+                f"Check the daemon logs: parse_sales_rows / parse_business_rows / "
+                f"parse_payment_rows / parse_return_rows may have failed."
+            ),
+        )
 
     file_id = f"{uuid.uuid4().hex}_{slugify(payload.original_filename)}"
     ext = "." + payload.original_filename.rsplit(".", 1)[-1].lower() if "." in payload.original_filename else ".xlsx"
@@ -421,7 +473,11 @@ def _ingest_a_table(
             is_current=False,
             superseded_at=None,
             upload_file_id=file_id,
-            upload_file_path=payload.local_file_path,
+            # Local path lives on the Mac daemon, NOT the VPS. We keep
+            # the basename only so the audit trail still names the file
+            # without leaking the daemon's filesystem layout. See
+            # docs/superpowers/specs/2026-07-03-auto-report-file-path-design.md
+            upload_file_path=Path(payload.local_file_path).name,
             original_filename=payload.original_filename,
             stored_filename=file_id,
             logical_filename=logical_filename,
