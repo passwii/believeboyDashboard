@@ -207,8 +207,9 @@ def perform_ingest(
 
     if source_table == "C":
         new_id, new_version = _ingest_c_table(db, payload)
+        scope_source_ids: dict[object, int] = {}
     else:
-        new_id, new_version = _ingest_a_table(db, payload)
+        new_id, new_version, scope_source_ids = _ingest_a_table(db, payload)
 
     if source_table in ("A", "C"):
         from datetime import date as _date_module
@@ -220,13 +221,19 @@ def perform_ingest(
         # triple is enough to flip the RPA status grid green.
         log_source_file_id: int | None = new_id if source_table == "A" else None
         for scope in payload.scopes:
+            # A-table sales now sends one scope per purchase_date_pt; point
+            # each upload log at the source row that owns its date so the
+            # row-level audit trail matches the data lineage. Falls back to
+            # the latest source id when the date isn't in the mapping (e.g.
+            # C-table single scope).
+            scope_log_source_id = scope_source_ids.get(scope.scope_date, log_source_file_id)
             write_report_upload_log(
                 db,
                 project_id=payload.project_id,
                 country=payload.country,
                 report_type=payload.report_type,
                 upload_date=scope.scope_date,
-                source_file_id=log_source_file_id,
+                source_file_id=scope_log_source_id,
                 has_real_data=scope.row_count_preview > 0,
                 row_count=scope.row_count_preview,
                 original_filename=payload.original_filename,
@@ -324,15 +331,24 @@ def _ingest_c_table(
 
 def _ingest_a_table(
     db: Session, payload: AutoReportIngestRequest
-) -> tuple[int, int]:
-    """Write a single AnalysisSourceFile for non-ad reports + per-row detail rows.
+) -> tuple[int, int, dict[object, int]]:
+    """Write one ``AnalysisSourceFile`` per scope for A-table reports.
 
-    Detail rows are written here for the 5 A-table report types
-    (sales / business / payment / return / ad_product) using the
-    ``scope_rows`` the daemon sent in each ``IngestScopePayload``. This
-    closes the prior gap where the daemon path wrote only the source row
-    and left detail tables empty, breaking downstream sales-order
-    analytics and the RPA status grid.
+    For ``sales_report`` the daemon sends one scope per distinct
+    ``purchase_date_pt`` (see ``autoReportUpload/processor.py:
+    _group_sales_rows_by_purchase_date``). Each scope becomes its own
+    source row with the matching ``report_date`` so the daily-analysis
+    aggregator (which filters on ``AnalysisSourceFile.report_date``)
+    sees each purchase date as its own bucket.
+
+    For other A-table types the daemon still sends a single scope
+    (one source row per upload), so the loop runs exactly once and
+    behaviour is unchanged from the prior single-scope path.
+
+    Returns ``(last_source_id, last_version, scope_source_ids)`` where
+    ``scope_source_ids`` maps each scope's ``scope_date`` to its freshly
+    created source row id. ``perform_ingest`` uses the mapping to write
+    ``report_upload_logs`` rows that point to the matching source row.
     """
     from app.utils.persist_helpers import (
         next_version,
@@ -347,77 +363,94 @@ def _ingest_a_table(
     if project is None:
         raise ValueError(f"Project not found: id={payload.project_id}")
 
-    if payload.report_type == "return_report":
-        scope = payload.scopes[0]
-        period_start = period_end = scope.scope_date
-        report_date = None
-        snapshot_at: datetime | None = None
-    elif payload.report_type == "inventory_report":
-        scope = payload.scopes[0]
-        period_start = period_end = None
-        report_date = None
-        snapshot_at = datetime.now(timezone.utc)
-    else:
-        scope = payload.scopes[0]
-        period_start = period_end = scope.scope_date
-        report_date = scope.scope_date
-        snapshot_at = None
-
-    version = next_version(
-        db,
-        project_id=payload.project_id,
-        report_type=payload.report_type,
-        country=payload.country,
-        period_start_date=period_start,
-        period_end_date=period_end,
-    )
     file_id = f"{uuid.uuid4().hex}_{slugify(payload.original_filename)}"
     ext = "." + payload.original_filename.rsplit(".", 1)[-1].lower() if "." in payload.original_filename else ".xlsx"
     project_slug = slugify(project.project_name) or "project"
 
-    storage_key = _build_storage_key(
-        project_slug, payload.report_type, period_start, period_end, version, file_id
-    )
-    date_part = period_start.strftime('%Y%m%d') if period_start else snapshot_at.strftime('%Y%m%d') if snapshot_at else now.strftime('%Y%m%d')
-    logical_filename = f"{project_slug}_{payload.report_type}_{date_part}_{version}{ext}"
+    saved_ids: list[int] = []
+    saved_version = 0
+    scope_source_ids: dict[object, int] = {}
 
-    source = AnalysisSourceFile(
-        project_id=payload.project_id,
-        report_type=payload.report_type,
-        country=payload.country,
-        report_date=report_date,
-        period_start_date=period_start,
-        period_end_date=period_end,
-        snapshot_at=snapshot_at,
-        version=version,
-        is_current=False,
-        superseded_at=None,
-        upload_file_id=file_id,
-        upload_file_path=payload.local_file_path,
-        original_filename=payload.original_filename,
-        stored_filename=file_id,
-        logical_filename=logical_filename,
-        storage_key=storage_key,
-        file_size_bytes=payload.file_size_bytes,
-        file_sha256=payload.file_sha256,
-        ingestion_status="success",
-        row_count_total=payload.scopes[0].row_count_preview,
-        row_count_included=payload.scopes[0].row_count_preview,
-    )
-    db.add(source)
-    db.flush()
-    replace_current_pointer(db, source)
-    source.is_current = True
-    source.superseded_at = None
-    db.flush()
+    for scope in payload.scopes:
+        if payload.report_type == "return_report":
+            period_start = period_end = scope.scope_date
+            report_date = None
+            snapshot_at: datetime | None = None
+        elif payload.report_type == "inventory_report":
+            period_start = period_end = None
+            report_date = None
+            snapshot_at = datetime.now(timezone.utc)
+        else:
+            # sales / business / payment / ad_product — period tied to scope date
+            period_start = period_end = scope.scope_date
+            report_date = scope.scope_date
+            snapshot_at = None
 
-    _write_a_table_detail_rows(
-        db,
-        source_file_id=int(source.id),
-        report_type=payload.report_type,
-        scopes=payload.scopes,
-    )
-    return int(source.id), version
+        version = next_version(
+            db,
+            project_id=payload.project_id,
+            report_type=payload.report_type,
+            country=payload.country,
+            period_start_date=period_start,
+            period_end_date=period_end,
+        )
+
+        storage_key = _build_storage_key(
+            project_slug, payload.report_type, period_start, period_end, version, file_id
+        )
+        date_part = (
+            period_start.strftime('%Y%m%d')
+            if period_start
+            else snapshot_at.strftime('%Y%m%d')
+            if snapshot_at
+            else now.strftime('%Y%m%d')
+        )
+        logical_filename = (
+            f"{project_slug}_{payload.report_type}_{date_part}_{version}{ext}"
+        )
+
+        source = AnalysisSourceFile(
+            project_id=payload.project_id,
+            report_type=payload.report_type,
+            country=payload.country,
+            report_date=report_date,
+            period_start_date=period_start,
+            period_end_date=period_end,
+            snapshot_at=snapshot_at,
+            version=version,
+            is_current=False,
+            superseded_at=None,
+            upload_file_id=file_id,
+            upload_file_path=payload.local_file_path,
+            original_filename=payload.original_filename,
+            stored_filename=file_id,
+            logical_filename=logical_filename,
+            storage_key=storage_key,
+            file_size_bytes=payload.file_size_bytes,
+            file_sha256=payload.file_sha256,
+            ingestion_status="success",
+            row_count_total=scope.row_count_preview,
+            row_count_included=scope.row_count_preview,
+        )
+        db.add(source)
+        db.flush()
+        replace_current_pointer(db, source)
+        source.is_current = True
+        source.superseded_at = None
+        db.flush()
+
+        saved_ids.append(int(source.id))
+        saved_version = version
+        scope_source_ids[scope.scope_date] = int(source.id)
+
+        _write_a_table_detail_rows(
+            db,
+            source_file_id=int(source.id),
+            report_type=payload.report_type,
+            scopes=[scope],
+        )
+
+    return saved_ids[-1], saved_version, scope_source_ids
 
 
 def _build_storage_key(

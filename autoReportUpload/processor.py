@@ -105,6 +105,56 @@ def _build_a_table_scope_rows(
     return []
 
 
+def _group_sales_rows_by_purchase_date(
+    rows: list[dict[str, Any]],
+    fallback_date: str,
+) -> list[dict[str, Any]]:
+    """Split sales rows by ``purchase_date_pt`` into one scope per date.
+
+    Mirrors the date-splitting that ``autoReportUpload`` performed before
+    the HTTP-only ingest refactor (commit pre-4859cbf, ``_persist_sales_report``
+    in the old ``processor.py``). The daily-analysis aggregator filters
+    ``AnalysisSourceFile.report_date``, so the per-row ``purchase_date_pt``
+    must own its own source row — otherwise every order in the file ends
+    up on whatever date the daemon picks as ``scope_date`` and the dashboard
+    totals collapse to the wrong day.
+
+    Rows whose ``purchase_date_pt`` is missing or not a ``date`` go into a
+    single fallback scope dated ``fallback_date`` (typically the file's
+    detected end date, so the upload log still flips green).
+    """
+    from datetime import date as _date
+
+    grouped: dict[_date, list[dict[str, Any]]] = {}
+    orphans: list[dict[str, Any]] = []
+    for row in rows:
+        pt = row.get("purchase_date_pt")
+        if isinstance(pt, _date):
+            grouped.setdefault(pt, []).append(row)
+        else:
+            orphans.append(row)
+
+    scopes: list[dict[str, Any]] = []
+    for report_date in sorted(grouped):
+        day_rows = grouped[report_date]
+        scopes.append(
+            {
+                "scope_date": report_date.isoformat(),
+                "row_count_preview": len(day_rows),
+                "scope_rows": day_rows,
+            }
+        )
+    if orphans:
+        scopes.append(
+            {
+                "scope_date": fallback_date,
+                "row_count_preview": len(orphans),
+                "scope_rows": orphans,
+            }
+        )
+    return scopes
+
+
 def _sha256_file(path: Path) -> str:
     import hashlib
     h = hashlib.sha256()
@@ -185,10 +235,16 @@ def process_file(
     No DB session is taken — the APIClient handles all persistence via
     /recognize and /ingest.
 
-    NOTE: A-table 5 个 report_type (sales/business/payment/inventory/return) send
-    `scope_rows=[]` because backend _ingest_a_table is intentionally
-    detail-row-only-on-source (MVP). Backend writes source row + upload log;
-    A-table detail-row migration is a follow-up.
+    Scope layout by report_type:
+
+    - sales_report: one scope per distinct ``purchase_date_pt`` (so the
+      backend can write one ``analysis_source_files`` row per purchase
+      date, matching the daily-analysis aggregator's ``report_date`` filter).
+    - business_report / payment_report / return_report: one scope dated
+      by the file's detected date.
+    - inventory_report: one scope dated by upload time.
+    - B-table ad_*_report: one scope per row-date (multi-day) or one
+      scope (single-day) using the file's detected date.
     """
     t0 = time.time()
 
@@ -296,13 +352,32 @@ def process_file(
                         row.setdefault("source_row_no", index)
                 except Exception:
                     rows = []
-            scopes.append(
-                {
-                    "scope_date": scope_date,
-                    "row_count_preview": int(len(rows)) if rows else int(result.row_count_preview or 0),
-                    "scope_rows": rows or [],
-                }
-            )
+            if result.report_type == "sales_report":
+                # Sales reports must split per purchase_date_pt — see
+                # _group_sales_rows_by_purchase_date. Other A-table types
+                # keep one source row per upload (business/payment/return
+                # use the file's detected date; inventory uses upload time).
+                split_scopes = _group_sales_rows_by_purchase_date(
+                    rows or [], fallback_date=scope_date,
+                )
+                if split_scopes:
+                    scopes.extend(split_scopes)
+                else:
+                    scopes.append(
+                        {
+                            "scope_date": scope_date,
+                            "row_count_preview": int(result.row_count_preview or 0),
+                            "scope_rows": [],
+                        }
+                    )
+            else:
+                scopes.append(
+                    {
+                        "scope_date": scope_date,
+                        "row_count_preview": int(len(rows)) if rows else int(result.row_count_preview or 0),
+                        "scope_rows": rows or [],
+                    }
+                )
         except Exception as exc:
             logger.warning("A-table row builder failed for %s: %s", file_path.name, exc)
             scopes.append(
