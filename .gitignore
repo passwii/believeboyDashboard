@@ -74,6 +74,10 @@ update_extensions.sql
 /frontend/*.tsbuildinfo
 /frontend/next-env.d.ts
 
+# Frontend fonts (本地手动放置,不入 git — 见 frontend/public/fonts/README.md)
+/frontend/public/fonts/*
+!/frontend/public/fonts/README.md
+
 # Backend scripts
 /backend/scripts/__pycache__/
 
