@@ -53,20 +53,62 @@ def _connect_db():
 def _fetch_bad_filenames(session) -> dict[str, int]:
     """Return {filename: project_id} for the 20 7.2 bad source files.
 
-    After the SQL fixup the rows are gone, so this only works BEFORE
-    Step 2 of the fixup plan. The fixup script must pass these 20 IDs
-    in via the constant above, not via DB lookup, because Step 2
-    deletes the source rows.
+    Tries two strategies in order:
+
+    1. **analysis_source_files** (pre-fixup): direct lookup.
+    2. **HARDCODED_FALLBACK**: 20 (filename, project_id) tuples
+       captured from the pre-fixup SELECT, used after the SQL
+       fixup has deleted the source rows. We intentionally do NOT
+       look at report_upload_logs here because some filenames
+       (e.g. ``Orders-2026-07-02_18-03-36.txt``) appear under
+       multiple project_ids in the upload log, and that ambiguity
+       is exactly what the SQL fixup resolved by anchoring each
+       filename to a single canonical project.
     """
     from sqlalchemy import text
+
+    # Strategy 1: direct lookup on analysis_source_files.
     rows = session.execute(
         text(
             "SELECT project_id, original_filename FROM analysis_source_files "
-            "WHERE id = ANY(:ids) ORDER BY project_id"
+            "WHERE id = ANY(:ids)"
         ),
         {"ids": JULY2_BAD_SOURCE_IDS},
     ).all()
-    return {row[1]: row[0] for row in rows}
+    if rows:
+        return {row[1]: int(row[0]) for row in rows}
+
+    # Strategy 2: hardcoded fallback.
+    return dict(HARDCODED_FALLBACK)
+
+
+# Captured from the 2026-07-03 09:55 SELECT against analysis_source_files
+# (BEFORE the SQL fixup deleted them). If a future round of 7.2-style
+# bad data appears, capture the new mapping and append here. Used as
+# the strategy-3 fallback when both source_file and upload_log
+# lookups are unavailable.
+HARDCODED_FALLBACK: dict[str, int] = {
+    "Orders-2026-07-02_14-47-46.txt": 1,   # 铨富
+    "Orders-2026-07-02_18-03-29.txt": 1,   # 铨富
+    "Orders-2026-07-02_14-47-41.txt": 4,   # 玥涵
+    "Orders-2026-07-02_18-03-41.txt": 4,   # 玥涵
+    "Orders-2026-07-02_14-49-25.txt": 5,   # 博智1店
+    "Orders-2026-07-02_18-05-44.txt": 5,   # 博智1店
+    "Orders-2026-07-02_14-49-32.txt": 6,   # 博智2店
+    "Orders-2026-07-02_18-05-45.txt": 6,   # 博智2店
+    "Orders-2026-07-02_14-49-27.txt": 7,   # 骏成
+    "Orders-2026-07-02_18-05-35.txt": 7,   # 骏成
+    "Orders-2026-07-02_14-47-39.txt": 8,   # 华洋泛航
+    "Orders-2026-07-02_14-48-41.txt": 10,  # 弥森
+    "Orders-2026-07-02_14-48-46.txt": 14,  # 卡斯摩
+    "Orders-2026-07-02_18-04-35.txt": 15,  # 创酷
+    "Orders-2026-07-02_14-48-42.txt": 15,  # 创酷
+    "Orders-2026-07-02_18-04-42.txt": 16,  # 吕沃
+    "Orders-2026-07-02_14-48-29.txt": 16,  # 吕沃
+    "Orders-2026-07-02_14-47-43.txt": 18,  # 犀牛
+    "Orders-2026-07-02_18-03-36.txt": 19,  # 博朗姆
+    "Orders-2026-07-02_14-47-47.txt": 19,  # 博朗姆
+}
 
 
 def _find_in_processed(watch_root: Path, filename: str) -> list[Path]:
