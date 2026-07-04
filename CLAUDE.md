@@ -365,21 +365,29 @@ feat: 添加项目批量选择功能
 ### Before Pushing
 Always run `pnpm build` in the frontend directory before pushing to ensure the build passes. If there are build errors, fix them before pushing.
 
-### Post-Push Hook (VPS Deployment)
+### Pre-Push Hook (VPS Deployment)
 
-This project uses a **post-push hook** at `.git/hooks/post-push` to automatically deploy to the VPS after each push to `main`. The hook runs `productEnvAgent/deploy_vps.py --auto`, which:
-1. Git pull on server
-2. Alembic migration
-3. Service restart
-4. Health check
-5. Generates a deployment report in `docs/deployment/`
+This project uses a **`pre-push` hook** at `.git/hooks/pre-push` (with the template at `productEnvAgent/pre-push.sh`) to **automatically deploy to the VPS on every push to `main`** — including pushes done by AI agents.
 
-> **⚠️ AI Agent Limitation**: When `git push` is executed via an AI agent, the post-push hook does **not** trigger automatically. To work around this, the hook must be invoked manually after push. After any `git push origin main`, the agent **must** also run:
+**为什么是 `pre-push` 而不是 `post-push`** — git 原生 push 相关 hook 只有 `pre-push` / `post-update` / `post-receive`,**没有 `post-push`**(client-side)。所以用 `pre-push` 反向实现:hook 在 push 之前触发,先 `GIT_SKIP_HOOKS=1 git push` 实际推送(绕过自身防递归),再调 `productEnvAgent/deploy_vps.py --auto`,后者在 VPS 上做:
+
+1. `git pull` 拉新代码
+2. `alembic upgrade head` 数据库迁移
+3. `systemctl restart believeboy-api` 重启后端
+4. 健康检查 + 日志获取
+5. 在 `docs/deployment/` 生成部署报告
+
+**跳过部署**:
+- 临时:`SKIP_POST_PUSH_DEPLOY=1 git push ...`
+- 长期:`chmod -x .git/hooks/pre-push`
+
+**安装**(新 clone 或重装):
 ```bash
-.git/hooks/post-push "refs/heads/main" "https://github.com/passwii/believeboyDashboard.git"
+cp productEnvAgent/pre-push.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
 ```
 
-The hook script is at `.git/hooks/post-push` — it takes two arguments: the local ref (e.g. `refs/heads/main`) and the remote URL.
+**推送非 main 分支**:`pre-push` 会检查 stdin 的 `remote_ref`,只在 `refs/heads/main` 时触发,推 feature/fix/refactor 分支**不会**部署。
 
 ## Key Conventions
 - **Projects API**: 前端获取项目列表必须使用 `/api/v1/projects/manage` 而非 `/api/v1/projects`，因为 `/projects/manage` 有基于 `X-Operator` header 的权限控制，会根据当前用户过滤可访问的项目
