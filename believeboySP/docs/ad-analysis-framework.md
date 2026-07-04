@@ -3,7 +3,7 @@
 > **版本**: v2.2（2026-07-02 实践反哺版）
 > **主权威**: 本文件
 > **测试项目**: 玥涵 PROJECT (id=4, US, 30d, 2026-06-02 ~ 2026-07-01)
-> **API 文档**: `BLF-广告Agent API 实践指南.md`
+> **API 文档**: `EXTERNAL_API_GUIDE.md`
 
 ## 0. 变更日志
 
@@ -523,7 +523,7 @@ P3: recent_sales > prev_sales × 2                        # 销售爆发
 - **项目配置**：
   - `project-configs/{id}-{slug}.yaml`（4 档阈值 + 行业基准 + 样本过滤）
   - `project-configs/{id}-{slug}-taxonomy.yaml`（词性分类词典 + 互补品候选）
-- **配套 API 文档**：`BLF-广告Agent API 实践指南.md`
+- **配套 API 文档**：`EXTERNAL_API_GUIDE.md`
 - **配套代码**（规划中）：
   - `scripts/ad-analysis/load_data.py`（拉取所有端点）
   - `scripts/ad-analysis/classify_terms.py`（§5 词性分类器 + taxonomy 接入）

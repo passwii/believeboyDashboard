@@ -1,7 +1,7 @@
 """load_data — 从 external API 拉数据 + 项目配置加载。
 
 API 文档参考：
-  - ../BLF-广告Agent API 实践指南.md
+  - ../EXTERNAL_API_GUIDE.md
 """
 from __future__ import annotations
 
