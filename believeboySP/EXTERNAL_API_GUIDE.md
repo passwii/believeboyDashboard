@@ -27,7 +27,7 @@
 |  | `/projects/{id}/ad-invalid-traffic` | `ad_invalid_traffic_report` | 无效流量聚合（`invalid_impression_rate`） |
 | **Reports（原始）** | `/projects/{id}/ad-{type}-raw` | 同聚合端点枚举 | 未汇总原始亚马逊报告行（含 `raw_row` JSON；支持 `limit`/`offset` 分页） |
 | **Summary** | `/projects/{id}/orders/summary` | — | 订单层明细 + 汇总 ✅ 当前可用（2026-07-02 实测 200） |
-|  | `/projects/{id}/business-summary` | — | 业务汇总（traffic + cost/profit）⚠️ 已知 DB schema 问题（缺 `recognition_status`、`carrier` 等列），可能返回 500 |
+|  | `/projects/{id}/business-summary` | — | 业务汇总（traffic + cost/profit）🕒 **未实施**（roadmap / 未来开发） |
 
 > **别名说明**：所有原始数据端点同时支持复数（如 `/ad-campaigns-raw`）和单数（如 `/ad-campaign-raw`）形式，功能完全相同。
 
@@ -214,7 +214,7 @@
 | fba_orders | Integer | FBA 订单数 |
 | fbm_orders | Integer | FBM 订单数 |
 
-> **注意**：尽管在文档中标记为“已知数据库schema问题”，但实际测试表明 `/orders/summary` 端点目前能够正常返回 200 响应，仅 `business-summary` 仍存在 500 错误。
+> **状态说明**：`/orders/summary` 端点目前能正常返回 200 响应（实测 2026-07-02）。`/business-summary` 端点未实施（roadmap / 未来开发），不在 P0 合同范围。
 
 ## 5. 成功请求示例
 
@@ -517,7 +517,7 @@ Accept: application/json
 | `400` | 缺少 `country` 或 `period` 参数 | 检查参数是否提供且非空 |
 | `400` | 无效的 `period` 格式 | 参考支持的周期格式列表 |
 | `404` | 无效的 `project_id` | 先调用 `/projects` 验证项目 ID 有效性 |
-| `500` | 服务器内部错误 | 主要影响 `business-summary` 端点（已知 DB schema 问题）；`orders/summary` 已恢复正常；其他端点极少发生 |
+| `500` | 服务器内部错误 | 其他端点极少发生；`business-summary` 未上线 |
 | `429` | 速率限制（网关层） | 实现重试机制（指数退避）或降低请求频率 |
 
 ### 6.3 数据解析建议
@@ -532,9 +532,10 @@ Accept: application/json
 - **货币处理**：所有金额字段使用小数表示，单位为美元（USD）
 
 ### 6.4 特别注意事项
-1. **业务汇总端点已知问题**：
-   - `business-summary` 端点目前存在数据库 schema 不匹配问题（缺失列如 `recognition_status`、`carrier`），可能返回 500 错误；`orders/summary` 已恢复正常
-   - 建议优先使用具体的广告报告端点进行分析
+1. **业务汇总端点状态（roadmap）**：
+   - `business-summary` 端点**未实施**——非已知 bug，是计划中未来开发项，不在 P0 合同范围
+   - 当前 `/orders/summary` 已恢复正常（实测 2026-07-02 返回 200）
+   - 消费方建议：现阶段优先使用具体的广告报告端点（campaigns / search-terms / targets 等）进行分析
 
 2. **原始数据优势**：
    - 使用 `-raw` 端点时，可访问完整的原始亚马逊报告字段（通过 `raw_row`）
@@ -551,7 +552,7 @@ Accept: application/json
    - 考虑在非高峰时段进行批量数据同步
 
 5. **错误监控**：
-   - 监控 500 错误（尤其涉及 business-summary 时）
+   - 监控 500 错误（业务汇总端点上线路后纳入监控）
    - 跟踪 400 错误以及时发现参数问题
    - 记录响应时间以识别性能瓶颈
 
