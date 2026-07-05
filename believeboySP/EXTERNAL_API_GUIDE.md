@@ -7,17 +7,31 @@
 - **认证**: 无（P0 级别接口，认证和速率限制由网关层处理）
 - **网络隔离**: 通过网关层实施，见 `docs/deployment/external-api-network-isolation.md`
 
-## 2. 端点分类
-| 类别 | 端点路径 | 说明 |
-|------|----------|------|
-| **Discovery** | `/projects` | 获取所有可访问的项目列表 |
-| **Files** | `/projects/{id}/ad-upload-files` | 获取广告上传文件列表 |
-| **Reports (聚合)** | `/projects/{id}/ad-{campaigns\|search-terms\|budgets\|placements\|promoted-products\|purchased-products\|invalid-traffic\|search-term-shares\|time-trends\|targets}` | 各类广告报告数据（聚合视图） |
-| **Reports (原始)** | `/projects/{id}/ad-{campaigns\|search-terms\|budgets\|placements\|promoted-products\|purchased-products\|invalid-traffic\|search-term-shares\|time-trends\|targets}-raw` | 未汇总的原始亚马逊报告数据 |
-| **Reports (别名)** | `/projects/{id}/ad-{campaign\|search-term\|budget\|placement\|promoted-product\|purchased-product\|invalid-traffic\|search-term-share\|time-trend\|target}-raw` | 单数形式的原始端点别名（功能与复数形式相同） |
-| **Summary** | `/projects/{id}/{business-summary\|orders/summary}` | 业务汇总和订单汇总（注意：目前存在已知数据库schema问题） |
+## 2. 端点分类与报表枚举
+
+下表逐端点列出消费方能看到的路径，以及后端 `AdUploadFile.report_type`（CSV 上传时记录的报表类型枚举）。
+
+| 类别 | 端点路径 | 报表枚举 (`report_type`) | 说明 |
+|------|----------|--------------------------|------|
+| **Discovery** | `/projects` | — | 获取所有可访问的项目列表（支持 `?status=active\|archived\|all`） |
+| **Files** | `/projects/{id}/ad-upload-files` | — | 获取广告上传文件列表（含 `report_type`、版本号、`ingestion_status`；`?include_history=true` 拉历史版本） |
+| **Reports（聚合）** | `/projects/{id}/ad-campaigns` | `ad_campaign_report` | 广告活动层聚合（按 business key 汇总） |
+|  | `/projects/{id}/ad-search-terms` | `ad_search_term_report` | 搜索词层聚合（含 `targeting_type`） |
+|  | `/projects/{id}/ad-budgets` | `ad_budget_report` | 广告预算 + `suggested_budget` + `missed_*` 量化 |
+|  | `/projects/{id}/ad-targets` | `ad_target_report` | 目标/定位层聚合（`top_of_search_impression_share` 等） |
+|  | `/projects/{id}/ad-placements` | `ad_placement_report` | 广告位聚合（top-of-search / product-pages / rest） |
+|  | `/projects/{id}/ad-promoted-products` | `ad_promoted_product_report` | 推广商品聚合（`scope_status`、`ad_sku_*` vs `other_sku_*`） |
+|  | `/projects/{id}/ad-purchased-products` | `ad_purchased_product_report` | 关联购买商品聚合（halo effect 量化） |
+|  | `/projects/{id}/ad-time-trends` | `ad_time_trend_report` | 时间序列聚合（日级粒度） |
+|  | `/projects/{id}/ad-search-term-shares` | `ad_search_term_share_report` | 搜索词 `impression_share` + `impression_rank` |
+|  | `/projects/{id}/ad-invalid-traffic` | `ad_invalid_traffic_report` | 无效流量聚合（`invalid_impression_rate`） |
+| **Reports（原始）** | `/projects/{id}/ad-{type}-raw` | 同聚合端点枚举 | 未汇总原始亚马逊报告行（含 `raw_row` JSON；支持 `limit`/`offset` 分页） |
+| **Summary** | `/projects/{id}/orders/summary` | — | 订单层明细 + 汇总 ✅ 当前可用（2026-07-02 实测 200） |
+|  | `/projects/{id}/business-summary` | — | 业务汇总（traffic + cost/profit）⚠️ 已知 DB schema 问题（缺 `recognition_status`、`carrier` 等列），可能返回 500 |
 
 > **别名说明**：所有原始数据端点同时支持复数（如 `/ad-campaigns-raw`）和单数（如 `/ad-campaign-raw`）形式，功能完全相同。
+
+> **`report_type` 枚举来源**：该枚举值在 CSV 上传时由识别层（`autoReportUpload/recognition.py`）根据文件表头确定，并作为 `AdUploadFile` 主键之一索引。可通过 `/ad-upload-files` 端点直接读到，用于消费方"我手上这份 CSV 是哪类报表"的判断；不必再去猜测路径中的复数形态。
 
 ## 3. 公共参数
 所有报告端点均需要以下参数：
