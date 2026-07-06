@@ -16,6 +16,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { getCountryLabel } from '@/lib/country'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import {
   CountrySelect,
@@ -407,8 +408,10 @@ export default function InventoryAnalysisPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
+      const safeProjectName = (selectedProject?.name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
-      link.download = `库存分析-${safeTimestamp}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-库存分析-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({
