@@ -158,7 +158,7 @@ export default function MarkdownToWordClient() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex items-center justify-between gap-3 border-t border-border/70 pt-4 text-xs text-muted-foreground">
+          <CardFooter className="flex items-center justify-between gap-3 pt-4 text-xs text-muted-foreground">
             <span>提示：支持标题、列表、表格、引用、代码块和链接；DOCX/PDF 会保留主要段落结构。</span>
             <span>{isEmpty ? '暂无内容' : '可导出'}</span>
           </CardFooter>
@@ -242,7 +242,7 @@ export default function MarkdownToWordClient() {
               )}
             </div>
           </CardContent>
-          <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4 text-xs text-muted-foreground">
+          <CardFooter className="flex flex-wrap items-center justify-between gap-3 pt-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-2">
               <Upload className="h-3.5 w-3.5" />
               文件仅在浏览器本地处理
