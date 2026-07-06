@@ -247,6 +247,27 @@ export async function fetchLedger(
   }
 }
 
+export async function fetchLedgerItemByKey(
+  sourceItem: LedgerItem,
+): Promise<LedgerItem | null> {
+  let found: LedgerItem | null = null
+  await fetchLedger(
+    {
+      startDate: sourceItem.expected_date,
+      endDate: sourceItem.expected_date,
+      frequency: sourceItem.frequency,
+      statusFilter: 'all',
+      email: '',
+      limit: 100,
+    },
+    (items) => {
+      found = items.find(item => item.ledger_key === sourceItem.ledger_key) ?? null
+    },
+    () => {},
+  )
+  return found
+}
+
 export async function resendLedgerEntry(
   ledgerKey: string,
   isAdmin: boolean,

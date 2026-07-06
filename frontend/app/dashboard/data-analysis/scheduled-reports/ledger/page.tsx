@@ -18,6 +18,7 @@ import type { DateRange } from 'react-day-picker'
 import type { LedgerItem, ResendStage, Subscription } from '../_components/types'
 import {
   fetchLedger,
+  fetchLedgerItemByKey,
   fetchModelConfig,
   fetchSubscriptions,
   pollDeliveryLogStatus,
@@ -153,23 +154,6 @@ export default function LedgerPage() {
   const mergeLedgerItem = (nextItem: LedgerItem) => {
     setLedgerItems(prev => prev.map(item => item.ledger_key === nextItem.ledger_key ? nextItem : item))
     setSelectedItem(prev => prev?.ledger_key === nextItem.ledger_key ? nextItem : prev)
-  }
-
-  const fetchLedgerItemByKey = async (sourceItem: LedgerItem): Promise<LedgerItem | null> => {
-    let found: LedgerItem | null = null
-    await fetchLedger(
-      {
-        startDate: sourceItem.expected_date,
-        endDate: sourceItem.expected_date,
-        frequency: sourceItem.frequency,
-        statusFilter: 'all',
-        email: '',
-        limit: 100,
-      },
-      (items) => { found = items.find(item => item.ledger_key === sourceItem.ledger_key) ?? null },
-      () => {},
-    )
-    return found
   }
 
   const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
@@ -472,6 +456,7 @@ export default function LedgerPage() {
         onResend={handleResendLedger}
         onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
         onRegenerateAiSummary={handleRegenerateAiSummary}
+        onItemRefreshed={mergeLedgerItem}
         onCopy={text => {
           navigator.clipboard.writeText(text)
           notify({ type: 'success', title: '已复制' })

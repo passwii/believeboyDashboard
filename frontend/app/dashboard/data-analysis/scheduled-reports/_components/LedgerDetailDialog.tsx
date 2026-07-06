@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, Sparkles } from 'lucide-react'
+import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, RotateCcw, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { LedgerResendCell } from './LedgerResendCell'
 import { FREQUENCY_LABELS } from './ledger-constants'
+import { fetchLedgerItemByKey } from './api'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
 
 const HERO_BG: Record<string, string> = {
@@ -47,6 +48,7 @@ interface LedgerDetailDialogProps {
   onResendLoading: (item: LedgerItem) => void
   onRegenerateAiSummary: (item: LedgerItem, overrideAiModel: string | null) => void
   onCopy: (text: string) => void
+  onItemRefreshed?: (item: LedgerItem) => void
 }
 
 export function LedgerDetailDialog({
@@ -63,11 +65,25 @@ export function LedgerDetailDialog({
   onResendLoading,
   onRegenerateAiSummary,
   onCopy,
+  onItemRefreshed,
 }: LedgerDetailDialogProps) {
   const [previewScreenshot, setPreviewScreenshot] = useState<string | null>(null)
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [summaryModelOpen, setSummaryModelOpen] = useState(false)
   const [summaryModel, setSummaryModel] = useState('')
+  const [pollingState, setPollingState] = useState<'polling' | 'timed_out' | 'network_error' | 'idle'>('idle')
+  const [manualRefreshing, setManualRefreshing] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startedAtRef = useRef<number>(0)
+  const failStreakRef = useRef<number>(0)
+  const itemRef = useRef<LedgerItem | null>(item)
+  const onItemRefreshedRef = useRef<typeof onItemRefreshed>(onItemRefreshed)
+  useEffect(() => { itemRef.current = item }, [item])
+  useEffect(() => { onItemRefreshedRef.current = onItemRefreshed }, [onItemRefreshed])
+
+  const POLL_INTERVAL_MS = 2500
+  const POLL_TIMEOUT_MS = 60_000
+  const POLL_MAX_FAILS = 2
 
   const sub = item ? subscriptions.find(s => s.id === item.subscription_id) : undefined
   const fallbackModel = item ? (sub?.ai_model || modelConfig?.defaultModel || '') : ''
@@ -78,6 +94,82 @@ export function LedgerDetailDialog({
   useEffect(() => {
     if (summaryModelOpen) setSummaryModel(fallbackModel)
   }, [summaryModelOpen, fallbackModel])
+
+  const handleManualRefresh = async () => {
+    if (!item) return
+    setManualRefreshing(true)
+    try {
+      const fresh = await fetchLedgerItemByKey(item)
+      if (fresh) {
+        onItemRefreshed?.(fresh)
+        setPollingState('idle')
+      }
+    } catch {
+      // 静默；用户可在 header 再次点击重试
+    } finally {
+      setManualRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    const shouldPoll =
+      open
+      && !!item
+      && !regeneratingAiSummary
+      && (item.ai_summary_status === 'pending' || item.ai_summary_status === 'generating')
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+
+    if (!shouldPoll) {
+      setPollingState('idle')
+      return
+    }
+
+    startedAtRef.current = Date.now()
+    failStreakRef.current = 0
+    setPollingState('polling')
+
+    const tick = async () => {
+      if (Date.now() - startedAtRef.current > POLL_TIMEOUT_MS) {
+        if (intervalRef.current) clearInterval(intervalRef.current)
+        intervalRef.current = null
+        setPollingState('timed_out')
+        return
+      }
+      const current = itemRef.current
+      if (!current) return
+      try {
+        const fresh = await fetchLedgerItemByKey(current)
+        failStreakRef.current = 0
+        if (fresh) {
+          onItemRefreshedRef.current?.(fresh)
+          if (fresh.ai_summary_status === 'done' || fresh.ai_summary_status === 'failed') {
+            if (intervalRef.current) clearInterval(intervalRef.current)
+            intervalRef.current = null
+            setPollingState('idle')
+          }
+        }
+      } catch {
+        failStreakRef.current += 1
+        if (failStreakRef.current >= POLL_MAX_FAILS) {
+          if (intervalRef.current) clearInterval(intervalRef.current)
+          intervalRef.current = null
+          setPollingState('network_error')
+        }
+      }
+    }
+
+    intervalRef.current = setInterval(tick, POLL_INTERVAL_MS)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    // 依赖项只用原始字段（避免父组件 selectedItem 引用变化导致 effect 反复重启）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, item?.ledger_key, item?.ai_summary_status, regeneratingAiSummary])
 
   const projectNames = !item
     ? []
@@ -108,9 +200,24 @@ export function LedgerDetailDialog({
                   HERO_BG[item.status],
                 )}
               >
-                <div className={cn('text-[11px] font-medium tracking-wide flex items-center gap-1.5', HERO_LABEL[item.status].color)}>
-                  {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
-                  {HERO_LABEL[item.status].text}
+                <div className="flex items-center justify-between gap-2">
+                  <div className={cn('text-[11px] font-medium tracking-wide flex items-center gap-1.5', HERO_LABEL[item.status].color)}>
+                    {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
+                    {HERO_LABEL[item.status].text}
+                  </div>
+                  {canTriggerResend && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleManualRefresh}
+                      disabled={manualRefreshing || item.ai_summary_status === 'generating'}
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      aria-label="刷新 AI 摘要"
+                      title="刷新 AI 摘要"
+                    >
+                      <RotateCcw className={cn('h-3.5 w-3.5', manualRefreshing && 'animate-spin')} />
+                    </Button>
+                  )}
                 </div>
                 <DialogTitle className="text-xl font-semibold tracking-tight">
                   {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
@@ -316,10 +423,32 @@ export function LedgerDetailDialog({
                           </ReactMarkdown>
                         </div>
                       </div>
-                    ) : item.ai_summary_status === 'generating' || regeneratingAiSummary ? (
-                      <div className="flex items-center gap-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-12 border border-violet-100 justify-center min-h-[200px] dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        AI 摘要生成中
+                    ) : item.ai_summary_status === 'generating' || item.ai_summary_status === 'pending' || regeneratingAiSummary ? (
+                      <div className="flex flex-col items-center gap-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-12 border border-violet-100 justify-center min-h-[200px] dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">
+                        <div className="flex items-center gap-2">
+                          {pollingState === 'timed_out' || pollingState === 'network_error' ? (
+                            <AlertTriangle className="h-4 w-4" />
+                          ) : (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                          <span>
+                            {pollingState === 'timed_out' && 'AI 摘要生成较慢'}
+                            {pollingState === 'network_error' && '网络异常，请重试'}
+                            {(pollingState === 'polling' || pollingState === 'idle') && 'AI 摘要生成中'}
+                          </span>
+                        </div>
+                        {(pollingState === 'timed_out' || pollingState === 'network_error') && canTriggerResend && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleManualRefresh}
+                            disabled={manualRefreshing}
+                            className="text-violet-700 dark:text-violet-300"
+                          >
+                            <RotateCcw className={cn('mr-1 h-3 w-3', manualRefreshing && 'animate-spin')} />
+                            立即刷新
+                          </Button>
+                        )}
                       </div>
                     ) : item.ai_summary_status === 'failed' ? (
                       <div className="flex flex-col items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-12 border border-red-100 justify-center min-h-[200px] dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
