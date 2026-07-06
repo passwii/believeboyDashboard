@@ -61,6 +61,7 @@ import {
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -1007,8 +1008,11 @@ export default function DailyAnalysisPage() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   // 默认不预设 "all"：项目加载完成后由下方 effect 自动选中第一个真实项目，
   // 以满足"控制台默认选择第一个项目"的需求。
-  const [projectId, setProjectId] = useState<string>('')
-  const [country, setCountry] = useState<CountryOption>('US')
+  // 项目 / 国家站点 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
+    allowed: ['US', 'DE', 'UK', 'ALL'],
+  })
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     defaultRange,
@@ -1062,9 +1066,17 @@ export default function DailyAnalysisPage() {
   }, [notify, session])
 
   useEffect(() => {
-    if (projectId || projects.length === 0) return
-    const first = projects.find((item) => item.id !== null)
-    if (first?.id != null) setProjectId(String(first.id))
+    if (projects.length === 0) return
+    // 1. URL 没指定 projectId（空字符串）→ 选第一个
+    // 2. URL 指定了 "all"（"全部项目"）→ 保留
+    // 3. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+    const isAllSentinel = projectId === 'all'
+    const existsInList =
+      projectId && !isAllSentinel && projects.some((p) => String(p.id) === projectId)
+    if (!projectId || (!isAllSentinel && !existsInList)) {
+      const first = projects.find((item) => item.id !== null)
+      if (first?.id != null) setProjectId(String(first.id))
+    }
   }, [projectId, projects])
 
   const isAllProjects = projectId === 'all'
