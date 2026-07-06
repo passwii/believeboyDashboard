@@ -103,6 +103,8 @@ FastAPI 内部端点 `/api/v1/internal/auto-report/{recognize,ingest,heartbeat}`
 | `believeboy-flower.service` | Celery Flower             | —              | 任务监控，带 basic auth |
 
 > **前端不在本 VPS** — Next.js 部署在 [Vercel / 用户实际的外部平台]，**没有** `believeboy-web.service`。`frontend/deploy/systemd/believeboy-web.service` 仅作本机调试时的参考模板，不部署到 VPS。生产前端环境变量在部署平台的 dashboard 配置（不是 `frontend/.env.local`，那是 Mac 本地开发用）。
+>
+> **VPS 磁盘规则**：本 VPS 只跑后端服务，磁盘空间紧张；除非用户明确临时授权，否则不要在 VPS 上跑 `pnpm -C frontend build` / `next build`，也不要长期保留 `frontend/node_modules`、`.next`、pnpm store 等前端依赖或构建缓存。前端构建应在本地、CI 或外部前端平台完成。
 
 来源：`/etc/systemd/system/believeboy-{api,worker,flower}.service`；git 工作树：`/root/believeboyDashboard`。
 
