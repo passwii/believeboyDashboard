@@ -137,6 +137,8 @@ DeliveryStageValue = Literal[
 ]
 """DeliveryLogItem stage 可选值: pending/preparing/fetching_data/generating_summary/rendering_html/capturing_screenshot/sending/done/failed"""
 
+AiSummaryStatusValue = Literal["pending", "generating", "done", "failed"]
+
 
 class DeliveryLogItem(BaseModel):
     id: int
@@ -154,6 +156,10 @@ class DeliveryLogItem(BaseModel):
     screenshot_r2_thumb_key: Optional[str] = None
     screenshot_r2_thumb_url: Optional[str] = None
     ai_summary: Optional[str] = None
+    ai_summary_status: AiSummaryStatusValue = "pending"
+    ai_summary_error: Optional[str] = None
+    ai_summary_model: Optional[str] = None
+    ai_summary_updated_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -190,6 +196,7 @@ class TriggerReportResponse(BaseModel):
     success: bool
     frequency: str
     subscriptions_affected: int
+    skipped: int = 0
     message: str
 
 
@@ -225,6 +232,10 @@ class LedgerItem(BaseModel):
     screenshot_r2_url: Optional[str] = None
     screenshot_r2_thumb_url: Optional[str] = None
     ai_summary: Optional[str] = None
+    ai_summary_status: AiSummaryStatusValue = "pending"
+    ai_summary_error: Optional[str] = None
+    ai_summary_model: Optional[str] = None
+    ai_summary_updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -240,4 +251,12 @@ class LedgerResendResponse(BaseModel):
     ledger_key: str
     delivery_log_id: Optional[int] = None
     status: str
+    message: str
+
+
+class LedgerRegenerateSummaryResponse(BaseModel):
+    success: bool
+    ledger_key: str
+    delivery_log_id: Optional[int] = None
+    status: AiSummaryStatusValue
     message: str

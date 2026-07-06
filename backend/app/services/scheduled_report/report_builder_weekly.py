@@ -108,6 +108,7 @@ def build_weekly_report_data(
     reference_date: date | None = None,
     stage_callback=None,
     ai_timeout: float | None = None,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """构建完整的周报告数据结构。
 
@@ -203,31 +204,33 @@ def build_weekly_report_data(
     alerts.extend(_build_positive_signals(top_skus_comparison, ads_comparison))
     
     # 10. 生成 AI 摘要和归因分析
-    # 通知调度器：数据获取完成，开始生成 AI 摘要
-    if stage_callback:
-        from app.models.scheduled_report import DeliveryStage
-        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+    ai_summary = ""
+    if generate_ai_summary:
+        # 通知调度器：数据获取完成，开始生成 AI 摘要
+        if stage_callback:
+            from app.models.scheduled_report import DeliveryStage
+            stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
 
-    ai_summary = generate_weekly_ai_summary({
-        "current_week": current_week,
-        "prev_week": prev_week,
-        "changes": changes,
-        "attribution": attribution,
-        "alerts": alerts,
-        "top_skus_comparison": top_skus_comparison,
-        "ads_comparison": ads_comparison,
-        "inventory_alerts": inventory_alerts,
-        "returns_data": returns_data,
-        "project_context": project_context,
-        "sku_context": sku_context,
-        "sku_factory_info_text": sku_factory_info_text,
-    }, timeout=ai_timeout)
+        ai_summary = generate_weekly_ai_summary({
+            "current_week": current_week,
+            "prev_week": prev_week,
+            "changes": changes,
+            "attribution": attribution,
+            "alerts": alerts,
+            "top_skus_comparison": top_skus_comparison,
+            "ads_comparison": ads_comparison,
+            "inventory_alerts": inventory_alerts,
+            "returns_data": returns_data,
+            "project_context": project_context,
+            "sku_context": sku_context,
+            "sku_factory_info_text": sku_factory_info_text,
+        }, timeout=ai_timeout)
     
     attribution_summary = generate_weekly_attribution_analysis({
         "attribution": attribution,
         "current_week": current_week,
         "prev_week": prev_week,
-    })
+    }) if generate_ai_summary else ""
     
     alert_insights = generate_weekly_alert_insights({"alerts": alerts})
     action_items = generate_weekly_action_items({

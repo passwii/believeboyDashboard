@@ -4,6 +4,8 @@ export type Frequency = 'daily' | 'weekly' | 'monthly'
 
 export type LedgerStatus = 'sent' | 'failed' | 'missing'
 
+export type AiSummaryStatus = 'pending' | 'generating' | 'done' | 'failed'
+
 export type ResendStage =
   | 'preparing'
   | 'fetching_data'
@@ -51,6 +53,10 @@ export interface LedgerItem {
   screenshot_r2_url: string | null
   screenshot_r2_thumb_url: string | null
   ai_summary: string | null
+  ai_summary_status: AiSummaryStatus
+  ai_summary_error: string | null
+  ai_summary_model: string | null
+  ai_summary_updated_at: string | null
 }
 
 export interface LedgerSummary {

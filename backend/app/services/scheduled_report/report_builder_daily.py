@@ -290,6 +290,7 @@ def build_report_email_data(
     reference_date: date | None = None,
     stage_callback=None,
     ai_timeout: float | None = None,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """
     Aggregate real data and transform it into the format expected by
@@ -465,12 +466,14 @@ def build_report_email_data(
     report_data["sku_context"] = sku_context
     report_data["sku_factory_info_text"] = sku_factory_info_text
 
-    # 通知调度器：数据获取完成，开始生成 AI 摘要
-    if stage_callback:
-        from app.models.scheduled_report import DeliveryStage
-        stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
+    ai_summary = ""
+    if generate_ai_summary:
+        # 通知调度器：数据获取完成，开始生成 AI 摘要
+        if stage_callback:
+            from app.models.scheduled_report import DeliveryStage
+            stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
 
-    ai_summary = _generate_summary(frequency, report_data, ai_model, timeout=ai_timeout)
+        ai_summary = _generate_summary(frequency, report_data, ai_model, timeout=ai_timeout)
 
     # 13. Build weekly report data format for email renderer
     curr_qty = week_sales.get("week_qty", 0)

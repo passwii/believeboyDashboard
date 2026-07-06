@@ -1020,13 +1020,15 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_call
         country_list = [c.strip() for c in raw_country.split(",") if c.strip()]
         is_multi = len(country_list) > 1
 
+        include_ai_summary = bool((report_data.get("ai_summary") or "").strip())
+
         if is_multi:
             country_data = report_data.get("country_data", {})
             date_range = report_data.get("date_range", "")
             html = _render_multi_country_weekly_html(
                 country_list, country_data, project_name, report_date,
                 str(week_number), date_range,
-                report_data.get("ai_summary", ""), include_summary=True,
+                report_data.get("ai_summary", ""), include_summary=include_ai_summary,
             )
             screenshot_html = _render_multi_country_weekly_html(
                 country_list, country_data, project_name, report_date,
@@ -1038,7 +1040,7 @@ def send_weekly_report_email(email: str, report_data: dict[str, Any], stage_call
             subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {'/'.join(labels)} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = "+".join(country_list)
         else:
-            html = _render_weekly_report_html(report_data, include_summary=True)
+            html = _render_weekly_report_html(report_data, include_summary=include_ai_summary)
             screenshot_html = _render_weekly_report_html(report_data, include_summary=False, for_screenshot=True)
             subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {report_date[:4]} 第 {week_number} 周 周报"
             country_for_file = country_list[0] if country_list else "US"

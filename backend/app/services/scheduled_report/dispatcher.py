@@ -62,9 +62,10 @@ AI_SUMMARY_TIMEOUT_SEC = 120
 
 _ai_semaphore = threading.Semaphore(AI_CONCURRENCY_LIMIT)
 
-# Per-dispatch-run cache: (project_ids_key, country, date_str) -> report_data dict
-# Date is included so same project+country on different days don't collide.
-_summary_cache: dict[tuple[str, str, str], dict[str, Any]] = {}
+# Per-dispatch-run cache: (project_ids_key, country, date_str, summary_mode) -> report_data dict
+# Date and summary mode are included so same project+country on different days or
+# AI/no-AI build modes don't collide.
+_summary_cache: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 _cache_lock = threading.Lock()
 
 # Per-dispatch timestamp — used as the "report date" for the cache key.
@@ -72,13 +73,18 @@ _cache_lock = threading.Lock()
 _dispatch_date_str: str = ""
 
 
-def _cache_key(project_ids: list[int] | None, country: str, date_str: str) -> tuple[str, str, str]:
-    """Build a cache key that includes project list, country, and date."""
+def _cache_key(
+    project_ids: list[int] | None,
+    country: str,
+    date_str: str,
+    generate_ai_summary: bool = True,
+) -> tuple[str, str, str, str]:
+    """Build a cache key that includes project list, country, date and AI mode."""
     if not project_ids:
         proj_key = "*"
     else:
         proj_key = ",".join(str(pid) for pid in sorted(project_ids))
-    return (proj_key, country, date_str)
+    return (proj_key, country, date_str, "ai" if generate_ai_summary else "noai")
 
 
 def _raise_timeout(*args):
@@ -121,6 +127,7 @@ def _build_report_data_with_timeout(
     ai_model: str | None = None,
     reference_date: "date | None" = None,
     stage_callback: Any = None,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """Build report data inside the semaphore, with optional per-call timeout.
 
@@ -128,20 +135,44 @@ def _build_report_data_with_timeout(
     Falls back to direct call on Windows or if signals are unavailable.
     """
     if AI_SUMMARY_TIMEOUT_SEC <= 0 or threading.current_thread() is not threading.main_thread():
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
+        return _do_build_report(
+            project_ids,
+            country,
+            frequency,
+            ai_model=ai_model,
+            reference_date=reference_date,
+            stage_callback=stage_callback,
+            generate_ai_summary=generate_ai_summary,
+        )
 
     try:
         old_handler = signal.signal(signal.SIGALRM, _raise_timeout)
         signal.alarm(AI_SUMMARY_TIMEOUT_SEC)
         try:
-            result = _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
+            result = _do_build_report(
+                project_ids,
+                country,
+                frequency,
+                ai_model=ai_model,
+                reference_date=reference_date,
+                stage_callback=stage_callback,
+                generate_ai_summary=generate_ai_summary,
+            )
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_handler)
         return result
     except (AttributeError, OSError):
         # signal.SIGALRM not available on Windows — call without timeout
-        return _do_build_report(project_ids, country, frequency, ai_model=ai_model, reference_date=reference_date, stage_callback=stage_callback)
+        return _do_build_report(
+            project_ids,
+            country,
+            frequency,
+            ai_model=ai_model,
+            reference_date=reference_date,
+            stage_callback=stage_callback,
+            generate_ai_summary=generate_ai_summary,
+        )
     except TimeoutError:
         logger.warning(
             "AI summary timed out for project=%s country=%s date=%s — using fallback",
@@ -157,6 +188,7 @@ def _do_build_report(
     ai_model: str | None = None,
     reference_date: "date | None" = None,
     stage_callback: Any = None,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """Build report data (no timeout protection — run inside semaphore)."""
     db = SessionLocal()
@@ -168,6 +200,7 @@ def _do_build_report(
                 country=country,
                 reference_date=reference_date,
                 stage_callback=stage_callback,
+                generate_ai_summary=generate_ai_summary,
             )
         if frequency == "weekly":
             return build_weekly_report_data(
@@ -176,6 +209,7 @@ def _do_build_report(
                 country=country,
                 reference_date=reference_date,
                 stage_callback=stage_callback,
+                generate_ai_summary=generate_ai_summary,
             )
         return build_report_email_data(
             db=db,
@@ -185,6 +219,7 @@ def _do_build_report(
             ai_model=ai_model,
             reference_date=reference_date,
             stage_callback=stage_callback,
+            generate_ai_summary=generate_ai_summary,
         )
     finally:
         db.close()
@@ -253,6 +288,7 @@ def _build_report_with_throttle(
     reference_date: "date | None" = None,
     stage_callback: Any = None,
     use_cache: bool = True,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """Build report data, throttling AI summary generation via semaphore.
 
@@ -264,12 +300,13 @@ def _build_report_with_throttle(
     """
     # 补发时使用历史日期作为缓存键，避免与当天调度的缓存混淆
     date_str = reference_date.isoformat() if reference_date else _dispatch_date_str
-    key = _cache_key(project_ids, country, date_str)
+    key = _cache_key(project_ids, country, date_str, generate_ai_summary)
 
     if not use_cache:
         return _build_report_data_with_timeout(
             project_ids, country, frequency, date_str, ai_model=ai_model,
             reference_date=reference_date, stage_callback=stage_callback,
+            generate_ai_summary=generate_ai_summary,
         )
 
     # ── fast path: cache hit (no semaphore needed) ──────────────────────────
@@ -289,6 +326,7 @@ def _build_report_with_throttle(
         report_data = _build_report_data_with_timeout(
             project_ids, country, frequency, date_str, ai_model=ai_model,
             reference_date=reference_date, stage_callback=stage_callback,
+            generate_ai_summary=generate_ai_summary,
         )
 
         with _cache_lock:
@@ -307,6 +345,7 @@ def _build_multi_country_report(
     reference_date: "date | None" = None,
     stage_callback: Any = None,
     use_cache: bool = True,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """Build report data for multiple countries, each fetched independently.
 
@@ -322,6 +361,7 @@ def _build_multi_country_report(
                 project_ids, country, frequency,
                 ai_model=ai_model, reference_date=reference_date,
                 stage_callback=stage_callback, use_cache=use_cache,
+                generate_ai_summary=generate_ai_summary,
             )
             country_data[country] = data
         except Exception as e:
@@ -377,9 +417,11 @@ def _build_multi_country_report(
     first = country_data[country_list[0]]
 
     # Build a unified AI summary covering all countries
-    ai_summary = _generate_multi_country_summary(
-        frequency, country_data, ai_model=ai_model,
-    )
+    ai_summary = ""
+    if generate_ai_summary:
+        ai_summary = _generate_multi_country_summary(
+            frequency, country_data, ai_model=ai_model,
+        )
 
     # Build result dict — include keys from both daily and weekly formats
     # so that both email senders can find what they need
@@ -551,12 +593,15 @@ def _dispatch_one(
     frequency: str,
     ai_model: str | None = None,
     use_cache: bool = True,
+    triggered_by: str = "auto",
+    report_date: str | None = None,
 ) -> dict[str, Any]:
     """Dispatch a single subscription: build data → send email → log result."""
     result: dict[str, Any] = {
         "subscription_id": subscription_id,
         "email": email,
         "success": False,
+        "skipped": False,
         "error": None,
     }
 
@@ -572,17 +617,44 @@ def _dispatch_one(
             _summary_cache.clear()
         _dispatch_date_str = today_str
 
+    report_date_key = report_date or today_str
     db = SessionLocal()
     try:
+        if triggered_by == "auto":
+            from app.services.scheduled_report.ledger_service import find_successful_manual_log
+
+            manual_log = find_successful_manual_log(
+                db,
+                subscription_id=subscription_id,
+                frequency=frequency,
+                report_date=report_date_key,
+            )
+            if manual_log is not None:
+                result.update({
+                    "success": True,
+                    "skipped": True,
+                    "skipped_reason": "manual_log_exists",
+                    "manual_log_id": manual_log.id,
+                })
+                logger.info(
+                    "Skip auto dispatch: sub=%d frequency=%s report_date=%s manual_log_id=%d",
+                    subscription_id,
+                    frequency,
+                    report_date_key,
+                    manual_log.id,
+                )
+                db.close()
+                return result
+
         log = create_delivery_log_with_stage(
             db=db,
             subscription_id=subscription_id,
             frequency=frequency,
-            report_date=today_str,
-            report_month=today_str[:7] if frequency == "monthly" else None,
+            report_date=report_date_key,
+            report_month=report_date_key[:7] if frequency == "monthly" else None,
             email=email,
             initial_stage=DeliveryStage.PREPARING.value,
-            triggered_by="auto",
+            triggered_by=triggered_by,
         )
         log_id = log.id
     except Exception as e:
@@ -601,16 +673,25 @@ def _dispatch_one(
 
         # Parse country list — support multi-country subscriptions
         parsed_countries = [c.strip().upper() for c in country.split(",") if c.strip()]
+        reference_date = None
+        if report_date is not None:
+            reference_date = (
+                date.fromisoformat(report_date_key)
+                if frequency in ("weekly", "monthly")
+                else date.fromisoformat(report_date_key) - timedelta(days=1)
+            )
         if len(parsed_countries) > 1:
             report_data = _build_multi_country_report(
                 project_ids, parsed_countries, frequency,
-                ai_model=ai_model, stage_callback=_on_stage, use_cache=use_cache,
+                ai_model=ai_model, reference_date=reference_date, stage_callback=_on_stage, use_cache=use_cache,
+                generate_ai_summary=False,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
                 project_ids, single_country, frequency,
-                ai_model=ai_model, stage_callback=_on_stage, use_cache=use_cache,
+                ai_model=ai_model, reference_date=reference_date, stage_callback=_on_stage, use_cache=use_cache,
+                generate_ai_summary=False,
             )
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
@@ -625,7 +706,7 @@ def _dispatch_one(
             success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
 
         if success:
-            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
+            # 先写入 status/screenshot，再把 stage 置为 done，避免前端轮询竞态。
             mark_delivery_success(db, log_id, resend_id_or_error)
             # 保存截图 R2 信息到 delivery log
             screenshot_key = report_data.get("screenshot_r2_key")
@@ -646,15 +727,14 @@ def _dispatch_one(
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
 
-            # 保存 AI 报表总结文案到 delivery log
-            ai_summary = report_data.get("ai_summary")
-            if ai_summary:
-                try:
-                    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary
-                    update_delivery_log_ai_summary(db=db, log_id=log_id, ai_summary=ai_summary)
-                except Exception as sum_err:
-                    logger.warning("更新 delivery log ai_summary 失败: %s", sum_err)
+            # AI 摘要改为后台异步生成，不阻塞截图/发送主任务。
+            try:
+                from app.services.scheduled_report.ledger_service import enqueue_ai_summary_generation
+                enqueue_ai_summary_generation(db=db, log_id=log_id, override_ai_model=ai_model)
+            except Exception as sum_err:
+                logger.warning("启动 delivery log ai_summary 后台任务失败: %s", sum_err)
 
+            update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
             result["success"] = True
             logger.info("Report sent: sub=%d email=%s", subscription_id, email)
         else:
@@ -673,7 +753,7 @@ def _dispatch_one(
     return result
 
 
-def _pre_warm_cache(keys: list[tuple[str, str, str]], frequency: str) -> None:
+def _pre_warm_cache(keys: list[tuple[str, str, str, str]], frequency: str) -> None:
     """Pre-build report data for given cache keys, one at a time.
 
     Acquires the semaphore for each key sequentially so we don't spike
@@ -681,15 +761,20 @@ def _pre_warm_cache(keys: list[tuple[str, str, str]], frequency: str) -> None:
     subscriptions skip the semaphore wait entirely.
     """
     for key in keys:
-        proj_key, country, _ = key
+        proj_key, country, _, summary_mode = key
         project_ids = None if proj_key == "*" else [int(p) for p in proj_key.split(",")]
         try:
-            _build_report_with_throttle(project_ids, country, frequency)
+            _build_report_with_throttle(
+                project_ids,
+                country,
+                frequency,
+                generate_ai_summary=(summary_mode == "ai"),
+            )
         except Exception as e:
             logger.warning("Pre-warm failed for key=%s: %s", key, e)
 
 
-def dispatch_reports(frequency: str) -> dict[str, Any]:
+def dispatch_reports(frequency: str, triggered_by: str = "auto") -> dict[str, Any]:
     """Dispatch all active subscriptions for the given frequency.
 
     This is the main entry point called by the scheduler or a manual trigger.
@@ -714,13 +799,13 @@ def dispatch_reports(frequency: str) -> dict[str, Any]:
 
     if not subscriptions:
         logger.info("No active %s subscriptions found", frequency)
-        return {"frequency": frequency, "total": 0, "sent": 0, "failed": 0, "errors": []}
+        return {"frequency": frequency, "total": 0, "sent": 0, "failed": 0, "skipped": 0, "errors": []}
 
     # ── pre-warm cache for duplicate project+country combos ───────────────────
-    combo_counts: dict[tuple[str, str, str], int] = {}
+    combo_counts: dict[tuple[str, str, str, str], int] = {}
     for sub in subscriptions:
         for c in sub.country_list:
-            key = _cache_key(sub.project_id_list or None, c, _dispatch_date_str)
+            key = _cache_key(sub.project_id_list or None, c, _dispatch_date_str, False)
             combo_counts[key] = combo_counts.get(key, 0) + 1
 
     dupes_exist = any(c > 1 for c in combo_counts.values())
@@ -742,6 +827,7 @@ def dispatch_reports(frequency: str) -> dict[str, Any]:
             "country": sub.country,
             "frequency": frequency,
             "ai_model": getattr(sub, "ai_model", None),
+            "triggered_by": triggered_by,
         }
         for sub in subscriptions
     ]
@@ -766,7 +852,8 @@ def dispatch_reports(frequency: str) -> dict[str, Any]:
                     "error": str(e),
                 })
 
-    sent = sum(1 for r in results if r["success"])
+    skipped = sum(1 for r in results if r.get("skipped"))
+    sent = sum(1 for r in results if r["success"] and not r.get("skipped"))
     failed = sum(1 for r in results if not r["success"])
     errors = [
         {
@@ -782,6 +869,7 @@ def dispatch_reports(frequency: str) -> dict[str, Any]:
         "total": len(results),
         "sent": sent,
         "failed": failed,
+        "skipped": skipped,
         "errors": errors,
     }
     logger.info("Dispatch complete: %s", summary)
@@ -814,7 +902,7 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
     combo_keys = set()
     for sub in subscriptions:
         for c in sub.country_list:
-            combo_keys.add(_cache_key(sub.project_id_list or None, c, _dispatch_date_str))
+            combo_keys.add(_cache_key(sub.project_id_list or None, c, _dispatch_date_str, False))
 
     _pre_warm_cache(list(combo_keys), frequency)
 
@@ -822,7 +910,7 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
     return {"frequency": frequency, "warmed": len(combo_keys)}
 
 
-def dispatch_report_for_subscription(subscription_id: int) -> dict[str, Any]:
+def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "manual") -> dict[str, Any]:
     """Dispatch a single subscription (used by manual trigger API)."""
     global _summary_cache
     global _dispatch_date_str
@@ -854,6 +942,7 @@ def dispatch_report_for_subscription(subscription_id: int) -> dict[str, Any]:
         country=sub.country,
         frequency=sub.frequency,
         ai_model=getattr(sub, "ai_model", None),
+        triggered_by=triggered_by,
     )
 
 
@@ -923,12 +1012,14 @@ def _dispatch_one_async(
             report_data = _build_multi_country_report(
                 project_ids, parsed_countries, frequency,
                 ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
+                generate_ai_summary=False,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
                 project_ids, single_country, frequency,
                 ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
+                generate_ai_summary=False,
             )
         report_data["log_id"] = log_id
 
@@ -947,7 +1038,7 @@ def _dispatch_one_async(
             # 此时 _classify_log 需要看到 status='sent' 才能正确分类
             mark_delivery_success(db, log_id, resend_id_or_error)
 
-            # 保存截图和 AI 摘要（在 stage='done' 之前完成）
+            # 保存截图信息并启动 AI 摘要后台任务（在 stage='done' 之前完成主任务落库）
             screenshot_key = report_data.get("screenshot_r2_key")
             screenshot_url = report_data.get("screenshot_r2_url")
             screenshot_thumb_key = report_data.get("screenshot_r2_thumb_key")
@@ -966,13 +1057,17 @@ def _dispatch_one_async(
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
 
-            ai_summary = report_data.get("ai_summary")
-            if ai_summary:
-                try:
-                    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary
-                    update_delivery_log_ai_summary(db=db, log_id=log_id, ai_summary=ai_summary)
-                except Exception as sum_err:
-                    logger.warning("更新 delivery log ai_summary 失败: %s", sum_err)
+            # AI 摘要改为后台异步生成，不阻塞补发主任务。
+            try:
+                from app.services.scheduled_report.ledger_service import enqueue_ai_summary_generation
+                enqueue_ai_summary_generation(
+                    db=db,
+                    log_id=log_id,
+                    ledger_key=ledger_key,
+                    override_ai_model=ai_model,
+                )
+            except Exception as sum_err:
+                logger.warning("启动 delivery log ai_summary 后台任务失败: %s", sum_err)
 
             # 直接更新 ledger entry 状态（不依赖后续的 refresh_ledger）
             try:
@@ -997,7 +1092,7 @@ def _dispatch_one_async(
                     logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
 
             # 最后设置 stage='done'（前端轮询的触发点）
-            # 此时 status='sent' + 截图 + AI摘要 + ledger entry 都已就绪
+            # 此时 status='sent' + 截图 + ledger entry 都已就绪；AI 摘要在后台继续生成。
             update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
 
             logger.info("Async report sent: sub=%d email=%s", subscription_id, email)

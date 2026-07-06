@@ -925,12 +925,14 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         country_list = [c.strip() for c in raw_country.split(",") if c.strip()]
         is_multi = len(country_list) > 1
 
+        include_ai_summary = bool((report_data.get("ai_summary") or "").strip())
+
         if is_multi:
             # Multi-country path
             country_data = report_data.get("country_data", {})
             email_html = _render_multi_country_html(
                 country_list, country_data, project_name, report_date,
-                report_data.get("ai_summary", ""), include_summary=True,
+                report_data.get("ai_summary", ""), include_summary=include_ai_summary,
             )
             screenshot_html = _render_multi_country_html(
                 country_list, country_data, project_name, report_date,
@@ -942,7 +944,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
             country_for_file = "+".join(country_list)
         else:
             # Single-country path (existing behavior)
-            email_html = _render_daily_report_html(report_data, include_summary=True)
+            email_html = _render_daily_report_html(report_data, include_summary=include_ai_summary)
             screenshot_html = _render_daily_report_html(report_data, include_summary=False, for_screenshot=True)
             subject = f"BelieveBoy | {truncate_project_name_for_subject(project_name)} · {freq_label}运营报告 · {report_date}"
             country_for_file = country_list[0] if country_list else "US"

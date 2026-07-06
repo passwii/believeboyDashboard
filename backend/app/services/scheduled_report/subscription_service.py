@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import select, func
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models import ScheduledReportSubscription, ScheduledReportDeliveryLog
-from app.models.scheduled_report import DeliveryStatus, DeliveryStage
+from app.models.scheduled_report import AiSummaryStatus, DeliveryStatus, DeliveryStage
 from app.schemas.scheduled_report import SubscriptionCreate, SubscriptionUpdate
 from app.services.r2_lifecycle import record_delete_failure
 from app.services.r2_service import try_delete_file_from_r2
@@ -280,7 +281,6 @@ def update_delivery_log_stage(db: Session, log_id: int, stage: str) -> None:
 
 def mark_delivery_success(db: Session, log_id: int, resend_id: str | None = None) -> None:
     """标记推送成功。"""
-    from datetime import datetime, timezone
     log = db.get(ScheduledReportDeliveryLog, log_id)
     if log:
         log.status = DeliveryStatus.SENT.value
@@ -320,10 +320,35 @@ def update_delivery_log_ai_summary(
     db: Session,
     log_id: int,
     ai_summary: str,
+    *,
+    ai_model: str | None = None,
 ) -> None:
     """更新推送日志的 AI 报表总结文案。"""
     log = db.get(ScheduledReportDeliveryLog, log_id)
     if log:
         log.ai_summary = ai_summary
+        log.ai_summary_status = AiSummaryStatus.DONE.value
+        log.ai_summary_error = None
+        log.ai_summary_model = ai_model
+        log.ai_summary_updated_at = datetime.now(timezone.utc)
         db.commit()
         logger.info(f"Updated ai_summary for delivery log id={log_id}")
+
+
+def update_delivery_log_ai_summary_status(
+    db: Session,
+    log_id: int,
+    status: str,
+    *,
+    error_message: str | None = None,
+    ai_model: str | None = None,
+) -> None:
+    """更新 AI 摘要生成状态。"""
+    log = db.get(ScheduledReportDeliveryLog, log_id)
+    if log:
+        log.ai_summary_status = status
+        log.ai_summary_error = error_message
+        log.ai_summary_model = ai_model
+        log.ai_summary_updated_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info(f"Updated ai_summary_status for delivery log id={log_id}: {status}")

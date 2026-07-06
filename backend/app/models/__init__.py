@@ -94,6 +94,8 @@ from app.models.scheduled_report import (
     ScheduledReportLedgerEntry,
     ReportFrequency,
     DeliveryStatus,
+    DeliveryStage,
+    AiSummaryStatus,
     LedgerStatus,
 )
 from app.models.insight_schedule import InsightSchedule
@@ -194,6 +196,8 @@ __all__ = [
     'ScheduledReportLedgerEntry',
     'ReportFrequency',
     'DeliveryStatus',
+    'DeliveryStage',
+    'AiSummaryStatus',
     'LedgerStatus',
     'InsightSchedule',
     'PlatformRevenue',

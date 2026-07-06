@@ -691,21 +691,10 @@ export default function MonthlyReportClient() {
         }
       }
 
-      try {
-       const filename = await downloadByEndpoint(resultEndpoint, fallbackName, currentOperator)
-       setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
-       setSubmitState({ status: 'success', message: `生成成功，已下载 ${filename}`, filename })
-       setDownloadTarget((prev) => ({ ...prev, filenameHint: filename }))
-       void pollPersistenceStatus()
-     } catch (downloadError) {
-       setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
-       setSubmitState({
-         status: 'error',
-         message: `报表已生成，但下载失败：${downloadError instanceof Error ? downloadError.message : '未知错误'}。可点击"重试下载"。`,
-          filename: fallbackName,
-        })
-        void pollPersistenceStatus()
-      }
+      // 默认不自动下载，由用户点击"下载报表"按钮触发
+      setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
+      setSubmitState({ status: 'success', message: '生成成功，可点击"下载报表"按钮下载', filename: fallbackName })
+      void pollPersistenceStatus()
     } catch (error) {
       setJobProgress((prev) => prev ?? { stage: 'failed', progress: 100, message: '处理失败' })
       setSubmitState({

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
+import threading
 
 from sqlalchemy import Select, delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.scheduled_report import (
+    AiSummaryStatus,
     DeliveryStage,
     DeliveryStatus,
     LedgerStatus,
@@ -89,6 +91,43 @@ def _latest_log_for(db: Session, sub: ScheduledReportSubscription, expected_date
     return db.execute(query).scalars().first()
 
 
+def find_successful_manual_log(
+    db: Session,
+    *,
+    subscription_id: int,
+    frequency: str,
+    report_date: str,
+) -> ScheduledReportDeliveryLog | None:
+    """Find a manual successful delivery for the same subscription period."""
+    query = (
+        select(ScheduledReportDeliveryLog)
+        .where(ScheduledReportDeliveryLog.subscription_id == subscription_id)
+        .where(ScheduledReportDeliveryLog.frequency == frequency)
+        .where(ScheduledReportDeliveryLog.report_date == report_date)
+        .where(ScheduledReportDeliveryLog.triggered_by == "manual")
+        .where(ScheduledReportDeliveryLog.status == DeliveryStatus.SENT.value)
+        .order_by(ScheduledReportDeliveryLog.created_at.desc(), ScheduledReportDeliveryLog.id.desc())
+    )
+    return db.execute(query).scalars().first()
+
+
+def _resolve_effective_ai_model(
+    subscription: ScheduledReportSubscription,
+    override_ai_model: str | None = None,
+) -> str | None:
+    if override_ai_model:
+        normalized = override_ai_model.strip()
+        if normalized:
+            return normalized
+    return getattr(subscription, "ai_model", None)
+
+
+def _summary_reference_date(expected_date: str, frequency: str) -> date:
+    if frequency in ("weekly", "monthly"):
+        return date.fromisoformat(expected_date)
+    return date.fromisoformat(expected_date) - timedelta(days=1)
+
+
 def _classify_log(log: ScheduledReportDeliveryLog | None) -> str:
     if log is None:
         return LedgerStatus.MISSING.value
@@ -164,6 +203,10 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
     screenshot_r2_url = None
     screenshot_r2_thumb_url = None
     ai_summary = None
+    ai_summary_status = AiSummaryStatus.PENDING.value
+    ai_summary_error = None
+    ai_summary_model = None
+    ai_summary_updated_at = None
     effective_status = entry.status
     if entry.latest_delivery_log_id:
         log = db.get(ScheduledReportDeliveryLog, entry.latest_delivery_log_id)
@@ -171,6 +214,10 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
             screenshot_r2_url = log.screenshot_r2_url
             screenshot_r2_thumb_url = log.screenshot_r2_thumb_url
             ai_summary = log.ai_summary
+            ai_summary_status = log.ai_summary_status
+            ai_summary_error = log.ai_summary_error
+            ai_summary_model = log.ai_summary_model
+            ai_summary_updated_at = log.ai_summary_updated_at
             # 自愈逻辑：当 delivery_log 状态与 ledger entry 状态不一致时，
             # 以 delivery_log 为准（delivery_log 是实际执行结果的权威来源）
             live_status = _classify_log(log)
@@ -201,6 +248,10 @@ def _to_item(db: Session, entry: ScheduledReportLedgerEntry) -> LedgerItem:
         screenshot_r2_url=screenshot_r2_url,
         screenshot_r2_thumb_url=screenshot_r2_thumb_url,
         ai_summary=ai_summary,
+        ai_summary_status=ai_summary_status,
+        ai_summary_error=ai_summary_error,
+        ai_summary_model=ai_summary_model,
+        ai_summary_updated_at=ai_summary_updated_at,
     )
 
 
@@ -247,6 +298,171 @@ def _summary_for(db: Session, query: Select[tuple[ScheduledReportLedgerEntry]]) 
         missing=missing,
         resendable=failed + missing,
     )
+
+
+def _build_ai_summary_payload(
+    subscription: ScheduledReportSubscription,
+    *,
+    expected_date: str,
+    frequency: str,
+    ai_model: str | None,
+) -> dict:
+    from app.services.scheduled_report.dispatcher import _build_multi_country_report, _build_report_with_throttle
+
+    ref_date = _summary_reference_date(expected_date, frequency)
+    project_ids = subscription.project_id_list or None
+    countries = subscription.country_list
+    if len(countries) > 1:
+        return _build_multi_country_report(
+            project_ids,
+            countries,
+            frequency,
+            ai_model=ai_model,
+            reference_date=ref_date,
+            use_cache=False,
+            generate_ai_summary=True,
+        )
+
+    country = countries[0] if countries else "US"
+    return _build_report_with_throttle(
+        project_ids,
+        country,
+        frequency,
+        ai_model=ai_model,
+        reference_date=ref_date,
+        use_cache=False,
+        generate_ai_summary=True,
+    )
+
+
+def generate_ai_summary_for_delivery_log(
+    *,
+    log_id: int,
+    ledger_key: str | None = None,
+    override_ai_model: str | None = None,
+) -> None:
+    """Generate AI summary in the background and write it back to delivery_log."""
+    from app.db.session import SessionLocal
+    from app.services.scheduled_report.subscription_service import (
+        update_delivery_log_ai_summary,
+        update_delivery_log_ai_summary_status,
+    )
+
+    db = SessionLocal()
+    try:
+        log = db.get(ScheduledReportDeliveryLog, log_id)
+        if log is None:
+            return
+        subscription = db.get(ScheduledReportSubscription, log.subscription_id)
+        if subscription is None:
+            update_delivery_log_ai_summary_status(
+                db,
+                log_id,
+                AiSummaryStatus.FAILED.value,
+                error_message="订阅不存在或已删除",
+            )
+            return
+
+        entry = None
+        if ledger_key:
+            entry = db.execute(
+                select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+            ).scalars().first()
+
+        expected_date = entry.expected_date if entry else log.report_date
+        frequency = entry.frequency if entry else log.frequency
+        effective_ai_model = _resolve_effective_ai_model(subscription, override_ai_model)
+
+        update_delivery_log_ai_summary_status(
+            db,
+            log_id,
+            AiSummaryStatus.GENERATING.value,
+            ai_model=effective_ai_model,
+        )
+
+        report_data = _build_ai_summary_payload(
+            subscription,
+            expected_date=expected_date,
+            frequency=frequency,
+            ai_model=effective_ai_model,
+        )
+        ai_summary = (report_data.get("ai_summary") or "").strip()
+        if not ai_summary:
+            raise RuntimeError("AI 摘要为空")
+
+        update_delivery_log_ai_summary(db, log_id, ai_summary, ai_model=effective_ai_model)
+    except Exception as exc:
+        update_delivery_log_ai_summary_status(
+            db,
+            log_id,
+            AiSummaryStatus.FAILED.value,
+            error_message=str(exc),
+            ai_model=override_ai_model.strip() if override_ai_model else None,
+        )
+    finally:
+        db.close()
+
+
+def enqueue_ai_summary_generation(
+    db: Session,
+    *,
+    log_id: int,
+    ledger_key: str | None = None,
+    override_ai_model: str | None = None,
+) -> None:
+    from app.services.scheduled_report.subscription_service import update_delivery_log_ai_summary_status
+
+    log = db.get(ScheduledReportDeliveryLog, log_id)
+    if log is None:
+        return
+    subscription = db.get(ScheduledReportSubscription, log.subscription_id)
+    effective_ai_model = _resolve_effective_ai_model(subscription, override_ai_model) if subscription else None
+    update_delivery_log_ai_summary_status(
+        db,
+        log_id,
+        AiSummaryStatus.PENDING.value,
+        error_message=None,
+        ai_model=effective_ai_model,
+    )
+    thread = threading.Thread(
+        target=generate_ai_summary_for_delivery_log,
+        kwargs={
+            "log_id": log_id,
+            "ledger_key": ledger_key,
+            "override_ai_model": override_ai_model,
+        },
+        daemon=True,
+    )
+    thread.start()
+
+
+def regenerate_ledger_ai_summary_async(
+    db: Session,
+    *,
+    ledger_key: str,
+    override_ai_model: str | None = None,
+) -> tuple[bool, int | None, str, str]:
+    entry = db.execute(
+        select(ScheduledReportLedgerEntry).where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
+    ).scalars().first()
+    if entry is None:
+        return False, None, "not_found", "台账记录不存在,请刷新后重试"
+    if entry.latest_delivery_log_id is None:
+        return False, None, "missing_log", "暂无可补充摘要的报告记录,请先补发或生成报告"
+
+    log = db.get(ScheduledReportDeliveryLog, entry.latest_delivery_log_id)
+    if log is None:
+        return False, None, "missing_log", "对应的报告记录不存在,请先补发或生成报告"
+    if log.status != DeliveryStatus.SENT.value:
+        return False, log.id, "not_sent", "报告尚未成功发送,请先补发或生成报告"
+
+    enqueue_ai_summary_generation(
+        db,
+        log_id=log.id,
+        ledger_key=ledger_key,
+        override_ai_model=override_ai_model,
+    )
+    return True, log.id, AiSummaryStatus.GENERATING.value, "AI 摘要生成已启动"
 
 
 def refresh_ledger(
@@ -428,6 +644,8 @@ def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | No
         frequency=subscription.frequency,
         ai_model=getattr(subscription, "ai_model", None),
         use_cache=False,
+        triggered_by="manual",
+        report_date=entry.expected_date,
     )
 
     refresh_ledger(

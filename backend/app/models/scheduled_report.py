@@ -42,6 +42,13 @@ class DeliveryStage(str, Enum):
     FAILED = "failed"
 
 
+class AiSummaryStatus(str, Enum):
+    PENDING = "pending"
+    GENERATING = "generating"
+    DONE = "done"
+    FAILED = "failed"
+
+
 class LedgerStatus(str, Enum):
     SENT = "sent"
     FAILED = "failed"
@@ -125,6 +132,13 @@ class ScheduledReportDeliveryLog(Base):
     screenshot_r2_thumb_key: Mapped[str | None] = mapped_column(String(512), nullable=True, comment="R2 thumb object key for screenshot")
     screenshot_r2_thumb_url: Mapped[str | None] = mapped_column(String(1024), nullable=True, comment="Public URL for thumb")
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 报表总结文案（Markdown）")
+    ai_summary_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=AiSummaryStatus.PENDING.value, index=True,
+        comment="AI 摘要状态: pending/generating/done/failed",
+    )
+    ai_summary_error: Mapped[str | None] = mapped_column(Text, nullable=True, comment="AI 摘要生成错误")
+    ai_summary_model: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="AI 摘要使用模型")
+    ai_summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stage: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DeliveryStage.PENDING.value, index=True,
         comment="处理阶段: pending/preparing/fetching_data/generating_summary/rendering_html/capturing_screenshot/sending/done/failed"

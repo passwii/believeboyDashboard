@@ -272,6 +272,61 @@ export async function resendLedgerEntry(
   }
 }
 
+export async function regenerateLedgerAiSummary(
+  ledgerKey: string,
+  overrideAiModel?: string | null,
+): Promise<{ ok: boolean; deliveryLogId?: number; status?: string; error?: string }> {
+  const params = new URLSearchParams()
+  if (overrideAiModel?.trim()) params.set('ai_model', overrideAiModel.trim())
+  const qs = params.toString()
+  const url = qs
+    ? resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate?${qs}`)
+    : resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate`)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: authHeadersWithAdmin(),
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const data = await res.json()
+    return { ok: true, deliveryLogId: data.delivery_log_id, status: data.status }
+  } catch (e) {
+    return { ok: false, error: normalizeErrorMessage(e) }
+  }
+}
+
+export async function pollLedgerAiSummaryStatus(
+  ledgerKey: string,
+  fetchItem: () => Promise<LedgerItem | null>,
+  onItem: (item: LedgerItem) => void,
+  onDone: (item: LedgerItem) => void,
+  onError: (item: LedgerItem | null) => void,
+  pollInterval = 2500,
+) {
+  const poll = async () => {
+    try {
+      const item = await fetchItem()
+      if (!item) {
+        setTimeout(poll, pollInterval)
+        return
+      }
+      onItem(item)
+      if (item.ai_summary_status === 'done') {
+        onDone(item)
+        return
+      }
+      if (item.ai_summary_status === 'failed') {
+        onError(item)
+        return
+      }
+      setTimeout(poll, pollInterval)
+    } catch {
+      setTimeout(poll, pollInterval * 2)
+    }
+  }
+  poll()
+}
+
 export async function pollDeliveryLogStatus(
   ledgerKey: string,
   deliveryLogId: number,

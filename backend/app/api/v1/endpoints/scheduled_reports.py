@@ -13,6 +13,7 @@ from app.schemas.scheduled_report import (
     DeliveryLogItem,
     DeliveryLogListResponse,
     LedgerListResponse,
+    LedgerRegenerateSummaryResponse,
     LedgerResendResponse,
     SubscriptionCreate,
     SubscriptionItem,
@@ -278,6 +279,38 @@ def resend_scheduled_report_ledger_entry(
     )
 
 
+@router.post(
+    "/scheduled-reports/ledger/{ledger_key}/ai-summary/regenerate",
+    response_model=LedgerRegenerateSummaryResponse,
+)
+def regenerate_scheduled_report_ai_summary(
+    ledger_key: str,
+    ai_model: Optional[str] = None,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+    _: bool = Depends(require_admin),
+):
+    from app.services.scheduled_report.ledger_service import regenerate_ledger_ai_summary_async
+
+    override_ai_model = ai_model.strip() if ai_model else None
+    success, delivery_log_id, new_status, message = regenerate_ledger_ai_summary_async(
+        db,
+        ledger_key=ledger_key,
+        override_ai_model=override_ai_model,
+    )
+    if new_status == "not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+    if new_status in ("missing_log", "not_sent"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message)
+    return LedgerRegenerateSummaryResponse(
+        success=success,
+        ledger_key=ledger_key,
+        delivery_log_id=delivery_log_id,
+        status=new_status,
+        message=message,
+    )
+
+
 @router.post("/scheduled-reports/trigger", response_model=TriggerReportResponse)
 def trigger_report_dispatch(
     frequency: str = "daily",
@@ -294,13 +327,15 @@ def trigger_report_dispatch(
     import threading
     from app.services.scheduled_report.dispatcher import dispatch_reports
 
-    # Run in background thread to avoid blocking the request
-    thread = threading.Thread(target=dispatch_reports, args=(frequency,), daemon=True)
+    # Run in background thread to avoid blocking the request. 管理员手动触发记为 manual，
+    # 后续自动调度会据此跳过同周期重复生成。
+    thread = threading.Thread(target=dispatch_reports, args=(frequency, "manual"), daemon=True)
     thread.start()
 
     return TriggerReportResponse(
         success=True,
         frequency=frequency,
         subscriptions_affected=0,
+        skipped=0,
         message=f"{frequency} 报告调度已启动（后台执行中），请查看日志或推送记录确认结果。",
     )

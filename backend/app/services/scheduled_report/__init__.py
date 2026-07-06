@@ -14,7 +14,11 @@ from app.services.scheduled_report.subscription_service import (
     mark_delivery_failed,
 )
 from app.services.scheduled_report.dispatcher import dispatch_reports
-from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry
+from app.services.scheduled_report.ledger_service import (
+    refresh_ledger,
+    resend_ledger_entry,
+    regenerate_ledger_ai_summary_async,
+)
 
 # Weekly report exports
 from app.services.scheduled_report.report_builder_daily import build_report_email_data
@@ -44,6 +48,7 @@ __all__ = [
     'dispatch_reports',
     'refresh_ledger',
     'resend_ledger_entry',
+    'regenerate_ledger_ai_summary_async',
     
     # Weekly report
     'build_weekly_report_data',

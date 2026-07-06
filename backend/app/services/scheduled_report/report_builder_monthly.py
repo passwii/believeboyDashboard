@@ -781,6 +781,7 @@ def build_monthly_report_data(
     reference_date: date | None = None,
     stage_callback=None,
     ai_timeout: float | None = None,
+    generate_ai_summary: bool = True,
 ) -> dict[str, Any]:
     """构建完整的月报告数据结构。
 
@@ -879,7 +880,7 @@ def build_monthly_report_data(
     })
 
     # 14. AI 内容生成
-    if stage_callback:
+    if generate_ai_summary and stage_callback:
         try:
             from app.models.scheduled_report import DeliveryStage
             stage_callback(DeliveryStage.GENERATING_SUMMARY.value)
@@ -905,13 +906,13 @@ def build_monthly_report_data(
         "sku_factory_info_text": sku_factory_info_text,
     }
 
-    ai_summary = generate_monthly_ai_summary(report_data_for_ai, timeout=ai_timeout)
+    ai_summary = generate_monthly_ai_summary(report_data_for_ai, timeout=ai_timeout) if generate_ai_summary else ""
 
     attribution_summary = generate_monthly_attribution_analysis({
         "attribution": attribution,
         "current_month": current_month,
         "prev_month": prev_month,
-    })
+    }) if generate_ai_summary else ""
 
     alert_insights = generate_monthly_alert_insights({"alerts": alerts})
 

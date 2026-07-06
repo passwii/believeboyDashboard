@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon } from 'lucide-react'
+import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, Sparkles } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -39,9 +41,11 @@ interface LedgerDetailDialogProps {
   modelConfig: AIModelConfig | null
   isLoadingModelConfig: boolean
   resendingStage: ResendStage | undefined
+  regeneratingAiSummary: boolean
   canTriggerResend: boolean
   onResend: (item: LedgerItem, overrideAiModel: string | null) => void
   onResendLoading: (item: LedgerItem) => void
+  onRegenerateAiSummary: (item: LedgerItem, overrideAiModel: string | null) => void
   onCopy: (text: string) => void
 }
 
@@ -53,17 +57,27 @@ export function LedgerDetailDialog({
   modelConfig,
   isLoadingModelConfig,
   resendingStage,
+  regeneratingAiSummary,
   canTriggerResend,
   onResend,
   onResendLoading,
+  onRegenerateAiSummary,
   onCopy,
 }: LedgerDetailDialogProps) {
   const [previewScreenshot, setPreviewScreenshot] = useState<string | null>(null)
   const [showAllProjects, setShowAllProjects] = useState(false)
+  const [summaryModelOpen, setSummaryModelOpen] = useState(false)
+  const [summaryModel, setSummaryModel] = useState('')
 
   const sub = item ? subscriptions.find(s => s.id === item.subscription_id) : undefined
   const fallbackModel = item ? (sub?.ai_model || modelConfig?.defaultModel || '') : ''
   const canTrigger = !!item && (canTriggerResend || item.can_resend)
+  const canRegenerateSummary = !!item && canTriggerResend && item.status === 'sent'
+  const summaryActionLabel = item?.ai_summary ? '重新生成摘要' : '补充 AI 摘要'
+
+  useEffect(() => {
+    if (summaryModelOpen) setSummaryModel(fallbackModel)
+  }, [summaryModelOpen, fallbackModel])
 
   const projectNames = !item
     ? []
@@ -192,19 +206,107 @@ export function LedgerDetailDialog({
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 gap-2">
                       <span className={cn(SECTION_LABEL, 'mb-0')}>AI 文案</span>
-                      {item.ai_summary && (
-                        <button
-                          type="button"
-                          onClick={() => onCopy(item.ai_summary!.replace(/^[-•·●]\s*/gm, '◉ '))}
-                          className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
-                          aria-label="复制 AI 文案"
-                        >
-                          <Copy className="h-3 w-3" />
-                          复制
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {canRegenerateSummary && (
+                          <Popover open={summaryModelOpen} onOpenChange={setSummaryModelOpen}>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={regeneratingAiSummary || item.ai_summary_status === 'generating' || isLoadingModelConfig}
+                                className="flex items-center gap-1 text-[11px] text-violet-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-violet-400"
+                                aria-label={summaryActionLabel}
+                              >
+                                {regeneratingAiSummary || item.ai_summary_status === 'generating' ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" />
+                                )}
+                                {regeneratingAiSummary || item.ai_summary_status === 'generating' ? '生成中' : summaryActionLabel}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[280px] p-3" align="end">
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium">{summaryActionLabel}</div>
+                                <p className="text-xs text-muted-foreground">
+                                  只重新生成 AI 摘要，不会重新截图或发送邮件。
+                                </p>
+                                <div>
+                                  <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
+                                  <Select
+                                    value={summaryModel}
+                                    onValueChange={setSummaryModel}
+                                    disabled={isLoadingModelConfig || !modelConfig?.models.length}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {fallbackModel && (
+                                        <SelectItem value={fallbackModel}>
+                                          <span className="flex items-center gap-1">
+                                            <span className="text-muted-foreground">订阅预设：</span>
+                                            <span>{fallbackModel}</span>
+                                          </span>
+                                        </SelectItem>
+                                      )}
+                                      {(modelConfig?.premiumModels.length || 0) > 0 && (
+                                        <SelectGroup>
+                                          <SelectLabel>高级模型</SelectLabel>
+                                          {modelConfig?.premiumModels.map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      )}
+                                      {(modelConfig?.basicModels.length || 0) > 0 && (
+                                        <SelectGroup>
+                                          <SelectLabel>基础模型</SelectLabel>
+                                          {modelConfig?.basicModels.map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      )}
+                                      {modelConfig?.models
+                                        .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m) && m !== fallbackModel)
+                                        .map(m => (
+                                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    disabled={!summaryModel || regeneratingAiSummary || item.ai_summary_status === 'generating'}
+                                    onClick={() => {
+                                      setSummaryModelOpen(false)
+                                      onRegenerateAiSummary(item, summaryModel)
+                                    }}
+                                  >
+                                    确认生成
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="flex-1" onClick={() => setSummaryModelOpen(false)}>
+                                    取消
+                                  </Button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        {item.ai_summary && (
+                          <button
+                            type="button"
+                            onClick={() => onCopy(item.ai_summary!.replace(/^[-•·●]\s*/gm, '◉ '))}
+                            className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                            aria-label="复制 AI 文案"
+                          >
+                            <Copy className="h-3 w-3" />
+                            复制
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {item.ai_summary ? (
                       <div className="rounded-lg border border-border/60 bg-muted/20 p-3 max-h-[60vh] overflow-y-auto">
@@ -213,6 +315,17 @@ export function LedgerDetailDialog({
                             {item.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
                           </ReactMarkdown>
                         </div>
+                      </div>
+                    ) : item.ai_summary_status === 'generating' || regeneratingAiSummary ? (
+                      <div className="flex items-center gap-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-12 border border-violet-100 justify-center min-h-[200px] dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        AI 摘要生成中
+                      </div>
+                    ) : item.ai_summary_status === 'failed' ? (
+                      <div className="flex flex-col items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-12 border border-red-100 justify-center min-h-[200px] dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span>AI 摘要生成失败，可点击上方按钮重试</span>
+                        {item.ai_summary_error && <span className="text-[11px] text-muted-foreground">{item.ai_summary_error}</span>}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">

@@ -21,6 +21,8 @@ import {
   fetchModelConfig,
   fetchSubscriptions,
   pollDeliveryLogStatus,
+  pollLedgerAiSummaryStatus,
+  regenerateLedgerAiSummary,
   resendLedgerEntry,
 } from '../_components/api'
 import { LedgerResendCell } from '../_components/LedgerResendCell'
@@ -40,6 +42,7 @@ export default function LedgerPage() {
   const [ledgerLoading, setLedgerLoading] = useState(false)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
   const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
+  const [regeneratingSummaryKeys, setRegeneratingSummaryKeys] = useState<Set<string>>(new Set())
   const [selectedItem, setSelectedItem] = useState<LedgerItem | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
@@ -147,6 +150,28 @@ export default function LedgerPage() {
   const isAdmin = roleType === 'admin'
   const canTriggerResend = isAdmin
 
+  const mergeLedgerItem = (nextItem: LedgerItem) => {
+    setLedgerItems(prev => prev.map(item => item.ledger_key === nextItem.ledger_key ? nextItem : item))
+    setSelectedItem(prev => prev?.ledger_key === nextItem.ledger_key ? nextItem : prev)
+  }
+
+  const fetchLedgerItemByKey = async (sourceItem: LedgerItem): Promise<LedgerItem | null> => {
+    let found: LedgerItem | null = null
+    await fetchLedger(
+      {
+        startDate: sourceItem.expected_date,
+        endDate: sourceItem.expected_date,
+        frequency: sourceItem.frequency,
+        statusFilter: 'all',
+        email: '',
+        limit: 100,
+      },
+      (items) => { found = items.find(item => item.ledger_key === sourceItem.ledger_key) ?? null },
+      () => {},
+    )
+    return found
+  }
+
   const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
     setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))
     const result = await resendLedgerEntry(item.ledger_key, isAdmin, overrideAiModel)
@@ -188,6 +213,55 @@ export default function LedgerPage() {
       })
       await loadLedger()
     }
+  }
+
+  const handleRegenerateAiSummary = async (item: LedgerItem, overrideAiModel?: string | null) => {
+    setRegeneratingSummaryKeys(prev => new Set(prev).add(item.ledger_key))
+    mergeLedgerItem({
+      ...item,
+      ai_summary_status: 'generating',
+      ai_summary_error: null,
+      ai_summary_model: overrideAiModel?.trim() || item.ai_summary_model,
+    })
+
+    const result = await regenerateLedgerAiSummary(item.ledger_key, overrideAiModel)
+    if (!result.ok) {
+      setRegeneratingSummaryKeys(prev => {
+        const next = new Set(prev)
+        next.delete(item.ledger_key)
+        return next
+      })
+      notify({ type: 'error', title: 'AI 摘要生成失败', message: result.error || '未知错误' })
+      return
+    }
+
+    pollLedgerAiSummaryStatus(
+      item.ledger_key,
+      () => fetchLedgerItemByKey(item),
+      mergeLedgerItem,
+      (doneItem) => {
+        mergeLedgerItem(doneItem)
+        setRegeneratingSummaryKeys(prev => {
+          const next = new Set(prev)
+          next.delete(item.ledger_key)
+          return next
+        })
+        notify({ type: 'success', title: 'AI 摘要已更新' })
+      },
+      (failedItem) => {
+        if (failedItem) mergeLedgerItem(failedItem)
+        setRegeneratingSummaryKeys(prev => {
+          const next = new Set(prev)
+          next.delete(item.ledger_key)
+          return next
+        })
+        notify({
+          type: 'error',
+          title: 'AI 摘要生成失败',
+          message: failedItem?.ai_summary_error || '请稍后重试',
+        })
+      },
+    )
   }
 
   const openDetail = (item: LedgerItem) => {
@@ -393,9 +467,11 @@ export default function LedgerPage() {
         modelConfig={modelConfig}
         isLoadingModelConfig={isLoadingModelConfig}
         resendingStage={selectedItem ? resendingStates[selectedItem.ledger_key] : undefined}
+        regeneratingAiSummary={selectedItem ? regeneratingSummaryKeys.has(selectedItem.ledger_key) : false}
         canTriggerResend={canTriggerResend}
         onResend={handleResendLedger}
         onResendLoading={item => setResendingStates(prev => ({ ...prev, [item.ledger_key]: 'preparing' }))}
+        onRegenerateAiSummary={handleRegenerateAiSummary}
         onCopy={text => {
           navigator.clipboard.writeText(text)
           notify({ type: 'success', title: '已复制' })
