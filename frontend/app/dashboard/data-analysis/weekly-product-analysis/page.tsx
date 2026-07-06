@@ -5,6 +5,7 @@ import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis 
 import { AlertTriangle, Download, Eye, EyeOff, Loader2, ShoppingCart } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -1122,10 +1123,16 @@ export default function WeeklyProductAnalysisPage() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
-  const [projectId, setProjectId] = useState('')
-  const [country, setCountry] = useState<CountryOption>('US')
-  const [startDate, setStartDate] = useState(eightWeeksAgoMondayDateString())
-  const [endDate, setEndDate] = useState(lastSundayDateString())
+  // 项目 / 国家 / 起止日期 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // 默认日期用 useMemo 锁定（保持与原 useState 一致的"挂载时一次性快照"语义）。
+  const defaultFrom = useMemo(() => eightWeeksAgoMondayDateString(), [])
+  const defaultTo = useMemo(() => lastSundayDateString(), [])
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
+    allowed: ['US', 'DE', 'UK'],
+  })
+  const [startDate, setStartDate] = useUrlParam<string>('from', defaultFrom)
+  const [endDate, setEndDate] = useUrlParam<string>('to', defaultTo)
 
   const [data, setData] = useState<WeeklyDataRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -1168,8 +1175,14 @@ export default function WeeklyProductAnalysisPage() {
     try {
       const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
-      if (payload.length > 0 && !projectId) {
-        setProjectId(String(payload[0].id))
+      if (payload.length > 0) {
+        // 1. URL 没指定 projectId（空字符串）→ 选第一个
+        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+        // 注意：这里用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
+        const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
+        if (!projectId || !existsInList) {
+          setProjectId(String(payload[0].id))
+        }
       }
     } catch (loadError) {
       setProjectLoadError(

@@ -59,6 +59,7 @@ import {
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { getCountryLabel } from '@/lib/country'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
@@ -783,8 +784,16 @@ export default function FinancialDataClient({
   )
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
-  const [projectId, setProjectId] = useState(initialProjectId)
-  const [country, setCountry] = useState<ReportUploadCountry>(DEFAULT_REPORT_UPLOAD_COUNTRY)
+  // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // 默认值来自 props（page.tsx 传入 ""），URL 有值时覆盖 props。
+  const [projectId, setProjectId] = useUrlParam<string>('project', initialProjectId)
+  const [country, setCountry] = useUrlParam<ReportUploadCountry>(
+    'country',
+    DEFAULT_REPORT_UPLOAD_COUNTRY,
+    { allowed: ['US', 'DE', 'UK'] },
+  )
+  const [startMonth, setStartMonth] = useUrlParam<string>('fromMonth', initialStartMonth)
+  const [endMonth, setEndMonth] = useUrlParam<string>('toMonth', initialEndMonth)
 
   // DE/UK 报表启用 VAT 列；US 报表无 VAT 数据
   const showVatColumn = useMemo(
@@ -807,8 +816,6 @@ export default function FinancialDataClient({
         return 'USD'
     }
   }, [country])
-  const [startMonth, setStartMonth] = useState(initialStartMonth)
-  const [endMonth, setEndMonth] = useState(initialEndMonth)
 
   const [data, setData] = useState<FinancialSeriesResponse | null>(initialData)
   const [loading, setLoading] = useState(false)
@@ -853,9 +860,10 @@ export default function FinancialDataClient({
   useEffect(() => {
     if (initialStartMonth && initialEndMonth) return
     const defaults = getBrowserDefaultMonthRange()
-    setStartMonth((current) => current || defaults.startMonth)
-    setEndMonth((current) => current || defaults.endMonth)
-  }, [initialEndMonth, initialStartMonth])
+    // URL 没有 fromMonth/toMonth（或值为 props 的初始 ""）时，套用浏览器默认近 12 个月窗口。
+    if (!startMonth) setStartMonth(defaults.startMonth)
+    if (!endMonth) setEndMonth(defaults.endMonth)
+  }, [initialEndMonth, initialStartMonth, startMonth, endMonth])
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -863,8 +871,15 @@ export default function FinancialDataClient({
     try {
       const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
-      if (payload.length > 0 && !projectId) {
-        setProjectId(String(payload[0].id))
+      // 1. URL 没指定 projectId（空字符串）→ 选第一个
+      // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+      // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
+      if (payload.length > 0) {
+        const existsInList =
+          projectId && payload.some((p) => String(p.id) === projectId)
+        if (!projectId || !existsInList) {
+          setProjectId(String(payload[0].id))
+        }
       }
     } catch (loadError) {
       setProjectLoadError(

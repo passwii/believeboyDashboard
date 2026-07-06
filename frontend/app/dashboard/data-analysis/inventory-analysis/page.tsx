@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
@@ -139,12 +140,18 @@ export default function InventoryAnalysisPage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState<string>('')
-  const [country, setCountry] = useState('US')
-
+  // 项目 / 国家 / 报表快照日期 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // reportDate 是后端响应里带回来的"数据是几号的"，属于衍生展示值，不放 URL。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam('country', 'US', {
+    allowed: ['US', 'DE', 'UK', 'ALL'],
+  })
   const [reportDate, setReportDate] = useState<string | null>(null)
   const [snapshotOptions, setSnapshotOptions] = useState<SnapshotOption[]>([])
-  const [selectedSnapshotDate, setSelectedSnapshotDate] = useState<string>('current')
+  const [selectedSnapshotDate, setSelectedSnapshotDate] = useUrlParam<string>(
+    'snapshot',
+    'current',
+  )
   const [summary, setSummary] = useState<InventorySummary>({
     sku_count: 0,
     out_of_stock_count: 0,
@@ -187,8 +194,16 @@ export default function InventoryAnalysisPage() {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
         setProjects(payload)
-        if (!projectId && payload[0]?.id) {
-          setProjectId(String(payload[0].id))
+        // 1. URL 没指定 projectId（空字符串）→ 选第一个
+        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+        // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
+        if (payload.length > 0) {
+          const existsInList =
+            projectId && payload.some((p) => String(p.id) === projectId)
+          if (!projectId || !existsInList) {
+            const first = payload.find((p) => p.id !== null && p.id !== undefined)
+            if (first?.id != null) setProjectId(String(first.id))
+          }
         }
       } catch (loadError) {
         if (!active) return

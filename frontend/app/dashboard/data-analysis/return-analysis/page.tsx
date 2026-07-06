@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, ColGroup
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
@@ -244,11 +245,17 @@ export default function ReturnAnalysisPage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState('')
-  const [country, setCountry] = useState<CountryOption>('US')
+  // 项目 / 国家 / 当前 Tab 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // dateRange 暂保留本地 state（按 current country 的 timezone 计算默认值，比较重，先不污染 URL）。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
+    allowed: ['US', 'DE', 'UK'],
+  })
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
-  const [activeTab, setActiveTab] = useState<ViewTab>('rankings')
+  const [activeTab, setActiveTab] = useUrlParam<ViewTab>('tab', 'rankings', {
+    allowed: ['rankings', 'reason', 'trend', 'product-status', 'inventory-status', 'feedback', 'summary'],
+  })
 
   const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -261,9 +268,17 @@ export default function ReturnAnalysisPage() {
       setProjectsLoading(true)
       try {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
-        setProjects(payload.filter((item) => item.id !== null))
-        if (payload.length > 0 && payload[0].id !== null) {
-          setProjectId(String(payload[0].id))
+        const validPayload = payload.filter((item) => item.id !== null)
+        setProjects(validPayload)
+        // 1. URL 没指定 projectId（空字符串）→ 选第一个
+        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+        // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
+        if (validPayload.length > 0) {
+          const existsInList =
+            projectId && validPayload.some((p) => String(p.id) === projectId)
+          if (!projectId || !existsInList) {
+            setProjectId(String(validPayload[0].id))
+          }
         }
       } catch (fetchError) {
         notify({
