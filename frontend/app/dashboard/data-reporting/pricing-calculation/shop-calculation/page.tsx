@@ -28,6 +28,7 @@ import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calcula
 import type { ProjectManageOption, ProductCostItem, ShopCalculationItem } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 
@@ -424,7 +425,10 @@ export default function ShopCalculationPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${countryLabel}店铺SKU测算-${selectedProjectName}-${formatLocalTimestampForFilename()}.xlsx`
+      // 统一命名规范：${项目}_${中文站点}-页面名-业务标识.xlsx
+      const safeProjectName = (selectedProjectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(selectedCountry).replace(/[\\/:*?"<>|]/g, '-')
+      link.download = `${safeProjectName}_${safeCountryLabel}-店铺SKU测算-${formatLocalTimestampForFilename()}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
 
