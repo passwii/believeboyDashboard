@@ -82,6 +82,7 @@ import {
 } from '@/components/ui/command'
 import { logClientOperation } from '@/lib/operation-audit'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
@@ -1897,7 +1898,10 @@ async function exportStoreSkuTableToExcel(
 export default function PricingCalculationPage() {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
-  const [selectedCountry, setSelectedCountry] = useState<string>('US')
+  // 国家站点选择同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住。
+  const [selectedCountry, setSelectedCountry] = useUrlParam<string>('country', 'US', {
+    allowed: ['US', 'DE', 'UK'],
+  })
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [calculationMode, setCalculationMode] =
     useState<CalculationMode>('profit-calc')

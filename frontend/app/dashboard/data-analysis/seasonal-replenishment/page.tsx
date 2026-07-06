@@ -1,7 +1,7 @@
 'use client'
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { FileDown, RefreshCw, Table2, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import type { DateRange } from 'react-day-picker'
@@ -167,14 +167,16 @@ function toStrMinusYear(toDate: Date): string {
 export default function SeasonalReplenishmentPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
-  const [projectId, setProjectId] = useState<string>(() => searchParams.get('project') || '')
-  const [country, setCountry] = useState(() => searchParams.get('country') || 'US')
+
+  // 项目 / 国家 / 同比 / 关键字 同步到 URL search param。
+  // dateRange 暂时保留为本地 state（初始值仍从 URL ?from/?to 读，但用户改 picker 不写回 URL —— 与原行为一致）。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam('country', 'US', {
+    allowed: ['US', 'DE', 'UK', 'ALL'],
+  })
 
   // 时间范围：默认 [今天 - 90 天, 今天]（B1 决定）
   const todayInTz = useMemo(() => {
@@ -188,8 +190,11 @@ export default function SeasonalReplenishmentPage() {
   }, [todayInTz])
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const fromParam = searchParams.get('from')
-    const toParam = searchParams.get('to')
+    // 仅从 URL 初始化一次，后续 picker 修改不再写回 URL（保持与重构前的语义一致）。
+    if (typeof window === 'undefined') return { from: defaultFromDate, to: todayInTz }
+    const params = new URLSearchParams(window.location.search)
+    const fromParam = params.get('from')
+    const toParam = params.get('to')
     if (fromParam && toParam) {
       const from = parseIsoDate(fromParam)
       const to = parseIsoDate(toParam)
@@ -198,11 +203,11 @@ export default function SeasonalReplenishmentPage() {
     return { from: defaultFromDate, to: todayInTz }
   })
 
-  const [compareYear, setCompareYear] = useState<boolean>(() => {
-    return searchParams.get('compare') === '1'
-  })
+  const [compareYearRaw, setCompareYearRaw] = useUrlParam<string>('compare', '')
+  const compareYear = compareYearRaw === '1'
+  const setCompareYear = (v: boolean) => setCompareYearRaw(v ? '1' : '')
 
-  const [keyword, setKeyword] = useState(() => searchParams.get('keyword') || '')
+  const [keyword, setKeyword] = useUrlParam<string>('keyword', '')
   const deferredKeyword = useDeferredValue(keyword)
 
   const [rows, setRows] = useState<SeasonalRow[]>([])
@@ -219,17 +224,6 @@ export default function SeasonalReplenishmentPage() {
   const fromDate = dateRange?.from
   const toDate = dateRange?.to
   const compareYearOffset = compareYear ? 1 : 0
-
-  function syncUrlParams() {
-    const params = new URLSearchParams()
-    if (projectId) params.set('project', projectId)
-    if (country) params.set('country', country)
-    if (fromDate) params.set('from', formatIsoDate(fromDate)!)
-    if (toDate) params.set('to', formatIsoDate(toDate)!)
-    if (compareYear) params.set('compare', '1')
-    if (keyword.trim()) params.set('keyword', keyword.trim())
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }
 
   const tableTotals = useMemo(
     () =>
@@ -277,9 +271,11 @@ export default function SeasonalReplenishmentPage() {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
         setProjects(payload)
+        // 1. URL 没指定 projectId（空字符串）→ 选第一个
+        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
+        // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
         if (payload.length > 0) {
-          const urlProjectId = searchParams.get('project')
-          const existsInList = urlProjectId && payload.some((p) => String(p.id) === urlProjectId)
+          const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
           if (!projectId || !existsInList) {
             setProjectId(String(payload[0].id))
           }
@@ -295,7 +291,7 @@ export default function SeasonalReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [notify, projectId, session, searchParams])
+  }, [notify, projectId, session])
 
   useEffect(() => {
     if (!currentProjectId || !fromDate || !toDate) {
@@ -586,7 +582,7 @@ export default function SeasonalReplenishmentPage() {
                 {projectsLoading ? (
                   <Skeleton className="h-9 w-full rounded-lg" />
                 ) : (
-                  <Select value={projectId} onValueChange={(id) => { setProjectId(id); syncUrlParams() }}>
+                  <Select value={projectId} onValueChange={setProjectId}>
                     <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
                       <SelectValue placeholder="选择项目" />
                     </SelectTrigger>
@@ -606,7 +602,7 @@ export default function SeasonalReplenishmentPage() {
               <div className="mt-1">
                 <CountrySelect
                   value={country}
-                  onChange={(c) => { setCountry(c); syncUrlParams() }}
+                  onChange={(c) => { setCountry(c) }}
                   triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                 />
               </div>
@@ -643,7 +639,7 @@ export default function SeasonalReplenishmentPage() {
               <div className="mt-2 flex items-center gap-2 h-9">
                 <Switch
                   checked={compareYear}
-                  onCheckedChange={(v) => { setCompareYear(v); syncUrlParams() }}
+                  onCheckedChange={setCompareYear}
                   id="compare-yoy"
                 />
                 <label htmlFor="compare-yoy" className="text-xs text-muted-foreground cursor-pointer">

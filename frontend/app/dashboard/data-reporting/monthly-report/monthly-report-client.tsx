@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
 import {
   CountrySelect,
@@ -242,9 +243,15 @@ export default function MonthlyReportClient() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
-  const [projectName, setProjectName] = useState('')
-  const [country, setCountry] = useState<CountryOption>(DEFAULT_REPORT_UPLOAD_COUNTRY)
-  const [reportMonth, setReportMonth] = useState(currentMonthString())
+  // 月报上传页面：项目名 / 国家 / 上报月份 同步到 URL search param，
+  // 刷新、分享链接、浏览器后退都能记住选择（用户经常复制同一份月报链接给同事填）。
+  // 默认月份用 useMemo 锁定（保持与原 useState 一致的"挂载时一次性快照"语义）。
+  const defaultReportMonth = useMemo(() => currentMonthString(), [])
+  const [projectName, setProjectName] = useUrlParam<string>('project', '')
+  const [country, setCountry] = useUrlParam<CountryOption>('country', DEFAULT_REPORT_UPLOAD_COUNTRY, {
+    allowed: ['US', 'DE', 'UK'],
+  })
+  const [reportMonth, setReportMonth] = useUrlParam<string>('month', defaultReportMonth)
   const [formError, setFormError] = useState<string | null>(null)
 
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
@@ -265,7 +272,7 @@ export default function MonthlyReportClient() {
   const latestTaskIdRef = useRef<number | null>(null)
 
   const handleShiftReportMonth = (delta: number) => {
-    setReportMonth((prev) => shiftMonth(prev, delta))
+    setReportMonth(shiftMonth(reportMonth, delta))
   }
 
   useEffect(() => {

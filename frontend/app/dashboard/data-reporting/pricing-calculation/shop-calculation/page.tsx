@@ -28,6 +28,7 @@ import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calcula
 import type { ProjectManageOption, ProductCostItem, ShopCalculationItem } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 
 type StoreCountry = 'US' | 'DE' | 'UK'
@@ -42,13 +43,20 @@ const API_BASE = '/api/backend'
 
 export default function ShopCalculationPage() {
   const { notify } = useNotifications()
-  const [selectedCountry, setSelectedCountry] = useState<StoreCountry>('US')
-
+  // 国家站点 / 选中项目 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住。
+  // selectedProjectId 在 URL 里以字符串形式存储（'42' 或 '' 代表 null），读取时再转回 number | null。
+  const [selectedCountry, setSelectedCountry] = useUrlParam<StoreCountry>('country', 'US', {
+    allowed: ['US', 'DE', 'UK'],
+  })
+  const [projectIdRaw, setProjectIdRaw] = useUrlParam<string>('project', '')
+  const selectedProjectId: number | null = projectIdRaw ? Number(projectIdRaw) : null
+  const setSelectedProjectId = (id: number | null) => {
+    setProjectIdRaw(id == null ? '' : String(id))
+  }
   // Project selection state (lifted from sections)
   const [projects, setProjects] = useState<ProjectManageOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [selectedProjectName, setSelectedProjectName] = useState('')
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [skuKeyword, setSkuKeyword] = useState('')
   const [exporting, setExporting] = useState(false)
 
