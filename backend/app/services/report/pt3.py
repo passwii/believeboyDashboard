@@ -412,6 +412,10 @@ def _classify_monthly_rows(
         - fba_transaction_fees, fba_order, fbm_order, fba_refund, fbm_refund
         - adjustment_income, adjustment_expense, advertising, service_refund_for_advertiser
     """
+    from app.utils.payment_locale import (
+        normalize_payment_description,
+        normalize_payment_type,
+    )
     classified: dict[str, list[dict[str, object]]] = {
         "order": [],
         "refund": [],
@@ -436,8 +440,13 @@ def _classify_monthly_rows(
     ad_excluded_descriptions = {"Cost of Advertising", "Refund for Advertiser"}
 
     for row in all_rows:
-        row_type = str(row.get("type", "")).strip()
-        description = str(row.get("description", "")).strip()
+        # Normalise raw type/description to canonical English so the
+        # accounting-detail export works on historical DE data whose
+        # raw_row was stored with raw German values (pre-alias).
+        row_type = normalize_payment_type(str(row.get("type", "")).strip())
+        description = normalize_payment_description(
+            str(row.get("description", "")).strip()
+        )
         fulfillment = str(row.get("fulfillment", "")).strip()
 
         if row_type == "Order":

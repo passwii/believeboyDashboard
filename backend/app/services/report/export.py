@@ -27,7 +27,7 @@ from app.models import (
     Project,
 )
 from app.models.job import JobStatus
-from app.utils.country import normalize_country
+from app.utils.country import get_country_label_cn, normalize_country
 
 from app.services.report.pt3 import (
     _build_accounting_rows,
@@ -784,9 +784,10 @@ def export_financial_accounting_detail_workbook(
     out = BytesIO()
     wb.save(out)
     safe_project = _safe_project_name(report.project_name)
+    site_label = get_country_label_cn(country) or country
     ym = month.split("-")
     month_cn = f"{ym[0]}年{int(ym[1])}月"
-    filename = f"{safe_project}-月度财务核算明细-{month_cn}.xlsx"
+    filename = f"{safe_project}_{site_label}-月度财务核算明细-{month_cn}.xlsx"
     return filename, out.getvalue()
 
 
