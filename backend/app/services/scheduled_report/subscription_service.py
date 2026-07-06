@@ -246,14 +246,21 @@ def create_delivery_log_with_stage(
     report_month: str | None,
     email: str,
     initial_stage: str = DeliveryStage.PENDING.value,
+    triggered_by: str = "auto",
 ) -> ScheduledReportDeliveryLog:
-    """创建推送日志记录（带指定初始阶段）。"""
+    """创建推送日志记录（带指定初始阶段）。
+
+    Args:
+        triggered_by: auto=自动调度；manual=人工补发/重跑（包括 admin force-resend）。
+            默认 auto 是为了向后兼容；调用方应显式传入以确保数据可追溯。
+    """
     log = ScheduledReportDeliveryLog(
         subscription_id=subscription_id,
         frequency=frequency,
         report_date=report_date,
         report_month=report_month,
         email=email,
+        triggered_by=triggered_by,
         status=DeliveryStatus.PENDING.value,
         stage=initial_stage,
     )

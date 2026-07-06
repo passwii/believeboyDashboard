@@ -113,6 +113,10 @@ class ScheduledReportDeliveryLog(Base):
     report_date: Mapped[str] = mapped_column(String(20), nullable=False)
     report_month: Mapped[str | None] = mapped_column(String(10), nullable=True)
     email: Mapped[str] = mapped_column(String(256), nullable=False)
+    triggered_by: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="auto",
+        comment="auto=自动调度, manual=人工补发/重跑",
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=DeliveryStatus.PENDING.value)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

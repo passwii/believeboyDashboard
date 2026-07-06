@@ -560,9 +560,20 @@ def _dispatch_one(
         "error": None,
     }
 
+    # 自动调度路径（scheduler._run_minutely_scan → _dispatch_subscriptions → 本函数）
+    # 不会经过 dispatch_reports()，所以这里的 _dispatch_date_str 和 _summary_cache
+    # 不会自动初始化。如果跨天直接复用昨天的全局状态，就会让今天的报告命中昨天的
+    # 缓存，截图/数据全部变成旧值（见 BEL-xxx：台账 7.4/7.5 截图一致 bug）。
+    # 这里在每次进入时确保日期同步、过期缓存清空，与 dispatch_reports() 行为一致。
+    global _dispatch_date_str
+    today_str = date.today().isoformat()
+    if _dispatch_date_str != today_str:
+        with _cache_lock:
+            _summary_cache.clear()
+        _dispatch_date_str = today_str
+
     db = SessionLocal()
     try:
-        today_str = date.today().isoformat()
         log = create_delivery_log_with_stage(
             db=db,
             subscription_id=subscription_id,
@@ -571,6 +582,7 @@ def _dispatch_one(
             report_month=today_str[:7] if frequency == "monthly" else None,
             email=email,
             initial_stage=DeliveryStage.PREPARING.value,
+            triggered_by="auto",
         )
         log_id = log.id
     except Exception as e:

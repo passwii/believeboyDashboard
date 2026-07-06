@@ -1,7 +1,11 @@
 'use client'
 
+import type { ReactNode } from 'react'
+import { useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+
+import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 
 const TABS = [
   {
@@ -14,44 +18,64 @@ const TABS = [
     label: '调度记录',
     href: '/dashboard/data-analysis/scheduled-reports/ledger',
   },
-]
+] as const
+
+type ScheduledReportTabKey = (typeof TABS)[number]['key']
+
+function resolveActiveTab(pathname: string): ScheduledReportTabKey {
+  return TABS.find((tab) => pathname.startsWith(tab.href))?.key ?? 'subscriptions'
+}
+
+function isScheduledReportTab(value: string): value is ScheduledReportTabKey {
+  return TABS.some((tab) => tab.key === value)
+}
 
 export default function ScheduledReportsLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const activeTab = resolveActiveTab(pathname)
 
-  const activeTab = TABS.find(t => pathname.startsWith(t.href))?.key ?? 'subscriptions'
+  const handleTabChange = useCallback(
+    (nextValue: string) => {
+      if (!isScheduledReportTab(nextValue)) return
+
+      const nextTab = TABS.find((tab) => tab.key === nextValue)
+      if (!nextTab || pathname.startsWith(nextTab.href)) return
+
+      router.push(nextTab.href)
+    },
+    [pathname, router],
+  )
 
   return (
-    <div className="space-y-4">
-      {/* 子导航 Tab Bar */}
-      <div className="flex items-center gap-0.5 border-b border-border/60 bg-[hsl(var(--surface-panel))] rounded-t-lg px-1">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => router.push(tab.href)}
-            className={cn(
-              'px-4 py-2.5 text-sm font-medium transition-colors relative',
-              'hover:text-foreground',
-              activeTab === tab.key
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground/80',
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.key && (
-              <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-foreground rounded-full" />
-            )}
-          </button>
-        ))}
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+      <div className="overflow-x-auto">
+        <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]/95 sm:w-fit">
+          <TabsMotionGroup id="scheduled-reports-tabs">
+            {TABS.map((tab) => (
+              <SlidingTabsTrigger
+                key={tab.key}
+                value={tab.key}
+                activeValue={activeTab}
+                layoutId="scheduled-reports-tabs"
+                className="min-w-[7rem]"
+              >
+                {tab.label}
+              </SlidingTabsTrigger>
+            ))}
+          </TabsMotionGroup>
+        </TabsList>
       </div>
 
-      {children}
-    </div>
+      {TABS.map((tab) => (
+        <TabsContent key={tab.key} value={tab.key} className="mt-0">
+          {activeTab === tab.key ? children : null}
+        </TabsContent>
+      ))}
+    </Tabs>
   )
 }

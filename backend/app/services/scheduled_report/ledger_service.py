@@ -358,6 +358,7 @@ def resend_ledger_entry_async(
         report_month=report_date[:7] if subscription.frequency == "monthly" else None,
         email=subscription.email,
         initial_stage=DeliveryStage.PREPARING.value,
+        triggered_by="manual",
     )
 
     # 更新 ledger entry 指向新的 delivery_log（先保存旧 log id 供补发成功后清理截图）
