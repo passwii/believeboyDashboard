@@ -479,7 +479,7 @@ export default function InventoryAnalysisPage() {
             <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
             <CountrySelect
               value={country}
-              onChange={setCountry}
+              onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
               triggerClassName="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
             />
           </div>
