@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
+import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
@@ -540,8 +541,10 @@ export default function ReturnAnalysisPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeDateRange = `${data.start_date}_${data.end_date}`
+      const safeProjectName = (data.project_name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(data.country).replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
-      link.download = `退货分析-${data.project_name}-${data.country}-${safeDateRange}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-退货分析-${safeDateRange}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
 
