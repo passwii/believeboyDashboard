@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.utils.payment_locale import (
+    normalize_payment_description,
+    normalize_payment_type,
+)
+
 
 def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Classify payment report rows into business categories.
@@ -63,8 +68,18 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
     fee_adjustment_target = "Fee Adjustment - Weight and Dimension Change"
 
     for row in rows:
-        row_type = str(row.get("type", "")).strip()
-        description = str(row.get("description", "")).strip()
+        # Normalise the raw type/description values stored in
+        # ``MonthlyReportTransaction.raw_row`` to canonical English names.
+        # This is required so the rebuild path (``rebuild_pt3_pt4_for_report``)
+        # works on historical DE payment data, where rows were stored with
+        # raw German type/description values before the DE alias entries
+        # existed. The new alias in ``normalize_payment_type`` /
+        # ``normalize_payment_description`` is the source of truth for
+        # DE→EN normalisation at the classifier boundary.
+        row_type = normalize_payment_type(str(row.get("type", "")).strip())
+        description = normalize_payment_description(
+            str(row.get("description", "")).strip()
+        )
         fulfillment = str(row.get("fulfillment", "")).strip()
 
         if not row_type:

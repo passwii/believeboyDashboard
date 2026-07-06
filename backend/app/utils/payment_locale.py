@@ -102,7 +102,7 @@ PAYMENT_TYPE_ALIASES = {
     'FBA Transaction Fees': ['fba transaction fees', 'transaktionsgebuehren fuer versand durch amazon'],
     'Chargeback Refund': ['chargeback refund'],
     'Liquidations': ['liquidations'],
-    'Adjustment': ['adjustment'],
+    'Adjustment': ['adjustment', 'anpassung'],
     'Deal Fee': ['deal fee'],
     'Debt': ['debt', 'verbindlichkeit'],
     'Fee Adjustment': ['fee adjustment'],
@@ -119,6 +119,10 @@ PAYMENT_DESCRIPTION_ALIASES = {
     'FBA Inventory Reimbursement - General Adjustment': [
         'fba inventory reimbursement - general adjustment',
         'fba-bestandsentschaedigung - allgemeine anpassung',
+    ],
+    'FBA Inventory Reimbursement - Lost': [
+        'fba inventory reimbursement - lost',
+        'versand durch amazon erstattung fuer lagerbestand - im lager verloren',
     ],
     'Non-subscription Fee Adjustment': [
         'non-subscription fee adjustment',
