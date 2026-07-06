@@ -381,12 +381,20 @@
       var(--shadow-soft);
   }
 
-  @supports (backdrop-filter: blur(14px)) {
-    .dashboard-surface {
-      background-color: hsl(var(--card) / 0.84);
-      backdrop-filter: blur(14px);
-    }
-  }
+  /*
+   * 故意不再给 .dashboard-surface 加 backdrop-filter。
+   *
+   * 历史：曾通过 @supports (backdrop-filter: blur(14px)) 在所有卡片上叠
+   * 半透明背景 + 14px 背景模糊。问题：
+   *   1. blur 半径按 CSS 像素计算，不按设备像素。5K/4K/Retina 等高 DPI 屏
+   *      (devicePixelRatio ≥ 2) 上，14px 模糊"吃掉"的细节是普通屏的 2-3 倍，
+   *      表格里的 1px 边框和 text-[11px]/text-[12px] 表头直接糊掉。
+   *   2. backdrop-filter 缓存层在 devicePixelRatio 缩放时会产生边缘"晕染"。
+   *   3. 仓库里 dashboard-surface 被 92 处共用（含 DataTableCard / DataCard /
+   *      Card / StatCard / 侧边栏顶部按钮等所有卡片类组件），影响面太大。
+   *
+   * 真正需要玻璃质感的元素仍可显式使用 .dashboard-glass（见下方）。
+   */
 
   .dashboard-surface::after {
     content: '';
