@@ -602,7 +602,7 @@ export default function SeasonalReplenishmentPage() {
               <div className="mt-1">
                 <CountrySelect
                   value={country}
-                  onChange={(c) => { setCountry(c) }}
+                  onChange={(c) => { setCountry(c as 'US' | 'DE' | 'UK' | 'ALL') }}
                   triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                 />
               </div>
