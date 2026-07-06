@@ -23,6 +23,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
+import { getCountryLabel } from '@/lib/country'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { CountrySelect } from '@/components/dashboard/console'
 import {
@@ -500,12 +501,12 @@ export default function SeasonalReplenishmentPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
-      const countryLabel = COUNTRY_OPTIONS.find((opt) => opt.value === country)?.label ?? country
-      const countryShort = (countryLabel.split(' (')[0] ?? countryLabel).trim()
+      const safeProjectName = (selectedProjectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       const fromStr = formatIsoDate(fromDate) ?? 'from'
       const toStr = formatIsoDate(toDate) ?? 'to'
       link.href = url
-      link.download = `季节性补货-${selectedProjectName}-${countryShort}-${fromStr}_${toStr}${compareYear ? '-含同比' : ''}-${safeTimestamp}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-季节性补货-${fromStr}_${toStr}${compareYear ? '-含同比' : ''}-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({

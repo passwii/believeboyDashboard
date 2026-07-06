@@ -63,6 +63,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
@@ -810,8 +811,10 @@ async function exportDailyAnalysisToExcel(
   })
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
+  const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+  const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
   link.href = url
-  link.download = `销售数据-${projectName}-${country}-${safeDate}.xlsx`
+  link.download = `${safeProjectName}_${safeCountryLabel}-销售数据-${safeDate}.xlsx`
   link.click()
   window.URL.revokeObjectURL(url)
 }

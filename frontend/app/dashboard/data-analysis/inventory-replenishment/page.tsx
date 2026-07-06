@@ -30,6 +30,7 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import {
@@ -726,10 +727,10 @@ export default function InventoryReplenishmentPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
-      const countryLabel = COUNTRY_OPTIONS.find((opt) => opt.value === country)?.label ?? country
-      const countryShort = (countryLabel.split(' (')[0] ?? countryLabel).trim()
+      const safeProjectName = (selectedProjectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
-      link.download = `补货分析-${selectedProjectName}-${countryShort}-${safeTimestamp}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-补货分析-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({

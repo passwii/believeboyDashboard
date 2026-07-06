@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
@@ -815,8 +816,14 @@ export default function PlatformRevenuePage() {
       const projectName = filters.project_id
         ? (projects.find(p => p.id.toString() === filters.project_id)?.name || filters.project_id)
         : '全部项目'
+      const uniqueCountries = Array.from(new Set(allRevenues.map((r) => r.country).filter(Boolean)))
+      const derivedCountryLabel = uniqueCountries.length === 1
+        ? getCountryLabel(uniqueCountries[0])
+        : '全部站点'
+      const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = derivedCountryLabel.replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
-      link.download = `${projectName}_平台回款_${date}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-平台回款-${date}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
 

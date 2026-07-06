@@ -23,6 +23,7 @@ import type {
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 
 // =============================================================================
 // Types
@@ -704,7 +705,9 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
 
     const startDateCompact = startDate.replaceAll('-', '')
     const endDateCompact = endDate.replaceAll('-', '')
-    const filename = `产品核算-${projectLabel}-${country}-${startDateCompact}~${endDateCompact}.xlsx`
+    const safeProjectName = projectLabel.replace(/[\\/:*?"<>|]/g, '-')
+    const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
+    const filename = `${safeProjectName}_${safeCountryLabel}-产品核算-${startDateCompact}~${endDateCompact}.xlsx`
 
     summarySheet.getCell(1, 1).value = `产品核算汇总 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
     summarySheet.getCell(1, 1).font = { size: 14, bold: true }

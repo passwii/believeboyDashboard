@@ -60,6 +60,7 @@ import {
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import {
   CountrySelect,
@@ -1823,8 +1824,10 @@ export default function WeeklyProductAnalysisPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
+      const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
-      link.download = `按周产品分析-${projectName}-${country}-${safeTimestamp}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-按周产品分析-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({

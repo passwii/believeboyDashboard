@@ -59,6 +59,7 @@ import {
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { getCountryLabel } from '@/lib/country'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
 import { VAT_COUNTRIES } from '@/lib/console-constants'
@@ -1142,12 +1143,7 @@ export default function FinancialDataClient({
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
       const blob = await response.blob()
-      const projectName = projects.find((p) => p.id === parsedProjectId)?.name ?? data?.project_name ?? ''
-      const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '-')
-      const monthStr = formatMonth(accountingMonth)
-      const filename =
-        extractFilenameFromHeader(response.headers.get('Content-Disposition')) ||
-        `${safeProjectName}-月度财务核算明细-${monthStr}.xlsx`
+      const filename = extractFilenameFromHeader(response.headers.get('Content-Disposition')) ?? ''
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -1999,9 +1995,10 @@ export default function FinancialDataClient({
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeProjectName = data.project_name.replace(/[\\/:*?"<>|]/g, '-')
+      const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
       const endMonthStr = formatMonth(data.end_month)
       link.href = url
-      link.download = `${safeProjectName}-月度财务汇总分析-${endMonthStr}.xlsx`
+      link.download = `${safeProjectName}_${safeCountryLabel}-月度财务汇总分析-${endMonthStr}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({
