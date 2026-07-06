@@ -2,11 +2,11 @@
 
 import type { DateRange } from "react-day-picker"
 
-import { DateRangePicker } from "@/components/ui/date-picker"
+import { DateRangePicker, type DateRangePickerChangeMeta } from "@/components/ui/date-picker"
 
 export interface DropdownRangeDatePickerProps {
   value?: DateRange
-  onChange?: (value?: DateRange) => void
+  onChange?: (value?: DateRange, meta?: DateRangePickerChangeMeta) => void
   onApply?: () => void
   className?: string
   disabled?: boolean

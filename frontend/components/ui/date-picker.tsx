@@ -64,10 +64,16 @@ type SingleDatePickerProps = SharedDatePickerProps & {
   onChange?: (date?: Date) => void
 }
 
+/**
+ * 第二个 onChange 参数 meta：调用方用来区分"用户点了 preset"和"手动选了日期"。
+ *  - presetKey：触发的 preset 标签（与 buildPresets() 的 key 同名），手动选日期时为 undefined。
+ */
+export type DateRangePickerChangeMeta = { presetKey?: string }
+
 type RangeDatePickerProps = SharedDatePickerProps & {
   mode: "range"
   value?: DateRange
-  onChange?: (range?: DateRange) => void
+  onChange?: (range?: DateRange, meta?: DateRangePickerChangeMeta) => void
 }
 
 type MonthPickerProps = SharedDatePickerProps & {
@@ -280,7 +286,7 @@ export function DatePicker(props: DatePickerProps) {
     return (
       <RangeDatePickerWithPresets
         value={value as DateRange | undefined}
-        onChange={onChange as ((range?: DateRange) => void) | undefined}
+        onChange={onChange as ((range?: DateRange, meta?: DateRangePickerChangeMeta) => void) | undefined}
         onApply={onApply}
         className={className}
         disabled={disabled}
@@ -412,7 +418,7 @@ export function DatePicker(props: DatePickerProps) {
 // Range DatePicker with presets
 interface RangeDatePickerWithPresetsProps {
   value?: DateRange
-  onChange?: (range?: DateRange) => void
+  onChange?: (range?: DateRange, meta?: DateRangePickerChangeMeta) => void
   onApply?: () => void
   className?: string
   disabled?: boolean
@@ -453,15 +459,18 @@ function RangeDatePickerWithPresets({
     }
   }, [month])
 
-  const handlePresetClick = (preset: { from: Date; to: Date }) => {
+  const handlePresetClick = (
+    preset: { from: Date; to: Date },
+    presetKey: string,
+  ) => {
     setDate(preset)
     setMonth(preset.to)
-    onChange?.(preset)
+    onChange?.(preset, { presetKey })
   }
 
   const handleDateSelect = (selected?: DateRange) => {
     setDate(selected)
-    onChange?.(selected)
+    onChange?.(selected, undefined)
   }
 
   const triggerLabel = date?.from && date?.to
@@ -506,7 +515,7 @@ function RangeDatePickerWithPresets({
                       "justify-start w-full text-xs",
                       isActive && "bg-primary/10 text-primary font-medium"
                     )}
-                    onClick={() => handlePresetClick(range)}
+                    onClick={() => handlePresetClick(range, label)}
                   >
                     {label}
                   </Button>

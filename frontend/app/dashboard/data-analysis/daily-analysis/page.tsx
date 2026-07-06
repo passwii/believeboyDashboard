@@ -62,6 +62,13 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import {
+  addMonths,
+  bucketDetailByMonth,
+  bucketSummaryByMonth,
+  dateToMonthKeyFromDate,
+  generateMonthKeys,
+} from '@/lib/aggregate'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -482,6 +489,7 @@ async function exportDailyAnalysisToExcel(
   country: string,
   dateRange: string,
   skuOptions: ProjectSkuOption[],
+  granularity: 'daily' | 'monthly' = 'daily',
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -492,13 +500,20 @@ async function exportDailyAnalysisToExcel(
   const now = new Date()
   const safeDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
 
+  const summarySheetName = granularity === 'monthly' ? '月报汇总' : '日报汇总'
+  const detailSheetName = granularity === 'monthly' ? 'SKU月度明细' : 'SKU明细'
+  const dateColumnLabel = granularity === 'monthly' ? '月份' : '日期'
+  // 月度桶 date 是 'YYYY-MM-01'，导出时按 'YYYY-MM' 展示；日度保持原样。
+  const formatDateForExport = (raw: string): string =>
+    granularity === 'monthly' ? raw.slice(0, 7) : raw
+
   // Sheet 1: 汇总
-  const summarySheet = workbook.addWorksheet('日报汇总', {
+  const summarySheet = workbook.addWorksheet(summarySheetName, {
     views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
   })
 
   const summaryCols = [
-    { header: '日期', key: 'date', width: 14 },
+    { header: dateColumnLabel, key: 'date', width: 14 },
     { header: '订单量', key: 'order_qty', width: 12 },
     { header: '销售额', key: 'sales_amount', width: 14 },
     { header: '曝光量', key: 'impressions', width: 14 },
@@ -576,7 +591,7 @@ async function exportDailyAnalysisToExcel(
 
   summaryRows.forEach((row, rowIndex) => {
     const excelRow = summarySheet.getRow(rowIndex + 4)
-    excelRow.getCell(1).value = row.date
+    excelRow.getCell(1).value = formatDateForExport(row.date)
     excelRow.getCell(2).value = row.order_qty
     excelRow.getCell(3).value = row.sales_amount
     excelRow.getCell(3).numFmt = '#,##0.00'
@@ -605,12 +620,12 @@ async function exportDailyAnalysisToExcel(
   })
 
   // Sheet 2: SKU明细
-  const detailSheet = workbook.addWorksheet('SKU明细', {
+  const detailSheet = workbook.addWorksheet(detailSheetName, {
     views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
   })
 
   const detailCols = [
-    { header: '日期', key: 'date', width: 14 },
+    { header: dateColumnLabel, key: 'date', width: 14 },
     { header: 'SKU', key: 'sku', width: 18 },
     { header: '品名', key: 'product_name', width: 32 },
     { header: '订单量', key: 'order_qty', width: 12 },
@@ -696,7 +711,7 @@ async function exportDailyAnalysisToExcel(
   detailRows.forEach((row, rowIndex) => {
     const productName = skuProductNameMap.get(row.sku) ?? ''
     const excelRow = detailSheet.getRow(rowIndex + 4)
-    excelRow.getCell(1).value = row.date
+    excelRow.getCell(1).value = formatDateForExport(row.date)
     excelRow.getCell(2).value = row.sku
     excelRow.getCell(3).value = productName
     excelRow.getCell(4).value = row.order_qty
@@ -1017,6 +1032,24 @@ export default function DailyAnalysisPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     defaultRange,
   )
+  // 当用户在 DateRangePicker 里点了 preset 侧边栏时，记下触发的 preset label；
+  // 手动选日期（onChange 第二参数 meta 为 undefined）会清掉它，之后按 days diff 判定粒度。
+  const [datePresetKey, setDatePresetKey] = useState<string | undefined>(undefined)
+  // 'daily' = 保持原样；'monthly' = 图表 / 表格 / Excel 全部按月汇总。
+  const granularity = useMemo<'daily' | 'monthly'>(() => {
+    if (
+      datePresetKey === '本年度至今' ||
+      datePresetKey === '上年度' ||
+      datePresetKey === '上个季度'
+    ) {
+      return 'monthly'
+    }
+    if (dateRange?.from && dateRange?.to) {
+      const days = getRangeDayCount({ from: dateRange.from, to: dateRange.to })
+      if (days > 90) return 'monthly'
+    }
+    return 'daily'
+  }, [datePresetKey, dateRange])
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
 
   const [goalProgress, setGoalProgress] = useState<{
@@ -1030,9 +1063,9 @@ export default function DailyAnalysisPage() {
   } | null>(null)
   const [goalLoading, setGoalLoading] = useState(false)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
-  const [comparisonSummaryRows, setComparisonSummaryRows] =
+  const [rawComparisonSummaryRows, setComparisonSummaryRows] =
     useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
-  const [comparisonDetailRows, setComparisonDetailRows] =
+  const [rawComparisonDetailRows, setComparisonDetailRows] =
     useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -1470,8 +1503,38 @@ export default function DailyAnalysisPage() {
       .finally(() => setGoalLoading(false))
   }, [projectId, country])
 
-  const summaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
-  const detailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
+  const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
+  const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
+  // granularity === 'monthly' 时把 summary / detail 行按月汇总（详见 lib/aggregate.ts）。
+  // KPI 卡片、图表、表格、Excel 导出都通过这两个变量读数，自动获得月度视图。
+  const summaryRows = useMemo(
+    () =>
+      granularity === 'monthly'
+        ? bucketSummaryByMonth(rawSummaryRows)
+        : rawSummaryRows,
+    [rawSummaryRows, granularity],
+  )
+  const detailRows = useMemo(
+    () =>
+      granularity === 'monthly'
+        ? bucketDetailByMonth(rawDetailRows)
+        : rawDetailRows,
+    [rawDetailRows, granularity],
+  )
+  const comparisonSummaryRows = useMemo(
+    () =>
+      granularity === 'monthly'
+        ? bucketSummaryByMonth(rawComparisonSummaryRows)
+        : rawComparisonSummaryRows,
+    [rawComparisonSummaryRows, granularity],
+  )
+  const comparisonDetailRows = useMemo(
+    () =>
+      granularity === 'monthly'
+        ? bucketDetailByMonth(rawComparisonDetailRows)
+        : rawComparisonDetailRows,
+    [rawComparisonDetailRows, granularity],
+  )
   const consoleData = data?.console ?? null
 
   const filteredDetailRows = useMemo(() => {
@@ -1560,10 +1623,10 @@ export default function DailyAnalysisPage() {
       if (!normalizedRange?.from || !normalizedRange?.to) {
         return []
       }
-      const allDates = generateDateRangeStrings(
-        normalizedRange.from,
-        normalizedRange.to,
-      )
+      const allDates =
+        granularity === 'monthly'
+          ? generateMonthKeys(normalizedRange.from, normalizedRange.to)
+          : generateDateRangeStrings(normalizedRange.from, normalizedRange.to)
       const previousRange = getPreviousPeriodRange(normalizedRange)
       const previousStart = previousRange?.from
       if (!previousStart || !previousRange?.to) {
@@ -1598,8 +1661,11 @@ export default function DailyAnalysisPage() {
 
         return allDates.map((date, index) => {
           const row = existingData.get(date)
-          // 当前周期第 index 天 → 上一周期第 index 天（同位日）
-          const compareDate = formatYMD(addDays(previousStart, index))
+          // 当前周期第 index 个桶 → 上一周期第 index 个桶（同位日 / 同位月）。
+          const compareDate =
+            granularity === 'monthly'
+              ? dateToMonthKeyFromDate(addMonths(previousStart, index))
+              : formatYMD(addDays(previousStart, index))
           const compareRow = comparisonDataByDate.get(compareDate)
           return spreadDetailRow(
             row,
@@ -1617,8 +1683,11 @@ export default function DailyAnalysisPage() {
 
       return allDates.map((date, index) => {
         const row = summaryData.get(date)
-        // 当前周期第 index 天 → 上一周期第 index 天（同位日）
-        const compareDate = formatYMD(addDays(previousStart, index))
+        // 当前周期第 index 个桶 → 上一周期第 index 个桶（同位日 / 同位月）。
+        const compareDate =
+          granularity === 'monthly'
+            ? dateToMonthKeyFromDate(addMonths(previousStart, index))
+            : formatYMD(addDays(previousStart, index))
         const compareRow = comparisonDataByDate.get(compareDate)
         return spreadSummaryRow(
           row,
@@ -1634,6 +1703,7 @@ export default function DailyAnalysisPage() {
       summaryRows,
       comparisonSummaryRows,
       dateRange,
+      granularity,
     ],
   )
 
@@ -1656,6 +1726,7 @@ export default function DailyAnalysisPage() {
         country,
         dateRangeDisplay,
         skuOptions,
+        granularity,
       )
       await logClientOperation({
         action: 'daily_analysis.export',
@@ -1706,7 +1777,7 @@ export default function DailyAnalysisPage() {
             </Select>
             <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[120px]" />
             <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-            <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-[220px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+            <DateRangePicker value={dateRange} onChange={(range, meta) => { setDateRange(range); setDatePresetKey(meta?.presetKey) }} className='h-9 w-[220px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
             <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
           </div>
           {/* 筛选区 — 手机端 2 列网格（无标签） */}
@@ -1728,7 +1799,7 @@ export default function DailyAnalysisPage() {
             <div className='mt-2'>
               <div className='grid grid-cols-2 gap-2'>
                 <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-                <DateRangePicker value={dateRange} onChange={setDateRange} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+                <DateRangePicker value={dateRange} onChange={(range, meta) => { setDateRange(range); setDatePresetKey(meta?.presetKey) }} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
               </div>
             </div>
             <div className='flex gap-2 mt-2'>
@@ -1781,7 +1852,13 @@ export default function DailyAnalysisPage() {
           tooltipFormatter={(value, key) => formatMetricValue(key, value)}
           yAxisFormatter={(value, key) => formatAxisValue(key, value)}
           xTickFormatter={(value) => {
-            const [, month, day] = value.split('-')
+            const parts = String(value).split('-')
+            const month = parts[1] ?? ''
+            // 月度桶 key = 'YYYY-MM-01'（第三段固定 '01'）；日度 key = 'YYYY-MM-DD'。
+            if (granularity === 'monthly' || parts.length < 3) {
+              return `${Number(month)}月`
+            }
+            const day = parts[2]
             return isMobile ? `${month}/${day}` : `${month}月${day}日`
           }}
         />
@@ -1892,7 +1969,7 @@ export default function DailyAnalysisPage() {
                             )}
                           >
                             <TableCell className='font-medium text-foreground'>
-                              {row.date}
+                              {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                             </TableCell>
                             <TableCell>
                               {row.order_qty.toLocaleString('zh-CN')}
@@ -1998,7 +2075,7 @@ export default function DailyAnalysisPage() {
                                       : 'bg-[hsl(var(--surface-soft))]/0',
                                   )}
                                 >
-                                  {row.date}
+                                  {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                                 </TableCell>
                               ) : null}
                               <TableCell>{row.sku}</TableCell>

@@ -2,13 +2,16 @@
 
 import type { DateRange } from 'react-day-picker'
 
-import { DateRangePicker } from '@/components/ui/date-picker'
+import {
+  DateRangePicker,
+  type DateRangePickerChangeMeta,
+} from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 
 interface DateRangeFieldProps {
   label?: string
   value?: DateRange
-  onChange: (range?: DateRange) => void
+  onChange: (range?: DateRange, meta?: DateRangePickerChangeMeta) => void
   timezone?: string
   className?: string
   triggerClassName?: string
