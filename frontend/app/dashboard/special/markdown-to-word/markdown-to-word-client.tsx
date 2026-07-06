@@ -110,7 +110,7 @@ export default function MarkdownToWordClient() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col gap-5 [&>*+*]:mt-0">
+    <div className="flex h-[calc(100vh-4rem)] flex-col gap-5 [&>*+*]:mt-0">
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-2">
         <Card className="flex h-full min-h-0 flex-col overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader>
@@ -250,11 +250,6 @@ export default function MarkdownToWordClient() {
             <span>导出格式：DOCX / PDF</span>
           </CardFooter>
         </Card>
-      </div>
-
-      <div className="rounded-2xl border border-border/70 bg-background/60 p-4 text-sm leading-6 text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.55)]">
-        <span className="font-medium text-foreground">注意：</span>
-        当前版本会保留标题、段落、列表、表格、引用、代码块、链接和常见行内样式；图片会在预览中显示，但 DOCX 导出暂不嵌入远程图片。
       </div>
     </div>
   )
