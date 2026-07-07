@@ -168,6 +168,10 @@ interface ShopCalculationEuSectionProps {
   onSkuKeywordChange: (keyword: string) => void
   onDataReady?: (data: { items: ProductCostItem[]; rows: Record<number, StoreSkuRowState> }) => void
   onHasCalculatedRowsChange?: (hasRows: boolean) => void
+  /** 定价历史快照 ID（null = 实时数据） */
+  selectedSnapshotId?: number | null
+  /** 快照数据无法加载时通知父组件退出快照模式 */
+  onSnapshotInvalid?: () => void
 }
 
 export function ShopCalculationEuSection({
@@ -180,6 +184,8 @@ export function ShopCalculationEuSection({
   onSkuKeywordChange,
   onDataReady,
   onHasCalculatedRowsChange,
+  selectedSnapshotId = null,
+  onSnapshotInvalid,
 }: ShopCalculationEuSectionProps) {
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
@@ -190,7 +196,7 @@ export function ShopCalculationEuSection({
 
   useEffect(() => {
     setStoreRows({})
-  }, [selectedProjectName, selectedCountry])
+  }, [selectedProjectName, selectedCountry, selectedSnapshotId])
 
   useEffect(() => {
     async function loadSkusAndSnapshots() {
@@ -210,6 +216,85 @@ export function ShopCalculationEuSection({
       setStoreSkusError(null)
       setSnapshotError(null)
       try {
+        // ── 快照模式：从 pricing-calculation-snapshots 拉取快照明细 ──────────
+        if (selectedSnapshotId !== null) {
+          const snapshotResponse = await fetch(
+            `${API_BASE}/api/v1/pricing-calculation-snapshots/${selectedSnapshotId}/items`,
+            { cache: 'no-store' },
+          )
+          if (!snapshotResponse.ok) {
+            const body = await snapshotResponse.text().catch(() => '')
+            console.error('[eu-shop-calculation] 历史快照加载失败:', snapshotResponse.status, body)
+            setSnapshotError(`历史快照加载失败（HTTP ${snapshotResponse.status}），已退出快照模式`)
+            onSnapshotInvalid?.()
+            setStoreSkus([])
+            setStoreRows({})
+            return
+          }
+          const payload = (await snapshotResponse.json()) as { items: ShopCalculationItem[] }
+          const items = payload.items ?? []
+
+          // 转换快照明细 → ProductCostItem 形状（用 fob_product_cost_rmb 充 fob_unit_cost）
+          const syntheticSkus: ProductCostItem[] = items.map((s, idx) => ({
+            id: s.id ?? idx + 1,
+            project_name: s.project_name,
+            sku: s.sku,
+            asin: s.asin ?? '',
+            fnsku: null,
+            fob_unit_cost: s.fob_product_cost_rmb,
+            first_leg_cost_rmb: s.first_leg_cost_rmb,
+            package_length_cm: s.package_length_cm,
+            package_width_cm: s.package_width_cm,
+            package_height_cm: s.package_height_cm,
+            weight_kg: s.weight_kg,
+            carton_length_cm: 0,
+            carton_width_cm: 0,
+            carton_height_cm: 0,
+            carton_weight_kg: 0,
+            units_per_carton: 0,
+            currency: 'USD',
+            country: s.country ?? selectedCountry,
+            sort_order: idx,
+            is_active: true,
+          }))
+          setStoreSkus(syntheticSkus)
+
+          const snapshotMap = new Map<string, ShopCalculationItem>()
+          for (const s of items) {
+            snapshotMap.set(s.sku, s)
+          }
+
+          setStoreRows(() => {
+            const next: Record<number, StoreSkuRowState> = {}
+            syntheticSkus.forEach((item) => {
+              const snapshot = snapshotMap.get(item.sku)
+              if (!snapshot) return
+              next[item.id] = {
+                draft: {
+                  package_length_cm: String(snapshot.package_length_cm ?? ''),
+                  package_width_cm: String(snapshot.package_width_cm ?? ''),
+                  package_height_cm: String(snapshot.package_height_cm ?? ''),
+                  weight_kg: String(snapshot.weight_kg ?? ''),
+                  first_leg_cost_rmb: String(snapshot.first_leg_cost_rmb ?? ''),
+                  sale_price_usd: String(snapshot.sale_price_usd ?? ''),
+                  advertising_rate: String((snapshot.advertising_rate ?? 0.12) * 100),
+                  return_loss_rate: String((snapshot.return_loss_rate ?? 0.04) * 100),
+                  delivery_fee_usd: String(snapshot.fees?.delivery_fee_usd ?? 0),
+                  inbound_config_fee_usd: String(snapshot.fees?.inbound_config_fee_manual_usd ?? 0),
+                  storage_fee_usd: String(snapshot.fees?.storage_fee_manual_usd ?? 0),
+                  usd_to_rmb_rate: String(snapshot.usd_to_rmb_rate ?? ''),
+                },
+                loading: false,
+                result: snapshotToResult(snapshot, item.project_name),
+                error: null,
+              }
+            })
+            return next
+          })
+          return
+        }
+
+        // ── 实时模式：拉 SKU 列表 + 当前态快照 ─────────────────────────────
         const [skuSearch, exchangeSearch, snapshotSearch] = await Promise.all([
           fetch(
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${selectedCountry}&is_active=true&page=1&page_size=200&include_total=true`,
@@ -340,7 +425,9 @@ export function ShopCalculationEuSection({
       }
     }
     void loadSkusAndSnapshots()
-  }, [selectedProjectName, selectedCountry, selectedProjectId])
+    // onSnapshotInvalid 来自父组件，本节保持稳定引用以避免循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectName, selectedCountry, selectedProjectId, selectedSnapshotId])
 
   const filteredSkus = useMemo(() => {
     if (!skuKeyword.trim()) return storeSkus
@@ -546,6 +633,7 @@ export function ShopCalculationEuSection({
               onCalculate={handleCalculate}
               systemExchangeRate={systemExchangeRate}
               selectedCountry={selectedCountry}
+              isSnapshotMode={selectedSnapshotId !== null}
             />
           )}
       </div>

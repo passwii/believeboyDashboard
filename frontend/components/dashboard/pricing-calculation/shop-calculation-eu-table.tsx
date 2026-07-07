@@ -50,6 +50,8 @@ type ShopCalculationEuTableProps = {
   onCalculate: (item: ProductCostItem) => void
   systemExchangeRate: string
   selectedCountry: string
+  /** 定价历史快照模式：true 时只读，不显示测算按钮 */
+  isSnapshotMode?: boolean
 }
 
 function buildInitialDraft(item: ProductCostItem): StoreSkuDraft {
@@ -143,6 +145,7 @@ export function ShopCalculationEuTable({
   onCalculate,
   systemExchangeRate,
   selectedCountry,
+  isSnapshotMode = false,
 }: ShopCalculationEuTableProps) {
   const compactInputClassName =
     'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
@@ -432,25 +435,29 @@ export function ShopCalculationEuTable({
 
               {/* 测算按钮 */}
               <TableCell className='px-3 py-2 text-center'>
-                <Button
-                  type='button'
-                  size='sm'
-                  onClick={() => onCalculate(item)}
-                  disabled={rowState?.loading}
-                  className={cn(
-                    'h-8 min-w-[92px] text-xs transition-all',
-                    rowState?.result
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900'
-                      : '',
-                  )}
-                >
-                  {rowState?.loading ? (
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  ) : (
-                    <Calculator className='mr-1.5 h-3.5 w-3.5' />
-                  )}
-                  测算
-                </Button>
+                {isSnapshotMode ? (
+                  <span className='text-xs text-muted-foreground'>只读</span>
+                ) : (
+                  <Button
+                    type='button'
+                    size='sm'
+                    onClick={() => onCalculate(item)}
+                    disabled={rowState?.loading}
+                    className={cn(
+                      'h-8 min-w-[92px] text-xs transition-all',
+                      rowState?.result
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900'
+                        : '',
+                    )}
+                  >
+                    {rowState?.loading ? (
+                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    ) : (
+                      <Calculator className='mr-1.5 h-3.5 w-3.5' />
+                    )}
+                    测算
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           )
