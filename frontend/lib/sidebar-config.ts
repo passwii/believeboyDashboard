@@ -131,7 +131,13 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  icon: IconMap.BarChart3,
  },
  { title: 'AI Chat', url: '/dashboard/ai-chat', icon: IconMap.Bot },
- ],
+ {
+ title: '模型选型',
+ url: '/dashboard/ai/believeboy-models',
+ matchPrefixes: ['/dashboard/ai/believeboy-models'],
+ icon: IconMap.FileText,
+ },
+ ], 
  },
 
  //3.运营核算（所有角色）
