@@ -276,14 +276,46 @@ def _persist_single_country_return_report(
     now = datetime.now(UTC)
     upload_date = now.date()
 
+    # -- Parse CSV rows FIRST so we know the report's actual data span -----
+    # BEL-127: ``period_start_date`` / ``period_end_date`` must reflect the
+    # CSV's return-date range, NOT the upload date. ``return_report`` is in
+    # ``PERIODIC_REPORT_TYPES`` and ``replace_current_pointer`` /
+    # ``next_version`` are scoped on period — using ``upload_date`` caused
+    # two uploads of non-overlapping date ranges to collide on the same
+    # (project, type, country, period) slot and silently overwrite each
+    # other.
+    try:
+        parsed_rows, raw_datetimes = parse_return_rows(df)
+    except ValueError as exc:
+        return {"success": False, "error_message": str(exc)}
+
+    # Compute the period from the parsed return-date range. Empty CSV
+    # (no rows) falls back to ``upload_date`` so the source_file still
+    # has a valid period key — match the convention used by the other
+    # PERIODIC report persistence paths (see
+    # ``autoReportUpload/processor.py:_persist_single_source``).
+    #
+    # NB: ``_convert_to_us_date`` returns a ``"%Y-%m-%d"`` STRING — we
+    # convert back to ``date`` so SQLAlchemy binds ``Date`` correctly
+    # when ``next_version`` / ``replace_current_pointer`` compare on
+    # ``period_start_date`` / ``period_end_date``.
+    all_us_dates: list[date] = []
+    for parsed in parsed_rows:
+        raw_dt = parsed["return_date_raw"]
+        iso_str = _convert_to_us_date(raw_dt)
+        all_us_dates.append(date.fromisoformat(iso_str))
+
+    period_start = min(all_us_dates) if all_us_dates else upload_date
+    period_end = max(all_us_dates) if all_us_dates else upload_date
+
     # -- Create AnalysisSourceFile ------------------------------------------
     version = next_version(
         db,
         project_id=project_id,
         report_type="return_report",
         country=country,
-        period_start_date=upload_date,
-        period_end_date=upload_date,
+        period_start_date=period_start,
+        period_end_date=period_end,
     )
     file_id = f"{uuid.uuid4().hex}_{original_filename}"
     source = AnalysisSourceFile(
@@ -291,8 +323,8 @@ def _persist_single_country_return_report(
         report_type="return_report",
         country=country,
         report_date=None,
-        period_start_date=upload_date,
-        period_end_date=upload_date,
+        period_start_date=period_start,
+        period_end_date=period_end,
         snapshot_at=None,
         version=version,
         is_current=False,
@@ -301,8 +333,8 @@ def _persist_single_country_return_report(
         upload_file_path=file_path,
         original_filename=original_filename,
         stored_filename=file_id,
-        logical_filename=f"{project_name}_return_report_{upload_date}_v{version}",
-        storage_key=f"web_upload/return_report/{project_id}/{upload_date}/{version}/{file_id}",
+        logical_filename=f"{project_name}_return_report_{period_start}_v{version}",
+        storage_key=f"web_upload/return_report/{project_id}/{period_start}/{version}/{file_id}",
         file_size_bytes=Path(file_path).stat().st_size,
         file_sha256=None,
         ingestion_status="running",
@@ -313,19 +345,11 @@ def _persist_single_country_return_report(
     db.add(source)
     db.flush()
 
-    # -- Parse CSV rows (delegated to shared parser) ----------------------
-    try:
-        parsed_rows, raw_datetimes = parse_return_rows(df)
-    except ValueError as exc:
-        return {"success": False, "error_message": str(exc)}
-
-    all_us_dates: list[date] = []
     rows: list[dict] = []
 
     for idx, parsed in enumerate(parsed_rows):
         raw_dt = parsed["return_date_raw"]
         us_date = _convert_to_us_date(raw_dt)
-        all_us_dates.append(us_date)
 
         row_dict = {
             "project_id": project_id,
