@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.schemas.store_sku_pricing_snapshot import StoreSkuPricingSnapshotItem
+from app.schemas.shop_calculation import ShopCalculationItem
 
 
 # ── Summary (对齐 shop-calculation stat bar 4 个数字) ─────────────────────────
@@ -16,9 +16,11 @@ class PricingCalculationSnapshotSummary(BaseModel):
     passRate: float = 0.0
 
 
-# ── Items 复用 StoreSkuPricingSnapshotItem，避免双份维护 ──────────────────────
-# 业务含义一致：快照明细 = store_sku_pricing_snapshots 行的快照副本
-PricingCalculationSnapshotItemSchema = StoreSkuPricingSnapshotItem
+# ── Items 复用 ShopCalculationItem ──────────────────────────────────────────
+# 业务含义一致：快照明细 = shop_calculation 行的快照副本。
+# 前端 page.tsx 已有 ShopCalculationItem 类型（从 OpenAPI 自动生成），
+# 直接消费无需新增前端类型。
+PricingCalculationSnapshotItemSchema = ShopCalculationItem
 
 
 # ── List（不含 items，避免大 payload）────────────────────────────────────────
@@ -49,7 +51,7 @@ class PricingCalculationSnapshotDetail(BaseModel):
     created_by: str | None = None
     created_at: str
     summary: PricingCalculationSnapshotSummary
-    items: list[StoreSkuPricingSnapshotItem]
+    items: list[ShopCalculationItem]
 
 
 # ── Input ───────────────────────────────────────────────────────────────────
@@ -71,11 +73,11 @@ class UpdatePricingCalculationSnapshotRequest(BaseModel):
 class PricingCalculationSnapshotItemsResponse(BaseModel):
     """快照明细接口响应。
 
-    ``items`` 形状与 ``store-sku-pricing-snapshots`` 列表保持一致，前端可直接按
+    ``items`` 形状与 ``/api/v1/shop-calculation`` 列表保持完全一致，前端可直接按
     ``ShopCalculationItem`` 类型消费。
     """
 
-    items: list[StoreSkuPricingSnapshotItem]
+    items: list[ShopCalculationItem]
     summary: PricingCalculationSnapshotSummary
     row_count: int
     total: int

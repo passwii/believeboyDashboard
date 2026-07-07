@@ -1,8 +1,13 @@
 """Pricing calculation snapshot service.
 
 提供店铺定价历史快照的创建 / 列表 / 详情 / 更新 / 删除。
-区别于 ``store_sku_pricing_snapshot_service``（每个 SKU 只有"最新一条"的当前态缓存），
-本服务的快照是 append-only 模式：每次创建新增 header + items，旧快照不被覆盖。
+
+数据源：``shop_calculation``（US + EU 统一 upsert 表，shop-calculation 页面
+"测算"按钮的实际写入目标）。注意：旧表 ``store_sku_pricing_snapshots`` 在
+shop-calculation 页面迁到 ``/api/v1/shop-calculation`` 之后已不再被写入，
+仍保留历史数据但不是当前态来源。
+
+append-only 模式：每次创建新增 header + items，旧快照不被覆盖。
 """
 from __future__ import annotations
 
@@ -15,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     PricingCalculationSnapshot,
     PricingCalculationSnapshotItem,
-    StoreSkuPricingSnapshot,
+    ShopCalculation,
 )
 from app.schemas.pricing_calculation_snapshot import (
     PricingCalculationSnapshotDetail,
@@ -23,15 +28,20 @@ from app.schemas.pricing_calculation_snapshot import (
     PricingCalculationSnapshotListItem,
     PricingCalculationSnapshotSummary,
 )
-from app.schemas.store_sku_pricing_snapshot import StoreSkuPricingSnapshotItem
-from app.services import store_sku_pricing_snapshot_service as _cur_svc
+from app.schemas.shop_calculation import (
+    ShopCalculationDimensions,
+    ShopCalculationFees,
+    ShopCalculationProfit,
+    ShopCalculationWeight,
+    ShopCalculationItem,
+)
 from app.utils.text_utils import normalize_text
 
 
 # ── Summary helpers ──────────────────────────────────────────────────────────
 
 
-def _compute_summary(items: list[StoreSkuPricingSnapshot]) -> dict[str, Any]:
+def _compute_summary(items: list[ShopCalculation]) -> dict[str, Any]:
     """基于快照明细计算 stat bar 4 字段
 
     total / calculated 都用 ``row_count`` —— 快照中"已测算"的 SKU 总数。
@@ -78,22 +88,22 @@ def create_snapshot(
 ) -> PricingCalculationSnapshot:
     """创建定价历史快照。
 
-    从 ``store_sku_pricing_snapshots`` 读取 ``(project_id, country)`` 的当前态，
-    复制一份到 ``pricing_calculation_snapshot_items``。原"当前态缓存"表不受影响。
+    从 ``shop_calculation`` 读取 ``(project_id, country)`` 当前态，
+    复制为新的快照（append-only）。原表不受影响。
 
     Raises
     ------
     HTTPException 404
         项目下没有可快照的 SKU 记录时
     """
-    # 读取当前态行
+    # 读取当前态行（shop_calculation 是 US+EU 统一表，按 country 过滤）
     current_rows = db.execute(
-        select(StoreSkuPricingSnapshot)
+        select(ShopCalculation)
         .where(
-            StoreSkuPricingSnapshot.project_id == project_id,
-            StoreSkuPricingSnapshot.country == country,
+            ShopCalculation.project_id == project_id,
+            ShopCalculation.country == country,
         )
-        .order_by(StoreSkuPricingSnapshot.sku.asc())
+        .order_by(ShopCalculation.sku.asc())
     ).scalars().all()
 
     if not current_rows:
@@ -122,6 +132,9 @@ def create_snapshot(
     db.flush()  # 拿 id
 
     # 批量复制明细
+    # 注：snapshot items 表的 calculation_type 列存的是 ShopCalculation.accounting_type 的值
+    # （'profit_calc' / 'eu_accounting'），列名沿用 calculation_type 仅因历史原因，实际含义
+    # 跟 ShopCalculation.accounting_type 一致
     for idx, row in enumerate(current_rows):
         item = PricingCalculationSnapshotItem(
             snapshot_id=snapshot.id,
@@ -131,7 +144,7 @@ def create_snapshot(
             sku=row.sku,
             asin=row.asin,
             country=row.country,
-            calculation_type=row.calculation_type,
+            calculation_type=row.accounting_type,
             package_length_cm=row.package_length_cm,
             package_width_cm=row.package_width_cm,
             package_height_cm=row.package_height_cm,
@@ -141,7 +154,8 @@ def create_snapshot(
             ddp_cost_rmb=row.ddp_cost_rmb,
             ddp_cost_usd=row.ddp_cost_usd,
             sale_price_usd=row.sale_price_usd,
-            target_profit_rate=row.target_profit_rate,
+            # ShopCalculation 没有 target_profit_rate 列，置空
+            target_profit_rate=None,
             advertising_rate=row.advertising_rate,
             return_loss_rate=row.return_loss_rate,
             storage_months=row.storage_months,
@@ -174,15 +188,14 @@ def create_snapshot(
             inbound_config_fee_usd=row.inbound_config_fee_usd,
             storage_fee_usd=row.storage_fee_usd,
             total_fee_usd=row.total_fee_usd,
-            # platform_fee_usd 列是新加的；旧行没有值时取 0
-            platform_fee_usd=getattr(row, 'platform_fee_usd', None) or 0,
-            delivery_fee_usd=getattr(row, 'delivery_fee_usd', None) or 0,
-            inbound_config_fee_manual_usd=getattr(row, 'inbound_config_fee_manual_usd', None) or 0,
-            storage_fee_manual_usd=getattr(row, 'storage_fee_manual_usd', None) or 0,
+            platform_fee_usd=row.platform_fee_usd,
+            delivery_fee_usd=row.delivery_fee_usd,
+            inbound_config_fee_manual_usd=row.inbound_config_fee_manual_usd,
+            storage_fee_manual_usd=row.storage_fee_manual_usd,
             payout_usd=row.payout_usd,
             profit_usd=row.profit_usd,
             profit_rate=row.profit_rate,
-            vat_usd=getattr(row, 'vat_usd', None) or 0,
+            vat_usd=row.vat_usd,
             profit_after_vat_usd=row.profit_after_vat_usd,
             profit_after_vat_rate=row.profit_after_vat_rate,
             warnings_json=row.warnings_json,
@@ -247,7 +260,7 @@ def get_snapshot_detail(
     db: Session,
     snapshot_id: int,
 ) -> PricingCalculationSnapshotDetail | None:
-    """获取快照详情（含 items）"""
+    """获取快照详情（含 items，items 形状 = ShopCalculationItem）"""
     row = db.get(PricingCalculationSnapshot, snapshot_id)
     if row is None:
         return None
@@ -262,11 +275,6 @@ def get_snapshot_detail(
         .all()
     )
 
-    # items 表里存的列与 StoreSkuPricingSnapshotItem 形状一致；通过 _cur_svc._to_item 复用映射
-    item_dtos: list[StoreSkuPricingSnapshotItem] = [
-        _cur_svc._to_item(_item_row_to_proxy(item)) for item in items
-    ]
-
     return PricingCalculationSnapshotDetail(
         id=row.id,
         project_id=row.project_id,
@@ -279,7 +287,7 @@ def get_snapshot_detail(
         created_by=row.created_by,
         created_at=row.created_at.isoformat() if row.created_at else '',
         summary=_summary_from_dict(row.summary_json),
-        items=item_dtos,
+        items=[_snapshot_item_to_dto(item) for item in items],
     )
 
 
@@ -289,8 +297,8 @@ def get_snapshot_items(
 ) -> PricingCalculationSnapshotItemsResponse | None:
     """获取快照明细 + summary + 元数据（前端回放用）
 
-    items 形状与 ``store-sku-pricing-snapshots`` 列表保持一致，前端可直接按
-    ``ShopCalculationItem`` 消费。
+    items 形状与 ``/api/v1/shop-calculation`` 列表完全一致（``ShopCalculationItem``），
+    前端可直接按 ``ShopCalculationItem`` 消费。
     """
     snapshot = db.get(PricingCalculationSnapshot, snapshot_id)
     if snapshot is None:
@@ -306,7 +314,7 @@ def get_snapshot_items(
         .all()
     )
 
-    item_dtos = [_cur_svc._to_item(_item_row_to_proxy(item)) for item in items]
+    item_dtos = [_snapshot_item_to_dto(item) for item in items]
     return PricingCalculationSnapshotItemsResponse(
         items=item_dtos,
         summary=_summary_from_dict(snapshot.summary_json),
@@ -370,76 +378,90 @@ def delete_snapshot(db: Session, snapshot_id: int) -> bool:
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
 
-def _item_row_to_proxy(item: PricingCalculationSnapshotItem) -> Any:
-    """把 ``pricing_calculation_snapshot_items`` 行映射成 ``_cur_svc._to_item`` 期望的
-    属性形状。两者字段几乎完全一致，差异主要在 ``platform_fee_usd``（旧行可能没有），
-    用 ``SimpleNamespace`` 适配即可。
-    """
-    from types import SimpleNamespace
+def _snapshot_item_to_dto(item: PricingCalculationSnapshotItem) -> ShopCalculationItem:
+    """把 ``pricing_calculation_snapshot_items`` 行映射成 ``ShopCalculationItem``。
 
-    return SimpleNamespace(
-        id=item.snapshot_id * 1_000_000 + item.source_row_no,  # 给前端一个稳定 id 占位
+    形状与 ``/api/v1/shop-calculation`` 列表端点完全一致，前端可无修改地消费。
+    """
+    # synthetic id：snapshot_id * 1M + source_row_no，保证同一快照内稳定
+    synthetic_id = item.snapshot_id * 1_000_000 + item.source_row_no
+
+    return ShopCalculationItem(
+        id=synthetic_id,
         project_id=item.project_id,
         project_name=item.project_name,
         sku=item.sku,
         asin=item.asin,
-        country=item.country,
-        calculation_type=item.calculation_type,
-        package_length_cm=item.package_length_cm,
-        package_width_cm=item.package_width_cm,
-        package_height_cm=item.package_height_cm,
-        weight_kg=item.weight_kg,
-        fob_product_cost_rmb=item.fob_product_cost_rmb,
-        first_leg_cost_rmb=item.first_leg_cost_rmb,
-        ddp_cost_rmb=item.ddp_cost_rmb,
-        ddp_cost_usd=item.ddp_cost_usd,
-        sale_price_usd=item.sale_price_usd,
-        target_profit_rate=item.target_profit_rate,
-        advertising_rate=item.advertising_rate,
-        return_loss_rate=item.return_loss_rate,
-        storage_months=item.storage_months,
-        inbound_placement_mode=item.inbound_placement_mode,
-        usd_to_rmb_rate=item.usd_to_rmb_rate,
+        # 'US' / 'DE' / 'UK' 之一；如果旧数据存了 'us' 等小写，强制大写
+        country=item.country.upper() if item.country else 'US',  # type: ignore[arg-type]
+        # snapshot items 表的 calculation_type 列实际存的是 ShopCalculation.accounting_type
+        # 的值（'profit_calc' / 'eu_accounting'），所以可以直接映射
+        accounting_type=item.calculation_type or 'profit_calc',  # type: ignore[arg-type]
+        package_length_cm=float(item.package_length_cm),
+        package_width_cm=float(item.package_width_cm),
+        package_height_cm=float(item.package_height_cm),
+        weight_kg=float(item.weight_kg),
+        fob_product_cost_rmb=float(item.fob_product_cost_rmb),
+        first_leg_cost_rmb=float(item.first_leg_cost_rmb),
+        ddp_cost_rmb=float(item.ddp_cost_rmb),
+        ddp_cost_usd=float(item.ddp_cost_usd),
+        sale_price_usd=float(item.sale_price_usd),
+        advertising_rate=float(item.advertising_rate),
+        return_loss_rate=float(item.return_loss_rate),
+        storage_months=float(item.storage_months),
+        inbound_placement_mode=item.inbound_placement_mode,  # type: ignore[arg-type]
+        usd_to_rmb_rate=float(item.usd_to_rmb_rate),
         usd_to_rmb_rate_source=item.usd_to_rmb_rate_source,
         size_tier=item.size_tier,
         size_tier_label=item.size_tier_label,
         price_band=item.price_band,
         price_band_label=item.price_band_label,
-        longest_side_in=item.longest_side_in,
-        middle_side_in=item.middle_side_in,
-        shortest_side_in=item.shortest_side_in,
-        length_plus_girth_in=item.length_plus_girth_in,
-        volume_cubic_in=item.volume_cubic_in,
-        volume_cubic_ft=item.volume_cubic_ft,
-        product_weight_lb=item.product_weight_lb,
-        product_weight_oz=item.product_weight_oz,
-        dimensional_weight_lb=item.dimensional_weight_lb,
-        chargeable_weight_lb=item.chargeable_weight_lb,
-        chargeable_weight_oz=item.chargeable_weight_oz,
-        chargeable_weight_rule=item.chargeable_weight_rule,
         fulfillment_fee_rule_label=item.fulfillment_fee_rule_label,
         inbound_config_fee_rule_label=item.inbound_config_fee_rule_label,
         storage_fee_rule_label=item.storage_fee_rule_label,
-        referral_fee_usd=item.referral_fee_usd,
-        advertising_fee_usd=item.advertising_fee_usd,
-        return_loss_usd=item.return_loss_usd,
-        fba_fulfillment_fee_usd=item.fba_fulfillment_fee_usd,
-        inbound_config_fee_usd=item.inbound_config_fee_usd,
-        storage_fee_usd=item.storage_fee_usd,
-        total_fee_usd=item.total_fee_usd,
-        platform_fee_usd=item.platform_fee_usd,
-        delivery_fee_usd=item.delivery_fee_usd,
-        inbound_config_fee_manual_usd=item.inbound_config_fee_manual_usd,
-        storage_fee_manual_usd=item.storage_fee_manual_usd,
-        payout_usd=item.payout_usd,
-        profit_usd=item.profit_usd,
-        profit_rate=item.profit_rate,
-        vat_usd=item.vat_usd,
-        profit_after_vat_usd=item.profit_after_vat_usd,
-        profit_after_vat_rate=item.profit_after_vat_rate,
-        warnings_json=item.warnings_json,
+        dimensions=ShopCalculationDimensions(
+            longest_side_in=float(item.longest_side_in),
+            middle_side_in=float(item.middle_side_in),
+            shortest_side_in=float(item.shortest_side_in),
+            length_plus_girth_in=float(item.length_plus_girth_in),
+            volume_cubic_in=float(item.volume_cubic_in),
+            volume_cubic_ft=float(item.volume_cubic_ft),
+        ),
+        weights=ShopCalculationWeight(
+            product_weight_lb=float(item.product_weight_lb),
+            product_weight_oz=float(item.product_weight_oz),
+            dimensional_weight_lb=float(item.dimensional_weight_lb),
+            chargeable_weight_lb=float(item.chargeable_weight_lb),
+            chargeable_weight_oz=float(item.chargeable_weight_oz),
+            chargeable_weight_rule=item.chargeable_weight_rule,
+        ),
+        fees=ShopCalculationFees(
+            referral_fee_usd=float(item.referral_fee_usd),
+            advertising_fee_usd=float(item.advertising_fee_usd),
+            return_loss_usd=float(item.return_loss_usd),
+            fba_fulfillment_fee_usd=float(item.fba_fulfillment_fee_usd),
+            inbound_config_fee_usd=float(item.inbound_config_fee_usd),
+            storage_fee_usd=float(item.storage_fee_usd),
+            total_fee_usd=float(item.total_fee_usd),
+            delivery_fee_usd=float(item.delivery_fee_usd),
+            inbound_config_fee_manual_usd=float(item.inbound_config_fee_manual_usd),
+            storage_fee_manual_usd=float(item.storage_fee_manual_usd),
+            platform_fee_usd=float(item.platform_fee_usd),
+        ),
+        profit=ShopCalculationProfit(
+            ddp_cost_rmb=float(item.ddp_cost_rmb),
+            ddp_cost_usd=float(item.ddp_cost_usd),
+            payout_usd=float(item.payout_usd),
+            profit_usd=float(item.profit_usd),
+            profit_rate=float(item.profit_rate),
+            vat_usd=float(item.vat_usd),
+            profit_after_vat_usd=float(item.profit_after_vat_usd) if item.profit_after_vat_usd is not None else None,
+            profit_after_vat_rate=float(item.profit_after_vat_rate) if item.profit_after_vat_rate is not None else None,
+        ),
+        warnings=item.warnings_json or [],
         notes=item.notes,
-        created_by=None,  # items 行没存 created_by
+        # items 表没存 created_by / created_at / updated_at；返回 None 让前端用快照 header 的时间
+        created_by=None,
         created_at=item.created_at,
-        updated_at=item.created_at,  # 共用 created_at，前端不依赖这个
+        updated_at=item.created_at,
     )
