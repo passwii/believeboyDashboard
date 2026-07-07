@@ -855,19 +855,63 @@ def _persist_return_report(
     now = datetime.now()
     upload_date = now.date()
 
+    # Parse return rows FIRST so we know the report's actual data span.
+    # BEL-127: ``period_start_date`` / ``period_end_date`` must reflect the
+    # CSV's return-date range, NOT the upload date. ``return_report`` is in
+    # ``PERIODIC_REPORT_TYPES`` and ``replace_current_pointer`` /
+    # ``next_version`` are scoped on period — using ``upload_date`` caused
+    # two uploads of non-overlapping date ranges to collide on the same
+    # (project, type, country, period) slot and silently overwrite each
+    # other.
+    df = _recog_csv(file_path, sep="\t")
+    df.columns = [str(c).strip() for c in df.columns]
+
+    try:
+        parsed_rows, raw_datetimes = _parse_return_rows(df)
+    except ValueError as exc:
+        # 解析失败时仍然写 upload log（没有 source_file_id），确保 RPA 状态格子显示"已处理（失败）"
+        log_date = _resolve_upload_date(now)
+        _write_upload_log(
+            db,
+            project_id=project.id,
+            report_type="return_report",
+            country=country,
+            upload_date=log_date,
+            has_real_data=False,
+            row_count=0,
+            source_file_id=None,
+            original_filename=file_path.name,
+        )
+        db.commit()
+        return {"success": False, "error": str(exc)}
+
+    # Compute the period from the parsed return-date range. Empty CSV
+    # (no rows) falls back to ``upload_date`` so the source_file still
+    # has a valid period key — match the convention used by the other
+    # PERIODIC report persistence paths (see
+    # ``backend/app/services/analysis/return_analysis/persistence.py``).
+    all_us_dates: list[date] = []
+    for parsed in parsed_rows:
+        raw_dt = parsed["return_date_raw"]
+        return_date_str = _convert_to_us_date(raw_dt)
+        all_us_dates.append(_parse_yyyy_mm_dd(return_date_str))
+
+    period_start = min(all_us_dates) if all_us_dates else upload_date
+    period_end = max(all_us_dates) if all_us_dates else upload_date
+
     # Create source file record
     file_id = _generate_file_id(file_path.name)
     extension = file_path.suffix.lower()
     project_slug = _project_slug(project.project_name)
     version = _next_version(
         db, project_id=project.id, report_type="return_report", country=country,
-        period_start_date=upload_date, period_end_date=upload_date,
+        period_start_date=period_start, period_end_date=period_end,
     )
     logical_filename = _build_logical_filename(
-        project_slug, "return_report", upload_date, upload_date, now, version, extension
+        project_slug, "return_report", period_start, period_end, now, version, extension
     )
     storage_key = _build_storage_key(
-        project_slug, "return_report", upload_date, upload_date, version, file_id
+        project_slug, "return_report", period_start, period_end, version, file_id
     )
 
     source = AnalysisSourceFile(
@@ -875,8 +919,8 @@ def _persist_return_report(
         report_type="return_report",
         country=country,
         report_date=None,
-        period_start_date=upload_date,
-        period_end_date=upload_date,
+        period_start_date=period_start,
+        period_end_date=period_end,
         snapshot_at=None,
         version=version,
         is_current=False,
@@ -896,39 +940,12 @@ def _persist_return_report(
     db.add(source)
     db.flush()
 
-    # Parse return rows — delegates to shared parser (single source of truth)
-    df = _recog_csv(file_path, sep="\t")
-    df.columns = [str(c).strip() for c in df.columns]
-
-    try:
-        parsed_rows, raw_datetimes = _parse_return_rows(df)
-    except ValueError as exc:
-        source.ingestion_status = "failed"
-        source.ingestion_error = str(exc)
-        # 解析失败时仍然写 upload log，确保 RPA 状态格子显示"已处理（无数据）"
-        log_date = _resolve_upload_date(now)
-        _write_upload_log(
-            db,
-            project_id=project.id,
-            report_type="return_report",
-            country=country,
-            upload_date=log_date,
-            has_real_data=False,
-            row_count=0,
-            source_file_id=source.id,
-            original_filename=file_path.name,
-        )
-        db.commit()
-        return {"success": False, "error": str(exc)}
-
     rows: list[dict] = []
-    all_us_dates: list[date] = []
 
     for idx, parsed in enumerate(parsed_rows):
         raw_dt = parsed["return_date_raw"]
         return_date_str = _convert_to_us_date(raw_dt)
         us_date = _parse_yyyy_mm_dd(return_date_str)
-        all_us_dates.append(us_date)
 
         row_dict = {
             "project_id": project.id,
