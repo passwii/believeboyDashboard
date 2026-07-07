@@ -350,14 +350,6 @@ export default function ReturnAnalysisPage() {
       workbook.creator = 'BelieveBoy Dashboard'
       workbook.created = new Date()
 
-      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-      const sheetMeta = {
-        project: data.project_name,
-        country: data.country,
-        start: data.start_date,
-        end: data.end_date,
-      }
-
       // Helper: apply header style
       const styleHeaderRow = (ws: Worksheet, rowIndex: number) => {
         const row = ws.getRow(rowIndex)
@@ -368,42 +360,6 @@ export default function ReturnAnalysisPage() {
           applyHeaderBorder(cell)
         })
         return row
-      }
-
-      const addTitleAndMeta = (
-        ws: Worksheet,
-        title: string,
-        rowCount: number,
-        colCount: number,
-      ) => {
-        ws.mergeCells(1, 1, 1, colCount)
-        ws.getCell(1, 1).value = title
-        ws.getCell(1, 1).font = {
-          name: 'Microsoft YaHei',
-          size: 14,
-          bold: true,
-          color: { argb: 'FF0F172A' },
-        }
-        ws.getCell(1, 1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE2E8F0' },
-        }
-        ws.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
-        ws.mergeCells(2, 1, 2, colCount)
-        ws.getCell(2, 1).value =
-          `项目：${sheetMeta.project} | 站点：${sheetMeta.country} | 时间：${sheetMeta.start} ~ ${sheetMeta.end} | 导出时间：${exportedAt} | 共 ${rowCount} 条`
-        ws.getCell(2, 1).font = {
-          name: 'Microsoft YaHei',
-          size: 10,
-          color: { argb: 'FF475569' },
-        }
-        ws.getCell(2, 1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFF8FAFC' },
-        }
-        ws.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
       }
 
       // ── Sheet 1: 退货排行 ──
@@ -418,10 +374,9 @@ export default function ReturnAnalysisPage() {
           { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 },
           { width: 18 }, { width: 18 }, { width: 18 },
         ]
-        addTitleAndMeta(ws, '退货排行', data.ranking_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
-        styleHeaderRow(ws, 3)
+        styleHeaderRow(ws, 1)
 
         data.ranking_rows.forEach((row) => {
           const r = ws.addRow([
@@ -440,8 +395,8 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        // freeze title+meta rows
-        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
+        // freeze header row
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
       // ── Sheet 2: 退货原因 ──
@@ -451,10 +406,9 @@ export default function ReturnAnalysisPage() {
         ws.columns = [
           { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
         ]
-        addTitleAndMeta(ws, '退货原因分析', data.reason_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
-        styleHeaderRow(ws, 3)
+        styleHeaderRow(ws, 1)
 
         data.reason_rows.forEach((row) => {
           const r = ws.addRow([
@@ -467,7 +421,7 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
       // ── Sheet 3: 商品状态 ──
@@ -477,10 +431,9 @@ export default function ReturnAnalysisPage() {
         ws.columns = [
           { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
         ]
-        addTitleAndMeta(ws, '商品状态分布', data.disposition_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
-        styleHeaderRow(ws, 3)
+        styleHeaderRow(ws, 1)
 
         data.disposition_rows.forEach((row) => {
           const r = ws.addRow([
@@ -493,7 +446,7 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
       // ── Sheet 4: 库存状态 ──
@@ -503,10 +456,9 @@ export default function ReturnAnalysisPage() {
         ws.columns = [
           { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
         ]
-        addTitleAndMeta(ws, '库存状态分布', data.status_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
-        styleHeaderRow(ws, 3)
+        styleHeaderRow(ws, 1)
 
         data.status_rows.forEach((row) => {
           const r = ws.addRow([
@@ -519,7 +471,7 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
       // ── Sheet 5: 顾客反馈 ──
@@ -529,10 +481,9 @@ export default function ReturnAnalysisPage() {
         ws.columns = [
           { width: 14 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 60 },
         ]
-        addTitleAndMeta(ws, '顾客反馈列表', data.feedback_rows.length, headers.length)
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
-        styleHeaderRow(ws, 3)
+        styleHeaderRow(ws, 1)
 
         data.feedback_rows.forEach((row) => {
           const r = ws.addRow([
@@ -546,7 +497,7 @@ export default function ReturnAnalysisPage() {
           r.eachCell((cell) => { applyBorder(cell) })
         })
 
-        ws.views = [{ state: 'frozen', ySplit: 3, showGridLines: false }]
+        ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
       }
 
       const buffer = await workbook.xlsx.writeBuffer()
