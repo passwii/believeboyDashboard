@@ -146,6 +146,47 @@ const REPORT_TYPES = [
 const TABLE_HEADER_HEIGHT_CLASS = 'h-[clamp(3.5rem,3.8vh,4.25rem)] min-h-14 max-h-[4.25rem]'
 const TABLE_ROW_HEIGHT_CLASS = 'h-[clamp(2.8rem,3.2vh,3.5rem)] min-h-[2.8rem] max-h-[3.5rem]'
 
+// ── Upload progress summary ──────────────────────────────────────────────────
+
+function ProgressRow({ label, done, total, pct }: { label: string; done: number; total: number; pct: number }) {
+  return (
+    <div className='flex items-center gap-2'>
+      <span className='w-8 text-[11px] text-muted-foreground'>{label}</span>
+      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]'>
+        <div
+          className='h-full rounded-full bg-sky-500 transition-all duration-300 ease-out'
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className='w-14 text-right text-[11px] tabular-nums text-muted-foreground'>
+        {done}/{total}
+      </span>
+    </div>
+  )
+}
+
+function UploadProgressSummary({
+  recognitionDone,
+  recognitionTotal,
+  uploadDone,
+  uploadTotal,
+}: {
+  recognitionDone: number
+  recognitionTotal: number
+  uploadDone: number
+  uploadTotal: number
+}) {
+  if (recognitionTotal === 0 && uploadTotal === 0) return null
+  const recPct = recognitionTotal === 0 ? 0 : Math.round((recognitionDone / recognitionTotal) * 100)
+  const upPct = uploadTotal === 0 ? 0 : Math.round((uploadDone / uploadTotal) * 100)
+  return (
+    <div className='space-y-1.5 pt-1.5'>
+      <ProgressRow label='识别' done={recognitionDone} total={recognitionTotal} pct={recPct} />
+      <ProgressRow label='上传' done={uploadDone} total={uploadTotal} pct={upPct} />
+    </div>
+  )
+}
+
 // ── RPA Status Grid ──────────────────────────────────────────────────────────
 
 function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountryChange: (v: string) => void }) {
@@ -457,6 +498,24 @@ function AutoUploadContent({
     }
     void loadProjects()
   }, [session])
+
+  // 进度条统计：识别（成功 + 失败都算完成）/ 上传（仅识别成功且非 unknown 可上传的项，success + error 都算完成）
+  const recognitionStats = useMemo(() => {
+    const total = queueItems.length
+    const done = queueItems.filter((it) => it.recognitionStatus !== 'pending').length
+    return { total, done }
+  }, [queueItems])
+
+  const uploadStats = useMemo(() => {
+    const eligible = queueItems.filter(
+      (it) => it.recognitionStatus === 'recognized' && it.reportType && it.reportType !== 'unknown',
+    )
+    const total = eligible.length
+    const done = eligible.filter(
+      (it) => it.fileCommitStatus === 'success' || it.fileCommitStatus === 'error',
+    ).length
+    return { total, done }
+  }, [queueItems])
 
   const recognizeFiles = async (files: File[]) => {
     if (!files.length) return
@@ -848,6 +907,12 @@ function AutoUploadContent({
                 <Loader2 className='h-4 w-4 animate-spin text-sky-500' />
               ) : null}
             </div>
+            <UploadProgressSummary
+              recognitionDone={recognitionStats.done}
+              recognitionTotal={recognitionStats.total}
+              uploadDone={uploadStats.done}
+              uploadTotal={uploadStats.total}
+            />
           </CardHeader>
           <CardContent className='flex flex-1 flex-col overflow-hidden px-0 pt-0'>
             <ScrollArea className='flex-1'>
