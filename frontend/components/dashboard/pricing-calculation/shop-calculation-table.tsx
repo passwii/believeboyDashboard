@@ -52,6 +52,11 @@ type ShopCalculationTableProps = {
     item: ProductCostItem,
   ) => void
   systemExchangeRate: string
+  /**
+   * 定价历史快照模式：true 时隐藏"测算"按钮和"派送模式"下拉，
+   * 因为历史快照是只读视图，不允许重新测算。
+   */
+  isSnapshotMode?: boolean
 }
 
 function buildInitialStoreDraft(item: ProductCostItem): StoreSkuDraft {
@@ -139,6 +144,7 @@ export function ShopCalculationTable({
   onDraftChange,
   onCalculate,
   systemExchangeRate,
+  isSnapshotMode = false,
 }: ShopCalculationTableProps) {
   const compactInputClassName =
     'h-8 w-[52px] min-w-[52px] rounded-sm border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
@@ -460,33 +466,40 @@ export function ShopCalculationTable({
               {/* 测算按钮 */}
               <TableCell className='px-3 py-2 text-center'>
                 <div className='flex flex-col items-center gap-1.5'>
-                  <select
-                    value={draft.inbound_placement_mode}
-                    onChange={(e) => onDraftChange(item.id, 'inbound_placement_mode', e.target.value)}
-                    className={compactSelectClassName}
-                  >
-                    <option value='single_destination'>单仓</option>
-                    <option value='amazon_optimized_split'>优化拆仓</option>
-                  </select>
-                  <Button
-                    type='button'
-                    size='sm'
-                    onClick={() => onCalculate(item)}
-                    disabled={rowState?.loading}
-                    className={cn(
-                      'h-8 min-w-[92px] text-xs transition-all',
-                      rowState?.result
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900'
-                        : '',
-                    )}
-                  >
-                    {rowState?.loading ? (
-                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                    ) : (
-                      <Calculator className='mr-1.5 h-3.5 w-3.5' />
-                    )}
-                    测算
-                  </Button>
+                  {isSnapshotMode ? (
+                    // 历史快照只读视图
+                    <span className='text-xs text-muted-foreground'>只读</span>
+                  ) : (
+                    <>
+                      <select
+                        value={draft.inbound_placement_mode}
+                        onChange={(e) => onDraftChange(item.id, 'inbound_placement_mode', e.target.value)}
+                        className={compactSelectClassName}
+                      >
+                        <option value='single_destination'>单仓</option>
+                        <option value='amazon_optimized_split'>优化拆仓</option>
+                      </select>
+                      <Button
+                        type='button'
+                        size='sm'
+                        onClick={() => onCalculate(item)}
+                        disabled={rowState?.loading}
+                        className={cn(
+                          'h-8 min-w-[92px] text-xs transition-all',
+                          rowState?.result
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900'
+                            : '',
+                        )}
+                      >
+                        {rowState?.loading ? (
+                          <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                        ) : (
+                          <Calculator className='mr-1.5 h-3.5 w-3.5' />
+                        )}
+                        测算
+                      </Button>
+                    </>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

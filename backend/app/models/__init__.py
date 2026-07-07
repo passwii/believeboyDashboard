@@ -66,6 +66,10 @@ from app.models.inventory_replenishment_snapshot import (
 )
 from app.models.pricing_calculation import PricingCalculationRun
 from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
+from app.models.pricing_calculation_snapshot import (
+    PricingCalculationSnapshot,
+    PricingCalculationSnapshotItem,
+)
 from app.models.shop_calculation import ShopCalculation
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
@@ -129,6 +133,8 @@ __all__ = [
     'InventoryReplenishmentSnapshotItem',
     'PricingCalculationRun',
     'StoreSkuPricingSnapshot',
+    'PricingCalculationSnapshot',
+    'PricingCalculationSnapshotItem',
     'ShopCalculation',
     'ShipmentSchedule',
     'ShipmentScheduleItem',

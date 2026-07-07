@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Calculator,
   Download,
   Loader2,
   Search,
 } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +27,12 @@ import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { ShopCalculationUsSection } from '@/components/dashboard/pricing-calculation/shop-calculation-us-section'
 import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calculation/shop-calculation-eu-section'
+import {
+  PricingSnapshotSelector,
+  type PricingSnapshotOption,
+} from '@/components/dashboard/pricing-calculation/snapshot-selector'
+import { CreatePricingSnapshotDialog } from '@/components/dashboard/pricing-calculation/create-snapshot-dialog'
+import { EditPricingSnapshotDialog } from '@/components/dashboard/pricing-calculation/edit-snapshot-dialog'
 import type { ProjectManageOption, ProductCostItem, ShopCalculationItem } from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
@@ -44,6 +52,11 @@ const API_BASE = '/api/backend'
 
 export default function ShopCalculationPage() {
   const { notify } = useNotifications()
+  const { data: session } = useSession()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isAdmin = Boolean(session?.user?.isAdmin)
   // 国家站点 / 选中项目 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住。
   // selectedProjectId 在 URL 里以字符串形式存储（'42' 或 '' 代表 null），读取时再转回 number | null。
   const [selectedCountry, setSelectedCountry] = useUrlParam<StoreCountry>('country', 'US', {
@@ -64,6 +77,42 @@ export default function ShopCalculationPage() {
   // Stats state (lifted from sections to render in hero)
   const [statsLoading, setStatsLoading] = useState(false)
   const [stats, setStats] = useState({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+
+  // ── Pricing history snapshot state ─────────────────────────────────────────
+  // selectedSnapshotId 与 URL ?snapshot=<id> 双向同步：
+  // - URL 是单一真理之源（与 project / country 一致）
+  // - null/0/非法值 → 回退到 "实时数据" 模式
+  const rawSnapshotId = searchParams.get('snapshot') ?? ''
+  const selectedSnapshotId: number | null =
+    rawSnapshotId && Number.isFinite(Number(rawSnapshotId)) && Number(rawSnapshotId) > 0
+      ? Number(rawSnapshotId)
+      : null
+  const [snapshotRefreshNonce, setSnapshotRefreshNonce] = useState(0)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingSnapshot, setEditingSnapshot] = useState<PricingSnapshotOption | null>(null)
+
+  const setSelectedSnapshotId = useCallback(
+    (next: number | null) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (next == null || next <= 0) {
+        params.delete('snapshot')
+      } else {
+        params.set('snapshot', String(next))
+      }
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [searchParams, router, pathname],
+  )
+
+  // 切换项目 / 站点时，自动退出快照模式（避免历史快照与新项目错配）
+  useEffect(() => {
+    if (selectedSnapshotId !== null) {
+      setSelectedSnapshotId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, selectedCountry])
 
   // Store data for export (US)
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
@@ -97,7 +146,7 @@ export default function ShopCalculationPage() {
     setSelectedProjectId(project?.id ?? null)
   }, [selectedProjectName, projects])
 
-  // Load stats when project changes
+  // Load stats when project / country / snapshot changes
   useEffect(() => {
     async function loadStats() {
       if (!selectedProjectName || !selectedProjectId) {
@@ -106,6 +155,35 @@ export default function ShopCalculationPage() {
       }
       setStatsLoading(true)
       try {
+        // ── 快照模式：直接取快照明细 + summary ────────────────────────────
+        if (selectedSnapshotId !== null) {
+          const snapshotResponse = await fetch(
+            `${API_BASE}/api/v1/pricing-calculation-snapshots/${selectedSnapshotId}/items`,
+            { cache: 'no-store' },
+          )
+          if (snapshotResponse.ok) {
+            const payload = (await snapshotResponse.json()) as {
+              items: ShopCalculationItem[]
+              summary: { total: number; calculated: number; profitable: number; passRate: number }
+            }
+            const snapMap = new Map<string, ShopCalculationItem>()
+            for (const item of payload.items ?? []) {
+              snapMap.set(item.sku, item)
+            }
+            setSnapshotMap(snapMap)
+            setStoreSkus([]) // 快照模式下不显示当前 SKU 列表
+            setStats(payload.summary ?? { total: 0, calculated: 0, profitable: 0, passRate: 0 })
+          } else {
+            // 快照拉取失败（可能快照已删除），回退实时
+            notify({ type: 'error', title: '快照加载失败，已切换回实时数据' })
+            setSelectedSnapshotId(null)
+            setSnapshotMap(new Map())
+            setStats({ total: 0, calculated: 0, profitable: 0, passRate: 0 })
+          }
+          return
+        }
+
+        // ── 实时模式：拉 SKU 列表 + 当前态快照 ─────────────────────────────
         const [skuSearch, snapshotSearch] = await Promise.all([
           fetch(
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${selectedCountry}&is_active=true&page=1&page_size=200&include_total=true`,
@@ -150,7 +228,9 @@ export default function ShopCalculationPage() {
       }
     }
     void loadStats()
-  }, [selectedProjectName, selectedProjectId, selectedCountry])
+    // notify / setSelectedSnapshotId 是稳定的 setter，不需要列入依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectName, selectedProjectId, selectedCountry, selectedSnapshotId])
 
   const isUS = selectedCountry === 'US'
   const hasCalculatedRows = isUS
@@ -457,16 +537,32 @@ export default function ShopCalculationPage() {
           </div>
 
           <div className='relative z-10 flex flex-col gap-0 px-6 py-4'>
-            {/* Top Row: Icon + Title */}
+            {/* Top Row: Icon + Title + Snapshot Selector */}
             <div className='flex items-center gap-3'>
               <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.1)]'>
                 <Calculator className='h-5 w-5 text-[hsl(var(--primary))]' strokeWidth={2} />
               </div>
-              <div className='min-w-0'>
+              <div className='min-w-0 flex-1'>
                 <h1 className='text-[1.15rem] font-semibold tracking-tight text-foreground'>
                   控制台
                 </h1>
               </div>
+              {/* 定价历史快照选择器（仿 inventory-replenishment 的 SnapshotSelector） */}
+              <PricingSnapshotSelector
+                projectId={selectedProjectId}
+                country={selectedCountry}
+                selectedSnapshotId={selectedSnapshotId}
+                onSnapshotSelect={setSelectedSnapshotId}
+                onCreateSnapshot={() => setCreateDialogOpen(true)}
+                onEditSnapshot={(snapshot) => {
+                  setEditingSnapshot(snapshot)
+                  setEditDialogOpen(true)
+                }}
+                disabled={!selectedProjectId || statsLoading}
+                refreshNonce={snapshotRefreshNonce}
+                isAdmin={isAdmin}
+                onDeleteSnapshot={() => setSnapshotRefreshNonce((n) => n + 1)}
+              />
             </div>
 
             {/* Divider */}
@@ -614,6 +710,8 @@ export default function ShopCalculationPage() {
                 onProjectChange={setSelectedProjectName}
                 onSkuKeywordChange={setSkuKeyword}
                 onStoreRowsChange={setUsStoreRows}
+                selectedSnapshotId={selectedSnapshotId}
+                onSnapshotInvalid={() => setSelectedSnapshotId(null)}
               />
             ) : (
               <ShopCalculationEuSection
@@ -630,11 +728,36 @@ export default function ShopCalculationPage() {
                   setEuStoreRows(rows as typeof euStoreRows)
                 }}
                 onHasCalculatedRowsChange={setHasEuCalculatedRows}
+                selectedSnapshotId={selectedSnapshotId}
+                onSnapshotInvalid={() => setSelectedSnapshotId(null)}
               />
             )}
           </DataTableCardBody>
         </DataTableCard>
       </div>
+
+      {/* ── 定价历史快照对话框 ───────────────────────────────────────────── */}
+      <CreatePricingSnapshotDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        projectId={selectedProjectId}
+        country={selectedCountry}
+        onSuccess={(snapshotId) => {
+          setSelectedSnapshotId(snapshotId)
+          setSnapshotRefreshNonce((n) => n + 1)
+        }}
+      />
+
+      {editingSnapshot && (
+        <EditPricingSnapshotDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          snapshotId={editingSnapshot.id}
+          initialName={editingSnapshot.name}
+          initialDescription={editingSnapshot.description}
+          onSuccess={() => setSnapshotRefreshNonce((n) => n + 1)}
+        />
+      )}
     </div>
   )
 }
