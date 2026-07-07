@@ -41,6 +41,8 @@ import BatchFactoryInfoSheet from '@/components/dashboard/sku-info/batch-factory
 import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { getCountryLabel } from '@/lib/country'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 
 export type ProductCostItem = {
   id: number
@@ -171,8 +173,10 @@ function downloadCsvFile(
 }
 
 function downloadCostTemplate(projectName: string) {
+  // 模板为空白模板（国家列让用户自填），不绑定具体站点 → 命名不带 ${中文站点} 段
+  const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
   downloadCsvFile(
-    `${projectName}-sku-info-base-template.csv`,
+    `${safeProjectName}-SKU信息-成本管理新建模板.csv`,
     [
       'project_name',
       'SKU',
@@ -187,8 +191,9 @@ function downloadCostTemplate(projectName: string) {
 }
 
 function downloadDimensionTemplate(projectName: string) {
+  const safeProjectName = (projectName || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
   downloadCsvFile(
-    `${projectName}-sku-info-dimension-template.csv`,
+    `${safeProjectName}-SKU信息-尺寸管理新建模板.csv`,
     [
       'project_name',
       'SKU',
@@ -670,10 +675,14 @@ export default function SkuInfoPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download =
-        activeTab === 'cost'
-          ? 'sku-info-cost-update-export.csv'
-          : 'sku-info-dimension-update-export.csv'
+      // 统一命名规范：${项目}_${中文站点}-页面名-业务标识.csv
+      const safeProjectName = (projectFilter || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const stationSegment =
+        countryFilter === 'all'
+          ? '全部站点'
+          : getCountryLabel(countryFilter).replace(/[\\/:*?"<>|]/g, '-')
+      const tabSegment = activeTab === 'cost' ? '成本管理' : '尺寸管理'
+      link.download = `${safeProjectName}_${stationSegment}-SKU信息-${tabSegment}批量修改模板-${formatLocalTimestampForFilename()}.csv`
       link.click()
       URL.revokeObjectURL(url)
       notify({ type: 'success', title: '已导出当前筛选结果的批量修改模板' })

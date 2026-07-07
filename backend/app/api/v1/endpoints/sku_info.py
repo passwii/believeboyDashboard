@@ -67,6 +67,7 @@ from app.services.shipment import sync_first_leg_cost_from_shipment_summary
 from app.services.ai.factory_info_parser import parse_factory_info_sync
 from app.services.data.sku_info_batch import batch_update_factory_info, get_sku_records_by_ids
 from app.services import project_service
+from app.utils.country import get_country_label_cn
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -461,6 +462,17 @@ def export_product_costs_csv(
     )
 
     normalized_export_type = export_type.strip().lower()
+    # 统一命名规范：${项目}_${中文站点}-页面名-业务标识.csv
+    # 与前端 frontend/app/dashboard/data-management/sku-info/page.tsx 的 handleExportCurrentFiltered 保持一致
+    safe_project_name = (project_name or "未选项目").replace("\\", "-").replace("/", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-")
+    if not country or country.strip().lower() == "all":
+        station_segment = "全部站点"
+    else:
+        station_segment = get_country_label_cn(country).replace("\\", "-").replace("/", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-")
+    tab_segment = "尺寸管理" if normalized_export_type == "dimension" else "成本管理"
+    now = datetime.now()
+    timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
+
     if normalized_export_type == "dimension":
         headers = [
             "project_name",
@@ -499,7 +511,7 @@ def export_product_costs_csv(
             ]
             for row in rows
         ]
-        filename = "sku-info-dimension-update-export.csv"
+        filename = f"{safe_project_name}_{station_segment}-SKU信息-{tab_segment}批量修改模板-{timestamp}.csv"
     else:
         headers = [
             "project_name",
@@ -522,7 +534,7 @@ def export_product_costs_csv(
             ]
             for row in rows
         ]
-        filename = "sku-info-cost-update-export.csv"
+        filename = f"{safe_project_name}_{station_segment}-SKU信息-{tab_segment}批量修改模板-{timestamp}.csv"
 
     append_operation_audit_log(
         db,
