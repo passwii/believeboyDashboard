@@ -734,7 +734,7 @@ function AutoUploadContent({
   ).length
 
   return (
-    <div className='flex min-h-0 flex-1 flex-col gap-4'>
+    <div className='flex flex-1 flex-col gap-4'>
       {/* Top controls */}
       <div className='flex shrink-0 items-center gap-3'>
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
@@ -774,9 +774,9 @@ function AutoUploadContent({
       </div>
 
       {/* Dropzone + File list */}
-      <div className='grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[1fr_2fr]'>
+      <div className='grid gap-4 lg:grid-cols-[1fr_2fr] flex-1 overflow-hidden'>
         {/* Dropzone */}
-        <Card className='flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
+        <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
           <CardContent className='!px-3 !py-3 sm:!px-4 sm:!py-4 flex h-full'>
             <div
               className={cn(
@@ -835,7 +835,7 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className='flex min-h-0 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
+        <Card className='flex flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm lg:h-[calc(100vh-22rem)]'>
           <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 pb-3 pt-4'>
             <div className='flex items-center justify-between'>
               <div>
@@ -849,7 +849,7 @@ function AutoUploadContent({
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className='flex min-h-0 flex-1 flex-col overflow-hidden px-0 pt-0'>
+          <CardContent className='flex flex-1 flex-col overflow-hidden px-0 pt-0'>
             <ScrollArea className='flex-1'>
               <div className='space-y-2 p-3'>
                 {queueItems.length === 0 ? (
@@ -1128,29 +1128,29 @@ export default function AutoUploadPage() {
   const [country, setCountry] = useState('US')
 
   return (
-    <div className='flex min-h-[calc(100vh-8rem)] min-h-0 flex-col gap-4 overflow-auto pb-2 sm:h-[calc(100vh-8rem)] sm:gap-6 sm:overflow-hidden'>
+    <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden'>
       {/* Tab switcher */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')} className='flex flex-1 min-h-0 flex-col'>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}>
         <TabsList>
           <TabsTrigger value='upload'>文件上传</TabsTrigger>
           <TabsTrigger value='status'>RPA 状态</TabsTrigger>
         </TabsList>
 
         {/* Tab content */}
-        <TabsContent value='upload' className='mt-4 flex flex-1 min-h-0 flex-col'>
-          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className='flex flex-1 min-h-0 flex-col'>
+        <TabsContent value='upload' className='mt-4'>
+          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)}>
             <TabsList>
               <TabsTrigger value='report-upload'>通用报表</TabsTrigger>
               <TabsTrigger value='ad-upload'>广告报表</TabsTrigger>
             </TabsList>
-            <TabsContent value='report-upload' className='mt-4 flex flex-1 min-h-0 flex-col'>
+            <TabsContent value='report-upload' className='mt-4'>
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
                 endpoint='report-upload'
               />
             </TabsContent>
-            <TabsContent value='ad-upload' className='mt-4 flex flex-1 min-h-0 flex-col'>
+            <TabsContent value='ad-upload' className='mt-4'>
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
@@ -1159,7 +1159,7 @@ export default function AutoUploadPage() {
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value='status' className='mt-4 flex flex-1 min-h-0 flex-col'>
+        <TabsContent value='status' className='mt-4'>
           <RpaStatusGrid country={country} onCountryChange={setCountry} />
         </TabsContent>
       </Tabs>
