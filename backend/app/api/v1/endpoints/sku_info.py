@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -70,6 +71,19 @@ from app.services import project_service
 from app.utils.country import get_country_label_cn
 
 router = APIRouter(dependencies=[Depends(protected)])
+
+
+def _content_disposition(filename: str) -> str:
+    """构造 HTTP Content-Disposition 头，兼容非 ASCII 文件名（RFC 5987）。
+
+    HTTP header value 必须 ASCII；含中文时直接 ``f'attachment; filename="{filename}"'``
+    会被 Starlette 在 ``latin-1`` 编码下抛 UnicodeEncodeError。
+    这里同时返回 ``filename=`` 兜底（ASCII 化文件名，老浏览器用）和
+    ``filename*=UTF-8''<percent-encoded>``（RFC 5987，现代浏览器用）。
+    """
+    fallback = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
 
 
 def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
@@ -563,7 +577,7 @@ def export_product_costs_csv(
     return Response(
         content=content,
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
 
 
@@ -1066,7 +1080,7 @@ def download_fnsku_label(
     return Response(
         content=buffer.getvalue(),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
 
 
