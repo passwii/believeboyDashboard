@@ -39,16 +39,75 @@ def _make_project_name(prefix: str = "BEL127-TEST") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}"
 
 
+# 测试项目在生产库里必须标 inactive,即使单测中断漏清理,
+# 正常的 list_project_items(include_inactive=False) 也不会把测试项目暴露到前端下拉。
+# 兜底:整个测试 session 结束后再扫一次,按前缀清除所有测试项目(双保险)。
+# 用宽松正则 + case-insensitive,UUID hex 既可能大小写,fixture 之外的
+# 手工污染也可能含非 hex 字符(如 PH-TEST-fakesimulate0001)。
+_TEST_PROJECT_NAME_RE = r"^.*-TEST-.+$"
+
+
+@pytest.fixture(autouse=True)
+def _auto_cleanup_test_projects_on_teardown():
+    """文件级 fixture:每条用例跑完后,清扫所有 *-TEST-* 测试项目及其子表。
+
+    跑在生产库上的回归测试(`test_persist_helpers` / `test_persistence`)需要
+    绝对保险 — 任何中断 / 异常 / 杀进程都不能留孤儿数据。
+    """
+    yield
+    with SessionLocal() as session:
+        try:
+            dirty_ids = session.execute(
+                text("SELECT id FROM projects WHERE project_name ~* :re"),
+                {"re": _TEST_PROJECT_NAME_RE},
+            ).scalars().all()
+            if not dirty_ids:
+                return
+            # 子表清理顺序:先 leaf 再 parent,避免外键约束
+            session.execute(
+                text(
+                    "DELETE FROM analysis_return_rows "
+                    "WHERE project_id = ANY(:ids)"
+                ),
+                {"ids": list(dirty_ids)},
+            )
+            session.execute(
+                text(
+                    "DELETE FROM analysis_source_files "
+                    "WHERE project_id = ANY(:ids)"
+                ),
+                {"ids": list(dirty_ids)},
+            )
+            session.execute(
+                text("DELETE FROM projects WHERE id = ANY(:ids)"),
+                {"ids": list(dirty_ids)},
+            )
+            session.execute(
+                text(
+                    "DELETE FROM report_upload_logs "
+                    "WHERE project_id = ANY(:ids)"
+                ),
+                {"ids": list(dirty_ids)},
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+
 @pytest.fixture()
 def project_id(db_session):
     """Create a fresh Project, yield its id, and clean up everything we
     wrote under it on teardown.
+
+    注:测试项目标 ``is_active=False`` — 即便单测中断漏清理,也不会污染生产下拉。
     """
     name = _make_project_name()
     project = Project(
         project_name=name,
         sort_order=0,
-        is_active=True,
+        # 测试项目在生产库里必须 inactive;泄漏到下拉的兜底防线
+        is_active=False,
     )
     db_session.add(project)
     db_session.commit()

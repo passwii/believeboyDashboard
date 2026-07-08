@@ -26,6 +26,54 @@ from app.utils.persist_helpers import next_version, replace_current_pointer
 # ---------------------------------------------------------------------------
 
 
+# 测试项目在生产库里必须 inactive — 即便单测中断漏清理,
+# 正常的 list_project_items(include_inactive=False) 也不会把测试项目暴露到
+# 前端下拉。兜底:整个 session 结束后再扫一次,按前缀清除所有测试项目。
+# 用宽松正则 + case-insensitive,UUID hex 既可能大小写,fixture 之外的
+# 手工污染也可能含非 hex 字符(如 PH-TEST-fakesimulate0001)。
+_TEST_PROJECT_NAME_RE = r"^.*-TEST-.+$"
+
+
+@pytest.fixture(autouse=True)
+def _auto_cleanup_test_projects_on_teardown():
+    """文件级 fixture:每条用例跑完后,清扫所有 *-TEST-* 测试项目及其子表。
+
+    跑在生产库上的回归测试需要绝对保险 — 任何中断 / 异常 / 杀进程都不能
+    留孤儿数据到生产下拉里。
+    """
+    yield
+    with SessionLocal() as session:
+        try:
+            dirty_ids = session.execute(
+                text("SELECT id FROM projects WHERE project_name ~* :re"),
+                {"re": _TEST_PROJECT_NAME_RE},
+            ).scalars().all()
+            if not dirty_ids:
+                return
+            session.execute(
+                text(
+                    "DELETE FROM analysis_return_rows "
+                    "WHERE project_id = ANY(:ids)"
+                ),
+                {"ids": list(dirty_ids)},
+            )
+            session.execute(
+                text(
+                    "DELETE FROM analysis_source_files "
+                    "WHERE project_id = ANY(:ids)"
+                ),
+                {"ids": list(dirty_ids)},
+            )
+            session.execute(
+                text("DELETE FROM projects WHERE id = ANY(:ids)"),
+                {"ids": list(dirty_ids)},
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+
 @pytest.fixture()
 def db_session():
     session = SessionLocal()
@@ -38,9 +86,17 @@ def db_session():
 
 @pytest.fixture()
 def project_id(db_session):
-    """Create a fresh Project, yield its id, cleanup on teardown."""
+    """Create a fresh Project, yield its id, cleanup on teardown.
+
+    注:测试项目标 ``is_active=False`` — 即便单测中断漏清理,也不会污染生产下拉。
+    """
     name = f"PH-TEST-{uuid.uuid4().hex[:10]}"
-    project = Project(project_name=name, sort_order=0, is_active=True)
+    project = Project(
+        project_name=name,
+        sort_order=0,
+        # 测试项目在生产库里必须 inactive;泄漏到下拉的兜底防线
+        is_active=False,
+    )
     db_session.add(project)
     db_session.commit()
     db_session.refresh(project)
