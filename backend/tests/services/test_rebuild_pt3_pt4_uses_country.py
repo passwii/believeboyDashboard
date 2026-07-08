@@ -30,7 +30,7 @@ def test_rebuild_passes_country_to_compute_metrics():
             "type": "Order",
             "fulfillment": "Amazon",
             "product sales": "100",
-            "product sales tax": "19",
+            "marketplace withheld tax": "-19",
             "selling fees": "-15",
             "fba fees": "-5",
             "shipping credits": "0",
@@ -42,6 +42,9 @@ def test_rebuild_passes_country_to_compute_metrics():
         },
     ]
 
+    # 口径自 vX 起从 product_sales_tax 切到 marketplace withheld tax。
+    # 报表中 withheld = -19 → income_vat_total = -(-19) = +19，数值与改前一致。
+    # （此测试用 patch 替换 compute_metrics，不验证真实聚合，只验证 country 是否传入）
     fake_pt3 = {
         "income_total": Decimal("119"),
         "income_vat_total": Decimal("19"),

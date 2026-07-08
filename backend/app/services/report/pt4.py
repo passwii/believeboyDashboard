@@ -84,11 +84,13 @@ def _build_financial_row(
         if pt3 is not None
         else 0.0
     )
-    income_sales_with_tax = (
-        _to_float(getattr(pt3, "income_sales_with_tax", None) or 0)
-        if pt3 is not None
-        else 0.0
-    )
+    # PT4 的 ``income_sales`` 桶（见 financial.compute_metrics）已是 gross：
+    # 产品销售额 + 运费 + 礼品包装 + 促销返点 + VAT（UK/DE），US 时 VAT=0。
+    # 前端「销售额」列用 resolveDisplaySales 优先取 income_sales_with_tax，
+    # 故这里把它映射到 PT4 的 gross income_sales，使四部分收入加总等于
+    # income_total（与 PT3 对齐）。若仍借 PT3 的 income_sales_with_tax，会因
+    # 不含运费/促销而少算，导致页面四部分合计与收入合计对不上。
+    income_sales_with_tax = _to_float(pt4.income_sales)
     return {
         "report_month": report_month,
         "income_sales": _to_float(pt4.income_sales),
