@@ -11,6 +11,7 @@ import {
   Database,
   DollarSign,
   FileBarChart,
+  FileCode,
   FileSearch,
   FileText,
   History,
@@ -83,6 +84,7 @@ const IconMap = {
   Layers,
   FileSearch,
   FileText,
+  FileCode,
   Users,
   Database,
   Shield,
@@ -252,10 +254,15 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  roles: ['admin'],
  icon: IconMap.Users,
  },
- { title: '更新日志', url: '/dashboard/changelog', icon: IconMap.History },
+{ title: '更新日志', url: '/dashboard/changelog', icon: IconMap.History },
  { title: 'Markdown 转换', url: '/dashboard/special/markdown-to-word', icon: IconMap.FileText },
- ],
+ {
+ title: 'Markdown/HTML 渲染',
+ url: '/dashboard/special/page-render',
+ icon: IconMap.FileCode,
  },
+ ],
+},
 
  //7. 系统管理（admin only —整组过滤）
  {
