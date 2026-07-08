@@ -2,6 +2,7 @@
 .agent-contexts/
 .claude/
 .codegraph/
+.zcode/
 .openclaude/
 .pi/
 .pytest_cache/

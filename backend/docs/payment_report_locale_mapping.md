@@ -45,7 +45,7 @@
 | tax on regulatory fee | Tax On Regulatory Fee | ❌ **无此列** | - | ⚠️ 仅US |
 | promotional rebates | promotional rebates | Rabatte aus Werbeaktionen | 促销折扣 | ✅ 已映射 |
 | promotional rebates tax | promotional rebates tax | Steuer auf Aktionsrabatte | 促销折扣税 | ✅ 已映射 |
-| marketplace withheld tax | marketplace withheld tax | Einbehaltene Steuer auf Marketplace | 商城代扣税 | ✅ 已映射 |
+| marketplace withheld tax | marketplace withheld tax | Einbehaltene Steuer auf Marketplace | 商城代扣税 | ✅ 已映射（DE/UK VAT 聚合来源） |
 | selling fees | selling fees | Verkaufsgebühren | 销售费用 | ✅ 已映射 |
 | fba fees | fba fees | Gebühren zu Versand durch Amazon | FBA费用 | ✅ 已映射 |
 | other transaction fees | other transaction fees | Andere Transaktionsgebühren | 其他交易费 | ✅ 已映射 |
@@ -55,6 +55,23 @@
 | transaction release date | Transaction Release Date | Freigabedatum der Transaktion | 交易释放日期 | ✅ 可选列 (存 raw_row) |
 
 ### 列分类说明
+
+#### 0. DE/UK VAT 聚合口径
+
+自 vX 起，DE/UK VAT 聚合（`_compute_vat_metrics`）改用 `marketplace withheld tax` 列
+（DE 对应 `Einbehaltene Steuer auf Marketplace`），不再用 `product sales tax`。
+
+| 项 | 改前（product sales tax） | 改后（marketplace withheld tax） |
+| --- | --- | --- |
+| Amazon 报表中的符号 | +（向买家收的 VAT） | −（Amazon 代扣代缴给税局） |
+| 聚合后 `income_vat_total` | +V | −V（取负号） |
+| 聚合后 `income_sales_with_tax` (DE/UK) | Σproduct_sales + Σproduct_sales_tax = gross | Σproduct_sales − Σmarketplace_withheld_tax = gross（数值不变） |
+| `expense_vat_total` | +V | −V（与 income_vat_total 同步变号） |
+| `amazon_pay_back` 公式 | `pt4_income_total + pt4_expense_total − V` | 同公式（±V 抵消，**数值不变**） |
+| `pt4_income_total` | net + V | net − V（**符号变化**） |
+| 前端"VAT (销售税)"列 | 正数显示 | **负数显示** |
+
+US 报表不受影响：`_compute_vat_metrics` 在 US 走短路分支返回 0。
 
 #### 1. 核心列（业务逻辑必需）
 - `date/time`, `settlement id`, `type`, `order id`, `sku`, `description`

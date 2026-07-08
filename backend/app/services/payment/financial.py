@@ -43,8 +43,8 @@ def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decim
     )
 
 
-# VAT 国家集合：DE（19%）、UK（20%）。US 报表 product_sales_tax 通常为 0，
-# 自动兼容；新口径行为完全一致（income_vat_total=0 → gross ≡ net）。
+# VAT 国家集合：DE（19%）、UK（20%）。US 报表不在集合内，
+# 走短路分支返回 income_vat_total=0（gross ≡ net）。
 VAT_INCLUSIVE_COUNTRIES: frozenset[str] = frozenset({"DE", "UK"})
 
 
@@ -59,22 +59,31 @@ def _compute_vat_metrics(
     always pick this field as the displayed sales amount — no special
     branching by country needed.
 
+    VAT 聚合口径：以 ``marketplace withheld tax`` 列（DE 对应
+    ``Einbehaltene Steuer auf Marketplace``，US/UK/DE 都经
+    ``payment_locale.PAYMENT_REPORT_COLUMN_ALIASES`` 归一化为同一 canonical
+    key）累加 Order+Refund 行。在 Amazon 报表中此列与 ``product sales tax``
+    符号相反（向买家收的 VAT 记正数，Amazon 代扣代缴给税局记负数），聚合
+    后取负号得到 ``income_vat_total``，与下游 PT3/PT4/前端口径兼容。
+
     Args:
         classified: Dict of classified rows from classify_rows().
         country: Normalized country code (US/DE/UK).
 
     Returns:
         Dict with keys:
-        - income_vat_total: sum of product_sales_tax across all Order+Refund rows
-        - income_sales_with_tax: DE/UK = sum(product_sales + product_sales_tax);
-          US = sum(product_sales) (net, since US has no VAT)
-        - expense_vat_total: mirror of income_vat_total (used by PT4 回款公式)
+        - income_vat_total: ``-Σmarketplace_withheld_tax`` over Order+Refund rows
+          （绝对值与 ``Σproduct_sales_tax`` 相同，符号反向）
+        - income_sales_with_tax: DE/UK = ``Σproduct_sales - Σmarketplace_withheld_tax``
+          （数值等于改前 ``Σproduct_sales + Σproduct_sales_tax`` 的 gross 价）；
+          US = ``Σproduct_sales``（net）
+        - expense_vat_total: 镜像 income_vat_total（供 PT4 回款公式使用）
     """
     # 跨所有 Order/Refund 行计算。注意 fba_refund / fbm_refund 的 product_sales 是负数
     # （退款为负），所以 sales_with_tax 也自然为负（消费者退的钱含税）。
     # 单元测试可能只塞入部分 key，``get`` 兜底保证向后兼容。
     all_sales_rows = classified.get("order", []) + classified.get("refund", [])
-    income_sales_with_tax = _round2(
+    net_sales = _round2(
         sum((_to_decimal(row.get("product sales")) for row in all_sales_rows), Decimal("0"))
     )
 
@@ -83,15 +92,21 @@ def _compute_vat_metrics(
         # US 等无 VAT 国家：sales_with_tax 退化为净额，VAT 列保持 0
         return {
             "income_vat_total": Decimal("0"),
-            "income_sales_with_tax": income_sales_with_tax,
+            "income_sales_with_tax": net_sales,
             "expense_vat_total": Decimal("0"),
         }
 
-    income_vat_total = _round2(
-        sum((_to_decimal(row.get("product sales tax")) for row in all_sales_rows), Decimal("0"))
+    # DE/UK：以 ``marketplace withheld tax`` 列聚合。Amazon 报表中此列与
+    # ``product sales tax`` 符号相反，故求和结果为负。取负号后语义上等于
+    # 改前的 ``Σproduct_sales_tax``，数值兼容下游 PT3/PT4/前端。
+    withheld_total = _round2(
+        sum((_to_decimal(row.get("marketplace withheld tax")) for row in all_sales_rows), Decimal("0"))
     )
-    # DE/UK：在已算出的 net 之上加 VAT，避免重复遍历
-    income_sales_with_tax = _round2(income_sales_with_tax + income_vat_total)
+    income_vat_total = -withheld_total
+    # gross = Σproduct_sales + Σproduct_sales_tax
+    #      = Σproduct_sales - Σmarketplace_withheld_tax
+    # 数值与改前完全一致（= net_sales + income_vat_total）
+    income_sales_with_tax = _round2(net_sales - withheld_total)
     return {
         "income_vat_total": income_vat_total,
         "income_sales_with_tax": income_sales_with_tax,
@@ -187,6 +202,11 @@ def compute_metrics(
     seller_fulfilled_selling_fees = _sum_field(fbm_order, "selling fees")
     fba_selling_fees = _sum_field(fba_order, "selling fees")
     selling_fee_refunds = _sum_field(refund, "selling fees")
+    # FBA 派送费总额 = Amazon 履约 Order 行的 fba fees 列
+    #   + 独立 "FBA Transaction Fees" 类型行的 fba fees 列之和。
+    # 该桶同时涵盖别名 "Fulfilment by Amazon (FBA) transaction fees"
+    # （见 app.utils.payment_locale.PAYMENT_TYPE_ALIASES），其 fba fees 经
+    # 归一化后同样归入此桶，无需额外求和处理。
     fba_transaction_fees_total = _round2(
         _sum_field(fba_order, "fba fees")
         + _sum_field(fba_transaction_fees, "fba fees")
@@ -290,12 +310,17 @@ def compute_metrics(
         ),
     }
 
+    # PT4 收入-销售额 = PT3 销售额明细（FBA/非FBA 产品销售额 + 运费 + 礼品包装
+    # + 促销返点）拆分合计；UK/DE 额外叠加 Product sales tax 做 gross 化。
+    # income_vat_total = -Σ marketplace withheld tax（见 _compute_vat_metrics），
+    # 即前面 FBA 新口径的含税聚合值；US 该值为 0，故无条件相加即可。
     pt4_income_sales = _round2(
         product_sales_non_fba
         + fba_product_sales
         + shipping_credits
         + gift_wrap_credits
         + promotional_rebates
+        + income_vat_total
     )
     pt4_income_refund = _round2(
         product_sale_refunds_non_fba
@@ -316,9 +341,6 @@ def compute_metrics(
         + pt4_income_adjustment
         + pt4_income_chargeback
     )
-    # DE/UK：PT4 收入合计也要 gross 化
-    if income_vat_total != Decimal("0"):
-        pt4_income_total = _round2(pt4_income_total + income_vat_total)
 
     pt4_expense_selling_fee = _round2(
         seller_fulfilled_selling_fees + fba_selling_fees + selling_fee_refunds
