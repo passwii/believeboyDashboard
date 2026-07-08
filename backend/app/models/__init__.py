@@ -108,6 +108,7 @@ from app.models.inspection import InspectionPeriod, InspectionReport, Inspection
 from app.models.ad_agent_run import AdAgentRun
 from app.models.ad_agent_dimension_health import AdAgentDimensionHealth
 from app.models.r2_delete_failure import R2DeleteFailure
+from app.models.uploaded_page import UploadedPage
 
 __all__ = [
     'SkuRecord',
@@ -212,4 +213,5 @@ __all__ = [
     'InspectionScreenshot',
     'AdAgentRun',
     'AdAgentDimensionHealth',
+    'UploadedPage',
 ]

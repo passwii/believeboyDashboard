@@ -75,6 +75,21 @@ class Settings(BaseSettings):
         "image/gif",
     }
 
+    # Markdown / HTML page rendering (特殊功能) — uploaded files are stored
+    # publicly in R2 and served back as standalone pages at `/p/{id}`.
+    # Cap is small because md/html pages are tiny by nature; this also keeps
+    # the public-bucket blast radius bounded.
+    page_render_allowed_extensions: set[str] = {".md", ".markdown", ".html", ".htm"}
+    page_render_allowed_content_types: set[str] = {
+        "text/markdown",
+        "text/x-markdown",
+        "text/html",
+        "text/plain",
+        "application/octet-stream",
+    }
+    page_render_max_bytes: int = 2 * 1024 * 1024  # 2 MB
+    page_render_public_rate_limit: str = "30/minute"  # public read endpoint limit
+
     redis_host: str = Field(default="localhost", max_length=200)
     redis_port: int = Field(default=6379, ge=1, le=65535)
     redis_password: str = Field(default="", max_length=200)

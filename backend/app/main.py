@@ -5,7 +5,9 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import text
 
@@ -32,6 +34,17 @@ logging.getLogger('apscheduler.jobstores.default').setLevel(logging.WARNING)
 
 app = FastAPI(title=settings.app_name)
 app.state.limiter = limiter
+
+
+def _rate_limit_exceeded_handler(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Translate slowapi RateLimitExceeded into a 429 JSON response."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"请求过于频繁，请稍后再试（{exc.detail}）"},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 if not settings.frontend_url:
     raise Exception(
