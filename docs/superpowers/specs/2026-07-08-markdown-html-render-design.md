@@ -82,14 +82,20 @@ app/p/[id]/page.tsx (Server Component, 无登录壳)
 
 - 输入：`multipart/form-data`，`file: UploadFile = File(...)`，可选 `title: str = Form(None)`。
 - 校验（复用 `upload_service.py` 的范式，但用**专用**白名单）：
-  - 扩展名 ∈ `{'.md', '.markdown', '.html', '.htm'}`。
-  - content-type ∈ `page_render_allowed_content_types`（见配置节）。
-  - 体积 ≤ `page_render_max_bytes`（实现时按 1MB 分块读取并累加，超限返回 `413`，沿用 `upload_service.py` 的分块读取方式）。
-- 判定格式：`.md`/`.markdown` → `'markdown'`；`.html`/`.htm` → `'html'`。
+  - 扩展名 ∈ `{'.md', '.markdown', '.html', '.htm'}`（白名单是硬约束，扩展名不在内即 `400`，无论 MIME）。
+  - content-type ∈ `page_render_allowed_content_types`（见配置节，软校验；扩展名通过即可放过）。
+  - 体积 ≤ `page_render_max_bytes`（沿用 `upload_service.py` 的 1MB 分块读取并累加，超限返回 `413`）。
+  - **空文件拒绝**：`file_size == 0` → `400`（避免空白页面）。
+- 判定格式：**扩展名为唯一权威**——`.md`/`.markdown` → `'markdown'`；`.html`/`.htm` → `'html'`。
+- `title` 安全化：
+  - 用户提供时：去除首尾空白，长度截断到 ≤ 200 字符；剥除控制字符与 HTML 标签字符（`<`/`>`/`&` 转义或不保留），保留 Unicode/中文。
+  - 未提供时：fallback 到 `original_filename` 去扩展名的 basename。
 - 文件名安全化：沿用 `_safe_name` 思路（slugify + uuid 前缀），防止路径/控制字符。
-- 存 R2：`upload_bytes_to_r2(settings, key=f'special-pages/{owner_user_id}/{uuid}.{ext}', data=content, content_type=...)`.
+- 存 R2：`upload_bytes_to_r2(settings, key=f'special-pages/{owner_user_id}/{uuid}.{ext}', data=content, content_type=...)`。
 - 写记录：`UploadedPage(...)`，提交。
-- 返回 `UploadedPageResponse`：`{ id, title, source_format, public_url, created_at }`。
+- 返回 `UploadedPageResponse`：`{ id, title, source_format, public_url, original_filename, file_size, created_at }`。
+- **错误响应统一**：`HTTPException(status_code, detail="<中文 message>")`，前端可直接展示。
+- **操作审计**：调用 `append_operation_audit_log(operator=..., action='page_render.upload', target_type='uploaded_page', target_id=id, result='success'|'failed', ...)`，沿用现有上传接口的审计范式。
 
 ### 2. `GET /api/v1/page-render/history`（需鉴权，读库路由）
 
@@ -126,19 +132,32 @@ app/p/[id]/page.tsx (Server Component, 无登录壳)
   ```ts
   { title: 'Markdown/HTML 渲染', url: '/dashboard/special/page-render', icon: IconMap.FileCode }
   ```
-  （图标从 `IconMap` 现有项中选，避免新增图标依赖。）
+  `FileCode` 取自 `lucide-react`（项目图标源），语义贴合"代码/Markdown/HTML"。
 - `frontend/lib/dashboard-route-meta.ts`：`DASHBOARD_PAGE_TITLES` 追加 `{ match: '/special/page-render', title: 'Markdown / HTML 渲染' }`。
 
 ### 页面
 
 新增 `frontend/app/dashboard/special/page-render/page.tsx` + `loading.tsx`（沿用 `app/dashboard/special/loading.tsx` 的 `DashboardPageLoading`）。
 
-- 使用 `UploadZone`（复用，accept=`.md,.markdown,.html,.htm,text/markdown,text/html`，`maxSize` 与后端 `page_render_max_bytes` 对齐，建议 2）。
-- `onUpload(file)`：
-  1. **即时预览**（不依赖服务端）：`FileReader.readAsText(file)` 读文本 → md 用 `<ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>`；html 用 `<iframe sandbox="allow-scripts" srcDoc={text} ... />`（沿用 `ai-chat-message-content.tsx` 的 iframe 属性）。
-  2. **上传**：`FormData` append `file` → `fetch('/api/backend/api/v1/page-render/upload', { method:'POST', body })`（代理注入 `X-API-Key` + 会话头，沿用 `report-upload/page.tsx` 的 multipart 模式）。
-  3. 成功：展示**公开链接 + 复制按钮**，并刷新历史列表。
-- **历史列表**：`GET /api/backend/api/v1/page-render/history` → 卡片/表格：标题、格式徽章（Markdown/HTML）、时间、操作「查看公开页」(新标签开 `/p/{id}`)、「复制链接」、「删除」(DELETE 后刷新)。
+整体结构（自上而下）：
+
+1. **标题输入（可选）**：`<Input placeholder="页面标题（可留空，使用文件名）" />`，与 `UploadZone` 联动；提交时作为 `title` 表单字段。
+2. **上传区**：`<UploadZone accept=".md,.markdown,.html,.htm,text/markdown,text/html,text/x-markdown" maxSize={2} ... />`（与后端 `page_render_max_bytes` 对齐）。
+3. **即时预览**：`onUpload` 中：
+   - `FileReader.readAsText(file, 'utf-8')` 读文本。
+   - markdown → `<ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code: SyntaxHighlighted }}>{text}</ReactMarkdown>`，其中 `SyntaxHighlighted` 用项目已装的 `react-syntax-highlighter`（`react-markdown` 已支持通过 `components.code` 接管）。**注意：默认不启用 `rehype-raw`**（即不上传 raw HTML 渲染，XSS 防御边界）。
+   - html → `<iframe sandbox="allow-scripts" srcDoc={text} className="w-full min-h-[60vh] border rounded bg-white" title="HTML 预览" />`（沿用 `ai-chat-message-content.tsx` 的 iframe 写法）。
+4. **上传 + 公开链接**：上传成功后展示一行「公开链接」+ 复制按钮（`navigator.clipboard.writeText`，复制成功用项目通用 Toast 组件提示「已复制」）。
+5. **错误处理**：上传失败（`413`/网络错误/后端错误）→ Toast 展示后端 `detail` 中文消息；超 2MB 客户端预校验直接拒绝。
+6. **历史列表**：下方表格（`@tanstack/react-table`，项目已装），列：
+   - **标题**：纯文本，超长省略。
+   - **格式徽章**：`<Badge>` 显示「Markdown」/「HTML」（颜色区分）。
+   - **原始文件名**：灰色小字。
+   - **大小**：KB 为单位。
+   - **创建时间**：`date-fns formatDistanceToNow` 或 `format`（项目已装）。
+   - **操作**：「打开」(新标签 `/p/{id}`)、「复制链接」、「删除」（删除按钮触发**确认 Modal**——沿用项目 `use-confirm` hook，避免误删；删除成功 Toast「已删除」并刷新列表）。
+
+所有用户可见文案使用**中文**，与项目一致。
 
 ---
 
@@ -156,14 +175,22 @@ app/p/[id]/page.tsx (Server Component, 无登录壳)
 
 新增 `frontend/app/p/[id]/page.tsx`（**放在 `app/dashboard` 之外**，使用独立 layout / 最小外壳，含站点标题与页脚「由 believeboy Dashboard 生成」）。
 
+- **HTML head 元数据**（用 `generateMetadata`，沿用 Next.js App Router 标准做法）：
+  - `<title>{title} · believeboy Dashboard</title>`
+  - `<meta name="description" content="由 believeboy Dashboard 渲染的 {source_format} 页面" />`
+- **缓存策略**：内容上传后不变（无版本管理），使用 Next.js `fetch(..., { next: { revalidate: 3600 } })`（或 `cache: 'force-cache'`）以减少 R2 出口与延迟；记录元数据接口也走相同的 revalidate。
 - **Server Component**：
-  1. `fetch('/api/public/page-render/{id}')` 拿元数据 + `public_url`。404 → 渲染 NotFound。
-  2. **服务端** `fetch(public_url)` 读取 R2 公开内容（服务端到服务端，无 CORS 问题），拿到原始 `content` 字符串。
+  1. `fetch('/api/public/page-render/{id}')` 拿元数据 + `public_url`。
+     - 404 → 渲染「页面不存在或已删除」友好提示（不暴露内部错误）。
+     - 限流/5xx → 渲染「暂时无法加载，请稍后重试」。
+  2. **服务端** `fetch(public_url, { next: { revalidate: 3600 } })` 读取 R2 公开内容（服务端到服务端，无 CORS 问题）。
+     - R2 fetch 失败 → 渲染「页面内容加载失败」提示。
   3. 把 `{ content, source_format, title }` 传给客户端组件 `<PageRenderer />`。
 - **`<PageRenderer>`（客户端）**：
   - `source_format === 'markdown'` → `<ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>`。
   - `source_format === 'html'` → `<iframe sandbox="allow-scripts" srcDoc={content} className="w-full min-h-screen border-0" title={title} />`。
 - 不引入任何用户会话/鉴权；纯公开渲染。
+- **响应头**：通过 Next.js `headers()` 配置 `X-Robots-Tag: index, follow`（允许搜索引擎收录公开页，与「公开可见」一致）；如未来要禁止收录可改 `noindex`。
 
 ---
 
@@ -174,12 +201,35 @@ app/p/[id]/page.tsx (Server Component, 无登录壳)
 ```python
 page_render_allowed_extensions: set[str] = {".md", ".markdown", ".html", ".htm"}
 page_render_allowed_content_types: set[str] = {
-    "text/markdown", "text/html", "text/plain", "application/octet-stream"
+    "text/markdown", "text/x-markdown", "text/html",
+    "text/plain", "application/octet-stream",
 }
 page_render_max_bytes: int = 2 * 1024 * 1024  # 2 MB
 ```
 
-（content-type 放宽容 `text/plain` / `application/octet-stream`，因为浏览器对 `.md`/`.html` 的 MIME 有时候不准。）
+补充说明：
+- **扩展名是格式判定的唯一权威**（`.md`/`.markdown` → `markdown`；`.html`/`.htm` → `html`）。content-type 仅作白名单软校验，浏览器对 `.md` 的 MIME 经常发成 `text/plain` 或空，所以容错宽一些。
+- `text/x-markdown` 兼容部分客户端（VS Code、某些 Linux 工具）的习惯 MIME。
+- 仍会拒绝扩展名不在白名单的请求，无论 content-type 是什么。
+
+---
+
+## 打磨与 UX 细节（v1 确认范围）
+
+补强 / 收紧要点：
+
+1. **扩展名权威**：MIME 仅软校验，扩展名（`.md`/`.markdown`/`.html`/`.htm`）是 `source_format` 的唯一判定。
+2. **空文件拒绝**：0 字节直接 `400`。
+3. **title 安全化**：≤ 200 字符，剥控制字符，去 HTML 标签字符；缺省取文件名。
+4. **图标与文案**：`FileCode` 图标 + 全中文文案，与项目一致。
+5. **代码高亮**：Markdown 内 `code` 块用 `react-syntax-highlighter` 接管（项目已装）。
+6. **不渲染 md 内 raw HTML**：`react-markdown` 默认配置，**不引入** `rehype-raw`（XSS 防御）。
+7. **删除确认**：走 `use-confirm` Modal，避免误删。
+8. **操作反馈**：复制 / 上传 / 删除均通过项目 Toast 组件反馈中文消息。
+9. **公开页元数据**：`generateMetadata` 设置 `<title>` / `description`；`X-Robots-Tag: index, follow` 允许收录。
+10. **公开页缓存**：Server Component 用 `revalidate: 3600` 减少 R2 出口。
+11. **公开页错误态**：404 / 5xx / R2 拉取失败各自有友好中文提示，不暴露内部细节。
+12. **审计日志**：上传 / 删除都写 `operation_audit_logs`，沿用现有范式。
 
 ---
 
@@ -207,18 +257,25 @@ page_render_max_bytes: int = 2 * 1024 * 1024  # 2 MB
 
 - 上传 `.md` → `200` + 返回 `public_url` + DB 存在记录（`source_format='markdown'`）。
 - 上传 `.html` → `200` + 记录 `source_format='html'`。
-- 上传非法扩展名（如 `.exe`）→ `400`。
-- 上传超过 `page_render_max_bytes` → `413`。
+- 上传 `.markdown` → `source_format='markdown'`。
+- 上传非法扩展名（如 `.exe`）→ `400`，且不写 R2 / 不写 DB。
+- 上传超过 `page_render_max_bytes` → `413`，且不留垃圾对象。
+- 上传空文件（0 字节）→ `400`。
+- 上传 `.md` 文件但 content-type 为 `text/plain`（模拟浏览器误报）→ 仍成功（扩展名权威）。
+- `title` 提供超过 200 字符 → 被截断并持久化截断后的值；含控制字符 → 被剥除。
 - `history` 仅返回当前用户记录（用两个不同用户会话验证隔离）。
-- `DELETE {id}` → R2 对象删除 + DB 行删除（用 `try_delete_file_from_r2` 的 mock 或测试桶验证）。
+- `DELETE {id}` → R2 对象删除 + DB 行删除；非 owner 删除 → `404`。
 - `public/{id}` → 无需用户鉴权可返回元数据；不存在 → `404`；超限额流（可选）。
+- 审计日志：`upload` / `delete` 各产生一条 `operation_audit_logs` 记录。
 
 ### 前端
 
 - `UploadZone` 接线正确（accept / maxSize）。
-- Markdown 预览用 `react-markdown` 渲染；HTML 预览用 sandbox iframe。
-- 历史列表展示、复制链接、删除刷新。
-- `/p/{id}` 公开页在**未登录**状态下正确渲染 md 与 html。
+- Markdown 预览用 `react-markdown` 渲染（含代码高亮）；HTML 预览用 sandbox iframe。
+- 复制公开链接 → Toast「已复制」。
+- 删除前弹出确认 Modal；确认后 Toast「已删除」并刷新列表。
+- 超 2MB 客户端预校验直接拒绝并提示。
+- `/p/{id}` 公开页在**未登录**状态下正确渲染 md 与 html；404 / 拉取失败有友好提示。
 
 ### 迁移
 
