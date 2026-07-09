@@ -84,60 +84,75 @@
   }
 
   .dark {
-    --background: 226 38% 11%;
-    --foreground: 220 25% 96%;
-    --card: 225 30% 15%;
-    --card-foreground: 220 25% 96%;
-    --popover: 225 30% 15%;
-    --popover-foreground: 220 25% 96%;
-    --primary: 233 100% 74%;
-    --primary-foreground: 228 34% 12%;
-    --secondary: 221 18% 78%;
-    --secondary-foreground: 225 34% 12%;
-    --muted: 226 22% 18%;
-    --muted-foreground: 220 16% 76%;
-    --accent: 228 20% 22%;
-    --accent-foreground: 220 24% 96%;
+    /* ── Raycast 式玻璃质感（统一冷中性木炭材质 + 玻璃边）──────────────
+     * 在 P0 的 elevation 阶梯基础上进一步：把中性面饱和压到 ~8~12%（hue≈225
+     * 保留一丝冷调以呼应品牌蓝），让整站读作"同一种材料"，而非各自为政的色块。
+     * 分层明度阶梯保持不变（画布 L9% → 导航壳 L12% → 内容窗 L15% →
+     * 卡片 L19% → 浮层 L22~23% → 高亮 L26%）。
+     * 分割方式从硬边框改为 Raycast 标志性"玻璃边"：顶部 1px 内高光 +
+     * 极淡 1px 全周长内描边（见 .dark .dashboard-surface 等），
+     * 浮起面板再叠加 backdrop-blur，读作"一块连贯的玻璃面板"。 */
+    --background: 225 12% 9%;
+    --foreground: 220 22% 96%;
+    --card: 225 12% 19%;
+    --card-foreground: 220 22% 96%;
+    --popover: 225 12% 19%;
+    --popover-foreground: 220 22% 96%;
+    --primary: 222 100% 68%;
+    --primary-foreground: 228 40% 12%;
+    --secondary: 221 12% 80%;
+    --secondary-foreground: 225 30% 12%;
+    --muted: 225 10% 17%;
+    --muted-foreground: 220 14% 74%;
+    --accent: 225 10% 20%;
+    --accent-foreground: 220 22% 96%;
     --destructive: 3 52% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 227 18% 27%;
-    --input: 227 18% 24%;
-    --ring: 233 100% 74%;
-    --chart-1: 233 100% 74%;
-    --chart-2: 161 68% 44%;
-    --chart-3: 327 94% 68%;
-    --chart-4: 196 92% 67%;
+    --border: 225 8% 20%;
+    --input: 225 8% 19%;
+    --ring: 222 100% 68%;
+
+    /* 图表保持品牌彩色，仅按更深的基色微调明度 */
+    --chart-1: 222 100% 68%;
+    --chart-2: 161 60% 46%;
+    --chart-3: 327 88% 66%;
+    --chart-4: 196 88% 64%;
     --chart-5: 3 52% 58%;
-    --chart-6: 191 95% 68%;
-    --chart-7: 263 92% 74%;
-    --sidebar-background: 224 20% 11%;
-    --sidebar-foreground: 220 24% 96%;
-    --sidebar-primary: 233 100% 74%;
-    --sidebar-primary-foreground: 228 34% 12%;
-    --sidebar-accent: 224 16% 15%;
-    --sidebar-accent-foreground: 220 24% 97%;
-    --sidebar-border: 223 14% 22%;
-    --sidebar-ring: 233 100% 74%;
-    --surface-base: 226 38% 11%;
-    --surface-subtle: 225 26% 14%;
-    --surface-panel: 225 30% 15%;
-    --surface-overlay: 226 28% 16%;
-    --surface-strong: 227 20% 22%;
-    --surface-soft: 226 22% 16%;
-    --surface-low: 225 26% 13%;
-    --surface-high: 227 18% 20%;
-    --surface-outline: 224 12% 46%;
-    --success: 161 68% 44%;
-    --warning: 39 96% 68%;
-    --data-positive: 161 68% 44%;
-    --data-warning: 39 96% 68%;
+    --chart-6: 191 90% 66%;
+    --chart-7: 263 88% 72%;
+
+    /* Sidebar：统一为 L12% 的凹陷导航壳（rail 与 panel 同一值，融为一体） */
+    --sidebar-background: 225 10% 12%;
+    --sidebar-foreground: 220 22% 96%;
+    --sidebar-primary: 222 100% 68%;
+    --sidebar-primary-foreground: 228 40% 12%;
+    --sidebar-accent: 225 10% 19%;
+    --sidebar-accent-foreground: 220 22% 97%;
+    --sidebar-border: 225 8% 17%;
+    --sidebar-ring: 222 100% 68%;
+
+    /* Surface 纵深阶梯 */
+    --surface-base: 225 12% 9%;
+    --surface-subtle: 225 10% 17%;
+    --surface-panel: 225 12% 19%;
+    --surface-overlay: 225 10% 22%;
+    --surface-strong: 225 10% 23%;
+    --surface-soft: 225 12% 19%;
+    --surface-low: 225 12% 15%;
+    --surface-high: 225 8% 26%;
+    --surface-outline: 225 8% 42%;
+
+    --success: 161 60% 46%;
+    --warning: 39 92% 64%;
+    --data-positive: 161 60% 46%;
+    --data-warning: 39 92% 64%;
     --data-negative: 3 52% 58%;
-    --data-neutral: 221 14% 76%;
-    --stroke-soft: 225 12% 42%;
-    --stroke-strong: 222 14% 60%;
-    --shadow-soft: 0 18px 40px -24px rgba(4, 8, 18, 0.68);
-    --shadow-raised: 0 24px 56px -28px rgba(4, 8, 18, 0.78);
-    --shadow-overlay: 0 32px 84px -34px rgba(2, 6, 16, 0.86);
+    --data-neutral: 221 14% 74%;
+    --stroke-soft: 225 12% 40%;
+    --stroke-strong: 222 14% 58%;
+    --shadow-soft: 0 18px 40px -24px rgba(2, 6, 16, 0.72);
+    --shadow-raised: 0 24px 56px -28px rgba(2, 6, 16, 0.82);
+    --shadow-overlay: 0 32px 84px -34px rgba(1, 4, 12, 0.9);
   }
 
   * {
@@ -172,9 +187,9 @@
 
   .dark body {
     background-image:
-      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.16), transparent 20%),
-      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.18), transparent 22%),
-      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(226 34% 10%) 54%, hsl(227 40% 9%) 100%);
+      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.12), transparent 22%),
+      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.10), transparent 24%),
+      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(225 22% 8%) 54%, hsl(226 26% 7%) 100%);
   }
 
   h1,
@@ -375,9 +390,11 @@
   }
 
   .dark .dashboard-surface {
-    border-color: hsl(var(--border) / 0.96);
+    /* Raycast 式玻璃边：顶部 1px 内高光 + 极淡全周长 1px 内描边，取代硬边框 */
+    border-color: hsl(var(--border) / 0.35);
     box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.04),
+      inset 0 1px 0 hsl(220 30% 100% / 0.08),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
       var(--shadow-soft);
   }
 
@@ -410,7 +427,11 @@
   }
 
   .dark .dashboard-panel {
-    border-color: hsl(var(--border) / 0.9);
+    border-color: hsl(var(--border) / 0.4);
+    box-shadow:
+      inset 0 1px 0 hsl(220 30% 100% / 0.07),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.035),
+      var(--shadow-soft);
   }
 
   .dashboard-subtle-panel {
@@ -421,6 +442,20 @@
     background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.82), hsl(var(--surface-overlay) / 0.66));
     box-shadow: var(--shadow-soft);
     backdrop-filter: blur(14px);
+  }
+
+  .dark .dashboard-glass {
+    /* 真玻璃：更实的不透明度保证可读性 + 顶部高光 + 1px 内描边 */
+    background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.9), hsl(var(--surface-overlay) / 0.8));
+    box-shadow:
+      inset 0 1px 0 hsl(220 30% 100% / 0.1),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.06),
+      var(--shadow-overlay);
+    backdrop-filter: blur(18px);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .dark .sidebar-panel-shell { backdrop-filter: none; }
   }
 
   .dashboard-kicker {
@@ -464,8 +499,11 @@
   }
 
   .dark .dashboard-toolbar {
-    border-color: hsl(var(--border) / 0.92);
-    box-shadow: var(--shadow-soft);
+    border-color: hsl(var(--border) / 0.4);
+    box-shadow:
+      inset 0 1px 0 hsl(220 30% 100% / 0.07),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.035),
+      var(--shadow-soft);
   }
 
   .dashboard-chip {
