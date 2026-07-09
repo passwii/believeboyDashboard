@@ -50,6 +50,8 @@ type AvailableReport = {
   pt4_calculation_complete: boolean
   status: string
   pdf_file_missing?: boolean
+  has_transaction_csv?: boolean
+  transaction_csv_missing?: boolean
   // Reconciliation status from history
   reconciled?: boolean
   reconcile_match_rate?: number | null
@@ -372,6 +374,270 @@ function PDFUploadPanel({
   )
 }
 
+async function handleDownloadCSV(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+  try {
+    const response = await fetch(
+      `/api/backend/api/v1/report-reconciliation/reports/${reportId}/download-csv`
+    )
+    if (!response.ok) throw new Error('下载失败')
+    const blob = await response.blob()
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    const filename = utf8Match?.[1]
+      ? decodeURIComponent(utf8Match[1])
+      : 'transaction.csv'
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    notify({
+      type: 'error',
+      title: '下载失败',
+      message: error instanceof Error ? error.message : '未知错误',
+    })
+  }
+}
+
+// ─── CSV Upload Panel Component (settlement transaction CSV re-upload) ────────
+
+function CSVUploadPanel({
+  report,
+  onUploadSuccess,
+  onClose,
+  errorMessage,
+}: {
+  report: AvailableReport
+  onUploadSuccess: () => void
+  onClose: () => void
+  errorMessage?: string
+}) {
+  const { notify } = useNotifications()
+  const [uploadState, setUploadState] = useState<PDFUploadState>('idle')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null)
+
+  const isCsvMissing = report.transaction_csv_missing
+  const isReplacing = report.has_transaction_csv || isCsvMissing
+
+  const displayError = errorMessage || localErrorMessage
+
+  const handleUpload = async (file: File) => {
+    setSelectedFile(file)
+    setUploadState('uploading')
+    setLocalErrorMessage(null)
+    try {
+      const formData = new FormData()
+      formData.append('csv_file', file)
+      const response = await fetch(
+        `/api/backend/api/v1/report-reconciliation/reports/${report.report_id}/csv-upload`,
+        { method: 'POST', body: formData }
+      )
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || '上传失败')
+      }
+      setUploadState('success')
+      notify({
+        type: 'success',
+        title: '上传成功',
+        message: isReplacing ? 'CSV 已更新' : 'CSV 已上传',
+      })
+      setTimeout(() => { onUploadSuccess() }, 1000)
+    } catch (error) {
+      setUploadState('error')
+      setLocalErrorMessage(error instanceof Error ? error.message : '上传失败')
+      notify({
+        type: 'error',
+        title: '上传失败',
+        message: error instanceof Error ? error.message : '未知错误',
+      })
+      throw error
+    }
+  }
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+    setLocalErrorMessage(null)
+    setUploadState('idle')
+  }
+
+  return (
+    <div className='flex flex-col items-center justify-center py-12 px-4'>
+      <div className='mb-6 text-center'>
+        <h3 className='text-lg font-semibold mb-1'>
+          {isReplacing ? '更新 CSV 文件' : '上传 CSV 文件'}
+        </h3>
+        <p className='text-sm text-muted-foreground'>
+          {isCsvMissing
+            ? '原文件已丢失，请重新上传'
+            : isReplacing
+              ? '上传新文件将覆盖原有 CSV'
+              : '请上传该月的结算交易 CSV'}
+        </p>
+      </div>
+
+      <div className='w-full max-w-md'>
+        <UploadZone
+          accept='.csv,text/csv'
+          maxSize={50}
+          onUpload={handleUpload}
+          uploadingText='上传中...'
+          disabled={uploadState === 'uploading'}
+          className='[&>div:first-child]:flex-col'
+        />
+      </div>
+
+      {selectedFile && uploadState === 'idle' && (
+        <div className='mt-4 flex flex-col items-center gap-3'>
+          <div className='flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30'>
+            <File className='h-7 w-7 text-emerald-600 dark:text-emerald-400' />
+          </div>
+          <div className='text-center'>
+            <p className='text-sm font-medium truncate max-w-[280px]'>{selectedFile.name}</p>
+            <p className='text-xs text-muted-foreground'>
+              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+          <Button variant='outline' size='sm' onClick={handleRemoveFile}>移除</Button>
+        </div>
+      )}
+
+      {displayError && (
+        <div className='mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400'>
+          <XCircle className='h-4 w-4' />
+          {displayError}
+        </div>
+      )}
+
+      {uploadState === 'success' && (
+        <div className='mt-6 flex flex-col items-center gap-2'>
+          <div className='flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30'>
+            <Check className='h-6 w-6 text-emerald-600 dark:text-emerald-400' />
+          </div>
+          <p className='text-sm font-medium text-emerald-600 dark:text-emerald-400'>上传成功</p>
+        </div>
+      )}
+
+      <div className='mt-6 flex items-center gap-3'>
+        {uploadState !== 'success' && (
+          <Button variant='outline' onClick={onClose}>取消</Button>
+        )}
+        {uploadState === 'success' && (
+          <Button variant='outline' onClick={onClose}>关闭</Button>
+        )}
+      </div>
+
+      {isReplacing && !isCsvMissing && (
+        <p className='mt-4 text-xs text-amber-600 dark:text-amber-400'>
+          注意：上传新文件将覆盖原有的 CSV 文件
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Raw Files Group (always-visible source-file access) ────────────────────
+
+function RawFilesGroup({
+  report,
+  onShowUpload,
+}: {
+  report: AvailableReport
+  onShowUpload: (target: 'pdf' | 'csv') => void
+}) {
+  const { notify } = useNotifications()
+
+  const pdfAvailable = report.has_summary_pdf && !report.pdf_file_missing
+  const csvAvailable = report.has_transaction_csv && !report.transaction_csv_missing
+
+  return (
+    <div className='mt-6 rounded-lg border'>
+      <div className='border-b px-4 py-3'>
+        <span className='text-sm font-medium text-muted-foreground'>原始文件 / 数据</span>
+      </div>
+      <div className='divide-y'>
+        {/* PT3 Excel Download */}
+        <button
+          className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+          onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
+        >
+          <Table className='h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400' />
+          <div className='text-left'>
+            <div className='text-sm font-medium'>数据库数据</div>
+            <div className='text-xs text-muted-foreground'>PT3 核算数据 (.xlsx)</div>
+          </div>
+          <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+        </button>
+
+        {/* PDF Download */}
+        {pdfAvailable ? (
+          <button
+            className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+            onClick={() => handleDownloadPDF(report.report_id, notify)}
+          >
+            <FileText className='h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400' />
+            <div className='text-left'>
+              <div className='text-sm font-medium'>PDF 原文</div>
+              <div className='text-xs text-muted-foreground'>结算汇总 PDF</div>
+            </div>
+            <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+          </button>
+        ) : (
+          <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
+            <FileText className='h-5 w-5 shrink-0 text-muted-foreground' />
+            <div className='text-left'>
+              <div className='text-sm font-medium'>PDF 原文</div>
+              <div className='text-xs text-muted-foreground'>PDF 文件不可用</div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV Download */}
+        {csvAvailable ? (
+          <button
+            className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+            onClick={() => handleDownloadCSV(report.report_id, notify)}
+          >
+            <Table className='h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400' />
+            <div className='text-left'>
+              <div className='text-sm font-medium'>源 CSV</div>
+              <div className='text-xs text-muted-foreground'>结算交易 CSV</div>
+            </div>
+            <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+          </button>
+        ) : (
+          <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
+            <Table className='h-5 w-5 shrink-0 text-muted-foreground' />
+            <div className='text-left'>
+              <div className='text-sm font-medium'>源 CSV</div>
+              <div className='text-xs text-muted-foreground'>
+                {report.transaction_csv_missing ? '源文件已丢失' : '暂无源文件'}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Re-upload buttons */}
+      <div className='flex flex-wrap justify-center gap-3 border-t px-4 py-3'>
+        <Button variant='outline' onClick={() => onShowUpload('pdf')}>
+          <Upload className='mr-2 h-4 w-4' />
+          重新上传 PDF
+        </Button>
+        <Button variant='outline' onClick={() => onShowUpload('csv')}>
+          <FileUp className='mr-2 h-4 w-4' />
+          重新上传 CSV
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Detail Panel Component ──────────────────────────────────────────────────
 
 // Error types for reconciliation
@@ -447,6 +713,7 @@ function DetailPanel({
   errorType,
   onClearError,
   onShowUpload,
+  uploadTarget,
 }: {
   report: AvailableReport
   result: ReconcileResult | null
@@ -456,7 +723,8 @@ function DetailPanel({
   onReconcile: (report: AvailableReport) => void
   errorType: ReconcileErrorType
   onClearError: () => void
-  onShowUpload: () => void  // Callback to show upload panel
+  onShowUpload: (target: 'pdf' | 'csv') => void
+  uploadTarget: 'pdf' | 'csv' | null
 }) {
   const { notify } = useNotifications()
   const country = report.country
@@ -466,8 +734,10 @@ function DetailPanel({
   const needsUpload = !report.has_summary_pdf || report.pdf_file_missing
   const needsCalculation = !report.pt3_calculation_complete
 
-  // Show upload panel if: needs upload OR has PDF error OR explicitly requested
-  const showUploadPanel = needsUpload || errorType !== null
+  // Show upload panel if: needs upload OR has PDF error OR explicitly requested (uploadTarget)
+  const uploadTargetResolved: 'pdf' | 'csv' | null =
+    uploadTarget ?? (needsUpload || errorType !== null ? 'pdf' : null)
+  const showUploadPanel = uploadTargetResolved !== null
 
   // Auto-trigger reconciliation when panel opens with canReconcile
   const [autoTriggered, setAutoTriggered] = useState(false)
@@ -512,12 +782,21 @@ function DetailPanel({
         <div className='flex-1 overflow-y-auto p-6'>
         {/* Show upload panel if needs upload or file is missing or has error */}
         {showUploadPanel ? (
-          <PDFUploadPanel
-            report={report}
-            onUploadSuccess={onUploadSuccess}
-            onClose={onClose}
-            errorMessage={errorType ? getErrorMessage() : undefined}
-          />
+          uploadTargetResolved === 'csv' ? (
+            <CSVUploadPanel
+              report={report}
+              onUploadSuccess={onUploadSuccess}
+              onClose={onClose}
+              errorMessage={errorType ? getErrorMessage() : undefined}
+            />
+          ) : (
+            <PDFUploadPanel
+              report={report}
+              onUploadSuccess={onUploadSuccess}
+              onClose={onClose}
+              errorMessage={errorType ? getErrorMessage() : undefined}
+            />
+          )
         ) : needsCalculation ? (
           /* Show message if calculation not done */
           <div className='flex flex-col items-center justify-center py-20'>
@@ -667,60 +946,6 @@ function DetailPanel({
               </table>
             </div>
 
-            {/* Download Section */}
-            <div className='mt-6 rounded-lg border'>
-              <div className='border-b px-4 py-3'>
-                <span className='text-sm font-medium text-muted-foreground'>下载数据</span>
-              </div>
-              <div className='divide-y'>
-                {/* PT3 Excel Download */}
-                <button
-                  className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
-                  onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
-                >
-                  <Table className='h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400' />
-                  <div className='text-left'>
-                    <div className='text-sm font-medium'>数据库数据</div>
-                    <div className='text-xs text-muted-foreground'>PT3 核算数据 (.xlsx)</div>
-                  </div>
-                  <Download className='ml-auto h-4 w-4 text-muted-foreground' />
-                </button>
-
-                {/* PDF Download */}
-                {report.has_summary_pdf && !report.pdf_file_missing ? (
-                  <button
-                    className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
-                    onClick={() => handleDownloadPDF(report.report_id, notify)}
-                  >
-                    <FileText className='h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400' />
-                    <div className='text-left'>
-                      <div className='text-sm font-medium'>PDF 原文</div>
-                      <div className='text-xs text-muted-foreground'>结算汇总 PDF</div>
-                    </div>
-                    <Download className='ml-auto h-4 w-4 text-muted-foreground' />
-                  </button>
-                ) : (
-                  <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
-                    <FileText className='h-5 w-5 shrink-0 text-muted-foreground' />
-                    <div className='text-left'>
-                      <div className='text-sm font-medium'>PDF 原文</div>
-                      <div className='text-xs text-muted-foreground'>PDF 文件不可用</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Re-upload PDF Button - Always visible */}
-            <div className='mt-6 flex justify-center gap-3'>
-              <Button
-                variant='outline'
-                onClick={onShowUpload}
-              >
-                <Upload className='mr-2 h-4 w-4' />
-                重新上传 PDF
-              </Button>
-            </div>
           </>
         ) : (
           /* Empty state - should not happen normally */
@@ -737,6 +962,10 @@ function DetailPanel({
               </Button>
             </div>
           </div>
+        )}
+
+        {!showUploadPanel && (
+          <RawFilesGroup report={report} onShowUpload={onShowUpload} />
         )}
       </div>
     </DialogContent>
@@ -767,7 +996,7 @@ export default function AutoReconcileTab() {
   } | null>(null)
 
   // Track if we should show upload panel (for re-upload flow)
-  const [showUploadPanel, setShowUploadPanel] = useState(false)
+  const [uploadTarget, setUploadTarget] = useState<'pdf' | 'csv' | null>(null)
 
   // Derive current reconciliation result based on selected report
   // This ensures we always have the latest result data
@@ -784,16 +1013,6 @@ export default function AutoReconcileTab() {
     }
     return null
   }, [selectedReport, reconcileError])
-
-  // Determine if we should show upload panel
-  const shouldShowUploadPanel = useMemo(() => {
-    if (!selectedReport) return false
-    if (showUploadPanel) return true
-    if (currentError) return true
-    // Also show if PDF is missing or doesn't exist
-    if (!selectedReport.has_summary_pdf || selectedReport.pdf_file_missing) return true
-    return false
-  }, [selectedReport, showUploadPanel, currentError])
 
   // Fetch available reports
   const fetchAvailableReports = useCallback(async () => {
@@ -845,7 +1064,7 @@ export default function AutoReconcileTab() {
     }
 
     // Close upload panel when opening detail
-    setShowUploadPanel(false)
+    setUploadTarget(null)
 
     // Always open the panel first
     setSelectedReport(report)
@@ -939,7 +1158,7 @@ export default function AutoReconcileTab() {
   // Trigger reconcile (called from DetailPanel)
   const handleReconcile = useCallback(async (report: AvailableReport) => {
     // Close upload panel first
-    setShowUploadPanel(false)
+    setUploadTarget(null)
 
     // Clear error state
     if (reconcileError?.reportId === report.report_id) {
@@ -962,7 +1181,7 @@ export default function AutoReconcileTab() {
     if (!selectedReport) return
 
     // Close upload panel
-    setShowUploadPanel(false)
+    setUploadTarget(null)
 
     // Clear cached result
     setReconcileResults((prev) => {
@@ -1048,12 +1267,24 @@ export default function AutoReconcileTab() {
   const handlePanelClose = useCallback(() => {
     setSelectedReport(null)
     setReconcileError(null)
-    setShowUploadPanel(false)
+    setUploadTarget(null)
   }, [])
 
-  // Handle showing upload panel (from re-upload button)
-  const handleShowUploadPanel = useCallback(() => {
-    setShowUploadPanel(true)
+  // Handle showing upload panel for a given target (pdf / csv re-upload)
+  const handleShowUpload = useCallback((target: 'pdf' | 'csv') => {
+    setUploadTarget(target)
+    setReconcileError(null)
+  }, [])
+
+  // Row-level fallback: download settlement CSV directly (no dialog needed)
+  const handleRowDownloadCSV = useCallback((report: AvailableReport) => {
+    handleDownloadCSV(report.report_id, notify)
+  }, [notify])
+
+  // Row-level fallback: open dialog directly in CSV re-upload mode
+  const handleRowReuploadCSV = useCallback((report: AvailableReport) => {
+    setSelectedReport(report)
+    setUploadTarget('csv')
     setReconcileError(null)
   }, [])
 
@@ -1129,6 +1360,7 @@ export default function AutoReconcileTab() {
                       <th className='px-4 py-3 text-center'>PDF</th>
                       <th className='px-4 py-3 text-center'>核算</th>
                       <th className='px-4 py-3 text-center'>核对</th>
+                      <th className='px-4 py-3 text-center'>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1186,6 +1418,33 @@ export default function AutoReconcileTab() {
                               )}
                             </div>
                           </td>
+                          <td className='px-4 py-3'>
+                            <div className='flex items-center justify-center gap-1'>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                title='下载源 CSV'
+                                disabled={!report.has_transaction_csv || !!report.transaction_csv_missing}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRowDownloadCSV(report)
+                                }}
+                              >
+                                <Download className='h-4 w-4' />
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                title='补传源 CSV'
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRowReuploadCSV(report)
+                                }}
+                              >
+                                <FileUp className='h-4 w-4' />
+                              </Button>
+                            </div>
+                          </td>
                         </tr>
                       )
                     })}
@@ -1241,7 +1500,8 @@ export default function AutoReconcileTab() {
           onReconcile={handleReconcile}
           errorType={currentError}
           onClearError={handleClearError}
-          onShowUpload={handleShowUploadPanel}
+          onShowUpload={handleShowUpload}
+          uploadTarget={uploadTarget}
         />
       )}
     </div>

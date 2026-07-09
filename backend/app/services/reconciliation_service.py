@@ -123,6 +123,14 @@ def get_available_reports(
         pdf_file_missing = not pdf_exists_in_r2
         pdf_url = report.summary_pdf_r2_url if pdf_exists_in_r2 else None
 
+        # Check if the settlement transaction CSV exists in R2.
+        # transaction_file_id always stores the R2 key; the local cache
+        # (transaction_file_path) may have been cleaned up, so verify R2.
+        csv_key = report.transaction_file_id
+        csv_exists_in_r2 = bool(csv_key) and ArtifactService.check_exists(csv_key)
+        has_transaction_csv = csv_exists_in_r2
+        transaction_csv_missing = bool(csv_key) and not csv_exists_in_r2
+
         # Check if this report has been reconciled before
         recon_stmt = select(ReconciliationRecord).where(
             ReconciliationRecord.report_id == report.id
@@ -141,6 +149,9 @@ def get_available_reports(
             "pt4_calculation_complete": pt4 is not None,
             "status": report.status.value if report.status else "unknown",
             "pdf_file_missing": pdf_file_missing,
+            # Transaction (settlement) CSV source file
+            "has_transaction_csv": has_transaction_csv,
+            "transaction_csv_missing": transaction_csv_missing,
             # Reconciliation status from history
             "reconciled": recon_record is not None,
             "reconcile_match_rate": float(recon_record.match_rate) if recon_record else None,

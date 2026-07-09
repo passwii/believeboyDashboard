@@ -15,6 +15,7 @@ TYPE_ALLOWED_EXTENSIONS: dict[str, set[str]] = {
     'inventory_report': {'.txt'},
     'ad_product_report': {'.xlsx'},
     'payment_report': {'.csv'},
+    'transaction_csv': {'.csv'},
     'monthly_summary_pdf': {'.pdf'},
     'category_research_xlsx': {'.xlsx'},
     'ad_search_term_report': {'.xlsx'},

@@ -53,6 +53,9 @@ class AvailableReportItem(BaseModel):
     pt4_calculation_complete: bool
     status: str
     pdf_file_missing: bool = False  # True if path exists but file is missing
+    # Transaction (settlement) CSV source file
+    has_transaction_csv: bool = False  # True if CSV exists in R2
+    transaction_csv_missing: bool = False  # True if transaction_file_id set but CSV missing in R2
     # Reconciliation status from history
     reconciled: bool = False
     reconcile_match_rate: float | None = None
@@ -111,6 +114,15 @@ class PDFUploadResponse(BaseModel):
     report_id: int
     pdf_file_id: str
     pdf_file_path: str
+    original_filename: str
+    size: int
+    message: str
+
+
+class CSVUploadResponse(BaseModel):
+    report_id: int
+    csv_file_id: str
+    csv_file_path: str
     original_filename: str
     size: int
     message: str

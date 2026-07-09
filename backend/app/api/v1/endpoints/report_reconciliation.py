@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, get_request_is_admin, protected
 from app.core.config import get_settings
 from app.schemas.reconciliation import (
     AutoReconcileRequest,
@@ -15,6 +15,7 @@ from app.schemas.reconciliation import (
     ReconciliationHistoryResponse,
     ReconcileResultResponse,
     PDFUploadResponse,
+    CSVUploadResponse,
 )
 from app.services.reconciliation_service import (
     auto_reconcile,
@@ -25,6 +26,7 @@ from app.services.report_reconciliation_service import reconcile_to_dict
 from app.models import ReconciliationRecord, MonthlyReport, MonthlyReportPT3Calculation
 from app.services.artifact_service import ArtifactService
 from app.services.upload_service import save_upload_file
+from app.services.project_service import ensure_project_access
 from decimal import Decimal
 from io import BytesIO
 from openpyxl import Workbook
@@ -271,6 +273,62 @@ def upload_summary_pdf(
         raise HTTPException(status_code=500, detail=f"Failed to save PDF: {str(e)}")
 
 
+@router.post("/report-reconciliation/reports/{report_id}/csv-upload", response_model=CSVUploadResponse)
+def upload_transaction_csv(
+    report_id: int,
+    csv_file: UploadFile = File(...),
+    db=Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """Upload or replace the settlement transaction CSV (raw source) for a report.
+
+    The new file is stored in R2 and the report's transaction_file_id is updated.
+    Access is scoped to the operator's own projects (see download-csv).
+    """
+    report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+
+    # X-Operator scoping: only re-upload CSV for your own projects.
+    ensure_project_access(db, report.project_id, operator=operator, is_admin=is_admin)
+
+    if not csv_file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    ext = Path(csv_file.filename).suffix.lower()
+    if ext != '.csv':
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+
+    settings = get_settings()
+    project_name = report.project_name
+
+    try:
+        result = save_upload_file(
+            file=csv_file,
+            settings=settings,
+            project_name=project_name,
+            file_type='transaction_csv',
+        )
+
+        report.transaction_file_id = result['r2_key']
+        # Keep the local cache path in sync when available.
+        if result.get('local_path'):
+            report.transaction_file_path = result['local_path']
+        db.commit()
+
+        return CSVUploadResponse(
+            report_id=report_id,
+            csv_file_id=result['r2_key'],
+            csv_file_path=result['r2_url'],
+            original_filename=result['original_filename'],
+            size=result['size'],
+            message="CSV uploaded to R2 successfully",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save CSV: {str(e)}")
+
+
 @router.get("/report-reconciliation/reports/{report_id}/export-pt3")
 def export_pt3_data(
     report_id: int,
@@ -374,5 +432,56 @@ def download_reconciliation_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
+        headers={"Content-Disposition": content_disposition},
+    )
+
+
+@router.get("/report-reconciliation/reports/{report_id}/download-csv")
+def download_reconciliation_csv(
+    report_id: int,
+    db=Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """Download the settlement transaction CSV (raw source) for a report via R2 proxy.
+
+    Access is scoped to the operator's own projects: an operator can only
+    download CSVs for projects they own (project_operator / assistant_operator),
+    mirroring the visibility rule of /projects/manage. Admins can access all.
+    """
+    report = db.query(MonthlyReport).filter(MonthlyReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # X-Operator scoping: only download CSV for your own projects.
+    ensure_project_access(db, report.project_id, operator=operator, is_admin=is_admin)
+
+    csv_key = report.transaction_file_id
+    if not csv_key:
+        raise HTTPException(status_code=404, detail="CSV not found")
+    if not ArtifactService.check_exists(csv_key):
+        raise HTTPException(status_code=404, detail="CSV file missing from R2")
+
+    try:
+        with ArtifactService.download_to_temp(csv_key, suffix=".csv") as csv_path:
+            csv_bytes = csv_path.read_bytes()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="CSV file missing from R2")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download CSV: {str(e)}")
+
+    safe_project = re.sub(r'[\\/:*?"<>|]', "_", report.project_name)
+    ym = report.report_month.split("-")
+    filename = f"{safe_project}-交易报表-{ym[0]}年{int(ym[1])}月.csv"
+
+    encoded_filename = url_quote(filename)
+    content_disposition = (
+        f'attachment; filename="tx.csv"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": content_disposition},
     )
