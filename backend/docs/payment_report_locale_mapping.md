@@ -229,6 +229,7 @@ PAYMENT_DESCRIPTION_ALIASES = {
 adjustment_expense_descriptions = {
     "FBA Inventory Reimbursement - General Adjustment",
     "Non-subscription Fee Adjustment",
+    "Other",
 }
 
 ad_excluded_descriptions = {"Cost of Advertising", "Refund for Advertiser"}
