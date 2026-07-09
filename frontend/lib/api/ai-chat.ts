@@ -10,6 +10,7 @@
  */
 
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
+import type { ScenarioSummary } from '@/lib/server/ai-chat'
 
 // ── Types (mirror backend schemas/ai_chat.py) ─────────────────────────────
 
@@ -79,6 +80,7 @@ export type AIChatConfig = {
   webSearchMaxResults: number
   overviewOptions: PromptPresetOption[]
   detailOptions: PromptPresetOption[]
+  scenarios: ScenarioSummary[]
 }
 
 export type RegenerateTitleResponse = {

@@ -4,7 +4,7 @@ import { requireUserSession } from '@/lib/auth/server'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson } from '@/lib/server/backend-api'
-import { getPromptPresetSummaries } from '@/lib/server/ai-chat'
+import { getPromptPresetSummaries, getScenarioPresetSummaries } from '@/lib/server/ai-chat'
 
 export async function GET() {
   const session = await requireUserSession()
@@ -31,6 +31,7 @@ export async function GET() {
         maxConversationTurns: 10,
         webSearchMaxResults: 5,
         ...promptPresets,
+      ...getScenarioPresetSummaries(),
       },
       { status: 500 }
     )
@@ -68,6 +69,7 @@ export async function GET() {
       maxConversationTurns: payload.max_conversation_turns,
       webSearchMaxResults: payload.web_search_max_results,
       ...promptPresets,
+      ...getScenarioPresetSummaries(),
     })
   } catch (err) {
     return NextResponse.json(
@@ -85,6 +87,7 @@ export async function GET() {
         maxConversationTurns: 10,
         webSearchMaxResults: 5,
         ...promptPresets,
+      ...getScenarioPresetSummaries(),
       }
     )
   }
