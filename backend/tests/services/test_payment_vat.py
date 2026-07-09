@@ -50,11 +50,11 @@ def test_vat_metrics_us_lowercase_country_normalized():
 
 
 def test_vat_metrics_de_orders_only():
-    """DE 纯订单：income_vat_total = -sum(marketplace_withheld_tax)。
+    """DE 纯订单：income_vat_total = sum(marketplace_withheld_tax)（订单为负）。
 
     口径自 vX 起从 product_sales_tax 切到 marketplace withheld tax（DE 列名
     "Einbehaltene Steuer auf Marketplace"）；Amazon 报表中此列与
-    product_sales_tax 符号相反，故聚合结果变号。
+    product_sales_tax 符号相反，故订单的聚合值为负，直接存储原始符号。
     """
     result = _compute_vat_metrics(
         classified={
@@ -66,15 +66,18 @@ def test_vat_metrics_de_orders_only():
         },
         country="DE",
     )
-    # VAT = -(-3.17 + 0) = +3.17（与 product_sales_tax 口径绝对值相同，符号相同）
-    assert result["income_vat_total"] == Decimal("3.17")
-    # 含税 = 15.82 - (-3.17) + 20.99 - 0 = 39.98（= 改前 gross 数值）
+    # VAT = (-3.17 + 0) = -3.17（保留原始 marketplace withheld tax 符号）
+    assert result["income_vat_total"] == Decimal("-3.17")
+    # gross = net_sales - income_vat_total = 36.81 - (-3.17) = 39.98（= 旧口径 gross）
     assert result["income_sales_with_tax"] == Decimal("39.98")
-    assert result["expense_vat_total"] == Decimal("3.17")
+    assert result["expense_vat_total"] == Decimal("-3.17")
 
 
 def test_vat_metrics_uk_refund_negative_tax():
-    """UK 退款：product_sales 为负、marketplace_withheld_tax 符号反向为正。"""
+    """UK 退款：product_sales 为负、marketplace_withheld_tax 符号反向为正。
+
+    退款时 Amazon 把代扣的税退回，故 withheld 列在退款行为正；直接存储该值。
+    """
     result = _compute_vat_metrics(
         classified={
             "order": [],
@@ -84,9 +87,9 @@ def test_vat_metrics_uk_refund_negative_tax():
         },
         country="UK",
     )
-    # VAT = -(+3.50) = -3.50
-    assert result["income_vat_total"] == Decimal("-3.50")
-    # 含税 = -17.49 - 3.50 = -20.99
+    # VAT = +3.50（保留原始 marketplace withheld tax 符号；退款代扣税回流）
+    assert result["income_vat_total"] == Decimal("3.50")
+    # 含税 = net_sales - income_vat_total = -17.49 - 3.50 = -20.99（= 旧口径）
     assert result["income_sales_with_tax"] == Decimal("-20.99")
 
 
@@ -99,9 +102,9 @@ def test_vat_metrics_mixed_order_and_refund():
         },
         country="UK",
     )
-    # VAT = -(-20 + 4) = -(-16) = +16
-    assert result["income_vat_total"] == Decimal("16")
-    # 含税 = (100-(-20)) + (-20-4) = 120 + -24 = 96
+    # VAT = (-20 + 4) = -16（保留原始符号；订单负、退款正，求和后为负）
+    assert result["income_vat_total"] == Decimal("-16")
+    # gross = net_sales - income_vat_total = (100-20) - (-16) = 80 + 16 = 96
     assert result["income_sales_with_tax"] == Decimal("96")
 
 
@@ -150,10 +153,10 @@ def test_compute_metrics_de_with_vat():
     """DE 报表：income_total 走 marketplace withheld tax 口径，回款公式不变。
 
     口径自 vX 起从 product_sales_tax 切到 marketplace withheld tax：
-    - 报表中 withheld = -19 → income_vat_total = -(-19) = +19（绝对值不变）
-    - income_total = net + income_vat_total = 100 + (-(-19)) = 81（符号反向）
-    - expense_vat_total 同步变号
-    - amazon_pay_back 公式 ±VAT 抵消 → 80 不变
+    - 报表中 withheld = -19 → income_vat_total = -19（保留原始符号，订单为负）
+    - income_total = net - income_vat_total = 100 - (-19) = 119（= gross，数值不变）
+    - expense_vat_total 同步为负（-19）
+    - amazon_pay_back 公式收入+支出+expense_vat_total（加负数）= 80 不变
     - income_sales_with_tax = net − withheld = 100 − (-19) = 119（= gross 不变）
     """
     rows = [
@@ -176,12 +179,12 @@ def test_compute_metrics_de_with_vat():
     result = compute_metrics(classified, country="DE")
 
     pt4 = result["pt4"]
-    # DE：income_total = 100 + 19 = 119 → 100 - (-19) = 119（公式路径变了，数值不变）
+    # DE：income_total = 100 - (-19) = 119（net - income_vat_total，数值不变）
     assert pt4["income_total"] == Decimal("119")
-    assert pt4["expense_vat_total"] == Decimal("19")
-    # 回款 = 119 + (-15) + (-5) - 19 = 80（公式 ±VAT 抵消，数值不变）
+    assert pt4["expense_vat_total"] == Decimal("-19")
+    # 回款 = 119 + (-15) + (-5) + (-19) = 80（加负数等价于减 |VAT|，数值不变）
     assert pt4["amazon_pay_back"] == Decimal("80")
 
     pt3 = result["pt3"]
-    assert pt3["income_vat_total"] == Decimal("19")
+    assert pt3["income_vat_total"] == Decimal("-19")
     assert pt3["income_sales_with_tax"] == Decimal("119")

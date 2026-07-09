@@ -50,7 +50,9 @@ class _StubPT3:
     VAT columns added by alembic 160."""
 
     income_vat_total = Decimal("20.00")
-    income_sales_with_tax = Decimal("120.00")  # net 100 + VAT 20
+    # 注：income_sales_with_tax 现由 PT4.income_sales 提供（见 pt4.py:93），
+    # 此处仅保留 PT3 VAT 占位，值不再参与 financial row 的 income_sales_with_tax。
+    income_sales_with_tax = Decimal("100.00")
 
 
 class _StubPT3NoVAT:
@@ -64,19 +66,24 @@ class _StubPT3NoVAT:
 
 def test_build_financial_row_pt3_carries_income_vat():
     """`_build_financial_row` reads income-side VAT from PT3, expense VAT
-    from PT4 (v3 contract)."""
+    from PT4 (v3 contract); income_sales_with_tax 由 PT4.income_sales 提供。"""
     row = _build_financial_row("2026-04", _StubPT4(), _StubPT3())
     assert row["income_vat_total"] == 20.0
-    assert row["income_sales_with_tax"] == 120.0
+    # income_sales_with_tax 现取自 PT4.income_sales（=100），不再读 PT3
+    assert row["income_sales_with_tax"] == 100.0
     assert row["expense_vat_total"] == 20.0
 
 
 def test_build_financial_row_pt3_none_means_zero_income_vat():
     """When PT3 is missing (None), income-side VAT falls back to 0 — never
-    leak through to the API as something derived from PT4."""
+    leak through to the API as something derived from PT4.
+
+    income_sales_with_tax 由 PT4.income_sales 提供（与 PT3 无关），故 PT3
+    为 None 时仍等于 PT4.income_sales（=100），不再回退 0。
+    """
     row = _build_financial_row("2026-04", _StubPT4(), None)
     assert row["income_vat_total"] == 0.0
-    assert row["income_sales_with_tax"] == 0.0
+    assert row["income_sales_with_tax"] == 100.0
     # expense VAT still comes from PT4 unchanged
     assert row["expense_vat_total"] == 20.0
 
@@ -100,7 +107,8 @@ def test_build_financial_row_handles_missing_vat_columns_on_pt3():
     default to 0.0 (mirroring the Pydantic schema default)."""
     row = _build_financial_row("2026-04", _StubPT4(), _StubPT3NoVAT())
     assert row["income_vat_total"] == 0.0
-    assert row["income_sales_with_tax"] == 0.0
+    # income_sales_with_tax 来自 PT4.income_sales（=100），与 PT3 是否有该列无关
+    assert row["income_sales_with_tax"] == 100.0
     # expense VAT still reads from PT4
     assert row["expense_vat_total"] == 20.0
 

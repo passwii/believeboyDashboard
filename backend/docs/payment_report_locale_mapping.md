@@ -60,16 +60,20 @@
 
 自 vX 起，DE/UK VAT 聚合（`_compute_vat_metrics`）改用 `marketplace withheld tax` 列
 （DE 对应 `Einbehaltene Steuer auf Marketplace`），不再用 `product sales tax`。
+**关键约定：`income_vat_total` / `expense_vat_total` 直接存储该列的聚合值（订单为负），
+不再取负**——前端"VAT (销售税)"列因此显示负数，与 Amazon 原始代扣语义一致；
+而所有派生总额（income_total、gross 销售额、pt4_income_total、回款）通过
+"减 income_vat_total / 加 expense_vat_total"翻转符号，**数值与旧口径完全一致**。
 
-| 项 | 改前（product sales tax） | 改后（marketplace withheld tax） |
+| 项 | 改前（product sales tax） | 改后（marketplace withheld tax，存原始符号） |
 | --- | --- | --- |
 | Amazon 报表中的符号 | +（向买家收的 VAT） | −（Amazon 代扣代缴给税局） |
-| 聚合后 `income_vat_total` | +V | −V（取负号） |
-| 聚合后 `income_sales_with_tax` (DE/UK) | Σproduct_sales + Σproduct_sales_tax = gross | Σproduct_sales − Σmarketplace_withheld_tax = gross（数值不变） |
-| `expense_vat_total` | +V | −V（与 income_vat_total 同步变号） |
-| `amazon_pay_back` 公式 | `pt4_income_total + pt4_expense_total − V` | 同公式（±V 抵消，**数值不变**） |
-| `pt4_income_total` | net + V | net − V（**符号变化**） |
-| 前端"VAT (销售税)"列 | 正数显示 | **负数显示** |
+| 聚合后 `income_vat_total` | +V | −V（直接存储原始 withheld 值，订单为负，不取负） |
+| 聚合后 `income_sales_with_tax` (DE/UK) | Σproduct_sales + Σproduct_sales_tax = gross | Σproduct_sales − income_vat_total = gross（数值不变） |
+| `expense_vat_total` | +V | −V（= income_vat_total，直接镜像） |
+| `income_total` / `pt4_income_total` | net + V | net − income_vat_total = net + V（**数值不变**，gross 一致） |
+| `amazon_pay_back` 公式 | `pt4_income_total + pt4_expense_total − V` | `pt4_income_total + pt4_expense_total + expense_vat_total`（expense_vat_total 为负，加负数 = 减 \|VAT\|，**数值不变**） |
+| 前端"VAT (销售税)"列 | 正数显示 | **负数显示**（= 原始 withheld 符号） |
 
 US 报表不受影响：`_compute_vat_metrics` 在 US 走短路分支返回 0。
 
