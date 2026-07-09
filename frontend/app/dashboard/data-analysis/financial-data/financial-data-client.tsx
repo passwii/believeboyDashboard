@@ -61,6 +61,7 @@ import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { getCountryLabel } from '@/lib/country'
+import { getExcelNumFmt } from './excel-num-fmt'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
 import { VAT_COUNTRIES } from '@/lib/console-constants'
@@ -720,25 +721,6 @@ const ADMIN_ONLY_EXPORT_KEYS = new Set<string>([
   'payableTotalRmb',
   'exchangeRate',
 ])
-
-function getExcelNumFmt(
-  format:
-    | (typeof EXPORT_DETAIL_COLUMNS)[number]['format']
-    | 'currency_usd'
-    | 'currency_rmb'
-    | 'percent'
-    | 'percent_signed'
-    | 'rate'
-    | 'integer',
-) {
-  if (format === 'currency_usd') return '$#,##0.00;[Red]-$#,##0.00'
-  if (format === 'currency_rmb' || format === 'currency_rmb_nullable')
-    return '¥#,##0.00;[Red]-¥#,##0.00'
-  if (format === 'percent' || format === 'percent_signed') return '0.0%'
-  if (format === 'rate') return '0.0000'
-  if (format === 'integer') return '#,##0'
-  return null
-}
 
 const MONTH_STICKY_WIDTH = 128
 
@@ -1478,6 +1460,8 @@ export default function FinancialDataClient({
   ])
 
   const exportFinancialAnalysis = useCallback(async () => {
+    const usdNumFmt =
+      getExcelNumFmt('currency_usd', currencySymbol) ?? '$#,##0.00;[Red]-$#,##0.00'
     if (!data || detailExportRows.length === 0) {
       setError('当前没有可导出的月度财务数据。')
       return
@@ -1636,7 +1620,7 @@ export default function FinancialDataClient({
         const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
         row.getCell(1).value = item[0]
         row.getCell(2).value = item[1]
-        row.getCell(2).numFmt = '$#,##0.00;[Red]-$#,##0.00'
+        row.getCell(2).numFmt = usdNumFmt
         row.getCell(3).value = item[2]
         row.getCell(4).value = item[3] / 100
         row.getCell(4).numFmt = '0.0%'
@@ -1721,7 +1705,7 @@ export default function FinancialDataClient({
             pattern: 'solid',
             fgColor: { argb: rowBgColor },
           }
-          if (colNumber > 1) cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
+          if (colNumber > 1) cell.numFmt = usdNumFmt
           applyExcelBorder(cell)
         })
       })
@@ -1872,7 +1856,7 @@ export default function FinancialDataClient({
             pattern: 'solid',
             fgColor: { argb: rowBgColor },
           }
-          const numFmt = getExcelNumFmt(column.format)
+          const numFmt = getExcelNumFmt(column.format, currencySymbol)
           if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
           applyExcelBorder(cell)
         })
@@ -1987,7 +1971,7 @@ export default function FinancialDataClient({
           vertical: 'middle',
           horizontal: typeof cell.value === 'number' ? 'right' : 'left',
         }
-        const numFmt = getExcelNumFmt(column.format)
+        const numFmt = getExcelNumFmt(column.format, currencySymbol)
         if (typeof cell.value === 'number' && numFmt) cell.numFmt = numFmt
         cell.fill = {
           type: 'pattern',
@@ -2048,7 +2032,7 @@ export default function FinancialDataClient({
     } finally {
       setExporting(false)
     }
-  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, country, startMonth])
+  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, country, startMonth, currencySymbol])
   const showSkeleton = loading && !data
 
   return (
