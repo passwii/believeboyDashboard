@@ -147,6 +147,7 @@ type ShipmentFbaBoxDetailItem = {
   shipment_no: string
   warehouse_code: string | null
   sku: string
+  product_name: string | null
   asin: string | null
   fnsku: string | null
   package_length_cm: number | null
@@ -2156,6 +2157,7 @@ export default function ShipmentManagementPage() {
         { header: '追踪 ID', key: 'tracking_no', width: 18 },
         { header: '仓库 ID', key: 'warehouse_code', width: 16 },
         { header: 'SKU', key: 'sku', width: skuWidth },
+        { header: '品名', key: 'product_name', width: 28 },
         { header: '产品图片', key: 'product_image', width: 16 },
         { header: 'ASIN', key: 'asin', width: 20 },
         { header: 'FNSKU', key: 'fnsku', width: 20 },
@@ -2171,7 +2173,7 @@ export default function ShipmentManagementPage() {
         { header: '总重量(kg)', key: 'total_weight', width: 14 },
       ] as const
       const dataStartRow = 2
-      const imageColumnIndex = 5 // 产品图片列
+      const imageColumnIndex = 6 // 产品图片列（品名插入在 SKU 之后，图片列顺延为第 6 列）
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
@@ -2190,9 +2192,10 @@ export default function ShipmentManagementPage() {
           item.tracking_no || '-',                              // 2 追踪 ID
           item.warehouse_code || '-',                           // 3 仓库 ID
           item.sku,                                             // 4 SKU
-          null,                                                 // 5 产品图片（由 addImage 嵌入）
-          item.asin || '-',                                     // 6 ASIN
-          item.fnsku || '-',                                    // 7 FNSKU
+          item.product_name || '-',                             // 5 品名（来自 SKU info）
+          null,                                                 // 6 产品图片（由 addImage 嵌入）
+          item.asin || '-',                                     // 7 ASIN
+          item.fnsku || '-',                                    // 8 FNSKU
           item.length_cm > 0 ? formatDecimal(item.length_cm, 2) : '-',   // 8 外箱长
           item.width_cm > 0 ? formatDecimal(item.width_cm, 2) : '-',     // 9 外箱宽
           item.height_cm > 0 ? formatDecimal(item.height_cm, 2) : '-',   // 10 外箱高
@@ -2209,10 +2212,10 @@ export default function ShipmentManagementPage() {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 12 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
+            horizontal: colNumber >= 13 ? 'right' : colNumber === imageColumnIndex ? 'center' : 'left',
           }
-          if (colNumber === 16) cell.numFmt = '#,##0.0000'
-          if (colNumber === 17) cell.numFmt = '#,##0.000'
+          if (colNumber === 17) cell.numFmt = '#,##0.0000'
+          if (colNumber === 18) cell.numFmt = '#,##0.000'
           applyBorder(cell)
         })
       })
@@ -2363,17 +2366,17 @@ export default function ShipmentManagementPage() {
 
       const totalRow = worksheet.getRow(fbaBoxItems.length + dataStartRow)
       totalRow.getCell(1).value = '合计'
-      totalRow.getCell(13).value = fbaBoxSummary.totalCartons
-      totalRow.getCell(15).value = fbaBoxSummary.totalQuantity
-      totalRow.getCell(16).value = fbaBoxSummary.totalVolumeM3
-      totalRow.getCell(17).value = fbaBoxSummary.totalWeightKg
-      applyRowBorder(totalRow, 1, 17)
+      totalRow.getCell(14).value = fbaBoxSummary.totalCartons
+      totalRow.getCell(16).value = fbaBoxSummary.totalQuantity
+      totalRow.getCell(17).value = fbaBoxSummary.totalVolumeM3
+      totalRow.getCell(18).value = fbaBoxSummary.totalWeightKg
+      applyRowBorder(totalRow, 1, 18)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
       })
-      totalRow.getCell(16).numFmt = '#,##0.0000'
-      totalRow.getCell(17).numFmt = '#,##0.000'
+      totalRow.getCell(17).numFmt = '#,##0.0000'
+      totalRow.getCell(18).numFmt = '#,##0.000'
 
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
