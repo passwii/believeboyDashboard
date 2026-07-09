@@ -25,6 +25,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models import MonthlyReport, Project
 from app.core.config import get_settings
+from app.services.reconciliation_service import get_available_reports
 
 
 @pytest.fixture
@@ -166,6 +167,67 @@ def test_download_csv_not_found_report(client, db_session):
         headers={"X-API-Key": _api_key(), "X-Is-Admin": "true"},
     )
     assert r.status_code == 404
+
+
+def test_available_reports_resolves_legacy_bare_filename_csv(db_session, monkeypatch):
+    """Legacy monthly-report uploads stored only the bare filename in
+    transaction_file_id (e.g. "a1b2c3_transaction.csv"); the real R2 key is
+    "{project_slug}/payment-report/{filename}". get_available_reports must
+    resolve it instead of surfacing as 'missing'."""
+    from app.services.upload_service import _safe_project_folder_name
+
+    project = _make_project(db_session, "李四")
+    report = _make_report(db_session, project, "a1b2c3_transaction.csv")
+
+    expected_key = (
+        f"{_safe_project_folder_name(project.project_name)}/payment-report/a1b2c3_transaction.csv"
+    )
+
+    def fake_check_exists(key, settings=None):
+        # The stored (bare) value is NOT a valid key; the reconstructed
+        # legacy key is.
+        return key == expected_key
+
+    monkeypatch.setattr(
+        "app.services.artifact_service.ArtifactService.check_exists",
+        fake_check_exists,
+    )
+
+    rows = get_available_reports(db_session, project_id=project.id)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["has_transaction_csv"] is True
+    assert row["transaction_csv_missing"] is False
+
+    _cleanup(db_session, report, project)
+
+
+def test_download_csv_resolves_legacy_bare_filename(client, db_session, monkeypatch):
+    """download-csv must also resolve a legacy bare filename to the real R2 key."""
+    from app.services.upload_service import _safe_project_folder_name
+
+    project = _make_project(db_session, "李四")
+    report = _make_report(db_session, project, "a1b2c3_transaction.csv")
+    expected_key = (
+        f"{_safe_project_folder_name(project.project_name)}/payment-report/a1b2c3_transaction.csv"
+    )
+
+    def fake_check_exists(key, settings=None):
+        return key == expected_key
+
+    monkeypatch.setattr(
+        "app.services.artifact_service.ArtifactService.check_exists",
+        fake_check_exists,
+    )
+
+    r = client.get(
+        f"/api/v1/report-reconciliation/reports/{report.id}/download-csv",
+        headers={"X-API-Key": _api_key(), "X-Is-Admin": "true"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.content == b"col1,col2\n1,2\n"
+
+    _cleanup(db_session, report, project)
 
 
 def test_csv_upload_admin_success(client, db_session, monkeypatch):

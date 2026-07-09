@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import MonthlyReport, MonthlyReportPT3Calculation, MonthlyReportPT4Calculation, ReconciliationRecord
 from app.utils.pdf_extractor import PDFExtractor
+from app.core.config import Settings
 from app.services.artifact_service import ArtifactService
 from app.services.alert.reconciliation_detector import trigger_reconciliation_alert
 
@@ -59,6 +60,52 @@ def calculate_match(
     is_match = diff <= tolerance
 
     return is_match, diff, diff_percent
+
+
+def resolve_transaction_csv_r2_key(
+    report: "MonthlyReport",
+    settings: "Settings",
+) -> Optional[str]:
+    """Resolve the real R2 object key for a report's settlement transaction CSV.
+
+    ``MonthlyReport.transaction_file_id`` has been stored in different shapes
+    across releases, so it cannot be trusted as a literal R2 key:
+
+    * Legacy monthly-report uploads stored only the **bare filename**
+      (e.g. ``"a1b2c3_transaction.csv"``). The actual R2 object lives at
+      ``{project_slug}/payment-report/{filename}``.
+    * The newer re-upload endpoint stores the **full R2 key**, but under a
+      different type slug (``{project_slug}/transaction-csv/{filename}``).
+
+    We probe R2 so the listing / download works for every generation of
+    stored value. This is exactly why PDF (which always rebuilt the full
+    key in ``summary_pdf_r2_key``) still resolves while legacy CSV rows
+    surface as "missing" in the UI.
+    """
+    from app.services.upload_service import _safe_project_folder_name
+
+    raw = (report.transaction_file_id or "").strip()
+    if not raw:
+        return None
+
+    basename = raw.split("/")[-1]
+    project_slug = _safe_project_folder_name(report.project_name)
+
+    # 1) the stored value verbatim (full key from the re-upload endpoint);
+    # 2)+3) the two known legacy type slugs built from the basename.
+    candidates = [
+        raw,
+        f"{project_slug}/payment-report/{basename}",
+        f"{project_slug}/transaction-csv/{basename}",
+    ]
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if ArtifactService.check_exists(candidate, settings):
+            return candidate
+    return None
 
 
 def get_available_reports(
@@ -124,12 +171,13 @@ def get_available_reports(
         pdf_url = report.summary_pdf_r2_url if pdf_exists_in_r2 else None
 
         # Check if the settlement transaction CSV exists in R2.
-        # transaction_file_id always stores the R2 key; the local cache
-        # (transaction_file_path) may have been cleaned up, so verify R2.
-        csv_key = report.transaction_file_id
-        csv_exists_in_r2 = bool(csv_key) and ArtifactService.check_exists(csv_key)
+        # transaction_file_id historically stored either the bare filename
+        # (legacy uploads) or the full R2 key (re-upload), so resolve it
+        # against R2 rather than trusting the stored value verbatim.
+        csv_key = resolve_transaction_csv_r2_key(report, settings)
+        csv_exists_in_r2 = csv_key is not None
         has_transaction_csv = csv_exists_in_r2
-        transaction_csv_missing = bool(csv_key) and not csv_exists_in_r2
+        transaction_csv_missing = bool(report.transaction_file_id) and not csv_exists_in_r2
 
         # Check if this report has been reconciled before
         recon_stmt = select(ReconciliationRecord).where(

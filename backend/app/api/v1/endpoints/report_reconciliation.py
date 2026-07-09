@@ -21,6 +21,7 @@ from app.services.reconciliation_service import (
     auto_reconcile,
     get_available_reports,
     get_reconciliation_history,
+    resolve_transaction_csv_r2_key,
 )
 from app.services.report_reconciliation_service import reconcile_to_dict
 from app.models import ReconciliationRecord, MonthlyReport, MonthlyReportPT3Calculation
@@ -456,10 +457,10 @@ def download_reconciliation_csv(
     # X-Operator scoping: only download CSV for your own projects.
     ensure_project_access(db, report.project_id, operator=operator, is_admin=is_admin)
 
-    csv_key = report.transaction_file_id
-    if not csv_key:
+    csv_key = resolve_transaction_csv_r2_key(report, get_settings())
+    if not report.transaction_file_id:
         raise HTTPException(status_code=404, detail="CSV not found")
-    if not ArtifactService.check_exists(csv_key):
+    if not csv_key:
         raise HTTPException(status_code=404, detail="CSV file missing from R2")
 
     try:
