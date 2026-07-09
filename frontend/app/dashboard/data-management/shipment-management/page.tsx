@@ -33,6 +33,7 @@ import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { getCountryLabel } from '@/lib/country'
 import { DENSE_CELL, DENSE_HEAD, DataTableCardStatBar } from '@/components/ui/data-card'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { ImageLightbox } from '@/components/dashboard/sku-info/image-lightbox'
@@ -2546,7 +2547,9 @@ export default function ShipmentManagementPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `FBA发货模板-${detail.shipment_no}.xlsx`
+      const safeProjectName = (detail.project_name || '未选项目').replace(/[\\/:*?"<>|]/g, '-')
+      const siteLabel = getCountryLabel(detail.country)
+      link.download = `${safeProjectName}_${siteLabel}-FBA发货模板-${detail.shipment_no}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
 
