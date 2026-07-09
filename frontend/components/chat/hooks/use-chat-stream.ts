@@ -35,6 +35,10 @@ export type ChatStreamOptions = {
   targetMessageId?: number
   overviewPromptId?: string | null
   detailPromptId?: string | null
+  scenarioId?: string | null
+  toneId?: string | null
+  language?: string | null
+  length?: string | null
   enableWebSearch?: boolean
   attachedFileContent?: string | null
   attachedFileName?: string | null
@@ -157,6 +161,10 @@ export function useChatStream(
               target_message_id: options.targetMessageId,
               overviewPromptId: options.overviewPromptId ?? null,
               detailPromptId: options.detailPromptId ?? null,
+              scenarioId: options.scenarioId ?? null,
+              toneId: options.toneId ?? null,
+              language: options.language ?? null,
+              length: options.length ?? null,
               enableWebSearch: options.enableWebSearch ?? false,
               attachedFileContent: options.attachedFileContent ?? null,
               attachedFileName: options.attachedFileName ?? null,
