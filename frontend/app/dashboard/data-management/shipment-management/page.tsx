@@ -2386,8 +2386,16 @@ export default function ShipmentManagementPage() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       const safeTimestamp = formatLocalTimestampForFilename()
+      const projectSegment =
+        fbaBoxMeta.projectNames.length === 1
+          ? (fbaBoxMeta.projectNames[0] || '未选项目').replace(/[\\/:*?\"<>|]/g, '-')
+          : `${fbaBoxMeta.projectNames.length}个项目`
+      const siteSegment =
+        fbaBoxMeta.countries.length === 1
+          ? getCountryLabel(fbaBoxMeta.countries[0])
+          : `${fbaBoxMeta.countries.length}个站点`
       link.href = url
-      link.download = `FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
+      link.download = `${projectSegment}_${siteSegment}-FBA箱单明细-${fbaBoxMeta.shipmentNos.length}个货件-${safeTimestamp}.xlsx`
       link.click()
       window.URL.revokeObjectURL(url)
       await logClientOperation({
