@@ -84,60 +84,76 @@
   }
 
   .dark {
-    --background: 226 38% 11%;
-    --foreground: 220 25% 96%;
-    --card: 225 30% 15%;
-    --card-foreground: 220 25% 96%;
-    --popover: 225 30% 15%;
-    --popover-foreground: 220 25% 96%;
-    --primary: 233 100% 74%;
-    --primary-foreground: 228 34% 12%;
-    --secondary: 221 18% 78%;
-    --secondary-foreground: 225 34% 12%;
-    --muted: 226 22% 18%;
-    --muted-foreground: 220 16% 76%;
-    --accent: 228 20% 22%;
-    --accent-foreground: 220 24% 96%;
+    /* ── Elevation ramp（macOS 风格冷中性灰，统一 hue≈225）──────────────
+     * 旧的暗色各层明度挤在 9%~16%（每级仅 ~2%），sidebar(L11%) 比内容窗(L13%)
+     * 还暗，却用一条很亮的硬边框(L22%) + 强投影强行分开 —— 这正是"sidebar 与
+     * 主页割裂、缺少质感"的根因。
+     * 新方案：每层 +3~4% 明度，形成清晰纵深：
+     *   画布 L9% → 导航壳 L12%（凹陷，rail 与 panel 同值融为一体）
+     *   → 内容窗 L15%（明显抬起）→ 卡片 L19% → 浮层 L22~23% → 高亮 L26%。
+     * 色相收敛到 ~225（冷中性，弱化原 sidebar 的蓝染），贴近 macOS 中性基色；
+     * 边框明度压到接近相邻面，用"内高光 + 明度差"取代硬分割线。 */
+    --background: 225 20% 9%;
+    --foreground: 220 22% 96%;
+    --card: 225 18% 19%;
+    --card-foreground: 220 22% 96%;
+    --popover: 225 18% 19%;
+    --popover-foreground: 220 22% 96%;
+    --primary: 222 100% 68%;
+    --primary-foreground: 228 40% 12%;
+    --secondary: 221 16% 80%;
+    --secondary-foreground: 225 30% 12%;
+    --muted: 225 16% 17%;
+    --muted-foreground: 220 14% 74%;
+    --accent: 225 16% 20%;
+    --accent-foreground: 220 22% 96%;
     --destructive: 3 52% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 227 18% 27%;
-    --input: 227 18% 24%;
-    --ring: 233 100% 74%;
-    --chart-1: 233 100% 74%;
-    --chart-2: 161 68% 44%;
-    --chart-3: 327 94% 68%;
-    --chart-4: 196 92% 67%;
+    --border: 225 14% 20%;
+    --input: 225 14% 19%;
+    --ring: 222 100% 68%;
+
+    /* 图表保持品牌彩色，仅按更深的基色微调明度 */
+    --chart-1: 222 100% 68%;
+    --chart-2: 161 60% 46%;
+    --chart-3: 327 88% 66%;
+    --chart-4: 196 88% 64%;
     --chart-5: 3 52% 58%;
-    --chart-6: 191 95% 68%;
-    --chart-7: 263 92% 74%;
-    --sidebar-background: 224 20% 11%;
-    --sidebar-foreground: 220 24% 96%;
-    --sidebar-primary: 233 100% 74%;
-    --sidebar-primary-foreground: 228 34% 12%;
-    --sidebar-accent: 224 16% 15%;
-    --sidebar-accent-foreground: 220 24% 97%;
-    --sidebar-border: 223 14% 22%;
-    --sidebar-ring: 233 100% 74%;
-    --surface-base: 226 38% 11%;
-    --surface-subtle: 225 26% 14%;
-    --surface-panel: 225 30% 15%;
-    --surface-overlay: 226 28% 16%;
-    --surface-strong: 227 20% 22%;
-    --surface-soft: 226 22% 16%;
-    --surface-low: 225 26% 13%;
-    --surface-high: 227 18% 20%;
-    --surface-outline: 224 12% 46%;
-    --success: 161 68% 44%;
-    --warning: 39 96% 68%;
-    --data-positive: 161 68% 44%;
-    --data-warning: 39 96% 68%;
+    --chart-6: 191 90% 66%;
+    --chart-7: 263 88% 72%;
+
+    /* Sidebar：统一为 L12% 的凹陷导航壳（rail 与 panel 同一值，融为一体） */
+    --sidebar-background: 225 18% 12%;
+    --sidebar-foreground: 220 22% 96%;
+    --sidebar-primary: 222 100% 68%;
+    --sidebar-primary-foreground: 228 40% 12%;
+    --sidebar-accent: 225 16% 19%;
+    --sidebar-accent-foreground: 220 22% 97%;
+    --sidebar-border: 225 12% 17%;
+    --sidebar-ring: 222 100% 68%;
+
+    /* Surface 纵深阶梯 */
+    --surface-base: 225 20% 9%;
+    --surface-subtle: 225 18% 17%;
+    --surface-panel: 225 18% 19%;
+    --surface-overlay: 225 16% 22%;
+    --surface-strong: 225 16% 23%;
+    --surface-soft: 225 18% 19%;
+    --surface-low: 225 20% 15%;
+    --surface-high: 225 14% 26%;
+    --surface-outline: 225 12% 42%;
+
+    --success: 161 60% 46%;
+    --warning: 39 92% 64%;
+    --data-positive: 161 60% 46%;
+    --data-warning: 39 92% 64%;
     --data-negative: 3 52% 58%;
-    --data-neutral: 221 14% 76%;
-    --stroke-soft: 225 12% 42%;
-    --stroke-strong: 222 14% 60%;
-    --shadow-soft: 0 18px 40px -24px rgba(4, 8, 18, 0.68);
-    --shadow-raised: 0 24px 56px -28px rgba(4, 8, 18, 0.78);
-    --shadow-overlay: 0 32px 84px -34px rgba(2, 6, 16, 0.86);
+    --data-neutral: 221 14% 74%;
+    --stroke-soft: 225 12% 40%;
+    --stroke-strong: 222 14% 58%;
+    --shadow-soft: 0 18px 40px -24px rgba(2, 6, 16, 0.72);
+    --shadow-raised: 0 24px 56px -28px rgba(2, 6, 16, 0.82);
+    --shadow-overlay: 0 32px 84px -34px rgba(1, 4, 12, 0.9);
   }
 
   * {
@@ -172,9 +188,9 @@
 
   .dark body {
     background-image:
-      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.16), transparent 20%),
-      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.18), transparent 22%),
-      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(226 34% 10%) 54%, hsl(227 40% 9%) 100%);
+      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.12), transparent 22%),
+      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.10), transparent 24%),
+      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(225 22% 8%) 54%, hsl(226 26% 7%) 100%);
   }
 
   h1,
@@ -375,9 +391,9 @@
   }
 
   .dark .dashboard-surface {
-    border-color: hsl(var(--border) / 0.96);
+    border-color: hsl(var(--border) / 0.9);
     box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.04),
+      inset 0 1px 0 hsl(220 30% 100% / 0.06),
       var(--shadow-soft);
   }
 
