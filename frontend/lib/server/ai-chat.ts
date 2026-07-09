@@ -199,7 +199,7 @@ export function getScenarioPresetSummaries(): { scenarios: ScenarioSummary[] } {
   }
 }
 
-function findScenarioPreset(id: string | null | undefined): ScenarioPreset | null {
+export function findScenarioPreset(id: string | null | undefined): ScenarioPreset | null {
   if (!id) return null
   return SCENARIO_PRESETS.find((s) => s.id === id) ?? null
 }
