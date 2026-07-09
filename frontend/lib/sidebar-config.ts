@@ -16,6 +16,7 @@ import {
   FileText,
   History,
   LayoutDashboard,
+  MessagesSquare,
   Layers,
   Package,
   Receipt,
@@ -68,6 +69,7 @@ export type SidebarTopGroup = {
 
 const IconMap = {
   LayoutDashboard,
+  MessagesSquare,
   Store,
   Bot,
   TrendingUp,
@@ -133,13 +135,14 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  icon: IconMap.BarChart3,
  },
  { title: 'AI Chat', url: '/dashboard/ai-chat', icon: IconMap.Bot },
- {
- title: '模型选型',
- url: '/dashboard/ai/believeboy-models',
- matchPrefixes: ['/dashboard/ai/believeboy-models'],
- icon: IconMap.FileText,
- },
- ], 
+  {
+  title: '模型选型',
+  url: '/dashboard/ai/believeboy-models',
+  matchPrefixes: ['/dashboard/ai/believeboy-models'],
+  icon: IconMap.FileText,
+  },
+  { title: '客服交流', url: '/dashboard/ai/customer-service', icon: IconMap.MessagesSquare },
+  ],
  },
 
  //3.运营核算（所有角色）
