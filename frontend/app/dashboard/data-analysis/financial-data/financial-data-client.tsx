@@ -442,6 +442,7 @@ type FinancialExportTotals = {
   incomeTotal: number
   expenseTotal: number
   vatTotal?: number
+  incomeVatTotal?: number
   incomeSalesWithTax?: number
   expenseVatTotal?: number
   amazonPayBack: number
@@ -474,6 +475,7 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       incomeTotal: acc.incomeTotal + row.incomeTotal,
       expenseTotal: acc.expenseTotal + row.expenseTotal,
       vatTotal: (acc.vatTotal ?? 0) + (row.vatTotal ?? 0),
+      incomeVatTotal: (acc.incomeVatTotal ?? 0) - (row.vatTotal ?? 0),
       incomeSalesWithTax: (acc.incomeSalesWithTax ?? 0) + (row.incomeSalesWithTax ?? 0),
       expenseVatTotal: (acc.expenseVatTotal ?? 0) + (row.expenseVatTotal ?? 0),
       amazonPayBack: acc.amazonPayBack + row.amazonPayBack,
@@ -505,6 +507,7 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       incomeTotal: 0,
       expenseTotal: 0,
       vatTotal: 0,
+      incomeVatTotal: 0,
       incomeSalesWithTax: 0,
       expenseVatTotal: 0,
       amazonPayBack: 0,
@@ -1430,7 +1433,7 @@ export default function FinancialDataClient({
         expenseOtherFees: row.expense_other_fees,
         incomeTotal: row.income_total,
         expenseTotal: row.expense_total,
-        vatTotal: row.income_vat_total,
+        vatTotal: Math.abs(row.income_vat_total ?? 0),
         incomeSalesWithTax: row.income_sales_with_tax,
         expenseVatTotal: row.expense_vat_total,
         amazonPayBack: row.amazon_pay_back,
@@ -1605,6 +1608,12 @@ export default function FinancialDataClient({
           exportTotals.expenseTotal,
           '所选区间全部平台支出汇总',
           exportTrends.expense,
+        ],
+        [
+          'VAT (销售税)',
+          exportTotals.incomeVatTotal ?? 0,
+          '市场代扣销售税（从销售额中扣除，故为负）',
+          0,
         ],
         [
           '亚马逊返款',
@@ -1963,6 +1972,8 @@ export default function FinancialDataClient({
             exportTotals.amazonPayBack,
             exportTotals.incomeTotal,
           )
+        } else if (column.key === 'vatTotal') {
+          cell.value = exportTotals.vatTotal
         } else {
           cell.value = '-'
         }
@@ -2829,7 +2840,7 @@ export default function FinancialDataClient({
                       {showVatColumn ? (
                         <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
                           {formatCurrency(
-                            row.income_vat_total ?? 0,
+                            Math.abs(row.income_vat_total ?? 0),
                             currencySymbol,
                           )}
                         </TableCell>
