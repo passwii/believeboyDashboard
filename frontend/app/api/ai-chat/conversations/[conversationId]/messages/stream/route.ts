@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
-import { buildSystemPrompt, validatePromptPresetIds } from '@/lib/server/ai-chat'
+import { buildSystemPrompt, validatePromptPresetIds, buildScenarioSystemPrompt, validateScenarioIds } from '@/lib/server/ai-chat'
 import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
@@ -29,6 +29,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     target_message_id?: number
     overviewPromptId?: string | null
     detailPromptId?: string | null
+    scenarioId?: string | null
+    toneId?: string | null
+    language?: string | null
+    length?: string | null
     enableWebSearch?: boolean
     attachedFileContent?: string | null
     attachedFileName?: string | null
@@ -36,6 +40,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   if (!validatePromptPresetIds(body.overviewPromptId, body.detailPromptId)) {
     return NextResponse.json({ message: 'System Prompt 选项无效' }, { status: 400 })
+  }
+
+  if (!validateScenarioIds(body.scenarioId, body.toneId)) {
+    return NextResponse.json({ message: '场景或语气选项无效' }, { status: 400 })
   }
 
   const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`, {
@@ -50,7 +58,9 @@ export async function POST(request: Request, { params }: RouteContext) {
       reasoning_effort: body.reasoningEffort?.trim() || null,
       regenerate: Boolean(body.regenerate),
       target_message_id: body.target_message_id ?? null,
-      system_prompt: buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
+      system_prompt: body.scenarioId
+        ? buildScenarioSystemPrompt(body.scenarioId, body.toneId, body.language, body.length)
+        : buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
       enable_web_search: Boolean(body.enableWebSearch),
       attached_file_content: body.attachedFileContent?.trim() || null,
       attached_file_name: body.attachedFileName?.trim() || null,
