@@ -347,17 +347,27 @@ def _auto_width(ws) -> None:
         ws.column_dimensions[letter].width = max(10, max_length)
 
 
-def _excel_num_fmt(format_key: str) -> str | None:
+# Per-country currency symbol used by the ``currency_usd`` number format.
+# The In/Ex amount columns are denominated in the report's country currency,
+# not necessarily USD, so the format must render €/£ for DE/UK reports.
+_CURRENCY_SYMBOL_BY_CODE = {"USD": "$", "EUR": "€", "GBP": "£"}
+
+
+def _excel_num_fmt(format_key: str, currency_code: str = "USD") -> str | None:
     """Get Excel number format string for format key.
 
     Args:
         format_key: Format key (currency_usd, currency_rmb, percent, rate)
+        currency_code: ISO currency code (USD/EUR/GBP) used for the
+            ``currency_usd`` format key so the rendered symbol matches the
+            report's country instead of always being a dollar sign.
 
     Returns:
         Excel format string or None
     """
     if format_key == "currency_usd":
-        return "$#,##0.00;[Red]-$#,##0.00"
+        symbol = _CURRENCY_SYMBOL_BY_CODE.get(currency_code, "$")
+        return f'"{symbol}"#,##0.00;[Red]-"{symbol}"#,##0.00'
     if format_key in ("currency_rmb", "currency_rmb_nullable"):
         return "¥#,##0.00;[Red]-¥#,##0.00"
     if format_key in ("percent", "percent_signed"):
@@ -482,7 +492,9 @@ def _auto_width_for_report_sheet_service(ws) -> None:
         ws.column_dimensions[letter].width = min(max(max_length + 2, 8), 50)
 
 
-def _style_accounting_summary_rows(ws, rows: list[dict[str, Any]]) -> None:
+def _style_accounting_summary_rows(
+    ws, rows: list[dict[str, Any]], currency_code: str = "USD"
+) -> None:
     """Post-style the 报表核算 sheet to highlight the spacer and total rows.
 
     `_apply_monthly_like_styles` already gives every cell a uniform sty1/sty2
@@ -555,11 +567,17 @@ def _style_accounting_summary_rows(ws, rows: list[dict[str, Any]]) -> None:
                 cell.font = expense_font
                 cell.border = expense_border
             # Number format for the two amount cells (columns 3 and 8).
-            ws.cell(sheet_row, 3).number_format = _excel_num_fmt("currency_usd")
-            ws.cell(sheet_row, 8).number_format = _excel_num_fmt("currency_usd")
+            ws.cell(sheet_row, 3).number_format = _excel_num_fmt(
+                "currency_usd", currency_code
+            )
+            ws.cell(sheet_row, 8).number_format = _excel_num_fmt(
+                "currency_usd", currency_code
+            )
 
 
-def _style_financial_export_sheets(ws_summary, ws_financial_detail) -> None:
+def _style_financial_export_sheets(
+    ws_summary, ws_financial_detail, currency_code: str = "USD"
+) -> None:
     """Apply specific styling to financial export sheets.
 
     Args:
@@ -570,9 +588,11 @@ def _style_financial_export_sheets(ws_summary, ws_financial_detail) -> None:
     ws_summary.column_dimensions["B"].width = 18
     ws_summary.column_dimensions["C"].width = 36
     for row in range(2, ws_summary.max_row + 1):
-        ws_summary.cell(row, 2).number_format = "$#,##0.00;[Red]-$#,##0.00"
+        ws_summary.cell(row, 2).number_format = _excel_num_fmt(
+            "currency_usd", currency_code
+        )
 
-    num_fmt_usd = "$#,##0.00;[Red]-$#,##0.00"
+    num_fmt_usd = _excel_num_fmt("currency_usd", currency_code)
     num_fmt_rmb = "¥#,##0.00;[Red]-¥#,##0.00"
     ws_financial_detail.cell(2, 2).number_format = num_fmt_usd
     ws_financial_detail.cell(2, 3).number_format = num_fmt_usd
@@ -779,7 +799,11 @@ def export_financial_accounting_detail_workbook(
     # Post-process the 报表核算 sheet so that spacer / total rows are styled
     # on top of the uniform sty1/sty2 treatment applied above. `_apply_monthly_like_styles`
     # iterates every cell, so the overrides here run after it and win.
-    _style_accounting_summary_rows(ws, _build_accounting_rows(pt3, country=report.country))
+    _style_accounting_summary_rows(
+        ws,
+        _build_accounting_rows(pt3, country=report.country),
+        currency_code=currency_label,
+    )
 
     out = BytesIO()
     wb.save(out)
