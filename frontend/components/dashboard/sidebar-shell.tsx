@@ -147,7 +147,7 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
          user={displayUser}
        />
        <div
-         className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] shadow-[inset_-1px_0_0_hsl(0_0%_100%/0.06),0_24px_60px_-24px_rgba(2,6,16,0.45)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
+         className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),inset_0_0_0_1px_hsl(0_0%_100%/0.05),inset_-1px_0_0_hsl(0_0%_100%/0.05),0_24px_60px_-24px_rgba(2,6,16,0.5)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
            activeGroupId
              ? 'translate-x-2 opacity-100'
              : '-translate-x-3 opacity-0'
