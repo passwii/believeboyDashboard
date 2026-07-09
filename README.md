@@ -127,10 +127,10 @@ believeboyDashboard/
 │   ├── types/                    # 全局 TS 类型
 │   ├── config/                   # Next.js / Tailwind 等配置
 │   ├── public/                   # 静态资源
-│   ├── tests/                    # Playwright 测试
+│   ├── tests/                    # Playwright E2E 测试
 │   ├── next.config.js            # Next.js 配置
 │   ├── proxy.ts                  # 根中间件（NextAuth 代理 / build-time NEXTAUTH_SECRET 校验）
-│   ├── vitest.config.ts          # Vitest 单测配置
+│   ├── vitest.config.ts          # Vitest 单元/组件测试配置（jsdom）
 │   ├── tailwind.config.ts        # Tailwind 配置
 │   ├── playwright.config.ts      # Playwright 配置
 │   └── package.json

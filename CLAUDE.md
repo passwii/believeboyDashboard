@@ -102,9 +102,9 @@ FastAPI 内部端点 `/api/v1/internal/auto-report/{recognize,ingest,heartbeat}`
 
 > 本 VPS 只部署后端 API，**没有** Celery worker / Flower unit（`believeboy-worker.service`、`believeboy-flower.service` 在本机不存在）。后台任务目前以一次性 Python 进程方式运行，参见 Architecture 章节的 "Background Jobs"。
 
-> **前端不在本 VPS** — Next.js 部署在 [Vercel / 用户实际的外部平台]，**没有** `believeboy-web.service`。`frontend/deploy/systemd/believeboy-web.service` 仅作本机调试时的参考模板，不部署到 VPS。生产前端环境变量在部署平台的 dashboard 配置（不是 `frontend/.env.local`，那是 Mac 本地开发用）。
+> **前端构建与部署**：Next.js 前端生产环境变量在部署平台 dashboard 配置（不是 `frontend/.env.local`，那是 Mac 本地开发用）；`frontend/deploy/systemd/believeboy-web.service` 仅作本机调试参考模板。**前端构建现已可在本地 / CI / VPS 按需执行**（见下方 VPS 构建规则），部署目标仍是 Vercel / 外部平台。
 >
-> **VPS 磁盘规则**：本 VPS 只跑后端服务，磁盘空间紧张；除非用户明确临时授权，否则不要在 VPS 上跑 `pnpm -C frontend build` / `next build`，也不要长期保留 `frontend/node_modules`、`.next`、pnpm store 等前端依赖或构建缓存。前端构建应在本地、CI 或外部前端平台完成。
+> **VPS 构建规则**：环境已支持前端构建，可在 VPS 上跑 `pnpm -C frontend build` / `next build`。VPS 磁盘仍有限，构建产物（`.next`、`node_modules`、pnpm store）按部署需要保留、避免长期囤积；磁盘紧张时优先在 CI / 外部平台完成构建。
 
 来源：`/etc/systemd/system/believeboy-api.service`；git 工作树：`/root/believeboyDashboard`。
 
@@ -278,16 +278,18 @@ cd backend && .venv/bin/alembic heads
 
 ### 规则 1：技术测试（每次必做）
 
-**前端开发**（按顺序执行，先 lint 后 build）：
+**前端开发**（按顺序执行，先 lint 后 build，单测并行补充）：
 
 ```bash
 cd frontend && pnpm lint    # 静态检查（2-5 秒，未通过不得进入 build）
 cd frontend && pnpm build   # 生产构建（30-90 秒）
+cd frontend && pnpm test    # Vitest 单测（纯函数 / 组件，按需补充）
 ```
 
 - `pnpm lint` 失败 → 立即修复（清空警告、修复错误）
 - `pnpm build` 失败 → 立即修复
-- 两步全部通过 → 继续业务测试
+- `pnpm test` 失败 → 立即修复
+- 全部通过 → 继续业务测试
 
 > lint 在每次前端改动后都必跑，不要攒到最后。lint 能抓到 build 抓不到的错误（未使用变量/导入、hook 依赖缺失、未使用 props、不推荐的写法等）。
 
@@ -300,7 +302,7 @@ pytest tests/path/to/test_file.py::test_name
 - 测试失败 → 立即修复
 - 测试成功 → 继续业务测试
 
-> **前端不引入单元测试框架**（无 vitest / jest / RTL）。前端代码靠 `pnpm lint` + `pnpm build` + 业务测试清单三层验证。新建纯函数模块时不要主动装 vitest；如果确实需要写单测，先问用户。
+> **前端单元测试（已放开）**：环境已支持，前端可引入 Vitest 单测框架（配置见 `frontend/vitest.config.ts`，运行环境 `jsdom`）。用 `*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`。验证层级更新为：`pnpm lint` + `pnpm build` + `pnpm test`（Vitest 单测）+ 业务测试清单。新建纯函数 / 工具模块优先补 Vitest 单测；组件交互测试按需添加，不必为每个组件都写。
 
 ### 规则 2：业务测试（每次必做）
 
