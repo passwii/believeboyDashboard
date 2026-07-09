@@ -278,9 +278,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  { title: '账号管理', url: '/dashboard/system-management/account-management', icon: IconMap.Users },
  { title: '运营管理', url: '/dashboard/system-management/operator-management', icon: IconMap.ShieldUser },
  { title: '佣金管理', url: '/dashboard/system-management/commission-management', icon: IconMap.Coins },
- { title: '日志查看', url: '/dashboard/system-management/logs', icon: IconMap.History },
- { title: '通知设置', url: '/dashboard/system-management/notification-settings', icon: IconMap.Bell },
- { title: '备份管理', url: '/dashboard/system-management/backup-management', icon: IconMap.Database },
+  { title: '日志查看', url: '/dashboard/system-management/logs', icon: IconMap.History },
+  { title: '备份管理', url: '/dashboard/system-management/backup-management', icon: IconMap.Database },
  ],
  },
 ]

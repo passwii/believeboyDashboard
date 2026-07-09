@@ -75,7 +75,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-border/60 [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-border/60 [&>td:last-child]:border-r-0 hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8 data-[state=selected]:hover:bg-primary/12",
+      "transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-border/80 [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-border/80 [&>td:last-child]:border-r-0 hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8 data-[state=selected]:hover:bg-primary/12",
       className
     )}
     {...props}
@@ -163,11 +163,11 @@ export {
 
 /** 第一列表头单元格：固定左侧 + 顶部（配合 STICKY_TOP_ROW 使用） */
 export const STICKY_LEFT_HEAD_CELL =
-  'sticky left-0 z-50 bg-[hsl(var(--surface-subtle))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.5)]'
+  'sticky left-0 z-50 bg-[hsl(var(--surface-subtle))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.7)]'
 
 /** 第一行表头行：固定顶部（z-index 40，数据行上方） */
 export const STICKY_TOP_ROW =
-  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.4)]'
+  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.6)]'
 
 /** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
 export const STICKY_TOP_GROUP_ROW =
@@ -179,8 +179,8 @@ export const STICKY_TOP_SUB_ROW =
 
 /** 第一列数据单元格：固定左侧，实体不透明背景 */
 export const STICKY_LEFT_CELL =
-  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.4)]'
+  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.6)]'
 
 /** 第一列数据单元格（含 hover 变亮效果） */
 export const STICKY_LEFT_CELL_HOVER =
-  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.4)] hover:!bg-sky-50/90 dark:hover:!bg-sky-950/40'
+  'sticky left-0 z-30 bg-[hsl(var(--surface-base))] shadow-[inset_-1px_0_0_0_hsl(var(--border)/0.6)] hover:!bg-sky-50/90 dark:hover:!bg-sky-950/40'

@@ -108,8 +108,8 @@
     --accent-foreground: 220 22% 96%;
     --destructive: 3 52% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 225 8% 20%;
-    --input: 225 8% 19%;
+    --border: 225 10% 27%;
+    --input: 225 12% 27%;
     --ring: 222 100% 68%;
 
     /* 图表保持品牌彩色，仅按更深的基色微调明度 */
@@ -128,7 +128,7 @@
     --sidebar-primary-foreground: 228 40% 12%;
     --sidebar-accent: 225 10% 19%;
     --sidebar-accent-foreground: 220 22% 97%;
-    --sidebar-border: 225 8% 17%;
+    --sidebar-border: 225 10% 22%;
     --sidebar-ring: 222 100% 68%;
 
     /* Surface 纵深阶梯 */
@@ -390,8 +390,8 @@
   }
 
   .dark .dashboard-surface {
-    /* Raycast 式玻璃边：顶部 1px 内高光 + 极淡全周长 1px 内描边，取代硬边框 */
-    border-color: hsl(var(--border) / 0.35);
+    /* 玻璃边：顶部内高光 + 全周长内描边；边框明度已上调，边界清晰可辨 */
+    border-color: hsl(var(--border) / 0.55);
     box-shadow:
       inset 0 1px 0 hsl(220 30% 100% / 0.08),
       inset 0 0 0 1px hsl(220 30% 100% / 0.04),
@@ -427,7 +427,7 @@
   }
 
   .dark .dashboard-panel {
-    border-color: hsl(var(--border) / 0.4);
+    border-color: hsl(var(--border) / 0.6);
     box-shadow:
       inset 0 1px 0 hsl(220 30% 100% / 0.07),
       inset 0 0 0 1px hsl(220 30% 100% / 0.035),
@@ -499,7 +499,7 @@
   }
 
   .dark .dashboard-toolbar {
-    border-color: hsl(var(--border) / 0.4);
+    border-color: hsl(var(--border) / 0.6);
     box-shadow:
       inset 0 1px 0 hsl(220 30% 100% / 0.07),
       inset 0 0 0 1px hsl(220 30% 100% / 0.035),
