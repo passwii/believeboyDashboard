@@ -64,13 +64,16 @@ cd backend && ./.venv/bin/pytest tests/services/test_ai_pydantic_ai_dependency.p
 
 ```
 pydantic-ai==2.8.0
+tavily-python
 ```
+
+`tavily-python` 是 `pydantic-ai` 原生 Tavily 工具的运行时依赖；即便通过 `pydantic-ai-slim[tavily]` extras 间接拉取，固定写出来便于升级时 review。
 
 - [ ] **步骤 4：安装依赖**
 
 ```bash
-cd backend && ./.venv/bin/pip install "pydantic-ai==2.8.0"
-# 预期：Successfully installed pydantic-ai-2.8.0 ...
+cd backend && ./.venv/bin/pip install "pydantic-ai==2.8.0" tavily-python
+# 预期：Successfully installed pydantic-ai-2.8.0 tavily-python-...
 ```
 
 - [ ] **步骤 5：重新跑测试，预期 PASS**
@@ -83,7 +86,7 @@ cd backend && ./.venv/bin/pytest tests/services/test_ai_pydantic_ai_dependency.p
 
 ```bash
 git add backend/requirements.txt backend/tests/services/test_ai_pydantic_ai_dependency.py
-git commit -m "build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化）"
+git commit -m "build(deps): 引入 pydantic-ai==2.8.0 + tavily-python（chat 流式编排原生化）"
 ```
 
 ---
@@ -223,7 +226,7 @@ git commit -m "feat(ai): stream_mapper 加 thinking delta → thinking_chunk"
 
 ---
 
-### 任务 4：Stream Mapper — tool 调用（web_search）
+### 任务 4：Stream Mapper — tool 调用（tool_calls）
 
 **文件：** 同上
 
@@ -239,22 +242,29 @@ def _tool_call_event(name: str = "tavily_search") -> FunctionToolCallEvent:
     return FunctionToolCallEvent(part=part)
 
 
-def test_function_tool_call_yields_tool_calls_and_searching_bytes():
+def test_function_tool_call_yields_tool_calls_bytes():
     state: MapperState = {}
     out = map_agent_event(_tool_call_event(), state)
     assert out is not None
     assert b'"type":"tool_calls"' in out
     assert b'"tool_name":"tavily_search"' in out
-    # 紧接着应再调用一次以产出 tool_searching
-    out2 = map_agent_event(_tool_call_event(), state)
-    assert out2 == b'{"type":"tool_searching"}\n'
+    assert state["last_tool_part"]["tool_name"] == "tavily_search"
+
+
+def test_function_tool_call_ignores_other_tools():
+    state: MapperState = {}
+    out = map_agent_event(_tool_call_event(name="other_tool"), state)
+    assert out is None
+    assert "last_tool_part" not in state
 ```
+
+> 设计：mapper 每次只产一个 `bytes`；`tool_searching` 留在端点层（任务 8）紧接 `tool_calls` 之后手动 yield，不进 mapper。
 
 - [ ] **步骤 2：跑测试，预期 FAIL**
 
-- [ ] **步骤 3：实现 tool_calls + tool_searching 分支**
+- [ ] **步骤 3：在 mapper 加 tool_calls 分支**
 
-修改 `stream_mapper.py`：
+替换 `stream_mapper.py` 顶部 imports 与 `map_agent_event` 主体为：
 
 ```python
 import json
@@ -271,7 +281,6 @@ from app.services.ai.stream_utils import (
     build_stream_chunk,
     build_stream_thinking_chunk,
     build_stream_tool_calls,
-    build_stream_tool_searching,
 )
 
 
@@ -291,71 +300,18 @@ def map_agent_event(event: Any, state: MapperState) -> bytes | None:
             return build_stream_chunk(delta.content_delta)
         if isinstance(delta, ThinkingPartDelta):
             return build_stream_thinking_chunk(delta.content_delta)
-    if isinstance(event, FunctionToolCallEvent):
-        if event.part.tool_name in ("tavily_search", "web_search"):
-            parts = state.setdefault("last_tool_calls", [])
-            parts.append(_tool_part_to_dict(event.part))
-            # 同一工具调用产两条：tool_calls + tool_searching
-            yield_buf = [
-                build_stream_tool_calls([_tool_part_to_dict(event.part)]),
-                build_stream_tool_searching(),
-            ]
-            yield_buf.append  # placeholder removal; see real code below
-            return b"\n".join(yield_buf[:1])  # 第一次返回 tool_calls
-        # 第二次返回 tool_searching 用 state 标记
-    return None
-```
-
-**实际上更干净的实现（替换上面那段）：** mapper 每次只能返回一个 bytes。所以用 state 标记「上一次吐了 tool_calls，下一次同 event 类型应吐 tool_searching」是不自然的，更稳的是把 tool_calls / tool_searching 在 mapper 内部用一个内部 helper 一次性产两条。但 skill 要求 no placeholders，所以下面给完整无歧义版：
-
-替换 `map_agent_event` 完整实现：
-
-```python
-def map_agent_event(event: Any, state: MapperState) -> bytes | None:
-    if isinstance(event, PartDeltaEvent):
-        delta = event.delta
-        if isinstance(delta, TextPartDelta):
-            state.setdefault("assistant_parts", []).append(delta.content_delta)
-            return build_stream_chunk(delta.content_delta)
-        if isinstance(delta, ThinkingPartDelta):
-            return build_stream_thinking_chunk(delta.content_delta)
         return None
     if isinstance(event, FunctionToolCallEvent):
         if event.part.tool_name in ("tavily_search", "web_search"):
             state["last_tool_part"] = _tool_part_to_dict(event.part)
             return build_stream_tool_calls([state["last_tool_part"]])
         return None
-    if isinstance(event, FunctionToolResultEvent):
-        if state.get("last_tool_part", {}).get("tool_name") in ("tavily_search", "web_search"):
-            # tool_searching 在 FunctionToolResult 来之前由 endpoint 在 tool_calls 之后单独 yield；
-            # 这里只负责 sources + tool_done
-            return _yield_sources_and_done(state, event)
-        return None
-    if isinstance(event, AgentRunResultEvent):
-        return _yield_usage_and_done(state, event)
     return None
 ```
 
-（`_yield_sources_and_done` 与 `_yield_usage_and_done` 在任务 5/6 中定义；本任务先让 tool_calls 分支 test 通过。）
+> `FunctionToolResultEvent` 与 `AgentRunResultEvent` 分支分别在任务 5/6 追加，本任务不引入。
 
-并把测试改成只断言 tool_calls：
-
-```python
-# test_stream_mapper.py —— 仅断言 tool_calls
-def test_function_tool_call_yields_tool_calls_bytes():
-    state: MapperState = {}
-    out = map_agent_event(_tool_call_event(), state)
-    assert out is not None
-    assert b'"type":"tool_calls"' in out
-    assert b'"tool_name":"tavily_search"' in out
-    assert state["last_tool_part"]["tool_name"] == "tavily_search"
-```
-
-把 task 4 的「tool_searching 紧接」断言改成由任务 5 单独覆盖（端点层 yield 一次）。
-
-- [ ] **步骤 3a：替换步骤 3 为上述最终实现**，并把测试集合改为只断言 `tool_calls`。
-
-- [ ] **步骤 4：跑测试，预期 PASS（仅 tool_calls 单测）**
+- [ ] **步骤 4：跑测试，预期 PASS**
 
 ```bash
 cd backend && ./.venv/bin/pytest tests/services/test_stream_mapper.py -v
@@ -381,35 +337,13 @@ git commit -m "feat(ai): stream_mapper 加 FunctionToolCallEvent → tool_calls"
 from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 
 
-def _tool_result_event(content_dict: dict) -> FunctionToolResultEvent:
+def _tool_result_event(content) -> FunctionToolResultEvent:
     return FunctionToolResultEvent(
         tool_call_id="c1",
-        part=ToolReturnPart(tool_name="tavily_search", content=content_dict, tool_call_id="c1"),
+        part=ToolReturnPart(tool_name="tavily_search", content=content, tool_call_id="c1"),
     )
 
 
-def test_tool_result_yields_sources_and_done_bytes():
-    state: MapperState = {"last_tool_part": {"tool_name": "tavily_search"}}
-    ev = _tool_result_event([{"title": "T", "url": "https://x.com", "content": "c"}])
-    # 第一次调用产 tool_searching
-    # mapper 本身在 tool_calls (task 4) 写入 last_tool_part。
-    # 在工具结果到达时，endpoint 通常先 yield tool_searching 再调 mapper。
-    # 这里直接断言 sources + tool_done：
-    out = map_agent_event(ev, state)
-    # tools_searching 由上游产生，不在 mapper 内（设计分离）
-    # 但 sources 是 mapper 内：
-    state["search_time_range"] = "day"
-    state["last_search_query"] = "今天天气"
-    out = map_agent_event(ev, state)
-    assert out is not None
-    assert b'"type":"sources"' in out
-```
-
-为简洁，把 `tool_searching` 的产出 **留在端点 layer** 紧接 `tool_calls` 后手动 yield。本任务测试只覆盖 sources + tool_done。
-
-最终测试代码：
-
-```python
 def test_tool_result_yields_sources_and_tool_done_bytes():
     state: MapperState = {
         "last_tool_part": {"tool_name": "tavily_search"},
@@ -427,7 +361,15 @@ def test_tool_result_yields_sources_and_tool_done_bytes():
     assert b'"query":"今天天气"' in out
     assert b'"type":"tool_done"' in out
     assert state["search_source_cards"][0]["title"] == "T"
+
+
+def test_tool_result_skips_when_last_tool_not_search():
+    state: MapperState = {"last_tool_part": {"tool_name": "other_tool"}}
+    ev = _tool_result_event([])
+    assert map_agent_event(ev, state) is None
 ```
+
+> 设计：`tool_searching` 留在端点层（任务 8）紧接 `tool_calls` 之后手动 yield，mapper 只负责 `sources + tool_done`。
 
 - [ ] **步骤 2：跑测试，预期 FAIL**
 
@@ -786,7 +728,8 @@ async def stream_message(
     - 取消由 `cancel_registry` 协调；端点本身用 `async def`。
     - 协议：ndjson，仍由前端 `consumeStream` 消费（前端零改动）。
     """
-    from pydantic import ValidationError  # noqa: F401  # 占位：本文件未使用
+    from pydantic_ai.messages import FunctionToolCallEvent
+
     from app.services.ai.agent import build_chat_agent
     from app.services.ai.stream_mapper import MapperState, map_agent_event
 
@@ -843,9 +786,7 @@ async def stream_message(
                         continue
                     # tool_calls 与 tool_result 之间补一条 tool_searching，
                     # 与既有 ndjson 协议保持兼容。
-                    if isinstance(getattr(ev, "__class__", None), FunctionToolCallEvent) or (
-                        ev.__class__.__name__ == "FunctionToolCallEvent"
-                    ):
+                    if isinstance(ev, FunctionToolCallEvent):
                         if state.get("last_tool_part", {}).get("tool_name") in ("tavily_search", "web_search"):
                             yield encode_stream_event({"type": "tool_searching"})
                     for line in payload.split(b"\n"):
@@ -967,7 +908,7 @@ curl -N -X POST "http://localhost:8000/api/v1/ai/conversations/<id>/messages/str
 
 - [ ] **步骤 4：前端冒烟**
 
-按 `pnpm test` 与 `pnpm build` 跑前端单测与构建，确认前端 `consumeStream` 仍正确解析所有事件类型（前文 spike v1 已证，但 PR 合入后再跑一遍是兜底）。
+按 `pnpm test` 与 `pnpm build` 跑前端单测与构建，确认前端 `consumeStream` 仍正确解析所有事件类型（既有 ndjson 协议字段未变，但 PR 合入后再跑一遍是兜底）。
 
 ```bash
 cd frontend && pnpm lint && pnpm build && pnpm test
@@ -1007,19 +948,21 @@ git commit -m "docs(ai): 更新 native 架构文档 § 9/§ 10 与 PR 实际落�
 
 - [ ] **步骤 5：准备 PR**
 
-依据 `AGENTS.md` 的 commit 规范（中文 + Conventional Commits）整理 commit 列表，写 PR 描述（含迁移点、Spike 引用、改动文件清单、风险点 = SearXNG 中文搜索质量仍是独立 ticket）。
+依据 `AGENTS.md` 的 commit 规范（中文 + Conventional Commits）整理 commit 列表，写 PR 描述（含迁移点、改动文件清单、风险点 = SearXNG 中文搜索质量仍是独立 ticket）。
 
 ---
 
-## 自检清单（计划写完后的内部 review）
+## 自检清单（实施前请逐项复核）
 
-- [x] 规格覆盖：架构文档 § 9.2（落地路径 checklist）每一条都有对应任务（任务 1-10）。
-- [x] 占位符扫描：无「TODO」「待定」「补充细节」；每个 step 都有具体代码或命令。
-- [x] 类型一致性：`MapperState` 字段名（`assistant_parts / search_source_cards / search_time_range / last_tool_part / last_search_query / final_usage / final_content`）在任务 2-6 和任务 8 中定义与引用一致。
-- [x] 工具名称一致性：`tavily_search` 与 `web_search` 在 mapper 工厂与端点三处一致。
-- [x] `result.usage` 写为属性（非方法），与 spike v1 已证陷阱一致。
-- [x] base_url 全程走 `settings.ai_chat_web_search_base_url`，无写死。
-- [x] 前端 `consumeStream` 与 ndjson 协议零改动。
+> 以下是写计划时的内部 review 项；实施 PR 前请重新核验一遍（增删任务时尤其要回看）。
+
+- [ ] 规格覆盖：架构文档 § 9.2（落地路径 checklist）每一条都有对应任务（任务 1-10）。
+- [ ] 占位符扫描：无「TODO」「待定」「补充细节」「placeholder」；每个 step 都有具体代码或命令。
+- [ ] 类型一致性：`MapperState` 字段名（`assistant_parts / search_source_cards / search_time_range / last_tool_part / last_search_query / final_usage / final_content`）在任务 2-6 和任务 8 中定义与引用一致。
+- [ ] 工具名称一致性：`tavily_search` 与 `web_search` 在 mapper 工厂与端点三处一致。
+- [ ] `result.usage` 写为属性（非方法），即 `event.result.usage`，不是 `event.result.usage()`。
+- [ ] base_url 全程走 `settings.ai_chat_web_search_base_url`，无写死。
+- [ ] 前端 `consumeStream` 与 ndjson 协议零改动。
 
 ---
 
