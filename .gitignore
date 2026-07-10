@@ -131,10 +131,6 @@ autoReportUpload/.env
 # Backend tests — now tracked
 /backend/.pytest_cache/
 
-# Docs
-/Docs/*
-!/Docs/定价核算页面说明.md
-
 # Local scripts and reports
 backend/scripts/test_db_capacity.py
 DB_CAPACITY_REPORT.md
