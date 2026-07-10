@@ -1,7 +1,7 @@
 """add_superseded_status_and_unique_constraint
 
 Revision ID: 20260710_210
-Revises: 20260710_208
+Revises: 20260710_209
 Create Date: 2026-07-10
 
 P0-3 决策：把历史重复 (sub, freq, report_date, triggered_by) 的
@@ -15,6 +15,12 @@ delivery_log 标记为 superseded 后，加唯一约束挡住后续重复派发�
 - 不修改其他 status 列值；不触动订阅 / AI 摘要相关表
 - downgrade：DROP 唯一约束。status='superseded' 历史数据不回退
   （不可逆，向代码注释说明）
+
+down_revision 链 备注：
+- 原写 "20260710_208"（worktree HEAD b62e7b06 时是 head）
+- 上线时发现 production 已 apply 过 `20260710_209`（shipment-batch 那条
+ 迁移，在 main 分支后续 commit 中），改 down_revision 为 "20260710_209"
+ 以匹配实际 production alembic head（alembic 不允许跨 lineage 跳号）
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from alembic import op
 
 
 revision = "20260710_210"
-down_revision = "20260710_208"
+down_revision = "20260710_209"
 branch_labels = None
 depends_on = None
 
