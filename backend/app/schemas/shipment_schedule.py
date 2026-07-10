@@ -26,7 +26,9 @@ class ShipmentScheduleListItem(BaseModel):
     total_chargeable_weight_kg: float
     logistics_total_price: float
     include_in_history_shipping_calc: bool
+    items: list[ShipmentScheduleItemRow]
     updated_at: str
+    shipment_batch: str | None = None
 
 
 class ShipmentScheduleListResponse(BaseModel):
@@ -93,6 +95,7 @@ class ShipmentScheduleDetail(BaseModel):
     include_in_history_shipping_calc: bool
     items: list[ShipmentScheduleItemRow]
     updated_at: str
+    shipment_batch: str | None = None
 
 
 class ShipmentCostCalculateRequest(BaseModel):
@@ -116,6 +119,7 @@ class ShipmentScheduleCreate(BaseModel):
     remark: str | None = None
     shipment_status: str = Field(min_length=1, max_length=30)
     source_file: str | None = None
+    shipment_batch: str | None = Field(default=None, max_length=100)
 
 
 class ShipmentScheduleUpdate(BaseModel):
@@ -136,6 +140,7 @@ class ShipmentScheduleUpdate(BaseModel):
     shipment_status: str = Field(min_length=1, max_length=30)
     source_file: str | None = None
     items: list[ShipmentScheduleItemInput] | None = None
+    shipment_batch: str | None = Field(default=None, max_length=100)
 
 
 class ShipmentItemsImportResponse(BaseModel):

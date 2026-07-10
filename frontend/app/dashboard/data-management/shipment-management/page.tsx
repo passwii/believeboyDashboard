@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { ShipmentBatchCombobox } from '@/components/dashboard/shipment/shipment-batch-combobox'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
@@ -70,6 +71,7 @@ type ShipmentScheduleListItem = {
   logistics_total_price: number
   include_in_history_shipping_calc: boolean
   updated_at: string
+  shipment_batch: string | null
 }
 
 type ShipmentScheduleItemRow = {
@@ -215,6 +217,7 @@ type ScheduleFormState = {
   include_in_history_shipping_calc: string
   remark: string
   shipment_status: string
+  shipment_batch: string
 }
 
 const STATUS_OPTIONS = [
@@ -264,6 +267,7 @@ function createEmptyForm(): ScheduleFormState {
     include_in_history_shipping_calc: 'yes',
     remark: '',
     shipment_status: 'draft',
+    shipment_batch: '',
   }
 }
 
@@ -385,6 +389,7 @@ function buildFormFromDetail(detail: ShipmentScheduleDetail): ScheduleFormState 
     include_in_history_shipping_calc: detail.include_in_history_shipping_calc ? 'yes' : 'no',
     remark: detail.remark || '',
     shipment_status: detail.shipment_status,
+    shipment_batch: detail.shipment_batch || '',
   }
 }
 
@@ -1475,6 +1480,7 @@ export default function ShipmentManagementPage() {
         logistics_unit_price: logisticsUnitPrice.trim() ? Number(logisticsUnitPrice) : 0,
         include_in_history_shipping_calc: form.include_in_history_shipping_calc === 'yes',
         remark: form.remark || null,
+        shipment_batch: form.shipment_batch.trim() || null,
       }
 
       const url =
@@ -1501,6 +1507,7 @@ export default function ShipmentManagementPage() {
               include_in_history_shipping_calc: payload.include_in_history_shipping_calc,
               remark: payload.remark,
               shipment_status: payload.shipment_status,
+              shipment_batch: payload.shipment_batch,
               items:
                 dialogMode === 'edit' && hasPendingItemChanges
                   ? normalizedEditableItems.map((item) => ({
@@ -3269,7 +3276,7 @@ export default function ShipmentManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-2 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 py-2 md:grid-cols-2 lg:grid-cols-4 [&>div]:min-w-0">
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">项目</div>
               <Select value={form.project_id} onValueChange={(value) => handleFormChange('project_id', value)}>
@@ -3284,6 +3291,16 @@ export default function ShipmentManagementPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-foreground">发货批次</div>
+              <ShipmentBatchCombobox
+                value={form.shipment_batch}
+                onChange={(value) => handleFormChange('shipment_batch', value)}
+                projectId={form.project_id}
+                country={form.country}
+              />
             </div>
 
             <div className="space-y-2">

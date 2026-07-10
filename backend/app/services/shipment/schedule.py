@@ -213,6 +213,31 @@ def get_shipment_schedule_detail(
     return row, sku_count, total_quantity
 
 
+def list_shipment_batches(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+) -> list[str]:
+    """
+    返回该项目+国家下已用过的去重发货批次列表（按批次名升序）。
+
+    用于前端下拉选择器，避免重复输入相同批次。
+    """
+    normalized_country = normalize_country(country)
+    stmt = (
+        select(ShipmentSchedule.shipment_batch)
+        .where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == normalized_country,
+            ShipmentSchedule.shipment_batch.is_not(None),
+        )
+        .distinct()
+        .order_by(ShipmentSchedule.shipment_batch.asc())
+    )
+    return [str(b) for b in db.execute(stmt).scalars().all() if b]
+
+
 # ============================================================
 # 创建操作
 # ============================================================
@@ -266,6 +291,7 @@ def create_shipment_schedule(
         include_in_history_shipping_calc=bool(payload.include_in_history_shipping_calc),
         remark=normalize_text_value(payload.remark),
         shipment_status=normalize_status(payload.shipment_status),
+        shipment_batch=normalize_text_value(payload.shipment_batch, max_length=100),
         source_type="manual",
         source_file=normalize_text_value(payload.source_file, max_length=255),
         created_by=normalize_text_value(operator, max_length=255),
@@ -335,6 +361,7 @@ def update_shipment_schedule(
     row.include_in_history_shipping_calc = bool(payload.include_in_history_shipping_calc)
     row.remark = normalize_text_value(payload.remark)
     row.shipment_status = normalize_status(payload.shipment_status)
+    row.shipment_batch = normalize_text_value(payload.shipment_batch, max_length=100)
     row.updated_by = normalize_text_value(operator, max_length=255)
 
     # 处理 SKU 明细

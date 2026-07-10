@@ -46,6 +46,7 @@ def serialize_schedule_list_item(
         logistics_total_price=float(row.logistics_total_price or 0),
         include_in_history_shipping_calc=bool(row.include_in_history_shipping_calc),
         updated_at=row.updated_at.isoformat(),
+        shipment_batch=str(row.shipment_batch) if row.shipment_batch else None,
     )
 
 
@@ -96,6 +97,7 @@ def build_shipment_schedule_detail(
             for item in row.items
         ],
         updated_at=row.updated_at.isoformat(),
+        shipment_batch=str(row.shipment_batch) if row.shipment_batch else None,
     )
 
 

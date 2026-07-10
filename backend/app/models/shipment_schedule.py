@@ -54,6 +54,7 @@ class ShipmentSchedule(Base):
         Index("idx_shipment_schedules_project_country", "project_id", "country"),
         Index("idx_shipment_schedules_etd", "etd_date"),
         Index("idx_shipment_schedules_eta", "eta_date"),
+        Index("idx_shipment_schedules_batch", "shipment_batch"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -81,6 +82,7 @@ class ShipmentSchedule(Base):
     eta_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     actual_inbound_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     remark: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    shipment_batch: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     logistics_unit_price: Mapped[float] = mapped_column(
         Numeric(12, 2), nullable=False, default=0, server_default="0"
     )
