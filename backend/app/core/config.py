@@ -103,6 +103,21 @@ class Settings(BaseSettings):
     report_ai_concurrency: int = Field(default=2, ge=1, le=10, description="Max concurrent AI summary API calls during report dispatch")
     max_concurrent_insights: int = Field(default=3, ge=1, le=10, description="Max concurrent AI insight generation tasks")
 
+    # BEL-NEW: 定时报告迁移至 Celery worker (方案 docs/superpowers/plans/2026-07-10-scheduled-report-to-celery.md)
+    # ENABLE_SCHEDULER=false 时本 API 进程不启动 APScheduler（多副本时仅一个副本设 true）。
+    enable_scheduler: bool = Field(default=True)
+    # SCHEDULED_REPORT_VIA_CELERY=true 时 APScheduler 触发走 delay() 进 Worker；
+    # false 时退回 ThreadPoolExecutor 在 API 内同步跑（回滚形态，不动代码）。
+    scheduled_report_via_celery: bool = Field(default=True)
+    # 同一分钟触发的多个订阅，第 i 个延迟 i×SPREAD 秒错峰派发。
+    scheduled_dispatch_spread_seconds: int = Field(default=60, ge=0, le=600)
+    # ai_summary 队列的 LLM 并发信号量上限（与 insights 独立）。方案 §4.6 取 5：
+    #   insights 占 3 路，ai_summary 额外允许 5 路，留 headroom 不撞 LLM RPM。
+    max_concurrent_ai_summary: int = Field(
+        default=5, ge=1, le=20,
+        description="Max concurrent AI summary tasks on ai_summary queue (separate semaphore from insights).",
+    )
+
     redis_db: int = Field(default=0, ge=0, le=15)
 
     # Celery (auto-derived from REDIS_* when blank)

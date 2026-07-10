@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -28,6 +29,7 @@ class DeliveryStatus(str, Enum):
     PENDING = "pending"
     SENT = "sent"
     FAILED = "failed"
+    SUPERSEDED = "superseded"  # 历史重复的派发行被新版唯一约束收敛；保留痕跡便于复盘
 
 
 class DeliveryStage(str, Enum):
@@ -150,6 +152,19 @@ class ScheduledReportDeliveryLog(Base):
     # Relationships
     subscription: Mapped["ScheduledReportSubscription"] = relationship(
         "ScheduledReportSubscription", back_populates="delivery_logs"
+    )
+
+    # P0-3：唯一约束挡住 (sub, freq, report_date, triggered_by) 重复派发。
+    # 历史上 SMTP 重试窗口期产出大量重复 delivery_log；migration 20260710_210
+    # 先把非最早 id 的重复行打 superseded 历史，再加这个唯一约束。
+    __table_args__ = (
+        UniqueConstraint(
+            "subscription_id",
+            "frequency",
+            "report_date",
+            "triggered_by",
+            name="uq_delivery_log_dedup",
+        ),
     )
 
 
