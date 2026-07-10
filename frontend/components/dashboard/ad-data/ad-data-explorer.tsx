@@ -14,11 +14,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import {
   AD_DATA_REPORT_TYPES,
+  aggregateAdDataRows,
   buildAdDataCsv,
   formatAdDataValue,
   getAdDataReportType,
+  getAggregateColumns,
   isNumericFormat,
   type AdDataColumn,
+  type AdDataReportType,
 } from '@/lib/ad-data'
 
 const API_BASE = '/api/backend'
@@ -69,8 +72,44 @@ export function AdDataExplorer() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(100)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [mode, setMode] = useState<'raw' | 'aggregate'>('raw')
 
-  const config = selectedReportType ? getAdDataReportType(selectedReportType) : undefined
+  const config: AdDataReportType | undefined = selectedReportType
+    ? getAdDataReportType(selectedReportType)
+    : undefined
+
+  const isAggregate = mode === 'aggregate'
+
+  // 每个分组合并了多少份明细（用于"合并份数"列；与 lib 内部 composite key 一致）
+  const groupCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!config) return map
+    for (const r of rows) {
+      const gk = config.groupBy.map((k) => String(r[k] ?? '')).join(' ')
+      map.set(gk, (map.get(gk) ?? 0) + 1)
+    }
+    return map
+  }, [rows, config])
+
+  const baseRows: RawRow[] = useMemo(() => {
+    if (!config || !isAggregate) return rows
+    const agg = aggregateAdDataRows(rows, config)
+    return agg.map((r) => {
+      const gk = config.groupBy.map((k) => String(r[k] ?? '')).join(' ')
+      return { ...r, __agg_count: groupCounts.get(gk) ?? 0 }
+    })
+  }, [rows, config, isAggregate, groupCounts])
+
+  const displayColumns: AdDataColumn[] = useMemo(
+    () =>
+      isAggregate && config
+        ? [
+            { key: '__agg_count', label: '合并份数', format: 'int' },
+            ...getAggregateColumns(config),
+          ]
+        : config?.columns ?? [],
+    [isAggregate, config],
+  )
 
   // ---- 拉取"有哪些报表类型有成功入库的数据" ----
   useEffect(() => {
@@ -153,19 +192,19 @@ export function AdDataExplorer() {
 
   // ---- 搜索 + 排序 ----
   const filtered = useMemo(() => {
-    if (!config) return []
-    if (!search.trim()) return rows
+    if (!displayColumns.length) return []
+    if (!search.trim()) return baseRows
     const q = search.trim().toLowerCase()
-    return rows.filter((row) =>
-      config.columns.some((col) =>
+    return baseRows.filter((row) =>
+      displayColumns.some((col) =>
         formatAdDataValue(row[col.key], col.format).toLowerCase().includes(q),
       ),
     )
-  }, [rows, search, config])
+  }, [baseRows, search, displayColumns])
 
   const sorted = useMemo(() => {
-    if (!config || !sort) return filtered
-    const col = config.columns.find((c) => c.key === sort.key)
+    if (!displayColumns.length || !sort) return filtered
+    const col = displayColumns.find((c) => c.key === sort.key)
     if (!col) return filtered
     const numeric = isNumericFormat(col.format)
     const dir = sort.dir === 'asc' ? 1 : -1
@@ -175,7 +214,7 @@ export function AdDataExplorer() {
       if (numeric) return (Number(av) - Number(bv)) * dir
       return String(av ?? '').localeCompare(String(bv ?? '')) * dir
     })
-  }, [filtered, sort, config])
+  }, [filtered, sort, displayColumns])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -200,7 +239,7 @@ export function AdDataExplorer() {
 
   const handleExport = () => {
     if (!config || sorted.length === 0) return
-    const csv = buildAdDataCsv(sorted, config.columns)
+    const csv = buildAdDataCsv(sorted, displayColumns)
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -268,7 +307,35 @@ export function AdDataExplorer() {
                 />
               </div>
             </div>
-          </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                视图
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={mode === 'raw' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setMode('raw')
+                    setPage(1)
+                  }}
+                >
+                  原始明细
+                </Button>
+                <Button
+                  variant={mode === 'aggregate' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setMode('aggregate')
+                    setPage(1)
+                  }}
+                >
+                  聚合
+                </Button>
+              </div>
+            </div>
 
           <Button variant="outline" onClick={handleExport} disabled={!config || sorted.length === 0}>
             <Download className="mr-1.5 h-4 w-4" />
@@ -297,12 +364,18 @@ export function AdDataExplorer() {
           {/* 概览统计 */}
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="outline">报表：{config.label}</Badge>
-            <Badge variant="outline">服务端总行数：{totalRows.toLocaleString()}</Badge>
+            {isAggregate ? (
+              <Badge variant="outline">
+                聚合后 {baseRows.length.toLocaleString()} 行（合并自 {rows.length.toLocaleString()} 份明细）
+              </Badge>
+            ) : (
+              <Badge variant="outline">服务端总行数：{totalRows.toLocaleString()}</Badge>
+            )}
             <Badge variant="outline">
               当前显示：第 {pageStart + 1}-{Math.min(pageStart + pageSize, sorted.length)} / 共{' '}
               {sorted.length.toLocaleString()} 行
             </Badge>
-            {totalRows > sorted.length ? (
+            {!isAggregate && totalRows > sorted.length ? (
               <Badge variant="outline" className="text-amber-600">
                 仅显示前 {sorted.length.toLocaleString()} 行（已达拉取上限）
               </Badge>
@@ -315,8 +388,8 @@ export function AdDataExplorer() {
               <Table className="min-w-full">
                 <TableHeader className="sticky top-0 z-10 bg-[hsl(var(--surface-overlay))]">
                   <TableRow>
-                    <TableHead className="w-10" />
-                    {config.columns.map((col) => (
+                    {!isAggregate ? <TableHead className="w-10" /> : null}
+                    {displayColumns.map((col) => (
                       <TableHead
                         key={col.key}
                         className="cursor-pointer select-none whitespace-nowrap hover:text-foreground"
@@ -341,13 +414,24 @@ export function AdDataExplorer() {
                 <TableBody>
                   {pageRows.map((row, idx) => {
                     const rowId = typeof row.id === 'number' ? row.id : pageStart + idx
+                    if (isAggregate) {
+                      return (
+                        <TableRow key={rowId} className="hover:bg-[hsl(var(--surface-soft))]">
+                          {displayColumns.map((col) => (
+                            <TableCell key={col.key} className="whitespace-nowrap text-sm">
+                              {formatAdDataValue(row[col.key], col.format)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      )
+                    }
                     const isOpen = expanded.has(rowId)
                     return (
                       <FragmentRow
                         key={rowId}
                         row={row}
                         rowId={rowId}
-                        columns={config.columns}
+                        columns={displayColumns}
                         isOpen={isOpen}
                         onToggle={() => toggleExpand(rowId)}
                       />

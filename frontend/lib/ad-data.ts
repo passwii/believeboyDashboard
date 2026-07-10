@@ -3,11 +3,12 @@
  *
  * 数据来源：后端 `/external/projects/{id}/ad-{endpoint}-raw` 接口，返回
  * `Ad*RawRow`（已解析的英文 typed 字段）。本文件负责：
- *   1. 10 种报表类型的列配置（字段 -> 中文列名 -> 格式化方式）。
+ *   1. 10 种报表类型的列配置（字段 -> 中文列名 -> 格式化方式）+ 聚合分组键。
  *   2. 最小可读化的数值格式化（% / 金额 / 整数）。
- *   3. CSV 导出构造。
+ *   3. 前端聚合：按分组键归并明细行，加总可加指标、重算比率、拼接周期。
+ *   4. CSV 导出构造。
  *
- * 设计原则：只做"最小可读化"，不引入任何分析/分级/建议逻辑。
+ * 设计原则：只做"最小可读化 + 初步聚合"，不引入任何分析/分级/建议逻辑。
  */
 
 export type AdDataFormat = 'text' | 'int' | 'money' | 'percent' | 'ratio' | 'date'
@@ -27,6 +28,8 @@ export type AdDataReportType = {
   label: string
   /** 接口路径段：'campaigns' -> /ad-campaigns-raw */
   endpoint: string
+  /** 聚合时的分组维度（自然业务键） */
+  groupBy: string[]
   columns: AdDataColumn[]
 }
 
@@ -40,6 +43,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_campaign_report',
     label: '广告活动',
     endpoint: 'campaigns',
+    groupBy: ['campaign_name'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -64,6 +68,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_budget_report',
     label: '预算',
     endpoint: 'budgets',
+    groupBy: ['campaign_name'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -87,6 +92,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_target_report',
     label: '搜索词投放',
     endpoint: 'targets',
+    groupBy: ['target_text'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -111,6 +117,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_placement_report',
     label: '广告位',
     endpoint: 'placements',
+    groupBy: ['placement'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -131,6 +138,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_search_term_report',
     label: '搜索词',
     endpoint: 'search-terms',
+    groupBy: ['search_term'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -154,6 +162,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_search_term_share_report',
     label: '搜索词展示量份额',
     endpoint: 'search-term-shares',
+    groupBy: ['search_term'],
     columns: [
       ...DATE_COLS,
       { key: 'search_term', label: '客户搜索词', format: 'text' },
@@ -179,6 +188,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_promoted_product_report',
     label: '推广的商品',
     endpoint: 'promoted-products',
+    groupBy: ['ad_sku'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -207,6 +217,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_time_trend_report',
     label: '按时间查看效果',
     endpoint: 'time-trends',
+    groupBy: ['report_end_date'],
     columns: [
       ...DATE_COLS,
       { key: 'country', label: '国家/地区', format: 'text' },
@@ -220,6 +231,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_invalid_traffic_report',
     label: '总流量和无效流量',
     endpoint: 'invalid-traffic',
+    groupBy: ['campaign_name'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -238,6 +250,7 @@ export const AD_DATA_REPORT_TYPES: AdDataReportType[] = [
     reportType: 'ad_purchased_product_report',
     label: '已购买商品',
     endpoint: 'purchased-products',
+    groupBy: ['purchased_asin'],
     columns: [
       ...DATE_COLS,
       { key: 'campaign_name', label: '广告活动名称', format: 'text' },
@@ -282,6 +295,117 @@ export function formatAdDataValue(value: unknown, format: AdDataFormat): string 
     default:
       return String(value)
   }
+}
+
+/** 可跨时间正确加总的指标 key（曝光/点击/花费/销售/订单/单位等）。 */
+const ADDITIVE_KEYS = new Set<string>([
+  'impressions',
+  'clicks',
+  'spend',
+  'sales_7d',
+  'orders_7d',
+  'units_7d',
+  'ad_sku_units_7d',
+  'other_sku_units_7d',
+  'ad_sku_sales_7d',
+  'other_sku_sales_7d',
+  'total_impressions',
+  'valid_impressions',
+  'invalid_impressions',
+  'total_clicks',
+  'valid_clicks',
+  'invalid_clicks',
+])
+
+/** 需要从加总后的基数重算的比率（避免把比率直接相加）。 */
+const RATIO_FORMULAS: Record<string, (s: Record<string, number>) => number> = {
+  ctr: (s) => (s.impressions > 0 ? s.clicks / s.impressions : 0),
+  cpc: (s) => (s.clicks > 0 ? s.spend / s.clicks : 0),
+  acos: (s) => (s.sales_7d > 0 ? s.spend / s.sales_7d : 0),
+  roas: (s) => (s.spend > 0 ? s.sales_7d / s.spend : 0),
+  cvr_7d: (s) => (s.clicks > 0 ? s.orders_7d / s.clicks : 0),
+  invalid_impression_rate: (s) =>
+    s.total_impressions > 0 ? s.invalid_impressions / s.total_impressions : 0,
+  invalid_click_rate: (s) => (s.total_clicks > 0 ? s.invalid_clicks / s.total_clicks : 0),
+}
+
+const RATIO_FORMULA_KEYS = new Set(Object.keys(RATIO_FORMULAS))
+
+/** 聚合视图展示的列：分组键 + 周期 + 可加指标 + 重算比率（其余列隐藏）。 */
+export function getAggregateColumns(config: AdDataReportType): AdDataColumn[] {
+  return config.columns.filter(
+    (col) =>
+      col.key === 'report_start_date' ||
+      col.key === 'report_end_date' ||
+      config.groupBy.includes(col.key) ||
+      ADDITIVE_KEYS.has(col.key) ||
+      RATIO_FORMULA_KEYS.has(col.key),
+  )
+}
+
+type AggBucket = {
+  values: Record<string, unknown>
+  sums: Record<string, number>
+  minStart: string
+  maxEnd: string
+}
+
+/**
+ * 前端聚合：把明细行按 groupBy 归并。
+ *  - 可加指标求和；比率从加总基数重算；周期取 [min(开始), max(结束)]（拼接）。
+ *  - 非可加/非重算列（预算、排名、份额等）不在聚合视图出现。
+ */
+export function aggregateAdDataRows(
+  rows: Record<string, unknown>[],
+  config: AdDataReportType,
+): Record<string, unknown>[] {
+  const groupKeys = config.groupBy
+  const buckets = new Map<string, AggBucket>()
+
+  for (const row of rows) {
+    const gk = groupKeys.map((k) => String(row[k] ?? '')).join(' ')
+    let bucket = buckets.get(gk)
+    if (!bucket) {
+      bucket = { values: {}, sums: {}, minStart: '', maxEnd: '' }
+      buckets.set(gk, bucket)
+    }
+    groupKeys.forEach((k) => {
+      bucket!.values[k] = row[k]
+    })
+    for (const key of ADDITIVE_KEYS) {
+      const v = row[key]
+      if (v !== undefined && v !== null && v !== '') {
+        bucket!.sums[key] = (bucket!.sums[key] ?? 0) + Number(v)
+      }
+    }
+    const s = String(row.report_start_date ?? '')
+    const e = String(row.report_end_date ?? '')
+    if (s && (bucket!.minStart === '' || s < bucket!.minStart)) bucket!.minStart = s
+    if (e && (bucket!.maxEnd === '' || e > bucket!.maxEnd)) bucket!.maxEnd = e
+  }
+
+  const out: Record<string, unknown>[] = []
+  for (const bucket of buckets.values()) {
+    const agg: Record<string, unknown> = {
+      report_start_date: bucket.minStart,
+      report_end_date: bucket.maxEnd,
+    }
+    groupKeys.forEach((k) => {
+      agg[k] = bucket.values[k]
+    })
+    for (const key of ADDITIVE_KEYS) {
+      if (config.columns.some((c) => c.key === key)) {
+        agg[key] = bucket.sums[key] ?? 0
+      }
+    }
+    for (const key of RATIO_FORMULA_KEYS) {
+      if (config.columns.some((c) => c.key === key)) {
+        agg[key] = RATIO_FORMULAS[key](bucket.sums)
+      }
+    }
+    out.push(agg)
+  }
+  return out
 }
 
 function escapeCsvCell(value: string): string {
