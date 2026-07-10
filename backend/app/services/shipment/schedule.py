@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Project
+from app.models import Project, ShipmentBatchDropdownHidden
 from app.models.sku_info import SkuRecord
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.schemas.shipment_schedule import (
@@ -218,24 +219,91 @@ def list_shipment_batches(
     *,
     project_id: int,
     country: str,
+    operator: str | None = None,
 ) -> list[str]:
     """
-    返回该项目+国家下已用过的去重发货批次列表（按批次名升序）。
+    返回该项目+国家下已用过的去重发货批次列表。
 
-    用于前端下拉选择器，避免重复输入相同批次。
+    排序：按最近一次更新倒序（MAX(updated_at) DESC），未更新过的排最后。
+    过滤：operator 非空时排除该 operator 已隐藏的批次。
     """
     normalized_country = normalize_country(country)
+
+    batch_col = ShipmentSchedule.shipment_batch
+    latest_updated = func.max(ShipmentSchedule.updated_at).label("latest_updated")
+
     stmt = (
-        select(ShipmentSchedule.shipment_batch)
+        select(batch_col, latest_updated)
         .where(
             ShipmentSchedule.project_id == project_id,
             ShipmentSchedule.country == normalized_country,
-            ShipmentSchedule.shipment_batch.is_not(None),
+            batch_col.is_not(None),
         )
-        .distinct()
-        .order_by(ShipmentSchedule.shipment_batch.asc())
+        .group_by(batch_col)
     )
-    return [str(b) for b in db.execute(stmt).scalars().all() if b]
+
+    if operator:
+        hidden_subq = (
+            select(ShipmentBatchDropdownHidden.shipment_batch)
+            .where(
+                ShipmentBatchDropdownHidden.project_id == project_id,
+                ShipmentBatchDropdownHidden.country == normalized_country,
+                ShipmentBatchDropdownHidden.operator == operator,
+            )
+        )
+        stmt = stmt.where(batch_col.notin_(hidden_subq))
+
+    stmt = stmt.order_by(latest_updated.desc(), batch_col.asc())
+
+    return [str(row[0]) for row in db.execute(stmt).all() if row[0]]
+
+
+def hide_shipment_batch(
+    db: Session,
+    *,
+    operator: str,
+    project_id: int,
+    country: str,
+    shipment_batch: str,
+) -> None:
+    """把指定 (operator, project, country, shipment_batch) 标记为隐藏。
+
+    幂等：重复调用不会产生重复行（依赖 uq_shipment_batch_dropdown_hidden_scope）。
+    不修改 shipment_schedules 表数据。
+    """
+    if not operator:
+        raise ValueError("operator 不能为空")
+
+    normalized_country = normalize_country(country)
+    batch = normalize_text_value(shipment_batch, max_length=100)
+    if not batch:
+        raise ValueError("shipment_batch 不能为空")
+
+    existing = (
+        db.query(ShipmentBatchDropdownHidden)
+        .filter(
+            ShipmentBatchDropdownHidden.operator == operator,
+            ShipmentBatchDropdownHidden.project_id == project_id,
+            ShipmentBatchDropdownHidden.country == normalized_country,
+            ShipmentBatchDropdownHidden.shipment_batch == batch,
+        )
+        .one_or_none()
+    )
+    if existing is not None:
+        return
+
+    db.add(
+        ShipmentBatchDropdownHidden(
+            operator=operator,
+            project_id=project_id,
+            country=normalized_country,
+            shipment_batch=batch,
+        )
+    )
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
 
 
 # ============================================================

@@ -4,16 +4,19 @@
 - 仅返回当前 project_id + country 下的非空去重批次
 - 过滤掉 NULL 批次
 - 过滤掉其它项目/国家的批次
-- 按批次名升序
+- 按 MAX(updated_at) DESC 排序
+- 过滤掉当前 operator 已隐藏的批次
 """
 from __future__ import annotations
+
+import datetime as dt
 
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.session import Base
-from app.models import Project, ShipmentSchedule
+from app.models import Project, ShipmentBatchDropdownHidden, ShipmentSchedule
 from app.services.shipment.schedule import list_shipment_batches
 
 import app.models  # noqa: F401  触发所有模型注册到 Base.metadata
@@ -29,7 +32,7 @@ def db_session() -> Session:
 
     Base.metadata.create_all(
         engine,
-        tables=[Project.__table__, ShipmentSchedule.__table__],
+        tables=[Project.__table__, ShipmentSchedule.__table__, ShipmentBatchDropdownHidden.__table__],
     )
     TestingSession = sessionmaker(bind=engine, autoflush=True, autocommit=False, future=True)
     session = TestingSession()
@@ -67,10 +70,20 @@ def _make_shipment(
             shipment_batch=shipment_batch,
         )
     )
+    db.flush()
+
+
+def _set_updated_at(db: Session, shipment_no: str, when: dt.datetime) -> None:
+    db.execute(
+        ShipmentSchedule.__table__.update()
+        .where(ShipmentSchedule.shipment_no == shipment_no)
+        .values(updated_at=when)
+    )
 
 
 def test_returns_distinct_non_null_batches_for_project_and_country(db_session: Session):
     project_a = _make_project(db_session, "项目A")
+    base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
     _make_shipment(
         db_session,
         project=project_a,
@@ -92,12 +105,16 @@ def test_returns_distinct_non_null_batches_for_project_and_country(db_session: S
         shipment_no="SHIP-3",
         shipment_batch="BATCH-2026Q2",
     )
+    _set_updated_at(db_session, "SHIP-1", base)
+    _set_updated_at(db_session, "SHIP-2", base + dt.timedelta(seconds=1))
+    _set_updated_at(db_session, "SHIP-3", base + dt.timedelta(seconds=2))
+    db_session.commit()
 
     batches = list_shipment_batches(
         db_session, project_id=project_a.id, country="US"
     )
 
-    assert batches == ["BATCH-2026Q1", "BATCH-2026Q2"]
+    assert batches == ["BATCH-2026Q2", "BATCH-2026Q1"]
 
 
 def test_excludes_null_batches(db_session: Session):
@@ -191,3 +208,62 @@ def test_normalizes_country_to_uppercase(db_session: Session):
     )
 
     assert batches == ["BATCH-1"]
+
+
+def test_excludes_batches_hidden_by_current_operator(db_session: Session):
+    project = _make_project(db_session, "项目A")
+    base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    _make_shipment(
+        db_session, project=project, country="US",
+        shipment_no="SHIP-1", shipment_batch="BATCH-A",
+    )
+    _make_shipment(
+        db_session, project=project, country="US",
+        shipment_no="SHIP-2", shipment_batch="BATCH-B",
+    )
+    _set_updated_at(db_session, "SHIP-1", base)
+    _set_updated_at(db_session, "SHIP-2", base + dt.timedelta(seconds=1))
+    db_session.add(
+        ShipmentBatchDropdownHidden(
+            operator="alice", project_id=project.id, country="US", shipment_batch="BATCH-A"
+        )
+    )
+    db_session.commit()
+
+    visible_alice = list_shipment_batches(
+        db_session, project_id=project.id, country="US", operator="alice"
+    )
+    visible_bob = list_shipment_batches(
+        db_session, project_id=project.id, country="US", operator="bob"
+    )
+
+    assert visible_alice == ["BATCH-B"]
+    assert visible_bob == ["BATCH-B", "BATCH-A"]
+
+
+def test_orders_batches_by_latest_updated_at_desc(db_session: Session):
+    project = _make_project(db_session, "项目A")
+    base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+    rows = [
+        ("SHIP-OLD", "BATCH-OLD", base),
+        ("SHIP-MID", "BATCH-MID", base + dt.timedelta(days=2)),
+        ("SHIP-NEW", "BATCH-NEW", base + dt.timedelta(days=5)),
+    ]
+    for no, batch, ts in rows:
+        _make_shipment(
+            db_session, project=project, country="US",
+            shipment_no=no, shipment_batch=batch,
+        )
+        db_session.flush()
+        db_session.execute(
+            ShipmentSchedule.__table__.update()
+            .where(ShipmentSchedule.shipment_no == no)
+            .values(updated_at=ts)
+        )
+    db_session.commit()
+
+    batches = list_shipment_batches(
+        db_session, project_id=project.id, country="US"
+    )
+
+    assert batches == ["BATCH-NEW", "BATCH-MID", "BATCH-OLD"]
