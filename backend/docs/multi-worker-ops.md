@@ -1,13 +1,13 @@
 # 多 Worker 运维手册
 
-> 适用于 BEL-55-P4 落地后的所有环境（staging / production）。
+> 适用于 Celery + Redis 多 worker 落地后的所有环境（staging / production）。
 > 阅读对象：值班 SRE、运维、产品开发。
 > 与之相关的 issue：[BEL-72](mention://issue/00d5c284-a29f-4581-8a97-021e3ca37455) · 父 issue：[BEL-55](mention://issue/ede9a089-8b45-4da8-b3b4-934b7d652f15)
 
 本文档覆盖引入 Celery + Redis 多 worker 之后，日常运维最常触达的 5 件事：
 
 1. 启停 `believeboy-worker.service`
-2. 访问 flower 面板查 worker / 队列 / 任务
+2. 查看队列 / 任务状态（CLI + 前端 Job 表）
 3. 队列堆积时的处置 SOP
 4. 把任务从 DLQ 拉回主队列
 5. 常见告警（worker 反复 OOM、任务长时间 running）的排查路径
@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
 | `deploy/systemd/believeboy-worker.service` | Celery worker（`-c 4`） | 消费 `default,reports,insights` 三个队列 |
-| `deploy/systemd/believeboy-flower.service` | Flower Web UI（basic auth） | 本机 `:5555`，Cloudflare 隧道转发 `flower.believeboy.com` |
+
 
 > **为什么只起一个 worker 进程？** `believeboy-worker.service` 用的是
 > `celery -A app.tasks.celery_app worker -c 4`：一个 worker **进程** + 4
@@ -60,74 +60,44 @@ sudo journalctl -u believeboy-worker -p err -n 100 --no-pager
 CELERY_WORKER_CONCURRENCY=8
 ```
 
-`sudo systemctl restart believeboy-worker` 即可生效。Flower 面板
-（Broker → Workers）会立即看到新 `concurrency`。
+`sudo systemctl restart believeboy-worker` 即可生效。用
+`celery -A app.tasks.celery_app inspect stats` 可立即看到新 `concurrency`。
 
 > 不要把单进程 `concurrency` 调到 `nproc × 2` 以上：CPU 切换 + DB 连
 > 接池会同时打满。VPS 升配后优先调 `CELERY_WORKER_CONCURRENCY`，
 > 而不是手动加 worker 进程。
 
-## 2. Flower 面板
+## 2. 查看队列 / 任务状态
 
-### 2.1 访问入口
+Flower 监控面板已移除（冗余：任务状态已由 Job 表 + 前端轮询完整覆盖）。日常查
+worker / 队列 / 任务用以下手段：
 
-- **生产**：`https://flower.believeboy.com`（Cloudflare 隧道，TLS + basic auth 全链路加密，VPS 端口 5555 由 Cloudflare Tunnel 暴露）。
-- **直连本机（仅限 VPS 内部）**：`http://127.0.0.1:5555/`
-- **本地 dev**：`./run_worker.sh single` 起一个 worker，再
-  `celery -A app.tasks.celery_app flower --basic_auth=dev:dev` 临时起
-  flower，然后用 `http://127.0.0.1:5555` + `dev / dev` 登录。
+### 2.1 worker 是否在线（CLI）
 
-用户名固定为 `flower_admin`（在 systemd 单元里 hardcode 了），密码在
-`/root/believeboyDashboard/backend/.env` 的 `FLOWER_PASSWORD=` 读取。
-**不要把这个密码贴到 issue / Slack**，需要给同事开权限时让运维直接
-ssh 到 VPS 上加新的 `basic_auth=` 段（更稳的方案是接公司 SSO，但当前
-issue 不在范围内）。
+```bash
+# worker 进程在不在
+systemctl status believeboy-worker
+ps -ef | grep -E "celery -A app.tasks" | grep -v grep
 
-> **Cloudflare 隧道配置**：VPS 上通过 `cloudflared` 将 `localhost:5555`
-> 映射到 `flower.believeboy.com`。basic auth 由 Flower 后端校验，
-> Cloudflare 层不做额外 auth，否则会要求两次 basic auth。
-> TLS 证书由 Cloudflare 自动签发（当前 issuer: Google Trust Services WE1，
-> 有效期至 2026-08-26，到期自动续期）。
+# 用 celery inspect 看在线 worker + 并发 + 当前活跃任务
+cd /root/believeboyDashboard/backend && source .venv/bin/activate
+celery -A app.tasks.celery_app inspect active
+celery -A app.tasks.celery_app inspect stats
+```
 
-### 2.2 面板里要看哪几个 tab
+### 2.2 队列长度（redis-cli）
 
-| Tab | 看什么 | 关键指标 |
-| --- | --- | --- |
-| **Dashboard** | 整体吞吐 | Tasks/s、Active、Processed、Failed、Load Avg |
-| **Broker → Queues** | 各队列长度 | `ready` > 50 持续 5 分钟 = 堆积（见第 3 节） |
-| **Workers** | worker 进程列表 | Online 数量、Pool、Processed、Pool max concurrent |
-| **Tasks** | 单任务详情 | `Received → Started → Succeeded` 时序、args、result、traceback |
-| **Monitor** | 实时时间轴 | 与 Prometheus / Alertmanager 集成时用（本项目暂未接） |
+```bash
+# broker 在 REDIS_DB + 1（见 backend/app/core/config.py 的 _celery_broker_url_resolved）
+redis-cli -n <broker_db> LLEN reports
+redis-cli -n <broker_db> LLEN default
+redis-cli -n <broker_db> LLEN insights
+```
 
-### 2.3 Cloudflare 隧道（生产）
+### 2.3 任务级状态（前端 Job 表）
 
-Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置步骤：
-
-1. VPS 上安装 `cloudflared`（如果还没装）：
-   ```bash
-   # Debian / Ubuntu
-   curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-   echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
-   sudo apt update && sudo apt install cloudflared -y
-   ```
-
-2. 用 `cloudflared tunnel` 将 `localhost:5555` 映射到 `flower.believeboy.com`：
-   ```bash
-   # 临时测试（不持久化）
-   cloudflared tunnel --url http://127.0.0.1:5555
-
-   # 生产：已通过 Cloudflare Dashboard 配置持久化隧道
-   # tunnel name: believeboy-flower
-   # hostname: flower.believeboy.com
-   # service: http://127.0.0.1:5555
-   ```
-
-3. basic auth 由 Flower 后端校验（`--basic_auth=flower_admin:${FLOWER_PASSWORD}`），
-   Cloudflare 层不做额外 auth。TLS 证书由 Cloudflare 自动签发和续期。
-
-> **注意**：Cloudflare 隧道不需要开放 VPS 防火墙端口 5555 — 所有流量
-> 都走 `cloudflared` 的出站连接，VPS 只需要能访问外网即可。这比 nginx
-> 反代更安全（不需要暴露任何端口到公网）。
+任务级状态（pending / running / succeeded / failed）、失败 traceback、历史记录
+直接看前端任务列表（轮询 `GET /api/v1/jobs/:id`），不需要额外的监控面板。
 
 ## 3. 队列堆积 SOP
 
@@ -139,7 +109,7 @@ Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置�
 | `reports` | `ready > 100` | 月报 / 产品分析 / 返单分析 排队；**通常**= 月初 / 月末全量任务集中入队 |
 | `insights` | `ready > 30` | AI 洞察排队；**正常**，单条任务跑 30-90s，且 `MAX_CONCURRENT_INSIGHTS=3` |
 
-判定方式：Flower 的 `Broker → Queues` 页直接看，或者
+判定方式：用 `redis-cli -n <broker_db> LLEN <queue>` 直接看队列长度：
 `redis-cli -n <broker_db> LLEN <queue>`。
 
 ### 3.2 处置流程
@@ -167,7 +137,7 @@ Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置�
    横向扩 worker（见「横向扩展」一节）。
 
 3. **任务全部 `FAILURE`**：
-   - 进 flower `Tasks` 页按 `FAILURE` 过滤，挑一条点开看 `exception`。
+    - 进前端 Job 列表按 `FAILED` 过滤，挑一条点开看 `exception` / traceback。
    - 多半是 `RuntimeError: 报告数据缺失` / 数据库迁移没跑完。
      修完根因后**不需要**清队列：把同 id 的消息用 `requeue` 拉回即可
      （见第 4 节）。
@@ -190,13 +160,12 @@ Flower 通过 Cloudflare Tunnel 暴露到公网，无需 nginx 反代。配置�
 
 本项目目前**没有显式 DLQ**（Dead Letter Queue），但 Celery 5.4 默认
 对 ack 失败 / 超过 `max_retries` 的任务**不会自动进 DLQ**，而是把
-异常写进 `celery-task-meta-*` 然后丢弃。Flower 面板里的 `FAILURE` 状
+异常写进 `celery-task-meta-*` 然后丢弃。前端 Job 表的 `FAILED` 状态
 态就是事实源。
 
 ### 4.1 单条任务重新入队
 
-在 flower 的 `Tasks` 页找到目标任务的 UUID，点进去，页面右上角
-**「Requeue」** 按钮即可。重新入队的任务会**重新跑一遍完整 body**；
+在前端 Job 列表找到目标任务，用「重跑」按钮重新入队即可（也可用 CLI，见 4.2）。重新入队的任务会**重新跑一遍完整 body**；
 如果是幂等任务（带 `INSERT ... ON CONFLICT` / `JobRun` 状态机
 防重入）就安全，非幂等任务（写文件 / 触发外部 RPC）需要先确认不会
 产生重复副作用。
@@ -228,7 +197,7 @@ for ref in failed:
 PY
 ```
 
-挑出 id 后，逐个走 flower requeue；**不要写脚本自动 requeue
+挑出 id 后，逐个用前端「重跑」或 CLI 重新入队；**不要写脚本自动 requeue
 一切**——失败原因可能跨多种任务类型，批量放回只会把脏数据再喂一
 次 worker。
 
@@ -270,7 +239,7 @@ believeboy-worker.service: Main process exited, code=killed, status=9/KILL
 
 ### 5.2 任务长时间 `RUNNING`（超过 30 分钟）
 
-症状：flower `Tasks` 页里某条任务卡在 `STARTED` > 30min，worker
+症状：前端 Job 表里某条任务卡在 `RUNNING` > 30min，worker
 process 也一直没退。
 
 排查路径：

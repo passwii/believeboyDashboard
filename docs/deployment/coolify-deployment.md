@@ -41,11 +41,11 @@
    ║  │  │ Nixpacks build   │  │ Dockerfile build         │  │  ║
    ║  │  └──────────────────┘  └──────┬───────────────────┘  │  ║
    ║  │                               │                      │  ║
-   ║  │  ┌──────────────────┐  ┌──────▼──────────┐  ┌──────┐ │  ║
-   ║  │  │ celery-worker    │  │ celery-beat     │  │flower│ │  ║
-   ║  │  │ -Q default,      │  │ APScheduler     │  │ :5555│ │  ║
-   ║  │  │   reports,       │  │ (可选)          │  └──────┘ │  ║
-   ║  │  │   insights       │  └─────────────────┘           │  ║
+    ║  │  ┌──────────────────┐  ┌──────▼──────────┐ │  ║
+    ║  │  │ celery-worker    │  │ celery-beat     │ │  ║
+    ║  │  │ -Q default,      │  │ APScheduler     │ │  ║
+    ║  │  │   reports,       │  │ (可选)          │ │  ║
+    ║  │  │   insights       │                   │  ║
    ║  │  └────────┬─────────┘                                 │  ║
    ║  │           │                                           │  ║
    ║  │  ┌────────▼─────────┐  ┌──────────────────────────┐   │  ║
@@ -141,7 +141,6 @@ docker compose version
 | redis | 2 | 4 GB | 256 MB | maxmemory 2-3 GB |
 | backend（uvicorn） | 4 | 4 GB | 1 GB | workers=4 |
 | celery-worker | 4 | 4 GB | 1 GB | concurrency=8 |
-| celery-flower | 0.5 | 512 MB | 64 MB | 监控 UI |
 | frontend（next start） | 2 | 2 GB | 512 MB | 多副本可加 |
 | **小计 reserved** | | | **~5.5 GB** | |
 | **OS + 缓冲** | | | **~3 GB** | |
@@ -390,7 +389,7 @@ alembic upgrade head
 python -c "from app.db.session import engine; print(engine.connect())"
 ```
 
-## 7. 在 Coolify 上部署 Celery Worker + Flower
+## 7. 在 Coolify 上部署 Celery Worker
 
 ### 7.1 Celery Worker
 
@@ -409,21 +408,6 @@ celery -A app.tasks.celery_app worker \
 
 资源限制：CPU 4 / Memory 4 GB / Reservation 1 GB。
 
-### 7.2 Celery Flower（监控 UI）
-
-Coolify Dashboard → **New Resource** → **Application** → 同上 Git/Base Dir/Build。
-
-启动命令：
-
-```
-celery -A app.tasks.celery_app flower \
-  --port=5555 \
-  --broker=redis://:<REDIS_PWD>@believeboy-redis:6379/1
-```
-
-**特殊**：Flower 端口**不暴露公网**，只内网。如果想从浏览器看，给它加一个独立的 sub-domain 走 cloudflared tunnel（比如 `flower.believeboy.com`）或者通过前端 `/api/backend/*` 反代。
-
-资源限制：CPU 0.5 / Memory 512 MB / Reservation 64 MB。
 
 ## 8. 在 Coolify 上部署前端（Next.js）
 
@@ -567,7 +551,7 @@ GitHub 仓库 `passwii/believeboyDashboard` → **Settings** → **Webhooks** �
 | Events | **Just the push event** |
 | Active | ✅ |
 
-对 `believeboy-api`、`celery-worker`、`celery-flower` 重复上面步骤（每个 Coolify resource 独立 webhook）。
+对 `believeboy-api`、`celery-worker` 重复上面步骤（每个 Coolify resource 独立 webhook）。
 
 ### 10.3 验证
 
@@ -617,7 +601,7 @@ sudo systemctl status cloudflared
 | URL | `coolify-traefik:80`（Traefik 在 `coolify-infra` 网络里的服务名） |
 
 > **为什么是 `coolify-traefik:80` 而不是 `frontend:3200`？**
-> 因为 Traefik 负责基于 Host header 路由（dashboard.believeboy.com → frontend），让 Traefik 来分流比 cloudflared 直连 frontend 更灵活（以后加 flower / 其他子域名都走 Traefik）。
+> 因为 Traefik 负责基于 Host header 路由（dashboard.believeboy.com → frontend），让 Traefik 来分流比 cloudflared 直连 frontend 更灵活（以后加其他子域名都走 Traefik）。
 
 > **如何让 cloudflared 能解析 `coolify-traefik`？**
 > cloudflared 在 VPS 上跑，能访问 `127.0.0.1`，所以可以写：
@@ -679,7 +663,6 @@ sudo journalctl -u cloudflared -f
 
 - `dashboard.believeboy.com` —— 不需要在 CF 写 A 记录；Tunnel 自动处理
 - `*.preview.believeboy.com` —— 同上
-- `flower.believeboy.com`（如果启用）—— 同上
 
 ## 13. 备份策略
 

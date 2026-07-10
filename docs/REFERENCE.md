@@ -24,7 +24,7 @@
 - 后端：`require_api_key`（`app/core/security.py`）校验 `X-API-Key`；除 `/api/v1/health` 外全保护；请求级用户上下文来自 `X-Operator` / `X-User-Id`
 
 ### Background Jobs
-一次性 Python 进程，目录 `backend/app/tasks/scripts/`。本 VPS **未部署** Celery worker / Flower；Celery + Redis 可配但不启用。
+Celery worker 基于 Redis broker 运行（systemd `believeboy-worker.service`，消费 `default,reports,insights` 队列）。监控面板 Flower 已移除（冗余——任务状态走 Job 表 + 前端轮询，运维见 `backend/docs/multi-worker-ops.md`）。
 
 ### autoReportUpload
 独立 Python 服务（`autoReportUpload/`），监控目录自动识别并上传报表到后端，**不**直连 PostgreSQL——持久化走 FastAPI 内部端点 `/api/v1/internal/auto-report/{recognize,ingest,heartbeat}`，鉴权 `X-Internal-Token`（`INTERNAL_INGEST_TOKEN`）。改 schema / ingest 只动 `backend/app/services/internal_ingest.py` + `backend/app/schemas/internal.py`。

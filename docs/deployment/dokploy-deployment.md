@@ -41,11 +41,11 @@
    ║  │  │ Nixpacks build   │  │ Dockerfile build         │  │  ║
    ║  │  └──────────────────┘  └──────┬───────────────────┘  │  ║
    ║  │                               │                      │  ║
-   ║  │  ┌──────────────────┐  ┌──────▼──────────┐  ┌──────┐ │  ║
-   ║  │  │ celery-worker    │  │ celery-flower   │  │beat  │ │  ║
-   ║  │  │ -Q default,      │  │ :5555           │  │(可选)│ │  ║
-   ║  │  │   reports,       │  │ 监控 UI         │  └──────┘ │  ║
-   ║  │  │   insights       │  └─────────────────┘           │  ║
+    ║  │  ┌──────────────────┐  ┌──────┐ │  ║
+    ║  │  │ celery-worker    │  │beat  │ │  ║
+    ║  │  │ -Q default,      │  │(可选)│ │  ║
+    ║  │  │   reports,       │  └──────┘ │  ║
+    ║  │  │   insights       │           │  ║
    ║  │  └────────┬─────────┘                                 │  ║
    ║  │           │                                           │  ║
    ║  │  ┌────────▼─────────┐  ┌──────────────────────────┐   │  ║
@@ -154,7 +154,6 @@ docker compose version
 | redis | 2 | 4 GB | 256 MB |
 | backend | 4 | 4 GB | 1 GB |
 | celery-worker | 4 | 4 GB | 1 GB |
-| celery-flower | 0.5 | 512 MB | 64 MB |
 | frontend | 2 | 2 GB | 512 MB |
 | **总计 reserved** | | | **~5.5 GB** |
 | **OS + 缓冲** | | | **~3 GB** |
@@ -366,7 +365,7 @@ curl -s http://127.0.0.1:8100/api/v1/health
 alembic upgrade head
 ```
 
-## 7. 在 Dokploy 上部署 Celery Worker + Flower
+## 7. 在 Dokploy 上部署 Celery Worker
 
 ### 7.1 Celery Worker
 
@@ -380,16 +379,7 @@ Dokploy Dashboard → **Create Service** → **Application**：
 | Command Override | `celery -A app.tasks.celery_app worker -Q default,reports,insights -c 8 -l info` |
 | Resource | CPU 4 / Memory 4 GB |
 
-### 7.2 Celery Flower
-
-| 项 | 值 |
-|---|---|
-| Name | `believeboy-flower` |
-| Build | 同 backend |
-| Environment | 同 backend（最少需要 `CELERY_BROKER_URL`） |
-| Command Override | `celery -A app.tasks.celery_app flower --port=5555 --broker=redis://:<REDIS_PWD>@believeboy-redis:6379/1` |
-| Port | 5555（**Internal Only**） |
-| Resource | CPU 0.5 / Memory 512 MB |
+ |
 
 ## 8. 在 Dokploy 上部署前端（Next.js）
 
@@ -463,7 +453,7 @@ Dokploy 默认把所有 service 放进同一个 Docker network（叫 `dokploy-ne
 docker network ls
 # 应该看到 dokploy-network
 docker network inspect dokploy-network | jq '.[0].Containers[].Name'
-# 应该看到 believeboy-frontend, believeboy-api, believeboy-postgres, believeboy-redis, believeboy-worker, believeboy-flower
+# 应该看到 believeboy-frontend, believeboy-api, believeboy-postgres, believeboy-redis, believeboy-worker
 ```
 
 ### 9.2 通信路径
@@ -513,7 +503,7 @@ https://<DOKPLOY_HOST>/api/deploy/<app-id>
 - Events: Just the push event
 - Active: ✅
 
-对 `believeboy-api`、`believeboy-worker`、`believeboy-flower` 重复。
+对 `believeboy-api`、`believeboy-worker` 重复。
 
 ### 10.2 验证
 
