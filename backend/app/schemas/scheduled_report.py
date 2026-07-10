@@ -249,7 +249,7 @@ class LedgerItem(BaseModel):
     expected_at: datetime
     frequency: LedgerFrequencyValue
     subscription_id: int
-    email: str
+    email: Optional[str]
     project_ids: str
     project_names: list[str] = Field(default_factory=list)
     country: str
