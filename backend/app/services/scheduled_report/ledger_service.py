@@ -590,31 +590,31 @@ def resend_ledger_entry_async(
     else:
         effective_ai_model = getattr(subscription, "ai_model", None)
 
-    # 启动后台线程执行实际发送
-    import threading
-    from app.services.scheduled_report.dispatcher import _dispatch_one_async
+    # 派发到 Celery（切片 3）：复用与定时/手动 trigger 同一 task body，
+    # 通过 `pre_existing_log_id` 跳过 body 内 CREATE（这样前台能在
+    # `resend_ledger_entry_async` 返回时立刻拿到 `log.id` 轮询进度）。
+    # 旧路径 `_dispatch_one_async` 仍存在于 dispatcher.py 作回滚形态或
+    # 旧测试引用，但不再被新代码调用（M4 决议）。
+    from app.celery_tasks.scheduled_report import dispatch_one as dispatch_one_task
 
-    thread = threading.Thread(
-        target=_dispatch_one_async,
-        args=(
-            subscription.id,
-            subscription.email,
-            subscription.project_id_list or None,
-            subscription.country,
-            subscription.frequency,
-            effective_ai_model,
-            log.id,
-            ledger_key,
-            entry.expected_date,
-            entry.frequency,
-            False,
-            old_log_id,
-        ),
-        daemon=True,
+    async_result = dispatch_one_task.delay(
+        subscription_id=subscription.id,
+        email=subscription.email,
+        project_ids=subscription.project_id_list or None,
+        country=subscription.country,
+        frequency=subscription.frequency,
+        ai_model=effective_ai_model,
+        use_cache=False,
+        triggered_by="manual",
+        report_date=entry.expected_date,
+        pre_existing_log_id=log.id,
     )
-    thread.start()
 
-    return True, log.id, "processing", "补发任务已启动,请在台账中查看进度"
+    # 用 _async_result 与旧 log 截图清理（仅用于 observability；旧截图清理
+    # 仍由 task body / 后续任务推进时通过 SubscriptionService 完成）。
+    _ = async_result.id
+
+    return True, log.id, "processing", "补发任务已派发到 Celery scheduled 队列,请在台账中查看进度"
 
 
 def resend_ledger_entry(db: Session, *, ledger_key: str) -> tuple[bool, int | None, str, str]:

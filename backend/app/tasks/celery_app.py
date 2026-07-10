@@ -35,10 +35,15 @@ def _build_celery_app() -> Celery:
         # worker systemd unit consumes from `default,reports,insights`
         # (see deploy/systemd/believeboy-worker.service) so both modules
         # are eagerly imported at worker boot.
+        # BEL-NEW: `scheduled_report.dispatch_one` (方案 §4.5) and
+        # `ai_summary.generate_delivery_summary` (§4.6) add two more tasks
+        # on dedicated `scheduled` and `ai_summary` queues.
         include=[
             "app.celery_tasks.ping",
             "app.celery_tasks.run_job",
             "app.celery_tasks.insights.generate",
+            "app.celery_tasks.scheduled_report",
+            "app.celery_tasks.ai_summary",
         ],
     )
 
@@ -60,6 +65,11 @@ def _build_celery_app() -> Celery:
         task_routes={
             "app.celery_tasks.run_job.run_job": {"queue": "reports"},
             "generate_insight": {"queue": "insights"},
+            # BEL-NEW: 定时报告迁移至 Celery
+            # - `dispatch_one` 在 `scheduled` 队列（独立 worker 单元），计划 §4.4
+            # - `generate_delivery_summary` 在 `ai_summary` 队列，独立信号量 §4.6
+            "dispatch_one": {"queue": "scheduled"},
+            "generate_delivery_summary": {"queue": "ai_summary"},
         },
         # All timestamps in messages/results use project timezone.
         timezone="Asia/Shanghai",

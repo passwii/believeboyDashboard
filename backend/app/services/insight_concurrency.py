@@ -39,6 +39,16 @@ return redis.call('ZREM', key, token)
 
 DEFAULT_LEASE_SECONDS = 15 * 60
 
+# Per-bucket default maps a Redis semaphore name to the `Settings` field
+# that bounds its concurrency. Adding a new bucket = adding a row here +
+# a `max_concurrent_<name>` field on `Settings`. The lookup keeps the
+# original `max_concurrent_insights` default for any unknown bucket so
+# callers without a registered mapping still get a sane upper bound.
+_LIMIT_BY_NAME: dict[str, str] = {
+    "insights": "max_concurrent_insights",
+    "ai_summary": "max_concurrent_ai_summary",
+}
+
 
 
 @contextlib.contextmanager
@@ -54,9 +64,23 @@ def acquire_remote_semaphore(
     Returns a context manager yielding ``True`` when a slot was acquired and
     ``False`` when the timeout elapsed. Expired tokens are reclaimed on every
     acquire attempt, so a killed worker eventually frees its slot.
+
+    `max_concurrent` is explicit and overrides the bucket default below.
+    When omitted, the per-bucket default is taken from `Settings` via
+    `_LIMIT_BY_NAME`, so e.g. `acquire_remote_semaphore("ai_summary", ...)`
+    honours `Settings.max_concurrent_ai_summary` (方案 §4.6) and is
+    independent from `max_concurrent_insights`. Unknown buckets fall back
+    to `Settings.max_concurrent_insights` for backward compatibility.
     """
     settings = get_settings()
-    limit = max_concurrent or settings.max_concurrent_insights
+    if max_concurrent is None:
+        bucket_field = _LIMIT_BY_NAME.get(name)
+        if bucket_field is not None and hasattr(settings, bucket_field):
+            limit = getattr(settings, bucket_field)
+        else:
+            limit = settings.max_concurrent_insights
+    else:
+        limit = max_concurrent
     client = get_redis_client()
     key = f"semaphore:ai_insights:{name}"
     token = str(uuid.uuid4())

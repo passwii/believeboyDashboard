@@ -1,0 +1,23 @@
+[Unit]
+Description=Believeboy Celery scheduled-report worker (方案 §4.4)
+Documentation=https://github.com/passwii/believeboyDashboard/blob/main/docs/superpowers/plans/2026-07-10-scheduled-report-to-celery.md
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/backend
+EnvironmentFile=/root/believeboyDashboard/backend/.env
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
+          -A app.tasks.celery_app worker \
+          -Q scheduled -c 2 --loglevel=info
+Restart=always
+RestartSec=3
+
+# 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
+# `believeboy-worker.service` 负责。`-c 2` 是有意压低并发：高峰期
+# dispatch 触发后 11 个 daily 任务通过 `countdown=i*60` 错峰，2 路并发
+# 已经能稳定覆盖 P99 < 90s 的执行时长。
+
+[Install]
+WantedBy=multi-user.target

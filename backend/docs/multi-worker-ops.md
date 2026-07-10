@@ -17,7 +17,13 @@
 | 单元文件 | 作用 | 关键命令 |
 | --- | --- | --- |
 | `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
-| `deploy/systemd/believeboy-worker.service` | Celery worker（`-c 4`） | 消费 `default,reports,insights` 三个队列 |
+| `deploy/systemd/believeboy-worker.service` | 主 Celery worker（`-c 4`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
+| `deploy/systemd/believeboy-worker-scheduled.service` | 定时报告专用 worker（`-c 2`，BEL-NEW） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
+
+> **为什么新增 `scheduled` worker？** 方案 §4.4 的核心价值是**内存隔离**：
+> 定时报告带 Playwright headless 截图（约 200-400MB / 任务），OOM 时只
+> 杀死 scheduled 进程，不会拖垮手动月报所在的 reports / insights worker。
+> 副作用是 scheduled 单进程内 `_summary_cache` 全局共享（P1-3 / §4.3）。
 
 
 > **为什么只起一个 worker 进程？** `believeboy-worker.service` 用的是
@@ -108,6 +114,8 @@ redis-cli -n <broker_db> LLEN insights
 | `default` | `ready > 50` | ping / 通用任务积压；多半是 worker 全部挂掉 |
 | `reports` | `ready > 100` | 月报 / 产品分析 / 返单分析 排队；**通常**= 月初 / 月末全量任务集中入队 |
 | `insights` | `ready > 30` | AI 洞察排队；**正常**，单条任务跑 30-90s，且 `MAX_CONCURRENT_INSIGHTS=3` |
+| `scheduled`（新增） | `ready > 5` | 定时报告主体（数据 / 截图 / 发邮件）排队；若一直 > 5 看 `BEL-NEW` worker 进程是否在跑 |
+| `ai_summary`（新增） | `ready > 5` | 定时报告 AI 摘要排队；信号量上限 `MAX_CONCURRENT_AI_SUMMARY=5`（方案 §4.6） |
 
 判定方式：用 `redis-cli -n <broker_db> LLEN <queue>` 直接看队列长度：
 `redis-cli -n <broker_db> LLEN <queue>`。
