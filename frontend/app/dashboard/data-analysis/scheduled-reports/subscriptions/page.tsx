@@ -110,7 +110,7 @@ export default function SubscriptionsPage() {
       const ids = sub.project_ids === '*' ? [] : sub.project_ids.split(',').map(id => id.trim())
       if (!ids.includes(filterProject)) return false
     }
-    if (filterEmail.trim() && !sub.email.toLowerCase().includes(filterEmail.toLowerCase())) return false
+    if (filterEmail.trim() && !(sub.email || '').toLowerCase().includes(filterEmail.toLowerCase())) return false
     if (filterCountry !== 'all') {
       const subCountries = sub.country.split(',').map(c => c.trim().toUpperCase())
       if (!subCountries.includes(filterCountry.toUpperCase())) return false
@@ -331,8 +331,8 @@ export default function SubscriptionsPage() {
                             {sub.dispatch_hour.toString().padStart(2, '0')}:{sub.dispatch_minute.toString().padStart(2, '0')}{weekdayLabel}{dayLabel}
                           </TableCell>
                           <TableCell>
-                            <span className="text-muted-foreground truncate max-w-[160px] block" title={sub.email}>
-                              {sub.email}
+                            <span className="text-muted-foreground truncate max-w-[160px] block" title={sub.email || ''}>
+                              {sub.email || <span className="italic text-muted-foreground/70">未填写</span>}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -400,7 +400,7 @@ export default function SubscriptionsPage() {
                           <Badge key={c} variant="secondary" className="text-xs">{getCountryLabel(c)}</Badge>
                         ))}
                       </div>
-                      <div className="text-xs text-muted-foreground mb-3 truncate" title={sub.email}>{sub.email}</div>
+                      <div className="text-xs text-muted-foreground mb-3 truncate" title={sub.email || ''}>{sub.email || '未填写邮箱'}</div>
                       {sub.ai_model && <div className="text-xs text-muted-foreground mb-3">AI: {sub.ai_model}</div>}
                       <div className="flex gap-2">
                         {canManage && (

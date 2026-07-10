@@ -60,7 +60,7 @@ class ScheduledReportSubscription(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    email: Mapped[str] = mapped_column(String(256), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, comment="接收邮箱；留空则不发送邮件，仅生成报告")
     project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
     country: Mapped[str] = mapped_column(String(256), nullable=False, default="US")
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)

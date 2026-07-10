@@ -166,8 +166,8 @@ export function LedgerDayGroup({
                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                     {countryLabel}
                   </TableCell>
-                  <TableCell className="truncate text-xs text-muted-foreground" title={item.email}>
-                    {item.email}
+                  <TableCell className="truncate text-xs text-muted-foreground" title={item.email || ''}>
+                    {item.email || <span className="italic text-muted-foreground/70">未填写</span>}
                   </TableCell>
                   <TableCell>
                     <Badge className={cn('whitespace-nowrap text-[10px]', FREQUENCY_COLORS[item.frequency])}>

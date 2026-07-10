@@ -711,18 +711,20 @@ def _render_multi_country_monthly_html(
 # ── Email sender ─────────────────────────────────────────────────────────────
 
 
-def send_monthly_report_email(email: str, report_data: dict[str, Any], stage_callback=None) -> tuple[bool, str | None]:
-    """发送月报邮件。"""
+def send_monthly_report_email(email: str, report_data: dict[str, Any], stage_callback=None, skip_email: bool = False) -> tuple[bool, str | None]:
+    """发送月报邮件。
+
+    当 ``email`` 为空或 ``skip_email=True`` 时，仍渲染 HTML、生成截图并上传 R2，
+    但跳过实际的 Resend 发送（返回 ("skipped_email")）。
+    """
     from app.core.config import get_settings
 
     settings = get_settings()
-    if not settings.resend_api_key:
+    should_send = bool(email) and not skip_email
+    if should_send and not settings.resend_api_key:
         return False, "resend_api_key not configured"
 
     try:
-        import resend
-        resend.api_key = settings.resend_api_key
-
         project_name = report_data.get("project_name", "项目")
         month_label = report_data.get("month_label", "")
         report_date = report_data.get("report_date", "")
@@ -760,7 +762,7 @@ def send_monthly_report_email(email: str, report_data: dict[str, Any], stage_cal
 
         params: dict[str, Any] = {
             "from": settings.alert_from_email,
-            "to": [email],
+            "to": [email] if should_send else [],
             "subject": subject,
             "html": html,
         }
@@ -784,9 +786,15 @@ def send_monthly_report_email(email: str, report_data: dict[str, Any], stage_cal
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 
+        if not should_send:
+            logger.info("跳过 Resend 发送（email=%r skip_email=%s）", email, skip_email)
+            return True, "skipped_email"
+
         if stage_callback:
             from app.models.scheduled_report import DeliveryStage
             stage_callback(DeliveryStage.SENDING.value)
+        import resend
+        resend.api_key = settings.resend_api_key
         resp = resend.Emails.send(params)
         rid = resp.get("id", "")
         return True, rid

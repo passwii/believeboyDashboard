@@ -124,9 +124,51 @@ def test_update_project_ids_reject_non_numeric():
 
 
 # ---------------------------------------------------------------------------
-# TestEmailRequest
+# Email (optional) validation
 # ---------------------------------------------------------------------------
 
+def test_create_email_none_allowed():
+    """订阅邮箱可留空（None），调度时仅生成报告不发送邮件。"""
+    sub = SubscriptionCreate(frequency="daily", project_ids="*")
+    assert sub.email is None
+
+
+def test_create_email_empty_normalized_to_none():
+    sub = SubscriptionCreate(email="", frequency="daily", project_ids="*")
+    assert sub.email is None
+
+
+def test_create_email_stripped():
+    sub = SubscriptionCreate(email="  a@b.com  ", frequency="daily", project_ids="*")
+    assert sub.email == "a@b.com"
+
+
+def test_create_email_reject_invalid():
+    for bad in ("not-an-email", "a@b", "@b.com", "a@@b.com"):
+        with pytest.raises(ValidationError):
+            SubscriptionCreate(email=bad, frequency="daily", project_ids="*")
+
+
+def test_update_email_none_passthrough():
+    """Update 中 email=None 表示未提交，应原样放行（ORM 跳过）。"""
+    sub = SubscriptionUpdate()
+    assert sub.email is None
+
+
+def test_update_email_empty_normalized_to_none():
+    """Update 中 email="" 表示清空，归一为 None（ORM 会置 NULL）。"""
+    sub = SubscriptionUpdate(email="")
+    assert sub.email is None
+
+
+def test_update_email_stripped():
+    sub = SubscriptionUpdate(email="  a@b.com  ")
+    assert sub.email == "a@b.com"
+
+
+# ---------------------------------------------------------------------------
+# TestEmailRequest
+# ---------------------------------------------------------------------------
 
 def test_test_email_request_project_ids_normalized():
     req = TestEmailRequest(email="a@b.com", project_ids="15, 15 ,4")

@@ -901,20 +901,22 @@ def _render_multi_country_html(
 # ── Email sender ─────────────────────────────────────────────────────────────
 
 
-def send_scheduled_report_email(email: str, frequency: str, report_data: dict[str, Any], stage_callback=None) -> tuple[bool, str | None]:
+def send_scheduled_report_email(email: str, frequency: str, report_data: dict[str, Any], stage_callback=None, skip_email: bool = False) -> tuple[bool, str | None]:
     """
     Send scheduled report email via Resend.
     Returns (success, resend_id_or_error_message).
+
+    当 ``email`` 为空或 ``skip_email=True`` 时，仍渲染 HTML、生成截图并上传 R2，
+    但跳过实际的 Resend 发送（返回 ("skipped_email")）。
     """
     from app.core.config import get_settings
-    import resend
 
     settings = get_settings()
-    if not settings.resend_api_key:
+    should_send = bool(email) and not skip_email
+    if should_send and not settings.resend_api_key:
         return False, "resend_api_key not configured"
 
     try:
-        resend.api_key = settings.resend_api_key
 
         project_name = report_data.get("project_name", "项目")
         report_date = report_data.get("report_date", "")
@@ -951,7 +953,7 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
 
         params: dict[str, Any] = {
             "from": settings.alert_from_email,
-            "to": [email],
+            "to": [email] if should_send else [],
             "subject": subject,
             "html": email_html,
         }
@@ -975,9 +977,15 @@ def send_scheduled_report_email(email: str, frequency: str, report_data: dict[st
         except Exception as e:
             logger.warning("截图生成跳过: %s", e)
 
+        if not should_send:
+            logger.info("跳过 Resend 发送（email=%r skip_email=%s）", email, skip_email)
+            return True, "skipped_email"
+
         if stage_callback:
             from app.models.scheduled_report import DeliveryStage
             stage_callback(DeliveryStage.SENDING.value)
+        import resend
+        resend.api_key = settings.resend_api_key
         resp = resend.Emails.send(params)  # type: ignore[assignment]
         rid = resp.get("id", "")
         return True, rid

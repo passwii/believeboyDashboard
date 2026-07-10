@@ -120,7 +120,10 @@ export function SubscriptionForm({
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               {/* 邮箱 + 测试按钮 inline */}
               <div className="md:col-span-2">
-                <label className="text-sm font-medium mb-1.5 block">邮箱地址</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  邮箱地址
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">（可选，留空仅生成报告不发送邮件）</span>
+                </label>
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
                     <Input

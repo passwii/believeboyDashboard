@@ -12,6 +12,22 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 MAX_PROJECT_IDS = 100
 
 
+def _normalize_email(v: str) -> str:
+    """归一化邮箱：strip 首尾空白；空串视为未填写（None）。
+
+    仅做轻量格式校验（必须包含 @ 且 @ 前后非空），不依赖 EmailStr 以免引入额外校验开销。
+    """
+    stripped = v.strip()
+    if not stripped:
+        return ""  # 空 → 归一为 ""，调用方据此置 NULL
+    if stripped.count("@") != 1:
+        raise ValueError("邮箱格式无效（需包含且仅包含一个 @）")
+    local, domain = stripped.split("@")
+    if not local or not domain or "." not in domain:
+        raise ValueError("邮箱格式无效（用户名或域名不完整）")
+    return stripped
+
+
 def _normalize_project_ids(v: str | None) -> str | None:
     """归一化 project_ids：
     - None / "" → "*"
@@ -48,7 +64,7 @@ def _normalize_project_ids(v: str | None) -> str | None:
 
 
 class SubscriptionCreate(BaseModel):
-    email: str = Field(..., max_length=256, description="接收报告的邮箱地址")
+    email: Optional[str] = Field(default=None, max_length=256, description="接收报告的邮箱地址；留空则不发送邮件，仅生成报告")
     project_ids: str = Field(default="*", max_length=500, description="项目 ID 列表，逗号分隔，* 表示全部")
     country: str = Field(default="US", max_length=256)
     frequency: str = Field(..., pattern="^(daily|weekly|monthly)$")
@@ -57,6 +73,13 @@ class SubscriptionCreate(BaseModel):
     dispatch_weekday: Optional[int] = Field(default=None, ge=0, le=6, description="周报发送日（0=周一..6=周日）")
     dispatch_day: Optional[int] = Field(default=None, ge=2, le=28, description="月报发送日（2-28）")
     ai_model: Optional[str] = Field(default=None, max_length=64, description="AI 摘要使用的模型，空则用默认模型")
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        return _normalize_email(v) or None
 
     @field_validator("project_ids")
     @classmethod
@@ -89,6 +112,13 @@ class SubscriptionUpdate(BaseModel):
     ai_model: Optional[str] = Field(default=None, max_length=64)
     enabled: Optional[bool] = None
 
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None  # 未提交，ORM 不动
+        return _normalize_email(v) or None
+
     @field_validator("project_ids")
     @classmethod
     def _validate_project_ids(cls, v: Optional[str]) -> Optional[str]:
@@ -110,7 +140,7 @@ class SubscriptionUpdate(BaseModel):
 class SubscriptionItem(BaseModel):
     id: int
     user_id: Optional[int]
-    email: str
+    email: Optional[str]
     project_ids: str
     country: str
     frequency: str
@@ -146,7 +176,7 @@ class DeliveryLogItem(BaseModel):
     frequency: str
     report_date: str
     report_month: Optional[str]
-    email: str
+    email: Optional[str]
     status: str
     stage: DeliveryStageValue = "pending"
     error_message: Optional[str]

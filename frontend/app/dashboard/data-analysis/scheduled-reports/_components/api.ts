@@ -101,7 +101,7 @@ export async function fetchSubscriptions(
 
 export async function createSubscription(
   data: {
-    email: string
+    email: string | null
     project_ids: string
     country: string
     frequency: Frequency
@@ -131,7 +131,7 @@ export async function createSubscription(
 export async function updateSubscription(
   id: number,
   data: {
-    email: string
+    email: string | null
     project_ids: string
     country: string
     frequency: Frequency

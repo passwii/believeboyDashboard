@@ -19,7 +19,7 @@ export type ResendStage =
 export interface Subscription {
   id: number
   user_id: number
-  email: string
+  email: string | null
   project_ids: string
   country: string
   frequency: Frequency
@@ -40,7 +40,7 @@ export interface LedgerItem {
   expected_at: string
   frequency: Frequency
   subscription_id: number
-  email: string
+  email: string | null
   project_ids: string
   project_names: string[]
   country: string

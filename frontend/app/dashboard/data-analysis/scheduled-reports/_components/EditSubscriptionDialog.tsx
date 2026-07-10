@@ -42,7 +42,7 @@ export function EditSubscriptionDialog({
 
   useEffect(() => {
     if (open && subscription) {
-      setFormEmail(subscription.email)
+      setFormEmail(subscription.email || '')
       setFormProjectIds(subscription.project_ids || '*')
       if (subscription.project_ids === '*' || !subscription.project_ids) {
         setFormSelectedProjectIds([])
@@ -82,15 +82,11 @@ export function EditSubscriptionDialog({
   }
 
   const handleSubmit = async () => {
-    if (!formEmail.trim()) {
-      setFormError('请填写邮箱地址')
-      return
-    }
     if (!subscription) return
     setFormSubmitting(true)
     setFormError(null)
     const result = await updateSubscription(subscription.id, {
-      email: formEmail,
+      email: formEmail.trim() || null,
       project_ids: formProjectIds || '*',
       country: formCountries.join(','),
       frequency: formFrequency,

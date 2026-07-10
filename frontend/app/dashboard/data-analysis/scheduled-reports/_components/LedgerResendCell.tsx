@@ -88,7 +88,8 @@ export function LedgerResendCell({
         <div className="space-y-2">
           <div className="text-sm font-medium">{actionLabel}报告</div>
           <p className="text-xs text-muted-foreground">
-            临时选择本次执行使用的 AI 模型（不影响订阅的默认模型设置）
+            重新生成报告（数据 / 截图 / AI 摘要），不会发送邮件。
+            临时选择本次执行使用的 AI 模型（不影响订阅的默认模型设置）。
           </p>
           <div>
             <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>

@@ -89,7 +89,10 @@ def update_subscription(
         return None
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if value is not None:
+        if key == "email":
+            # 允许显式清空邮箱（置 NULL）；其他字段仍跳过 None 值
+            setattr(subscription, key, value)
+        elif value is not None:
             setattr(subscription, key, value)
     db.commit()
     db.refresh(subscription)

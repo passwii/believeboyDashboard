@@ -67,14 +67,10 @@ export function CreateSubscriptionDialog({
   }
 
   const handleSubmit = async () => {
-    if (!formEmail.trim()) {
-      setFormError('请填写邮箱地址')
-      return
-    }
     setFormSubmitting(true)
     setFormError(null)
     const result = await createSubscription({
-      email: formEmail,
+      email: formEmail.trim() || null,
       project_ids: formProjectIds || '*',
       country: formCountries.join(','),
       frequency: formFrequency,

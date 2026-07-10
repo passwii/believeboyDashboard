@@ -698,12 +698,14 @@ def _dispatch_one(
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
         _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
+        # 订阅未填写邮箱时仅生成报告（数据/截图/AI 摘要），跳过 Resend 发送
+        skip_email = not bool(email)
         if frequency == "monthly":
-            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage, skip_email=skip_email)
         elif frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage, skip_email=skip_email)
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage, skip_email=skip_email)
 
         if success:
             # 先写入 status/screenshot，再把 stage 置为 done，避免前端轮询竞态。
@@ -1025,12 +1027,13 @@ def _dispatch_one_async(
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
         _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
+        # 补发（resend）按设计只重新生成报告、不发送邮件：强制 skip_email=True
         if frequency == "monthly":
-            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage, skip_email=True)
         elif frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage, skip_email=True)
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage)
+            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage, skip_email=True)
 
         if success:
             # 先更新 delivery_log 的 status='sent'（在 stage='done' 之前！）
