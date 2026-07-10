@@ -1039,3 +1039,31 @@ git commit -m "test(客服交流): 页面渲染冒烟测试"
 **3. 类型一致性**：`ScenarioSummary` / `ScenarioField` / `ToneOption` 在 `lib/server/ai-chat.ts` 定义，`customer-service-client` / `input-pane` / `tone-card` / 测试统一从此导入；`useChatStream` 的 `ChatStreamOptions` 新增字段与路由 body 字段名一致（scenarioId/toneId/language/length）；`buildUserContent` 签名在测试与 ToneCard 中一致。
 
 **4. 范围**：单计划可独立产出可工作软件；邮件撰写仅占位，不做实现，符合 v1 范围。
+
+---
+
+## 复盘 / 评审记录
+
+> 2026-07-10 由 opencode 按 chinese-code-review 规范评审（代码已落地，git `3f828c76`）。
+> 完整评审笔记见 `.agent-contexts/cs-plan-review/REVIEW.md`。本段保留计划原文，列出评审结论与已处置项。
+
+### 已修复（代码级，commit `aaa959ca`）
+
+- **[必须修复] 场景校验漏洞**：`validateScenarioIds` 原本对 disabled 场景（如 `email-compose`）返回 `true`，攻击者篡改请求 body 可绕过占位语义。已改为 `scenario.disabled` 时直接返回 `false`，并补两条测试。
+- **[必须修复] 弱类型**：`ScenarioPreset.icon?: string` 改为 `icon?: LucideIcon`（复用 `sidebar-config.ts` 既有约定），`MessagesSquare` / `Mail` 改为直接引用 icon 组件而非字符串字面量。
+- **[必须修复] eslint-disable 反模式**：`ToneCard` 用 `latestRef` 快照模式取代 `// eslint-disable-next-line react-hooks/exhaustive-deps`，`generate` 的 useCallback 仅依赖稳定的 `send`，effect 依赖数组 `[generateToken, generate]` 收敛且无禁用注释。
+
+### 计划文档层建议（供后续计划参考，非本计划缺陷）
+
+- **[建议修改] 任务 6 步骤 4 自相矛盾**：原文"预期 build 通过"与"会报找不到模块"冲突。本计划已按"仅 lint 确认类型，完整 build 推迟到任务 8 步骤 2"执行，无遗留。
+- **[建议修改] 自检段缺证据**：当前写的是结论式断言，建议后续计划改为"命令 + 输出 / file:line 引用"形式。
+- **[建议修改] 缺已知限制 / Out of scope 段**：本计划 v1 明确不做的项（邮件撰写实现、话术库、历史存档、多轮对话、i18n、后端改动）实际已落在各任务中，但未独立成段。后续计划建议单列。
+- **[建议修改] 缺回滚 / 灰度段**：本计划改动向后兼容（新参数字段 optional、无 DB migration），但应显式声明。
+- **[建议修改] 缺性能 / 成本 / 限流决策**：3 张 ToneCard 并发生成 = 3× token，每次新建 conversation；前端按钮已 `disabled` 防重叠、后端内部 `abort` 取消旧流，但计划未记录此设计意图。
+- **[建议修改] 验收清单仅 happy path**：缺错误态 / 边界（超大输入、断网、401/429/500）/ 无障碍验证项。
+- **[建议修改] 任务依赖图缺失**：2/3/4 可并行（需多 worktree），6/7/8 顺序且互相引用，建议在"文件结构"后补 ASCII 依赖图。
+- **[建议修改] 整段实现代码嵌 plan 易 drift**：建议后续计划用 file:line 引用 + 关键片段，而非全量粘贴。
+- **[建议修改] commit 粒度**：执行时 6/7/8 已 squash 为单 commit（见 `3f828c76`），建议在计划顶部声明"中间 commit 为过程产物，合并时 squash"。
+- **[建议修改] 测试断言 `'资深'` 脆弱**：耦合到 `systemPrompt` 字面量，建议改用业务契约字符串（如 `结论先行`）。
+- **[建议修改] `git add` 路径含 `[]`**：建议用单引号整路径包裹，避免 `\[` 转义。
+- **[仅供参考]** 既有 hook 的 `BEL-81.B` 等 ticket 引用应在计划内补一句上下文说明。
