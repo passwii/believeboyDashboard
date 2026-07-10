@@ -73,6 +73,7 @@ from app.models.pricing_calculation_snapshot import (
 from app.models.shop_calculation import ShopCalculation
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.shipment_sku_summary import ShipmentSkuSummary
+from app.models.shipment_batch_dropdown_hidden import ShipmentBatchDropdownHidden
 from app.models.report_upload_status import ReportUploadStatus
 from app.models.report_upload_log import ReportUploadLog
 from app.models.auto_report_upload_log import AutoReportUploadLog
@@ -140,6 +141,7 @@ __all__ = [
     'ShipmentSchedule',
     'ShipmentScheduleItem',
     'ShipmentSkuSummary',
+    'ShipmentBatchDropdownHidden',
     'ReportUploadStatus',
     'ReportUploadLog',
     'AutoReportUploadLog',
