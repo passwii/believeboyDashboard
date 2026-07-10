@@ -596,15 +596,15 @@ def _dispatch_one(
     triggered_by: str = "auto",
     report_date: str | None = None,
 ) -> dict[str, Any]:
-    """Dispatch a single subscription: build data → send email → log result."""
-    result: dict[str, Any] = {
-        "subscription_id": subscription_id,
-        "email": email,
-        "success": False,
-        "skipped": False,
-        "error": None,
-    }
+    """原 API 行为（保留 P2-8 回滚安全网）。
 
+    入口做两件事：
+    1) 模块全局同步（用 `date.today()`）— 旧路径兼容（thread path 默认 today_str）
+    2) 委托给共享主体 `_dispatch_one_task_body(...)`
+
+    manual_log / P0-3 幂等检查全部位于 `_dispatch_one_task_body` 入口，
+    旧路径与新 Celery 路径共享同一段业务逻辑，包括 ai_summary Celery 派发。
+    """
     # 自动调度路径（scheduler._run_minutely_scan → _dispatch_subscriptions → 本函数）
     # 不会经过 dispatch_reports()，所以这里的 _dispatch_date_str 和 _summary_cache
     # 不会自动初始化。如果跨天直接复用昨天的全局状态，就会让今天的报告命中昨天的
@@ -617,7 +617,54 @@ def _dispatch_one(
             _summary_cache.clear()
         _dispatch_date_str = today_str
 
-    report_date_key = report_date or today_str
+    return _dispatch_one_task_body(
+        subscription_id=subscription_id,
+        email=email,
+        project_ids=project_ids,
+        country=country,
+        frequency=frequency,
+        ai_model=ai_model,
+        use_cache=use_cache,
+        triggered_by=triggered_by,
+        report_date=report_date,
+    )
+
+
+def _dispatch_one_task_body(
+    subscription_id: int,
+    email: str,
+    project_ids: list[int] | None,
+    country: str,
+    frequency: str,
+    ai_model: str | None = None,
+    use_cache: bool = True,
+    triggered_by: str = "auto",
+    report_date: str | None = None,
+) -> dict[str, Any]:
+    """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要派发。
+
+    调用方契约（方案 P0 / 切片 2）：
+    - 调用方负责模块全局 `_dispatch_date_str` 与传入 `report_date` 对齐；body 内部不触碰全局。
+    - 调用方负责 P0-2/P0-3 行级锁前置（在并发 task 入口加速挡；单调用方不阻塞）。
+    - body 入口做 `find_successful_manual_log` 业务跳过判定 + 创建 delivery_log。
+
+    该函数被两块入口共享：
+    - `_dispatch_one`（旧 ThreadPoolExecutor 路径，P2-8 回滚安全网）
+    - `app.celery_tasks.scheduled_report.dispatch_one_task`（新 Celery 路径）
+
+    末尾 AI 摘要派发走 `app.celery_tasks.ai_summary.generate_delivery_summary.delay(...)`
+    （方案 §4.6 / 切片 2）：两条入口都自动获得 ai_summary Celery 化。
+    """
+    result: dict[str, Any] = {
+        "subscription_id": subscription_id,
+        "email": email,
+        "success": False,
+        "skipped": False,
+        "error": None,
+    }
+
+    report_date_key = report_date or date.today().isoformat()
+
     db = SessionLocal()
     try:
         if triggered_by == "auto":
@@ -729,12 +776,16 @@ def _dispatch_one(
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
 
-            # AI 摘要改为后台异步生成，不阻塞截图/发送主任务。
+            # AI 摘要改为后台异步生成（Celery ai_summary 队列，方案 §4.6）。
             try:
-                from app.services.scheduled_report.ledger_service import enqueue_ai_summary_generation
-                enqueue_ai_summary_generation(db=db, log_id=log_id, override_ai_model=ai_model)
+                from app.celery_tasks.ai_summary import generate_delivery_summary
+                generate_delivery_summary.delay(
+                    log_id=log_id,
+                    ledger_key=None,
+                    override_ai_model=ai_model,
+                )
             except Exception as sum_err:
-                logger.warning("启动 delivery log ai_summary 后台任务失败: %s", sum_err)
+                logger.warning("启动 delivery log ai_summary Celery task 失败: %s", sum_err)
 
             update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
             result["success"] = True
