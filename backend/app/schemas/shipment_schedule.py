@@ -26,7 +26,6 @@ class ShipmentScheduleListItem(BaseModel):
     total_chargeable_weight_kg: float
     logistics_total_price: float
     include_in_history_shipping_calc: bool
-    items: list[ShipmentScheduleItemRow]
     updated_at: str
     shipment_batch: str | None = None
 
