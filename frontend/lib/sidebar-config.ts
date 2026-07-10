@@ -179,12 +179,18 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]',
  items: [
  { title: '销售数据', url: '/dashboard/data-analysis/daily-analysis', icon: IconMap.TrendingUp },
- {
- title: '广告分析',
- url: '/dashboard/data-analysis/ad-analysis/overview',
- matchPrefixes: ['/dashboard/data-analysis/ad-analysis'],
- icon: IconMap.BarChart3,
- },
+  {
+  title: '广告分析',
+  url: '/dashboard/data-analysis/ad-analysis/overview',
+  matchPrefixes: ['/dashboard/data-analysis/ad-analysis'],
+  icon: IconMap.BarChart3,
+  },
+  {
+  title: '广告数据',
+  url: '/dashboard/data-analysis/ad-data',
+  matchPrefixes: ['/dashboard/data-analysis/ad-data'],
+  icon: IconMap.Database,
+  },
  { title: '月度财务分析', url: '/dashboard/data-analysis/financial-data', icon: IconMap.DollarSign },
  { title: '按周产品分析', url: '/dashboard/data-analysis/weekly-product-analysis', icon: IconMap.BarChart3 },
  { title: '库存分析', url: '/dashboard/data-analysis/inventory-analysis', icon: IconMap.Warehouse },
