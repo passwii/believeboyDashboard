@@ -15,6 +15,7 @@ from app.services.shipment.schedule import (
     create_shipment_schedule,
     delete_shipment_schedule,
     get_shipment_schedule_detail,
+    hide_shipment_batch,
     import_shipment_schedules_from_csv,
     list_shipment_batches,
     list_shipment_fba_box_details,
@@ -44,6 +45,7 @@ __all__ = [
     "summarize_shipment_schedule_costs",
     "import_shipment_schedules_from_csv",
     "list_shipment_batches",
+    "hide_shipment_batch",
     "list_shipment_fba_box_details",
     # item.py
     "replace_shipment_schedule_items_from_csv",

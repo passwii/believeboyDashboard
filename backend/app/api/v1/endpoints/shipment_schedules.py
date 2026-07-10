@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
 from app.schemas.shipment_schedule import (
+    ShipmentBatchHiddenDeleteRequest,
     ShipmentCostCalculateRequest,
     ShipmentFbaBoxDetailItem,
     ShipmentFbaBoxDetailResponse,
@@ -467,9 +468,52 @@ def list_shipment_batches(
         db, project_id, operator=operator, is_admin=bool(is_admin)
     )
     batches = shipment_schedule_service.list_shipment_batches(
-        db, project_id=project_id, country=country
+        db, project_id=project_id, country=country, operator=operator
     )
     return {"batches": batches}
+
+
+@router.delete(
+    "/shipment-schedules/batches/hidden",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def hide_shipment_batch(
+    payload: ShipmentBatchHiddenDeleteRequest,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> Response:
+    if not operator:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="缺少操作者信息"
+        )
+
+    project_service.ensure_project_access(
+        db, payload.project_id, operator=operator, is_admin=bool(is_admin)
+    )
+
+    shipment_schedule_service.hide_shipment_batch(
+        db,
+        operator=operator,
+        project_id=payload.project_id,
+        country=payload.country,
+        shipment_batch=payload.shipment_batch,
+    )
+    append_operation_audit_log(
+        db,
+        action="shipment_schedules.batches.hide",
+        target_type="shipment_batch_dropdown_hidden",
+        operator=operator,
+        after={
+            "project_id": payload.project_id,
+            "country": payload.country,
+            "shipment_batch": payload.shipment_batch,
+        },
+        request=request,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/shipment-schedules/{schedule_id}", response_model=ShipmentScheduleDetail)

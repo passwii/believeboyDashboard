@@ -209,3 +209,9 @@ class ShipmentFbaBoxDetailResponse(BaseModel):
     countries: list[str]
     shipment_nos: list[str]
     items: list[ShipmentFbaBoxDetailItem]
+
+
+class ShipmentBatchHiddenDeleteRequest(BaseModel):
+    project_id: int = Field(gt=0)
+    country: str = Field(min_length=2, max_length=8)
+    shipment_batch: str = Field(min_length=1, max_length=100)
