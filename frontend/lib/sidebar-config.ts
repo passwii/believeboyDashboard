@@ -32,6 +32,9 @@ import {
   Users,
   Warehouse,
   Zap,
+  Handshake,
+  Target,
+  Settings as SettingsIcon,
 } from 'lucide-react'
 
 /**
@@ -100,6 +103,9 @@ const IconMap = {
   ChartColumnBig,
   Bell,
   CalendarRange,
+  Handshake,
+  Target,
+  SettingsIcon,
 }
 
 // ===========================7 个外层分组（最终定义） ===========================
@@ -118,7 +124,26 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
  ],
  },
 
- //2. AI面板（所有角色）
+ //2. CRM 业务（所有角色，D1/D2/D19/D20）
+ {
+ id: 'crm',
+ label: 'CRM 业务',
+ icon: IconMap.Handshake,
+ accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+ activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0b0]',
+ items: [
+ { title: '客户', url: '/dashboard/crm/customers', icon: IconMap.Users,
+ matchPrefixes: ['/dashboard/crm/customers', '/dashboard/crm/sea'] },
+ { title: '线索', url: '/dashboard/crm/leads', icon: IconMap.Sparkles,
+ matchPrefixes: ['/dashboard/crm/leads'] },
+ { title: '商机', url: '/dashboard/crm/opportunities', icon: IconMap.Target,
+ matchPrefixes: ['/dashboard/crm/opportunities'] },
+ { title: 'CRM 设置', url: '/dashboard/crm/settings', icon: IconMap.SettingsIcon,
+ roles: ['admin'] },
+ ],
+ },
+
+ //3. AI面板（所有角色）
  {
  id: 'ai',
  label: 'AI面板',

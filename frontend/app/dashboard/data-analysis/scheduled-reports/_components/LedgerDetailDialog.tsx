@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, RotateCcw, Sparkles, Square } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -89,7 +89,20 @@ export function LedgerDetailDialog({
   const fallbackModel = item ? (sub?.ai_model || modelConfig?.defaultModel || '') : ''
   const canTrigger = !!item && (canTriggerResend || item.can_resend)
   const canRegenerateSummary = !!item && canTriggerResend && item.status === 'sent'
-  const summaryActionLabel = item?.ai_summary ? '重新生成摘要' : '补充 AI 摘要'
+  const summaryInFlight = !regeneratingAiSummary && !!item && (
+    item.ai_summary_status === 'generating'
+    || item.ai_summary_status === 'pending'
+  )
+  // 补发（resend）场景下 AI 摘要偶尔会卡在「生成中」状态（同进程的 daemon
+  // 线程被异常 kill 或后端重启后无人接手）。此时用户应当能「打断 + 重新
+  // 生成」，而不是干等轮询超时——这是该 affordance 的来由。
+  const summaryActionLabel = summaryInFlight
+    ? '打断并重新生成'
+    : regeneratingAiSummary
+      ? '打断中…'
+      : item?.ai_summary
+        ? '重新生成摘要'
+        : '补充 AI 摘要'
 
   useEffect(() => {
     if (summaryModelOpen) setSummaryModel(fallbackModel)
@@ -321,23 +334,31 @@ export function LedgerDetailDialog({
                             <PopoverTrigger asChild>
                               <button
                                 type="button"
-                                disabled={regeneratingAiSummary || item.ai_summary_status === 'generating' || isLoadingModelConfig}
+                                disabled={regeneratingAiSummary || isLoadingModelConfig}
                                 className="flex items-center gap-1 text-[11px] text-violet-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-violet-400"
                                 aria-label={summaryActionLabel}
                               >
-                                {regeneratingAiSummary || item.ai_summary_status === 'generating' ? (
+                                {regeneratingAiSummary ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : summaryInFlight ? (
+                                  <Square className="h-3 w-3" />
                                 ) : (
                                   <Sparkles className="h-3 w-3" />
                                 )}
-                                {regeneratingAiSummary || item.ai_summary_status === 'generating' ? '生成中' : summaryActionLabel}
+                                {regeneratingAiSummary
+                                  ? '打断中…'
+                                  : summaryInFlight
+                                    ? '打断并重新生成'
+                                    : summaryActionLabel}
                               </button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[280px] p-3" align="end">
                               <div className="space-y-2">
                                 <div className="text-sm font-medium">{summaryActionLabel}</div>
                                 <p className="text-xs text-muted-foreground">
-                                  只重新生成 AI 摘要，不会重新截图或发送邮件。
+                                  {summaryInFlight
+                                    ? '当前后台生成已卡住，会终止上一轮并启动新一轮 AI 摘要。不会重新截图或发送邮件。'
+                                    : '只重新生成 AI 摘要，不会重新截图或发送邮件。'}
                                 </p>
                                 <div>
                                   <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
@@ -386,13 +407,13 @@ export function LedgerDetailDialog({
                                   <Button
                                     size="sm"
                                     className="flex-1"
-                                    disabled={!summaryModel || regeneratingAiSummary || item.ai_summary_status === 'generating'}
+                                    disabled={!summaryModel || regeneratingAiSummary}
                                     onClick={() => {
                                       setSummaryModelOpen(false)
                                       onRegenerateAiSummary(item, summaryModel)
                                     }}
                                   >
-                                    确认生成
+                                    {summaryInFlight ? '打断并重新生成' : '确认生成'}
                                   </Button>
                                   <Button size="sm" variant="ghost" className="flex-1" onClick={() => setSummaryModelOpen(false)}>
                                     取消
@@ -441,12 +462,17 @@ export function LedgerDetailDialog({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={handleManualRefresh}
-                            disabled={manualRefreshing}
+                            onClick={() => {
+                              // 轮询超时 / 网络异常 → 一律走「打断并重新生成」，
+                              // 单纯刷新数据已经无法救出卡死的后台线程。
+                              setPollingState('idle')
+                              onRegenerateAiSummary(item, fallbackModel || null)
+                            }}
+                            disabled={regeneratingAiSummary}
                             className="text-violet-700 dark:text-violet-300"
                           >
-                            <RotateCcw className={cn('mr-1 h-3 w-3', manualRefreshing && 'animate-spin')} />
-                            立即刷新
+                            <RotateCcw className="mr-1 h-3 w-3" />
+                            打断并重新生成
                           </Button>
                         )}
                       </div>

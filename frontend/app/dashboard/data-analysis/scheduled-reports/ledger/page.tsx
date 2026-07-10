@@ -200,7 +200,20 @@ export default function LedgerPage() {
   }
 
   const handleRegenerateAiSummary = async (item: LedgerItem, overrideAiModel?: string | null) => {
-    setRegeneratingSummaryKeys(prev => new Set(prev).add(item.ledger_key))
+    // 防止重复点：若同一 ledger_key 已经在 regenerate 流程中，直接短路掉。
+    // （用户从台账「打断并重新生成」入口连点时尤其需要这层防护，避免后端
+    // 接连两次 enqueue 产生两个并行生成线程。）
+    let alreadyInFlight = false
+    setRegeneratingSummaryKeys(prev => {
+      if (prev.has(item.ledger_key)) {
+        alreadyInFlight = true
+        return prev
+      }
+      const next = new Set(prev)
+      next.add(item.ledger_key)
+      return next
+    })
+    if (alreadyInFlight) return
     mergeLedgerItem({
       ...item,
       ai_summary_status: 'generating',
@@ -215,6 +228,13 @@ export default function LedgerPage() {
         next.delete(item.ledger_key)
         return next
       })
+      // 把乐观更新的 'generating' 回滚到真实状态，避免 UI 一直停留在 spinning
+      try {
+        const fresh = await fetchLedgerItemByKey(item)
+        if (fresh) mergeLedgerItem(fresh)
+      } catch {
+        // 静默：notif 已告诉用户失败；UI 维持现状即可，下次轮询会修正
+      }
       notify({ type: 'error', title: 'AI 摘要生成失败', message: result.error || '未知错误' })
       return
     }
