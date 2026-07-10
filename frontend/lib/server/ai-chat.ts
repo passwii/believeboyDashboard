@@ -83,6 +83,9 @@ export function validatePromptPresetIds(overviewPromptId?: string | null, detail
 
 // =========================== ScenarioPreset（客服交流） ===========================
 
+import { Mail, MessagesSquare } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+
 export type ScenarioMode = 'refine' | 'compose'
 
 export type ScenarioFieldType = 'textarea' | 'text' | 'select'
@@ -109,7 +112,7 @@ export interface ScenarioPreset {
   label: string
   description: string
   mode: ScenarioMode
-  icon?: string
+  icon?: LucideIcon
   /** 基础指令：受众 / 视角 / 输出结构 */
   systemPrompt: string
   /** 左栏字段；refine 模式可结合 showFreeTextArea */
@@ -140,7 +143,7 @@ export const SCENARIO_PRESETS: ScenarioPreset[] = [
     label: '运营汇报话术',
     description: '亚马逊运营视角，向直属主管汇报数据与结论。',
     mode: 'refine',
-    icon: 'MessagesSquare',
+    icon: MessagesSquare,
     systemPrompt:
       '你是一名资深的亚马逊运营专家，擅长把运营数据转化为清晰、专业、有结论的汇报话术。受众是你的直属主管。请严格遵循结构：结论先行 → 数据支撑 → 风险/异常 → 下一步建议。',
     showFreeTextArea: true,
@@ -163,7 +166,7 @@ export const SCENARIO_PRESETS: ScenarioPreset[] = [
     label: '邮件撰写',
     description: '面向消费者的邮件拟定（即将上线）。',
     mode: 'compose',
-    icon: 'Mail',
+    icon: Mail,
     systemPrompt:
       '你是一名专业的客服邮件撰写者，擅长根据上下文为真实消费者拟定邮件。受众是消费者。',
     showFreeTextArea: false,
@@ -226,8 +229,9 @@ export function validateScenarioIds(
   scenarioId?: string | null,
   toneId?: string | null,
 ): boolean {
+  if (!scenarioId) return true
   const scenario = findScenarioPreset(scenarioId)
-  if (!scenario) return !scenarioId
+  if (!scenario || scenario.disabled) return false
   if (!toneId) return true
   return scenario.toneOptions.some((t) => t.id === toneId)
 }

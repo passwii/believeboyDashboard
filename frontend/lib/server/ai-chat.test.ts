@@ -35,4 +35,6 @@ describe('validateScenarioIds', () => {
   it('拒绝未知场景', () => expect(validateScenarioIds('ghost', null)).toBe(false))
   it('拒绝场景内未知语气', () => expect(validateScenarioIds('ops-report', 'ghost')).toBe(false))
   it('接受已知语气', () => expect(validateScenarioIds('ops-report', 'formal')).toBe(true))
+  it('拒绝 disabled 场景（无语气）', () => expect(validateScenarioIds('email-compose', null)).toBe(false))
+  it('拒绝 disabled 场景（带语气）', () => expect(validateScenarioIds('email-compose', 'formal')).toBe(false))
 })

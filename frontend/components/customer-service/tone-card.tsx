@@ -8,6 +8,17 @@ import { createConversation } from '@/lib/api/ai-chat'
 import { buildUserContent } from './build-prompt'
 import type { ScenarioField, ToneOption } from '@/lib/server/ai-chat'
 
+type GenerateInput = {
+  freeText: string
+  guidedFields: Record<string, string>
+  schema: ScenarioField[]
+  scenarioId: string
+  toneId: string
+  language: 'zh' | 'en'
+  length: 'brief' | 'standard' | 'detailed'
+  onStreamingChange: (v: boolean) => void
+}
+
 export function ToneCard({
   scenarioId,
   tone,
@@ -46,28 +57,62 @@ export function ToneCard({
   })
   const { send, isStreaming } = useChatStream(convIdRef, callbacksRef)
 
+  // 把所有 prop / state 同步到 latestRef，generate 内部读 ref 取最新值；
+  // 这样 generate 的 useCallback 只依赖稳定的 `send`，effect 也无需 disable。
+  const latestRef = useRef<GenerateInput>({
+    freeText,
+    guidedFields,
+    schema,
+    scenarioId,
+    toneId: tone.id,
+    language,
+    length,
+    onStreamingChange,
+  })
+  useEffect(() => {
+    latestRef.current = {
+      freeText,
+      guidedFields,
+      schema,
+      scenarioId,
+      toneId: tone.id,
+      language,
+      length,
+      onStreamingChange,
+    }
+  }, [freeText, guidedFields, schema, scenarioId, tone.id, language, length, onStreamingChange])
+
   const generate = useCallback(async () => {
+    const snap = latestRef.current
     setOutput('')
     setError(null)
     setDone(false)
-    onStreamingChange(true)
-    const content = buildUserContent({ freeText, guidedFields, schema })
+    snap.onStreamingChange(true)
+    const content = buildUserContent({
+      freeText: snap.freeText,
+      guidedFields: snap.guidedFields,
+      schema: snap.schema,
+    })
     const conv = await createConversation('客服交流')
     convIdRef.current = conv.id
     try {
-      await send(content, { scenarioId, toneId: tone.id, language, length })
+      await send(content, {
+        scenarioId: snap.scenarioId,
+        toneId: snap.toneId,
+        language: snap.language,
+        length: snap.length,
+      })
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       setError(e instanceof Error ? e.message : '生成失败')
-      onStreamingChange(false)
+      snap.onStreamingChange(false)
     }
-  }, [freeText, guidedFields, schema, scenarioId, tone.id, language, length, send, onStreamingChange])
+  }, [send])
 
   // generateToken 变化触发生成（>0 才触发）
   useEffect(() => {
     if (generateToken > 0) void generate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generateToken])
+  }, [generateToken, generate])
 
   const copy = () => {
     if (output) void navigator.clipboard.writeText(output)
