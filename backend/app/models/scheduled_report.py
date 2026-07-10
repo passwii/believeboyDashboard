@@ -119,7 +119,7 @@ class ScheduledReportDeliveryLog(Base):
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)
     report_date: Mapped[str] = mapped_column(String(20), nullable=False)
     report_month: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    email: Mapped[str] = mapped_column(String(256), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, comment="订阅邮箱快照；订阅留空时为 NULL")
     triggered_by: Mapped[str] = mapped_column(
         String(20), nullable=False, default="auto",
         comment="auto=自动调度, manual=人工补发/重跑",
@@ -167,7 +167,7 @@ class ScheduledReportLedgerEntry(Base):
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)
     expected_date: Mapped[str] = mapped_column(String(20), nullable=False)
     expected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    email: Mapped[str] = mapped_column(String(256), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, comment="订阅邮箱快照；订阅留空时为 NULL")
     project_ids: Mapped[str] = mapped_column(String(500), nullable=False, default="*")
     country: Mapped[str] = mapped_column(String(256), nullable=False, default="US")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=LedgerStatus.MISSING.value, index=True)
