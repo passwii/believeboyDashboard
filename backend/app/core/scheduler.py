@@ -105,7 +105,50 @@ def _run_minutely_scan() -> None:
 
 
 def _dispatch_subscriptions(frequency: str, subscriptions: list) -> None:
-    """Dispatch a pre-filtered list of subscriptions directly (bypass get_active_subscriptions query)."""
+    """Dispatch a pre-filtered list of subscriptions directly (bypass get_active_subscriptions query).
+
+    双分支（方案 §4.7 / 切片 3）：
+    - `SCHEDULED_REPORT_VIA_CELERY=true`：派每个订阅到
+      `app.celery_tasks.scheduled_report.dispatch_one.apply_async(...)`，
+      countdown=i*SPREAD_SECONDS 错峰；thread pool 不启动。
+    - `SCHEDULED_REPORT_VIA_CELERY=false`：保留 ThreadPoolExecutor 同步派发，
+      一行不动，方便 `SCHEDULED_REPORT_VIA_CELERY=false` 秒级回滚。
+    """
+    from app.core.config import get_settings
+
+    settings = get_settings()
+
+    if settings.scheduled_report_via_celery:
+        from datetime import date
+
+        from app.celery_tasks.scheduled_report import dispatch_one as dispatch_one_task
+
+        report_date_str = date.today().isoformat()
+        # Sort by sub.id so countdown determinism matches the documented ordering.
+        ordered = sorted(subscriptions, key=lambda s: s.id)
+        for i, sub in enumerate(ordered):
+            dispatch_one_task.apply_async(
+                kwargs={
+                    "subscription_id": sub.id,
+                    "email": sub.email,
+                    "project_ids": sub.project_id_list or None,
+                    "country": sub.country,
+                    "frequency": frequency,
+                    "ai_model": getattr(sub, "ai_model", None),
+                    "triggered_by": "auto",
+                    "report_date": report_date_str,
+                },
+                countdown=i * settings.scheduled_dispatch_spread_seconds,
+            )
+        logger.info(
+            "Hourly %s dispatch enqueued to Celery: %d task(s) spread=%ds each",
+            frequency,
+            len(ordered),
+            settings.scheduled_dispatch_spread_seconds,
+        )
+        return
+
+    # ----- 回滚形态：与改造前完全一致 ---------------------------------------
     from app.services.scheduled_report.dispatcher import _dispatch_one
 
     results: list[dict] = []

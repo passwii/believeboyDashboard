@@ -135,12 +135,15 @@ def dispatch_one(
     use_cache: bool = True,
     triggered_by: str = AUTO_TRIGGERED,
     report_date: str | None = None,
+    pre_existing_log_id: int | None = None,
 ) -> dict[str, Any]:  # noqa: F821 — local dict ok
     """Celery entry for the report dispatch body.
 
     Args mirror `_dispatch_one_task_body` plus the `report_date` injection
-    (P0-1 P0-3). `triggered_by` defaults to ``"auto"`` since APScheduler is
-    the primary caller; manual override is plumbed for the resend API.
+    (P0-1 P0-3) and `pre_existing_log_id` (resend path; bypassing CREATE so
+    the caller can hand back a log_id to the polling API immediately).
+    `triggered_by` defaults to ``"auto"`` since APScheduler is the primary
+    caller; manual override is plumbed for the resend API.
 
     See `tests/tasks/test_scheduled_report_celery.py` for the behaviour
     contract.
@@ -195,4 +198,5 @@ def dispatch_one(
         use_cache=use_cache,
         triggered_by=triggered_by,
         report_date=report_date,
+        pre_existing_log_id=pre_existing_log_id,
     )

@@ -218,6 +218,29 @@ def get_delivery_logs(
     return list(result.scalars().all()), total
 
 
+def get_subscription_by_id(
+    db: Session,
+    subscription_id: int,
+) -> ScheduledReportSubscription | None:
+    """Lookup a single subscription by primary key (baseline补 切片 3).
+
+    `dispatcher.dispatch_report_for_subscription` historically referenced
+    this helper but the implementation had drifted out of the module — it
+    was a broken import on every manual trigger call (admin button on the
+    ledger page). This file is the natural home; we use a plain
+    `db.get(...)` for speed and avoid surprises with eager loading.
+
+    Args:
+        subscription_id: primary key of the subscription row.
+
+    Returns:
+        The `ScheduledReportSubscription` row, or `None` if not found.
+        Callers (`dispatch_report_for_subscription`) treat `None` as the
+        "subscription not found" signal that surfaces a 404 to the API.
+    """
+    return db.get(ScheduledReportSubscription, subscription_id)
+
+
 def create_delivery_log(
     db: Session,
     subscription_id: int,

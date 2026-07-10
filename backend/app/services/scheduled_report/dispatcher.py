@@ -640,6 +640,7 @@ def _dispatch_one_task_body(
     use_cache: bool = True,
     triggered_by: str = "auto",
     report_date: str | None = None,
+    pre_existing_log_id: int | None = None,
 ) -> dict[str, Any]:
     """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要派发。
 
@@ -647,13 +648,17 @@ def _dispatch_one_task_body(
     - 调用方负责模块全局 `_dispatch_date_str` 与传入 `report_date` 对齐；body 内部不触碰全局。
     - 调用方负责 P0-2/P0-3 行级锁前置（在并发 task 入口加速挡；单调用方不阻塞）。
     - body 入口做 `find_successful_manual_log` 业务跳过判定 + 创建 delivery_log。
+    - `pre_existing_log_id`: 调用方在派发前已经创建好 delivery_log（例如 resend
+      路径为前端先返回 log_id 让轮询能立刻查到准备态）；传入时 body 跳过 CREATE
+      ，只 SELECT 该行继续推进（已 `triggered_by='manual'` 等同于"补发"语义）。
 
-    该函数被两块入口共享：
-    - `_dispatch_one`（旧 ThreadPoolExecutor 路径，P2-8 回滚安全网）
-    - `app.celery_tasks.scheduled_report.dispatch_one_task`（新 Celery 路径）
+    该函数被三块入口共享：
+    - `_dispatch_one`（旧 ThreadPoolExecutor 路径，P2-8 回滚安全网，不传 pre_log_id）
+    - `app.celery_tasks.scheduled_report.dispatch_one_task`（新 Celery 路径，定时 / 手动 trigger）
+    - `resend_ledger_entry_async`（新 Celery 路径 + pre_log_id，复用 P0-1/P0-2/P0-3 护栏）
 
     末尾 AI 摘要派发走 `app.celery_tasks.ai_summary.generate_delivery_summary.delay(...)`
-    （方案 §4.6 / 切片 2）：两条入口都自动获得 ai_summary Celery 化。
+    （方案 §4.6 / 切片 2）：三条入口都自动获得 ai_summary Celery 化。
     """
     result: dict[str, Any] = {
         "subscription_id": subscription_id,
@@ -693,17 +698,28 @@ def _dispatch_one_task_body(
                 db.close()
                 return result
 
-        log = create_delivery_log_with_stage(
-            db=db,
-            subscription_id=subscription_id,
-            frequency=frequency,
-            report_date=report_date_key,
-            report_month=report_date_key[:7] if frequency == "monthly" else None,
-            email=email,
-            initial_stage=DeliveryStage.PREPARING.value,
-            triggered_by=triggered_by,
-        )
-        log_id = log.id
+        if pre_existing_log_id is not None:
+            # Resend 路径：caller 已经创建行 + commit，仅 SELECT 复用。
+            log = db.get(ScheduledReportDeliveryLog, pre_existing_log_id)
+            if log is None:
+                err = f"pre_existing_log_id={pre_existing_log_id} not found"
+                logger.error("Resend dispatch error: sub=%d %s", subscription_id, err)
+                result["error"] = err
+                db.close()
+                return result
+            log_id = log.id
+        else:
+            log = create_delivery_log_with_stage(
+                db=db,
+                subscription_id=subscription_id,
+                frequency=frequency,
+                report_date=report_date_key,
+                report_month=report_date_key[:7] if frequency == "monthly" else None,
+                email=email,
+                initial_stage=DeliveryStage.PREPARING.value,
+                triggered_by=triggered_by,
+            )
+            log_id = log.id
     except Exception as e:
         logger.error("Failed to create delivery log for sub %d: %s", subscription_id, e)
         result["error"] = str(e)
@@ -964,19 +980,23 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
 
 
 def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "manual") -> dict[str, Any]:
-    """Dispatch a single subscription (used by manual trigger API)."""
-    global _summary_cache
-    global _dispatch_date_str
+    """Dispatch a single subscription (used by manual trigger API).
 
-    if not _dispatch_date_str:
-        _dispatch_date_str = date.today().isoformat()
+    双分支（方案 §6 Phase 2 / 切片 3）：
+    - `SCHEDULED_REPORT_VIA_CELERY=true`：调 `dispatch_one_task.delay(...)`
+      返回 task_id；前端通过 task_id 查 Celery result / delivery_log 轮询进度。
+    - `SCHEDULED_REPORT_VIA_CELERY=false`：原 `_dispatch_one(...)` 一行不动。
+    """
+    # Hoist `date` to top-of-function so both branches (Celery path and
+    # rollback path) can use it without UnboundLocalError. Both branches
+    # hit `date.today().isoformat()`.
+    from datetime import date
 
-    with _cache_lock:
-        _summary_cache = {}
+    from app.core.config import get_settings
+    from app.services.scheduled_report.subscription_service import get_subscription_by_id
 
     db = SessionLocal()
     try:
-        from app.services.scheduled_report.subscription_service import get_subscription_by_id
         sub = get_subscription_by_id(db, subscription_id)
     finally:
         db.close()
@@ -987,6 +1007,38 @@ def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "
             "success": False,
             "error": "Subscription not found",
         }
+
+    settings = get_settings()
+    if settings.scheduled_report_via_celery:
+        from app.celery_tasks.scheduled_report import dispatch_one as dispatch_one_task
+
+        async_result = dispatch_one_task.delay(
+            subscription_id=sub.id,
+            email=sub.email,
+            project_ids=sub.project_id_list or None,
+            country=sub.country,
+            frequency=sub.frequency,
+            ai_model=getattr(sub, "ai_model", None),
+            triggered_by=triggered_by,
+            report_date=date.today().isoformat(),
+        )
+        return {
+            "subscription_id": sub.id,
+            "task_id": async_result.id,
+            "queue": "scheduled",
+            "status": "enqueued",
+            "triggered_by": triggered_by,
+        }
+
+    # ----- 回滚形态 -------------------------------------------------------
+    global _summary_cache
+    global _dispatch_date_str
+
+    if not _dispatch_date_str:
+        _dispatch_date_str = date.today().isoformat()
+
+    with _cache_lock:
+        _summary_cache = {}
 
     return _dispatch_one(
         subscription_id=sub.id,
