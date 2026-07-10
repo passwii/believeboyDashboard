@@ -8,7 +8,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSourceFile, InventorySnapshotRow, SkuRecord, Project
+from app.models import (
+    AnalysisSourceFile,
+    InventorySnapshotRow,
+    SkuRecord,
+    Project,
+    ShipmentSchedule,
+    ShipmentScheduleItem,
+)
 from app.utils.country import normalize_country
 
 
@@ -266,6 +273,119 @@ def _row_key(sku: str, asin: str | None) -> tuple[str, str]:
     return (sku, asin or "")
 
 
+def _load_product_name_maps(
+    db: Session, *, project: Project, country: str
+) -> tuple[dict[str, str], dict[str, str]]:
+    """返回 (sku→中文品名, asin→中文品名) 映射，仅取 active 的 SKU 档案。
+
+    优先按 sku 匹配，回退按 asin 匹配；同名多行只取首个非空品名。
+    """
+    normalized_project_name = _normalize_identity(project.project_name)
+    rows = db.execute(
+        select(SkuRecord.sku, SkuRecord.asin, SkuRecord.product_name)
+        .where(
+            func.lower(func.trim(SkuRecord.project_name)) == normalized_project_name,
+            SkuRecord.is_active.is_(True),
+            SkuRecord.country == country,
+        )
+    ).all()
+    sku_map: dict[str, str] = {}
+    asin_map: dict[str, str] = {}
+    for sku, asin, product_name in rows:
+        norm_sku = _normalize_identity(sku)
+        norm_asin = _normalize_identity(asin)
+        name = _normalize_text(product_name)
+        if norm_sku and norm_sku not in sku_map and name:
+            sku_map[norm_sku] = name
+        if norm_asin and norm_asin not in asin_map and name:
+            asin_map[norm_asin] = name
+    return sku_map, asin_map
+
+
+@dataclass
+class _InTransitShipment:
+    shipment_no: str
+    shipping_method: str | None
+    forwarder_name: str | None
+    etd_date: date | None
+    eta_date: date | None
+
+
+def _load_in_transit_shipments(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    sku_keys: set[str] | None = None,
+) -> tuple[list[_InTransitShipment], list[tuple[str, str, int]]]:
+    """加载本项目+国家在途（shipment_status='in_transit'）的货件。
+
+    sku_keys 非空时，仅查询这些归一化 SKU 对应的明细，减少数据搬运。
+
+    返回：
+    - 排序后的货件头信息列表（按 shipment_no 升序）
+    - 货件明细行列表 (shipment_no, sku, quantity)，按 sku 汇总数量
+    """
+    # 本页无任何 SKU 时直接返回空，避免生成 ``sku IN ()`` 非法 SQL
+    if sku_keys is not None and not sku_keys:
+        return [], []
+
+    headers = db.execute(
+        select(
+            ShipmentSchedule.shipment_no,
+            ShipmentSchedule.shipping_method,
+            ShipmentSchedule.forwarder_name,
+            ShipmentSchedule.etd_date,
+            ShipmentSchedule.eta_date,
+        )
+        .where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == country,
+            ShipmentSchedule.shipment_status == "in_transit",
+        )
+        .order_by(ShipmentSchedule.shipment_no.asc())
+    ).all()
+
+    items_stmt = (
+        select(
+            ShipmentScheduleItem.shipment_no,
+            ShipmentScheduleItem.sku,
+            func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0),
+        )
+        .join(
+            ShipmentSchedule,
+            ShipmentScheduleItem.shipment_schedule_id == ShipmentSchedule.id,
+        )
+        .where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == country,
+            ShipmentSchedule.shipment_status == "in_transit",
+        )
+    )
+    if sku_keys:
+        items_stmt = items_stmt.where(
+            func.lower(func.trim(ShipmentScheduleItem.sku)).in_(sku_keys)
+        )
+    items = db.execute(
+        items_stmt.group_by(
+            ShipmentScheduleItem.shipment_no, ShipmentScheduleItem.sku
+        )
+    ).all()
+
+    header_objs = [
+        _InTransitShipment(
+            shipment_no=h[0],
+            shipping_method=h[1],
+            forwarder_name=h[2],
+            etd_date=h[3],
+            eta_date=h[4],
+        )
+        for h in headers
+    ]
+    qty_rows = [(r[0], r[1], int(r[2] or 0)) for r in items]
+    return header_objs, qty_rows
+
+
 def list_inventory_analysis(
     db: Session,
     *,
@@ -342,6 +462,49 @@ def list_inventory_analysis(
     action_options = sorted(
         {row.recommended_action for row in ordered_rows if row.recommended_action}
     )
+
+    # 本页出现的 SKU 集合（归一化），用于在途货件查询下推，减少数据搬运
+    displayed_sku_keys = {
+        _normalize_identity(row.sku) for row in ordered_rows if row.sku
+    }
+
+    # 中文品名：SKU 为主（权威），ASIN 仅作兜底
+    sku_name_map, asin_name_map = _load_product_name_maps(
+        db, project=project, country=normalized_country
+    )
+    # 在途发货批次：仅查询命中本页 SKU 的在途货件，避免无关货件撑爆表格
+    shipment_headers, shipment_qty_rows = _load_in_transit_shipments(
+        db,
+        project_id=project.id,
+        country=normalized_country,
+        sku_keys=displayed_sku_keys,
+    )
+    relevant_qty_rows = shipment_qty_rows
+    header_order = {h.shipment_no: idx for idx, h in enumerate(shipment_headers)}
+    relevant_shipment_nos = sorted(
+        {sno for (sno, _, _) in relevant_qty_rows},
+        key=lambda x: header_order.get(x, 1_000_000),
+    )
+    qty_index: dict[str, dict[str, int]] = {}
+    for sno, sku, qty in relevant_qty_rows:
+        qty_index.setdefault(sno, {})[_normalize_identity(sku)] = qty
+    shipment_columns = [
+        {
+            "shipment_no": h.shipment_no,
+            "label": h.shipment_no,
+            "shipping_method": _normalize_text(h.shipping_method),
+            "forwarder_name": _normalize_text(h.forwarder_name),
+            "etd_date": h.etd_date.isoformat() if h.etd_date else None,
+            "eta_date": h.eta_date.isoformat() if h.eta_date else None,
+        }
+        for h in shipment_headers
+        if h.shipment_no in relevant_shipment_nos
+    ]
+    shipment_column_totals = {
+        sno: sum(q for (s, _sk, q) in relevant_qty_rows if s == sno)
+        for sno in relevant_shipment_nos
+    }
+
     items: list[dict[str, object]] = []
     summary = {
         "sku_count": 0,
@@ -379,6 +542,15 @@ def list_inventory_analysis(
         summary["total_age_271_365_qty"] += row.age_271_365_qty
         summary["total_age_365_plus_qty"] += row.age_365_plus_qty
 
+        product_name = sku_name_map.get(_normalize_identity(row.sku))
+        if product_name is None and row.asin:
+            product_name = asin_name_map.get(_normalize_identity(row.asin))
+        shipment_quantities = {
+            sno: qty_index.get(sno, {}).get(_normalize_identity(row.sku), 0)
+            for sno in relevant_shipment_nos
+            if qty_index.get(sno, {}).get(_normalize_identity(row.sku), 0) > 0
+        }
+
         items.append(
             {
                 "project_id": project.id,
@@ -398,6 +570,8 @@ def list_inventory_analysis(
                 ),
                 "stock_status": stock_status,
                 "aging_status": aging_status,
+                "product_name": product_name,
+                "shipment_quantities": shipment_quantities,
             }
         )
 
@@ -409,4 +583,6 @@ def list_inventory_analysis(
         "summary": summary,
         "action_options": action_options,
         "items": items,
+        "shipment_columns": shipment_columns,
+        "shipment_column_totals": shipment_column_totals,
     }

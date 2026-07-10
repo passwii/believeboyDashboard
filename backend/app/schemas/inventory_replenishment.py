@@ -105,12 +105,22 @@ class InventoryAnalysisSummary(BaseModel):
     action_type_count: int
 
 
+class ShipmentColumn(BaseModel):
+    shipment_no: str
+    label: str
+    shipping_method: str | None = None
+    forwarder_name: str | None = None
+    etd_date: str | None = None
+    eta_date: str | None = None
+
+
 class InventoryAnalysisItem(BaseModel):
     project_id: int
     project_name: str
     country: str
     sku: str
     asin: str | None = None
+    product_name: str | None = None
     available_qty: int
     age_0_90_qty: int
     age_91_180_qty: int
@@ -121,6 +131,7 @@ class InventoryAnalysisItem(BaseModel):
     recommended_action_label: str
     stock_status: str
     aging_status: str
+    shipment_quantities: dict[str, int] = {}
 
 
 class InventoryAnalysisResponse(BaseModel):
@@ -131,6 +142,8 @@ class InventoryAnalysisResponse(BaseModel):
     summary: InventoryAnalysisSummary
     action_options: list[str]
     items: list[InventoryAnalysisItem]
+    shipment_columns: list[ShipmentColumn] = []
+    shipment_column_totals: dict[str, int] = {}
 
 
 class InventorySnapshotOption(BaseModel):

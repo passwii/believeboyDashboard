@@ -50,6 +50,7 @@ type InventoryItem = {
   country: string
   sku: string
   asin: string | null
+  product_name: string | null
   available_qty: number
   age_0_90_qty: number
   age_91_180_qty: number
@@ -60,6 +61,16 @@ type InventoryItem = {
   recommended_action_label: string
   stock_status: string
   aging_status: string
+  shipment_quantities: Record<string, number>
+}
+
+type ShipmentColumn = {
+  shipment_no: string
+  label: string
+  shipping_method: string | null
+  forwarder_name: string | null
+  etd_date: string | null
+  eta_date: string | null
 }
 
 type InventoryResponse = {
@@ -70,6 +81,8 @@ type InventoryResponse = {
   summary: InventorySummary
   action_options: string[]
   items: InventoryItem[]
+  shipment_columns: ShipmentColumn[]
+  shipment_column_totals: Record<string, number>
 }
 
 type SnapshotOption = {
@@ -168,6 +181,8 @@ export default function InventoryAnalysisPage() {
   const [rows, setRows] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [shipmentColumns, setShipmentColumns] = useState<ShipmentColumn[]>([])
+  const [shipmentColumnTotals, setShipmentColumnTotals] = useState<Record<string, number>>({})
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -244,6 +259,8 @@ export default function InventoryAnalysisPage() {
         setReportDate(payload.report_date)
         setSummary(payload.summary)
         setRows(payload.items)
+        setShipmentColumns(payload.shipment_columns || [])
+        setShipmentColumnTotals(payload.shipment_column_totals || {})
       } catch (loadError) {
         if (!active) return
         notify({ type: 'error', title: '库存分析加载失败', message: loadError instanceof Error ? loadError.message : '库存分析加载失败' })
@@ -300,14 +317,15 @@ export default function InventoryAnalysisPage() {
       workbook.created = new Date()
 
       const worksheet = workbook.addWorksheet('库存分析', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 2, showGridLines: false }],
+        views: [{ state: 'frozen', ySplit: 4, xSplit: 3, showGridLines: false }],
       })
 
       const selectedProject = projects.find((project) => String(project.id) === projectId)
       const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-      const columns = [
+      const baseColumns = [
         { header: 'SKU', key: 'sku', width: 22 },
         { header: 'ASIN', key: 'asin', width: 18 },
+        { header: '品名', key: 'product_name', width: 24 },
         { header: '库存', key: 'available_qty', width: 12 },
         { header: '0-90天', key: 'age_0_90_qty', width: 12 },
         { header: '91-180天', key: 'age_91_180_qty', width: 12 },
@@ -317,7 +335,13 @@ export default function InventoryAnalysisPage() {
         { header: '建议操作', key: 'recommended_action_label', width: 20 },
         { header: '库存状态', key: 'stock_status', width: 12 },
         { header: '库龄状态', key: 'aging_status', width: 12 },
-      ] as const
+      ]
+      const shipmentExportColumns = shipmentColumns.map((col) => ({
+        header: col.label,
+        key: `ship_${col.shipment_no}`,
+        width: 14,
+      }))
+      const columns = [...baseColumns, ...shipmentExportColumns]
 
       const lastColumn = columns.length
       worksheet.mergeCells(1, 1, 1, lastColumn)
@@ -358,6 +382,7 @@ export default function InventoryAnalysisPage() {
         excelRow.values = [
           row.sku,
           row.asin || '--',
+          row.product_name || '--',
           row.available_qty,
           row.age_0_90_qty,
           row.age_91_180_qty,
@@ -367,22 +392,23 @@ export default function InventoryAnalysisPage() {
           row.recommended_action_label || '--',
           stock.label,
           aging.label,
+          ...shipmentColumns.map((col) => row.shipment_quantities?.[col.shipment_no] ?? ''),
         ]
 
         excelRow.eachCell((cell, colNumber) => {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: colNumber >= 3 && colNumber <= 8 ? 'right' : 'left',
+            horizontal: (colNumber >= 4 && colNumber <= 9) || colNumber > 12 ? 'right' : 'left',
             wrapText: true,
           }
-          if (colNumber >= 3 && colNumber <= 8) {
+          if ((colNumber >= 4 && colNumber <= 9) || colNumber > 12) {
             cell.numFmt = '#,##0'
           }
-          if (colNumber === 10) {
+          if (colNumber === 11) {
             cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: stockExcelFontColor(row.stock_status) } }
           }
-          if (colNumber === 11) {
+          if (colNumber === 12) {
             cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: agingExcelFontColor(row.aging_status) } }
           }
           applyBorder(cell)
@@ -393,6 +419,7 @@ export default function InventoryAnalysisPage() {
       totalRow.values = [
         '合计',
         '--',
+        '--',
         detailTotals.available_qty,
         detailTotals.age_0_90_qty,
         detailTotals.age_91_180_qty,
@@ -402,16 +429,17 @@ export default function InventoryAnalysisPage() {
         '--',
         '--',
         '--',
+        ...shipmentColumns.map((col) => shipmentColumnTotals[col.shipment_no] ?? ''),
       ]
-      applyRowBorder(totalRow, 1, 11)
+      applyRowBorder(totalRow, 1, columns.length)
       totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: colNumber >= 3 && colNumber <= 8 ? 'right' : 'left',
+          horizontal: (colNumber >= 4 && colNumber <= 9) || colNumber > 12 ? 'right' : 'left',
         }
-        if (colNumber >= 3 && colNumber <= 8) {
+        if ((colNumber >= 4 && colNumber <= 9) || colNumber > 12) {
           cell.numFmt = '#,##0'
         }
       })
@@ -561,6 +589,7 @@ export default function InventoryAnalysisPage() {
               <TableRow>
                 <TableHead className={DENSE_HEAD}>SKU</TableHead>
                 <TableHead className={DENSE_HEAD}>ASIN</TableHead>
+                <TableHead className={DENSE_HEAD}>品名</TableHead>
                 <TableHead className={`text-right ${DENSE_HEAD}`}>库存</TableHead>
                 <TableHead className={`text-right ${DENSE_HEAD}`}>0-90天</TableHead>
                 <TableHead className={`text-right ${DENSE_HEAD}`}>91-180天</TableHead>
@@ -570,12 +599,26 @@ export default function InventoryAnalysisPage() {
                 <TableHead className={DENSE_HEAD}>建议操作</TableHead>
                 <TableHead className={DENSE_HEAD}>库存状态</TableHead>
                 <TableHead className={DENSE_HEAD}>库龄状态</TableHead>
+                {shipmentColumns.map((col) => (
+                  <TableHead
+                    key={col.shipment_no}
+                    className={`text-right ${DENSE_HEAD}`}
+                    title={[
+                      col.shipment_no,
+                      col.eta_date
+                        ? `预计 ${col.eta_date.slice(5)} 到港`
+                        : '预计到港未知',
+                    ].join('\n')}
+                  >
+                    {col.label}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={12 + shipmentColumns.length} className="h-24 text-center text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       正在加载库存数据...
@@ -583,7 +626,7 @@ export default function InventoryAnalysisPage() {
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
-                <EmptyTableState colSpan={11} message="当前筛选下暂无库存快照数据" />
+                <EmptyTableState colSpan={12 + shipmentColumns.length} message="当前筛选下暂无库存快照数据" />
               ) : (
                 <>
                   {rows.map((row) => {
@@ -593,6 +636,7 @@ export default function InventoryAnalysisPage() {
                       <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
                         <TableCell className={`font-medium ${DENSE_CELL}`}>{row.sku}</TableCell>
                         <TableCell className={DENSE_CELL}>{row.asin || '--'}</TableCell>
+                        <TableCell className={DENSE_CELL}>{row.product_name || '--'}</TableCell>
                         <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.available_qty)}</TableCell>
                         <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_0_90_qty)}</TableCell>
                         <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(row.age_91_180_qty)}</TableCell>
@@ -612,11 +656,22 @@ export default function InventoryAnalysisPage() {
                             {aging.label}
                           </Badge>
                         </TableCell>
+                        {shipmentColumns.map((col) => {
+                          const qty = row.shipment_quantities?.[col.shipment_no]
+                          return (
+                            <TableCell
+                              key={col.shipment_no}
+                              className={`text-right tabular-nums ${DENSE_CELL}`}
+                            >
+                              {qty !== undefined ? formatInt(qty) : '--'}
+                            </TableCell>
+                          )
+                        })}
                       </TableRow>
                     )
                   })}
                   <TableRow className="bg-muted/40 font-semibold">
-                    <TableCell colSpan={2} className={DENSE_CELL}>合计</TableCell>
+                    <TableCell colSpan={3} className={DENSE_CELL}>合计</TableCell>
                     <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.available_qty)}</TableCell>
                     <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_0_90_qty)}</TableCell>
                     <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_91_180_qty)}</TableCell>
@@ -624,6 +679,16 @@ export default function InventoryAnalysisPage() {
                     <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_271_365_qty)}</TableCell>
                     <TableCell className={`text-right ${DENSE_CELL}`}>{formatInt(detailTotals.age_365_plus_qty)}</TableCell>
                     <TableCell colSpan={3} className={DENSE_CELL} />
+                    {shipmentColumns.map((col) => (
+                      <TableCell
+                        key={col.shipment_no}
+                        className={`text-right tabular-nums ${DENSE_CELL}`}
+                      >
+                        {shipmentColumnTotals[col.shipment_no]
+                          ? formatInt(shipmentColumnTotals[col.shipment_no])
+                          : '--'}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </>
               )}
