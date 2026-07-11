@@ -76,19 +76,24 @@ def upgrade() -> None:
         """
     )
 
-    # 2. 加唯一约束。
-    op.create_unique_constraint(
+    # 2. 加 partial unique index（不复盖 superseded/failed 历史行）
+    #    partial unique 而非全 unique constraint——理由：
+    #    a) 历史 119 行已标 superseded（保留痕跡，但同组仍 2+ 行）
+    #    b) failed 状态未来可能重跑——不应被 unique 卡住
+    #    c) partial 只对 active 行 enforce unique——保护 INSERT
+    op.create_index(
         "uq_delivery_log_dedup",
         "scheduled_report_delivery_logs",
         ["subscription_id", "frequency", "report_date", "triggered_by"],
+        unique=True,
+        postgresql_where=sa.text("status NOT IN ('superseded', 'failed')"),
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
+    op.drop_index(
         "uq_delivery_log_dedup",
-        "scheduled_report_delivery_logs",
-        type_="unique",
+        table_name="scheduled_report_delivery_logs",
     )
     # 不回退 superseded status——历史数据是动态分析时需要的痕跡。
     # 若需手工回退可执行：

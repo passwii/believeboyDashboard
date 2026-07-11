@@ -109,11 +109,22 @@ class TestDeliveryStatusEnum:
 
 class TestDeliveryLogUniqueConstraint:
     def test_dedup_unique_constraint_declared_in_table_args(self):
-        names = {c.name for c in ScheduledReportDeliveryLog.__table__.constraints}
+        # P0-3 v2: partial unique INDEX (not full UniqueConstraint). The
+        # index object lives in `__table__.indexes`; verify by name +
+        # uniqueness + postgresql_where predicate.
+        names = {i.name for i in ScheduledReportDeliveryLog.__table__.indexes}
         assert "uq_delivery_log_dedup" in names
+        # It must be unique
+        for idx in ScheduledReportDeliveryLog.__table__.indexes:
+            if idx.name == "uq_delivery_log_dedup":
+                assert idx.unique is True
+                return
+        raise AssertionError("uq_delivery_log_dedup index not found")
 
-    def test_inserting_duplicate_raises_integrity_error(self, db_session, seeded_sub):
-        # First row
+    def test_inserting_duplicate_active_raises_integrity_error(self, db_session, seeded_sub):
+        # Partial unique index: active status (e.g. `sent`) blocks the
+        # duplicate, but `superseded` / `failed` do not.
+        # First row — status=sent (active)
         db_session.add(
             ScheduledReportDeliveryLog(
                 subscription_id=seeded_sub,
@@ -126,7 +137,8 @@ class TestDeliveryLogUniqueConstraint:
         )
         db_session.commit()
 
-        # Duplicate (same sub, freq, report_date, triggered_by)
+        # Duplicate (same sub, freq, report_date, triggered_by) — default
+        # status is PENDING (active), so partial unique kicks in.
         db_session.add(
             ScheduledReportDeliveryLog(
                 subscription_id=seeded_sub,
@@ -274,12 +286,14 @@ class TestMigrationFileContract:
         # Revision id 自身
         assert '"20260710_210"' in text or "'20260710_210'" in text
         # down_revision chain 到已有 migration
-        assert '"20260710_208"' in text or "'20260710_208'" in text
-        # 约束名
+        assert '"20260710_209"' in text or "'20260710_209'" in text
+        # Index 名
         assert "uq_delivery_log_dedup" in text
+        # P0-3 v2: partial unique index, not full constraint
+        assert "create_index" in text
+        assert "postgresql_where" in text or "status NOT IN" in text
         # 数据迁移关键 token
         assert "superseded" in text
-        assert "create_unique_constraint" in text
         assert "PARTITION BY" in text.upper() or "PARTITION BY subscription_id" in text
         # 不可 downgrade 反向回退历史 superseded 数据的注释
         assert "downgrade" in text

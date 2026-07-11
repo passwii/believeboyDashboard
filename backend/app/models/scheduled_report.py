@@ -8,13 +8,14 @@ from enum import Enum
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import text
 
 from app.db.session import Base
 
@@ -154,16 +155,21 @@ class ScheduledReportDeliveryLog(Base):
         "ScheduledReportSubscription", back_populates="delivery_logs"
     )
 
-    # P0-3：唯一约束挡住 (sub, freq, report_date, triggered_by) 重复派发。
-    # 历史上 SMTP 重试窗口期产出大量重复 delivery_log；migration 20260710_210
-    # 先把非最早 id 的重复行打 superseded 历史，再加这个唯一约束。
+    # P0-3: 阻止 (sub, freq, report_date, triggered_by) 重复派发。使用
+    # **partial unique index** 而非全表 unique constraint，因为：
+    #   1. 历史 119 行已 supersede（保留痕跡，但同组 2+ 行仍存在）；
+    #   2. failed 状态行未来可能因人工重试需重跑——不应被 unique 卡住；
+    #   3. partial index 只对未来 active 行 enforce unique——保护 INSERT 路径
+    #   同时保留历史。
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_delivery_log_dedup",
             "subscription_id",
             "frequency",
             "report_date",
             "triggered_by",
-            name="uq_delivery_log_dedup",
+            unique=True,
+            postgresql_where=text("status NOT IN ('superseded', 'failed')"),
         ),
     )
 
