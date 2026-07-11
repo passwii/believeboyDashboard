@@ -591,13 +591,6 @@
       border-color var(--motion-fast) var(--motion-ease-out);
   }
 
-  .hover-lift {
-    transition:
-      transform var(--motion-fast) var(--motion-ease-out),
-      box-shadow var(--motion-fast) var(--motion-ease-out),
-      border-color var(--motion-fast) var(--motion-ease-out);
-  }
-
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-raised);
