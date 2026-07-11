@@ -1,11 +1,21 @@
-import { Construction } from 'lucide-react'
+'use client'
+
+import { CrmCustomerTable } from '@/components/crm'
+import { ScopeToggle } from './components/scope-toggle'
 
 export default function CustomersPage() {
  return (
- <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-8 text-center">
- <Construction className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
- <h1 className="text-xl font-semibold tracking-tight">客户管理</h1>
- <p className="text-sm text-muted-foreground">Phase 1 即将上线（Day 2-4）</p>
+ <div className='flex h-full flex-col gap-3 p-4'>
+ <header className='flex items-center justify-between'>
+ <div>
+ <h1 className='text-xl font-semibold tracking-tight'>客户管理</h1>
+ <p className='text-xs text-muted-foreground'>100 条 mock · 排序 / 筛选 / 批量勾选 · Phase 1 MVP</p>
+ </div>
+ <ScopeToggle />
+ </header>
+ <div className='min-h-0 flex-1'>
+ <CrmCustomerTable />
+ </div>
  </div>
  )
 }
