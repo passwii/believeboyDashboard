@@ -474,6 +474,32 @@
     .dark .sidebar-panel-shell { backdrop-filter: none; }
   }
 
+  /* ── Motion design system: interactive utilities ─────────────────────── */
+  .u-interactive {
+    transition:
+      transform var(--motion-fast) var(--motion-ease-out),
+      background-color var(--motion-fast) var(--motion-ease-out),
+      border-color var(--motion-fast) var(--motion-ease-out),
+      box-shadow var(--motion-fast) var(--motion-ease-out);
+    will-change: transform;
+  }
+  .u-interactive:hover:not(:disabled):not([data-disabled='true']) {
+    transform: translateY(-1px);
+  }
+
+  .u-press {
+    transition: transform var(--motion-spring-press);
+  }
+  .u-press:active:not(:disabled):not([data-disabled='true']) {
+    transform: scale(0.97);
+  }
+
+  .u-focus:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
   .dashboard-kicker {
     @apply text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground;
   }
@@ -539,6 +565,13 @@
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .u-spotlight,
+  [data-spotlight] {
+    --spotlight-strength: 0;
   }
 }
 
@@ -694,6 +727,13 @@
     width: 2px;
     background-color: hsl(var(--primary));
     animation: cursor-blink 0.8s step-end infinite;
+  }
+
+  /* ── Motion design system: stagger fallback (CSS-only, 给非 framer-motion 场景) ─ */
+  .u-stagger-item {
+    opacity: 0;
+    animation: fade-slide-up var(--motion-base) var(--motion-ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--stagger-step));
   }
 
   .stagger-item {
@@ -898,6 +938,17 @@
 
   .panel-toggle {
     transition: none;
+  }
+
+  .u-interactive,
+  .u-interactive:hover,
+  .u-press,
+  .u-press:active,
+  .u-stagger-item {
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
   }
 }
 
