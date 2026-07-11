@@ -976,6 +976,8 @@ git commit -m "docs(ai): 更新 native 架构文档 § 9/§ 10 与 PR 实际落�
 
 为控制风险，原 10 任务切分为两个 PR：
 
+**跨阶段跟踪索引：** `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md`
+
 ### Phase 1 — async + Pydantic AI 纯文本/思考/usage 垂直切片
 
 - **承接文档**：`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md`
