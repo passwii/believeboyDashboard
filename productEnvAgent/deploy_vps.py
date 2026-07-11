@@ -38,7 +38,8 @@ VENV_ACTIVATE = "source /root/believeboyDashboard/backend/.venv/bin/activate"
 # 部署命令（在 VPS 上执行）
 # root 用户直跑 systemctl，无需 sudo；SSH 走密钥认证（无需密码）
 DEPLOY_COMMANDS = [
-    f"cd {PROJECT_DIR} && git pull",
+    f"cd {PROJECT_DIR} && git pull --ff-only",
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
     "systemctl restart believeboy-api",
     "systemctl status believeboy-api --no-pager",
@@ -59,7 +60,7 @@ LOG_COMMANDS = {
 }
 
 
-def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeout=120):
+def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeout=300):
     """通过 SSH 在 VPS 上执行命令。"""
     ssh_command = f"ssh {user}@{host} '{command}'"
     if dry_run:
@@ -261,7 +262,7 @@ def deploy(dry_run=False, auto_confirm=False):
 
     # 步骤 2: 拉取最新代码
     print("\n>>> 步骤 2: 拉取最新代码...")
-    rc, out, err = run_ssh_command(DEPLOY_COMMANDS[0], dry_run=dry_run)
+    rc, out, err = run_ssh_command(DEPLOY_COMMANDS[0], dry_run=dry_run, timeout=300)
     if rc == 0:
         print(out if out.strip() else "✓ 代码已更新")
     else:
@@ -307,16 +308,17 @@ def deploy(dry_run=False, auto_confirm=False):
     # 检查服务是否真正启动
     print("\n>>> 步骤 6: 确认服务健康状态...")
     rc, out, err = run_ssh_command(
-        f"curl -s http://127.0.0.1:8100/api/v1/health || echo 'HEALTH_CHECK_FAILED'",
+        "curl -s -o /dev/null -w '%{http_code}' "
+        "http://127.0.0.1:8100/api/v1/health || echo '000'",
         dry_run=dry_run,
-        timeout=10
+        timeout=10,
     )
-
-    # 健康检查：检查是否有 {"detail":...} 或 {"status":...} 响应，说明服务在运行
-    if '"detail"' in out or '"status"' in out:
-        print(f"  ✓ API 健康检查通过")
+    code = (out or "").strip() or "000"
+    # 200 = 健康(含 DB/Redis 状态);401 = 服务已起,但 /health 需 API key(部署探活视为通过)
+    if code in ("200", "401"):
+        print(f"  ✓ API 健康检查通过 (HTTP {code})")
     else:
-        print(f"  ✗ API 健康检查失败，收集诊断信息...")
+        print(f"  ✗ API 健康检查失败 (HTTP {code})，收集诊断信息...")
         logs = collect_failure_logs("API health check", dry_run=dry_run)
         analysis = analyze_logs(logs)
         print(format_report(logs, analysis))
