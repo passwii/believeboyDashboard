@@ -37,9 +37,8 @@ Skill 在 VPS 上执行以下步骤：
 3. **切换到后端目录** → `cd backend/`
 4. **激活虚拟环境** → `source .venv/bin/activate`
 5. **运行数据库迁移** → `alembic upgrade head`
-6. **停止服务** → `systemctl stop believeboy-api`
-7. **启动服务** → `systemctl start believeboy-api`
-8. **验证服务状态** → `systemctl status believeboy-api`
+6. **重启服务** → `systemctl restart believeboy-api`
+7. **验证服务状态** → `systemctl status believeboy-api`
 9. **显示最近日志** → `journalctl -u believeboy-api -n 20`
 
 ## 配置信息
@@ -65,65 +64,26 @@ journalctl -u believeboy-api -f   # 实时日志
 
 ## 触发方式
 
-### 方式 1: 手动调用
-直接对 Claude 说: "/deploy-vps" 或 "部署到 VPS"
+### 方式 1：Git pre-push Hook（生产推荐，已安装）
+仓库已安装 `.git/hooks/pre-push`（唯一会在 push 时自动触发的 hook），逻辑：
+- push 到 `main` 且本次改动命中 `backend/` 才部署；纯前端改动不触发（前端在 Vercel）。
+- 内部用 `git push --no-verify` 完成推送（避免重入自身），随后在 VPS 跑 `deploy_vps.py --auto`。
+- 临时跳过：`SKIP_POST_PUSH_DEPLOY=1 git push origin main`。
+- 长期关闭：`chmod -x .git/hooks/pre-push`。
 
-### 方式 2: Git Post-Commit Hook（推荐）
-添加 git post-commit hook 在本地提交后自动部署:
-```bash
-# ~/.git-templates/hooks/post-commit
-#!/bin/bash
-# 用 git rev-parse 解析 repo 根目录，避免硬编码 /Users/damon/DamonProjects/...
-repo_root="$(git rev-parse --show-toplevel)"
-cd "$repo_root/productEnvAgent"
-python deploy_vps.py --auto
-```
+源码与安装说明见 hook 文件头部注释；如需新 clone 复用，可放进 `~/.git-templates/hooks/pre-push` 并 `git config --global init.templateDir ~/.git-templates`。
 
-### 方式 3: Git Post-Push Hook（更安全）
-使用 post-push hook 只在推送到远程后部署。仓库自带 `productEnvAgent/post-push.sh`，已支持 `git rev-parse --show-toplevel` 解析路径，可直接安装：
-```bash
-# 一次性安装到本仓库（推荐）
-cp productEnvAgent/post-push.sh .git/hooks/post-push
-chmod +x .git/hooks/post-push
-```
+### 方式 2：手动调用 / Skill
+- 对 Claude 说 `/deploy-vps` 或 "部署到 VPS"。
+- 或本地直接跑（等价于 hook 触发的部署）：`cd productEnvAgent && python deploy_vps.py --auto`。
 
-或者作为 git 模板，全局生效（用 `git rev-parse` 自动定位 repo）：
-```bash
-# ~/.git-templates/hooks/post-push
-#!/bin/bash
-repo_root="$(git rev-parse --show-toplevel)"
-if [[ "$1" == *"origin/main"* ]]; then
-    cd "$repo_root/productEnvAgent"
-    python deploy_vps.py --auto
-fi
-```
+### 方式 3：post-push.sh（可选替代，非默认）
+`productEnvAgent/post-push.sh` 是 pre-push 的替代模板。注意：**git 没有内置的 post-push hook**，把它装成 `.git/hooks/post-push` 也不会被 git 自动调用；自动部署请用上面的 pre-push。该文件仅作参考 / 手动执行用。
 
-### 方式 4: 通过 settings.json（自动化配置）
-在 `projectEnvAgent/settings.json` 中配置:
-```json
-{
-  "triggers": {
-    "on_git_push": {
-      "enabled": true,
-      "branch": "main",
-      "auto_deploy": true
-    },
-    "on_commit": {
-      "enabled": false,
-      "message_pattern": ".*deploy.*"
-    }
-  }
-}
-```
+> 弃用说明：旧版文档曾推荐 post-commit hook（每次提交即部署、含本地分支，危险）与无过滤的 post-push。这些均已弃用，请勿使用。
 
-### 方式 5: 通过任务调度器
-使用 `/schedule` 设置自动化部署:
-```
-/schedule
-  command: deploy-vps
-  cron: "0 2 * * *"  # 每天凌晨 2 点
-  description: "每日部署 main 分支"
-```
+### 配置来源
+部署参数（host / user / 路径 / 触发开关）以 `productEnvAgent/config.json` 为准（注意是 `config.json`，不是 `settings.json`）；脚本里的 `VPS_HOST` 等常量与之一致。
 
 ## 错误处理
 
@@ -136,7 +96,7 @@ fi
 | 数据库迁移 | `alembic upgrade head` | INFO: Context impl PostgresqlImpl |
 | 服务停止 | `systemctl stop believeboy-api` | `Deactivated successfully` |
 | 服务启动 | `systemctl start believeboy-api` | `active (running)` |
-| API 健康检查 | `curl http://127.0.0.1:8100/api/v1/health` | `{"status":"ok"}` |
+| API 健康检查 | `curl -w '%{http_code}' http://127.0.0.1:8100/api/v1/health` | `200`（健康）；`401` 表示服务已起但 `/health` 需 API key（探活视为通过） |
 
 ## 失败诊断功能
 

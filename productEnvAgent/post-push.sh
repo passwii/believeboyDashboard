@@ -1,4 +1,8 @@
 #!/bin/bash
+# ⚠️ 弃用说明：git 没有内置的 post-push hook，把本文件装成 .git/hooks/post-push
+#    也不会被 git 自动调用。自动部署请改用仓库已安装的 .git/hooks/pre-push
+#    （仅 backend/ 改动触发，且用 --no-verify 避免递归）。本文件仅供手动执行参考。
+#
 # Git post-push hook for automated deployment.
 #
 # Behavior:
@@ -9,13 +13,13 @@
 #     is checked out (e.g. the user's `~/DamonProjects/...` and the
 #     Multica agent's `~/multica_workspaces_.../.../workdir/...`).
 #
-# Install (one of):
-#   1. Copy to .git/hooks/post-push and `chmod +x` it
-#   2. Copy to ~/.git-templates/hooks/post-push and `git init --template
-#      ~/.git-templates` for new clones
+# ⚠️ 注意：git 不会自动调用 post-push。下面只是手动执行 / 参考用，
+#    不要指望装成 .git/hooks/post-push 后自动部署。
+# Install (manual reference only):
+#   1. Copy to .git/hooks/post-push and `chmod +x` it (NOT auto-invoked by git)
+#   2. Or just run `python productEnvAgent/deploy_vps.py --auto` directly
 #
-# Disable temporarily by passing `SKIP_POST_PUSH_DEPLOY=1` in the env, or
-# by removing the executable bit on the installed copy.
+# Disable temporarily by passing `SKIP_POST_PUSH_DEPLOY=1` in the env.
 
 set -euo pipefail
 

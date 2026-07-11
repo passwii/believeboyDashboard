@@ -47,8 +47,7 @@
     "steps": [
       "cd /root/believeboyDashboard/ && git pull",
       "cd backend/ && source .venv/bin/activate && alembic upgrade head",
-      "systemctl stop believeboy-api",
-      "systemctl start believeboy-api",
+      "systemctl restart believeboy-api",
       "systemctl status believeboy-api --no-pager"
     ]
   },

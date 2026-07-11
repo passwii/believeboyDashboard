@@ -236,7 +236,13 @@ def build_search_source_cards(
             host = parsed.netloc
 
         score_value = item.get("score")
-        score = float(score_value) if isinstance(score_value, (int, float)) else None
+        # SearXNG Tavily adapter 实际以字符串（如 "0.9"）返回 score，旧
+        # isinstance(int, float) 校验会把所有字符串判 False 导致卡片 score 永为 None；
+        # 改为 try/except 接受 int / float / str 三种输入并解析。
+        try:
+            score = float(score_value) if score_value is not None else None
+        except (TypeError, ValueError):
+            score = None
 
         favicon = normalize_optional_text(item.get("favicon") or "")
 
