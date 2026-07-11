@@ -46,7 +46,7 @@ export function PageTransition({ children, className }: Props) {
   const transition = reduce ? { duration: 0 } : SPRING.page
 
   return (
-    <div className={className}>
+    <div className={className ?? 'h-full w-full'}>
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={pathname}
