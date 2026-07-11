@@ -5,6 +5,7 @@ import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react'
 import { Notification, NotificationType } from '@/lib/notifications'
 import { useNotifications } from './notifications-context'
 import { cn } from '@/lib/utils'
+import { DURATION } from '@/lib/motion/tokens'
 
 const typeConfig: Record<
   NotificationType,
@@ -58,7 +59,7 @@ function ToastItem({ notification }: ToastItemProps) {
       initial={{ opacity: 0, x: 40, scale: 0.95 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 40, scale: 0.95 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
+      transition={{ duration: DURATION.springPress, ease: 'easeOut' }}
       className={cn(
         'pointer-events-auto flex w-72 items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm',
         config.className
