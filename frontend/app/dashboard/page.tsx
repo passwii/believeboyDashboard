@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
+import { DashboardSurfaceCard } from '@/components/dashboard/dashboard-surface-card'
 import { DashboardAlertWidget } from '@/components/dashboard/dashboard-alert-widget'
 import { DashboardTopProjects } from '@/components/dashboard/dashboard-top-projects'
 import { DashboardTopCountries } from '@/components/dashboard/dashboard-top-countries'
@@ -504,7 +505,9 @@ if (requestId !== latestRequestRef.current) return
         * gets the full width.
         */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
+        <DashboardSurfaceCard className="p-5">
+          <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
+        </DashboardSurfaceCard>
         <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
       </section>
       {/*
