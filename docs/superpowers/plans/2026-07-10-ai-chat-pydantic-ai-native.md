@@ -970,3 +970,35 @@ git commit -m "docs(ai): 更新 native 架构文档 § 9/§ 10 与 PR 实际落�
 
 > （由实施者在任务 9 完成后填入：`start / tool_calls / sources / chunk / done` 各事件实际输出片段；取消按钮行为；前端 `pnpm test` 结果）
 
+---
+
+## Phase 边界（实施切分）
+
+为控制风险，原 10 任务切分为两个 PR：
+
+### Phase 1 — async + Pydantic AI 纯文本/思考/usage 垂直切片
+
+- **承接文档**：`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md`
+- **包含任务**：T1 + T2 + T3 + T6 + T7（裁剪：无 Tavily tool）+ T8（裁剪：双路径分流）+ T9 + T10
+- **推迟任务**：T4 + T5（跟 web_search 一起推 Phase 2）
+- **核心交付**：`enable_web_search=False` 用户路径走 Pydantic AI driver（async + 解 P0-1/P0-2）；`enable_web_search=True` 路径行为冻结（用 e2e 测试 byte-for-byte 固化）
+- **端点路由矩阵**：
+  - `enable_web_search=False` + `regenerate=False` → 新 Pydantic AI 路径
+  - `enable_web_search=False` + `regenerate=True`  → `HTTP 400`（Phase 1 简化）
+  - `enable_web_search=True`  + 任意 `regenerate` → 旧同步路径（行为冻结）
+- **风险点**：Pydantic AI 2.8 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需观察一周
+
+### Phase 2 — web_search via Pydantic AI native Tavily tool
+
+- **起点**：SearXNG Tavily adapter 返回格式 spike（必须先做，决定 mapper `_handle_tool_result` 的 content 解析路径）
+- **包含任务**：T4 + T5 + T7 增量（注册 `tavily_search_tool`）+ T8 增量（`enable_web_search=True` 切到 Pydantic AI）
+- **核心交付**：所有 AI chat 用户走统一 Pydantic AI driver；旧 httpx 路径退役
+- **风险点**：SearXNG 中文搜索质量、tool 调用循环的 token 成本、cancel 时机的语义保持
+
+### 阶段间冻结（Phase 1 内不允许）
+
+- 不引 `tavily-python`（requirements.txt 不加）
+- factory 不注册 tools（`tools=[]`）
+- mapper 不引入 `FunctionToolCallEvent` / `FunctionToolResultEvent` 分支
+- 端点 `enable_web_search=True` 路径内部逻辑零变更（用 e2e 测试 byte-for-byte 固化）
+
