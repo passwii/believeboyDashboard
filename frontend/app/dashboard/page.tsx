@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { MotionStagger, MotionStaggerItem } from '@/components/motion/MotionStagger'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
 import { DashboardSurfaceCard } from '@/components/dashboard/dashboard-surface-card'
@@ -505,10 +506,17 @@ if (requestId !== latestRequestRef.current) return
         * gets the full width.
         */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <DashboardSurfaceCard className="p-5">
-          <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
-        </DashboardSurfaceCard>
-        <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardSurfaceCard className="p-5">
+              <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
+            </DashboardSurfaceCard>
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
       {/*
         * Row 2 — 高度填充 + 信息密度补充
