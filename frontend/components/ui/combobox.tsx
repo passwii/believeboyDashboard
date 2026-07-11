@@ -22,6 +22,7 @@ import {
 export type ComboboxOption = {
   value: string;
   label: string;
+  onHide?: (value: string) => void;
 };
 
 interface ComboboxProps {
@@ -169,6 +170,7 @@ export function Combobox({
                     key={option.value}
                     value={option.value}
                     onSelect={() => commitValue(option.value)}
+                    className="group"
                   >
                     <Check
                       className={cn(
@@ -177,6 +179,22 @@ export function Combobox({
                       )}
                     />
                     <span className="truncate">{option.label}</span>
+                    {option.onHide ? (
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        aria-label={`隐藏 ${option.label}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          option.onHide?.(option.value);
+                        }}
+                        className="ml-auto rounded-sm p-0.5 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </span>
+                    ) : null}
                   </CommandItem>
                 );
               })}
