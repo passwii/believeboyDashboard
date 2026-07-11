@@ -1,7 +1,7 @@
 """add shipment_batch_dropdown_hidden table
 
-Revision ID: 20260710_210
-Revises: 20260710_209
+Revision ID: 20260710_211
+Revises: 20260710_210
 Create Date: 2026-07-10 21:00:00.000000
 """
 from typing import Sequence, Union
@@ -10,8 +10,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "20260710_210"
-down_revision: Union[str, None] = "20260710_209"
+revision: str = "20260710_211"
+down_revision: Union[str, None] = "20260710_210"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
