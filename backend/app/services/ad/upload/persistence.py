@@ -91,6 +91,15 @@ def _ingest_budget_rows(db: Session, *, source_file_id: int, df: pd.DataFrame) -
                 sales_7d=_to_decimal(_record_get_ci(record, '7天总销售额')),
                 orders_7d=_to_int(_record_get_ci(record, '7天总订单数(#)')),
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
+                campaign_type=_clean_string(_record_get_ci(record, '广告活动类型')),
+                targeting_type=_clean_string(_record_get_ci(record, '定位类型')),
+                bidding_strategy=_clean_string(_record_get_ci(record, '竞价策略')),
+                impressions=_to_int(_record_get_ci(record, '展示量')),
+                clicks=_to_int(_record_get_ci(record, '点击量')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -122,6 +131,9 @@ def _ingest_campaign_rows(db: Session, *, source_file_id: int, df: pd.DataFrame)
                 sales_7d=_to_decimal(_record_get_ci(record, '7天总销售额')),
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
                 roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -149,6 +161,10 @@ def _ingest_placement_rows(db: Session, *, source_file_id: int, df: pd.DataFrame
                 units_7d=_to_int(_record_get_ci(record, '7天总销售量(#)')),
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
                 roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -174,6 +190,8 @@ def _ingest_invalid_traffic_rows(db: Session, *, source_file_id: int, df: pd.Dat
                 valid_clicks=_to_int(_record_get_ci(record, '点击量')),
                 invalid_clicks=_to_int(_record_get_ci(record, '无效点击')),
                 invalid_click_rate=_to_decimal(_record_get_ci(record, '无效的点击率')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -205,6 +223,10 @@ def _ingest_target_rows(db: Session, *, source_file_id: int, df: pd.DataFrame) -
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
                 roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
                 cvr_7d=_to_decimal(_record_get_ci(record, '7天的转化率')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -235,6 +257,10 @@ def _ingest_search_term_rows(db: Session, *, source_file_id: int, df: pd.DataFra
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
                 roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
                 cvr_7d=_to_decimal(_record_get_ci(record, '7天的转化率')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -267,6 +293,9 @@ def _ingest_search_term_share_rows(db: Session, *, source_file_id: int, df: pd.D
                 acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
                 roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
                 cvr_7d=_to_decimal(_record_get_ci(record, '7 天转化率'), percent=True),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -321,6 +350,10 @@ def _ingest_promoted_product_rows(db: Session, *, source_file_id: int, df: pd.Da
                 other_sku_units_7d=_to_int(_record_get_ci(record, '7天内其他SKU销售量(#)')),
                 ad_sku_sales_7d=_to_decimal(_record_get_ci(record, '7天内广告SKU销售额')),
                 other_sku_sales_7d=_to_decimal(_record_get_ci(record, '7天内其他SKU销售额')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
@@ -346,6 +379,10 @@ def _ingest_purchased_product_rows(db: Session, *, source_file_id: int, df: pd.D
                 other_sku_units_7d=_to_int(_record_get_ci(record, '7天内其他SKU销售量(#)')),
                 other_sku_orders_7d=_to_int(_record_get_ci(record, '7天内其他SKU订单数(#)')),
                 other_sku_sales_7d=_to_decimal(_record_get_ci(record, '7天内其他SKU销售额')),
+                country=_clean_string(_record_get_ci(record, '国家/地区')),
+                currency=_clean_string(_record_get_ci(record, '货币')),
+                retailer=_clean_string(_record_get_ci(record, '零售商')),
+                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
