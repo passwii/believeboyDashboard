@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { useNotifications } from "@/components/notifications";
 
 const API_BASE = "/api/backend";
 
@@ -27,57 +28,93 @@ export function ShipmentBatchCombobox({
   className,
   testId,
 }: ShipmentBatchComboboxProps) {
+  const { notify } = useNotifications();
   const [batches, setBatches] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(false);
 
   const fetchKey = `${projectId}::${country}`;
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const refetch = React.useCallback(async () => {
     if (!projectId || !country) {
       setBatches([]);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
     setLoading(true);
-    const params = new URLSearchParams({
-      project_id: projectId,
-      country,
-    });
-    fetch(`${API_BASE}/api/v1/shipment-schedules/batches?${params.toString()}`, {
-      credentials: "include",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: { batches?: string[] }) => {
-        if (cancelled) return;
-        setBatches(Array.isArray(data.batches) ? data.batches : []);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setBatches([]);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
+    const params = new URLSearchParams({ project_id: projectId, country });
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/shipment-schedules/batches?${params.toString()}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { batches?: string[] };
+      setBatches(Array.isArray(data.batches) ? data.batches : []);
+    } catch {
+      setBatches([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, country]);
 
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchKey]);
+  React.useEffect(() => {
+    void refetch();
+  }, [refetch, fetchKey]);
+
+  const handleHide = React.useCallback(
+    async (batch: string) => {
+      setBatches((current) => current.filter((b) => b !== batch));
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/shipment-schedules/batches/hidden`,
+          {
+            method: "DELETE",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              project_id: Number(projectId),
+              country,
+              shipment_batch: batch,
+            }),
+          },
+        );
+        if (!res.ok) {
+          await refetch();
+          notify({
+            type: "error",
+            title: "隐藏失败",
+            message: `HTTP ${res.status}`,
+          });
+        }
+      } catch (err) {
+        await refetch();
+        notify({
+          type: "error",
+          title: "隐藏失败",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [projectId, country, refetch, notify],
+  );
+
+  const handleChange = React.useCallback(
+    (next: string) => {
+      onChange(next);
+      if (next && !batches.includes(next)) {
+        setBatches((current) => [next, ...current.filter((b) => b !== next)]);
+      }
+    },
+    [batches, onChange],
+  );
 
   const options = React.useMemo<ComboboxOption[]>(
     () =>
       batches.map((batch) => ({
         value: batch,
         label: batch,
+        onHide: () => void handleHide(batch),
       })),
-    [batches],
+    [batches, handleHide],
   );
 
   const isDisabled = disabled || !projectId || !country;
@@ -85,7 +122,7 @@ export function ShipmentBatchCombobox({
   return (
     <Combobox
       value={value}
-      onChange={onChange}
+      onChange={handleChange}
       options={options}
       placeholder={placeholder}
       emptyText={
