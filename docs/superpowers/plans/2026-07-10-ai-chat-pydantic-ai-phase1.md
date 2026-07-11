@@ -4,6 +4,7 @@
 > 步骤使用复选框（`- [ ]`）语法跟踪进度。
 
 **承接文档：** `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-native.md`（原 10 任务完整路线图）。
+**跨阶段跟踪：** `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md`（Phase 1 + Phase 2 进度索引）。
 **本计划聚焦：** 原任务 T1 / T2 / T3 / T6 / T7（裁剪）/ T8（裁剪）/ T9 / T10。
 
 ---

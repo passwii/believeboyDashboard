@@ -1,0 +1,137 @@
+# AI Chat Pydantic AI Native · 阶段跟踪与索引
+
+> **本文件用途：** 跨阶段索引与进度跟踪。把原 plan（10 任务全量）与各 phase 实施计划对接，提供一站式视图。
+
+---
+
+## 文档索引
+
+| 文档 | 角色 | 状态 |
+|---|---|---|
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-native.md` | 原 10 任务完整路线图（架构 § 9.2 / § 9.3 落地路径） | 📚 路线图（已存档） |
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md` | Phase 1 详细实施计划（async + Pydantic AI 垂直切片） | 🚧 进行中 |
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md` | Phase 2 详细实施计划（web_search via Pydantic AI native Tavily tool） | 📋 待起草 |
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md` | **本文档**：跨阶段跟踪与索引 | 🚧 进行中 |
+
+---
+
+## 阶段状态总览
+
+| 阶段 | 范围 | 状态 | 已落地 commits |
+|---|---|---|---|
+| **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | 🚧 1/8 任务完成 | `c759b49b` (deps)、`49a89653` (docs) |
+| **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | 📋 未启动 | — |
+
+**总进度：** Phase 1 完成约 12%（1/8 任务），Phase 2 未启动。
+
+---
+
+## Phase 1 详细进度
+
+承接文档：[`2026-07-10-ai-chat-pydantic-ai-phase1.md`](./2026-07-10-ai-chat-pydantic-ai-phase1.md)
+
+| 任务 | 原 plan 编号 | 状态 | 备注 |
+|---|---|---|---|
+| 任务 1：依赖 | T1 | ✅ 完成 | `pydantic-ai==2.8.0` + `starlette<0.42,>=0.40` pin，5/5 单测 PASS |
+| 任务 2：stream_mapper 文本 delta | T2 | 📋 待办 | — |
+| 任务 3：stream_mapper thinking delta | T3 | 📋 待办 | — |
+| 任务 4：stream_mapper AgentRunResult → usage | T6 | 📋 待办 | 原 plan T6（usage 路径） |
+| 任务 5：Agent Factory（无 tools） | T7 裁剪 | 📋 待办 | 不注册 Tavily tool |
+| 任务 6：端点 async + 双路径分流 | T8 裁剪 | 📋 待办 | 端点改造最大块；提取 `_prepare_conversation_turn` + `_legacy_stream_response` |
+| 任务 7：真 LLM 烟雾测试（手测） | T9 | 📋 待办 | 仅 `enable_web_search=False` 路径 |
+| 任务 8：Merge 前最终检查与文档同步 | T10 | 📋 待办 | 更新 `docs/ai-chat-native-architecture.md` § 9.2 / § 10 |
+
+**Phase 1 关键决策：**
+- 不引 `tavily-python`：factory 不注册 Tavily tool，工具调用推迟 Phase 2
+- 端点 `enable_web_search=True` 路径行为完全冻结（用 e2e 测试 byte-for-byte 固化）
+- 新 Pydantic AI 路径不自动生成会话标题（与现状不一致场景由 Phase 2 处理）
+- 路由矩阵：
+  - `enable_web_search=False` + `regenerate=False` → 新路径
+  - `enable_web_search=False` + `regenerate=True`  → `HTTP 400`
+  - `enable_web_search=True` + 任意 `regenerate` → 旧路径
+
+**Phase 1 已落 commits：**
+
+| Commit | 类型 | 说明 |
+|---|---|---|
+| `49a89653` | docs | 起草 Phase 1 切分与原 plan 附录 |
+| `c759b49b` | build(deps) | 引入 pydantic-ai==2.8.0（已在 main，PR 通过 fast-forward） |
+
+**Phase 1 风险与注意点：**
+- ⚠️ starlette 冲突：pydantic-ai 间接拉入 `sse-starlette>=3` 要 starlette>=1.0；已显式 pin `starlette<0.42,>=0.40` 并在 venv 中卸载 `sse-starlette`（本仓库 app 代码与 pydantic_ai 都不直接 import 它；mcp 包间接需要但本仓库不依赖 mcp）
+- Pydantic AI 2.8 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需一周观察
+- 任务 6（端点改造）改动面最大，建议先 review 端点入参段 + `_prepare_conversation_turn` / `_legacy_stream_response` 提取策略再实施
+
+---
+
+## Phase 2 详细规划（待起草）
+
+承接文档：`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md`（待 Phase 1 完成后起草）
+
+| 任务 | 原 plan 编号 | 状态 | 备注 |
+|---|---|---|---|
+| 任务 1：SearXNG Tavily adapter 返回格式 spike | — | 📋 未启动 | **必须先做**，决定 `_handle_tool_result` 怎么解析 content（dict vs list[dict]） |
+| 任务 2：stream_mapper tool_calls 分支 | T4 | 📋 未启动 | 跟着 web_search 走 |
+| 任务 3：stream_mapper tool_result 分支（sources + tool_done） | T5 | 📋 未启动 | — |
+| 任务 4：Agent Factory 注册 `tavily_search_tool` | T7 增量 | 📋 未启动 | 同步追加依赖 `tavily-python` |
+| 任务 5：端点 `enable_web_search=True` 切到 Pydantic AI native tool | T8 增量 | 📋 未启动 | 旧 `_legacy_stream_response` 退役 |
+| 任务 6：端点层 `tool_searching` 事件与 mapper 解耦 | T8 增量 | 📋 未启动 | mapper 每次只产一个 bytes；tool_searching 由端点层 yield |
+
+**Phase 2 验收：**
+- `enable_web_search=True` 用户 ndjson 事件序列与 Phase 1 旧路径完全一致
+- `search_source_cards` / `search_time_range` 持久化字段不变
+- `cancel_registry` 行为不变
+- `tavily-python` 依赖已加入 requirements
+
+---
+
+## 已落地 commits（按时间倒序）
+
+```
+c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · Phase 1）
+49a89653 docs(superpowers): 起草 Phase 1 切分与原 plan 附录
+8d550065 Merge branch 'feat/crm-customer-table'          ← Phase 1 起点
+```
+
+---
+
+## 决策日志
+
+| 日期 | 决策 | 原因 |
+|---|---|---|
+| 2026-07-10 | Phase 1 不引 `tavily-python` | factory 不注册 Tavily tool，工具调用推迟 Phase 2 |
+| 2026-07-10 | 端点 `enable_web_search=True` 路径行为冻结 | 减少变量，Phase 1 风险最小化 |
+| 2026-07-10 | 新 Pydantic AI 路径不自动生成会话标题 | 标题生成与 Thinking 指令可能交互复杂；推到 Phase 2 一起处理 |
+| 2026-07-10 | Phase 2 必须先做 SearXNG Tavily adapter 返回格式 spike | 决定 mapper `_handle_tool_result` 的 content 解析路径，避免 Phase 2 一开始就猜测 |
+| 2026-07-10 | pin `starlette<0.42,>=0.40` 显式约束 | 解决 pydantic-ai 间接拉入 sse-starlette 与 fastapi 0.115.5 starlette 要求的冲突 |
+
+---
+
+## 下一步（建议顺序）
+
+1. **Phase 1 任务 2**（stream_mapper 文本 delta）— 路径：写测试 → 跑 FAIL → 实现 mapper → 跑 PASS → commit
+2. **Phase 1 任务 3**（thinking delta）— 同模式
+3. **Phase 1 任务 4**（AgentRunResult → usage）— 同模式
+4. **Phase 1 任务 5**（Agent Factory）— 同模式 + TestModel
+5. **Phase 1 任务 6**（端点改造）— 改动面最大；先 review `_prepare_conversation_turn` 与 `_legacy_stream_response` 提取策略，再写 e2e 测试，再实施
+6. **Phase 1 任务 7**（手测）— 启动后端 + curl 流式请求 + 取消按钮 + 前端冒烟
+7. **Phase 1 任务 8**（文档同步）— 更新架构文档 § 9.2 / § 10，准备 PR
+8. **Phase 2 起步**：先写 SearXNG Tavily adapter spike（spike 文档放到 `2026-07-10-ai-chat-pydantic-ai-phase2.md` 任务 1）
+
+---
+
+## 跟踪维护
+
+- **每次提交后**：把 commit hash 与简短说明补到对应阶段的「已落地 commits」段
+- **跨阶段切换时**：把上一阶段标记为「✅ 完成」，把下一阶段标记为「🚧 进行中」
+- **决策新增时**：追加到「决策日志」
+- **下次接手的人**：从「下一步（建议顺序）」开始即可
+
+---
+
+## 相关文档
+
+- 原 plan：`./2026-07-10-ai-chat-pydantic-ai-native.md`（含 § 9.2 落地路径 + Phase 边界附录）
+- Phase 1 详细：[`./2026-07-10-ai-chat-pydantic-ai-phase1.md`](./2026-07-10-ai-chat-pydantic-ai-phase1.md)
+- Phase 2 详细：`./2026-07-10-ai-chat-pydantic-ai-phase2.md`（待 Phase 1 完成后起草）
+- 架构文档：`../../ai-chat-native-architecture.md`（§ 7 / § 9 / § 10）
