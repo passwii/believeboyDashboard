@@ -24,3 +24,11 @@ APScheduler==3.10.4
 boto3==1.35.0
 playwright>=1.40.0
 celery[redis]==5.4.0
+
+# AI Chat Phase 1 — Pydantic AI 流式编排原生化（web_search 推迟 Phase 2）
+# 注：pydantic-ai 2.8.0 间接拉入 sse-starlette>=3 要求 starlette>=1.0，
+# 但 fastapi==0.115.5 要求 starlette<0.42。已在 venv 中卸载 sse-starlette
+# （本仓库 app 代码不直接使用；mcp 包也需要，但本仓库不依赖 mcp）。
+# 显式 pin starlette 以确保 fresh install 在 prod 上稳定：
+starlette<0.42,>=0.40
+pydantic-ai==2.8.0
