@@ -18,11 +18,8 @@ test.describe('motion system performance', () => {
   test.setTimeout(60_000)
 
   test('route switching does not regress INP/CLS', async ({ page }) => {
-    await page.goto('/dashboard')
-    await page.waitForLoadState('networkidle')
-
-    // Inject PerformanceObserver collectors before navigation churn.
-    await page.evaluate(() => {
+    // addInitScript 在每个新 page document 创建前注入，跨 page.goto 持久化
+    await page.addInitScript(() => {
       ;(window as unknown as { __perfMetrics: { inp: number; cls: number } }).__perfMetrics = {
         inp: 0,
         cls: 0,
@@ -63,6 +60,9 @@ test.describe('motion system performance', () => {
         // layout-shift unsupported — leave cls at 0
       }
     })
+
+    await page.goto('/dashboard')
+    await page.waitForLoadState('networkidle')
 
     // Drive a representative route tour through the dashboard.
     const routes = [

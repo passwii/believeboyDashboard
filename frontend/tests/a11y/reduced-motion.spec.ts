@@ -29,9 +29,12 @@ test.describe('reduced-motion fallback', () => {
     await page.waitForTimeout(800)
 
     const motionDiv = page.locator('div[class*="will-change-transform"]').first()
-    await motionDiv.waitFor({ state: 'attached', timeout: 5000 })
+    // CI: production build + 路由切换后 motion.div 可能延迟挂载，给 15s
+    await motionDiv.waitFor({ state: 'attached', timeout: 15_000 })
 
     const transform = await motionDiv.evaluate((el) => getComputedStyle(el).transform)
-    expect(transform).toBe('none')
+    // framer-motion 在 reduce 模式下使用 `transform: 'none'` 或 `matrix(1, 0, 0, 1, 0, 0)`
+    // 任一都表示未应用动画
+    expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(transform)
   })
 })
