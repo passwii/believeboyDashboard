@@ -15,7 +15,10 @@ description: 当你有规格说明或需求用于多步骤任务时使用，在�
 
 **上下文：** 此技能应在专用 worktree 中运行（由 brainstorming 技能创建）。
 
-**计划保存位置：** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+**计划保存位置：**
+- 单文件 plan：`docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+- 多文件 plan（会被拆为多 phase / 调研 / PR 描述）：从一开始就用 `docs/superpowers/plans/YYYY-MM-DD-<feature-name>/` 子目录，**basename 保留完整日期前缀**（保持自描述，避免 git rename 路径歧义）
+- 完整约定与归集操作清单：[docs/superpowers/plans/README.md](../../docs/superpowers/plans/README.md)（命名规则 / 二态规则 / 6 步归集清单 / 验证方法）
 - （用户对计划位置的偏好优先于此默认值）
 
 ## 范围检查
