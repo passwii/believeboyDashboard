@@ -61,7 +61,12 @@ export function PageTransition({ children, className }: Props) {
           animate={animate}
           exit={exit}
           transition={transition}
-          className={isFullBleed ? 'will-change-transform' : 'will-change-transform h-full w-full'}
+          // full-bleed 页面根节点用 !absolute inset-0 撑满父级（见上）。内层 motion.div
+          // 必须给 h-full w-full：它处于 normal flow，唯一子节点是绝对定位（脱离文档流），
+          // 若不显式给高/宽，motion.div 会塌缩为 0 高；而 framer-motion 的 transform
+          // 又让它成为绝对子节点的 containing block，最终整页撑不满 → 塌缩不可见。
+          // 外层 wrapper 已是 !absolute inset-0（有确定高度），此处 h-full 可正确解析。
+          className="will-change-transform h-full w-full"
         >
           {children}
         </motion.div>
