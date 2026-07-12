@@ -1,6 +1,6 @@
 # Motion System Guide
 
-> **适用版本：** v1（Phase 0-9 完成）
+> **适用版本：** v1（Phase 0-10 完成）
 > **适用对象：** 在 `frontend/` 下新增 / 修改动效相关的工程师
 > **目标：** 让任何工程师在 5 分钟内能决定"用哪个组件 + 用哪个 token"
 
@@ -51,7 +51,6 @@
 | `--motion-ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | ≈ easeOutExpo，惯性减弱 |
 | `--motion-ease-standard` | `cubic-bezier(0.16, 1, 0.3, 1)` | 标准缓动 |
 | `--stagger-step` | `70ms` | 内容错落步长 |
-| `--z-nav / --z-overlay / --z-modal / --z-toast / --z-grain` | `30 / 50 / 60 / 70 / 80` | 层级标尺（替代散落 z-10/50/9999） |
 | `--spot-x / --spot-y` | `50%`（默认） | spotlight 光标坐标（由 `useSpotlight` 写入） |
 | `--spotlight-strength` | `1`（默认） | spotlight 强度（reduce-transparency 时为 0） |
 
@@ -65,12 +64,9 @@
 | `DURATION.springPress` | `0.22` | `--motion-spring-press` (220ms cubic-bezier...) | |
 | `EASE.out` | `[0.22, 1, 0.36, 1]` | `--motion-ease-out` | |
 | `EASE.standard` | `[0.16, 1, 0.3, 1]` | `--motion-ease-standard` | |
-| `EASE.springBack` | `[0.34, 1.56, 0.64, 1]` | `--motion-spring-press` 同曲线 | 也用于部分 spring 替代场景 |
 | `SPRING.page` | `{ stiffness: 260, damping: 30, mass: 1 }` | （无对应 CSS） | 仅 JS 使用，路由过渡 |
-| `SPRING.press` | `{ stiffness: 380, damping: 22, mass: 0.8 }` | （无对应 CSS） | 暂未在生产引用（v2 调研见 §7） |
 | `STAGGER.step` | `0.07` | `--stagger-step` (70ms) | |
 | `STAGGER.childDelay` | `0.07` | （同 STAGGER.step） | staggerChildren 用，与 step 同值 |
-| `Z.nav / overlay / modal / toast / grain` | `30 / 50 / 60 / 70 / 80` | `--z-*` | |
 | `isReducedMotionDefault` | `false` | （运行时 media query） | 常量仅占位，调用方读 `useReducedMotion()` |
 
 **单位转换**：JS 用**秒**（framer-motion API），CSS 用**毫秒**（CSS animation）。ms ÷ 1000 = s。
@@ -78,6 +74,8 @@
 ### 2.3 修改纪律
 
 ⚠️ **改一处必须同步另一处**
+
+> **Phase 10 v2 清理**：已删除 `Z.*`（5 档 z-index 标尺）/ `EASE.springBack` / `SPRING.press` — Phase 9 调研确认 0 引用。详见 `docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`。
 
 ```bash
 # 改 CSS（globals.css :root）→ 同步改 JS（tokens.ts），反之亦然
@@ -248,9 +246,9 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 
 完整调研报告见 [`docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`](../../docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md)。
 
-**TL;DR（待用户决策，未实施）**：
+**TL;DR（Phase 10 已实施清理，剩余项待后续决策）**：
 
-1. `SPRING.press` 当前生产无引用 → 删除 or 重新分类
+1. `Z.*` / `EASE.springBack` / `SPRING.press` 已在 Phase 10 删除（Phase 9 调研确认 0 引用）
 2. `STAGGER.childDelay` 与 `STAGGER.step` 值相同（都是 0.07）→ 合并为一个
 3. 是否需要 `SPRING.modal` / `SPRING.toast` 场景化常量？当前 toast 用 `DURATION.springPress` + 字符串 ease
 4. 是否需要 `EASE.springSoft`（更软）/ `springSnappy`（更脆）变体？
@@ -264,7 +262,6 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 - **颜色 token**：已在 `globals.css` 的 `:root` 与 `.dark` 镜像（设计稿改色同步这两块）
 - **时长 / 缓动 token**：应同步到 Figma Variables / Design Tokens（180ms / 240ms / 320ms / 220ms）
 - **spring / stagger 参数**：应在 Figma Smart Animate 时复用相同曲线（260/30/1）
-- **Z-index 标尺**：设计稿组件层叠应映射 `--z-*` 五档
 
 ### 8.2 修改流程
 
