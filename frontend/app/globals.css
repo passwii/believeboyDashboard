@@ -761,6 +761,21 @@
     animation: global-loading-slide 1.15s var(--motion-ease-standard) infinite;
     will-change: transform;
   }
+
+  .u-skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: hsl(var(--muted));
+  }
+
+  .u-skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent);
+    animation: shimmer 1.5s var(--motion-ease-standard) infinite;
+    will-change: transform;
+  }
 }
 
 @keyframes enter {
