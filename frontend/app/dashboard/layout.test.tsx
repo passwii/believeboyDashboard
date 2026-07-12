@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 // 关键断言：即便 isNavigationLoading=true（最危险 case），
@@ -8,8 +8,9 @@ import { render, screen } from '@testing-library/react'
 // 新版 layout 已不再消费 useGlobalLoading（line 19 hook 调用已删除），
 // 所以 children 必定渲染。
 
+let mockPathname = '/dashboard'
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => mockPathname,
 }))
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ status: 'authenticated', data: { user: { name: 't' } } }),
@@ -41,6 +42,10 @@ vi.mock('@/components/dashboard/sidebar-shell', () => ({
 import DashboardLayout from './layout'
 
 describe('DashboardLayout — 拆整页 loading swap', () => {
+  beforeEach(() => {
+    mockPathname = '/dashboard'
+  })
+
   it('isNavigationLoading=true 时 children 必须仍渲染，绝不能整页 swap 成 DashboardPageLoading', () => {
     render(
       <DashboardLayout>
@@ -51,5 +56,20 @@ describe('DashboardLayout — 拆整页 loading swap', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
     // DashboardPageLoading（page-loading）绝不能出现
     expect(screen.queryByTestId('page-loading')).not.toBeInTheDocument()
+  })
+
+  it('renders children without throwing when pathname is full-bleed (/dashboard/ai-chat)', () => {
+    // 端到端验证：layout + PageTransition dispatcher 一起在 ai-chat 路由下不抛错
+    // 因为路由判断在 PageTransition 内部（用 usePathname），layout 只负责 render children
+    // 此 test 守护的是：dispatcher 改造后，外部 layout 调用栈不破坏
+    mockPathname = '/dashboard/ai-chat'
+    expect(() =>
+      render(
+        <DashboardLayout>
+          <div data-testid="child">real child</div>
+        </DashboardLayout>,
+      ),
+    ).not.toThrow()
+    expect(screen.getByTestId('child')).toBeInTheDocument()
   })
 })
