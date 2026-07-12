@@ -523,23 +523,36 @@ if (requestId !== latestRequestRef.current) return
         *   - 左 2fr：DashboardAlertWidget（自管 fetch，与 KPI 时段无关）
         *   - 右 3fr：DashboardTopProjects（Top 5 项目/店铺，Tab 切换 销售额/广告花费）
         * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
+        *
+        * 注意：三个子组件根节点已通过 DataCard / DataTableCard 自带 dashboard-surface，
+        * 因此不再用 <DashboardSurfaceCard> 包裹（避免 dashboard-surface 嵌套）；仅用
+        * MotionStagger 做错峰入场。
         */}
       <section className="grid gap-5 lg:grid-cols-3">
-        <DashboardAlertWidget
-          stockSnapshot={stockSnapshot}
-          stockLoading={dataLoading}
-        />
-        <DashboardHealthKpis
-          currentRows={currentRows}
-          comparisonRows={comparisonRows}
-          loading={dataLoading}
-        />
-        <DashboardTopProjects
-          projectBreakdown={projectBreakdown}
-          compareProjectBreakdown={compareProjectBreakdown}
-          projects={projects}
-          loading={dataLoading || projectsLoading}
-        />
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardAlertWidget
+              stockSnapshot={stockSnapshot}
+              stockLoading={dataLoading}
+            />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <DashboardHealthKpis
+              currentRows={currentRows}
+              comparisonRows={comparisonRows}
+              loading={dataLoading}
+            />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <DashboardTopProjects
+              projectBreakdown={projectBreakdown}
+              compareProjectBreakdown={compareProjectBreakdown}
+              projects={projects}
+              loading={dataLoading || projectsLoading}
+            />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
 
       {/*
