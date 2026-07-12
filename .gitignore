@@ -10,6 +10,9 @@
 .sisyphus/
 .superpowers/
 
+# OpenCLI `web read` cached fetched pages (generated in cwd on web search)
+web-articles/
+
 # Git worktrees
 .worktrees/
 .DS_Store
