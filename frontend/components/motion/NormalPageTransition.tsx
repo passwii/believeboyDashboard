@@ -6,6 +6,7 @@ import { SPRING } from '@/lib/motion/tokens'
 type Props = {
   children: ReactNode
   className?: string
+  pathname: string
 }
 
 /**
@@ -14,7 +15,7 @@ type Props = {
  * - motion.div: will-change-transform h-full w-full
  * - reduced-motion / reduced-transparency 全量退化
  */
-export function NormalPageTransition({ children, className }: Props) {
+export function NormalPageTransition({ children, className, pathname }: Props) {
   const reduce = useReducedMotion()
   const [reduceTransparency, setReduceTransparency] = useState(false)
 
@@ -47,7 +48,7 @@ export function NormalPageTransition({ children, className }: Props) {
     <div className={className ?? 'h-full w-full'}>
       <AnimatePresence initial={false} mode="wait">
         <motion.div
-          key="normal"
+          key={pathname}
           initial={initial}
           animate={animate}
           exit={exit}

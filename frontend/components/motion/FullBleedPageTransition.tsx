@@ -6,6 +6,7 @@ import { SPRING } from '@/lib/motion/tokens'
 type Props = {
   children: ReactNode
   className?: string
+  pathname: string
 }
 
 /**
@@ -19,7 +20,7 @@ type Props = {
  *
  * 选择依据：frontend/lib/motion/routes.ts 的 FULL_BLEED_DASHBOARD_ROUTES
  */
-export function FullBleedPageTransition({ children, className }: Props) {
+export function FullBleedPageTransition({ children, className, pathname }: Props) {
   const reduce = useReducedMotion()
   const [reduceTransparency, setReduceTransparency] = useState(false)
 
@@ -52,7 +53,7 @@ export function FullBleedPageTransition({ children, className }: Props) {
     <div className={className ?? '!absolute inset-0'}>
       <AnimatePresence initial={false} mode="wait">
         <motion.div
-          key="full-bleed"
+          key={pathname}
           initial={initial}
           animate={animate}
           exit={exit}

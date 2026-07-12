@@ -21,5 +21,6 @@ type Props = {
 export function PageTransition({ children, className }: Props) {
   const pathname = usePathname()
   const Component = isFullBleedDashboardRoute(pathname) ? FullBleedPageTransition : NormalPageTransition
-  return <Component className={className}>{children}</Component>
+  // pathname 传给变体：motion.div 用 key={pathname} 触发 AnimatePresence exit/enter
+  return <Component className={className} pathname={pathname}>{children}</Component>
 }
