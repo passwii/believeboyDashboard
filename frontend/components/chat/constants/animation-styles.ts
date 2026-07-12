@@ -47,11 +47,11 @@ export const animationStyles = `
 
   .bb-anim-fade-up {
     opacity: 0;
-    animation: bb-fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: bb-fade-up 0.8s var(--motion-ease-standard) forwards;
   }
   .bb-anim-scale-in {
     opacity: 0;
-    animation: bb-scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: bb-scale-in 0.6s var(--motion-ease-standard) forwards;
   }
   .bb-glow-pulse {
     animation: bb-glow-pulse 4s ease-in-out infinite;
@@ -71,13 +71,13 @@ export const animationStyles = `
     animation: bb-cursor-blink 0.8s step-end infinite;
   }
   .bb-arcs-entrance {
-    animation: bb-arcs-entrance 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+    animation: bb-arcs-entrance 1.2s var(--motion-ease-standard) 0.2s both;
   }
   .bb-chat-enter {
-    animation: bb-chat-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: bb-chat-enter 0.5s var(--motion-ease-standard) forwards;
   }
   .bb-anim-sidebar {
-    animation: bb-sidebar-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: bb-sidebar-in 0.35s var(--motion-ease-standard) forwards;
   }
   .bb-stop-pulse {
     animation: bb-stop-pulse 1.5s ease-in-out infinite;
@@ -89,7 +89,7 @@ export const animationStyles = `
     to   { opacity: 1; transform: translateY(0); }
   }
   .animate-fade-slide-up {
-    animation: bb-fade-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: bb-fade-slide-up 0.4s var(--motion-ease-standard) forwards;
   }
 
   /* Mobile Safe Area Support */
