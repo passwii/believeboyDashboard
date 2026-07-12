@@ -1,6 +1,6 @@
 # Phase 8 — 性能 + 可访问性收口
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-7 完成 + tag `phase7-component-motion`
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）

@@ -1,6 +1,6 @@
 # Phase 6 — Phase 2/3 推广（spotlight + stagger + u-* 扩散到全站高频表面）
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-5 完成（含 hotfix 1-4）+ tag `phase5-page-transition-refactor`
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）

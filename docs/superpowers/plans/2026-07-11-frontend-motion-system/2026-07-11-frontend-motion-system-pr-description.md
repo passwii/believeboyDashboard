@@ -1,7 +1,7 @@
 # feat(前端动效): 建立 Apple 级动效设计系统 v1
 
 > **关联文档**：
-> - [父 plan](docs/superpowers/plans/2026-07-11-frontend-motion-system.md)
+> - [父 plan](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md)
 > - [设计 spec](docs/superpowers/specs/2026-07-11-frontend-motion-system-design.md)
 > - [开发者指南](frontend/docs/motion-system.md)
 > - [10 个 phase 进度 md](docs/superpowers/plans/)
@@ -57,7 +57,7 @@
 
 - `v1-motion-system` tag
 - 代码层：lint 0 errors / build pass / 154 tests
-- 手动验收 9 条（[phase4 文档](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase4.md#任务-43--手动验收-9-条)）
+- 手动验收 9 条（[phase4 文档](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase4.md#任务-43--手动验收-9-条)）
 
 ### Phase 5 — Hotfix 3 架构化（5 commits + 3 hotfix + 1 regression hotfix）— `phase5-page-transition-refactor`
 
@@ -98,7 +98,7 @@
 - `f453174c` — `docs(动效): 新增 5 个 phase 进度文档 支撑 /loop 定期执行恢复上下文`
 - `85c9ffd1` — `docs(动效): 新增 motion-system 开发者指南`（`frontend/docs/motion-system.md`，296 行）
 - `cac8a260` — `docs(动效): tokens.ts 添加 CSS/JS 对照表与修改纪律注释`
-- `81026891` — `docs(动效): v2 token 优化建议调研报告`（`docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`）
+- `81026891` — `docs(动效): v2 token 优化建议调研报告`（`docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`）
 
 ### Phase 10 — v2 Token 清理（2 commits）— `phase10-v2-cleanup`
 
@@ -176,18 +176,18 @@ phase1-motion-transition
 
 ## Manual Verification Checklist（PR review 时建议过一遍）
 
-- [Phase 4 手动验收 9 条](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase4.md#任务-43--手动验收-9-条)
-- [Phase 5 ai-chat 视口验证](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase5-page-transition-refactor.md#任务-55--playwright-ai-chat-视口高度回归)
-- [Phase 6 row 2/3 stagger 验证](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase6-promotion.md#手动验收-用户在浏览器)
-- [Phase 7 UI 组件微动效验证](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase7-component-motion.md#手动验收-用户在浏览器)
-- [Phase 8 reduced-motion / reduced-transparency 退化](docs/superpowers/plans/2026-07-11-frontend-motion-system-phase8-perf-a11y.md#手动验收-用户在浏览器--ci)
+- [Phase 4 手动验收 9 条](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase4.md#任务-43--手动验收-9-条)
+- [Phase 5 ai-chat 视口验证](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase5-page-transition-refactor.md#任务-55--playwright-ai-chat-视口高度回归)
+- [Phase 6 row 2/3 stagger 验证](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase6-promotion.md#手动验收-用户在浏览器)
+- [Phase 7 UI 组件微动效验证](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase7-component-motion.md#手动验收-用户在浏览器)
+- [Phase 8 reduced-motion / reduced-transparency 退化](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase8-perf-a11y.md#手动验收-用户在浏览器--ci)
 
 ## Related Documentation
 
-- [父 plan](docs/superpowers/plans/2026-07-11-frontend-motion-system.md)
+- [父 plan](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md)
 - [设计 spec](docs/superpowers/specs/2026-07-11-frontend-motion-system-design.md)
 - [开发者指南](frontend/docs/motion-system.md)
-- [v2 token 调研](docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md)
+- [v2 token 调研](docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md)
 - [10 个 phase 进度 md](docs/superpowers/plans/)
 
 ## Future Work（v2+）

@@ -1,6 +1,6 @@
 # Phase 7 — 通用组件动效统一
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-6 完成 + tag `phase6-promotion`
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）

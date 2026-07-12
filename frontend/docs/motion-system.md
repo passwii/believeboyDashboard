@@ -75,7 +75,7 @@
 
 ⚠️ **改一处必须同步另一处**
 
-> **Phase 10 v2 清理**：已删除 `Z.*`（5 档 z-index 标尺）/ `EASE.springBack` / `SPRING.press` — Phase 9 调研确认 0 引用。详见 `docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`。
+> **Phase 10 v2 清理**：已删除 `Z.*`（5 档 z-index 标尺）/ `EASE.springBack` / `SPRING.press` — Phase 9 调研确认 0 引用。详见 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`。
 
 ```bash
 # 改 CSS（globals.css :root）→ 同步改 JS（tokens.ts），反之亦然
@@ -244,7 +244,7 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 
 ## 7. v2 Token 优化建议（参考）
 
-完整调研报告见 [`docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`](../../docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md)。
+完整调研报告见 [`docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`](../../docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md)。
 
 **TL;DR（Phase 10 已实施清理，剩余项待后续决策）**：
 
@@ -281,7 +281,7 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 
 ## 9. 延伸阅读
 
-- 父 plan：`docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+- 父 plan：`docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 - 阶段计划：
   - Phase 0：`...-phase0.md`（基础设施）
   - Phase 1：`...-phase1.md`（transition 基线）

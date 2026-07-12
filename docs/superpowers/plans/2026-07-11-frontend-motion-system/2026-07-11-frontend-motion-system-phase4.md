@@ -1,6 +1,6 @@
 # Phase 4 — 验收
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0 + Phase 1 + Phase 2 + Phase 3 完成 ✅
 > **执行日期：** 2026-07-11
 > **执行者：** 子智能体 + 用户本地手动验收

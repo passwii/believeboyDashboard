@@ -1,6 +1,6 @@
 # Phase 11 — PR 准备
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-10 完成 + tag `phase10-v2-cleanup`
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）
@@ -10,7 +10,7 @@
 ## 任务清单
 
 ### ✅ 任务 11.1 — PR description 草稿
-- [x] `docs/superpowers/plans/2026-07-11-frontend-motion-system-pr-description.md`（218 行 / 12,417 bytes）
+- [x] `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-pr-description.md`（218 行 / 12,417 bytes）
 - [x] 47 commits 按 12 个 phase 区段全部列出，hash 与 `git log origin/feat/frontend-motion-system` 实际一致
 - [x] Summary / Changes by Phase / Test Report / Tag List / Migration Notes / Manual Verification / Related Docs / Future Work 全覆盖
 - [x] **未 commit**（辅助文档，不污染动效分支）
@@ -61,14 +61,14 @@ gh pr create \
   --base main \
   --head feat/frontend-motion-system \
   --title "feat(前端动效): 建立 Apple 级动效设计系统 v1" \
-  --body-file docs/superpowers/plans/2026-07-11-frontend-motion-system-pr-description.md \
+  --body-file docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-pr-description.md \
   --label "frontend,motion-system"
 ```
 
 ### 选项 B：手动 GitHub 网页
 
 1. 打开 https://github.com/passwii/believeboyDashboard/compare/main...feat/frontend-motion-system
-2. 复制粘贴 `docs/superpowers/plans/2026-07-11-frontend-motion-system-pr-description.md` 内容到 PR body
+2. 复制粘贴 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-pr-description.md` 内容到 PR body
 3. 设置 reviewer + label
 
 ### 合并策略建议
@@ -107,7 +107,7 @@ gh pr create \
 
 ### 项目级交付物（不污染动效分支，留在工作区）
 
-- `docs/superpowers/plans/2026-07-11-frontend-motion-system-pr-description.md` — 给用户复制到 GitHub PR
+- `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-pr-description.md` — 给用户复制到 GitHub PR
 - `CHANGELOG.md` — 给用户决定是否推到 main 时一起合并
 
 按用户节奏推进。Phase 0-11 完整收尾。

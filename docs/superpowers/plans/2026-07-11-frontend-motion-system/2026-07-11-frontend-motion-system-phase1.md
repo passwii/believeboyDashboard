@@ -1,6 +1,6 @@
 # Phase 1 — 全局路由过渡 + 两项结构修正
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0 完成 ✅
 > **执行日期：** 2026-07-11
 > **执行者：** 子智能体（subagent-driven-development 调度）
@@ -100,4 +100,4 @@ c9d8e737 feat(动效): 新增 useSpotlight hook + 单测
 
 ✅ Phase 1 完成 → 进入 **Phase 2**（hover/active 标准化）。
 
-详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system-phase2.md`。
+详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase2.md`。
