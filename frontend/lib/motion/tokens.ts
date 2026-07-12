@@ -1,6 +1,6 @@
 /**
  * Motion design system — JS-side mirror of CSS tokens.
- * 数值必须与 frontend/app/globals.css :root 中的 --motion-* / --stagger-step / --z-* 一一对应。
+ * 数值必须与 frontend/app/globals.css :root 中的 --motion-* / --stagger-step 一一对应。
  * 改这里必须同步改 globals.css；改 globals.css 必须同步改这里。
  *
  * ## CSS / JS 对照表
@@ -13,12 +13,9 @@
  * | DURATION.springPress | 0.22 | --motion-spring-press | 220ms cubic-bezier(0.34, 1.56, 0.64, 1) |
  * | EASE.out | [0.22, 1, 0.36, 1] | --motion-ease-out | cubic-bezier(0.22, 1, 0.36, 1) |
  * | EASE.standard | [0.16, 1, 0.3, 1] | --motion-ease-standard | cubic-bezier(0.16, 1, 0.3, 1) |
- * | EASE.springBack | [0.34, 1.56, 0.64, 1] | --motion-spring-press | （同 spring-press 曲线） |
  * | SPRING.page | { stiffness: 260, damping: 30, mass: 1 } | (无对应 CSS，仅 JS 使用) | framer-motion spring 物理 |
- * | SPRING.press | { stiffness: 380, damping: 22, mass: 0.8 } | (无对应 CSS，仅 JS 使用) | 当前生产无引用（v2 调研） |
  * | STAGGER.step | 0.07 | --stagger-step | 70ms |
  * | STAGGER.childDelay | 0.07 | (无对应 CSS，仅 JS 使用) | 与 step 同值，建议合并（v2 调研） |
- * | Z.nav / overlay / modal / toast / grain | 30/50/60/70/80 | --z-nav / --z-overlay / --z-modal / --z-toast / --z-grain | 30/50/60/70/80 |
  *
  * **单位转换**：JS 用秒（framer-motion），CSS 用毫秒（CSS animation）。ms ÷ 1000 = s。
  *
@@ -37,20 +34,16 @@ export const DURATION = {
 
 /** cubic-bezier 数组（framer-motion ease 字段）。
  * out ≈ easeOutExpo（惯性减弱）→ 进场 / 退出；
- * standard → hover / 微状态；
- * springBack → 带 overshoot 的回弹（与 --motion-spring-press 同曲线） */
+ * standard → hover / 微状态。 */
 export const EASE = {
   out: [0.22, 1, 0.36, 1] as [number, number, number, number],
   standard: [0.16, 1, 0.3, 1] as [number, number, number, number],
-  springBack: [0.34, 1.56, 0.64, 1] as [number, number, number, number],
 } as const;
 
 /** framer-motion spring 物理参数（无对应 CSS token；CSS cubic-bezier 不能表达 spring）。
- * page → 路由过渡（近临界阻尼，~0.5-0.8s 收敛，几乎无 overshoot）；
- * press → 按下回弹（更高 stiffness 更快响应），当前生产无引用（v2 调研见 motion-system.md §7）。 */
+ * page → 路由过渡（近临界阻尼，~0.5-0.8s 收敛，几乎无 overshoot）。 */
 export const SPRING = {
   page: { type: "spring", stiffness: 260, damping: 30, mass: 1 } as const,
-  press: { type: "spring", stiffness: 380, damping: 22, mass: 0.8 } as const,
 } as const;
 
 /** stagger 错落节奏。
@@ -58,16 +51,6 @@ export const SPRING = {
 export const STAGGER = {
   step: 0.07,
   childDelay: 0.07,
-} as const;
-
-/** 层级标尺（替代散落 z-10/50/9999）；与 --z-* 一一对应。
- * 留 5 档：nav（30，侧栏）/ overlay（50，dropdown）/ modal（60，dialog）/ toast（70，notification）/ grain（80，最高）。 */
-export const Z = {
-  nav: 30,
-  overlay: 50,
-  modal: 60,
-  toast: 70,
-  grain: 80,
 } as const;
 
 /** 默认 reduced-motion 关闭（运行时应通过 framer-motion 的 useReducedMotion 读系统） */

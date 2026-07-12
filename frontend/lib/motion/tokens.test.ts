@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DURATION, EASE, SPRING, STAGGER, Z, isReducedMotionDefault } from "./tokens";
+import { DURATION, EASE, SPRING, STAGGER, isReducedMotionDefault } from "./tokens";
 
 describe("motion tokens", () => {
   it("DURATION mirrors CSS motion tokens", () => {
@@ -14,6 +14,11 @@ describe("motion tokens", () => {
     expect(EASE.standard).toEqual([0.16, 1, 0.3, 1]);
   });
 
+  it("motion token groups expose active keys only", () => {
+    expect(Object.keys(EASE)).toEqual(["out", "standard"]);
+    expect(Object.keys(SPRING)).toEqual(["page"]);
+  });
+
   it("SPRING uses Apple-tuned spring for page transition", () => {
     expect(SPRING.page.stiffness).toBe(260);
     expect(SPRING.page.damping).toBe(30);
@@ -22,14 +27,6 @@ describe("motion tokens", () => {
 
   it("STAGGER step mirrors --stagger-step", () => {
     expect(STAGGER.step).toBe(0.07);
-  });
-
-  it("Z scale covers nav/overlay/modal/toast/grain", () => {
-    expect(Z.nav).toBe(30);
-    expect(Z.overlay).toBe(50);
-    expect(Z.modal).toBe(60);
-    expect(Z.toast).toBe(70);
-    expect(Z.grain).toBe(80);
   });
 
   it("isReducedMotionDefault is false (caller must read media query)", () => {
