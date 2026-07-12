@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
@@ -156,6 +157,9 @@ export default function InventoryAnalysisPage() {
   // 项目 / 国家 / 报表快照日期 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
   // reportDate 是后端响应里带回来的"数据是几号的"，属于衍生展示值，不放 URL。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useUrlParam('country', 'US', {
     allowed: ['US', 'DE', 'UK', 'ALL'],
   })

@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { FileDown, RefreshCw, Table2, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import type { DateRange } from 'react-day-picker'
@@ -174,6 +175,9 @@ export default function SeasonalReplenishmentPage() {
   // 项目 / 国家 / 同比 / 关键字 同步到 URL search param。
   // dateRange 暂时保留为本地 state（初始值仍从 URL ?from/?to 读，但用户改 picker 不写回 URL —— 与原行为一致）。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useUrlParam('country', 'US', {
     allowed: ['US', 'DE', 'UK', 'ALL'],
   })

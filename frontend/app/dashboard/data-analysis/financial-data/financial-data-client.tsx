@@ -60,6 +60,7 @@ import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { getCountryLabel } from '@/lib/country'
 import { getExcelNumFmt } from './excel-num-fmt'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
@@ -772,6 +773,9 @@ export default function FinancialDataClient({
   // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
   // 默认值来自 props（page.tsx 传入 ""），URL 有值时覆盖 props。
   const [projectId, setProjectId] = useUrlParam<string>('project', initialProjectId)
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useUrlParam<ReportUploadCountry>(
     'country',
     DEFAULT_REPORT_UPLOAD_COUNTRY,

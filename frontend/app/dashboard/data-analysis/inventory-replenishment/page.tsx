@@ -28,6 +28,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -249,6 +250,9 @@ export default function InventoryReplenishmentPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectId, setProjectId] = useState<string>(() => searchParams.get('project') || '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useState(() => searchParams.get('country') || 'US')
   const [snapshotRefreshNonce, setSnapshotRefreshNonce] = useState(0)
   const initializedFromUrl = useRef(false)

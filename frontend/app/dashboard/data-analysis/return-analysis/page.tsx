@@ -25,6 +25,7 @@ import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
@@ -248,6 +249,9 @@ export default function ReturnAnalysisPage() {
   // 项目 / 国家 / 当前 Tab 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
   // dateRange 暂保留本地 state（按 current country 的 timezone 计算默认值，比较重，先不污染 URL）。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
     allowed: ['US', 'DE', 'UK'],
   })

@@ -6,6 +6,7 @@ import { AlertTriangle, Download, Eye, EyeOff, Loader2, ShoppingCart } from 'luc
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -1128,6 +1129,9 @@ export default function WeeklyProductAnalysisPage() {
   const defaultFrom = useMemo(() => eightWeeksAgoMondayDateString(), [])
   const defaultTo = useMemo(() => lastSundayDateString(), [])
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, projectId, setProjectId)
   const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
     allowed: ['US', 'DE', 'UK'],
   })

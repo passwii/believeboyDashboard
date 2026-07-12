@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
@@ -154,6 +155,9 @@ export default function ProjectGoalsPage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get('project') ?? '')
+
+  // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
+  useAutoSelectFirstProject(projects, selectedProjectId, setSelectedProjectId)
   const [selectedCountry, setSelectedCountry] = useState<string>(searchParams.get('country') ?? 'US')
   const [selectedYear, setSelectedYear] = useState<string>(
     String(getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US).getFullYear()),

@@ -40,7 +40,7 @@ export function ProjectSelect({
   disabled = false,
   className,
   triggerClassName,
-  autoSelectFirst = false,
+  autoSelectFirst = true,
   onAutoSelected,
   projects: externalProjects,
   loading: externalLoading,
