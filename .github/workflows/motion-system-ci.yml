@@ -22,6 +22,11 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # Production server (pnpm start) 需要 NEXTAUTH_SECRET，否则 middleware 抛 500
+      # 用 CI mock secret — 仅用于 build/Playwright smoke，不影响生产
+      NEXTAUTH_SECRET: ci-mock-secret-not-secure-do-not-use-in-production-abcdef0123456789
+      NEXTAUTH_URL: http://localhost:3200
     steps:
       - uses: actions/checkout@v4
 
