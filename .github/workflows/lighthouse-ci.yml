@@ -29,8 +29,7 @@ jobs:
     timeout-minutes: 15
     env:
       LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-      # Production server (pnpm start) 需要 NEXTAUTH_SECRET，否则 middleware 抛 500
-      NEXTAUTH_SECRET: ci-mock-secret-not-secure-do-not-use-in-production-abcdef0123456789
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
       NEXTAUTH_URL: http://localhost:3200
     steps:
       - name: Checkout
