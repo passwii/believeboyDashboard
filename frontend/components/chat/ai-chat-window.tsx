@@ -722,6 +722,7 @@ export function AIChatWindow({
   return (
     <div
       ref={rootRef}
+      data-testid="ai-chat-window"
       className="relative h-full w-full overflow-hidden bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
       style={{ ['--sidebar-width' as string]: '280px' }}
     >
