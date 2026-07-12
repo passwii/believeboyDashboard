@@ -559,36 +559,46 @@ if (requestId !== latestRequestRef.current) return
         * Row 3 — 销售/广告全景
         *   - 左 2fr：跨国家 TOP（取 representativeProjectId 为代表项目调 /all-countries,静默降级)
         *   - 右 3fr：销售 vs 广告花费 双轴对比图（复用 page.tsx 同一份 currentRows/comparisonRows）
+        *
+        * 子组件根节点已通过 DataTableCard / DataCard 自带 dashboard-surface,
+        * 与 row 2 一致,不再包 <DashboardSurfaceCard>,仅加 MotionStagger。
         */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <DashboardTopCountries
-          countryRowsByCode={countryRowsByCode}
-          countryCompareRowsByCode={countryCompareRowsByCode}
-          currencyNote={countryCurrencyNote}
-          representativeProjectName={
-            representativeProjectId
-              ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
-              : null
-          }
-          projectSelector={
-            <ProjectSelect
-              value={representativeProjectId ? String(representativeProjectId) : ''}
-              onChange={(v) => setRepresentativeProjectId(Number(v))}
-              placeholder="选择代表项目"
-              triggerClassName="h-8 text-xs min-w-[140px]"
-              projects={projects}
-              loading={projectsLoading}
-              error={projectsError}
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局 */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardTopCountries
+              countryRowsByCode={countryRowsByCode}
+              countryCompareRowsByCode={countryCompareRowsByCode}
+              currencyNote={countryCurrencyNote}
+              representativeProjectName={
+                representativeProjectId
+                  ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
+                  : null
+              }
+              projectSelector={
+                <ProjectSelect
+                  value={representativeProjectId ? String(representativeProjectId) : ''}
+                  onChange={(v) => setRepresentativeProjectId(Number(v))}
+                  placeholder="选择代表项目"
+                  triggerClassName="h-8 text-xs min-w-[140px]"
+                  projects={projects}
+                  loading={projectsLoading}
+                  error={projectsError}
+                />
+              }
+              loading={dataLoading}
             />
-          }
-          loading={dataLoading}
-        />
-        <LazyDashboardAdSpendChart
-          dailyData={dailyData}
-          dateRange={dateRange}
-          loading={dataLoading}
-          onRefresh={handleRefresh}
-        />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <LazyDashboardAdSpendChart
+              dailyData={dailyData}
+              dateRange={dateRange}
+              loading={dataLoading}
+              onRefresh={handleRefresh}
+            />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
     </div>
   )
