@@ -14,6 +14,9 @@ import { test, expect } from '@playwright/test'
  * micro-benchmark.
  */
 test.describe('motion system performance', () => {
+  // CI: production webServer cold start + 5 个路由切换 + 800ms × 5 等待，需要 60s+
+  test.setTimeout(60_000)
+
   test('route switching does not regress INP/CLS', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForLoadState('networkidle')

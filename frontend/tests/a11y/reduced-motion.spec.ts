@@ -16,6 +16,9 @@ import { test, expect } from '@playwright/test'
 test.describe('reduced-motion fallback', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } })
 
+  // CI: production webServer cold start + 2 个路由切换需要更多时间，默认 30s 不够
+  test.setTimeout(60_000)
+
   test('route switch has no transform under reduced-motion', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForLoadState('networkidle')
