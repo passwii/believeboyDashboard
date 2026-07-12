@@ -117,7 +117,7 @@ export const SidebarPanel = React.memo(function SidebarPanel({
                     data-active={isActive}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      'group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium transition-colors',
+                      'group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium u-interactive transition-colors',
                       isActive
                         ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
                         : 'text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground',

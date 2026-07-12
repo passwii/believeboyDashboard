@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 15
     env:
       LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      NEXTAUTH_URL: http://localhost:3200
     steps:
       - name: Checkout
         uses: actions/checkout@v4

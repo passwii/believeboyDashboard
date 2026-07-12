@@ -72,7 +72,8 @@ const RailChip = React.memo(function RailChip({
         'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-[hsl(var(--sidebar-foreground)/0.08)] shadow-[inset_0_1px_0_hsl(var(--sidebar-foreground)/0.06)] transition-all duration-200 ease-out',
         'hover:scale-[1.04] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         hasActiveItem ? group.activeAccent : group.accent,
-        isActive && 'ring-2 ring-primary/30',
+        isActive &&
+          'ring-2 ring-primary/30 transition-[transform,opacity,background-color] duration-200 ease-[cubic-bezier(0.22,1.18,0.36,1)]',
       )}
     >
       <Icon
@@ -127,7 +128,8 @@ const UserChip = React.memo(function UserChip({
         'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-blue-200/60 dark:border-blue-800/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out',
         'hover:scale-[1.04] hover:shadow-md hover:border-blue-300/80 dark:hover:border-blue-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
         isActive || isPinned ? USER_CHIP_ACTIVE_ACCENT : USER_CHIP_ACCENT,
-        isActive && 'ring-2 ring-primary/30',
+        isActive &&
+          'ring-2 ring-primary/30 transition-[transform,opacity,background-color] duration-200 ease-[cubic-bezier(0.22,1.18,0.36,1)]',
       )}
     >
       <Avatar className='h-7 w-7'>

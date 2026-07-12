@@ -114,6 +114,7 @@ export function Combobox({
             "hover:bg-background focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20",
             "data-[placeholder]:text-muted-foreground/70",
             "dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.96)]",
+            "u-interactive",
             triggerClassName,
           )}
         >

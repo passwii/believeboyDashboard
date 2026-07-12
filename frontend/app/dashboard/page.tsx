@@ -5,8 +5,10 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { MotionStagger, MotionStaggerItem } from '@/components/motion/MotionStagger'
 import { DashboardMetricTiles } from '@/components/dashboard/dashboard-metric-tiles'
 import type { MetricTileProps } from '@/components/dashboard/dashboard-metric-tiles'
+import { DashboardSurfaceCard } from '@/components/dashboard/dashboard-surface-card'
 import { DashboardAlertWidget } from '@/components/dashboard/dashboard-alert-widget'
 import { DashboardTopProjects } from '@/components/dashboard/dashboard-top-projects'
 import { DashboardTopCountries } from '@/components/dashboard/dashboard-top-countries'
@@ -504,67 +506,99 @@ if (requestId !== latestRequestRef.current) return
         * gets the full width.
         */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
-        <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardSurfaceCard className="p-5">
+              <DashboardMetricTiles metrics={metrics} loading={anyLoading} />
+            </DashboardSurfaceCard>
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
       {/*
         * Row 2 — 高度填充 + 信息密度补充
         *   - 左 2fr：DashboardAlertWidget（自管 fetch，与 KPI 时段无关）
         *   - 右 3fr：DashboardTopProjects（Top 5 项目/店铺，Tab 切换 销售额/广告花费）
         * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
+        *
+        * 注意：三个子组件根节点已通过 DataCard / DataTableCard 自带 dashboard-surface，
+        * 因此不再用 <DashboardSurfaceCard> 包裹（避免 dashboard-surface 嵌套）；仅用
+        * MotionStagger 做错峰入场。
         */}
       <section className="grid gap-5 lg:grid-cols-3">
-        <DashboardAlertWidget
-          stockSnapshot={stockSnapshot}
-          stockLoading={dataLoading}
-        />
-        <DashboardHealthKpis
-          currentRows={currentRows}
-          comparisonRows={comparisonRows}
-          loading={dataLoading}
-        />
-        <DashboardTopProjects
-          projectBreakdown={projectBreakdown}
-          compareProjectBreakdown={compareProjectBreakdown}
-          projects={projects}
-          loading={dataLoading || projectsLoading}
-        />
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardAlertWidget
+              stockSnapshot={stockSnapshot}
+              stockLoading={dataLoading}
+            />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <DashboardHealthKpis
+              currentRows={currentRows}
+              comparisonRows={comparisonRows}
+              loading={dataLoading}
+            />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <DashboardTopProjects
+              projectBreakdown={projectBreakdown}
+              compareProjectBreakdown={compareProjectBreakdown}
+              projects={projects}
+              loading={dataLoading || projectsLoading}
+            />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
 
       {/*
         * Row 3 — 销售/广告全景
         *   - 左 2fr：跨国家 TOP（取 representativeProjectId 为代表项目调 /all-countries,静默降级)
         *   - 右 3fr：销售 vs 广告花费 双轴对比图（复用 page.tsx 同一份 currentRows/comparisonRows）
+        *
+        * 子组件根节点已通过 DataTableCard / DataCard 自带 dashboard-surface,
+        * 与 row 2 一致,不再包 <DashboardSurfaceCard>,仅加 MotionStagger。
         */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <DashboardTopCountries
-          countryRowsByCode={countryRowsByCode}
-          countryCompareRowsByCode={countryCompareRowsByCode}
-          currencyNote={countryCurrencyNote}
-          representativeProjectName={
-            representativeProjectId
-              ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
-              : null
-          }
-          projectSelector={
-            <ProjectSelect
-              value={representativeProjectId ? String(representativeProjectId) : ''}
-              onChange={(v) => setRepresentativeProjectId(Number(v))}
-              placeholder="选择代表项目"
-              triggerClassName="h-8 text-xs min-w-[140px]"
-              projects={projects}
-              loading={projectsLoading}
-              error={projectsError}
+        {/* Stagger 容器用 display:contents,不破坏 grid 布局 */}
+        <MotionStagger className="contents">
+          <MotionStaggerItem>
+            <DashboardTopCountries
+              countryRowsByCode={countryRowsByCode}
+              countryCompareRowsByCode={countryCompareRowsByCode}
+              currencyNote={countryCurrencyNote}
+              representativeProjectName={
+                representativeProjectId
+                  ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
+                  : null
+              }
+              projectSelector={
+                <ProjectSelect
+                  value={representativeProjectId ? String(representativeProjectId) : ''}
+                  onChange={(v) => setRepresentativeProjectId(Number(v))}
+                  placeholder="选择代表项目"
+                  triggerClassName="h-8 text-xs min-w-[140px]"
+                  projects={projects}
+                  loading={projectsLoading}
+                  error={projectsError}
+                />
+              }
+              loading={dataLoading}
             />
-          }
-          loading={dataLoading}
-        />
-        <LazyDashboardAdSpendChart
-          dailyData={dailyData}
-          dateRange={dateRange}
-          loading={dataLoading}
-          onRefresh={handleRefresh}
-        />
+          </MotionStaggerItem>
+          <MotionStaggerItem>
+            <LazyDashboardAdSpendChart
+              dailyData={dailyData}
+              dateRange={dateRange}
+              loading={dataLoading}
+              onRefresh={handleRefresh}
+            />
+          </MotionStaggerItem>
+        </MotionStagger>
       </section>
     </div>
   )

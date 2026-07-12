@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { PageTransition } from '@/components/motion/PageTransition'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { SidebarShell } from '@/components/dashboard/sidebar-shell'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({
@@ -16,7 +15,6 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { isNavigationLoading } = useGlobalLoading()
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const { status } = useSession()
   const wasAuthenticatedRef = useRef(false)
@@ -59,7 +57,9 @@ export default function DashboardLayout({
             className='dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-3 md:px-2 md:pb-8 lg:px-3 xl:px-4'
           >
             <div className='dashboard-page-shell min-h-0 md:min-h-[calc(100vh-4rem)] px-0 py-1'>
-              {isNavigationLoading ? <DashboardPageLoading /> : children}
+              <PageTransition>
+                {children}
+              </PageTransition>
             </div>
           </main>
         </SidebarInset>

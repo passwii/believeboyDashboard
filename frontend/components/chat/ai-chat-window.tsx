@@ -722,6 +722,7 @@ export function AIChatWindow({
   return (
     <div
       ref={rootRef}
+      data-testid="ai-chat-window"
       className="relative h-full w-full overflow-hidden bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
       style={{ ['--sidebar-width' as string]: '280px' }}
     >
@@ -732,7 +733,7 @@ export function AIChatWindow({
         className="absolute inset-0"
         style={{
           paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
-          transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'padding-left 0.35s var(--motion-ease-standard)',
         }}
       >
         <RayBackground arcsUp={arcsUp} />
@@ -831,7 +832,7 @@ export function AIChatWindow({
             paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
             paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
-            transition: 'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: 'padding-left 0.35s var(--motion-ease-standard)',
           }}
         >
           <div className="px-3 sm:px-4 pt-6 pb-4">
@@ -902,7 +903,7 @@ export function AIChatWindow({
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
                 }),
             transition:
-              'padding-left 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.6s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+              'padding-left 0.35s var(--motion-ease-standard), top 0.6s var(--motion-ease-out), bottom 0.6s var(--motion-ease-out)',
             zIndex: 40,
           }}
         >

@@ -37,7 +37,7 @@ export function RayBackground({ arcsUp }: { arcsUp?: boolean }) {
         style={{
           transform: 'translateX(-50%) rotate(180deg)',
           top: arcsUp ? '-30%' : '50%',
-          transition: 'top 0.8s cubic-bezier(0.22, 1, 0.36, 1)',
+          transition: 'top 0.8s var(--motion-ease-out)',
         }}
       >
         <div className="absolute w-full h-full rounded-full -mt-[13px]" style={{ background: 'radial-gradient(43.89% 25.74% at 50.02% 97.24%, #111114 0%, #0f0f0f 100%)', border: '16px solid white', transform: 'rotate(180deg)', zIndex: 5 }} />
