@@ -54,7 +54,7 @@ export function PageTransition({ children, className }: Props) {
           animate={animate}
           exit={exit}
           transition={transition}
-          className="will-change-transform"
+          className="will-change-transform h-full w-full"
         >
           {children}
         </motion.div>
