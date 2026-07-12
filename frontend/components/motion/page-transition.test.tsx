@@ -33,4 +33,28 @@ describe('PageTransition', () => {
     render(<PageTransition>x</PageTransition>)
     expect(screen.getByText('x')).toBeInTheDocument()
   })
+
+  it('renders full-bleed wrapper for /dashboard/ai-chat', () => {
+    mockPathname = '/dashboard/ai-chat'
+    const { container } = render(
+      <PageTransition>
+        <div data-testid="content">x</div>
+      </PageTransition>,
+    )
+    const wrapper = container.querySelector('div')
+    expect(wrapper?.className).toContain('!absolute')
+    expect(wrapper?.className).toContain('inset-0')
+  })
+
+  it('renders normal wrapper for /dashboard', () => {
+    mockPathname = '/dashboard'
+    const { container } = render(
+      <PageTransition>
+        <div data-testid="content">x</div>
+      </PageTransition>,
+    )
+    const wrapper = container.querySelector('div')
+    expect(wrapper?.className).toContain('h-full')
+    expect(wrapper?.className).toContain('w-full')
+  })
 })
