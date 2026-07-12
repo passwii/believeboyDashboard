@@ -45,8 +45,15 @@ export function PageTransition({ children, className }: Props) {
 
   const transition = reduce ? { duration: 0 } : SPRING.page
 
+  // full-bleed absolute 页面（如 /dashboard/ai-chat）根节点用 !absolute inset-0 撑满父级，
+  // 不参与正常流高度 — 此时 h-full 百分比链路在只有 min-height 的 .dashboard-page-shell 下解析为 0。
+  // 改用 !absolute inset-0 让 wrapper 直接填充 .dashboard-page-shell 的 containing block，
+  // 恢复 main 分支的视觉行为，同时保留其它普通页面的 normal-flow transition。
+  const isFullBleed = pathname === '/dashboard/ai-chat'
+  const wrapperClass = className ?? (isFullBleed ? '!absolute inset-0' : 'h-full w-full')
+
   return (
-    <div className={className ?? 'h-full w-full'}>
+    <div className={wrapperClass}>
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={pathname}
@@ -54,7 +61,7 @@ export function PageTransition({ children, className }: Props) {
           animate={animate}
           exit={exit}
           transition={transition}
-          className="will-change-transform h-full w-full"
+          className={isFullBleed ? 'will-change-transform' : 'will-change-transform h-full w-full'}
         >
           {children}
         </motion.div>
