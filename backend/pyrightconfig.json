@@ -1,0 +1,13 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "include": ["."],
+  "exclude": [
+    ".venv",
+    "**/__pycache__",
+    "**/*.pyc",
+    "storage",
+    "alembic"
+  ]
+}
