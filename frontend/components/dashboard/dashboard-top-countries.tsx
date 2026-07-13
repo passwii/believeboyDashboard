@@ -133,8 +133,10 @@ export function DashboardTopCountries({
           <EmptyState />
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] text-sm">
+            {/* 桌面/平板(≥640px):表格 */}
+            <div className="hidden sm:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] text-sm">
                 <thead>
                   <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
                     <th className="w-10 pb-2 font-medium">#</th>
@@ -197,8 +199,17 @@ export function DashboardTopCountries({
                     )
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
+
+            {/* 手机端(<640px):卡片列表,避免表格横向滚动(Rule 1) */}
+            <div className="space-y-2.5 sm:hidden">
+              {rows.map((row, idx) => (
+                <CountryMobileCard key={row.code} row={row} index={idx} grandTotal={grandTotal} />
+              ))}
+            </div>
+
             {currencyNote && (
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/80">
                 {currencyNote}
@@ -237,6 +248,54 @@ function EmptyState() {
       <div className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground">
         <Flag className="h-3 w-3" />
         支持:US · DE · UK
+      </div>
+    </div>
+  )
+}
+
+/** 手机端(<640px)表格行 → 卡片(Rule 1) */
+function CountryMobileCard({
+  row,
+  index,
+  grandTotal,
+}: {
+  row: CountryAggRow
+  index: number
+  grandTotal: number
+}) {
+  const pct = grandTotal > 0 ? (row.totalSales / grandTotal) * 100 : 0
+  return (
+    <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))] dark:border-border/50">
+      <div className="flex items-center gap-2">
+        <span className="w-5 shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base leading-none"
+          aria-hidden
+        >
+          {row.flag}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{row.label}</span>
+        <span className="shrink-0 text-[10px] font-mono text-muted-foreground/70">{row.code}</span>
+        {renderChangeIndicator(row.change)}
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <div className="text-base font-semibold tabular-nums leading-tight text-foreground">
+          {fmtMoneyPrecise(row.totalSales)}
+        </div>
+        <div className="flex flex-1 items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                'h-full rounded-full transition-[width] duration-500',
+                index === 0 ? 'bg-primary' : 'bg-primary/60',
+              )}
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
+          </div>
+          <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
+            {pct.toFixed(0)}%
+          </span>
+        </div>
       </div>
     </div>
   )

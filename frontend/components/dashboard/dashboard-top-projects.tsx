@@ -161,8 +161,11 @@ export function DashboardTopProjects({
         ) : topRows.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className={`${TABLE_MAX_HEIGHT} overflow-y-auto overflow-x-auto`}>
-            <table className="w-full min-w-[420px] text-sm">
+          <>
+            {/* 桌面/平板(≥640px):表格,容器可容纳 420px 最小宽度,无需横滚 */}
+            <div className="hidden sm:block">
+              <div className={`${TABLE_MAX_HEIGHT} overflow-y-auto overflow-x-auto`}>
+                <table className="w-full min-w-[420px] text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
                   <th className="w-10 pb-2 font-medium">#</th>
@@ -213,8 +216,23 @@ export function DashboardTopProjects({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+                </table>
+              </div>
+            </div>
+
+            {/* 手机端(<640px):卡片列表,避免表格横向滚动(Rule 1) */}
+            <div className="space-y-2.5 sm:hidden">
+              {topRows.map((row, idx) => (
+                <ProjectMobileCard
+                  key={row.projectId}
+                  row={row}
+                  index={idx}
+                  metricLabel={getMainLabel(sortKey)}
+                  sortKey={sortKey}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </DataTableCard>
@@ -266,6 +284,58 @@ function EmptyState() {
       <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
         当前时段没有可统计的项目/店铺销售数据。
       </p>
+    </div>
+  )
+}
+
+/** 手机端(<640px)表格行 → 卡片(Rule 1):关键信息不丢失,避免横向滚动 */
+function ProjectMobileCard({
+  row,
+  index,
+  metricLabel,
+  sortKey,
+}: {
+  row: AggregatedRow & { mainValue: number; pct: number; change: number | null }
+  index: number
+  metricLabel: string
+  sortKey: SortKey
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))] dark:border-border/50">
+      <div className="flex items-center gap-2">
+        <span className="w-5 shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Store className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{row.projectName}</span>
+        {renderChangeIndicator(row.change)}
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+            {metricLabel}
+          </div>
+          <div className="text-base font-semibold tabular-nums leading-tight text-foreground">
+            {fmtMoneyPrecise(row.mainValue)}
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-500"
+              style={{ width: `${Math.max(2, row.pct)}%` }}
+            />
+          </div>
+          <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
+            {row.pct.toFixed(0)}%
+          </span>
+        </div>
+      </div>
+      {sortKey === 'sales' && (
+        <div className="mt-1 text-[10px] text-muted-foreground/80">
+          订单量 {fmtNumPrecise(row.totalOrders)}
+        </div>
+      )}
     </div>
   )
 }

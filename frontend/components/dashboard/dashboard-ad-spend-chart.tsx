@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { BarChart3, DollarSign, Megaphone, RefreshCcw } from 'lucide-react'
 
@@ -96,6 +97,7 @@ export function DashboardAdSpendChart({
   }, [currentRows, comparisonRows, dateRange])
 
   const hasComparison = comparisonRows.length > 0
+  const isMobile = useIsMobile()
   const isEmpty = currentRows.length === 0
 
   return (
@@ -151,7 +153,7 @@ export function DashboardAdSpendChart({
             </div>
 
             <ChartContainer config={CHART_CONFIG} className="h-[260px] sm:h-[320px] w-full">
-              <ComposedChart data={chartRows} margin={{ top: 10, right: 4, left: 0, bottom: 8 }}>
+              <ComposedChart data={chartRows} margin={{ top: 10, right: 4, left: isMobile ? -8 : 0, bottom: 8 }}>
                 <CartesianGrid
                   vertical={false}
                   stroke="rgba(148,163,184,0.18)"
@@ -174,7 +176,8 @@ export function DashboardAdSpendChart({
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
+                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
                 />
                 <YAxis
                   yAxisId="ad_spend"
@@ -182,7 +185,8 @@ export function DashboardAdSpendChart({
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
+                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
                 />
                 <ChartTooltip
                   cursor={{ stroke: 'rgba(15,23,42,0.18)', strokeDasharray: '4 4' }}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { DateRange } from 'react-day-picker'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { ArrowDown, ArrowUp, DollarSign, ShoppingBag } from 'lucide-react'
@@ -101,6 +102,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
   }, [currentRows, comparisonRows, dateRange])
 
   const hasComparison = comparisonRows.length > 0
+  const isMobile = useIsMobile()
 
   return (
     <DataCard>
@@ -121,8 +123,8 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
       />
       <DataCardContent className="space-y-4">
         {currentRows.length > 0 && (
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-[13rem]">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-0">
               <div className="rounded-md bg-primary/10 p-2 text-primary">
                 <DollarSign className="h-4 w-4" />
               </div>
@@ -216,7 +218,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
             >
               <ComposedChart
                 data={chartRows}
-                margin={{ top: 10, right: 4, left: 0, bottom: 8 }}
+                margin={{ top: 10, right: 4, left: isMobile ? -8 : 0, bottom: 8 }}
               >
                 <CartesianGrid
                   vertical={false}
@@ -239,9 +241,9 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
                 />
                 <YAxis
                   yAxisId="orders"
@@ -249,9 +251,9 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => Number(v).toLocaleString('zh-CN')}
-                  width={32}
+                  width={isMobile ? 0 : 32}
                 />
                 <ChartTooltip
                   cursor={{
