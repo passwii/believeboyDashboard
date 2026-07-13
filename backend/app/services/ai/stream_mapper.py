@@ -1,16 +1,19 @@
 """Pydantic AI 事件 → ndjson 字节的纯映射函数。
 
-Phase 1 仅覆盖 PartDeltaEvent（text）分支；
-thinking / usage 分支在任务 3/4 追加。
+Phase 1 覆盖：
+- PartDeltaEvent + TextPartDelta → chunk（任务 2）
+- PartDeltaEvent + ThinkingPartDelta → thinking_chunk（任务 3）
+- AgentRunResultEvent → usage + final_content（任务 4）
+
 tool_calls / tool_result 分支推迟 Phase 2。
 """
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic_ai.messages import PartDeltaEvent, TextPartDelta
+from pydantic_ai.messages import PartDeltaEvent, TextPartDelta, ThinkingPartDelta
 
-from app.services.ai.stream_utils import build_stream_chunk
+from app.services.ai.stream_utils import build_stream_chunk, build_stream_thinking_chunk
 
 
 class MapperState(dict):
@@ -24,4 +27,6 @@ def map_agent_event(event: Any, state: MapperState) -> bytes | None:
         if isinstance(delta, TextPartDelta) and delta.content_delta:
             state.setdefault("assistant_parts", []).append(delta.content_delta)
             return build_stream_chunk(delta.content_delta)
+        if isinstance(delta, ThinkingPartDelta) and delta.content_delta:
+            return build_stream_thinking_chunk(delta.content_delta)
     return None

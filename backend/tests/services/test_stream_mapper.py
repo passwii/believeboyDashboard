@@ -9,22 +9,25 @@ Mapper 是纯函数（Pydantic AI 事件 → ndjson 字节），不依赖网络/
 """
 from __future__ import annotations
 
-from pydantic_ai.messages import PartDeltaEvent, TextPartDelta
+import json
+
+from pydantic_ai.messages import PartDeltaEvent, TextPartDelta, ThinkingPartDelta
 
 from app.services.ai.stream_mapper import MapperState, map_agent_event
 
 
+def _parse_chunk(out: bytes) -> dict:
+    """把 mapper 产出的单行 ndjson 解析回 dict。"""
+    assert out is not None
+    return json.loads(out.decode("utf-8").rstrip("\n"))
+
+
 def test_text_delta_yields_chunk_bytes():
     """text delta 应产出 ndjson `chunk` 事件，delta 字段与输入一致。"""
-    import json
-
     state: MapperState = {}
     event = PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="hi"))
     out = map_agent_event(event, state)
-    assert out is not None
-    line = out.decode("utf-8").rstrip("\n")
-    payload = json.loads(line)
-    assert payload == {"type": "chunk", "delta": "hi"}
+    assert _parse_chunk(out) == {"type": "chunk", "delta": "hi"}
     assert state["assistant_parts"] == ["hi"]
 
 
@@ -34,3 +37,20 @@ def test_text_delta_skips_empty_delta():
     event = PartDeltaEvent(index=0, delta=TextPartDelta(content_delta=""))
     assert map_agent_event(event, state) is None
     assert state.get("assistant_parts", []) == []
+
+
+def test_thinking_delta_yields_thinking_chunk_bytes():
+    """thinking delta 应产出 `thinking_chunk` 事件，不写入 assistant_parts。"""
+    state: MapperState = {}
+    event = PartDeltaEvent(index=0, delta=ThinkingPartDelta(content_delta="hmm"))
+    out = map_agent_event(event, state)
+    assert _parse_chunk(out) == {"type": "thinking_chunk", "delta": "hmm"}
+    assert "assistant_parts" not in state
+
+
+def test_thinking_delta_skips_empty_delta():
+    """空 thinking delta 不应产出字节，也不污染 state。"""
+    state: MapperState = {}
+    event = PartDeltaEvent(index=0, delta=ThinkingPartDelta(content_delta=""))
+    assert map_agent_event(event, state) is None
+    assert state == {}
