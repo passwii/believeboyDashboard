@@ -9,9 +9,9 @@
 | 文档 | 角色 | 状态 |
 |---|---|---|
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-native.md` | 原 10 任务完整路线图（架构 § 9.2 / § 9.3 落地路径） | 📚 路线图（已存档） |
-| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md` | Phase 1 详细实施计划（async + Pydantic AI 垂直切片） | 🚧 进行中 |
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md` | Phase 1 详细实施计划（async + Pydantic AI 垂直切片） | ✅ 完成（2026-07-13） |
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md` | Phase 2 详细实施计划（web_search via Pydantic AI native Tavily tool） | 📋 待起草 |
-| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md` | **本文档**：跨阶段跟踪与索引 | 🚧 进行中 |
+| `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md` | **本文档**：跨阶段跟踪与索引 | 🚧 持续维护 |
 
 ---
 
@@ -19,10 +19,10 @@
 
 | 阶段 | 范围 | 状态 | 已落地 commits |
 |---|---|---|---|
-| **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | 🚧 1/8 任务完成 | `c759b49b` (deps)、`49a89653` (docs) |
+| **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **8/8 任务完成**（2026-07-13） | 详见下方「Phase 1 已落 commits」表 |
 | **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | 📋 未启动 | — |
 
-**总进度：** Phase 1 完成约 12%（1/8 任务），Phase 2 未启动。
+**总进度：** Phase 1 100%，Phase 2 未启动。
 
 ---
 
@@ -32,14 +32,14 @@
 
 | 任务 | 原 plan 编号 | 状态 | 备注 |
 |---|---|---|---|
-| 任务 1：依赖 | T1 | ✅ 完成 | `pydantic-ai==2.8.0` + `starlette<0.42,>=0.40` pin，5/5 单测 PASS |
-| 任务 2：stream_mapper 文本 delta | T2 | 📋 待办 | — |
-| 任务 3：stream_mapper thinking delta | T3 | 📋 待办 | — |
-| 任务 4：stream_mapper AgentRunResult → usage | T6 | 📋 待办 | 原 plan T6（usage 路径） |
-| 任务 5：Agent Factory（无 tools） | T7 裁剪 | 📋 待办 | 不注册 Tavily tool |
-| 任务 6：端点 async + 双路径分流 | T8 裁剪 | 📋 待办 | 端点改造最大块；提取 `_prepare_conversation_turn` + `_legacy_stream_response` |
-| 任务 7：真 LLM 烟雾测试（手测） | T9 | 📋 待办 | 仅 `enable_web_search=False` 路径 |
-| 任务 8：Merge 前最终检查与文档同步 | T10 | 📋 待办 | 更新 `docs/ai-chat-native-architecture.md` § 9.2 / § 10 |
+| 任务 1：依赖 | T1 | ✅ 完成 | `pydantic-ai==2.9.0`（升 2.9 后同步断言），5/5 单测 PASS |
+| 任务 2：stream_mapper 文本 delta | T2 | ✅ 完成 | text delta → chunk，2/2 PASS |
+| 任务 3：stream_mapper thinking delta | T3 | ✅ 完成 | thinking delta → thinking_chunk，2/2 PASS |
+| 任务 4：stream_mapper AgentRunResult → usage | T6 | ✅ 完成 | AgentRunResultEvent → usage + final_content，4/4 PASS |
+| 任务 5：Agent Factory（无 tools） | T7 裁剪 | ✅ 完成 | build_chat_agent + current_date_instruction；6/6 PASS |
+| 任务 6：端点 async + 双路径分流 | T8 裁剪 | ✅ 完成 | 提取 `_prepare_conversation_turn` + `_legacy_stream_response`；4/4 e2e PASS |
+| 任务 7：真 LLM 烟雾测试（手测） | T9 | 📋 待办 | 需 Damon 手动跑；脚本与验证清单见 PR 描述 |
+| 任务 8：Merge 前最终检查与文档同步 | T10 | ✅ 完成 | 架构文档 § 9.2/§ 10 同步，零回归 baseline |
 
 **Phase 1 关键决策：**
 - 不引 `tavily-python`：factory 不注册 Tavily tool，工具调用推迟 Phase 2
@@ -50,17 +50,22 @@
   - `enable_web_search=False` + `regenerate=True`  → `HTTP 400`
   - `enable_web_search=True` + 任意 `regenerate` → 旧路径
 
-**Phase 1 已落 commits：**
+**Phase 1 已落 commits（按时间倒序，本轮新提交 7 个）**：
 
 | Commit | 类型 | 说明 |
 |---|---|---|
-| `49a89653` | docs | 起草 Phase 1 切分与原 plan 附录 |
-| `c759b49b` | build(deps) | 引入 pydantic-ai==2.8.0（已在 main，PR 通过 fast-forward） |
+| `97dfbb31` | docs | 同步架构文档 § 9.2 / § 10 至 Phase 1 实际完成情况 |
+| `dc01323f` | feat | 端点 async 改造 + 双路径分流（任务 6）|
+| `dd89b11c` | feat | Agent 工厂 Phase 1（任务 5）|
+| `1f29f103` | feat | stream_mapper 加 AgentRunResultEvent → usage（任务 4）|
+| `609953fb` | feat | stream_mapper 加 thinking delta → thinking_chunk（任务 3）|
+| `9cedc5e3` | feat | stream_mapper 初版 text delta → chunk（任务 2）|
+| `aa3ad92c` | test | 同步依赖测试断言至 pydantic-ai 2.9（任务 1 step 6）|
 
 **Phase 1 风险与注意点：**
 - ⚠️ starlette 冲突：pydantic-ai 间接拉入 `sse-starlette>=3` 要 starlette>=1.0；已显式 pin `starlette<0.42,>=0.40` 并在 venv 中卸载 `sse-starlette`（本仓库 app 代码与 pydantic_ai 都不直接 import 它；mcp 包间接需要但本仓库不依赖 mcp）
-- Pydantic AI 2.8 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需一周观察
-- 任务 6（端点改造）改动面最大，建议先 review 端点入参段 + `_prepare_conversation_turn` / `_legacy_stream_response` 提取策略再实施
+- Pydantic AI 2.9 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需一周观察
+- Phase 1 已落地的 `99dfbb31`（架构文档同步）确认 pydantic-ai 版本为 2.9.0（升 2.9 后同步更新依赖测试断言）
 
 ---
 
@@ -88,9 +93,16 @@
 ## 已落地 commits（按时间倒序）
 
 ```
-c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · Phase 1）
-49a89653 docs(superpowers): 起草 Phase 1 切分与原 plan 附录
-8d550065 Merge branch 'feat/crm-customer-table'          ← Phase 1 起点
+97dfbb31 docs(ai): 同步架构文档至 Phase 1 实际完成情况             ← Phase 1 收尾（任务 8）
+dc01323f feat(ai): 端点 async 改造 + 双路径分流（任务 6）
+dd89b11c feat(ai): Agent 工厂 Phase 1（任务 5）
+1f29f103 feat(ai): stream_mapper 加 AgentRunResultEvent → usage（任务 4）
+609953fb feat(ai): stream_mapper 加 thinking delta → thinking_chunk（任务 3）
+9cedc5e3 feat(ai): stream_mapper 初版 text delta → chunk（任务 2）
+aa3ad92c test(ai): 同步依赖测试断言至 pydantic-ai 2.9（任务 1 step 6）
+c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · Phase 1）★ 主分支前置
+49a89653 docs(superpowers): 起草 Phase 1 切分与原 plan 附录        ★ 主分支前置
+8d550065 Merge branch 'feat/crm-customer-table'                  ← Phase 1 起点
 ```
 
 ---
@@ -109,14 +121,17 @@ c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · 
 
 ## 下一步（建议顺序）
 
-1. **Phase 1 任务 2**（stream_mapper 文本 delta）— 路径：写测试 → 跑 FAIL → 实现 mapper → 跑 PASS → commit
-2. **Phase 1 任务 3**（thinking delta）— 同模式
-3. **Phase 1 任务 4**（AgentRunResult → usage）— 同模式
-4. **Phase 1 任务 5**（Agent Factory）— 同模式 + TestModel
-5. **Phase 1 任务 6**（端点改造）— 改动面最大；先 review `_prepare_conversation_turn` 与 `_legacy_stream_response` 提取策略，再写 e2e 测试，再实施
-6. **Phase 1 任务 7**（手测）— 启动后端 + curl 流式请求 + 取消按钮 + 前端冒烟
-7. **Phase 1 任务 8**（文档同步）— 更新架构文档 § 9.2 / § 10，准备 PR
-8. **Phase 2 起步**：先写 SearXNG Tavily adapter spike（spike 文档放到 `2026-07-10-ai-chat-pydantic-ai-phase2.md` 任务 1）
+### Phase 1 收尾（任务 7 待人工）
+
+1. **任务 7（真 LLM 烟雾测试）**— 启动后端 + curl 流式请求 + 取消按钮 + 前端冒烟；脚本与验证清单见 PR 描述
+2. **开 PR**— 中文 + Conventional Commits（feat/docs/test/build），引用 phase-tracker + native plan + phase1 plan
+3. **Merge 后观察一周**— Pydantic AI 2.9 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需观察
+
+### Phase 2 起步（待 Phase 1 PR 合并后）
+
+1. **写 `2026-07-10-ai-chat-pydantic-ai-phase2.md` 详细计划**
+2. **任务 1：SearXNG Tavily adapter 返回格式 spike**— 决定 mapper `_handle_tool_result` 怎么解析 content（dict vs list[dict]）
+3. 后续按 Phase 2 plan 任务 2-6 顺序推进
 
 ---
 
