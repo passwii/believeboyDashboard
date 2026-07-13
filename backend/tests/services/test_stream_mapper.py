@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 
+from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.messages import PartDeltaEvent, TextPartDelta, ThinkingPartDelta
 
 from app.services.ai.stream_mapper import MapperState, map_agent_event
@@ -54,3 +55,56 @@ def test_thinking_delta_skips_empty_delta():
     event = PartDeltaEvent(index=0, delta=ThinkingPartDelta(content_delta=""))
     assert map_agent_event(event, state) is None
     assert state == {}
+
+
+class _FakeUsage:
+    """模仿 Pydantic AI RunUsage 的接口（属性而非方法）。"""
+
+    prompt_tokens = 1
+    completion_tokens = 2
+    total_tokens = 3
+
+
+class _FakeResult:
+    def __init__(self, usage=_FakeUsage(), output="hi"):
+        self.usage = usage
+        self.output = output
+
+
+def test_agent_run_result_yields_usage_bytes_and_updates_state():
+    """AgentRunResult 应产出 `usage` 事件 + 更新 final_usage + final_content。"""
+    state: MapperState = {"assistant_parts": ["hi"]}
+    event = AgentRunResultEvent(result=_FakeResult())
+    out = map_agent_event(event, state)
+    payload = _parse_chunk(out)
+    assert payload["type"] == "usage"
+    assert payload["usage"] == {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    assert state["final_usage"] == {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}
+    assert state["final_content"] == "hi"
+
+
+def test_agent_run_result_handles_missing_usage():
+    """usage=None 时 state.final_usage 落 None，事件仍产出（usage:null）。"""
+    state: MapperState = {}
+    event = AgentRunResultEvent(result=_FakeResult(usage=None, output=""))
+    out = map_agent_event(event, state)
+    payload = _parse_chunk(out)
+    assert payload["type"] == "usage"
+    assert payload["usage"] is None
+    assert state["final_usage"] is None
+
+
+def test_agent_run_result_assembles_final_content_from_parts():
+    """final_content 由 assistant_parts 拼接而成（中文多 parts 场景）。"""
+    state: MapperState = {"assistant_parts": ["你", "好"]}
+    event = AgentRunResultEvent(result=_FakeResult(output="ignored"))
+    map_agent_event(event, state)
+    assert state["final_content"] == "你好"
+
+
+def test_agent_run_result_with_no_text_parts_yields_empty_final_content():
+    """没有 assistant_parts 时 final_content 为空串（端点层据此更新 DB）。"""
+    state: MapperState = {}
+    event = AgentRunResultEvent(result=_FakeResult(output="ignored"))
+    map_agent_event(event, state)
+    assert state["final_content"] == ""
