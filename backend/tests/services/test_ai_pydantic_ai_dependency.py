@@ -1,6 +1,7 @@
 """Phase 1 任务 1：pydantic-ai 依赖存在性单测。
 
-写入 requirements.txt 与安装之前该测试应 FAIL；安装 `pydantic-ai==2.8.0` 后 PASS。
+写入 requirements.txt 与安装之前该测试应 FAIL；安装 `pydantic-ai==2.9.0` 后 PASS。
+（2026-07-12 从 2.8.0 升到 2.9.0 时同步更新断言。）
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 def test_pydantic_ai_importable():
     import pydantic_ai
 
-    assert pydantic_ai.__version__.startswith("2.8")
+    assert pydantic_ai.__version__.startswith("2.9")
 
 
 def test_pydantic_ai_messages_importable():
