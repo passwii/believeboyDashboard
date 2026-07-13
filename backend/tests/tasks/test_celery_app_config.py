@@ -109,3 +109,42 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "app.celery_tasks.ping" in fresh.conf.include
     assert "app.celery_tasks.insights.generate" in fresh.conf.include
     assert fresh.conf.task_routes["generate_insight"]["queue"] == "insights"
+
+
+def test_shared_task_binds_to_believeboy_app_from_worker_thread() -> None:
+    """BEL-128 follow-up: FastAPI sync routes run in a ThreadPoolExecutor.
+
+    Celery's `current_app` is thread-local. `set_as_current()` only pins the
+    main thread; worker threads fall back to the process-wide *default* app.
+    Without `celery_app.set_default()`, that default is `Celery("default")`
+    with broker=None → AMQP localhost:5672 → Connection refused on resend.
+
+    This test pins the regression: from a non-main thread, `@shared_task`
+    (e.g. `dispatch_one`) must resolve to our believeboy app / Redis broker.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.celery_tasks.scheduled_report import dispatch_one
+    from app.tasks.celery_app import celery_app
+
+    def _probe() -> tuple[str | None, str | None, bool]:
+        app = dispatch_one._get_app()
+        return (
+            getattr(app, "main", None),
+            app.conf.broker_url,
+            app is celery_app,
+        )
+
+    # Main thread should already be fine; the regression lives in worker threads.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        main_name, broker_url, is_same = pool.submit(_probe).result(timeout=5)
+
+    assert main_name == "believeboy", (
+        f"worker-thread current_app fell back to {main_name!r}; "
+        "celery_app must call set_default() so FastAPI threadpool resend works"
+    )
+    assert broker_url is not None and broker_url.startswith("redis://"), (
+        f"worker-thread broker was {broker_url!r}, expected redis://… "
+        "(AMQP localhost is the Connection refused path)"
+    )
+    assert is_same is True
