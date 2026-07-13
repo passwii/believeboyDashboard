@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
-import { cn } from '@/lib/utils'
+import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 
 import SubscriptionsView from './_components/SubscriptionsView'
 import LedgerView from './_components/LedgerView'
@@ -13,6 +12,7 @@ import LedgerView from './_components/LedgerView'
 type ScheduledReportTabKey = 'subscriptions' | 'ledger'
 
 const TAB_LAYOUT_ID = 'scheduled-reports-tab-indicator'
+const TAB_ORDER: readonly ScheduledReportTabKey[] = ['subscriptions', 'ledger']
 
 function resolveInitialTab(pathname: string): ScheduledReportTabKey {
   return pathname.includes('/ledger') ? 'ledger' : 'subscriptions'
@@ -23,20 +23,9 @@ export default function ScheduledReportsLayout() {
   const [activeTab, setActiveTab] = useState<ScheduledReportTabKey>(() =>
     resolveInitialTab(pathname),
   )
-  // 懒挂载：首次访问该 tab 时才挂载其视图（避免一开始两个 tab 都发请求），
-  // 挂载后常驻，切回时已加载的数据与状态保留，切换零重拉、零卡顿。
-  const [mounted, setMounted] = useState<Set<ScheduledReportTabKey>>(
-    () => new Set<ScheduledReportTabKey>([resolveInitialTab(pathname)]),
-  )
 
   const handleTabChange = (next: string) => {
     setActiveTab(next as ScheduledReportTabKey)
-    setMounted((prev) => {
-      if (prev.has(next as ScheduledReportTabKey)) return prev
-      const nextSet = new Set(prev)
-      nextSet.add(next as ScheduledReportTabKey)
-      return nextSet
-    })
   }
 
   return (
@@ -64,20 +53,12 @@ export default function ScheduledReportsLayout() {
         </TabsList>
       </div>
 
-      <TabsContent
-        value="subscriptions"
-        forceMount
-        className={cn('mt-0', !mounted.has('subscriptions') && 'hidden')}
-      >
-        {mounted.has('subscriptions') && <SubscriptionsView />}
-      </TabsContent>
-      <TabsContent
-        value="ledger"
-        forceMount
-        className={cn('mt-0', !mounted.has('ledger') && 'hidden')}
-      >
-        {mounted.has('ledger') && <LedgerView />}
-      </TabsContent>
+      <DirectionalTabTransition value={activeTab} order={TAB_ORDER}>
+        <TabsContent forceMount value={activeTab} className="mt-0">
+          {activeTab === 'subscriptions' && <SubscriptionsView />}
+          {activeTab === 'ledger' && <LedgerView />}
+        </TabsContent>
+      </DirectionalTabTransition>
     </Tabs>
   )
 }
