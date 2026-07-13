@@ -372,13 +372,19 @@ async def stream_message(
         )
 
     # Pydantic AI 路径（async，解 P0-1/P0-2）
-    agent = build_chat_agent(settings)
+    agent = build_chat_agent(settings, model_name=payload.model)
     state: MapperState = {}
+    # prompt_messages 是 list[dict]，需要按 Pydantic AI 2.9 API 转成 (user_prompt, message_history)
+    # （详见 _prompt_messages_to_pydantic_ai_args 注释）
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args(prompt_messages)
 
     async def event_stream():
         try:
             yield encode_stream_event({"type": "start"})
-            async with agent.run_stream_events(prompt_messages) as events:
+            async with agent.run_stream_events(
+                user_prompt=user_prompt,
+                message_history=message_history,
+            ) as events:
                 async for ev in events:
                     if cancel_event.is_set() or await request.is_disconnected():
                         cancel_event.set()
@@ -501,6 +507,53 @@ def _prepare_conversation_turn(
         })
 
     return prompt_messages, context_messages, user_row, assistant_row, target_assistant
+
+
+def _prompt_messages_to_pydantic_ai_args(prompt_messages: list[dict]) -> tuple:
+    """把 `[{role, content}, ...]` 转成 Pydantic AI 2.9 的 `run_stream_events` 参数。
+
+    关键约束（Pydantic AI 2.9）：
+    - `run_stream_events(user_prompt, *, message_history=...)` 不接受 `Sequence[ModelMessage]` 作为 user_prompt
+    - 必须把"最后一条 user 消息"作为 user_prompt，其余历史消息（assistant + 之前 user + system）作为 message_history
+    - Pydantic AI 内部会把 ModelRequest 包装在 ModelRequest 里（"Expected code to be unreachable" bug 触发），
+      所以不能直接传 `[ModelRequest(...)]`
+
+    返回 (user_prompt: str | list[UserContent], message_history: list[ModelMessage])
+    """
+    from pydantic_ai.messages import (
+        ModelRequest,
+        ModelResponse,
+        SystemPromptPart,
+        TextPart,
+        UserPromptPart,
+    )
+
+    # 找到最后一条 user 消息作为 user_prompt
+    last_user_idx = None
+    for i in range(len(prompt_messages) - 1, -1, -1):
+        if prompt_messages[i].get("role") == "user":
+            last_user_idx = i
+            break
+    if last_user_idx is None:
+        # 没有 user 消息？防御性 fallback：把整个 list 当 message_history，user_prompt 留空
+        last_user_idx = len(prompt_messages)
+
+    user_prompt_content = prompt_messages[last_user_idx].get("content", "") if last_user_idx < len(prompt_messages) else ""
+    user_prompt: str = user_prompt_content if isinstance(user_prompt_content, str) else str(user_prompt_content)
+
+    message_history: list = []
+    for m in prompt_messages[:last_user_idx]:
+        role = m.get("role")
+        content = m.get("content", "")
+        if role == "user":
+            message_history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+        elif role == "assistant":
+            message_history.append(ModelResponse(parts=[TextPart(content=content)]))
+        elif role == "system":
+            message_history.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
+        # else: 未知 role 跳过
+
+    return user_prompt, message_history
 
 
 def _legacy_stream_response(

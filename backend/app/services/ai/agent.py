@@ -32,10 +32,14 @@ def current_date_instruction(ctx: RunContext | None) -> str:
     return f"今天的日期是 {datetime.now().strftime('%Y-%m-%d')}。回答涉及时间时请以此为参照。"
 
 
-def _build_model(settings: Settings) -> OpenAIChatModel:
-    """用 settings 既有 provider 字段构造 OpenAI 兼容的模型实例。"""
+def _build_model(settings: Settings, model_name: Optional[str] = None) -> OpenAIChatModel:
+    """用 settings 既有 provider 字段构造 OpenAI 兼容的模型实例。
+
+    `model_name` 优先于 `settings.ai_chat_default_model`，用于支持端点 payload 覆盖。
+    """
+    name = (model_name or settings.ai_chat_default_model).strip()
     return OpenAIChatModel(
-        settings.ai_chat_default_model,
+        name,
         provider=OpenAIProvider(
             api_key=settings.ai_chat_provider_api_key,
             base_url=settings.ai_chat_provider_base_url,
@@ -43,15 +47,20 @@ def _build_model(settings: Settings) -> OpenAIChatModel:
     )
 
 
-def build_chat_agent(settings: Settings, instructions: Optional[Iterable] = None) -> Agent:
+def build_chat_agent(
+    settings: Settings,
+    instructions: Optional[Iterable] = None,
+    model_name: Optional[str] = None,
+) -> Agent:
     """构造 Pydantic AI Agent。
 
     Phase 1：不注册用户 tools（web_search 走旧 httpx 路径）；仅 Thinking capability。
     Phase 2：追加 tavily_search_tool 注册与对应指令。
 
     `instructions` 由调用方按需注入（prepend 在 base 之前；调用方控制优先级）。
+    `model_name` 覆盖 settings 默认 model（来自 MessageCreate.payload.model）。
     """
-    model = _build_model(settings)
+    model = _build_model(settings, model_name=model_name)
     base_instructions: list = [
         "你是一个有用的 AI 助手，回答简洁准确。",
         current_date_instruction,

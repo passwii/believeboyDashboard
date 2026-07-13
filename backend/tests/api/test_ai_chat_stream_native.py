@@ -46,12 +46,14 @@ def patched_build_chat_agent(monkeypatch):
 
     ⚠️ Pydantic AI 2.9：`Agent.override(...)` 是 context manager，**不**返回新 Agent。
     fake_build 必须直接构造一个 Agent 实例（带 TestModel 与必要的 capabilities）。
+
+    接受 model_name 参数（payload.model 可能传入），实际忽略（TestModel 不区分 model）。
     """
     from pydantic_ai import Agent
     from pydantic_ai.capabilities import Thinking
     from pydantic_ai.models.test import TestModel
 
-    def fake_build(settings):
+    def fake_build(settings, *, model_name=None, **_):
         return Agent(
             model=TestModel(custom_output_text="你好，已完成。"),
             capabilities=[Thinking()],
@@ -207,7 +209,7 @@ def test_attached_file_content_injected_into_system_prompt(
     from pydantic_ai.capabilities import Thinking
     from pydantic_ai.models.test import TestModel
 
-    def capturing_build(settings):
+    def capturing_build(settings, *, model_name=None, **_):
         return Agent(
             model=TestModel(custom_output_text="已读取附件"),
             capabilities=[Thinking()],
@@ -243,3 +245,66 @@ def test_attached_file_content_injected_into_system_prompt(
     assert done_line is not None
     assert '"assistant_message"' in done_line
     assert '"user_message"' in done_line
+
+
+# ─── 单元测试：prompt → Pydantic AI run_stream_events 参数转换 ─────────────
+
+
+def test_prompt_messages_to_pydantic_ai_args_only_user():
+    """单条 user 消息 → user_prompt=str, message_history=[]。"""
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args(
+        [{"role": "user", "content": "hi"}]
+    )
+    assert user_prompt == "hi"
+    assert message_history == []
+
+
+def test_prompt_messages_to_pydantic_ai_args_with_assistant_history():
+    """user + 历史 assistant → user_prompt 是 user，历史 assistant 进 message_history。"""
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args([
+        {"role": "user", "content": "你好"},
+        {"role": "assistant", "content": "你好！"},
+        {"role": "user", "content": "今天天气"},
+    ])
+    assert user_prompt == "今天天气"  # 最后一条 user
+    assert len(message_history) == 2  # 之前的 user + assistant
+    # 第 0 个：原 user → ModelRequest + UserPromptPart
+    assert isinstance(message_history[0], ModelRequest)
+    assert isinstance(message_history[0].parts[0], UserPromptPart)
+    assert message_history[0].parts[0].content == "你好"
+    # 第 1 个：原 assistant → ModelResponse + TextPart
+    assert isinstance(message_history[1], ModelResponse)
+    assert isinstance(message_history[1].parts[0], TextPart)
+    assert message_history[1].parts[0].content == "你好！"
+
+
+def test_prompt_messages_to_pydantic_ai_args_with_system_in_history():
+    """system 消息进 message_history（作为 ModelRequest）。"""
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+    from pydantic_ai.messages import ModelRequest, SystemPromptPart
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args([
+        {"role": "system", "content": "be helpful"},
+        {"role": "user", "content": "hi"},
+    ])
+    assert user_prompt == "hi"
+    assert len(message_history) == 1
+    assert isinstance(message_history[0], ModelRequest)
+    assert isinstance(message_history[0].parts[0], SystemPromptPart)
+
+
+def test_prompt_messages_to_pydantic_ai_args_skips_unknown_role():
+    """防御性：未知 role 跳过。"""
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args([
+        {"role": "user", "content": "hi"},
+        {"role": "function_call", "content": "skip me"},
+    ])
+    assert user_prompt == "hi"
+    assert message_history == []
