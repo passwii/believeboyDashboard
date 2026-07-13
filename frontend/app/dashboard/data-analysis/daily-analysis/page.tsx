@@ -1668,7 +1668,7 @@ export default function DailyAnalysisPage() {
             <CountrySelect
               value={country}
               onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9 w-[120px]"
+              triggerClassName="h-9 w-[160px]"
             />
             <SearchableSkuField
               value={selectedSku}
