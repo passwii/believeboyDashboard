@@ -16,6 +16,12 @@ from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
 from app.core.scheduler import init_scheduler, shutdown_scheduler
+# BEL-128: 显式 import celery_app，让 Celery 构造时 `set_as_current=True` 把 `current_app`
+# 绑定到我们的 `Celery("believeboy", ...)` 实例。否则 `@shared_task` 装饰的 task
+# 在懒加载 import 时会 fallback 到 celery 默认 `Celery("default")`（broker=None → AMQP
+# localhost:5672），导致手动 resend / ai_summary 等 Celery 任务在 API 进程里
+# `.delay()` 时直接 `Connection refused`。详见 docs/superpowers/plans/2026-07-13-...
+from app.tasks.celery_app import celery_app  # noqa: F401  -- side-effect import
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
