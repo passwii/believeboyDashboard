@@ -1,7 +1,8 @@
 # AI Chat 原生方案架构（Native Architecture）
 
-> **状态**：方向已锁，未落地实现 / 测试证据已落库，SearXNG 中文搜索优化已挂起。
+> **状态**：方向已锁。**Phase 1（async + Pydantic AI driver）已落地**（2026-07-13）；SearXNG 中文搜索优化仍挂起。
 > **范围**：本文件只描述**最终方案**与**决策依据**。每条决策背后都有 spike 验证或真实端点测试，不再赘述。
+> **Phase 2**：web_search 切到 Pydantic AI native Tavily tool（独立 PR，详见 § 9.3）。
 
 ---
 
@@ -165,12 +166,48 @@ C1 wiring 一律用这个**变量**，不写死 localhost:8000。
 - [x] 真实端点测试（含「中文 ≠ 全坏」的精确诊断）；
 - [x] `score` 字符串 bug 修复 + 13 个测试。
 
-### 9.2 待办
-1. 把 `stream_message` 的 `event_stream` 替换为 Pydantic AI `run_stream_events` 驱动；
-2. 注册 `tavily_search_tool(client=AsyncTavilyClient(base_url=settings.ai_chat_web_search_base_url))`；
-3. 通过动态指令函数注入 `current_date`（层 ④）；
-4. 保留 `stream_utils.build_stream_*` 与 `build_search_source_cards`，mapper 复用；
-5. 跑端到端：`pnpm test`（前端）→ `cd backend && pytest`（后端）→ 人工验收（手测 streaming、工具触发、sources 卡片、取消、断连）。
+### 9.2 已落地（Phase 1，2026-07-13）
+
+[Phase 1] async + Pydantic AI driver 垂直切片落地。`enable_web_search=False` 用户路径切到 Pydantic AI；`enable_web_search=True` 路径行为冻结（legacy `_legacy_stream_response` byte-for-byte 保留）。
+
+**新增模块**：
+- `backend/app/services/ai/agent.py` — `build_chat_agent(settings)` 工厂 + `current_date_instruction` 动态指令
+- `backend/app/services/ai/stream_mapper.py` — `map_agent_event(event, state)` 纯函数（text / thinking / usage 三分支）
+- `backend/tests/api/test_ai_chat_stream_native.py` — 4 个 e2e（4/4 PASS）
+
+**改动模块**：
+- `backend/app/api/v1/endpoints/ai_chat.py` — `stream_message` 改 async + 双路径分流；`_prepare_conversation_turn` / `_legacy_stream_response` 辅助函数抽出
+
+**Phase 1 显式冻结（不在本 PR 范围）**：
+- ❌ 不引 `tavily-python`（factory 不注册 tools）
+- ❌ mapper 不引入 `FunctionToolCallEvent` / `FunctionToolResultEvent` 分支
+- ❌ `enable_web_search=True` 路径内部逻辑零变更（e2e 测试 byte-for-byte 固化）
+- ❌ Phase 1 新路径不自动生成会话标题
+- ❌ Pydantic AI 路径 `duration_ms=None`（不实时计算）
+
+**端点路由矩阵（Phase 1）**：
+
+| `enable_web_search` | `regenerate` | 路径 |
+|---|---|---|
+| `False` | `False` | ✅ 新 Pydantic AI 路径 |
+| `False` | `True`  | ❌ HTTP 400「重新生成仅在启用联网搜索时支持」|
+| `True`  | 任意    | ✅ 旧同步路径（行为冻结）|
+
+**Phase 1 收益**：
+- 解 P0-1（客户端断连）：async 路径 `await request.is_disconnected()`
+- 解 P0-2（DB session 持有期）：Pydantic AI 路径仅在 yield 间隙持有 DB，不再每 chunk 写 DB
+- 引入 Pydantic AI 2.9 编排 LLM 流，替代手搓 httpx 循环
+- 前端 `consumeStream` 与 ndjson 协议零改动
+
+### 9.3 待办（Phase 2）
+
+1. SearXNG Tavily adapter 返回格式 spike（必须先做；决定 mapper `_handle_tool_result` 的 content 解析路径：dict vs list[dict]）
+2. stream_mapper 加 `FunctionToolCallEvent` → `tool_calls` 分支
+3. stream_mapper 加 `FunctionToolResultEvent` → `sources` + `tool_done` 分支
+4. Agent Factory 注册 `tavily_search_tool(client=AsyncTavilyClient(base_url=settings.ai_chat_web_search_base_url))`
+5. 端点 `enable_web_search=True` 切到 Pydantic AI driver；旧 `_legacy_stream_response` 退役
+6. 端点层 `tool_searching` 事件与 mapper 解耦（mapper 每次只产一个 bytes，`tool_searching` 由端点层 yield）
+7. 跑端到端：`pnpm test`（前端）→ `cd backend && pytest`（后端）→ 人工验收（手测 streaming、工具触发、sources 卡片、取消、断连）
 
 ### 9.3 落地约束
 - **替换路径**：建议独立分支 / PR，避免一次性 big-bang；
@@ -182,6 +219,10 @@ C1 wiring 一律用这个**变量**，不写死 localhost:8000。
 ## 10. 版本与依赖
 
 - Python 3.14.5（仓库当前）
-- pydantic-ai==2.8.0（spike 验证通过）
+- **pydantic-ai==2.9.0**（Phase 1 落地；spike 验证时为 2.8.0，PR 阶段仓库已升 2.9.0）
 - pydantic-ai-slim[tavily]（原生 Tavily 工具可选依赖，**生产装 `pydantic-ai` 主包即可**）
+- **Phase 1 不引 `tavily-python`**（factory 不注册 Tavily tool；requirements.txt 不加此行）
 - **不引入** litellm（挂起项中明确）
+
+> **间接依赖冲突（已踩）**：pydantic-ai 拉入 `sse-starlette>=3` 要求 `starlette>=1.0`，与 fastapi 0.115.5 要求的 `starlette<0.42` 冲突。
+> 仓库 app 代码不直接使用 sse-starlette，venv 中**卸载 `sse-starlette`** 即可。mcp 包间接需要 sse-starlette，但本仓库不依赖 mcp。
