@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react'
 import { Notification, NotificationType } from '@/lib/notifications'
@@ -98,7 +100,12 @@ function ToastItem({ notification }: ToastItemProps) {
 
 export function NotificationToastContainer() {
   const { toasts } = useNotifications()
-  return (
+  // Portal 到 document.body：与页面过渡的 AnimatePresence 树完全隔离，
+  // 后端报错 / 通知出现时绝不打断路由切换动效；也避免被祖先 overflow/transform 裁剪。
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) return null
+  return createPortal(
     <div
       aria-live="polite"
       aria-label="通知"
@@ -109,6 +116,7 @@ export function NotificationToastContainer() {
           <ToastItem key={toast.id} notification={toast} />
         ))}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body,
   )
 }

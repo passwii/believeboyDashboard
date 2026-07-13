@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { usePathname } from 'next/navigation'
+import { motion } from 'framer-motion'
 import {
   ChevronRight,
   Pin,
@@ -11,6 +12,7 @@ import {
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { isLinkActive, type SidebarTopGroup } from '@/lib/sidebar-config'
+import { sidebarPanelContainer, sidebarPanelItem, sidebarPanelReveal } from '@/lib/motion/variants'
 import { cn } from '@/lib/utils'
 
 interface SidebarPanelProps {
@@ -47,12 +49,16 @@ export const SidebarPanel = React.memo(function SidebarPanel({
   const groupItems = group.items
 
   return (
-    <div
+    <motion.div
       id='sidebar-panel'
       role='region'
       aria-label={`${group.label} 子菜单`}
       className='sidebar-panel-shell relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
       onMouseDown={(e) => e.stopPropagation()}
+      initial='initial'
+      animate='animate'
+      exit='exit'
+      variants={sidebarPanelReveal()}
     >
       {/* Header */}
       <div className='flex h-[56px] shrink-0 items-center justify-between border-b border-[hsl(var(--sidebar-border))]/60 px-4'>
@@ -105,24 +111,32 @@ export const SidebarPanel = React.memo(function SidebarPanel({
               </p>
             </div>
           ) : (
-            <nav className='flex flex-col gap-0.5' aria-label={`${group.label} 子菜单`}>
+            <motion.nav
+              className='flex flex-col gap-0.5'
+              aria-label={`${group.label} 子菜单`}
+              variants={sidebarPanelContainer()}
+            >
               {groupItems.map((item) => {
                 const isActive = isLinkActive(pathname, item)
                 const ItemIcon = item.icon ?? group.icon
                 return (
-                  <RouteLoadingLink
+                  <motion.div
                     key={item.url}
-                    href={item.url}
-                    onClick={onNavigate}
-                    data-active={isActive}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={cn(
-                      'group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium u-interactive transition-colors',
-                      isActive
-                        ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
-                        : 'text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground',
-                    )}
+                    variants={sidebarPanelItem()}
+                    className='w-full'
                   >
+                    <RouteLoadingLink
+                      href={item.url}
+                      onClick={onNavigate}
+                      data-active={isActive}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'group/link flex h-10 w-full items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium u-interactive transition-colors',
+                        isActive
+                          ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
+                          : 'text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground',
+                      )}
+                    >
                     <ItemIcon
                       className={cn(
                         'h-4 w-4 shrink-0 transition-colors',
@@ -131,13 +145,14 @@ export const SidebarPanel = React.memo(function SidebarPanel({
                     />
                     <span className='min-w-0 flex-1 truncate'>{item.title}</span>
                     {isActive && <ChevronRight className='h-3.5 w-3.5 text-sidebar-foreground/40' />}
-                  </RouteLoadingLink>
+                    </RouteLoadingLink>
+                  </motion.div>
                 )
               })}
-            </nav>
+            </motion.nav>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 })

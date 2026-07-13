@@ -1,7 +1,7 @@
 'use client'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { type ReactNode, useEffect, useState } from 'react'
-import { SPRING } from '@/lib/motion/tokens'
+import { SPRING, DURATION, EASE } from '@/lib/motion/tokens'
 
 type Props = {
   children: ReactNode
@@ -42,7 +42,15 @@ export function NormalPageTransition({ children, className, pathname }: Props) {
       ? { opacity: 0, scale: 0.99, y: -4 }
       : { opacity: 0, scale: 0.99, filter: 'blur(4px)' as string, y: -4 }
 
-  const transition = reduce ? { duration: 0 } : SPRING.page
+  // blur 与 spring 解耦：transform/opacity 走 GPU spring（永不掉帧），
+  // filter(blur) 走短 tween —— 即便页面很重（数据加载/Suspense），
+  // 主线程被占满时也只丢「模糊」细节、不会丢整体位移动效，避免「加载/卡顿时 motion 没了」。
+  const transition = reduce
+    ? { duration: 0 }
+    : {
+        ...SPRING.page,
+        filter: { duration: DURATION.base, ease: EASE.out },
+      }
 
   return (
     <div className={className ?? 'h-full w-full'}>
@@ -53,7 +61,7 @@ export function NormalPageTransition({ children, className, pathname }: Props) {
           animate={animate}
           exit={exit}
           transition={transition}
-          className="will-change-transform h-full w-full"
+          className="will-change-[transform,opacity,filter] h-full w-full"
         >
           {children}
         </motion.div>

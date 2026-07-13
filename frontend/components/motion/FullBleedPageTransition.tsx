@@ -1,7 +1,7 @@
 'use client'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { type ReactNode, useEffect, useState } from 'react'
-import { SPRING } from '@/lib/motion/tokens'
+import { SPRING, DURATION, EASE } from '@/lib/motion/tokens'
 
 type Props = {
   children: ReactNode
@@ -47,7 +47,14 @@ export function FullBleedPageTransition({ children, className, pathname }: Props
       ? { opacity: 0, scale: 0.99, y: -4 }
       : { opacity: 0, scale: 0.99, filter: 'blur(4px)' as string, y: -4 }
 
-  const transition = reduce ? { duration: 0 } : SPRING.page
+  // blur 与 spring 解耦：transform/opacity 走 GPU spring（永不掉帧），
+  // filter(blur) 走短 tween —— 页面很重时只丢「模糊」细节、不丢整体位移动效。
+  const transition = reduce
+    ? { duration: 0 }
+    : {
+        ...SPRING.page,
+        filter: { duration: DURATION.base, ease: EASE.out },
+      }
 
   return (
     <div className={className ?? '!absolute inset-0'}>
@@ -58,7 +65,7 @@ export function FullBleedPageTransition({ children, className, pathname }: Props
           animate={animate}
           exit={exit}
           transition={transition}
-          className="will-change-transform h-full w-full"
+          className="will-change-[transform,opacity,filter] h-full w-full"
         >
           {children}
         </motion.div>

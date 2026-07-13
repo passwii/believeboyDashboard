@@ -4,6 +4,7 @@ import * as React from 'react'
 import { usePathname } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { PanelLeft } from 'lucide-react'
+import { MotionConfig } from 'framer-motion'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -125,8 +126,8 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  // Mobile sheet open state
  const [mobileOpen, setMobileOpen] = React.useState(false)
 
- return (
-   <>
+  return (
+    <MotionConfig reducedMotion="user">
      {/* Desktop sidebar (>=md)
       *
       * 桌面端结构：外层 wrapper 是 relative 容器，rail 永远占 68px，
@@ -147,10 +148,10 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
          user={displayUser}
        />
        <div
-         className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),inset_0_0_0_1px_hsl(0_0%_100%/0.05),inset_-1px_0_0_hsl(0_0%_100%/0.05),0_24px_60px_-24px_rgba(2,6,16,0.5)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1.18,0.36,1)] ${
+         className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),inset_0_0_0_1px_hsl(0_0%_100%/0.05),inset_-1px_0_0_hsl(0_0%_100%/0.05),0_24px_60px_-24px_rgba(2,6,16,0.5)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.34,1.32,0.64,1)] ${
            activeGroupId
-             ? 'translate-x-2 opacity-100'
-             : '-translate-x-3 opacity-0'
+             ? 'translate-x-2 scale-100 opacity-100'
+             : '-translate-x-3 scale-[0.97] opacity-0'
          }`}
          onMouseEnter={() => {
            if (!activeGroupId) return
@@ -163,22 +164,24 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
              activeGroupId ? 'pointer-events-auto' : 'pointer-events-none'
            }`}
          >
-           {activeGroupId === USER_CHIP_ID ? (
-             <SidebarUserPanel
-               user={displayUser}
-               pinned={pinnedGroupId === USER_CHIP_ID}
-               onClose={onPanelClose}
-               onPinToggle={onUserPinToggle}
-               onLogout={onUserLogout}
-             />
-           ) : activeGroup ? (
-             <SidebarPanel
-               group={activeGroup}
-               pinnedGroupId={pinnedGroupId}
-               onClose={onPanelClose}
-               onPinToggle={onActiveGroupPinToggle}
-               onNavigate={onPanelNavigate}
-             />
+            {activeGroupId === USER_CHIP_ID ? (
+              <SidebarUserPanel
+                key={USER_CHIP_ID}
+                user={displayUser}
+                pinned={pinnedGroupId === USER_CHIP_ID}
+                onClose={onPanelClose}
+                onPinToggle={onUserPinToggle}
+                onLogout={onUserLogout}
+              />
+            ) : activeGroup ? (
+              <SidebarPanel
+                key={activeGroup.id}
+                group={activeGroup}
+                pinnedGroupId={pinnedGroupId}
+                onClose={onPanelClose}
+                onPinToggle={onActiveGroupPinToggle}
+                onNavigate={onPanelNavigate}
+              />
            ) : null}
          </div>
        </div>
@@ -214,8 +217,8 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
          </SheetContent>
        </Sheet>
      </div>
-   </>
- )
+    </MotionConfig>
+  )
 }
 
 /**

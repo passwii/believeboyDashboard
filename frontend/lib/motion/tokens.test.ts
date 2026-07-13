@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DURATION, EASE, SPRING, STAGGER, isReducedMotionDefault } from "./tokens";
+import { DURATION, EASE, SPRING, STAGGER, BEZIER, isReducedMotionDefault } from "./tokens";
 
 describe("motion tokens", () => {
   it("DURATION mirrors CSS motion tokens", () => {
@@ -27,6 +27,13 @@ describe("motion tokens", () => {
 
   it("STAGGER step mirrors --stagger-step", () => {
     expect(STAGGER.step).toBe(0.07);
+  });
+
+  it("BEZIER exposes reveal curves for second-level menu", () => {
+    expect(BEZIER.panelReveal).toEqual([0.34, 1.4, 0.64, 1]);
+    expect(BEZIER.itemReveal).toEqual([0.22, 1, 0.36, 1]);
+    // 过冲曲线：控制点 y>1 才会回弹
+    expect(BEZIER.panelReveal[1]).toBeGreaterThan(1);
   });
 
   it("isReducedMotionDefault is false (caller must read media query)", () => {
