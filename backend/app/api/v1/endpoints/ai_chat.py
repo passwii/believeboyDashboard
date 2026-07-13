@@ -539,6 +539,20 @@ def _prompt_messages_to_pydantic_ai_args(prompt_messages: list[dict]) -> tuple:
         last_user_idx = len(prompt_messages)
 
     user_prompt_content = prompt_messages[last_user_idx].get("content", "") if last_user_idx < len(prompt_messages) else ""
+
+    # post-user 注入：把最后一条 user 之后追加的 system 消息（如 attached_file 提示）
+    # 折叠到 user_prompt 前缀，避免被 `prompt_messages[:last_user_idx]` 切片丢掉。
+    # 详见 Phase 1 PR review fix：Kilo 指出 `_prompt_messages_to_pydantic_ai_args` 漏传 attached_file。
+    post_user_prefixes: list[str] = []
+    for m in prompt_messages[last_user_idx + 1:]:
+        if m.get("role") == "system":
+            content = m.get("content")
+            if content:
+                post_user_prefixes.append(content)
+    if post_user_prefixes:
+        prefix = "\n\n".join(post_user_prefixes)
+        user_prompt_content = f"{prefix}\n\n{user_prompt_content}" if user_prompt_content else prefix
+
     user_prompt: str = user_prompt_content if isinstance(user_prompt_content, str) else str(user_prompt_content)
 
     message_history: list = []
@@ -584,6 +598,15 @@ def _legacy_stream_response(
         settings=settings, model=payload.model,
         system_prompt=payload.system_prompt, reasoning_effort=payload.reasoning_effort,
     )
+    # [Phase 1 PR review fix] attached_file 注入：被 Phase 1 拆分时误删，与 main 行为不一致。
+    # main 同步 / 流式端点都做 `llm_config.system_prompt += file_context`；legacy 路径必须保持。
+    if payload.attached_file_content:
+        file_context = (
+            f"\n\n【用户附加文件：{payload.attached_file_name or 'file'}】\n"
+            f"{payload.attached_file_content.strip()}\n"
+            "请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
+        )
+        llm_config.system_prompt += file_context
 
     max_turns = settings.ai_chat_max_conversation_turns
     if len(context_messages) >= max_turns * 2:

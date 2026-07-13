@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.services import ai as ai_chat_service  # noqa: E402
 
 
 @pytest.fixture
@@ -308,3 +309,103 @@ def test_prompt_messages_to_pydantic_ai_args_skips_unknown_role():
     ])
     assert user_prompt == "hi"
     assert message_history == []
+
+
+# ─── PR review fix：attached_file 在新/旧两条路径都不再丢失 ─────────────────
+
+
+def test_prompt_messages_to_pydantic_ai_args_folds_attached_file_into_user_prompt():
+    """[Kilo WARNING] post-user system 消息（attached_file 提示）必须折叠进 user_prompt。
+
+    之前的实现 `prompt_messages[:last_user_idx]` 会把 last_user 之后追加的 system 消息
+    静默丢掉；现在改为 fold-to-prefix。
+    """
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args([
+        {"role": "user", "content": "总结附件"},
+        {
+            "role": "system",
+            "content": "【用户附加文件：Q3.txt】\nQ3 营收 ¥1.2M，环比 +12%。\n请根据上述附加文件内容回答用户问题。",
+        },
+    ])
+    # attached_file 内容必须出现在 user_prompt 前缀
+    assert "Q3 营收" in user_prompt
+    assert "总结附件" in user_prompt
+    assert user_prompt.index("Q3 营收") < user_prompt.index("总结附件")
+    # post-user system 消息不进 message_history
+    assert message_history == []
+
+
+def test_prompt_messages_to_pydantic_ai_args_attached_file_with_history():
+    """带历史的 attached_file：历史 user/assistant 进 message_history，attached_file 仍 fold 进 user_prompt。"""
+    from app.api.v1.endpoints.ai_chat import _prompt_messages_to_pydantic_ai_args
+    from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+
+    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args([
+        {"role": "user", "content": "原问题"},
+        {"role": "assistant", "content": "原回答"},
+        {"role": "user", "content": "现在呢"},
+        {"role": "system", "content": "【文件片段】数据 X=42"},
+    ])
+    # 历史 2 条进 message_history
+    assert len(message_history) == 2
+    assert isinstance(message_history[0], ModelRequest)
+    assert isinstance(message_history[0].parts[0], UserPromptPart)
+    assert message_history[0].parts[0].content == "原问题"
+    assert isinstance(message_history[1], ModelResponse)
+    assert isinstance(message_history[1].parts[0], TextPart)
+    assert message_history[1].parts[0].content == "原回答"
+    # user_prompt = file_prefix + 现在的 user
+    assert "数据 X=42" in user_prompt
+    assert "现在呢" in user_prompt
+    assert user_prompt.index("数据 X=42") < user_prompt.index("现在呢")
+
+
+def test_legacy_stream_response_injects_attached_file_into_system_prompt(
+    patched_build_chat_agent, client, db_session, api_key, monkeypatch
+):
+    """[Kilo WARNING] legacy 路径（enable_web_search=True）必须把 attached_file 注入 llm_config.system_prompt。
+
+    之前 `_legacy_stream_response` 完全没注入；现在 monkeypatch `build_llm_config` 捕获
+    返回的 config 并断言 system_prompt 含文件内容。
+    """
+    from app.services import ai as ai_module
+
+    captured = {"llm_config": None}
+
+    real_build_llm_config = ai_chat_service.build_llm_config
+
+    def capturing_build_llm_config(**kwargs):
+        cfg = real_build_llm_config(**kwargs)
+        captured["llm_config"] = cfg
+        return cfg
+
+    monkeypatch.setattr(ai_chat_service, "build_llm_config", capturing_build_llm_config)
+
+    def fake_stream_with_tool_calling(**kwargs):
+        yield {"type": "chunk", "delta": "已读取附件"}
+        yield {"type": "usage", "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}}
+
+    monkeypatch.setattr(ai_module, "stream_with_tool_calling", fake_stream_with_tool_calling)
+
+    conv_id = _create_conversation(db_session)
+    with client.stream(
+        "POST",
+        f"/api/v1/ai/conversations/{conv_id}/messages/stream",
+        json={
+            "content": "总结附件",
+            "enable_web_search": True,
+            "attached_file_name": "Q3.txt",
+            "attached_file_content": "Q3 营收 ¥1.2M",
+        },
+        headers={"X-User-Id": "42", "X-API-Key": api_key},
+    ) as resp:
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}"
+        body = b"".join(resp.iter_bytes()).decode("utf-8")
+
+    assert captured["llm_config"] is not None, "build_llm_config 必须被调用"
+    sys_prompt = captured["llm_config"].system_prompt
+    assert "Q3 营收 ¥1.2M" in sys_prompt, f"attached_file 未注入 system_prompt，实际: {sys_prompt[:300]}"
+    assert "用户附加文件" in sys_prompt
+    assert "已读取附件" in body
