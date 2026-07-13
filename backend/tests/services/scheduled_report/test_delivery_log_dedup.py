@@ -3,9 +3,11 @@
 Covers:
 - `DeliveryStatus.SUPERSEDED` enum member added (P0-3).
 - `ScheduledReportDeliveryLog.__table_args__` carries the dedup UniqueConstraint.
-- Inserting two delivery_log rows with identical
+- Inserting two **auto** delivery_log rows with identical
   (subscription_id, frequency, report_date, triggered_by) raises IntegrityError
   on SQLite (proves the constraint surfaces through SQLAlchemy).
+- Inserting two **manual** rows with identical (sub, freq, report_date) is
+  NOT blocked — manual / 补发 不去重（产品决策 2026-07-13）。
 - Different `triggered_by` or different `frequency` for the same
   (subscription, report_date) is NOT blocked (constraint is not over-broad).
 - `Settings` accepts the new 4 scheduler switches with sane defaults and
@@ -118,12 +120,15 @@ class TestDeliveryLogUniqueConstraint:
         for idx in ScheduledReportDeliveryLog.__table__.indexes:
             if idx.name == "uq_delivery_log_dedup":
                 assert idx.unique is True
+                # 收窄后只对 auto 生效（manual 不去重）
+                where = str(idx.dialect_options["postgresql"]["where"])
+                assert "triggered_by = 'auto'" in where
                 return
         raise AssertionError("uq_delivery_log_dedup index not found")
 
-    def test_inserting_duplicate_active_raises_integrity_error(self, db_session, seeded_sub):
-        # Partial unique index: active status (e.g. `sent`) blocks the
-        # duplicate, but `superseded` / `failed` do not.
+    def test_inserting_duplicate_auto_raises_integrity_error(self, db_session, seeded_sub):
+        # Partial unique index：auto 路径仍去重——同 (sub, freq, report_date,
+        # triggered_by='auto') 的第二条 active 行被挡下。
         # First row — status=sent (active)
         db_session.add(
             ScheduledReportDeliveryLog(
@@ -137,7 +142,7 @@ class TestDeliveryLogUniqueConstraint:
         )
         db_session.commit()
 
-        # Duplicate (same sub, freq, report_date, triggered_by) — default
+        # Duplicate (same sub, freq, report_date, triggered_by='auto') — default
         # status is PENDING (active), so partial unique kicks in.
         db_session.add(
             ScheduledReportDeliveryLog(
@@ -151,6 +156,54 @@ class TestDeliveryLogUniqueConstraint:
         with pytest.raises(IntegrityError):
             db_session.commit()
         db_session.rollback()
+
+    def test_duplicate_manual_allowed(self, db_session, seeded_sub):
+        # 产品决策：manual / 补发 不去重——同一 (sub, freq, report_date) 可多次
+        # manual，即使第一条已 sent 也不挡。
+        db_session.add(
+            ScheduledReportDeliveryLog(
+                subscription_id=seeded_sub,
+                frequency="daily",
+                report_date="2026-07-10",
+                triggered_by="manual",
+                email="m1@example.com",
+                status=DeliveryStatus.SENT.value,
+            )
+        )
+        db_session.commit()
+        db_session.add(
+            ScheduledReportDeliveryLog(
+                subscription_id=seeded_sub,
+                frequency="daily",
+                report_date="2026-07-10",
+                triggered_by="manual",
+                email="m2@example.com",
+            )
+        )
+        db_session.commit()  # 不抛异常
+
+    def test_duplicate_manual_allowed_regardless_of_status(self, db_session, seeded_sub):
+        # 失败态也能再补发：第一条 pending（在途/未发），第二条 manual 仍可建。
+        db_session.add(
+            ScheduledReportDeliveryLog(
+                subscription_id=seeded_sub,
+                frequency="daily",
+                report_date="2026-07-10",
+                triggered_by="manual",
+                email="a@example.com",
+            )
+        )
+        db_session.commit()
+        db_session.add(
+            ScheduledReportDeliveryLog(
+                subscription_id=seeded_sub,
+                frequency="daily",
+                report_date="2026-07-10",
+                triggered_by="manual",
+                email="b@example.com",
+            )
+        )
+        db_session.commit()  # 不抛异常
 
     def test_same_sub_but_different_triggered_by_allowed(self, db_session, seeded_sub):
         # auto seeded row
@@ -339,3 +392,32 @@ class TestMigrationFileContract:
         assert not candidates or candidates[0].exists(), (
             f"down_revision file {token}_*.py claimed but not on disk"
         )
+
+
+class TestRelaxDedupMigrationContract:
+    """20260713_212：manual 不去重，仅 auto 保留一天一次。"""
+
+    @pytest.fixture
+    def migration_path(self) -> Path:
+        backend_root = Path(__file__).resolve().parents[3]
+        return (
+            backend_root
+            / "alembic"
+            / "versions"
+            / "20260713_212_relax_dedup_unique_index_for_manual.py"
+        )
+
+    def test_migration_file_exists(self, migration_path):
+        assert migration_path.exists(), f"missing migration: {migration_path}"
+
+    def test_migration_contains_required_symbols(self, migration_path):
+        text = migration_path.read_text()
+        assert '"20260713_212"' in text or "'20260713_212'" in text
+        assert '"20260710_211"' in text or "'20260710_211'" in text
+        assert "uq_delivery_log_dedup" in text
+        assert "create_index" in text
+        # 收窄关键：WHERE 加 triggered_by = 'auto'
+        assert "triggered_by = 'auto'" in text
+        # 保留原 P0-3 语义：仍排除 superseded / failed
+        assert "NOT IN ('superseded', 'failed')" in text
+        assert "downgrade" in text

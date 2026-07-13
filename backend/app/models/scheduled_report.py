@@ -155,12 +155,16 @@ class ScheduledReportDeliveryLog(Base):
         "ScheduledReportSubscription", back_populates="delivery_logs"
     )
 
-    # P0-3: 阻止 (sub, freq, report_date, triggered_by) 重复派发。使用
-    # **partial unique index** 而非全表 unique constraint，因为：
+    # P0-3（收窄，产品决策 2026-07-13）：阻止 (sub, freq, report_date, triggered_by)
+    # 重复派发。使用 **partial unique index** 而非全表 unique constraint，因为：
     #   1. 历史 119 行已 supersede（保留痕跡，但同组 2+ 行仍存在）；
     #   2. failed 状态行未来可能因人工重试需重跑——不应被 unique 卡住；
     #   3. partial index 只对未来 active 行 enforce unique——保护 INSERT 路径
-    #   同时保留历史。
+    #      同时保留历史。
+    # 收窄点：WHERE 加 `triggered_by = 'auto'`。auto 派发保留“一天一次”去重
+    # （防 (30, daily, ..., auto) 自动双跑）；manual / 补发 完全不在唯一索引
+    # 覆盖范围内，每天可任意重发（含失败 / 历史），永不撞 IntegrityError。
+    # 同时给 SQLite 测试库同样的 partial WHERE，保证本地行为一致。
     __table_args__ = (
         Index(
             "uq_delivery_log_dedup",
@@ -169,7 +173,12 @@ class ScheduledReportDeliveryLog(Base):
             "report_date",
             "triggered_by",
             unique=True,
-            postgresql_where=text("status NOT IN ('superseded', 'failed')"),
+            postgresql_where=text(
+                "status NOT IN ('superseded', 'failed') AND triggered_by = 'auto'"
+            ),
+            sqlite_where=text(
+                "status NOT IN ('superseded', 'failed') AND triggered_by = 'auto'"
+            ),
         ),
     )
 
