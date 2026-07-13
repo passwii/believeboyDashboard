@@ -75,9 +75,13 @@ function StoreGrid({ items }: StoreGridProps) {
           <div className="relative z-10 flex h-full flex-col space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-medium tracking-tight text-foreground/90">{store.name}</h2>
+                <h2 className="text-base font-medium tracking-tight text-foreground/90">
+                  {store.name}
+                </h2>
                 {store.brand_name && (
-                  <p className={`mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLabelToneByIndex(index)}`}>
+                  <p
+                    className={`mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${getLabelToneByIndex(index)}`}
+                  >
                     <Building2 className="h-3 w-3" />
                     {store.brand_name}
                   </p>
@@ -134,8 +138,16 @@ export default function StoreNavigationPage() {
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}`, icon: Store },
-    { label: '有链接店铺', value: `${stores.filter((s) => s.store_address).length}`, icon: ExternalLink },
-    { label: '品牌数量', value: `${new Set(stores.map((s) => s.brand_name).filter(Boolean)).size}`, icon: Building2 },
+    {
+      label: '有链接店铺',
+      value: `${stores.filter((s) => s.store_address).length}`,
+      icon: ExternalLink,
+    },
+    {
+      label: '品牌数量',
+      value: `${new Set(stores.map((s) => s.brand_name).filter(Boolean)).size}`,
+      icon: Building2,
+    },
   ]
 
   return (
@@ -153,7 +165,10 @@ export default function StoreNavigationPage() {
           </div>
           <div className="grid w-full max-w-xs grid-cols-3 gap-2">
             {stats.map((item) => (
-              <div key={item.label} className="rounded-xl border border-border/50 bg-background/50 p-3 text-center dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]/50">
+              <div
+                key={item.label}
+                className="rounded-xl border border-border/50 bg-background/50 p-3 text-center dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]/50"
+              >
                 <item.icon className="mx-auto mb-0.5 h-3.5 w-3.5 text-primary/60" />
                 <p className="text-sm font-medium leading-tight text-foreground/80">{item.value}</p>
                 <p className="text-[10px] text-muted-foreground">{item.label}</p>
@@ -165,7 +180,9 @@ export default function StoreNavigationPage() {
 
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
-          <h2 className="text-base font-medium tracking-tight text-foreground/80 md:text-lg">全部店铺</h2>
+          <h2 className="text-base font-medium tracking-tight text-foreground/80 md:text-lg">
+            全部店铺
+          </h2>
           <p className="text-xs text-muted-foreground md:text-sm">点击卡片直达店铺</p>
         </div>
 

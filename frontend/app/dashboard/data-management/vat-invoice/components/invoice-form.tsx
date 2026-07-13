@@ -1,20 +1,20 @@
-"use client"
+'use client'
 
 // 订单与买方表单（不含动态明细行）
 // 字段：币种、Order ID、发票日期、买方
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { DatePicker, formatDateInputValue, parseDateInputValue } from "@/components/ui/date-picker"
-import { CURRENCY_OPTIONS, type Currency, type InvoiceForm } from "../types"
+} from '@/components/ui/select'
+import { DatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
+import { CURRENCY_OPTIONS, type Currency, type InvoiceForm } from '../types'
 
 interface InvoiceFormProps {
   form: InvoiceForm
@@ -25,9 +25,9 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
   const update = <K extends keyof InvoiceForm>(key: K, value: InvoiceForm[K]) =>
     onChange({ ...form, [key]: value })
 
-  const updateBuyer = <K extends keyof InvoiceForm["buyer"]>(
+  const updateBuyer = <K extends keyof InvoiceForm['buyer']>(
     key: K,
-    value: InvoiceForm["buyer"][K],
+    value: InvoiceForm['buyer'][K]
   ) => onChange({ ...form, buyer: { ...form.buyer, [key]: value } })
 
   return (
@@ -44,7 +44,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
               <Label htmlFor="currency">币种 *</Label>
               <Select
                 value={form.currency}
-                onValueChange={(v) => update("currency", v as Currency)}
+                onValueChange={(v) => update('currency', v as Currency)}
               >
                 <SelectTrigger id="currency">
                   <SelectValue />
@@ -64,7 +64,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
               <Input
                 id="order-id"
                 value={form.order_id}
-                onChange={(e) => update("order_id", e.target.value)}
+                onChange={(e) => update('order_id', e.target.value)}
                 placeholder="205-3678957-4241932"
               />
             </div>
@@ -76,7 +76,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
               <Label>发票日期 *</Label>
               <DatePicker
                 value={parseDateInputValue(form.invoice_date)}
-                onChange={(d) => update("invoice_date", d ? formatDateInputValue(d) : "")}
+                onChange={(d) => update('invoice_date', d ? formatDateInputValue(d) : '')}
                 placeholder="选择发票日期"
               />
             </div>
@@ -91,7 +91,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 <Input
                   id="buyer-name"
                   value={form.buyer.name}
-                  onChange={(e) => updateBuyer("name", e.target.value)}
+                  onChange={(e) => updateBuyer('name', e.target.value)}
                   placeholder="Greg Richardson"
                 />
               </div>
@@ -100,7 +100,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 <Input
                   id="buyer-addr"
                   value={form.buyer.address_line}
-                  onChange={(e) => updateBuyer("address_line", e.target.value)}
+                  onChange={(e) => updateBuyer('address_line', e.target.value)}
                   placeholder="2, Welsh Drive"
                 />
               </div>
@@ -109,7 +109,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 <Input
                   id="buyer-postal"
                   value={form.buyer.postal_code}
-                  onChange={(e) => updateBuyer("postal_code", e.target.value)}
+                  onChange={(e) => updateBuyer('postal_code', e.target.value)}
                   placeholder="ML3 7AN"
                 />
               </div>
@@ -118,7 +118,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 <Input
                   id="buyer-city"
                   value={form.buyer.city}
-                  onChange={(e) => updateBuyer("city", e.target.value)}
+                  onChange={(e) => updateBuyer('city', e.target.value)}
                   placeholder="Hamilton"
                 />
               </div>
@@ -127,9 +127,7 @@ export function InvoiceFormSection({ form, onChange }: InvoiceFormProps) {
                 <Input
                   id="buyer-country"
                   value={form.buyer.country}
-                  onChange={(e) =>
-                    updateBuyer("country", e.target.value.toUpperCase().slice(0, 2))
-                  }
+                  onChange={(e) => updateBuyer('country', e.target.value.toUpperCase().slice(0, 2))}
                   placeholder="GB"
                   maxLength={2}
                 />

@@ -1,13 +1,8 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import {
-  motion,
-  useMotionValueEvent,
-  useReducedMotion,
-  useSpring,
-} from "framer-motion"
-import { ArrowDown, ArrowUp, BarChart3, LineChart as LineIcon, Square } from "lucide-react"
+import * as React from 'react'
+import { motion, useMotionValueEvent, useReducedMotion, useSpring } from 'framer-motion'
+import { ArrowDown, ArrowUp, BarChart3, LineChart as LineIcon, Square } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -18,16 +13,12 @@ import {
   LineChart,
   XAxis,
   YAxis,
-} from "recharts"
+} from 'recharts'
 
-import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import {
-  ChartContainer,
-  ChartTooltip,
-  type ChartConfig,
-} from "@/components/ui/line-charts-6"
+import { cn } from '@/lib/utils'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/line-charts-6'
 
 /**
  * Project-standard motion easing. Mirrors `--motion-ease-out` in
@@ -74,7 +65,7 @@ function roundToPrecision(value: number, precision: number | undefined): number 
  *   chart-with-kpi-grid.tsx    ← 上层 composition（待实现）
  */
 
-export type ChartKind = "line" | "area" | "bar"
+export type ChartKind = 'line' | 'area' | 'bar'
 
 export type MetricDef<K extends string> = {
   key: K
@@ -83,13 +74,13 @@ export type MetricDef<K extends string> = {
   isNegativeBetter?: boolean
   /** 把 raw number 渲染为中文/带单位的字符串 */
   format: (val: number) => string
-/**
- * KPI 卡片 spring count-up 时，对中间值四舍五入到的小数位数（raw value 的小数位）。
- * 用于"订单 / 曝光 / 点击 / 销量"等整数量级 metric，避免动效过程出现 `1,234.5678`
- * 这种小数。值为 `0` 表示强制整数。
- * 货币 / 百分比这种 `format` 函数自带 `toFixed` 量化的 metric 应当省略此字段，
- * 让 spring 的 raw 中间值原样传给 `format`，避免二次量化出错。
- */
+  /**
+   * KPI 卡片 spring count-up 时，对中间值四舍五入到的小数位数（raw value 的小数位）。
+   * 用于"订单 / 曝光 / 点击 / 销量"等整数量级 metric，避免动效过程出现 `1,234.5678`
+   * 这种小数。值为 `0` 表示强制整数。
+   * 货币 / 百分比这种 `format` 函数自带 `toFixed` 量化的 metric 应当省略此字段，
+   * 让 spring 的 raw 中间值原样传给 `format`，避免二次量化出错。
+   */
   precision?: number
   /** 自选 chart 形态（auto 模式下生效）。不填默认 line。 */
   preferredChart?: ChartKind
@@ -130,7 +121,7 @@ export interface MetricSwitcherCardProps<K extends string> {
    *   - `'line' / 'area' / 'bar'`：手动指定，固定形态
    * 默认 `'auto'`
    */
-  chartKind?: "auto" | ChartKind
+  chartKind?: 'auto' | ChartKind
 
   /** 是否在顶部 KPI grid 右侧显示形态切换 segmented control（默认 false） */
   showChartKindToggle?: boolean
@@ -150,22 +141,20 @@ export function MetricSwitcherCard<K extends string>({
   metrics,
   defaultMetric,
   colors,
-  heightClass = "h-80",
+  heightClass = 'h-80',
   showChange = true,
   xTickFormatter,
   getCurrent,
   getPrevious,
   renderLine,
-  chartKind = "auto",
+  chartKind = 'auto',
   showChartKindToggle = false,
   tooltipFormatter,
   yAxisFormatter,
 }: MetricSwitcherCardProps<K>) {
   const prefersReducedMotion = useReducedMotion()
   // 不传 defaultMetric 时回退到 metrics[0]
-  const [selected, setSelected] = React.useState<K>(
-    defaultMetric ?? (metrics[0]?.key as K),
-  )
+  const [selected, setSelected] = React.useState<K>(defaultMetric ?? (metrics[0]?.key as K))
   // 用户手动 override 的 chart kind。null 表示跟随 chartKind / auto 模式
   const [overrideKind, setOverrideKind] = React.useState<ChartKind | null>(null)
   const metric = metrics.find((m) => m.key === selected) ?? metrics[0]
@@ -173,8 +162,8 @@ export function MetricSwitcherCard<K extends string>({
   // 解析当前实际渲染的 chart kind
   const effectiveKind: ChartKind = React.useMemo(() => {
     if (overrideKind) return overrideKind
-    if (chartKind !== "auto") return chartKind
-    return metric.preferredChart ?? "line"
+    if (chartKind !== 'auto') return chartKind
+    return metric.preferredChart ?? 'line'
   }, [overrideKind, chartKind, metric.preferredChart])
 
   // 用户切换 metric 时重置 override（避免切换到另一 metric 后还卡在手动选择上）
@@ -188,9 +177,7 @@ export function MetricSwitcherCard<K extends string>({
     for (const m of metrics) {
       result[m.key] = {
         label: m.label,
-        color:
-          colors?.[m.key] ??
-          `hsl(var(--chart-${((metrics.indexOf(m) % 8) + 1)}))`,
+        color: colors?.[m.key] ?? `hsl(var(--chart-${(metrics.indexOf(m) % 8) + 1}))`,
       }
     }
     return result
@@ -216,10 +203,7 @@ export function MetricSwitcherCard<K extends string>({
   }, [data, selected, getCurrent, getPrevious])
 
   const hasPrevious = previousTotal > 0
-  const change =
-    previousTotal > 0
-      ? ((currentTotal - previousTotal) / previousTotal) * 100
-      : 0
+  const change = previousTotal > 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : 0
   const isPositive = metric.isNegativeBetter ? change < 0 : change > 0
 
   const chartData = React.useMemo(() => {
@@ -227,20 +211,18 @@ export function MetricSwitcherCard<K extends string>({
     return data ?? []
   }, [renderLine, data, selected])
 
-  const effectiveXKey = xKey ?? "date"
+  const effectiveXKey = xKey ?? 'date'
 
   const getCurrentForCard = React.useCallback(
     (k: K): number => {
       if (getCurrent) return getCurrent(k)
       if (data && data.length > 0) {
         const half = Math.floor(data.length / 2)
-        return data
-          .slice(half)
-          .reduce((acc, row) => acc + Number(row[k] ?? 0), 0)
+        return data.slice(half).reduce((acc, row) => acc + Number(row[k] ?? 0), 0)
       }
       return 0
     },
-    [getCurrent, data],
+    [getCurrent, data]
   )
 
   const getDaysLabel = (): string => {
@@ -248,7 +230,7 @@ export function MetricSwitcherCard<K extends string>({
       const half = Math.floor(data.length / 2)
       return `近 ${data.length - half} 日合计`
     }
-    return "本期合计"
+    return '本期合计'
   }
 
   const hasCompareData = chartData.some((row) => row.compareMetricValue != null)
@@ -259,13 +241,9 @@ export function MetricSwitcherCard<K extends string>({
         <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] py-3">
           <div className="space-y-1">
             {title && (
-              <h2 className="text-base font-semibold leading-none text-foreground">
-                {title}
-              </h2>
+              <h2 className="text-base font-semibold leading-none text-foreground">{title}</h2>
             )}
-            {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
         </CardHeader>
       )}
@@ -294,7 +272,7 @@ export function MetricSwitcherCard<K extends string>({
             <ChartKindToggle
               value={effectiveKind}
               onChange={setOverrideKind}
-              disabled={chartKind !== "auto"}
+              disabled={chartKind !== 'auto'}
             />
           </div>
         )}
@@ -308,19 +286,12 @@ export function MetricSwitcherCard<K extends string>({
             只做 fade-in + 轻微上推。 */}
         <motion.div
           key={`chart-${effectiveKind}`}
-          initial={
-            prefersReducedMotion
-              ? { opacity: 1, y: 0 }
-              : { opacity: 0, y: 6 }
-          }
+          initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: MOTION_EASE_OUT }}
-          className={cn("w-full", heightClass)}
+          className={cn('w-full', heightClass)}
         >
-          <ChartContainer
-            config={config}
-            className={cn("w-full", heightClass)}
-          >
+          <ChartContainer config={config} className={cn('w-full', heightClass)}>
             {renderChart(
               effectiveKind,
               chartData,
@@ -332,7 +303,7 @@ export function MetricSwitcherCard<K extends string>({
               xTickFormatter,
               yAxisFormatter,
               tooltipFormatter,
-              hasCompareData,
+              hasCompareData
             )}
           </ChartContainer>
         </motion.div>
@@ -379,14 +350,8 @@ function MetricCell<K extends string>({
   // Display math (shared with the legacy inline version)
   const prev = previousValue
   const hasPrev = prev !== null && prev > 0
-  const change =
-    hasPrev && prev !== null ? ((currentValue - prev) / prev) * 100 : null
-  const isPositive =
-    change === null
-      ? true
-      : metric.isNegativeBetter
-        ? change < 0
-        : change > 0
+  const change = hasPrev && prev !== null ? ((currentValue - prev) / prev) * 100 : null
+  const isPositive = change === null ? true : metric.isNegativeBetter ? change < 0 : change > 0
 
   // Round the displayed values to the metric's declared precision so that
   // inactive cells stay consistent with the active cell's count-up animation
@@ -424,33 +389,24 @@ function MetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={false}
       className={cn(
-        "relative cursor-pointer p-4 text-start transition-colors duration-150",
-        "min-h-[112px]",
-        "hover:bg-muted/40",
+        'relative cursor-pointer p-4 text-start transition-colors duration-150',
+        'min-h-[112px]',
+        'hover:bg-muted/40'
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate text-sm text-muted-foreground">
-          {metric.label}
-        </span>
+        <span className="truncate text-sm text-muted-foreground">{metric.label}</span>
         <Badge
           variant="secondary"
-          className={cn(
-            "shrink-0 gap-1 text-[10px]",
-            "bg-transparent text-muted-foreground/70",
-          )}
+          className={cn('shrink-0 gap-1 text-[10px]', 'bg-transparent text-muted-foreground/70')}
         >
-          {hasPrev && displayPrevious !== null
-            ? `对比 ${metric.format(displayPrevious)}`
-            : "--"}
+          {hasPrev && displayPrevious !== null ? `对比 ${metric.format(displayPrevious)}` : '--'}
         </Badge>
       </div>
       <div className="truncate text-2xl font-bold tabular-nums text-muted-foreground/80">
         {metric.format(displayCurrent)}
       </div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">
-        {subLabel}
-      </div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">{subLabel}</div>
     </button>
   )
 }
@@ -494,9 +450,9 @@ function ActiveMetricCell<K extends string>({
   // Round the initial display value too — otherwise the very first paint
   // would inherit any fractional residue from a previously-completed spring.
   const [displayValue, setDisplayValue] = React.useState(() =>
-    metric.format(roundToPrecision(currentValue, metric.precision)),
+    metric.format(roundToPrecision(currentValue, metric.precision))
   )
-  useMotionValueEvent(springValue, "change", (latest) => {
+  useMotionValueEvent(springValue, 'change', (latest) => {
     setDisplayValue(metric.format(roundToPrecision(latest, metric.precision)))
   })
 
@@ -506,55 +462,47 @@ function ActiveMetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={true}
       className={cn(
-        "relative cursor-pointer p-4 text-start transition-colors duration-150",
-        "min-h-[112px]",
-        "bg-primary/[0.04]",
+        'relative cursor-pointer p-4 text-start transition-colors duration-150',
+        'min-h-[112px]',
+        'bg-primary/[0.04]'
       )}
     >
       <motion.span
         layoutId="metric-cell-indicator"
         aria-hidden
         className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary"
-        transition={{ type: "spring", stiffness: 380, damping: 32 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       />
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate text-sm text-muted-foreground">
-          {metric.label}
-        </span>
+        <span className="truncate text-sm text-muted-foreground">{metric.label}</span>
         <Badge
           variant="secondary"
           className={cn(
-            "shrink-0 gap-1 text-[10px]",
+            'shrink-0 gap-1 text-[10px]',
             change === null
-              ? "bg-muted/40 text-muted-foreground"
+              ? 'bg-muted/40 text-muted-foreground'
               : isPositive
-                ? "bg-secondary/10 text-secondary"
-                : "bg-destructive/10 text-destructive",
+                ? 'bg-secondary/10 text-secondary'
+                : 'bg-destructive/10 text-destructive'
           )}
         >
-          {change === null
-            ? "--"
-            : isPositive
-              ? (
-                <>
-                  <ArrowUp className="size-3" />
-                  {Math.abs(change).toFixed(1)}%
-                </>
-              )
-              : (
-                <>
-                  <ArrowDown className="size-3" />
-                  {Math.abs(change).toFixed(1)}%
-                </>
-              )}
+          {change === null ? (
+            '--'
+          ) : isPositive ? (
+            <>
+              <ArrowUp className="size-3" />
+              {Math.abs(change).toFixed(1)}%
+            </>
+          ) : (
+            <>
+              <ArrowDown className="size-3" />
+              {Math.abs(change).toFixed(1)}%
+            </>
+          )}
         </Badge>
       </div>
-      <div className="truncate text-2xl font-bold tabular-nums text-foreground">
-        {displayValue}
-      </div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">
-        {subLabel}
-      </div>
+      <div className="truncate text-2xl font-bold tabular-nums text-foreground">{displayValue}</div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">{subLabel}</div>
     </button>
   )
 }
@@ -573,16 +521,16 @@ function ChartKindToggle({
   disabled: boolean
 }) {
   const options: Array<{ kind: ChartKind; label: string; icon: React.ElementType }> = [
-    { kind: "line", label: "折线", icon: LineIcon },
-    { kind: "area", label: "面积", icon: Square },
-    { kind: "bar", label: "柱状", icon: BarChart3 },
+    { kind: 'line', label: '折线', icon: LineIcon },
+    { kind: 'area', label: '面积', icon: Square },
+    { kind: 'bar', label: '柱状', icon: BarChart3 },
   ]
   const prefersReducedMotion = useReducedMotion()
   return (
     <div
       className={cn(
-        "inline-flex h-7 items-center rounded-full border border-border/70 bg-background/72 p-0.5 text-[11px]",
-        disabled && "opacity-50",
+        'inline-flex h-7 items-center rounded-full border border-border/70 bg-background/72 p-0.5 text-[11px]',
+        disabled && 'opacity-50'
       )}
     >
       {options.map((opt) => {
@@ -596,10 +544,10 @@ function ChartKindToggle({
             disabled={disabled}
             aria-pressed={isActive}
             className={cn(
-              "relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors",
+              'relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
               // When reduced motion is on we skip the layoutId pill and fall
               // back to Tailwind classes on the button itself.
-              isActive && prefersReducedMotion && "bg-primary text-primary-foreground shadow-sm",
+              isActive && prefersReducedMotion && 'bg-primary text-primary-foreground shadow-sm'
             )}
           >
             {/* Sliding pill — only the active option renders it; layoutId
@@ -610,7 +558,7 @@ function ChartKindToggle({
                 aria-hidden
                 className="absolute inset-0 -z-10 rounded-full bg-primary shadow-sm"
                 transition={{
-                  type: "spring",
+                  type: 'spring',
                   stiffness: 380,
                   damping: 30,
                 }}
@@ -618,12 +566,12 @@ function ChartKindToggle({
             )}
             <span
               className={cn(
-                "relative z-10 inline-flex items-center gap-1 transition-colors",
+                'relative z-10 inline-flex items-center gap-1 transition-colors',
                 isActive
                   ? prefersReducedMotion
-                    ? "text-primary-foreground"
-                    : "text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                    ? 'text-primary-foreground'
+                    : 'text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <Icon className="size-3" />
@@ -651,7 +599,7 @@ function renderChart<K extends string>(
   xTickFormatter: ((value: string) => string) | undefined,
   yAxisFormatter: ((value: number, key: K) => string) | undefined,
   tooltipFormatter: ((value: number, key: K) => React.ReactNode) | undefined,
-  hasCompareData: boolean,
+  hasCompareData: boolean
 ) {
   // 共享 axes + tooltip：XAxis/YAxis/CartesianGrid/Tooltip 几件套所有形态共用。
   // 关键：recharts 内部用 findChildByType(children, XAxis/YAxis/Tooltip) 在 LineChart
@@ -664,12 +612,12 @@ function renderChart<K extends string>(
   // 遮住柱状图。这里 kind="bar" 时用 cursor={false} 完全禁用 cursor，
   // kind="line"/"area" 时用虚线 vertical line cursor。
   const tooltipProps =
-    kind === "bar"
+    kind === 'bar'
       ? { cursor: false as const }
       : {
           cursor: {
-            stroke: "hsl(var(--muted-foreground))",
-            strokeDasharray: "4 4",
+            stroke: 'hsl(var(--muted-foreground))',
+            strokeDasharray: '4 4',
           },
         }
   const sharedAxes = [
@@ -680,7 +628,7 @@ function renderChart<K extends string>(
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
       tickFormatter={(value) => {
         if (xTickFormatter) return xTickFormatter(String(value))
         const s = String(value)
@@ -692,12 +640,10 @@ function renderChart<K extends string>(
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
       tickCount={6}
       tickFormatter={(value) =>
-        yAxisFormatter
-          ? yAxisFormatter(Number(value), selected)
-          : metric.format(Number(value))
+        yAxisFormatter ? yAxisFormatter(Number(value), selected) : metric.format(Number(value))
       }
     />,
     <ChartTooltip
@@ -714,7 +660,7 @@ function renderChart<K extends string>(
     />,
   ]
 
-  if (kind === "bar") {
+  if (kind === 'bar') {
     return (
       <BarChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
         {sharedAxes}
@@ -740,21 +686,13 @@ function renderChart<K extends string>(
     )
   }
 
-  if (kind === "area") {
+  if (kind === 'area') {
     return (
       <AreaChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
         <defs>
           <linearGradient id={`fill-${selected}`} x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="5%"
-              stopColor={`var(--color-${selected})`}
-              stopOpacity={0.5}
-            />
-            <stop
-              offset="95%"
-              stopColor={`var(--color-${selected})`}
-              stopOpacity={0.05}
-            />
+            <stop offset="5%" stopColor={`var(--color-${selected})`} stopOpacity={0.5} />
+            <stop offset="95%" stopColor={`var(--color-${selected})`} stopOpacity={0.05} />
           </linearGradient>
         </defs>
         {sharedAxes}
@@ -784,7 +722,7 @@ function renderChart<K extends string>(
           activeDot={{
             r: 5,
             fill: `var(--color-${selected})`,
-            stroke: "white",
+            stroke: 'white',
             strokeWidth: 2,
           }}
         />
@@ -821,7 +759,7 @@ function renderChart<K extends string>(
         activeDot={{
           r: 5,
           fill: `var(--color-${selected})`,
-          stroke: "white",
+          stroke: 'white',
           strokeWidth: 2,
         }}
       />
@@ -866,18 +804,12 @@ function MetricSwitcherTooltip<K extends string>({
 
   // BarChart 下第一个 payload 项可能是底层画上去的辅助图元（value=null），
   // 过滤掉无效项，保留有 value 的项。
-  const items = payload.filter(
-    (item) => item.value !== undefined && item.value !== null,
-  )
+  const items = payload.filter((item) => item.value !== undefined && item.value !== null)
   if (items.length === 0) return null
 
   return (
     <motion.div
-      initial={
-        prefersReducedMotion
-          ? { opacity: 1, y: 0 }
-          : { opacity: 0, y: 4 }
-      }
+      initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15, ease: MOTION_EASE_OUT }}
       className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]"
@@ -887,25 +819,25 @@ function MetricSwitcherTooltip<K extends string>({
       )}
       <div className="grid gap-1.5">
         {items.map((item, index) => {
-          const rawKey = String(item.dataKey ?? "")
+          const rawKey = String(item.dataKey ?? '')
           const itemMetric =
             metrics.find((m) => m.key === rawKey) ??
             metrics.find((m) => m.key === selected) ??
             metrics[0]
           if (!itemMetric) return null
           const numVal = Number(item.value)
-          const indicatorColor = item.color ?? "hsl(var(--chart-1))"
+          const indicatorColor = item.color ?? 'hsl(var(--chart-1))'
           const displayValue = tooltipFormatter
             ? tooltipFormatter(numVal, itemMetric.key)
             : itemMetric.format(numVal)
-          const isCompare = rawKey === "compareMetricValue"
+          const isCompare = rawKey === 'compareMetricValue'
           return (
             <div
               key={`${rawKey}-${index}`}
               className="flex w-full items-center justify-between gap-3"
             >
               <div className="flex min-w-0 items-center gap-2">
-                {kind === "bar" ? (
+                {kind === 'bar' ? (
                   <span
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: indicatorColor }}
@@ -917,7 +849,7 @@ function MetricSwitcherTooltip<K extends string>({
                   />
                 )}
                 <span className="truncate text-muted-foreground">
-                  {isCompare ? "上一周期" : itemMetric.label}
+                  {isCompare ? '上一周期' : itemMetric.label}
                 </span>
               </div>
               <span className="font-mono font-medium tabular-nums text-foreground">

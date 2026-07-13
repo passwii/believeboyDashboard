@@ -5,10 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { requireAdminSession, requireUserSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  buildBackendProxyHeaders,
-  buildBackendUrl,
-} from '@/lib/server/backend-proxy'
+import { buildBackendProxyHeaders, buildBackendUrl } from '@/lib/server/backend-proxy'
 
 type BackendExchangeRateItem = {
   id: number
@@ -72,7 +69,11 @@ function toBackendPayload(body: any) {
       ? (body.noteImages ?? body.note_images).map((item: any) => ({
           id: String(item.id || ''),
           url: String(item.url || ''),
-          thumbnail_url: item.thumbnailUrl ? String(item.thumbnailUrl) : item.thumbnail_url ? String(item.thumbnail_url) : null,
+          thumbnail_url: item.thumbnailUrl
+            ? String(item.thumbnailUrl)
+            : item.thumbnail_url
+              ? String(item.thumbnail_url)
+              : null,
           filename: String(item.filename || ''),
           content_type: String(item.contentType || item.content_type || ''),
           size: Number(item.size || 0),
@@ -86,12 +87,21 @@ async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
     return NextResponse.json(
-      { success: false, error: normalizeErrorMessage(payload.error || payload.detail || payload.message, fallbackMessage) },
+      {
+        success: false,
+        error: normalizeErrorMessage(
+          payload.error || payload.detail || payload.message,
+          fallbackMessage
+        ),
+      },
       { status: response.status }
     )
   } catch {
     const text = await response.text()
-    return NextResponse.json({ success: false, error: normalizeErrorMessage(text, fallbackMessage) }, { status: response.status })
+    return NextResponse.json(
+      { success: false, error: normalizeErrorMessage(text, fallbackMessage) },
+      { status: response.status }
+    )
   }
 }
 
@@ -121,11 +131,14 @@ export async function GET(request: NextRequest) {
     }
 
     const search = backendParams.toString()
-    const response = await fetch(`${buildBackendUrl('api/v1/exchange-rates')}${search ? `?${search}` : ''}`, {
-      method: 'GET',
-      headers: buildBackendProxyHeaders(session, request.headers),
-      cache: 'no-store',
-    })
+    const response = await fetch(
+      `${buildBackendUrl('api/v1/exchange-rates')}${search ? `?${search}` : ''}`,
+      {
+        method: 'GET',
+        headers: buildBackendProxyHeaders(session, request.headers),
+        cache: 'no-store',
+      }
+    )
     if (!response.ok) {
       return await toErrorResponse(response, 'Failed to fetch exchange rates')
     }

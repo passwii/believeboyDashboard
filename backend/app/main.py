@@ -11,6 +11,14 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy import text
 
+# BEL-128: 必须在其它 app.* import 之前加载 celery_app。
+# 1) 构造时 `set_as_current=True` 绑定主线程 `current_app`；
+# 2) `celery_app.set_default()` 绑定进程级 default（FastAPI 同步路由跑在
+#    ThreadPoolExecutor 子线程，只认 default，不认主线程 current_app）。
+# 否则 `@shared_task` 在子线程 fallback 到 `Celery("default")`（broker=None
+# → AMQP localhost:5672）→ 手动 resend 报 Connection refused。
+from app.tasks.celery_app import celery_app  # noqa: F401  -- side-effect import
+
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal

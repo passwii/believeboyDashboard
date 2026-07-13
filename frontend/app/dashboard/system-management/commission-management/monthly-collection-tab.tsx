@@ -1,12 +1,19 @@
 'use client'
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { formatPercent } from './utils'
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
+const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
+const FULL_BLEED_TABLE_CONTAINER_CLASS = '-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none'
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -35,9 +42,18 @@ function getYearMonths(year: string): string[] {
 const RATE_EPSILON = 1e-9
 
 function getReceiveRateColor(rate: number): { bg: string; text: string } {
-  if (rate >= 1 - RATE_EPSILON) return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
-  if (rate >= 0.5 - RATE_EPSILON) return { bg: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-700 dark:text-orange-300' }
-  if (rate >= 0.2 - RATE_EPSILON) return { bg: 'bg-yellow-100 dark:bg-yellow-500/20', text: 'text-yellow-700 dark:text-yellow-300' }
+  if (rate >= 1 - RATE_EPSILON)
+    return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
+  if (rate >= 0.5 - RATE_EPSILON)
+    return {
+      bg: 'bg-orange-100 dark:bg-orange-500/20',
+      text: 'text-orange-700 dark:text-orange-300',
+    }
+  if (rate >= 0.2 - RATE_EPSILON)
+    return {
+      bg: 'bg-yellow-100 dark:bg-yellow-500/20',
+      text: 'text-yellow-700 dark:text-yellow-300',
+    }
   return { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' }
 }
 
@@ -72,7 +88,10 @@ function MonthlyCollectionSkeletonRow() {
 function MonthlyCollectionSkeletonContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
+      <Table
+        className={FULL_BLEED_TABLE_CLASS}
+        containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
+      >
         <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
           <TableRow>
             <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
@@ -127,7 +146,10 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
+        <Table
+          className={FULL_BLEED_TABLE_CLASS}
+          containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
+        >
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
               <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
@@ -160,22 +182,30 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                     return (
                       <TableCell key={m} className="text-center">
                         {monthData ? (
-                          <span className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate).bg} ${getReceiveRateColor(monthData.receive_rate).text}`}>
+                          <span
+                            className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate).bg} ${getReceiveRateColor(monthData.receive_rate).text}`}
+                          >
                             {formatPercent(monthData.receive_rate)}
                           </span>
                         ) : (
-                          <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
+                          <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">
+                            -
+                          </span>
                         )}
                       </TableCell>
                     )
                   })}
                   <TableCell className="!pr-0 text-center">
                     {project.receive_rate > 0 ? (
-                      <span className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate).bg} ${getReceiveRateColor(project.receive_rate).text}`}>
+                      <span
+                        className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate).bg} ${getReceiveRateColor(project.receive_rate).text}`}
+                      >
                         {formatPercent(project.receive_rate)}
                       </span>
                     ) : (
-                      <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">-</span>
+                      <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">
+                        -
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>

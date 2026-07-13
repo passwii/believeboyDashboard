@@ -2,8 +2,21 @@
 
 import * as React from 'react'
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -22,8 +35,8 @@ import {
   formatPercent,
 } from './utils'
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "w-full"
+const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
+const FULL_BLEED_TABLE_CONTAINER_CLASS = 'w-full'
 
 interface DetailTabProps {
   projectRows: ProjectRow[]
@@ -81,15 +94,24 @@ function DetailSkeletonContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
       <div className="flex-1 overflow-auto">
-        <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
+        <Table
+          className={FULL_BLEED_TABLE_CLASS}
+          containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
+        >
           <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
-              <TableHead className="text-center font-semibold text-foreground w-[200px]">项目</TableHead>
+              <TableHead className="text-center font-semibold text-foreground w-[200px]">
+                项目
+              </TableHead>
               <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
               <TableHead className="text-center font-semibold text-foreground">销售收入</TableHead>
               <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
-              <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                工厂佣金(RMB)
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                已回款(RMB)
+              </TableHead>
               <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
             </TableRow>
           </TableHeader>
@@ -150,19 +172,25 @@ export function DetailTab({
     }
   }, [loading, projectRows, displayData])
 
-  const getCommissionRatioLabel = useCallback((record: CommissionProjectMonth): string => {
-    const projectMeta = projectMetaById[record.project_id]
-    if (!projectMeta) {
+  const getCommissionRatioLabel = useCallback(
+    (record: CommissionProjectMonth): string => {
+      const projectMeta = projectMetaById[record.project_id]
+      if (!projectMeta) {
+        return formatPercent(record.factory_commission_rate)
+      }
+      if (projectMeta.commission_basis === 'cash_received') {
+        return '阶梯(7/10/13/15%)'
+      }
+      if (
+        typeof projectMeta.commission_rate === 'number' &&
+        Number.isFinite(projectMeta.commission_rate)
+      ) {
+        return formatPercent(projectMeta.commission_rate)
+      }
       return formatPercent(record.factory_commission_rate)
-    }
-    if (projectMeta.commission_basis === 'cash_received') {
-      return '阶梯(7/10/13/15%)'
-    }
-    if (typeof projectMeta.commission_rate === 'number' && Number.isFinite(projectMeta.commission_rate)) {
-      return formatPercent(projectMeta.commission_rate)
-    }
-    return formatPercent(record.factory_commission_rate)
-  }, [projectMetaById])
+    },
+    [projectMetaById]
+  )
 
   const renderRow = (row: ProjectRow) => {
     const { rowSpan, projectName, record } = row
@@ -170,10 +198,7 @@ export function DetailTab({
     const info = SITE_INFO[country]
 
     return (
-      <TableRow
-        key={record.id}
-        className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}
-      >
+      <TableRow key={record.id} className={`border-l-4 ${SITE_BORDER_COLORS[country]}`}>
         {/* 项目名称列 - 使用 rowSpan 合并，只在第一行显示 */}
         {rowSpan > 0 && (
           <TableCell className="text-center" rowSpan={rowSpan}>
@@ -270,16 +295,31 @@ export function DetailTab({
         style={{ opacity: loading ? 0 : 1 }}
       >
         <div className="flex-1 overflow-auto">
-          <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}>
+          <Table
+            className={FULL_BLEED_TABLE_CLASS}
+            containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
+          >
             <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
               <TableRow>
-                <TableHead className="text-center font-semibold text-foreground w-[200px]">项目</TableHead>
+                <TableHead className="text-center font-semibold text-foreground w-[200px]">
+                  项目
+                </TableHead>
                 <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">销售收入</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">佣金比例</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">工厂佣金(RMB)</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">已回款(RMB)</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">回款状态</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">
+                  销售收入
+                </TableHead>
+                <TableHead className="text-center font-semibold text-foreground">
+                  佣金比例
+                </TableHead>
+                <TableHead className="text-center font-semibold text-foreground">
+                  工厂佣金(RMB)
+                </TableHead>
+                <TableHead className="text-center font-semibold text-foreground">
+                  已回款(RMB)
+                </TableHead>
+                <TableHead className="text-center font-semibold text-foreground">
+                  回款状态
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -23,12 +23,7 @@ import {
 import { UploadZone } from '@/components/ui/upload-zone'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { useNotifications } from '@/components/notifications'
-import {
-  Save,
-  Send,
-  AlertTriangle,
-  X,
-} from 'lucide-react'
+import { Save, Send, AlertTriangle, X } from 'lucide-react'
 import {
   fetchReport,
   saveReport,
@@ -110,11 +105,7 @@ function MetricInput({
 }
 
 function MetricsGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {children}
-    </div>
-  )
+  return <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">{children}</div>
 }
 
 const DEFAULT_HEALTH: HealthData = {
@@ -149,7 +140,7 @@ type TemplateData = {
 
 function checkFieldWarnings(
   fields: InspectionTemplateField[],
-  data: Record<string, unknown>,
+  data: Record<string, unknown>
 ): ThresholdWarning[] {
   const warnings: ThresholdWarning[] = []
   for (const field of fields) {
@@ -168,10 +159,12 @@ function checkFieldWarnings(
         metric: field.label,
         value,
         threshold: warningThreshold,
-        severity: criticalThreshold !== null &&
+        severity:
+          criticalThreshold !== null &&
           ((field.threshold_direction === 'above' && value >= criticalThreshold) ||
-           (field.threshold_direction === 'below' && value <= criticalThreshold))
-          ? 'critical' : 'warning',
+            (field.threshold_direction === 'below' && value <= criticalThreshold))
+            ? 'critical'
+            : 'warning',
         message: `${field.label}: ${value}${field.unit || ''}`,
       })
     }
@@ -214,7 +207,11 @@ export default function InspectionForm({
         const data = await fetchInspectionTemplate()
         setTemplate(data)
       } catch (e) {
-        notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(e, '获取表单模板失败') })
+        notify({
+          type: 'error',
+          title: '加载失败',
+          message: normalizeErrorMessage(e, '获取表单模板失败'),
+        })
       }
     }
     void loadTemplate()
@@ -236,17 +233,29 @@ export default function InspectionForm({
           })
           setScreenshots(
             report.screenshots.map((s) => ({
-              id: s.id, url: s.url, filename: s.filename,
-              caption: s.caption || '', isUploading: false, isNew: false,
+              id: s.id,
+              url: s.url,
+              filename: s.filename,
+              caption: s.caption || '',
+              isUploading: false,
+              isNew: false,
             }))
           )
         } else {
           setReportId(null)
-          setFormData({ health_data: { ...DEFAULT_HEALTH }, compliance_data: { ...DEFAULT_COMPLIANCE }, status_summary: '' })
+          setFormData({
+            health_data: { ...DEFAULT_HEALTH },
+            compliance_data: { ...DEFAULT_COMPLIANCE },
+            status_summary: '',
+          })
           setScreenshots([])
         }
       } catch (e) {
-        notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(e, '获取报告失败') })
+        notify({
+          type: 'error',
+          title: '加载失败',
+          message: normalizeErrorMessage(e, '获取报告失败'),
+        })
       } finally {
         setLoading(false)
       }
@@ -257,9 +266,18 @@ export default function InspectionForm({
   useEffect(() => {
     if (!template) return
     const w: ThresholdWarning[] = [
-      ...checkFieldWarnings(template.service_performance_fields, formData.health_data as unknown as Record<string, unknown>),
-      ...checkFieldWarnings(template.shipping_performance_fields, formData.health_data as unknown as Record<string, unknown>),
-      ...checkFieldWarnings(template.compliance_fields, formData.compliance_data as unknown as Record<string, unknown>),
+      ...checkFieldWarnings(
+        template.service_performance_fields,
+        formData.health_data as unknown as Record<string, unknown>
+      ),
+      ...checkFieldWarnings(
+        template.shipping_performance_fields,
+        formData.health_data as unknown as Record<string, unknown>
+      ),
+      ...checkFieldWarnings(
+        template.compliance_fields,
+        formData.compliance_data as unknown as Record<string, unknown>
+      ),
     ]
     setWarnings(w)
   }, [formData, template])
@@ -285,7 +303,11 @@ export default function InspectionForm({
       notify({ type: 'success', title: '草稿已保存' })
       onSubmitSuccess()
     } catch (e) {
-      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存草稿失败') })
+      notify({
+        type: 'error',
+        title: '保存失败',
+        message: normalizeErrorMessage(e, '保存草稿失败'),
+      })
     } finally {
       setSaving(false)
     }
@@ -302,7 +324,11 @@ export default function InspectionForm({
       })
       setReportId(result.id)
     } catch (e) {
-      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存报告失败') })
+      notify({
+        type: 'error',
+        title: '保存失败',
+        message: normalizeErrorMessage(e, '保存报告失败'),
+      })
       setSaving(false)
       return
     }
@@ -314,63 +340,95 @@ export default function InspectionForm({
       notify({ type: 'success', title: '报告已提交' })
       onSubmitSuccess()
     } catch (e) {
-      notify({ type: 'error', title: '提交失败', message: normalizeErrorMessage(e, '提交报告失败') })
+      notify({
+        type: 'error',
+        title: '提交失败',
+        message: normalizeErrorMessage(e, '提交报告失败'),
+      })
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleUploadScreenshot = useCallback(async (file: File) => {
-    let targetReportId: number | null = reportId
+  const handleUploadScreenshot = useCallback(
+    async (file: File) => {
+      let targetReportId: number | null = reportId
 
-    if (!targetReportId) {
-      try {
-        const result = await saveReport(periodId, projectId, {
-          health_data: formData.health_data,
-          compliance_data: formData.compliance_data,
-          status_summary: formData.status_summary || undefined,
-        })
-        targetReportId = result.id
-        setReportId(result.id)
-      } catch (e) {
-        notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(e, '保存报告失败') })
-        return
+      if (!targetReportId) {
+        try {
+          const result = await saveReport(periodId, projectId, {
+            health_data: formData.health_data,
+            compliance_data: formData.compliance_data,
+            status_summary: formData.status_summary || undefined,
+          })
+          targetReportId = result.id
+          setReportId(result.id)
+        } catch (e) {
+          notify({
+            type: 'error',
+            title: '保存失败',
+            message: normalizeErrorMessage(e, '保存报告失败'),
+          })
+          return
+        }
       }
-    }
 
-    const previewUrl = URL.createObjectURL(file)
-    setScreenshots((prev) => [...prev, { url: previewUrl, filename: file.name, caption: '', isUploading: true, isNew: true }])
+      const previewUrl = URL.createObjectURL(file)
+      setScreenshots((prev) => [
+        ...prev,
+        { url: previewUrl, filename: file.name, caption: '', isUploading: true, isNew: true },
+      ])
 
-    try {
-      const uploaded = await uploadScreenshot(file, targetReportId)
-      setScreenshots((prev) =>
-        prev.map((s) =>
-          s.url === previewUrl
-            ? { id: uploaded.id, url: uploaded.url, filename: uploaded.filename, caption: uploaded.caption || '', isUploading: false, isNew: false }
-            : s
+      try {
+        const uploaded = await uploadScreenshot(file, targetReportId)
+        setScreenshots((prev) =>
+          prev.map((s) =>
+            s.url === previewUrl
+              ? {
+                  id: uploaded.id,
+                  url: uploaded.url,
+                  filename: uploaded.filename,
+                  caption: uploaded.caption || '',
+                  isUploading: false,
+                  isNew: false,
+                }
+              : s
+          )
         )
-      )
-    } catch (e) {
-      setScreenshots((prev) => prev.filter((s) => s.url !== previewUrl))
-      notify({ type: 'error', title: '上传失败', message: normalizeErrorMessage(e, '上传截图失败') })
-    }
-  }, [reportId, projectId, periodId, formData, notify])
-
-  const handleDeleteScreenshot = useCallback(async (index: number) => {
-    const screenshot = screenshots[index]
-    if (!screenshot) return
-
-    if (screenshot.id && !screenshot.isNew) {
-      try {
-        await deleteScreenshot(screenshot.id)
       } catch (e) {
-        notify({ type: 'error', title: '删除失败', message: normalizeErrorMessage(e, '删除截图失败') })
-        return
+        setScreenshots((prev) => prev.filter((s) => s.url !== previewUrl))
+        notify({
+          type: 'error',
+          title: '上传失败',
+          message: normalizeErrorMessage(e, '上传截图失败'),
+        })
       }
-    }
+    },
+    [reportId, projectId, periodId, formData, notify]
+  )
 
-    setScreenshots((prev) => prev.filter((_, i) => i !== index))
-  }, [screenshots, notify])
+  const handleDeleteScreenshot = useCallback(
+    async (index: number) => {
+      const screenshot = screenshots[index]
+      if (!screenshot) return
+
+      if (screenshot.id && !screenshot.isNew) {
+        try {
+          await deleteScreenshot(screenshot.id)
+        } catch (e) {
+          notify({
+            type: 'error',
+            title: '删除失败',
+            message: normalizeErrorMessage(e, '删除截图失败'),
+          })
+          return
+        }
+      }
+
+      setScreenshots((prev) => prev.filter((_, i) => i !== index))
+    },
+    [screenshots, notify]
+  )
 
   const handleCaptionChange = useCallback((index: number, caption: string) => {
     setScreenshots((prev) => prev.map((s, i) => (i === index ? { ...s, caption } : s)))
@@ -492,7 +550,9 @@ export default function InspectionForm({
                 <MetricInput
                   label="配送前取消率"
                   value={formData.health_data.pre_fulfillment_cancel_rate?.toString() ?? '0'}
-                  onChange={(v) => handleHealthChange('pre_fulfillment_cancel_rate', parseFloat(v) || 0)}
+                  onChange={(v) =>
+                    handleHealthChange('pre_fulfillment_cancel_rate', parseFloat(v) || 0)
+                  }
                   unit="%"
                   step="0.01"
                 />
@@ -535,13 +595,19 @@ export default function InspectionForm({
                 />
                 <MetricInput
                   label="商品真实性买家投诉"
-                  value={formData.compliance_data.product_authenticity_complaints?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('product_authenticity_complaints', parseInt(v) || 0)}
+                  value={
+                    formData.compliance_data.product_authenticity_complaints?.toString() ?? '0'
+                  }
+                  onChange={(v) =>
+                    handleComplianceChange('product_authenticity_complaints', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="商品状况买家投诉"
                   value={formData.compliance_data.product_condition_complaints?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('product_condition_complaints', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('product_condition_complaints', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="食品和商品安全问题"
@@ -551,27 +617,37 @@ export default function InspectionForm({
                 <MetricInput
                   label="上架政策违规"
                   value={formData.compliance_data.listing_policy_violations?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('listing_policy_violations', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('listing_policy_violations', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="违反受限商品政策"
                   value={formData.compliance_data.restricted_product_violations?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('restricted_product_violations', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('restricted_product_violations', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="违反买家商品评论政策"
                   value={formData.compliance_data.review_policy_violations?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('review_policy_violations', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('review_policy_violations', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="其他违反政策"
                   value={formData.compliance_data.other_policy_violations?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('other_policy_violations', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('other_policy_violations', parseInt(v) || 0)
+                  }
                 />
                 <MetricInput
                   label="监管合规性"
                   value={formData.compliance_data.regulatory_compliance?.toString() ?? '0'}
-                  onChange={(v) => handleComplianceChange('regulatory_compliance', parseInt(v) || 0)}
+                  onChange={(v) =>
+                    handleComplianceChange('regulatory_compliance', parseInt(v) || 0)
+                  }
                 />
               </MetricsGrid>
             </CardContent>

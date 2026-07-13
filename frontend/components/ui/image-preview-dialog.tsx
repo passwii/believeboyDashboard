@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { cn } from "@/lib/utils"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import * as React from 'react'
+import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 /**
  * PortraitScreenshotDialog — 专为竖图（手机截图/仪表盘快照）设计的大图预览
@@ -25,7 +25,7 @@ export function PortraitScreenshotDialog({
   onOpenChange,
   src,
   alt,
-  maxHeight = "85vh",
+  maxHeight = '85vh',
 }: PortraitScreenshotDialogProps) {
   const [zoomed, setZoomed] = React.useState(false)
 
@@ -38,23 +38,25 @@ export function PortraitScreenshotDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "flex flex-col items-center p-4 transition-all duration-300",
-        zoomed ? "max-w-[96vw]" : "max-w-2xl",
-      )}>
+      <DialogContent
+        className={cn(
+          'flex flex-col items-center p-4 transition-all duration-300',
+          zoomed ? 'max-w-[96vw]' : 'max-w-2xl'
+        )}
+      >
         <DialogTitle className="sr-only">{alt}</DialogTitle>
         <div
           className={cn(
-            "w-full overflow-y-auto",
-            zoomed ? "cursor-zoom-out" : "text-center cursor-zoom-in",
+            'w-full overflow-y-auto',
+            zoomed ? 'cursor-zoom-out' : 'text-center cursor-zoom-in'
           )}
           style={{ maxHeight: zoomed ? undefined : maxHeight }}
           onClick={(e) => {
             if (!hasImage) return
             e.stopPropagation()
-            setZoomed(z => !z)
+            setZoomed((z) => !z)
           }}
-          title={zoomed ? "点击缩小" : (hasImage ? "点击放大" : "暂无图片")}
+          title={zoomed ? '点击缩小' : hasImage ? '点击放大' : '暂无图片'}
         >
           {hasImage ? (
             <img
@@ -62,11 +64,11 @@ export function PortraitScreenshotDialog({
               alt={alt}
               className="rounded-md"
               style={{
-                width: zoomed ? "100%" : "auto",
-                maxWidth: zoomed ? "none" : "100%",
-                height: "auto",
-                objectFit: "contain",
-                transition: "width 300ms ease",
+                width: zoomed ? '100%' : 'auto',
+                maxWidth: zoomed ? 'none' : '100%',
+                height: 'auto',
+                objectFit: 'contain',
+                transition: 'width 300ms ease',
               }}
             />
           ) : (
@@ -75,7 +77,12 @@ export function PortraitScreenshotDialog({
             </div>
           )}
         </div>
-        <p className={cn("text-xs text-muted-foreground mt-2 transition-opacity", zoomed ? "opacity-100" : "opacity-0")}>
+        <p
+          className={cn(
+            'text-xs text-muted-foreground mt-2 transition-opacity',
+            zoomed ? 'opacity-100' : 'opacity-0'
+          )}
+        >
           点击图片缩小
         </p>
       </DialogContent>

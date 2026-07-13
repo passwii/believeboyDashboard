@@ -55,9 +55,7 @@ function StatCard({
     <div
       className={cn(
         'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-        highlight
-          ? 'border-primary/20 bg-primary/5'
-          : 'border-border bg-card',
+        highlight ? 'border-primary/20 bg-primary/5' : 'border-border bg-card'
       )}
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50">

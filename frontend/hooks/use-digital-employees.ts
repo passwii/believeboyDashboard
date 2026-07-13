@@ -10,13 +10,10 @@ interface UseDigitalEmployeesOptions {
 }
 
 export function useDigitalEmployees({ pollInterval = 10000 }: UseDigitalEmployeesOptions = {}) {
-  const loader = useCallback(
-    async (signal: AbortSignal): Promise<DigitalEmployee[]> => {
-      const data = await fetchDigitalEmployees(signal)
-      return data.items
-    },
-    []
-  )
+  const loader = useCallback(async (signal: AbortSignal): Promise<DigitalEmployee[]> => {
+    const data = await fetchDigitalEmployees(signal)
+    return data.items
+  }, [])
 
   const { data, loading, error, retry } = useApiQuery<DigitalEmployee[]>(loader, {
     timeoutMs: 5_000,

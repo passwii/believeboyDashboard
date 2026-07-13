@@ -29,13 +29,13 @@ export async function GET() {
           accept: 'application/json',
         }),
         cache: 'no-store',
-      },
+      }
     )
     return NextResponse.json(profile)
   } catch (err) {
     return NextResponse.json(
       { message: normalizeErrorMessage(err, '获取资料失败') },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
@@ -94,13 +94,13 @@ export async function PATCH(request: Request) {
         }),
         body: JSON.stringify(payload),
         cache: 'no-store',
-      },
+      }
     )
     return NextResponse.json(profile)
   } catch (err) {
     return NextResponse.json(
       { message: normalizeErrorMessage(err, '更新资料失败') },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

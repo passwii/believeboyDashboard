@@ -7,7 +7,10 @@ import { cn } from '@/lib/utils'
 interface DigitalEmployeeGridProps {
   employees: DigitalEmployee[]
   onCardClick?: (id: number) => void
-  taskMap?: Record<number, { task_name: string; progress_percent: number; current_step: string | null; status: string }>
+  taskMap?: Record<
+    number,
+    { task_name: string; progress_percent: number; current_step: string | null; status: string }
+  >
 }
 
 export function DigitalEmployeeGrid({ employees, onCardClick, taskMap }: DigitalEmployeeGridProps) {

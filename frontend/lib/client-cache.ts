@@ -61,11 +61,7 @@ export function getClientCache<T>(key: string, maxAgeMs: number): T | null {
   return sessionValue.value
 }
 
-export function setClientCache<T>(
-  key: string,
-  value: T,
-  options?: { persist?: boolean }
-): void {
+export function setClientCache<T>(key: string, value: T, options?: { persist?: boolean }): void {
   const envelope: CacheEnvelope<T> = {
     updatedAt: Date.now(),
     value,

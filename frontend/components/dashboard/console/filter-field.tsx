@@ -18,12 +18,16 @@ const LABEL_STYLES: Record<LabelStyle, string> = {
   lg: 'text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground',
 }
 
-export function FilterField({ label, children, className, labelClassName, labelStyle = 'default' }: FilterFieldProps) {
+export function FilterField({
+  label,
+  children,
+  className,
+  labelClassName,
+  labelStyle = 'default',
+}: FilterFieldProps) {
   return (
     <div className={cn('space-y-2', className)}>
-      <div className={cn(LABEL_STYLES[labelStyle], labelClassName)}>
-        {label}
-      </div>
+      <div className={cn(LABEL_STYLES[labelStyle], labelClassName)}>{label}</div>
       {children}
     </div>
   )

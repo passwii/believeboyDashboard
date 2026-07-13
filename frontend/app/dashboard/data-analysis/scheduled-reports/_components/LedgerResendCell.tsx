@@ -4,7 +4,15 @@ import { useEffect, useState } from 'react'
 import { Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { AIModelConfig, LedgerItem, ResendStage } from './types'
 
@@ -88,8 +96,8 @@ export function LedgerResendCell({
         <div className="space-y-2">
           <div className="text-sm font-medium">{actionLabel}报告</div>
           <p className="text-xs text-muted-foreground">
-            重新生成报告（数据 / 截图 / AI 摘要），不会发送邮件。
-            临时选择本次执行使用的 AI 模型（不影响订阅的默认模型设置）。
+            重新生成报告（数据 / 截图 / AI 摘要），不会发送邮件。 临时选择本次执行使用的 AI
+            模型（不影响订阅的默认模型设置）。
           </p>
           <div>
             <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
@@ -113,23 +121,34 @@ export function LedgerResendCell({
                 {(modelConfig?.premiumModels.length || 0) > 0 && (
                   <SelectGroup>
                     <SelectLabel>高级模型</SelectLabel>
-                    {modelConfig?.premiumModels.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    {modelConfig?.premiumModels.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectGroup>
                 )}
                 {(modelConfig?.basicModels.length || 0) > 0 && (
                   <SelectGroup>
                     <SelectLabel>基础模型</SelectLabel>
-                    {modelConfig?.basicModels.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    {modelConfig?.basicModels.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
                     ))}
                   </SelectGroup>
                 )}
                 {modelConfig?.models
-                  .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m) && m !== defaultModel)
-                  .map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  .filter(
+                    (m) =>
+                      !modelConfig.premiumModels.includes(m) &&
+                      !modelConfig.basicModels.includes(m) &&
+                      m !== defaultModel
+                  )
+                  .map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
                   ))}
               </SelectContent>
             </Select>

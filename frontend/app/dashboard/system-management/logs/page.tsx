@@ -27,8 +27,21 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
@@ -152,7 +165,11 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
     key: 'inventory',
     label: '库存补货',
     description: '库存补货',
-    prefixes: ['inventory_analysis.', 'inventory_replenishment.', 'inventory_replenishment_settings.'],
+    prefixes: [
+      'inventory_analysis.',
+      'inventory_replenishment.',
+      'inventory_replenishment_settings.',
+    ],
     className: 'border-lime-500/30 bg-lime-500/10 text-lime-700 dark:text-lime-300',
   },
   {
@@ -166,7 +183,16 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
     key: 'report',
     label: '报表中心',
     description: '报表中心',
-    prefixes: ['daily_reports.', 'daily_analysis.', 'monthly_reports.', 'financial_data.', 'product_analysis.', 'product_analysis_reports.', 'pricing_calculation.', 'report_upload.'],
+    prefixes: [
+      'daily_reports.',
+      'daily_analysis.',
+      'monthly_reports.',
+      'financial_data.',
+      'product_analysis.',
+      'product_analysis_reports.',
+      'pricing_calculation.',
+      'report_upload.',
+    ],
     className: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
   },
   {
@@ -304,7 +330,10 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
 }
 
 const RESULT_META = {
-  success: { label: '成功', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
+  success: {
+    label: '成功',
+    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
   failure: { label: '失败', className: 'border-destructive/30 bg-destructive/10 text-destructive' },
 } as const
 
@@ -329,7 +358,9 @@ function renderJson(value: unknown): string {
 }
 
 function getCategoryMeta(action: string): CategoryMeta {
-  const matched = CATEGORY_OPTIONS.find((item) => item.prefixes.some((prefix) => action.startsWith(prefix)))
+  const matched = CATEGORY_OPTIONS.find((item) =>
+    item.prefixes.some((prefix) => action.startsWith(prefix))
+  )
   return matched || CATEGORY_OPTIONS.find((item) => item.key === 'other')!
 }
 
@@ -349,7 +380,9 @@ function formatActionLabel(action: string): string {
     recompute: '重算',
   }
 
-  return fallbackVerbLabels[last] ? `${getCategoryMeta(action).label} · ${fallbackVerbLabels[last]}` : action
+  return fallbackVerbLabels[last]
+    ? `${getCategoryMeta(action).label} · ${fallbackVerbLabels[last]}`
+    : action
 }
 
 function formatTargetTypeLabel(targetType: string): string {
@@ -379,13 +412,11 @@ function parseUserAgent(ua: string | null): DeviceInfo {
   else if (lower.includes('mac os x')) {
     const match = ua.match(/Mac OS X ([\d_]+)/)
     os = match ? `macOS ${match[1].replace(/_/g, '.')}` : 'macOS'
-  }
-  else if (lower.includes('linux')) os = 'Linux'
+  } else if (lower.includes('linux')) os = 'Linux'
   else if (lower.includes('android')) {
     const match = ua.match(/Android ([\d.]+)/)
     os = match ? `Android ${match[1]}` : 'Android'
-  }
-  else if (lower.includes('iphone') || lower.includes('ipad')) {
+  } else if (lower.includes('iphone') || lower.includes('ipad')) {
     const match = ua.match(/OS ([\d_]+) like Mac OS X/)
     os = match ? `iOS ${match[1].replace(/_/g, '.')}` : 'iOS'
   }
@@ -506,7 +537,11 @@ export default function SystemOperationLogsPage() {
       setHasNext(Boolean(logsPayload.has_next))
       setSummary(summaryPayload)
     } catch (err) {
-      notify({ type: 'error', title: '加载日志失败', message: normalizeErrorMessage(err, '加载日志失败') })
+      notify({
+        type: 'error',
+        title: '加载日志失败',
+        message: normalizeErrorMessage(err, '加载日志失败'),
+      })
     } finally {
       setLoading(false)
     }
@@ -547,7 +582,11 @@ export default function SystemOperationLogsPage() {
       setLoginHasNext(Boolean(logsPayload.has_next))
       setSummary(summaryPayload)
     } catch (err) {
-      notify({ type: 'error', title: '加载登录日志失败', message: normalizeErrorMessage(err, '加载登录日志失败') })
+      notify({
+        type: 'error',
+        title: '加载登录日志失败',
+        message: normalizeErrorMessage(err, '加载登录日志失败'),
+      })
     } finally {
       setLoginLoading(false)
     }
@@ -629,7 +668,11 @@ export default function SystemOperationLogsPage() {
   )
 
   return (
-    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'audit' | 'login')} className="w-full">
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => setActiveTab(value as 'audit' | 'login')}
+      className="w-full"
+    >
       <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
         <TabsTrigger value="audit" className="min-h-10 px-5 py-2 text-sm">
           操作审计日志
@@ -642,10 +685,7 @@ export default function SystemOperationLogsPage() {
       <TabsContent value="audit" className="mt-6">
         <div className="w-full space-y-6">
           <DataCard>
-            <DataCardHeader
-              title="统计概览"
-              description="当前筛选条件下的日志统计"
-            />
+            <DataCardHeader title="统计概览" description="当前筛选条件下的日志统计" />
             <div className="px-6 py-5">
               <DataTableCardStatBar
                 items={[
@@ -662,8 +702,17 @@ export default function SystemOperationLogsPage() {
             <DataCardHeader
               title="日志列表"
               action={
-                <Button type="button" variant="outline" onClick={() => void fetchLogs()} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void fetchLogs()}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
                   {loading ? '刷新中...' : '刷新'}
                 </Button>
               }
@@ -708,15 +757,23 @@ export default function SystemOperationLogsPage() {
                                   <Badge variant="outline" className={categoryMeta.className}>
                                     {categoryMeta.label}
                                   </Badge>
-                                  <span className="font-medium">{formatActionLabel(row.action)}</span>
+                                  <span className="font-medium">
+                                    {formatActionLabel(row.action)}
+                                  </span>
                                 </div>
-                                <p className="truncate text-xs text-muted-foreground" title={row.action}>
+                                <p
+                                  className="truncate text-xs text-muted-foreground"
+                                  title={row.action}
+                                >
                                   {row.action}
                                 </p>
                               </div>
                             </TableCell>
                             <TableCell>{formatTargetTypeLabel(row.target_type)}</TableCell>
-                            <TableCell className="max-w-[130px] truncate" title={row.target_id || '-'}>
+                            <TableCell
+                              className="max-w-[130px] truncate"
+                              title={row.target_id || '-'}
+                            >
                               {row.target_id || '-'}
                             </TableCell>
                             <TableCell>
@@ -743,10 +800,18 @@ export default function SystemOperationLogsPage() {
                   共 {total} 条，当前第 {page} / {totalPages} 页
                 </p>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1 || loading}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={page <= 1 || loading}
+                  >
                     上一页
                   </Button>
-                  <Button variant="outline" onClick={() => setPage((prev) => prev + 1)} disabled={!hasNext || loading}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage((prev) => prev + 1)}
+                    disabled={!hasNext || loading}
+                  >
                     下一页
                   </Button>
                 </div>
@@ -762,8 +827,15 @@ export default function SystemOperationLogsPage() {
                   onChange={(event) => setKeywordInput(event.target.value)}
                   placeholder="关键词（动作/路径/资源ID/trace）"
                 />
-                <Input value={operatorInput} onChange={(event) => setOperatorInput(event.target.value)} placeholder="操作人" />
-                <Select value={categoryInput} onValueChange={(value: CategoryKey) => setCategoryInput(value)}>
+                <Input
+                  value={operatorInput}
+                  onChange={(event) => setOperatorInput(event.target.value)}
+                  placeholder="操作人"
+                />
+                <Select
+                  value={categoryInput}
+                  onValueChange={(value: CategoryKey) => setCategoryInput(value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="日志分类" />
                   </SelectTrigger>
@@ -789,9 +861,17 @@ export default function SystemOperationLogsPage() {
             </CardContent>
           </Card>
 
-          <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
-            <DialogContent aria-describedby="log-detail-dialog-description" className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-              <span id="log-detail-dialog-description" className="sr-only">日志详情查看</span>
+          <Dialog
+            open={Boolean(activeRow)}
+            onOpenChange={(open) => (open ? null : setActiveRow(null))}
+          >
+            <DialogContent
+              aria-describedby="log-detail-dialog-description"
+              className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+            >
+              <span id="log-detail-dialog-description" className="sr-only">
+                日志详情查看
+              </span>
               <DialogHeader>
                 <DialogTitle>日志详情</DialogTitle>
               </DialogHeader>
@@ -806,7 +886,9 @@ export default function SystemOperationLogsPage() {
                     <p>结果: {getResultMeta(activeRow.result).label}</p>
                     <p>资源类型: {formatTargetTypeLabel(activeRow.target_type)}</p>
                     <p>资源 ID: {activeRow.target_id || '-'}</p>
-                    <p>请求: {activeRow.request_method || '-'} {activeRow.request_path || ''}</p>
+                    <p>
+                      请求: {activeRow.request_method || '-'} {activeRow.request_path || ''}
+                    </p>
                     <p>Trace ID: {activeRow.trace_id || '-'}</p>
                   </div>
                   <div className="space-y-2">
@@ -839,10 +921,7 @@ export default function SystemOperationLogsPage() {
       <TabsContent value="login" className="mt-6">
         <div className="space-y-6">
           <DataCard>
-            <DataCardHeader
-              title="登录统计概览"
-              description="当前筛选条件下的登录统计"
-            />
+            <DataCardHeader title="登录统计概览" description="当前筛选条件下的登录统计" />
             <div className="px-6 py-5">
               <DataTableCardStatBar
                 items={[
@@ -859,8 +938,17 @@ export default function SystemOperationLogsPage() {
             <DataCardHeader
               title="登录记录"
               action={
-                <Button type="button" variant="outline" onClick={() => void fetchLoginLogs()} disabled={loginLoading}>
-                  {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void fetchLoginLogs()}
+                  disabled={loginLoading}
+                >
+                  {loginLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
                   {loginLoading ? '刷新中...' : '刷新'}
                 </Button>
               }
@@ -898,7 +986,9 @@ export default function SystemOperationLogsPage() {
                         return (
                           <TableRow key={row.id}>
                             <TableCell>{formatDateTime(row.created_at)}</TableCell>
-                            <TableCell className="text-muted-foreground">{formatTimeAgo(row.created_at)}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {formatTimeAgo(row.created_at)}
+                            </TableCell>
                             <TableCell>{row.operator || '-'}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={resultMeta.className}>
@@ -913,9 +1003,15 @@ export default function SystemOperationLogsPage() {
                                 <span className="text-sm">{device.browser}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="font-mono text-sm">{row.ip_address || '-'}</TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {row.ip_address || '-'}
+                            </TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" onClick={() => setLoginActiveRow(row)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLoginActiveRow(row)}
+                              >
                                 <Eye className="h-4 w-4" />
                                 查看
                               </Button>
@@ -952,21 +1048,47 @@ export default function SystemOperationLogsPage() {
             </DataTableCardBody>
           </DataTableCard>
 
-          <Dialog open={Boolean(loginActiveRow)} onOpenChange={(open) => (open ? null : setLoginActiveRow(null))}>
-            <DialogContent aria-describedby="login-log-detail-dialog-description" className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-              <span id="login-log-detail-dialog-description" className="sr-only">登录日志详情查看</span>
+          <Dialog
+            open={Boolean(loginActiveRow)}
+            onOpenChange={(open) => (open ? null : setLoginActiveRow(null))}
+          >
+            <DialogContent
+              aria-describedby="login-log-detail-dialog-description"
+              className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+            >
+              <span id="login-log-detail-dialog-description" className="sr-only">
+                登录日志详情查看
+              </span>
               <DialogHeader>
                 <DialogTitle>登录详情</DialogTitle>
               </DialogHeader>
               {loginActiveRow ? (
                 <div className="space-y-4 text-sm">
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <p><span className="text-muted-foreground">登录时间:</span> {formatDateTime(loginActiveRow.created_at)}</p>
-                    <p><span className="text-muted-foreground">距现在:</span> {formatTimeAgo(loginActiveRow.created_at)}</p>
-                    <p><span className="text-muted-foreground">操作人:</span> {loginActiveRow.operator || '-'}</p>
-                    <p><span className="text-muted-foreground">登录结果:</span> {getResultMeta(loginActiveRow.result).label}</p>
-                    <p><span className="text-muted-foreground">IP 地址:</span> <code className="font-mono">{loginActiveRow.ip_address || '-'}</code></p>
-                    <p><span className="text-muted-foreground">请求路径:</span> {loginActiveRow.request_method || '-'} {loginActiveRow.request_path || ''}</p>
+                    <p>
+                      <span className="text-muted-foreground">登录时间:</span>{' '}
+                      {formatDateTime(loginActiveRow.created_at)}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">距现在:</span>{' '}
+                      {formatTimeAgo(loginActiveRow.created_at)}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">操作人:</span>{' '}
+                      {loginActiveRow.operator || '-'}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">登录结果:</span>{' '}
+                      {getResultMeta(loginActiveRow.result).label}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">IP 地址:</span>{' '}
+                      <code className="font-mono">{loginActiveRow.ip_address || '-'}</code>
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">请求路径:</span>{' '}
+                      {loginActiveRow.request_method || '-'} {loginActiveRow.request_path || ''}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -976,9 +1098,16 @@ export default function SystemOperationLogsPage() {
                         const device = parseUserAgent(loginActiveRow.user_agent)
                         return (
                           <div className="space-y-1">
-                            <p><span className="text-muted-foreground">操作系统:</span> {device.os}</p>
-                            <p><span className="text-muted-foreground">浏览器:</span> {device.browser}</p>
-                            <p><span className="text-muted-foreground">完整 UA:</span></p>
+                            <p>
+                              <span className="text-muted-foreground">操作系统:</span> {device.os}
+                            </p>
+                            <p>
+                              <span className="text-muted-foreground">浏览器:</span>{' '}
+                              {device.browser}
+                            </p>
+                            <p>
+                              <span className="text-muted-foreground">完整 UA:</span>
+                            </p>
                             <pre className="mt-1 overflow-x-auto text-xs text-muted-foreground">
                               {loginActiveRow.user_agent || '未知'}
                             </pre>
@@ -1000,9 +1129,18 @@ export default function SystemOperationLogsPage() {
                   <div className="space-y-2">
                     <p className="font-medium">其他信息</p>
                     <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
-                      <p><span className="text-muted-foreground">Trace ID:</span> <code className="font-mono text-xs">{loginActiveRow.trace_id || '-'}</code></p>
-                      <p><span className="text-muted-foreground">资源类型:</span> {formatTargetTypeLabel(loginActiveRow.target_type)}</p>
-                      <p><span className="text-muted-foreground">资源 ID:</span> {loginActiveRow.target_id || '-'}</p>
+                      <p>
+                        <span className="text-muted-foreground">Trace ID:</span>{' '}
+                        <code className="font-mono text-xs">{loginActiveRow.trace_id || '-'}</code>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">资源类型:</span>{' '}
+                        {formatTargetTypeLabel(loginActiveRow.target_type)}
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">资源 ID:</span>{' '}
+                        {loginActiveRow.target_id || '-'}
+                      </p>
                     </div>
                   </div>
                 </div>

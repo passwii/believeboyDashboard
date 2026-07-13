@@ -25,46 +25,45 @@ const DOC_META = [
 
 export function BelieveboyModelsView({ source }: Props) {
   return (
-    <div className='space-y-6 md:space-y-7'>
-      <header className='flex flex-col gap-3'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Badge variant='secondary' className='rounded-full px-2.5 py-0.5 text-[0.7rem]'>
+    <div className="space-y-6 md:space-y-7">
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[0.7rem]">
             AI · 模型参考
           </Badge>
-          <span className='text-xs text-muted-foreground'>最后更新 2026-07-07</span>
+          <span className="text-xs text-muted-foreground">最后更新 2026-07-07</span>
         </div>
-        <div className='space-y-2'>
-          <h1 className='text-2xl font-semibold tracking-tight md:text-3xl'>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
             彼励扶 Believeboy 模型选型方案
           </h1>
-          <p className='max-w-3xl text-sm leading-6 text-muted-foreground md:text-[0.95rem]'>
-            汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在
-            名称 / 架构 / 大小 / 上下文 / 背后模型 五个维度的差异，便于算力选型、
-            推理部署、对外展示时快速查阅。
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-[0.95rem]">
+            汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在 名称 / 架构 / 大小 /
+            上下文 / 背后模型 五个维度的差异，便于算力选型、 推理部署、对外展示时快速查阅。
           </p>
         </div>
       </header>
 
-      <Card className='dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]'>
-        <CardContent className='space-y-5 p-5 md:p-7'>
-          <div className='flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-border/70 bg-background/72 px-4 py-3 text-xs text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]'>
+      <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <CardContent className="space-y-5 p-5 md:p-7">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed border-border/70 bg-background/72 px-4 py-3 text-xs text-muted-foreground dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
             {DOC_META.map((item) => (
-              <div key={item.label} className='flex items-center gap-1.5'>
-                <span className='font-mono uppercase tracking-[0.14em] text-[0.66rem] text-foreground/70'>
+              <div key={item.label} className="flex items-center gap-1.5">
+                <span className="font-mono uppercase tracking-[0.14em] text-[0.66rem] text-foreground/70">
                   {item.label}
                 </span>
-                <span className='font-mono'>{item.value}</span>
+                <span className="font-mono">{item.value}</span>
               </div>
             ))}
             <a
-              href='/docs/believeboy-models.md'
-              target='_blank'
-              rel='noreferrer'
-              className='ml-auto inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2.5 py-1 font-mono text-[0.7rem] text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.78)]'
+              href="/docs/believeboy-models.md"
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2.5 py-1 font-mono text-[0.7rem] text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.78)]"
             >
-              <FileText className='h-3 w-3' />
+              <FileText className="h-3 w-3" />
               查看原始 markdown
-              <ArrowUpRight className='h-3 w-3' />
+              <ArrowUpRight className="h-3 w-3" />
             </a>
           </div>
 
@@ -101,7 +100,7 @@ export function BelieveboyModelsView({ source }: Props) {
               '[&_tr:last-child_td]:border-b-0',
               '[&_tbody_tr]:transition-colors [&_tbody_tr]:hover:bg-primary/5',
               // —— hr ——
-              '[&_hr]:my-6 [&_hr]:border-border/70',
+              '[&_hr]:my-6 [&_hr]:border-border/70'
             )}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>

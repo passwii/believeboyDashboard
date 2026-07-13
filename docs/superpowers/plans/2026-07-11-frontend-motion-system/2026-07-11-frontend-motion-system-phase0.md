@@ -1,6 +1,6 @@
 # Phase 0 — 地基（motion/z-index/spotlight token + JS 镜像 + framer-motion variants）
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **执行日期：** 2026-07-11
 > **执行者：** 子智能体（subagent-driven-development 调度）
 > **分支：** `feat/frontend-motion-system`
@@ -83,4 +83,4 @@
 
 ✅ Phase 0 完成 → 进入 **Phase 1**（全局路由过渡 + 两项结构修正）。
 
-详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system-phase1.md`。
+详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase1.md`。

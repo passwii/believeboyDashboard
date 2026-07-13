@@ -28,7 +28,11 @@ import {
   DataTableCardHeader,
   DataTableCardStatBar,
 } from '@/components/ui/data-card'
-import { DateRangePicker, formatDateInputValue as formatPickerDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
+import {
+  DateRangePicker,
+  formatDateInputValue as formatPickerDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { MultiSelect, type Option } from '@/components/ui/multi-select'
@@ -55,10 +59,7 @@ import { getOrderStatusLabel } from '@/lib/order-status'
 import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  OrderEditDialog,
-  type OrderEditResponsePayload,
-} from './components/OrderEditDialog'
+import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
 
 // ======================== 类型 ========================
 
@@ -477,10 +478,7 @@ export default function OrderInfoPage() {
       )
     ) : null
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    [total]
-  )
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total])
 
   // 当前账号没有可见店铺：filterOptions 已加载完成且返回了 0 个项目。
   // 后端 _ensure_project_access_for_orders 在非 admin + operator 不在任一项目
@@ -539,10 +537,7 @@ export default function OrderInfoPage() {
                   <SelectValue placeholder="全部店铺" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem
-                    value={DEFAULT_PROJECT_VALUE}
-                    disabled={hasNoAccessibleProjects}
-                  >
+                  <SelectItem value={DEFAULT_PROJECT_VALUE} disabled={hasNoAccessibleProjects}>
                     全部店铺
                     {hasNoAccessibleProjects ? '（无可用店铺）' : ''}
                   </SelectItem>
@@ -556,7 +551,9 @@ export default function OrderInfoPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">订单类型</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                订单类型
+              </label>
               <MultiSelect
                 options={filterOptions?.fulfillment_channels ?? []}
                 selected={fulfillmentChannels}
@@ -566,7 +563,9 @@ export default function OrderInfoPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">订单状态</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                订单状态
+              </label>
               <MultiSelect
                 options={filterOptions?.order_statuses ?? []}
                 selected={orderStatuses}
@@ -612,7 +611,9 @@ export default function OrderInfoPage() {
           {/* 第二行：日期区间 + SKU + ASIN（4/4/4） */}
           <div className="mt-3 grid gap-3 md:grid-cols-12">
             <div className="md:col-span-4">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">日期区间</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                日期区间
+              </label>
               <DateRangePicker
                 value={parseDateRangeInputValue(dateFrom, dateTo)}
                 onChange={(range) => {
@@ -682,7 +683,11 @@ export default function OrderInfoPage() {
               disabled={exporting || loading}
               className="gap-1"
             >
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-4 w-4" />
+              )}
               导出 CSV
             </Button>
           }
@@ -731,13 +736,19 @@ export default function OrderInfoPage() {
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>SKU / ASIN</TableHead>
                 <TableHead className={DENSE_HEAD}>产品</TableHead>
                 <TableHead
-                  className={cn(DENSE_HEAD, 'whitespace-nowrap text-right cursor-pointer select-none')}
+                  className={cn(
+                    DENSE_HEAD,
+                    'whitespace-nowrap text-right cursor-pointer select-none'
+                  )}
                   onClick={() => handleSort('quantity')}
                 >
                   数量 {sortIndicator('quantity')}
                 </TableHead>
                 <TableHead
-                  className={cn(DENSE_HEAD, 'whitespace-nowrap text-right cursor-pointer select-none')}
+                  className={cn(
+                    DENSE_HEAD,
+                    'whitespace-nowrap text-right cursor-pointer select-none'
+                  )}
                   onClick={() => handleSort('item_price')}
                 >
                   金额 {sortIndicator('item_price')}
@@ -747,7 +758,9 @@ export default function OrderInfoPage() {
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>类型</TableHead>
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>状态</TableHead>
                 <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap')}>物流</TableHead>
-                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap text-right')}>操作</TableHead>
+                <TableHead className={cn(DENSE_HEAD, 'whitespace-nowrap text-right')}>
+                  操作
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -775,24 +788,29 @@ export default function OrderInfoPage() {
                         hasNoAccessibleProjects
                           ? '当前账号未关联任何店铺 — 请联系管理员把你的名字补录到目标店铺的「主运营」或「运营助理」字段'
                           : skuKeywordCommitted ||
-                            orderIdKeywordCommitted ||
-                            asinKeywordCommitted ||
-                            projectId !== DEFAULT_PROJECT_VALUE ||
-                            fulfillmentChannels.length > 0 ||
-                            orderStatuses.length > 0 ||
-                            countries.length > 0 ||
-                            currencies.length > 0 ||
-                            dateFrom ||
-                            dateTo
-                          ? '当前筛选条件下无订单 — 可调整筛选或点击"清空筛选"重置'
-                          : '暂无订单数据 — 等待新的销售报告上传后重试'
+                              orderIdKeywordCommitted ||
+                              asinKeywordCommitted ||
+                              projectId !== DEFAULT_PROJECT_VALUE ||
+                              fulfillmentChannels.length > 0 ||
+                              orderStatuses.length > 0 ||
+                              countries.length > 0 ||
+                              currencies.length > 0 ||
+                              dateFrom ||
+                              dateTo
+                            ? '当前筛选条件下无订单 — 可调整筛选或点击"清空筛选"重置'
+                            : '暂无订单数据 — 等待新的销售报告上传后重试'
                       }
                     />
                   </TableCell>
                 </TableRow>
               ) : (
                 items.map((item) => {
-                  const fullAddress = [item.city, item.state, item.postal_code, getCountryLabel(item.country)]
+                  const fullAddress = [
+                    item.city,
+                    item.state,
+                    item.postal_code,
+                    getCountryLabel(item.country),
+                  ]
                     .filter(Boolean)
                     .join(', ')
                   const isFbm = item.fulfillment_channel === 'Merchant'
@@ -814,7 +832,10 @@ export default function OrderInfoPage() {
                       </TableCell>
                       <TableCell className={cn(DENSE_CELL, 'font-mono text-xs whitespace-nowrap')}>
                         <div className="flex items-center gap-1">
-                          <span className="text-foreground" title={`订单号 ${item.amazon_order_id}`}>
+                          <span
+                            className="text-foreground"
+                            title={`订单号 ${item.amazon_order_id}`}
+                          >
                             {item.amazon_order_id}
                           </span>
                           <button
@@ -871,7 +892,9 @@ export default function OrderInfoPage() {
                           {item.product_name ?? '—'}
                         </span>
                       </TableCell>
-                      <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>{item.quantity}</TableCell>
+                      <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                        {item.quantity}
+                      </TableCell>
                       <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
                         <div className="flex flex-col leading-tight">
                           <span>
@@ -880,7 +903,10 @@ export default function OrderInfoPage() {
                           </span>
                           {item.shipping_price > 0 && (
                             <span className="text-xs text-muted-foreground">
-                              + 运费 {item.shipping_price.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                              + 运费{' '}
+                              {item.shipping_price.toLocaleString('zh-CN', {
+                                maximumFractionDigits: 2,
+                              })}
                             </span>
                           )}
                         </div>
@@ -922,12 +948,18 @@ export default function OrderInfoPage() {
                       </TableCell>
                       <TableCell className={DENSE_CELL}>
                         {isFbm ? (
-                          <div className="flex flex-col gap-0.5 text-xs leading-tight" aria-label="FBM 物流信息">
+                          <div
+                            className="flex flex-col gap-0.5 text-xs leading-tight"
+                            aria-label="FBM 物流信息"
+                          >
                             {item.carrier && (
                               <span className="font-medium text-foreground">{item.carrier}</span>
                             )}
                             {item.tracking_no && (
-                              <span className="font-mono text-muted-foreground" title={item.tracking_no}>
+                              <span
+                                className="font-mono text-muted-foreground"
+                                title={item.tracking_no}
+                              >
                                 {item.tracking_no.length > 14
                                   ? `${item.tracking_no.slice(0, 14)}…`
                                   : item.tracking_no}
@@ -975,7 +1007,8 @@ export default function OrderInfoPage() {
         {/* 表格下沿：翻页（与表格之间用分割线） */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 text-sm text-muted-foreground md:px-6">
           <span>
-            共 {total.toLocaleString('zh-CN')} 行 · 每页 {PAGE_SIZE} 行 · 第 {page} / {totalPages || 1} 页
+            共 {total.toLocaleString('zh-CN')} 行 · 每页 {PAGE_SIZE} 行 · 第 {page} /{' '}
+            {totalPages || 1} 页
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -1019,7 +1052,9 @@ export default function OrderInfoPage() {
             quantity: editingOrder.quantity,
             country: editingOrder.country,
           }}
-          authHeaders={() => buildBackendClientHeaders(session, { contentType: 'application/json' })}
+          authHeaders={() =>
+            buildBackendClientHeaders(session, { contentType: 'application/json' })
+          }
           defaultUpdatedBy={currentUserName}
           onSaved={(updated) => {
             handleEditSaved(updated)

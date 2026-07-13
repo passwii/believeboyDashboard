@@ -1,18 +1,18 @@
-"use client"
+'use client'
 
 // 实时 VAT 汇总：useMemo 重算 summarizeByRate，展示按 VAT 率分桶的小计。
 
-import { useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { computeInvoiceTotal, summarizeByRate } from "../lib/vat-calc"
-import { CURRENCY_OPTIONS, type InvoiceForm } from "../types"
+import { useMemo } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { computeInvoiceTotal, summarizeByRate } from '../lib/vat-calc'
+import { CURRENCY_OPTIONS, type InvoiceForm } from '../types'
 
 interface InvoiceSummaryProps {
   form: InvoiceForm
 }
 
-function getSymbol(currency: InvoiceForm["currency"]): string {
+function getSymbol(currency: InvoiceForm['currency']): string {
   return CURRENCY_OPTIONS.find((c) => c.value === currency)?.symbol ?? currency
 }
 
@@ -21,14 +21,8 @@ export function InvoiceSummary({ form }: InvoiceSummaryProps) {
   const rows = useMemo(() => summarizeByRate(form), [form])
   const total = useMemo(() => computeInvoiceTotal(form), [form])
 
-  const totalVat = useMemo(
-    () => rows.reduce((s, r) => s + r.itemVat + r.shippingVat, 0),
-    [rows],
-  )
-  const totalExcl = useMemo(
-    () => rows.reduce((s, r) => s + r.itemExcl + r.shippingExcl, 0),
-    [rows],
-  )
+  const totalVat = useMemo(() => rows.reduce((s, r) => s + r.itemVat + r.shippingVat, 0), [rows])
+  const totalExcl = useMemo(() => rows.reduce((s, r) => s + r.itemExcl + r.shippingExcl, 0), [rows])
 
   return (
     <Card className="dashboard-surface">

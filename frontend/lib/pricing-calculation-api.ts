@@ -1,17 +1,10 @@
 // API helper functions for pricing calculation
 
-import type {
-  PricingCalculationRunItem,
-  ShopCalculationItem,
-} from './pricing-calculation-types'
+import type { PricingCalculationRunItem, ShopCalculationItem } from './pricing-calculation-types'
 
 const API_BASE = '/api/backend'
 
-export type CalculationMode =
-  | 'profit-calc'
-  | 'profit-reverse'
-  | 'cost-reverse'
-  | 'fbm-calc'
+export type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse' | 'fbm-calc'
 
 export type RequestPayload = {
   calculationMode: CalculationMode
@@ -40,7 +33,7 @@ export type RequestPayload = {
 }
 
 export async function requestPricingCalculation(
-  payload: RequestPayload,
+  payload: RequestPayload
 ): Promise<PricingCalculationRunItem> {
   const { calculationMode, country, ...rest } = payload
 
@@ -135,7 +128,7 @@ export type ShopCalculationPayload = {
 }
 
 export async function requestSaveShopCalculation(
-  payload: ShopCalculationPayload,
+  payload: ShopCalculationPayload
 ): Promise<ShopCalculationItem> {
   const response = await fetch(`${API_BASE}/api/v1/shop-calculation`, {
     method: 'POST',

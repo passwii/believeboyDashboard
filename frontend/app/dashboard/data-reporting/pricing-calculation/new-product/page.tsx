@@ -1,13 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import {
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   Calculator,
@@ -44,11 +38,7 @@ import {
 } from '@/components/ui/data-card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -120,43 +110,43 @@ const COUNTRY_MAP: Record<string, string> = {
 const LazyComparisonTable = dynamic(
   () =>
     import('@/components/dashboard/pricing-calculation/comparison-table').then(
-      (mod) => mod.ComparisonTable,
+      (mod) => mod.ComparisonTable
     ),
   {
-    loading: () => <BarSkeleton rows={10} height='h-11' />,
-  },
+    loading: () => <BarSkeleton rows={10} height="h-11" />,
+  }
 )
 
 const LazyShopCalculationTable = dynamic(
   () =>
-    import(
-      '@/components/dashboard/pricing-calculation/shop-calculation-table'
-    ).then((mod) => mod.ShopCalculationTable),
+    import('@/components/dashboard/pricing-calculation/shop-calculation-table').then(
+      (mod) => mod.ShopCalculationTable
+    ),
   {
     loading: () => <PricingTableSkeleton rows={8} />,
-  },
+  }
 )
 
 function PricingFieldSkeleton() {
   return (
-    <div className='space-y-2'>
-      <Skeleton className='h-4 w-16' />
-      <Skeleton className='h-10 w-full' />
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-16" />
+      <Skeleton className="h-10 w-full" />
     </div>
   )
 }
 
 function PricingRunCardSkeleton() {
   return (
-    <div className='min-h-[112px] rounded-xl border border-border/70 p-3'>
-      <Skeleton className='h-3 w-20' />
-      <Skeleton className='mt-3 h-4 w-28' />
-      <div className='mt-3 flex gap-2'>
-        <Skeleton className='h-5 w-16' />
-        <Skeleton className='h-5 w-12' />
+    <div className="min-h-[112px] rounded-xl border border-border/70 p-3">
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="mt-3 h-4 w-28" />
+      <div className="mt-3 flex gap-2">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-5 w-12" />
       </div>
-      <Skeleton className='mt-3 h-6 w-24' />
-      <Skeleton className='mt-2 h-3 w-16' />
+      <Skeleton className="mt-3 h-6 w-24" />
+      <Skeleton className="mt-2 h-3 w-16" />
     </div>
   )
 }
@@ -165,11 +155,7 @@ type PricingCalculationRunItem = {
   id: number
   country: string
   product_name: string
-  calculation_type:
-    | 'profit_calc'
-    | 'profit_reverse'
-    | 'cost_reverse'
-    | 'fbm_calc'
+  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse' | 'fbm_calc'
   project_id: number | null
   sku: string | null
   package_length_cm: number
@@ -407,11 +393,7 @@ type FormState = {
   usd_to_rmb_rate: string
 }
 
-type CalculationMode =
-  | 'profit-calc'
-  | 'profit-reverse'
-  | 'cost-reverse'
-  | 'fbm-calc'
+type CalculationMode = 'profit-calc' | 'profit-reverse' | 'cost-reverse' | 'fbm-calc'
 type BusinessTab = 'new-product' | 'shop-calculation'
 
 type StoreSkuDraft = {
@@ -461,7 +443,7 @@ const INITIAL_FORM: FormState = {
 function buildInitialStoreDraft(
   item: ProductCostItem,
   historicalFirstLegCost?: number,
-  exchangeRate?: string,
+  exchangeRate?: string
 ): StoreSkuDraft {
   const resolvedFirstLegCost =
     historicalFirstLegCost && historicalFirstLegCost > 0
@@ -469,18 +451,13 @@ function buildInitialStoreDraft(
       : item.first_leg_cost_rmb > 0
         ? item.first_leg_cost_rmb
         : 5
-  const resolvedExchangeRate =
-    exchangeRate && exchangeRate.trim() ? exchangeRate : ''
+  const resolvedExchangeRate = exchangeRate && exchangeRate.trim() ? exchangeRate : ''
   return {
-    package_length_cm:
-      item.package_length_cm > 0 ? String(item.package_length_cm) : '',
-    package_width_cm:
-      item.package_width_cm > 0 ? String(item.package_width_cm) : '',
-    package_height_cm:
-      item.package_height_cm > 0 ? String(item.package_height_cm) : '',
+    package_length_cm: item.package_length_cm > 0 ? String(item.package_length_cm) : '',
+    package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
+    package_height_cm: item.package_height_cm > 0 ? String(item.package_height_cm) : '',
     weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
-    first_leg_cost_rmb:
-      resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '5',
+    first_leg_cost_rmb: resolvedFirstLegCost > 0 ? String(resolvedFirstLegCost) : '5',
     sale_price_usd: '',
     target_profit_rate: '25',
     advertising_rate: '12',
@@ -496,7 +473,7 @@ function buildSnapshotPayload(
   item: ProductCostItem,
   result: PricingCalculationRunItem,
   calculationType: 'profit-calc' | 'profit-reverse',
-  projectId: number,
+  projectId: number
 ): StoreSkuPricingSnapshotItem {
   return {
     id: 0, // 后端会自动生成
@@ -505,8 +482,7 @@ function buildSnapshotPayload(
     sku: item.sku,
     asin: item.asin,
     country: item.country,
-    calculation_type:
-      calculationType === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
+    calculation_type: calculationType === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
     package_length_cm: result.package_length_cm,
     package_width_cm: result.package_width_cm,
     package_height_cm: result.package_height_cm,
@@ -547,17 +523,13 @@ function buildSnapshotPayload(
 }
 
 // 将快照转换为计算结果格式（用于前端显示）
-function convertSnapshotToResult(
-  snapshot: StoreSkuPricingSnapshotItem,
-): PricingCalculationRunItem {
+function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): PricingCalculationRunItem {
   return {
     id: snapshot.id,
     country: snapshot.country ?? '',
     product_name: `${snapshot.project_name} / ${snapshot.sku}`,
     calculation_type:
-      snapshot.calculation_type === 'profit_reverse'
-        ? 'profit_reverse'
-        : 'profit_calc',
+      snapshot.calculation_type === 'profit_reverse' ? 'profit_reverse' : 'profit_calc',
     project_id: snapshot.project_id,
     sku: snapshot.sku,
     package_length_cm: snapshot.package_length_cm,
@@ -600,75 +572,70 @@ function convertSnapshotToResult(
 
 // 保存店铺 SKU 核算快照
 async function requestSaveStoreSkuSnapshot(
-  payload: StoreSkuPricingSnapshotItem,
+  payload: StoreSkuPricingSnapshotItem
 ): Promise<StoreSkuPricingSnapshotItem> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/store-sku-pricing-snapshots`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        project_id: payload.project_id,
-        project_name: payload.project_name,
-        sku: payload.sku,
-        asin: payload.asin,
-        country: payload.country,
-        calculation_type: payload.calculation_type,
-        package_length_cm: payload.package_length_cm,
-        package_width_cm: payload.package_width_cm,
-        package_height_cm: payload.package_height_cm,
-        weight_kg: payload.weight_kg,
-        fob_product_cost_rmb: payload.fob_product_cost_rmb,
-        first_leg_cost_rmb: payload.first_leg_cost_rmb,
-        ddp_cost_rmb: payload.profit.ddp_cost_rmb,
-        ddp_cost_usd: payload.profit.ddp_cost_usd,
-        sale_price_usd: payload.sale_price_usd,
-        target_profit_rate: payload.target_profit_rate,
-        advertising_rate: payload.advertising_rate,
-        return_loss_rate: payload.return_loss_rate,
-        storage_months: payload.storage_months,
-        inbound_placement_mode: payload.inbound_placement_mode,
-        usd_to_rmb_rate: payload.usd_to_rmb_rate,
-        usd_to_rmb_rate_source: payload.usd_to_rmb_rate_source,
-        size_tier: payload.size_tier,
-        size_tier_label: payload.size_tier_label,
-        price_band: payload.price_band,
-        price_band_label: payload.price_band_label,
-        longest_side_in: payload.dimensions.longest_side_in,
-        middle_side_in: payload.dimensions.middle_side_in,
-        shortest_side_in: payload.dimensions.shortest_side_in,
-        length_plus_girth_in: payload.dimensions.length_plus_girth_in,
-        volume_cubic_in: payload.dimensions.volume_cubic_in,
-        volume_cubic_ft: payload.dimensions.volume_cubic_ft,
-        product_weight_lb: payload.weights.product_weight_lb,
-        product_weight_oz: payload.weights.product_weight_oz,
-        dimensional_weight_lb: payload.weights.dimensional_weight_lb,
-        chargeable_weight_lb: payload.weights.chargeable_weight_lb,
-        chargeable_weight_oz: payload.weights.chargeable_weight_oz,
-        chargeable_weight_rule: payload.weights.chargeable_weight_rule,
-        fulfillment_fee_rule_label: payload.fulfillment_fee_rule_label,
-        inbound_config_fee_rule_label: payload.inbound_config_fee_rule_label,
-        storage_fee_rule_label: payload.storage_fee_rule_label,
-        referral_fee_usd: payload.fees.referral_fee_usd,
-        advertising_fee_usd: payload.fees.advertising_fee_usd,
-        return_loss_usd: payload.fees.return_loss_usd,
-        fba_fulfillment_fee_usd: payload.fees.fba_fulfillment_fee_usd,
-        inbound_config_fee_usd: payload.fees.inbound_config_fee_usd,
-        storage_fee_usd: payload.fees.storage_fee_usd,
-        total_fee_usd: payload.fees.total_fee_usd,
-        payout_usd: payload.profit.payout_usd,
-        profit_usd: payload.profit.profit_usd,
-        profit_rate: payload.profit.profit_rate,
-        warnings: payload.warnings,
-      }),
+  const response = await fetch(`${API_BASE}/api/v1/store-sku-pricing-snapshots`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  )
+    body: JSON.stringify({
+      project_id: payload.project_id,
+      project_name: payload.project_name,
+      sku: payload.sku,
+      asin: payload.asin,
+      country: payload.country,
+      calculation_type: payload.calculation_type,
+      package_length_cm: payload.package_length_cm,
+      package_width_cm: payload.package_width_cm,
+      package_height_cm: payload.package_height_cm,
+      weight_kg: payload.weight_kg,
+      fob_product_cost_rmb: payload.fob_product_cost_rmb,
+      first_leg_cost_rmb: payload.first_leg_cost_rmb,
+      ddp_cost_rmb: payload.profit.ddp_cost_rmb,
+      ddp_cost_usd: payload.profit.ddp_cost_usd,
+      sale_price_usd: payload.sale_price_usd,
+      target_profit_rate: payload.target_profit_rate,
+      advertising_rate: payload.advertising_rate,
+      return_loss_rate: payload.return_loss_rate,
+      storage_months: payload.storage_months,
+      inbound_placement_mode: payload.inbound_placement_mode,
+      usd_to_rmb_rate: payload.usd_to_rmb_rate,
+      usd_to_rmb_rate_source: payload.usd_to_rmb_rate_source,
+      size_tier: payload.size_tier,
+      size_tier_label: payload.size_tier_label,
+      price_band: payload.price_band,
+      price_band_label: payload.price_band_label,
+      longest_side_in: payload.dimensions.longest_side_in,
+      middle_side_in: payload.dimensions.middle_side_in,
+      shortest_side_in: payload.dimensions.shortest_side_in,
+      length_plus_girth_in: payload.dimensions.length_plus_girth_in,
+      volume_cubic_in: payload.dimensions.volume_cubic_in,
+      volume_cubic_ft: payload.dimensions.volume_cubic_ft,
+      product_weight_lb: payload.weights.product_weight_lb,
+      product_weight_oz: payload.weights.product_weight_oz,
+      dimensional_weight_lb: payload.weights.dimensional_weight_lb,
+      chargeable_weight_lb: payload.weights.chargeable_weight_lb,
+      chargeable_weight_oz: payload.weights.chargeable_weight_oz,
+      chargeable_weight_rule: payload.weights.chargeable_weight_rule,
+      fulfillment_fee_rule_label: payload.fulfillment_fee_rule_label,
+      inbound_config_fee_rule_label: payload.inbound_config_fee_rule_label,
+      storage_fee_rule_label: payload.storage_fee_rule_label,
+      referral_fee_usd: payload.fees.referral_fee_usd,
+      advertising_fee_usd: payload.fees.advertising_fee_usd,
+      return_loss_usd: payload.fees.return_loss_usd,
+      fba_fulfillment_fee_usd: payload.fees.fba_fulfillment_fee_usd,
+      inbound_config_fee_usd: payload.fees.inbound_config_fee_usd,
+      storage_fee_usd: payload.fees.storage_fee_usd,
+      total_fee_usd: payload.fees.total_fee_usd,
+      payout_usd: payload.profit.payout_usd,
+      profit_usd: payload.profit.profit_usd,
+      profit_rate: payload.profit.profit_rate,
+      warnings: payload.warnings,
+    }),
+  })
   if (!response.ok) {
-    const errorPayload = await response
-      .json()
-      .catch(() => ({ detail: '保存快照失败' }))
+    const errorPayload = await response.json().catch(() => ({ detail: '保存快照失败' }))
     throw new Error(errorPayload.detail || '保存快照失败')
   }
   return response.json()
@@ -735,9 +702,7 @@ function formatRelativeTime(value: string): string {
   return formatCompactDate(value)
 }
 
-function getCalculationTypeMeta(
-  calculationType: PricingCalculationRunItem['calculation_type'],
-) {
+function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calculation_type']) {
   if (calculationType === 'fbm_calc') {
     return {
       label: 'FBM测算',
@@ -789,12 +754,7 @@ function getRunSummary(run: PricingCalculationRunItem) {
   return `${run.product_name} - ${getCalculationTypeMeta(run.calculation_type).label} - ${formatCompactDate(run.created_at)}`
 }
 
-type ComparisonValueType =
-  | 'text'
-  | 'currency_usd'
-  | 'currency_rmb'
-  | 'percent'
-  | 'number'
+type ComparisonValueType = 'text' | 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
 
 type ComparisonRow = {
   label: string
@@ -820,10 +780,8 @@ function getComparisonSections(): ComparisonSection[] {
         },
         {
           label: '测算类型',
-          getDisplayValue: (run) =>
-            getCalculationTypeMeta(run.calculation_type).label,
-          getExportValue: (run) =>
-            getCalculationTypeMeta(run.calculation_type).label,
+          getDisplayValue: (run) => getCalculationTypeMeta(run.calculation_type).label,
+          getExportValue: (run) => getCalculationTypeMeta(run.calculation_type).label,
         },
         {
           label: '包装尺寸(cm)',
@@ -886,8 +844,7 @@ function getComparisonSections(): ComparisonSection[] {
         },
         {
           label: '广告费',
-          getDisplayValue: (run) =>
-            formatCurrency(run.fees.advertising_fee_usd),
+          getDisplayValue: (run) => formatCurrency(run.fees.advertising_fee_usd),
           getExportValue: (run) => run.fees.advertising_fee_usd,
           valueType: 'currency_usd',
         },
@@ -899,15 +856,13 @@ function getComparisonSections(): ComparisonSection[] {
         },
         {
           label: '派送',
-          getDisplayValue: (run) =>
-            formatCurrency(run.fees.fba_fulfillment_fee_usd),
+          getDisplayValue: (run) => formatCurrency(run.fees.fba_fulfillment_fee_usd),
           getExportValue: (run) => run.fees.fba_fulfillment_fee_usd,
           valueType: 'currency_usd',
         },
         {
           label: '配置费',
-          getDisplayValue: (run) =>
-            formatCurrency(run.fees.inbound_config_fee_usd),
+          getDisplayValue: (run) => formatCurrency(run.fees.inbound_config_fee_usd),
           getExportValue: (run) => run.fees.inbound_config_fee_usd,
           valueType: 'currency_usd',
         },
@@ -987,15 +942,13 @@ function getComparisonSections(): ComparisonSection[] {
         },
         {
           label: '计费重(lb)',
-          getDisplayValue: (run) =>
-            formatMetric(run.weights.chargeable_weight_lb),
+          getDisplayValue: (run) => formatMetric(run.weights.chargeable_weight_lb),
           getExportValue: (run) => run.weights.chargeable_weight_lb,
           valueType: 'number',
         },
         {
           label: '体积(ft³)',
-          getDisplayValue: (run) =>
-            formatMetric(run.dimensions.volume_cubic_ft, 2),
+          getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2),
           getExportValue: (run) => run.dimensions.volume_cubic_ft,
           valueType: 'number',
         },
@@ -1056,7 +1009,7 @@ function getExportComparisonSections(): ComparisonSection[] {
           getDisplayValue: (run) => run.competitor_url ?? '-',
           getExportValue: (run) => run.competitor_url ?? '-',
           valueType: 'text',
-        },
+        }
       )
       rows.push(
         {
@@ -1070,7 +1023,7 @@ function getExportComparisonSections(): ComparisonSection[] {
           getDisplayValue: (run) => formatMetric(run.dimensions.volume_cubic_ft, 2),
           getExportValue: (run) => run.dimensions.volume_cubic_ft,
           valueType: 'number',
-        },
+        }
       )
     }
 
@@ -1087,9 +1040,7 @@ function getExportComparisonSections(): ComparisonSection[] {
       rows.push({
         label: '头程数量',
         getDisplayValue: (run) =>
-          run.full_container_quantity != null
-            ? String(run.full_container_quantity)
-            : '-',
+          run.full_container_quantity != null ? String(run.full_container_quantity) : '-',
         getExportValue: (run) => run.full_container_quantity ?? '-',
         valueType: 'number',
       })
@@ -1110,8 +1061,7 @@ function getExportComparisonSections(): ComparisonSection[] {
         },
         {
           label: '体积重(lb)',
-          getDisplayValue: (run) =>
-            formatMetric(run.weights.dimensional_weight_lb, 2),
+          getDisplayValue: (run) => formatMetric(run.weights.dimensional_weight_lb, 2),
           getExportValue: (run) => run.weights.dimensional_weight_lb,
           valueType: 'number',
         },
@@ -1121,7 +1071,7 @@ function getExportComparisonSections(): ComparisonSection[] {
             `${run.dimensions.longest_side_in} × ${run.dimensions.middle_side_in} × ${run.dimensions.shortest_side_in}`,
           getExportValue: (run) =>
             `${run.dimensions.longest_side_in} × ${run.dimensions.middle_side_in} × ${run.dimensions.shortest_side_in}`,
-        },
+        }
       )
     }
 
@@ -1133,7 +1083,7 @@ function getExportComparisonSections(): ComparisonSection[] {
 
 async function exportComparisonMatrixToExcel(
   runs: PricingCalculationRunItem[],
-  productNamePrefix?: string,
+  productNamePrefix?: string
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -1175,17 +1125,13 @@ async function exportComparisonMatrixToExcel(
 
   const headerRow = worksheet.getRow(1)
   headerRow.height = 40
-  headerRow.values = [
-    '指标',
-    '子项',
-    ...runs.map((run) => run.product_name),
-  ]
+  headerRow.values = ['指标', '子项', ...runs.map((run) => run.product_name)]
 
   const palette: Record<string, { section: string; sub: string }> = {
     货品数据: { section: 'FFDCEEFF', sub: 'FFF4F9FF' },
     'DDP 成本': { section: 'FFFEE7C7', sub: 'FFFFF8EB' },
     费用支出: { section: 'FFFFD9E2', sub: 'FFFFF1F4' },
-    '售价与利润': { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
+    售价与利润: { section: 'FFD8F7E7', sub: 'FFEEFDF4' },
     核算规则: { section: 'FFE9D5F9', sub: 'FFF5EEFD' },
   }
 
@@ -1243,9 +1189,7 @@ async function exportComparisonMatrixToExcel(
 
       runs.forEach((run, index) => {
         const cell = excelRow.getCell(index + 3)
-        const value = row.getExportValue
-          ? row.getExportValue(run)
-          : row.getDisplayValue(run)
+        const value = row.getExportValue ? row.getExportValue(run) : row.getDisplayValue(run)
         cell.value = value
         cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
         cell.alignment = {
@@ -1255,10 +1199,8 @@ async function exportComparisonMatrixToExcel(
         }
 
         if (typeof value === 'number') {
-          if (row.valueType === 'currency_usd')
-            cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
-          if (row.valueType === 'currency_rmb')
-            cell.numFmt = '"RMB "#,##0.00;[Red]-"RMB "#,##0.00'
+          if (row.valueType === 'currency_usd') cell.numFmt = '$#,##0.00;[Red]-$#,##0.00'
+          if (row.valueType === 'currency_rmb') cell.numFmt = '"RMB "#,##0.00;[Red]-"RMB "#,##0.00'
           if (row.valueType === 'percent') cell.numFmt = '0.00%'
           if (row.valueType === 'number') cell.numFmt = '0.0000'
         }
@@ -1431,10 +1373,7 @@ async function exportComparisonMatrixToExcel(
         size: 11,
         bold: true,
         color: {
-          argb:
-            row.label.includes('最高') || row.label.includes('最大')
-              ? 'FF047857'
-              : 'FFBE123C',
+          argb: row.label.includes('最高') || row.label.includes('最大') ? 'FF047857' : 'FFBE123C',
         },
       }
       valCell.alignment = {
@@ -1443,8 +1382,7 @@ async function exportComparisonMatrixToExcel(
       }
       if (typeof row.values[1] === 'number') {
         if (row.valueType === 'percent') valCell.numFmt = '0.00%'
-        if (row.valueType === 'currency_usd')
-          valCell.numFmt = '$#,##0.00'
+        if (row.valueType === 'currency_usd') valCell.numFmt = '$#,##0.00'
       }
 
       excelRow.eachCell((cell, colNumber) => {
@@ -1474,7 +1412,7 @@ async function exportStoreSkuTableToExcel(
   items: ProductCostItem[],
   rowStates: Record<number, StoreSkuRowState>,
   projectName: string,
-  calculationMode: 'profit-calc' | 'profit-reverse',
+  calculationMode: 'profit-calc' | 'profit-reverse'
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -1767,9 +1705,7 @@ async function exportStoreSkuTableToExcel(
       excelRow.getCell(13).value = result.sale_price_usd
       excelRow.getCell(13).numFmt = '$#,##0.00'
     } else {
-      excelRow.getCell(13).value = draft
-        ? toNumber(draft.target_profit_rate)
-        : 0
+      excelRow.getCell(13).value = draft ? toNumber(draft.target_profit_rate) : 0
       excelRow.getCell(13).numFmt = '0.00'
     }
 
@@ -1903,8 +1839,7 @@ export default function PricingCalculationPage() {
     allowed: ['US', 'DE', 'UK'],
   })
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
-  const [calculationMode, setCalculationMode] =
-    useState<CalculationMode>('profit-calc')
+  const [calculationMode, setCalculationMode] = useState<CalculationMode>('profit-calc')
   const [runs, setRuns] = useState<PricingCalculationRunItem[]>([])
   const [runsPage, setRunsPage] = useState(1)
   const [runsTotal, setRunsTotal] = useState(0)
@@ -1928,15 +1863,12 @@ export default function PricingCalculationPage() {
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [storeSkusLoading, setStoreSkusLoading] = useState(false)
   const [storeSkusError, setStoreSkusError] = useState<string | null>(null)
-  const [storeRows, setStoreRows] = useState<Record<number, StoreSkuRowState>>(
-    {},
-  )
+  const [storeRows, setStoreRows] = useState<Record<number, StoreSkuRowState>>({})
   const storeCalculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc'
   const [systemExchangeRate, setSystemExchangeRate] = useState<string>('')
   const selectedProject = useMemo(
-    () =>
-      projects.find((project) => project.name === selectedProjectName) ?? null,
-    [projects, selectedProjectName],
+    () => projects.find((project) => project.name === selectedProjectName) ?? null,
+    [projects, selectedProjectName]
   )
 
   const loadRuns = useCallback(async (page: number, keyword?: string) => {
@@ -1954,25 +1886,21 @@ export default function PricingCalculationPage() {
         `${API_BASE}/api/v1/pricing-calculation/runs?${params.toString()}`,
         {
           cache: 'no-store',
-        },
+        }
       )
       const payload = (await response.json()) as
         | ListResponse
         | { detail?: string; message?: string }
       if (!response.ok) {
         const errorPayload = payload as { detail?: string; message?: string }
-        throw new Error(
-          errorPayload.detail || errorPayload.message || '测算记录加载失败',
-        )
+        throw new Error(errorPayload.detail || errorPayload.message || '测算记录加载失败')
       }
       const data = payload as ListResponse
       setRuns(data.items)
       setRunsTotal(data.total)
       setRunsPage(page)
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : '测算记录加载失败',
-      )
+      setError(loadError instanceof Error ? loadError.message : '测算记录加载失败')
     } finally {
       setRunsLoading(false)
     }
@@ -1996,20 +1924,16 @@ export default function PricingCalculationPage() {
           | { detail?: string; message?: string }
         if (!response.ok) {
           const errorPayload = payload as { detail?: string; message?: string }
-          throw new Error(
-            errorPayload.detail || errorPayload.message || '项目列表加载失败',
-          )
+          throw new Error(errorPayload.detail || errorPayload.message || '项目列表加载失败')
         }
         setProjects(
           (payload as ProjectManageOption[]).map((project) => ({
             id: project.id,
             name: project.name,
-          })),
+          }))
         )
       } catch (loadError) {
-        setProjectsError(
-          loadError instanceof Error ? loadError.message : '项目列表加载失败',
-        )
+        setProjectsError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
       } finally {
         setProjectsLoading(false)
       }
@@ -2050,19 +1974,17 @@ export default function PricingCalculationPage() {
         if (selectedProject?.id) {
           summarySearch.set('project_id', String(selectedProject.id))
         }
-        const [skuResponse, summaryResponse, exchangeRateResponse] =
-          await Promise.all([
-            fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
-              cache: 'no-store',
-            }),
-            fetch(
-              `${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`,
-              { cache: 'no-store' },
-            ),
-            fetch(`/api/exchange-rates?${exchangeRateSearch.toString()}`, {
-              cache: 'no-store',
-            }),
-          ])
+        const [skuResponse, summaryResponse, exchangeRateResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/sku-info?${search.toString()}`, {
+            cache: 'no-store',
+          }),
+          fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`, {
+            cache: 'no-store',
+          }),
+          fetch(`/api/exchange-rates?${exchangeRateSearch.toString()}`, {
+            cache: 'no-store',
+          }),
+        ])
         const skuPayload = (await skuResponse.json()) as
           | ProductCostsResponse
           | { detail?: string; message?: string }
@@ -2071,9 +1993,7 @@ export default function PricingCalculationPage() {
             detail?: string
             message?: string
           }
-          throw new Error(
-            errorPayload.detail || errorPayload.message || 'SKU 列表加载失败',
-          )
+          throw new Error(errorPayload.detail || errorPayload.message || 'SKU 列表加载失败')
         }
         const shipmentSummaryPayload = (await summaryResponse.json()) as
           | ShipmentSkuSummaryResponse
@@ -2083,28 +2003,20 @@ export default function PricingCalculationPage() {
             detail?: string
             message?: string
           }
-          throw new Error(
-            errorPayload.detail ||
-              errorPayload.message ||
-              '头程历史加权成本加载失败',
-          )
+          throw new Error(errorPayload.detail || errorPayload.message || '头程历史加权成本加载失败')
         }
         const summaryBySku = new Map(
-          (shipmentSummaryPayload as ShipmentSkuSummaryResponse).items.map(
-            (item) => [item.sku, item.average_logistics_unit_price],
-          ),
+          (shipmentSummaryPayload as ShipmentSkuSummaryResponse).items.map((item) => [
+            item.sku,
+            item.average_logistics_unit_price,
+          ])
         )
 
         let systemRateValue = ''
         const exchangeRatePayload = await exchangeRateResponse.json()
-        const exchangeRateItems = (
-          exchangeRatePayload as { items?: Array<{ rate: number }> }
-        )?.items
-        if (
-          exchangeRateResponse.ok &&
-          exchangeRateItems &&
-          exchangeRateItems.length > 0
-        ) {
+        const exchangeRateItems = (exchangeRatePayload as { items?: Array<{ rate: number }> })
+          ?.items
+        if (exchangeRateResponse.ok && exchangeRateItems && exchangeRateItems.length > 0) {
           systemRateValue = String(exchangeRateItems[0].rate)
           setSystemExchangeRate(systemRateValue)
         } else {
@@ -2121,22 +2033,19 @@ export default function PricingCalculationPage() {
             const snapshotSearch = new URLSearchParams({
               project_id: String(selectedProject.id),
               calculation_type:
-                storeCalculationMode === 'profit-calc'
-                  ? 'profit_calc'
-                  : 'profit_reverse',
+                storeCalculationMode === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
               page: '1',
               page_size: '200',
             })
             const snapshotResponse = await fetch(
               `${API_BASE}/api/v1/store-sku-pricing-snapshots?${snapshotSearch.toString()}`,
-              { cache: 'no-store' },
+              { cache: 'no-store' }
             )
             if (snapshotResponse.ok) {
               const snapshotPayload =
                 (await snapshotResponse.json()) as StoreSkuPricingSnapshotListResponse
               snapshotPayload.items.forEach((snapshot) => {
-                snapshotsMap[`${snapshot.sku}_${snapshot.calculation_type}`] =
-                  snapshot
+                snapshotsMap[`${snapshot.sku}_${snapshot.calculation_type}`] = snapshot
               })
             }
           } catch (snapshotError) {
@@ -2158,54 +2067,32 @@ export default function PricingCalculationPage() {
             if (snapshot) {
               initialDraft = {
                 package_length_cm:
-                  snapshot.package_length_cm > 0
-                    ? String(snapshot.package_length_cm)
-                    : '',
+                  snapshot.package_length_cm > 0 ? String(snapshot.package_length_cm) : '',
                 package_width_cm:
-                  snapshot.package_width_cm > 0
-                    ? String(snapshot.package_width_cm)
-                    : '',
+                  snapshot.package_width_cm > 0 ? String(snapshot.package_width_cm) : '',
                 package_height_cm:
-                  snapshot.package_height_cm > 0
-                    ? String(snapshot.package_height_cm)
-                    : '',
-                weight_kg:
-                  snapshot.weight_kg > 0 ? String(snapshot.weight_kg) : '',
+                  snapshot.package_height_cm > 0 ? String(snapshot.package_height_cm) : '',
+                weight_kg: snapshot.weight_kg > 0 ? String(snapshot.weight_kg) : '',
                 first_leg_cost_rmb:
-                  snapshot.first_leg_cost_rmb > 0
-                    ? String(snapshot.first_leg_cost_rmb)
-                    : '',
-                sale_price_usd:
-                  snapshot.sale_price_usd > 0
-                    ? String(snapshot.sale_price_usd)
-                    : '',
+                  snapshot.first_leg_cost_rmb > 0 ? String(snapshot.first_leg_cost_rmb) : '',
+                sale_price_usd: snapshot.sale_price_usd > 0 ? String(snapshot.sale_price_usd) : '',
                 target_profit_rate:
-                  snapshot.target_profit_rate !== null
-                    ? String(snapshot.target_profit_rate)
-                    : '25',
+                  snapshot.target_profit_rate !== null ? String(snapshot.target_profit_rate) : '25',
                 advertising_rate: String((snapshot.advertising_rate * 100).toFixed(2)),
                 return_loss_rate: String((snapshot.return_loss_rate * 100).toFixed(2)),
                 storage_months: String(snapshot.storage_months),
                 inbound_placement_mode: snapshot.inbound_placement_mode,
                 usd_to_rmb_rate:
-                  snapshot.usd_to_rmb_rate > 0
-                    ? String(snapshot.usd_to_rmb_rate)
-                    : systemRateValue,
+                  snapshot.usd_to_rmb_rate > 0 ? String(snapshot.usd_to_rmb_rate) : systemRateValue,
               }
             } else {
-              initialDraft = buildInitialStoreDraft(
-                item,
-                historicalFirstLegCost,
-                systemRateValue,
-              )
+              initialDraft = buildInitialStoreDraft(item, historicalFirstLegCost, systemRateValue)
             }
 
             next[item.id] = {
               draft: existing?.draft ?? initialDraft,
               loading: false,
-              result:
-                existing?.result ??
-                (snapshot ? convertSnapshotToResult(snapshot) : null),
+              result: existing?.result ?? (snapshot ? convertSnapshotToResult(snapshot) : null),
               error: existing?.error ?? null,
             }
           })
@@ -2214,9 +2101,7 @@ export default function PricingCalculationPage() {
       } catch (loadError) {
         setStoreSkus([])
         setStoreRows({})
-        setStoreSkusError(
-          loadError instanceof Error ? loadError.message : 'SKU 列表加载失败',
-        )
+        setStoreSkusError(loadError instanceof Error ? loadError.message : 'SKU 列表加载失败')
       } finally {
         setStoreSkusLoading(false)
       }
@@ -2230,7 +2115,7 @@ export default function PricingCalculationPage() {
   // 弹层列表直接用后端当前页数据（受控 CommandInput 触发 cmdk 自带即时过滤）
   const runPickerOptions = useMemo(
     () => runs.map((run) => ({ run, summary: getRunSummary(run) })),
-    [runs],
+    [runs]
   )
 
   const selectedRuns = useMemo(() => {
@@ -2267,7 +2152,7 @@ export default function PricingCalculationPage() {
     }
     return storeSkus.filter((item) => {
       return [item.sku, item.asin, item.project_name].some((value) =>
-        value.toLowerCase().includes(normalizedKeyword),
+        value.toLowerCase().includes(normalizedKeyword)
       )
     })
   }, [skuKeyword, storeSkus])
@@ -2284,8 +2169,7 @@ export default function PricingCalculationPage() {
         calculationMode === 'fbm-calc' &&
         toNumber(form.full_container_quantity) > 0 &&
         toNumber(form.full_container_price_rmb) > 0
-          ? toNumber(form.full_container_price_rmb) /
-            toNumber(form.full_container_quantity)
+          ? toNumber(form.full_container_price_rmb) / toNumber(form.full_container_quantity)
           : firstLegCostRmb
 
       createdRun = await requestPricingCalculation({
@@ -2307,9 +2191,7 @@ export default function PricingCalculationPage() {
         return_loss_rate: Number(form.return_loss_rate) / 100,
         storage_months: Number(form.storage_months),
         inbound_placement_mode: form.inbound_placement_mode,
-        usd_to_rmb_rate: form.usd_to_rmb_rate.trim()
-          ? Number(form.usd_to_rmb_rate)
-          : undefined,
+        usd_to_rmb_rate: form.usd_to_rmb_rate.trim() ? Number(form.usd_to_rmb_rate) : undefined,
         ...(calculationMode === 'fbm-calc' && {
           full_container_quantity: Number(form.full_container_quantity),
           full_container_price_rmb: Number(form.full_container_price_rmb),
@@ -2318,17 +2200,12 @@ export default function PricingCalculationPage() {
       })
 
       setSelectedRunIds((current) =>
-        [createdRun.id, ...current.filter((id) => id !== createdRun.id)].slice(
-          0,
-          MAX_SELECTED_RUNS,
-        ),
+        [createdRun.id, ...current.filter((id) => id !== createdRun.id)].slice(0, MAX_SELECTED_RUNS)
       )
       // 创建后重新拉取当前页（保持与后端 total/分页一致）
       void loadRuns(runsPage, deferredProductKeyword)
     } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : '定价测算失败',
-      )
+      setError(submitError instanceof Error ? submitError.message : '定价测算失败')
     } finally {
       setLoading(false)
     }
@@ -2365,9 +2242,12 @@ export default function PricingCalculationPage() {
     // Use stored first_leg_unit_price_rmb directly (saved as user input, not derived)
     // For fbm-calc, derive unit price from full_container data if available
     let firstLegUnitPriceRmb = run.first_leg_unit_price_rmb_per_kg ?? 0
-    if (targetMode === 'fbm-calc' && run.full_container_quantity && run.full_container_quantity > 0) {
-      firstLegUnitPriceRmb =
-        (run.full_container_price_rmb ?? 0) / run.full_container_quantity
+    if (
+      targetMode === 'fbm-calc' &&
+      run.full_container_quantity &&
+      run.full_container_quantity > 0
+    ) {
+      firstLegUnitPriceRmb = (run.full_container_price_rmb ?? 0) / run.full_container_quantity
     }
 
     setForm({
@@ -2377,13 +2257,13 @@ export default function PricingCalculationPage() {
       package_width_cm: run.package_width_cm > 0 ? String(run.package_width_cm) : '',
       package_height_cm: run.package_height_cm > 0 ? String(run.package_height_cm) : '',
       weight_kg: run.weight_kg > 0 ? String(run.weight_kg) : '',
-      fob_product_cost_rmb:
-        run.fob_product_cost_rmb > 0 ? String(run.fob_product_cost_rmb) : '',
+      fob_product_cost_rmb: run.fob_product_cost_rmb > 0 ? String(run.fob_product_cost_rmb) : '',
       first_leg_unit_price_rmb:
         firstLegUnitPriceRmb > 0 ? String(firstLegUnitPriceRmb.toFixed(4)) : '',
       sale_price_usd: run.sale_price_usd > 0 ? String(run.sale_price_usd) : '',
       target_profit_rate: '25',
-      commission_rate: run.commission_rate > 0 ? String((run.commission_rate * 100).toFixed(2)) : '',
+      commission_rate:
+        run.commission_rate > 0 ? String((run.commission_rate * 100).toFixed(2)) : '',
       advertising_rate:
         run.advertising_rate > 0 ? String((run.advertising_rate * 100).toFixed(2)) : '',
       return_loss_rate:
@@ -2402,13 +2282,15 @@ export default function PricingCalculationPage() {
           ? String(run.full_container_price_rmb)
           : '',
       inbound_placement_mode: run.inbound_placement_mode,
-      usd_to_rmb_rate:
-        run.usd_to_rmb_rate > 0 ? String(run.usd_to_rmb_rate) : '',
+      usd_to_rmb_rate: run.usd_to_rmb_rate > 0 ? String(run.usd_to_rmb_rate) : '',
     })
   }
 
   async function handleDeleteRun(runId: number) {
-    const confirmed = await confirm({ title: '确认删除这条测算记录吗？删除后不可恢复。', variant: 'destructive' })
+    const confirmed = await confirm({
+      title: '确认删除这条测算记录吗？删除后不可恢复。',
+      variant: 'destructive',
+    })
     if (!confirmed) {
       return
     }
@@ -2417,21 +2299,16 @@ export default function PricingCalculationPage() {
     setError(null)
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/v1/pricing-calculation/runs/${runId}`,
-        {
-          method: 'DELETE',
-        },
-      )
+      const response = await fetch(`${API_BASE}/api/v1/pricing-calculation/runs/${runId}`, {
+        method: 'DELETE',
+      })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as {
           detail?: string
           message?: string
         } | null
-        throw new Error(
-          payload?.detail || payload?.message || '删除测算记录失败',
-        )
+        throw new Error(payload?.detail || payload?.message || '删除测算记录失败')
       }
 
       setSelectedRunIds((current) => current.filter((id) => id !== runId))
@@ -2439,10 +2316,12 @@ export default function PricingCalculationPage() {
       void loadRuns(runsPage, deferredProductKeyword)
       notify({ type: 'success', title: '运行记录已删除' })
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error ? deleteError.message : '删除测算记录失败',
-      )
-      notify({ type: 'error', title: '删除失败', message: deleteError instanceof Error ? deleteError.message : '删除测算记录失败' })
+      setError(deleteError instanceof Error ? deleteError.message : '删除测算记录失败')
+      notify({
+        type: 'error',
+        title: '删除失败',
+        message: deleteError instanceof Error ? deleteError.message : '删除测算记录失败',
+      })
     } finally {
       setDeletingRunId(null)
     }
@@ -2457,8 +2336,7 @@ export default function PricingCalculationPage() {
     setExporting(true)
     setError(null)
     try {
-      const productNamePrefix =
-        selectedRuns[selectedRuns.length - 1]?.product_name
+      const productNamePrefix = selectedRuns[selectedRuns.length - 1]?.product_name
       await exportComparisonMatrixToExcel(selectedRuns, productNamePrefix)
       await logClientOperation({
         action: 'pricing_calculation.comparison.export',
@@ -2469,9 +2347,7 @@ export default function PricingCalculationPage() {
         },
       })
     } catch (exportError) {
-      setError(
-        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
-      )
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
       setExporting(false)
     }
@@ -2501,7 +2377,7 @@ export default function PricingCalculationPage() {
         filteredStoreSkus,
         storeRows,
         selectedProjectName,
-        storeCalculationMode,
+        storeCalculationMode
       )
       await logClientOperation({
         action: 'pricing_calculation.store_table.export',
@@ -2515,19 +2391,13 @@ export default function PricingCalculationPage() {
         },
       })
     } catch (exportError) {
-      setError(
-        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
-      )
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
       setExporting(false)
     }
   }
 
-  function updateStoreDraft(
-    rowId: number,
-    key: keyof StoreSkuDraft,
-    value: string,
-  ) {
+  function updateStoreDraft(rowId: number, key: keyof StoreSkuDraft, value: string) {
     setStoreRows((current) => {
       const row = current[rowId]
       if (!row) return current
@@ -2546,7 +2416,7 @@ export default function PricingCalculationPage() {
 
   async function handleStoreSkuCalculate(
     item: ProductCostItem,
-    calculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc',
+    calculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc'
   ) {
     const rowState = storeRows[item.id]
     if (!rowState) return
@@ -2581,20 +2451,15 @@ export default function PricingCalculationPage() {
         project_id: selectedProject?.id ?? undefined,
         sku: item.sku,
         use_historical_shipping_cost: true,
-        sale_price_usd:
-          calculationMode === 'profit-calc' ? Number(draft.sale_price_usd) : 0,
+        sale_price_usd: calculationMode === 'profit-calc' ? Number(draft.sale_price_usd) : 0,
         target_profit_rate:
-          calculationMode === 'profit-reverse'
-            ? Number(draft.target_profit_rate) / 100
-            : 0,
+          calculationMode === 'profit-reverse' ? Number(draft.target_profit_rate) / 100 : 0,
         commission_rate: 0.15,
         advertising_rate: Number(draft.advertising_rate) / 100,
         return_loss_rate: Number(draft.return_loss_rate) / 100,
         storage_months: Number(draft.storage_months),
         inbound_placement_mode: draft.inbound_placement_mode,
-        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim()
-          ? Number(draft.usd_to_rmb_rate)
-          : undefined,
+        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim() ? Number(draft.usd_to_rmb_rate) : undefined,
       })
 
       setStoreRows((current) => ({
@@ -2614,7 +2479,7 @@ export default function PricingCalculationPage() {
             item,
             createdRun,
             calculationMode,
-            selectedProject.id,
+            selectedProject.id
           )
           await requestSaveStoreSkuSnapshot(snapshotPayload)
         } catch (snapshotError) {
@@ -2627,849 +2492,699 @@ export default function PricingCalculationPage() {
         [item.id]: {
           ...current[item.id],
           loading: false,
-          error:
-            submitError instanceof Error ? submitError.message : '店铺测算失败',
+          error: submitError instanceof Error ? submitError.message : '店铺测算失败',
         },
       }))
     }
   }
 
   return (
-    <div className='space-y-4'>
+    <div className="space-y-4">
       <>
-        <div className='grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]'>
-                  <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
-                    <CardHeader className='pb-3'>
-                      <CardTitle className='text-lg'>测算输入</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <form className='space-y-4' onSubmit={handleSubmit}>
-                        <Tabs
-                          value={calculationMode}
-                          onValueChange={(value) =>
-                            setCalculationMode(value as CalculationMode)
-                          }
-                        >
-                          <TabsMotionGroup id='pricing-calculation-mode-tabs'>
-                            <TabsList className='grid w-full grid-cols-2 sm:grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1'>
-                              <SlidingTabsTrigger
-                                value='profit-calc'
-                                activeValue={calculationMode}
-                                layoutId='pricing-calculation-mode-indicator'
-                              >
-                                利润核算
-                              </SlidingTabsTrigger>
-                              <SlidingTabsTrigger
-                                value='profit-reverse'
-                                activeValue={calculationMode}
-                                layoutId='pricing-calculation-mode-indicator'
-                              >
-                                利润倒算
-                              </SlidingTabsTrigger>
-                              <SlidingTabsTrigger
-                                value='cost-reverse'
-                                activeValue={calculationMode}
-                                layoutId='pricing-calculation-mode-indicator'
-                              >
-                                成本倒推
-                              </SlidingTabsTrigger>
-                              <SlidingTabsTrigger
-                                value='fbm-calc'
-                                activeValue={calculationMode}
-                                layoutId='pricing-calculation-mode-indicator'
-                              >
-                                FBM测算
-                              </SlidingTabsTrigger>
-                            </TabsList>
-                          </TabsMotionGroup>
-                        </Tabs>
+        <div className="grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]">
+          <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">测算输入</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <Tabs
+                  value={calculationMode}
+                  onValueChange={(value) => setCalculationMode(value as CalculationMode)}
+                >
+                  <TabsMotionGroup id="pricing-calculation-mode-tabs">
+                    <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-1">
+                      <SlidingTabsTrigger
+                        value="profit-calc"
+                        activeValue={calculationMode}
+                        layoutId="pricing-calculation-mode-indicator"
+                      >
+                        利润核算
+                      </SlidingTabsTrigger>
+                      <SlidingTabsTrigger
+                        value="profit-reverse"
+                        activeValue={calculationMode}
+                        layoutId="pricing-calculation-mode-indicator"
+                      >
+                        利润倒算
+                      </SlidingTabsTrigger>
+                      <SlidingTabsTrigger
+                        value="cost-reverse"
+                        activeValue={calculationMode}
+                        layoutId="pricing-calculation-mode-indicator"
+                      >
+                        成本倒推
+                      </SlidingTabsTrigger>
+                      <SlidingTabsTrigger
+                        value="fbm-calc"
+                        activeValue={calculationMode}
+                        layoutId="pricing-calculation-mode-indicator"
+                      >
+                        FBM测算
+                      </SlidingTabsTrigger>
+                    </TabsList>
+                  </TabsMotionGroup>
+                </Tabs>
 
-                        <DirectionalTabTransition
-                          value={calculationMode}
-                          order={CALCULATION_MODE_ORDER}
-                        >
-                          <div className='space-y-4'>
-                            {/* Row 1: 产品名称 + FOB/售价 */}
-                            <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
-                              <Field label='产品名称'>
-                                <Input
-                                  value={form.product_name}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'product_name',
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder='例如：桌面置物架'
-                                  required
-                                />
-                              </Field>
-                              {calculationMode === 'cost-reverse' ? (
-                                <Field label='售价(USD)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.sale_price_usd}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'sale_price_usd',
-                                        event.target.value,
-                                      )
-                                    }
-                                    required
-                                  />
-                                </Field>
-                              ) : (
-                                <Field label='FOB 产品成本(RMB)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.fob_product_cost_rmb}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'fob_product_cost_rmb',
-                                        event.target.value,
-                                      )
-                                    }
-                                    required
-                                />
-                              </Field>
-                              )}
-                            </div>
-                            <Field label='竞品链接（Amazon / 竞品 listing URL，可选）'>
+                <DirectionalTabTransition value={calculationMode} order={CALCULATION_MODE_ORDER}>
+                  <div className="space-y-4">
+                    {/* Row 1: 产品名称 + FOB/售价 */}
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                      <Field label="产品名称">
+                        <Input
+                          value={form.product_name}
+                          onChange={(event) => updateField('product_name', event.target.value)}
+                          placeholder="例如：桌面置物架"
+                          required
+                        />
+                      </Field>
+                      {calculationMode === 'cost-reverse' ? (
+                        <Field label="售价(USD)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.sale_price_usd}
+                            onChange={(event) => updateField('sale_price_usd', event.target.value)}
+                            required
+                          />
+                        </Field>
+                      ) : (
+                        <Field label="FOB 产品成本(RMB)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.fob_product_cost_rmb}
+                            onChange={(event) =>
+                              updateField('fob_product_cost_rmb', event.target.value)
+                            }
+                            required
+                          />
+                        </Field>
+                      )}
+                    </div>
+                    <Field label="竞品链接（Amazon / 竞品 listing URL，可选）">
+                      <Input
+                        type="url"
+                        inputMode="url"
+                        value={form.competitor_url}
+                        onChange={(event) => updateField('competitor_url', event.target.value)}
+                        placeholder="https://www.amazon.com/dp/..."
+                        maxLength={1000}
+                      />
+                    </Field>
+                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                      <Field label="长(cm)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.package_length_cm}
+                          onChange={(event) => updateField('package_length_cm', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="宽(cm)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.package_width_cm}
+                          onChange={(event) => updateField('package_width_cm', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="高(cm)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.package_height_cm}
+                          onChange={(event) => updateField('package_height_cm', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="重量(kg)">
+                        <Input
+                          type="number"
+                          step="0.001"
+                          value={form.weight_kg}
+                          onChange={(event) => updateField('weight_kg', event.target.value)}
+                          required
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4">
+                      {calculationMode === 'fbm-calc' ? (
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                          <div className="space-y-3">
+                            <Field label="整柜数量">
                               <Input
-                                type='url'
-                                inputMode='url'
-                                value={form.competitor_url}
+                                type="number"
+                                step="1"
+                                value={form.full_container_quantity}
                                 onChange={(event) =>
-                                  updateField(
-                                    'competitor_url',
-                                    event.target.value,
-                                  )
+                                  updateField('full_container_quantity', event.target.value)
                                 }
-                                placeholder='https://www.amazon.com/dp/...'
-                                maxLength={1000}
+                                placeholder="请输入整柜数量"
                               />
                             </Field>
-                            <div className='grid gap-3 grid-cols-2 sm:grid-cols-4'>
-                              <Field label='长(cm)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.package_length_cm}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'package_length_cm',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='宽(cm)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.package_width_cm}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'package_width_cm',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='高(cm)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.package_height_cm}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'package_height_cm',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='重量(kg)'>
-                                <Input
-                                  type='number'
-                                  step='0.001'
-                                  value={form.weight_kg}
-                                  onChange={(event) =>
-                                    updateField('weight_kg', event.target.value)
-                                  }
-                                  required
-                                />
-                              </Field>
-                            </div>
-
-                            <div className='rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-4'>
-                              {calculationMode === 'fbm-calc' ? (
-                                <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
-                                  <div className='space-y-3'>
-                                    <Field label='整柜数量'>
-                                      <Input
-                                        type='number'
-                                        step='1'
-                                        value={form.full_container_quantity}
-                                        onChange={(event) =>
-                                          updateField(
-                                            'full_container_quantity',
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder='请输入整柜数量'
-                                      />
-                                    </Field>
-                                    <Field label='整柜价格(RMB)'>
-                                      <Input
-                                        type='number'
-                                        step='0.01'
-                                        value={form.full_container_price_rmb}
-                                        onChange={(event) =>
-                                          updateField(
-                                            'full_container_price_rmb',
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder='请输入整柜价格'
-                                      />
-                                    </Field>
-                                  </div>
-                                  <div className='rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]'>
-                                    <p className='text-xs text-muted-foreground'>
-                                      单个产品头程(RMB)
-                                    </p>
-                                    <p className='mt-2 text-2xl font-semibold text-foreground'>
-                                      {toNumber(form.full_container_quantity) >
-                                        0 &&
-                                      toNumber(form.full_container_price_rmb) >
-                                        0
-                                        ? (
-                                            toNumber(
-                                              form.full_container_price_rmb,
-                                            ) /
-                                            toNumber(
-                                              form.full_container_quantity,
-                                            )
-                                          ).toFixed(2)
-                                        : '0.00'}
-                                    </p>
-                                    <p className='mt-1 text-xs text-muted-foreground'>
-                                      整柜价格 ÷ 整柜数量
-                                    </p>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
-                                  <div className='space-y-3'>
-                                    <Field label='头程单价(RMB/kg)'>
-                                      <Input
-                                        type='number'
-                                        step='0.01'
-                                        value={form.first_leg_unit_price_rmb}
-                                        onChange={(event) =>
-                                          updateField(
-                                            'first_leg_unit_price_rmb',
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder='请输入头程单价'
-                                      />
-                                    </Field>
-                                    <p className='text-xs leading-5 text-muted-foreground'>
-                                      实重{' '}
-                                      {formatMetric(
-                                        toNumber(form.weight_kg),
-                                        3,
-                                      )}{' '}
-                                      kg，体积重{' '}
-                                      {formatMetric(volumeWeightKg, 3)}{' '}
-                                      kg，计费重{' '}
-                                      {formatMetric(chargeableWeightKg, 3)} kg。
-                                    </p>
-                                  </div>
-                                  <div className='rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]'>
-                                    <p className='text-xs text-muted-foreground'>
-                                      头程成本(RMB)
-                                    </p>
-                                    <p className='mt-2 text-2xl font-semibold text-foreground'>
-                                      {firstLegCostRmb.toFixed(2)}
-                                    </p>
-                                    <p className='mt-1 text-xs text-muted-foreground'>
-                                      计费重 × 头程单价
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className='grid gap-3 sm:grid-cols-2'>
-                              {calculationMode === 'profit-calc' ? (
-                                <Field label='售价(USD)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.sale_price_usd}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'sale_price_usd',
-                                        event.target.value,
-                                      )
-                                    }
-                                    required
-                                  />
-                                </Field>
-                              ) : calculationMode === 'fbm-calc' ? (
-                                <Field label='售价(USD)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.sale_price_usd}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'sale_price_usd',
-                                        event.target.value,
-                                      )
-                                    }
-                                    required
-                                  />
-                                </Field>
-                              ) : (
-                                <Field label='目标利润率(%)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.target_profit_rate}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'target_profit_rate',
-                                        event.target.value,
-                                      )
-                                    }
-                                    required
-                                  />
-                                </Field>
-                              )}
-                              <Field label='平台佣金率(%)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.commission_rate}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'commission_rate',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='广告费率(%)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.advertising_rate}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'advertising_rate',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='退货折损率(%)'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.return_loss_rate}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'return_loss_rate',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label='仓储月数'>
-                                <Input
-                                  type='number'
-                                  step='0.01'
-                                  value={form.storage_months}
-                                  onChange={(event) =>
-                                    updateField(
-                                      'storage_months',
-                                      event.target.value,
-                                    )
-                                  }
-                                  required
-                                />
-                              </Field>
-                              {calculationMode === 'fbm-calc' && (
-                                <Field label='配送费(USD)'>
-                                  <Input
-                                    type='number'
-                                    step='0.01'
-                                    value={form.delivery_fee_usd}
-                                    onChange={(event) =>
-                                      updateField(
-                                        'delivery_fee_usd',
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder='请输入配送费'
-                                  />
-                                </Field>
-                              )}
-                            </div>
-
-                            <Button
-                              type='submit'
-                              disabled={loading}
-                              className='h-10 w-full'
-                            >
-                              {loading ? (
-                                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                              ) : (
-                                <Calculator className='mr-2 h-4 w-4' />
-                              )}
-                              {calculationMode === 'profit-reverse'
-                                ? '倒算售价'
-                                : calculationMode === 'cost-reverse'
-                                  ? '倒推成本'
-                                  : calculationMode === 'fbm-calc'
-                                    ? 'FBM测算'
-                                    : '开始测算'}
-                            </Button>
-                          </div>
-                        </DirectionalTabTransition>
-                      </form>
-                    </CardContent>
-                  </Card>
-
-                  <div className='flex min-h-0 flex-1 flex-col gap-4 pb-4'>
-                    <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
-                      <CardHeader className='pb-3'>
-                        <CardTitle className='text-lg'>控制台</CardTitle>
-                      </CardHeader>
-                      <CardContent className='space-y-3'>
-                        {/* 手机端：2列网格 | 桌面端：横向排列 */}
-                        <div className='grid gap-3 grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex md:flex-row md:items-end md:gap-3'>
-                          <Field label='国家站点' className='md:min-w-[140px]'>
-                            <div className='flex h-9 items-center text-sm'>
-                               美国站 (US)
-                            </div>
-                          </Field>
-                          <Field label='产品搜索' className='sm:col-span-2 md:min-w-0 md:flex-1'>
-                            <div className='relative'>
-                              <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                            <Field label="整柜价格(RMB)">
                               <Input
-                                value={productKeyword}
+                                type="number"
+                                step="0.01"
+                                value={form.full_container_price_rmb}
                                 onChange={(event) =>
-                                  setProductKeyword(event.target.value)
+                                  updateField('full_container_price_rmb', event.target.value)
                                 }
-                                placeholder='按产品名、创建人搜索'
-                                className='pl-9'
+                                placeholder="请输入整柜价格"
                               />
-                            </div>
-                          </Field>
-                          <Field label='测算结果' className='md:min-w-0 md:flex-1'>
-                            <Popover
-                              open={runPickerOpen}
-                              onOpenChange={setRunPickerOpen}
-                            >
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type='button'
-                                  variant='outline'
-                                  className='w-full justify-between'
-                                >
-                                  <span className='truncate'>
-                                    {selectedRunIds.length > 0
-                                      ? `已选 ${selectedRunIds.length} 个`
-                                      : '下拉选择'}
-                                  </span>
-                                  <ChevronDown className='ml-2 h-4 w-4 shrink-0 text-muted-foreground' />
-                                </Button>
-                              </PopoverTrigger>
-                            <PopoverContent
-                              align='start'
-                              className='w-[min(92vw,420px)] p-0'
-                            >
-                              <Command>
-                                <CommandInput placeholder='在当前页内筛选（支持产品名/创建人）' />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    没有匹配的测算结果
-                                  </CommandEmpty>
-                                  <CommandGroup
-                                    heading={`当前页可选 ${runPickerOptions.length} 条`}
-                                  >
-                                    {runPickerOptions.map(
-                                      ({ run, summary }) => {
-                                        const isSelected =
-                                          selectedRunIds.includes(run.id)
-                                        const disabled =
-                                          !isSelected &&
-                                          selectedRunIds.length >=
-                                            MAX_SELECTED_RUNS
-                                        return (
-                                          <CommandItem
-                                            key={run.id}
-                                            value={`${run.id} ${summary} ${run.created_by ?? ''}`}
-                                            disabled={disabled}
-                                            onSelect={() => {
-                                              toggleRunSelection(run.id)
-                                              handleLoadRunData(run)
-                                            }}
-                                            className='items-start gap-3 py-3'
-                                          >
-                                            <span
-                                              className={cn(
-                                                'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
-                                                isSelected
-                                                  ? 'border-primary bg-primary text-primary-foreground'
-                                                  : 'border-border bg-background',
-                                              )}
-                                            >
-                                              {isSelected ? (
-                                                <Check className='h-3 w-3' />
-                                              ) : null}
-                                            </span>
-                                            <div className='min-w-0 flex-1'>
-                                              <div className='truncate text-sm font-medium text-foreground'>
-                                                {run.product_name}
-                                              </div>
-                                              <div className='mt-1 text-xs text-muted-foreground'>
-                                                {
-                                                  getCalculationTypeMeta(
-                                                    run.calculation_type,
-                                                  ).label
-                                                }{' '}
-                                                ·{' '}
-                                                {formatCompactDate(
-                                                  run.created_at,
-                                                )}
-                                              </div>
-                                              {run.created_by ? (
-                                                <div className='mt-1 text-[11px] text-muted-foreground'>
-                                                  创建人：{run.created_by}
-                                                </div>
-                                              ) : null}
-                                            </div>
-                                          </CommandItem>
-                                        )
-                                      },
-                                    )}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                            </Popover>
-                          </Field>
-                          <Button
-                            type='button'
-                            variant='outline'
-                            onClick={() => setSelectedRunIds([])}
-                            disabled={selectedRunIds.length === 0}
-                            className='h-9 md:self-end'
-                          >
-                            清空
-                          </Button>
-                        </div>
-                        <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
-                          <span>
-                            共 {runsTotal} 条记录 · 当前第 {runsPage} 页 / 显示{' '}
-                            {runs.length} 条
-                          </span>
-                          {productKeyword ? (
-                            <span>关键词: {productKeyword}</span>
-                          ) : null}
-                        </div>
-                        {error ? (
-                          <div className='flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive'>
-                            <AlertCircle className='mt-0.5 h-4 w-4 shrink-0' />
-                            <span>{error}</span>
+                            </Field>
                           </div>
-                        ) : null}
-                      </CardContent>
-                    </Card>
+                          <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                            <p className="text-xs text-muted-foreground">单个产品头程(RMB)</p>
+                            <p className="mt-2 text-2xl font-semibold text-foreground">
+                              {toNumber(form.full_container_quantity) > 0 &&
+                              toNumber(form.full_container_price_rmb) > 0
+                                ? (
+                                    toNumber(form.full_container_price_rmb) /
+                                    toNumber(form.full_container_quantity)
+                                  ).toFixed(2)
+                                : '0.00'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              整柜价格 ÷ 整柜数量
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                          <div className="space-y-3">
+                            <Field label="头程单价(RMB/kg)">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={form.first_leg_unit_price_rmb}
+                                onChange={(event) =>
+                                  updateField('first_leg_unit_price_rmb', event.target.value)
+                                }
+                                placeholder="请输入头程单价"
+                              />
+                            </Field>
+                            <p className="text-xs leading-5 text-muted-foreground">
+                              实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重{' '}
+                              {formatMetric(volumeWeightKg, 3)} kg，计费重{' '}
+                              {formatMetric(chargeableWeightKg, 3)} kg。
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))] p-3 dark:bg-[hsl(var(--surface-soft))]">
+                            <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
+                            <p className="mt-2 text-2xl font-semibold text-foreground">
+                              {firstLegCostRmb.toFixed(2)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-                    <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
-                      <CardHeader className='pb-3'>
-                        <CardTitle className='text-lg'>最近测算</CardTitle>
-                      </CardHeader>
-                      <CardContent className='flex flex-1 flex-col px-6 pb-6 pt-0 md:px-7 md:pb-7 md:pt-0'>
-                        <div className='grid flex-1 gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 overflow-y-auto content-start' style={{ maxHeight: 'calc(100vh - 22rem)' }}>
-                          {runsLoading ? (
-                            <>
-                              <PricingRunCardSkeleton />
-                              <PricingRunCardSkeleton />
-                              <PricingRunCardSkeleton />
-                              <PricingRunCardSkeleton />
-                            </>
-                          ) : visibleRuns.length === 0 ? (
-                            <div className='rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground'>
-                              {runs.length === 0
-                                ? '暂无测算记录'
-                                : '没有匹配当前筛选条件的产品'}
-                            </div>
-                          ) : (
-                            visibleRuns.map((run) => {
-                              const typeMeta = getCalculationTypeMeta(
-                                run.calculation_type ?? 'profit_calc',
-                              )
-                              const isSelected = selectedRunIds.includes(run.id)
-                              const isProfit = run.profit.profit_usd >= 0
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {calculationMode === 'profit-calc' ? (
+                        <Field label="售价(USD)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.sale_price_usd}
+                            onChange={(event) => updateField('sale_price_usd', event.target.value)}
+                            required
+                          />
+                        </Field>
+                      ) : calculationMode === 'fbm-calc' ? (
+                        <Field label="售价(USD)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.sale_price_usd}
+                            onChange={(event) => updateField('sale_price_usd', event.target.value)}
+                            required
+                          />
+                        </Field>
+                      ) : (
+                        <Field label="目标利润率(%)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.target_profit_rate}
+                            onChange={(event) =>
+                              updateField('target_profit_rate', event.target.value)
+                            }
+                            required
+                          />
+                        </Field>
+                      )}
+                      <Field label="平台佣金率(%)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.commission_rate}
+                          onChange={(event) => updateField('commission_rate', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="广告费率(%)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.advertising_rate}
+                          onChange={(event) => updateField('advertising_rate', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="退货折损率(%)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.return_loss_rate}
+                          onChange={(event) => updateField('return_loss_rate', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      <Field label="仓储月数">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.storage_months}
+                          onChange={(event) => updateField('storage_months', event.target.value)}
+                          required
+                        />
+                      </Field>
+                      {calculationMode === 'fbm-calc' && (
+                        <Field label="配送费(USD)">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={form.delivery_fee_usd}
+                            onChange={(event) =>
+                              updateField('delivery_fee_usd', event.target.value)
+                            }
+                            placeholder="请输入配送费"
+                          />
+                        </Field>
+                      )}
+                    </div>
 
-                              return (
-                                <div
-                                  key={run.id}
-                                  onClick={() => {
-                                    toggleRunSelection(run.id)
-                                    handleLoadRunData(run)
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter' || event.key === ' ') {
-                                      event.preventDefault()
+                    <Button type="submit" disabled={loading} className="h-10 w-full">
+                      {loading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Calculator className="mr-2 h-4 w-4" />
+                      )}
+                      {calculationMode === 'profit-reverse'
+                        ? '倒算售价'
+                        : calculationMode === 'cost-reverse'
+                          ? '倒推成本'
+                          : calculationMode === 'fbm-calc'
+                            ? 'FBM测算'
+                            : '开始测算'}
+                    </Button>
+                  </div>
+                </DirectionalTabTransition>
+              </form>
+            </CardContent>
+          </Card>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">控制台</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* 手机端：2列网格 | 桌面端：横向排列 */}
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex md:flex-row md:items-end md:gap-3">
+                  <Field label="国家站点" className="md:min-w-[140px]">
+                    <div className="flex h-9 items-center text-sm">美国站 (US)</div>
+                  </Field>
+                  <Field label="产品搜索" className="sm:col-span-2 md:min-w-0 md:flex-1">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={productKeyword}
+                        onChange={(event) => setProductKeyword(event.target.value)}
+                        placeholder="按产品名、创建人搜索"
+                        className="pl-9"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="测算结果" className="md:min-w-0 md:flex-1">
+                    <Popover open={runPickerOpen} onOpenChange={setRunPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="w-full justify-between">
+                          <span className="truncate">
+                            {selectedRunIds.length > 0
+                              ? `已选 ${selectedRunIds.length} 个`
+                              : '下拉选择'}
+                          </span>
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
+                        <Command>
+                          <CommandInput placeholder="在当前页内筛选（支持产品名/创建人）" />
+                          <CommandList>
+                            <CommandEmpty>没有匹配的测算结果</CommandEmpty>
+                            <CommandGroup heading={`当前页可选 ${runPickerOptions.length} 条`}>
+                              {runPickerOptions.map(({ run, summary }) => {
+                                const isSelected = selectedRunIds.includes(run.id)
+                                const disabled =
+                                  !isSelected && selectedRunIds.length >= MAX_SELECTED_RUNS
+                                return (
+                                  <CommandItem
+                                    key={run.id}
+                                    value={`${run.id} ${summary} ${run.created_by ?? ''}`}
+                                    disabled={disabled}
+                                    onSelect={() => {
                                       toggleRunSelection(run.id)
                                       handleLoadRunData(run)
-                                    }
-                                  }}
-                                  role='button'
-                                  tabIndex={0}
-                                  className={cn(
-                                    'group flex min-h-[110px] flex-col rounded-xl border px-3 py-2 text-left transition-all',
-                                    isSelected
-                                      ? typeMeta.selectedClassName
-                                      : typeMeta.cardClassName,
-                                  )}
-                                >
-                                  <div className='grid grid-cols-[auto_1fr_auto] items-center gap-2'>
-                                    <div className='flex min-w-0 items-center gap-1.5'>
-                                      <Badge
-                                        className={cn(
-                                          'shrink-0 border px-2 py-0.5 text-[10px] font-medium',
-                                          typeMeta.badgeClassName,
-                                        )}
-                                      >
-                                        {typeMeta.label}
-                                      </Badge>
-                                    </div>
-
-                                    <div className='flex min-w-0 items-center justify-center gap-1.5 text-[11px] text-muted-foreground'>
-                                      <span
-                                        className='truncate'
-                                        title={formatCompactDate(run.created_at)}
-                                      >
-                                        {formatRelativeTime(run.created_at)}
-                                      </span>
-                                      <span className='text-muted-foreground/40'>
-                                        /
-                                      </span>
-                                      <span className='shrink-0 text-muted-foreground/70'>
-                                        {run.country
-                                          ? COUNTRY_MAP[run.country] ?? run.country
-                                          : '--'}
-                                      </span>
+                                    }}
+                                    className="items-start gap-3 py-3"
+                                  >
+                                    <span
+                                      className={cn(
+                                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
+                                        isSelected
+                                          ? 'border-primary bg-primary text-primary-foreground'
+                                          : 'border-border bg-background'
+                                      )}
+                                    >
+                                      {isSelected ? <Check className="h-3 w-3" /> : null}
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate text-sm font-medium text-foreground">
+                                        {run.product_name}
+                                      </div>
+                                      <div className="mt-1 text-xs text-muted-foreground">
+                                        {getCalculationTypeMeta(run.calculation_type).label} ·{' '}
+                                        {formatCompactDate(run.created_at)}
+                                      </div>
                                       {run.created_by ? (
-                                        <>
-                                          <span className='text-muted-foreground/40'>
-                                            /
-                                          </span>
-                                          <span className='shrink-0 truncate text-muted-foreground/70'>
-                                            {run.created_by}
-                                          </span>
-                                        </>
+                                        <div className="mt-1 text-[11px] text-muted-foreground">
+                                          创建人：{run.created_by}
+                                        </div>
                                       ) : null}
                                     </div>
-
-                                    <div
-                                      className='flex shrink-0 items-center justify-end'
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Button
-                                        type='button'
-                                        variant='ghost'
-                                        size='icon'
-                                        className='h-7 w-7 rounded-full text-muted-foreground opacity-70 transition hover:bg-background/80 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400'
-                                        disabled={deletingRunId === run.id}
-                                        onClick={() => void handleDeleteRun(run.id)}
-                                        title='删除此测算'
-                                      >
-                                        {deletingRunId === run.id ? (
-                                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                                        ) : (
-                                          <Trash2 className='h-3.5 w-3.5' />
-                                        )}
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  <div className='mt-2 min-w-0 flex-1'>
-                                    <p className='line-clamp-2 text-sm font-semibold leading-5 text-foreground'>
-                                      {run.product_name}
-                                    </p>
-                                  </div>
-
-                                  <div className='mt-2 grid grid-cols-3 gap-2 border-t border-border/40 pt-2'>
-                                    <div className='min-w-0'>
-                                      <p className='text-[11px] text-muted-foreground'>
-                                        价格
-                                      </p>
-                                      <p className='truncate text-sm font-semibold tabular-nums text-foreground'>
-                                        {formatCurrency(run.sale_price_usd)}
-                                      </p>
-                                    </div>
-                                    <div className='min-w-0'>
-                                      <p className='text-[11px] text-muted-foreground'>
-                                        利润
-                                      </p>
-                                      <p
-                                        className={cn(
-                                          'truncate text-sm font-semibold tabular-nums',
-                                          isProfit
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-rose-600 dark:text-rose-400',
-                                        )}
-                                      >
-                                        {formatCurrency(run.profit.profit_usd)}
-                                      </p>
-                                    </div>
-                                    <div className='min-w-0'>
-                                      <p className='text-[11px] text-muted-foreground'>
-                                        利润率
-                                      </p>
-                                      <p
-                                        className={cn(
-                                          'truncate text-sm font-semibold tabular-nums',
-                                          isProfit
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-rose-600 dark:text-rose-400',
-                                        )}
-                                      >
-                                        {formatPercent(run.profit.profit_rate)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                        {runsTotal > RUNS_PAGE_SIZE && (() => {
-                          const totalPages = Math.ceil(runsTotal / RUNS_PAGE_SIZE)
-                          const WINDOW = 5
-                          const start = Math.max(1, Math.min(runsPage - 2, totalPages - WINDOW + 1))
-                          const end = Math.min(totalPages, start + WINDOW - 1)
-                          const pageNumbers: (number | '...')[] = []
-                          if (start > 1) {
-                            pageNumbers.push(1)
-                            if (start > 2) pageNumbers.push('...')
-                          }
-                          for (let p = start; p <= end; p++) pageNumbers.push(p)
-                          if (end < totalPages) {
-                            if (end < totalPages - 1) pageNumbers.push('...')
-                            pageNumbers.push(totalPages)
-                          }
-                          return (
-                            <Pagination className='mt-4'>
-                              <PaginationContent>
-                                <PaginationItem>
-                                  <PaginationPrevious
-                                    href='#'
-                                    onClick={(e) => {
-                                      e.preventDefault()
-                                      if (runsPage > 1) void loadRuns(runsPage - 1, deferredProductKeyword)
-                                    }}
-                                    aria-disabled={runsPage <= 1}
-                                    className={cn('gap-1 px-3', runsPage <= 1 ? 'pointer-events-none opacity-50' : undefined)}
-                                  >
-                                    <ChevronLeft className='h-4 w-4' />
-                                    <span>上一页</span>
-                                  </PaginationPrevious>
-                                </PaginationItem>
-                                {pageNumbers.map((p, i) =>
-                                  p === '...' ? (
-                                    <PaginationItem key={`ellipsis-${i}`}>
-                                      <span className='flex h-9 w-9 items-center justify-center text-sm text-muted-foreground'>
-                                        …
-                                      </span>
-                                    </PaginationItem>
-                                  ) : (
-                                    <PaginationItem key={p}>
-                                      <PaginationLink
-                                        href='#'
-                                        onClick={(e) => {
-                                          e.preventDefault()
-                                          void loadRuns(p, deferredProductKeyword)
-                                        }}
-                                        isActive={p === runsPage}
-                                      >
-                                        {p}
-                                      </PaginationLink>
-                                    </PaginationItem>
-                                  ),
-                                )}
-                                <PaginationItem>
-                                  <PaginationNext
-                                    href='#'
-                                    onClick={(e) => {
-                                      e.preventDefault()
-                                      if (runsPage < totalPages) void loadRuns(runsPage + 1, deferredProductKeyword)
-                                    }}
-                                    aria-disabled={runsPage >= totalPages}
-                                    className={cn('gap-1 px-3', runsPage >= totalPages ? 'pointer-events-none opacity-50' : undefined)}
-                                  >
-                                    <span>下一页</span>
-                                    <ChevronRight className='h-4 w-4' />
-                                  </PaginationNext>
-                                </PaginationItem>
-                              </PaginationContent>
-                            </Pagination>
-                          )
-                        })()}
-                      </CardContent>
-                    </Card>
-                  </div>
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedRunIds([])}
+                    disabled={selectedRunIds.length === 0}
+                    className="h-9 md:self-end"
+                  >
+                    清空
+                  </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    共 {runsTotal} 条记录 · 当前第 {runsPage} 页 / 显示 {runs.length} 条
+                  </span>
+                  {productKeyword ? <span>关键词: {productKeyword}</span> : null}
+                </div>
+                {error ? (
+                  <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
 
-                <Card className='border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90'>
-                  <CardHeader className='pb-3'>
-                    <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
-                      <div className='space-y-1'>
-                        <CardTitle className='text-lg'>测算对比矩阵</CardTitle>
-                      </div>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        onClick={() => void handleExportComparisonMatrix()}
-                        disabled={selectedRuns.length === 0 || exporting}
-                      >
-                        {exporting ? (
-                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                        ) : (
-                          <Download className='mr-2 h-4 w-4' />
-                        )}
-                        导出 Excel
-                      </Button>
+            <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">最近测算</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col px-6 pb-6 pt-0 md:px-7 md:pb-7 md:pt-0">
+                <div
+                  className="grid flex-1 gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 overflow-y-auto content-start"
+                  style={{ maxHeight: 'calc(100vh - 22rem)' }}
+                >
+                  {runsLoading ? (
+                    <>
+                      <PricingRunCardSkeleton />
+                      <PricingRunCardSkeleton />
+                      <PricingRunCardSkeleton />
+                      <PricingRunCardSkeleton />
+                    </>
+                  ) : visibleRuns.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                      {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <LazyComparisonTable
-                      sections={getComparisonSections() as any}
-                      runs={selectedRuns}
-                      formatCompactDate={formatCompactDate}
-                    />
-                  </CardContent>
-                </Card>
-              </>
+                  ) : (
+                    visibleRuns.map((run) => {
+                      const typeMeta = getCalculationTypeMeta(run.calculation_type ?? 'profit_calc')
+                      const isSelected = selectedRunIds.includes(run.id)
+                      const isProfit = run.profit.profit_usd >= 0
+
+                      return (
+                        <div
+                          key={run.id}
+                          onClick={() => {
+                            toggleRunSelection(run.id)
+                            handleLoadRunData(run)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              toggleRunSelection(run.id)
+                              handleLoadRunData(run)
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          className={cn(
+                            'group flex min-h-[110px] flex-col rounded-xl border px-3 py-2 text-left transition-all',
+                            isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
+                          )}
+                        >
+                          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <Badge
+                                className={cn(
+                                  'shrink-0 border px-2 py-0.5 text-[10px] font-medium',
+                                  typeMeta.badgeClassName
+                                )}
+                              >
+                                {typeMeta.label}
+                              </Badge>
+                            </div>
+
+                            <div className="flex min-w-0 items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+                              <span className="truncate" title={formatCompactDate(run.created_at)}>
+                                {formatRelativeTime(run.created_at)}
+                              </span>
+                              <span className="text-muted-foreground/40">/</span>
+                              <span className="shrink-0 text-muted-foreground/70">
+                                {run.country ? (COUNTRY_MAP[run.country] ?? run.country) : '--'}
+                              </span>
+                              {run.created_by ? (
+                                <>
+                                  <span className="text-muted-foreground/40">/</span>
+                                  <span className="shrink-0 truncate text-muted-foreground/70">
+                                    {run.created_by}
+                                  </span>
+                                </>
+                              ) : null}
+                            </div>
+
+                            <div
+                              className="flex shrink-0 items-center justify-end"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full text-muted-foreground opacity-70 transition hover:bg-background/80 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400"
+                                disabled={deletingRunId === run.id}
+                                onClick={() => void handleDeleteRun(run.id)}
+                                title="删除此测算"
+                              >
+                                {deletingRunId === run.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm font-semibold leading-5 text-foreground">
+                              {run.product_name}
+                            </p>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-3 gap-2 border-t border-border/40 pt-2">
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground">价格</p>
+                              <p className="truncate text-sm font-semibold tabular-nums text-foreground">
+                                {formatCurrency(run.sale_price_usd)}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground">利润</p>
+                              <p
+                                className={cn(
+                                  'truncate text-sm font-semibold tabular-nums',
+                                  isProfit
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-rose-600 dark:text-rose-400'
+                                )}
+                              >
+                                {formatCurrency(run.profit.profit_usd)}
+                              </p>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground">利润率</p>
+                              <p
+                                className={cn(
+                                  'truncate text-sm font-semibold tabular-nums',
+                                  isProfit
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-rose-600 dark:text-rose-400'
+                                )}
+                              >
+                                {formatPercent(run.profit.profit_rate)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+                {runsTotal > RUNS_PAGE_SIZE &&
+                  (() => {
+                    const totalPages = Math.ceil(runsTotal / RUNS_PAGE_SIZE)
+                    const WINDOW = 5
+                    const start = Math.max(1, Math.min(runsPage - 2, totalPages - WINDOW + 1))
+                    const end = Math.min(totalPages, start + WINDOW - 1)
+                    const pageNumbers: (number | '...')[] = []
+                    if (start > 1) {
+                      pageNumbers.push(1)
+                      if (start > 2) pageNumbers.push('...')
+                    }
+                    for (let p = start; p <= end; p++) pageNumbers.push(p)
+                    if (end < totalPages) {
+                      if (end < totalPages - 1) pageNumbers.push('...')
+                      pageNumbers.push(totalPages)
+                    }
+                    return (
+                      <Pagination className="mt-4">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (runsPage > 1)
+                                  void loadRuns(runsPage - 1, deferredProductKeyword)
+                              }}
+                              aria-disabled={runsPage <= 1}
+                              className={cn(
+                                'gap-1 px-3',
+                                runsPage <= 1 ? 'pointer-events-none opacity-50' : undefined
+                              )}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span>上一页</span>
+                            </PaginationPrevious>
+                          </PaginationItem>
+                          {pageNumbers.map((p, i) =>
+                            p === '...' ? (
+                              <PaginationItem key={`ellipsis-${i}`}>
+                                <span className="flex h-9 w-9 items-center justify-center text-sm text-muted-foreground">
+                                  …
+                                </span>
+                              </PaginationItem>
+                            ) : (
+                              <PaginationItem key={p}>
+                                <PaginationLink
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    void loadRuns(p, deferredProductKeyword)
+                                  }}
+                                  isActive={p === runsPage}
+                                >
+                                  {p}
+                                </PaginationLink>
+                              </PaginationItem>
+                            )
+                          )}
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (runsPage < totalPages)
+                                  void loadRuns(runsPage + 1, deferredProductKeyword)
+                              }}
+                              aria-disabled={runsPage >= totalPages}
+                              className={cn(
+                                'gap-1 px-3',
+                                runsPage >= totalPages
+                                  ? 'pointer-events-none opacity-50'
+                                  : undefined
+                              )}
+                            >
+                              <span>下一页</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </PaginationNext>
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )
+                  })()}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <Card className="border-border/70 bg-[hsl(var(--surface-panel))] shadow-[var(--shadow-soft)] dark:border-border/90">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-lg">测算对比矩阵</CardTitle>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleExportComparisonMatrix()}
+                disabled={selectedRuns.length === 0 || exporting}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                导出 Excel
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <LazyComparisonTable
+              sections={getComparisonSections() as any}
+              runs={selectedRuns}
+              formatCompactDate={formatCompactDate}
+            />
+          </CardContent>
+        </Card>
+      </>
     </div>
   )
 }
@@ -3546,18 +3261,14 @@ async function requestPricingCalculation(payload: {
       return_loss_rate: payload.return_loss_rate,
       storage_months: payload.storage_months,
       inbound_placement_mode: payload.inbound_placement_mode,
-      ...(payload.usd_to_rmb_rate
-        ? { usd_to_rmb_rate: payload.usd_to_rmb_rate }
-        : {}),
+      ...(payload.usd_to_rmb_rate ? { usd_to_rmb_rate: payload.usd_to_rmb_rate } : {}),
       ...(payload.full_container_quantity
         ? { full_container_quantity: payload.full_container_quantity }
         : {}),
       ...(payload.full_container_price_rmb
         ? { full_container_price_rmb: payload.full_container_price_rmb }
         : {}),
-      ...(payload.delivery_fee_usd
-        ? { delivery_fee_usd: payload.delivery_fee_usd }
-        : {}),
+      ...(payload.delivery_fee_usd ? { delivery_fee_usd: payload.delivery_fee_usd } : {}),
     }),
   })
 
@@ -3566,9 +3277,7 @@ async function requestPricingCalculation(payload: {
     | { detail?: string; message?: string }
   if (!response.ok) {
     const errorPayload = body as { detail?: string; message?: string }
-    throw new Error(
-      errorPayload.detail || errorPayload.message || '定价测算失败',
-    )
+    throw new Error(errorPayload.detail || errorPayload.message || '定价测算失败')
   }
   return body as PricingCalculationRunItem
 }
@@ -3584,7 +3293,7 @@ function Field({
 }) {
   return (
     <div className={cn('space-y-1.5', className)}>
-      <Label className='text-xs'>{label}</Label>
+      <Label className="text-xs">{label}</Label>
       {children}
     </div>
   )

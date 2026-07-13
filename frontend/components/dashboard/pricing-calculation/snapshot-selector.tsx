@@ -107,7 +107,7 @@ export function PricingSnapshotSelector({
           page_size: '50',
         })
         const response = await fetch(
-          `${API_BASE}/api/v1/pricing-calculation-snapshots?${params.toString()}`,
+          `${API_BASE}/api/v1/pricing-calculation-snapshots?${params.toString()}`
         )
         if (!response.ok) throw new Error('加载失败')
         if (!active) return
@@ -136,7 +136,7 @@ export function PricingSnapshotSelector({
     try {
       const response = await fetch(
         `${API_BASE}/api/v1/pricing-calculation-snapshots/${snapshotId}`,
-        { method: 'DELETE' },
+        { method: 'DELETE' }
       )
       if (!response.ok) {
         const err = await response.json().catch(() => null)

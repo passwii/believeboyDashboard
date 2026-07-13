@@ -6,7 +6,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { fetchDigitalEmployee, fetchEmployeeTasks, suspendEmployee, resumeEmployee } from '@/lib/digital-employee-api'
+import {
+  fetchDigitalEmployee,
+  fetchEmployeeTasks,
+  suspendEmployee,
+  resumeEmployee,
+} from '@/lib/digital-employee-api'
 import { EmployeeAvatar, getPersona } from '@/components/digital-employee/persona'
 import { StatusBadge } from '@/components/digital-employee/status-badge'
 import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
@@ -34,7 +39,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter()
   const employeeId = parseInt(id, 10)
 
-  const [employee, setEmployee] = useState<import('@/types/digital-employee').DigitalEmployee | null>(null)
+  const [employee, setEmployee] = useState<
+    import('@/types/digital-employee').DigitalEmployee | null
+  >(null)
   const [tasks, setTasks] = useState<import('@/types/digital-employee').DigitalEmployeeTask[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isActing, setIsActing] = useState(false)
@@ -65,7 +72,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     setIsActing(true)
     try {
       await suspendEmployee(employeeId)
-      setEmployee((prev) => prev ? { ...prev, status: 'SUSPENDED' } : null)
+      setEmployee((prev) => (prev ? { ...prev, status: 'SUSPENDED' } : null))
     } finally {
       setIsActing(false)
     }
@@ -75,7 +82,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     setIsActing(true)
     try {
       await resumeEmployee(employeeId)
-      setEmployee((prev) => prev ? { ...prev, status: 'IDLE' } : null)
+      setEmployee((prev) => (prev ? { ...prev, status: 'IDLE' } : null))
     } finally {
       setIsActing(false)
     }
@@ -137,11 +144,21 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <div className="flex gap-2">
             {employee.status === 'SUSPENDED' ? (
-              <Button size="sm" variant="outline" onClick={() => void handleResume()} disabled={isActing}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleResume()}
+                disabled={isActing}
+              >
                 <Play className="h-4 w-4 mr-1" /> 恢复
               </Button>
             ) : (
-              <Button size="sm" variant="outline" onClick={() => void handleSuspend()} disabled={isActing}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleSuspend()}
+                disabled={isActing}
+              >
                 <Pause className="h-4 w-4 mr-1" /> 暂停
               </Button>
             )}
@@ -180,19 +197,30 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             ) : (
               <div className="space-y-2">
                 {tasks.slice(0, taskPage * 10).map((task) => (
-                  <div key={task.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors">
-                    <span className="text-base shrink-0">{TASK_STATUS_ICON[task.status] || '⏳'}</span>
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <span className="text-base shrink-0">
+                      {TASK_STATUS_ICON[task.status] || '⏳'}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{task.task_name}</p>
                       <p className="text-xs text-muted-foreground">
                         {task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '—'}
-                        {task.error_message && <span className="text-red-500 ml-2">{task.error_message}</span>}
+                        {task.error_message && (
+                          <span className="text-red-500 ml-2">{task.error_message}</span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={cn(TASK_STATUS_STYLES[task.status], 'text-[10px]')}>{task.status}</Badge>
+                      <Badge className={cn(TASK_STATUS_STYLES[task.status], 'text-[10px]')}>
+                        {task.status}
+                      </Badge>
                       {task.status === 'RUNNING' && (
-                        <span className="text-xs tabular-nums text-muted-foreground">{task.progress_percent}%</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {task.progress_percent}%
+                        </span>
                       )}
                     </div>
                   </div>
@@ -225,10 +253,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           <div className="rounded-xl border bg-card p-5">
             <h3 className="text-sm font-semibold mb-3">员工信息</h3>
             <div className="space-y-2.5 text-sm">
-              <InfoRow label="类型" value={employee.employee_type.replace(/_/g, ' ').toLowerCase()} />
+              <InfoRow
+                label="类型"
+                value={employee.employee_type.replace(/_/g, ' ').toLowerCase()}
+              />
               <InfoRow label="角色" value={persona.tagline} />
-              <InfoRow label="静默阈值" value={`${employee.is_silent_alert_threshold_minutes} 分钟`} />
-              <InfoRow label="创建时间" value={new Date(employee.created_at).toLocaleDateString('zh-CN')} />
+              <InfoRow
+                label="静默阈值"
+                value={`${employee.is_silent_alert_threshold_minutes} 分钟`}
+              />
+              <InfoRow
+                label="创建时间"
+                value={new Date(employee.created_at).toLocaleDateString('zh-CN')}
+              />
               {employee.description && <InfoRow label="描述" value={employee.description} />}
             </div>
           </div>

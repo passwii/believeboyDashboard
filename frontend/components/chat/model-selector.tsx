@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Check, Cpu, X } from 'lucide-react'
 import gsap from 'gsap'
 
-import { ensureConfigLoaded, getConfig, subscribe as subscribeConfig } from '@/lib/api/ai-chat-config-store'
-
 import {
-  getPinnedModelMeta,
-  OTHER_MODEL_DESCRIPTION,
-  OTHER_MODEL_ICON,
-} from './constants/models'
+  ensureConfigLoaded,
+  getConfig,
+  subscribe as subscribeConfig,
+} from '@/lib/api/ai-chat-config-store'
+
+import { getPinnedModelMeta, OTHER_MODEL_DESCRIPTION, OTHER_MODEL_ICON } from './constants/models'
 import type { Model, ModelGroup } from './types'
 
 /**
@@ -61,7 +61,11 @@ function deriveShortName(modelId: string): string {
   return modelId.slice(0, 2).toUpperCase()
 }
 
-function badgeFor(modelId: string, premiumSet: Set<string>, defaultModel: string | null): string | null {
+function badgeFor(
+  modelId: string,
+  premiumSet: Set<string>,
+  defaultModel: string | null
+): string | null {
   if (defaultModel && modelId === defaultModel) return '默认'
   if (premiumSet.has(modelId.toLowerCase())) return 'Pro'
   return null
@@ -83,7 +87,10 @@ function useIsDesktop(breakpointPx = 1024): boolean {
   return isDesktop
 }
 
-export function ModelSelector({ selectedModel, onModelChange }: {
+export function ModelSelector({
+  selectedModel,
+  onModelChange,
+}: {
   selectedModel?: string
   onModelChange?: (modelId: string) => void
 }) {
@@ -173,9 +180,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
       ? {
           id: 'others',
           label: '其他模型',
-          models: otherIds.map((id) =>
-            buildModel(id, null, premiumSet, defaultModel)
-          ),
+          models: otherIds.map((id) => buildModel(id, null, premiumSet, defaultModel)),
           collapsedByDefault: true,
         }
       : null
@@ -197,8 +202,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
     if (!othersContent) return
     const el = othersContent
     const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     if (othersExpanded) {
       if (reduced) {
@@ -244,15 +248,18 @@ export function ModelSelector({ selectedModel, onModelChange }: {
   useEffect(() => {
     if (!isDesktop || !drawerPanel) return
     const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     if (drawerPanel) {
       if (drawerOpen) {
         if (reduced) {
           gsap.set(drawerPanel, { opacity: 1 })
         } else {
-          gsap.fromTo(drawerPanel, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' })
+          gsap.fromTo(
+            drawerPanel,
+            { opacity: 0 },
+            { opacity: 1, duration: 0.2, ease: 'power2.out' }
+          )
         }
       } else {
         if (reduced) {
@@ -310,8 +317,12 @@ export function ModelSelector({ selectedModel, onModelChange }: {
       >
         {currentModelMeta?.icon ?? <Cpu className="size-4 text-slate-400" />}
         <span className="hidden xs:inline">{currentModelMeta?.name ?? current}</span>
-        <span className="xs:hidden">{currentModelMeta?.shortName ?? deriveShortName(current ?? '')}</span>
-        <ChevronDown className={`size-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="xs:hidden">
+          {currentModelMeta?.shortName ?? deriveShortName(current ?? '')}
+        </span>
+        <ChevronDown
+          className={`size-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {isOpen && (
@@ -332,7 +343,9 @@ export function ModelSelector({ selectedModel, onModelChange }: {
           <div className="absolute bottom-full left-0 mb-2 z-50 flex items-end gap-2 bb-anim-scale-in">
             <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overscroll-contain">
               <div className="p-1.5">
-                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">选择模型</div>
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                  选择模型
+                </div>
                 {groups.map((group, gIdx) => (
                   <ModelGroupSection
                     key={group.id}
@@ -374,9 +387,7 @@ export function ModelSelector({ selectedModel, onModelChange }: {
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
                       {othersGroup.label}
                     </div>
-                    <div className="text-xs text-[#8a8a8f] mt-0.5">
-                      {otherModels.length} 个模型
-                    </div>
+                    <div className="text-xs text-[#8a8a8f] mt-0.5">{otherModels.length} 个模型</div>
                   </div>
                   <button
                     type="button"
@@ -403,7 +414,6 @@ export function ModelSelector({ selectedModel, onModelChange }: {
           </div>
         </>
       )}
-
     </div>
   )
 }
@@ -455,11 +465,7 @@ function ModelGroupSection({
           aria-controls={isDesktop ? undefined : 'model-selector-others'}
           className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f] hover:text-[#8a8a8f] transition-colors touch-manipulation min-h-[36px]"
         >
-          <ChevronRight
-            ref={onChevronRef}
-            className="size-3 flex-shrink-0"
-            aria-hidden
-          />
+          <ChevronRight ref={onChevronRef} className="size-3 flex-shrink-0" aria-hidden />
           <span className="flex-1 text-left">{group.label}</span>
           <span className="text-[10px] font-normal normal-case text-[#5a5a5f]">
             {group.models.length}

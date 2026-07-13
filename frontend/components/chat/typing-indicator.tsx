@@ -6,11 +6,7 @@ import { Sparkles } from 'lucide-react'
  * Polished typing indicator — a subtle gradient pulse with a model name label.
  * Replaces the generic three-bouncing-dots pattern.
  */
-export function TypingIndicator({
-  label = '正在思考',
-}: {
-  label?: string
-}) {
+export function TypingIndicator({ label = '正在思考' }: { label?: string }) {
   return (
     <div className="flex items-center gap-2.5 py-2">
       {/* Animated gradient dot trio */}

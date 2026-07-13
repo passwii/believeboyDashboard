@@ -1,6 +1,6 @@
 # Phase 3 — 高级触感 + 内容 stagger 推广
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0 + Phase 1 + Phase 2 完成 ✅
 > **执行日期：** 2026-07-11
 > **执行者：** 子智能体（subagent-driven-development 调度）
@@ -56,4 +56,4 @@ d6fcb8ba feat(动效): dashboard 首页标题/卡片组接入 MotionStagger
 
 ✅ Phase 3 完成 → 进入 **Phase 4**（验收：Playwright 回归 + Lighthouse + 手动 9 条 + 最终 tag）。
 
-详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system-phase4.md`。
+详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase4.md`。

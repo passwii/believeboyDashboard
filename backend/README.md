@@ -103,14 +103,14 @@ Custom admin:
 
 ```bash
 cd backend
-python scripts/seed_admin_user.py --name=yawei --email=yawei@believeboy.com --password='XeonJJ2024@'
+python scripts/seed_admin_user.py --name=yawei --email=yawei@believeboy.com --password="$ADMIN_SEED_PASSWORD"
 ```
 
 Force reset password:
 
 ```bash
 cd backend
-python scripts/seed_admin_user.py --email=yawei@believeboy.com --password='XeonJJ2024@' --reset-password
+python scripts/seed_admin_user.py --email=yawei@believeboy.com --password="$ADMIN_SEED_PASSWORD" --reset-password
 ```
 
 ## Init User Accounts + Seed Admin (Recommended)
@@ -124,7 +124,7 @@ Force reset password while initializing:
 
 ```bash
 cd backend
-python scripts/init_user_accounts.py --email=yawei@believeboy.com --password='XeonJJ2024@' --reset-password
+python scripts/init_user_accounts.py --email=yawei@believeboy.com --password="$ADMIN_SEED_PASSWORD" --reset-password
 ```
 
 ## Auth

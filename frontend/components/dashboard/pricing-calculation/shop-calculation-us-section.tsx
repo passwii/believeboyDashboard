@@ -1,10 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Package,
-  Search,
-} from 'lucide-react'
+import { Package, Search } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ShopCalculationTable } from '@/components/dashboard/pricing-calculation/shop-calculation-table'
 import { logClientOperation } from '@/lib/operation-audit'
@@ -58,7 +55,7 @@ function toNumber(value: string) {
  */
 function snapshotToResult(
   snapshot: ShopCalculationItem,
-  projectName: string,
+  projectName: string
 ): PricingCalculationRunItem {
   return {
     id: snapshot.id,
@@ -122,7 +119,7 @@ function snapshotToResult(
 function buildSnapshotPayload(
   item: ProductCostItem,
   result: PricingCalculationRunItem,
-  projectId: number,
+  projectId: number
 ): ShopCalculationPayload {
   return {
     project_id: projectId,
@@ -245,7 +242,7 @@ export function ShopCalculationUsSection({
         if (selectedSnapshotId !== null) {
           const snapshotResponse = await fetch(
             `${API_BASE}/api/v1/pricing-calculation-snapshots/${selectedSnapshotId}/items`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           )
           if (!snapshotResponse.ok) {
             // 快照已被删除 / 权限不足 / 网络错误 → 通知父组件退出快照模式
@@ -326,7 +323,7 @@ export function ShopCalculationUsSection({
         const [skuSearch, exchangeSearch, snapshotSearch] = await Promise.all([
           fetch(
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${encodeURIComponent(selectedCountry)}&is_active=true&page=1&page_size=200&include_total=true`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           ),
           fetch(`/api/exchange-rates?currency=USD&page=1&pageSize=1`, {
             cache: 'no-store' as RequestCache,
@@ -334,7 +331,7 @@ export function ShopCalculationUsSection({
           // Load existing snapshots for this project + country
           fetch(
             `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${encodeURIComponent(selectedCountry)}&page=1&page_size=200`,
-            { cache: 'no-store' as RequestCache },
+            { cache: 'no-store' as RequestCache }
           ),
         ])
         if (!skuSearch.ok) throw new Error('SKU 列表加载失败')
@@ -344,27 +341,29 @@ export function ShopCalculationUsSection({
           data?: Array<{ rate: number }>
         }
 
-        const rate =
-          exchangePayload?.data?.[0]?.rate
-            ? String(exchangePayload.data[0].rate)
-            : ''
+        const rate = exchangePayload?.data?.[0]?.rate ? String(exchangePayload.data[0].rate) : ''
         setSystemExchangeRate(rate)
 
         const countrySkus = skuPayload.items.filter(
-          (item) => item.country === selectedCountry && item.is_active,
+          (item) => item.country === selectedCountry && item.is_active
         )
         setStoreSkus(countrySkus)
 
         // Parse existing snapshots from DB
         let snapshotPayload: { items?: ShopCalculationItem[]; total?: number } = { items: [] }
         if (snapshotSearch.ok) {
-          snapshotPayload = await snapshotSearch.json() as { items?: ShopCalculationItem[]; total?: number }
+          snapshotPayload = (await snapshotSearch.json()) as {
+            items?: ShopCalculationItem[]
+            total?: number
+          }
         } else {
           // Log 422/500 snapshot errors so we know if API validation fails
           const body = await snapshotSearch.text().catch(() => '')
           console.error('[shop-calculation] 快照加载失败:', snapshotSearch.status, body)
           // Surface the error to the user so they know data may be missing
-          setSnapshotError(`店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`)
+          setSnapshotError(
+            `店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`
+          )
         }
         const snapshotMap = new Map<string, ShopCalculationItem>()
         for (const s of snapshotPayload.items ?? []) {
@@ -427,22 +426,13 @@ export function ShopCalculationUsSection({
               next[item.id] = {
                 draft: {
                   package_length_cm:
-                    item.package_length_cm > 0
-                      ? String(item.package_length_cm)
-                      : '',
-                  package_width_cm:
-                    item.package_width_cm > 0
-                      ? String(item.package_width_cm)
-                      : '',
+                    item.package_length_cm > 0 ? String(item.package_length_cm) : '',
+                  package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
                   package_height_cm:
-                    item.package_height_cm > 0
-                      ? String(item.package_height_cm)
-                      : '',
+                    item.package_height_cm > 0 ? String(item.package_height_cm) : '',
                   weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
                   first_leg_cost_rmb:
-                    item.first_leg_cost_rmb > 0
-                      ? String(item.first_leg_cost_rmb)
-                      : '5',
+                    item.first_leg_cost_rmb > 0 ? String(item.first_leg_cost_rmb) : '5',
                   sale_price_usd: '',
                   advertising_rate: '12',
                   return_loss_rate: '4',
@@ -463,9 +453,7 @@ export function ShopCalculationUsSection({
           console.warn('快照加载失败:', snapshotSearch.status)
         }
       } catch (err) {
-        setStoreSkusError(
-          err instanceof Error ? err.message : 'SKU 列表加载失败',
-        )
+        setStoreSkusError(err instanceof Error ? err.message : 'SKU 列表加载失败')
         setStoreSkus([])
       } finally {
         setStoreSkusLoading(false)
@@ -476,13 +464,11 @@ export function ShopCalculationUsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectName, selectedProjectId, selectedCountry, selectedSnapshotId])
 
-    const filteredSkus = useMemo(() => {
+  const filteredSkus = useMemo(() => {
     if (!skuKeyword.trim()) return storeSkus
     const kw = skuKeyword.trim().toLowerCase()
     return storeSkus.filter(
-      (item) =>
-        item.sku.toLowerCase().includes(kw) ||
-        item.asin.toLowerCase().includes(kw),
+      (item) => item.sku.toLowerCase().includes(kw) || item.asin.toLowerCase().includes(kw)
     )
   }, [skuKeyword, storeSkus])
 
@@ -491,11 +477,7 @@ export function ShopCalculationUsSection({
     onStoreRowsChange(storeRows)
   }, [storeRows, onStoreRowsChange])
 
-  function updateDraft(
-    rowId: number,
-    key: keyof StoreSkuDraft,
-    value: string,
-  ) {
+  function updateDraft(rowId: number, key: keyof StoreSkuDraft, value: string) {
     setStoreRows((current) => {
       const row = current[rowId]
       if (!row) return current
@@ -536,9 +518,7 @@ export function ShopCalculationUsSection({
         project_id: selectedProjectId ?? undefined,
         sku: item.sku,
         use_historical_shipping_cost: true,
-        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim()
-          ? toNumber(draft.usd_to_rmb_rate)
-          : undefined,
+        usd_to_rmb_rate: draft.usd_to_rmb_rate.trim() ? toNumber(draft.usd_to_rmb_rate) : undefined,
       })
 
       setStoreRows((current) => ({
@@ -590,12 +570,12 @@ export function ShopCalculationUsSection({
       // ── Group header rows (rows 2-3, one per group) ──────────────────────────
       // Group structure: [name, startCol, endCol, headerDarkArgb, headerSubArgb]
       const groups = [
-        { name: '店铺产品',       start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
-        { name: '货品数据',       start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
-        { name: 'DDP成本',        start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
-        { name: '费用支出',       start: 12, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
-        { name: '利润核算',       start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
-        { name: '产品核定',       start: 26, end: 27, dark: 'FF4C1D95', sub: 'FFEDE9FE' },
+        { name: '店铺产品', start: 1, end: 1, dark: 'FF312E81', sub: 'FFE0E7FF' },
+        { name: '货品数据', start: 2, end: 7, dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+        { name: 'DDP成本', start: 8, end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+        { name: '费用支出', start: 12, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
+        { name: '利润核算', start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
+        { name: '产品核定', start: 26, end: 27, dark: 'FF4C1D95', sub: 'FFEDE9FE' },
       ]
 
       // Row 2: group header labels with dark background + white bold text
@@ -616,12 +596,34 @@ export function ShopCalculationUsSection({
 
       // Row 3: column headers
       const headers = [
-        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
-        '头程(RMB)', 'DDP(RMB)', 'DDP(USD)', '汇率',
-        '售价(USD)', '广告费率%', '广告费', '退货折损率%', '退货损耗',
-        '佣金', '派送费', '配置费', '仓储月数', '仓储费',
-        '费用合计', '回款', '利润', '利润率',
-        '尺寸等级', '售价带', '规则',
+        'SKU',
+        'FOB(RMB)',
+        '长',
+        '宽',
+        '高',
+        '重量(kg)',
+        '计费重',
+        '头程(RMB)',
+        'DDP(RMB)',
+        'DDP(USD)',
+        '汇率',
+        '售价(USD)',
+        '广告费率%',
+        '广告费',
+        '退货折损率%',
+        '退货损耗',
+        '佣金',
+        '派送费',
+        '配置费',
+        '仓储月数',
+        '仓储费',
+        '费用合计',
+        '回款',
+        '利润',
+        '利润率',
+        '尺寸等级',
+        '售价带',
+        '规则',
       ]
       const headerRow = worksheet.addRow(headers)
       headerRow.height = 20
@@ -639,12 +641,12 @@ export function ShopCalculationUsSection({
       })
 
       // ── Column-level alignment ───────────────────────────────────────────────
-      const LEFT_COLS = new Set([1, 27])           // SKU, 规则
+      const LEFT_COLS = new Set([1, 27]) // SKU, 规则
       const CENTER_COLS = new Set([22, 23, 24, 25]) // size_tier, price_band
       const RIGHT_COLS = new Set(
         Array.from({ length: 27 }, (_, i) => i + 1).filter(
-          (c) => !LEFT_COLS.has(c) && !CENTER_COLS.has(c),
-        ),
+          (c) => !LEFT_COLS.has(c) && !CENTER_COLS.has(c)
+        )
       )
 
       // ── Data rows (row 4+) ───────────────────────────────────────────────────
@@ -657,7 +659,7 @@ export function ShopCalculationUsSection({
         const storageMonths = toNumber(draft.storage_months)
         const chargeableWeight = Math.max(
           item.weight_kg,
-          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,
+          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000
         )
         const profit = result.profit.profit_usd
         const profitRate = result.profit.profit_rate
@@ -698,7 +700,7 @@ export function ShopCalculationUsSection({
       dataRows.forEach((rowData, idx) => {
         const row = worksheet.addRow(rowData)
         row.height = 20
-        const isOdd = idx % 2 === 0       // 0-based: odd-index rows = light gray
+        const isOdd = idx % 2 === 0 // 0-based: odd-index rows = light gray
         const oddBg = 'FFF8FAFC'
         const evenBg = 'FFFFFFFF'
 
@@ -709,7 +711,11 @@ export function ShopCalculationUsSection({
           const num = Number(val)
 
           // Background
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isOdd ? oddBg : evenBg } }
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: isOdd ? oddBg : evenBg },
+          }
           cell.font = { name: 'Microsoft YaHei', size: 9 }
           applyBorder(cell)
 
@@ -759,7 +765,9 @@ export function ShopCalculationUsSection({
       }
 
       const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -771,10 +779,18 @@ export function ShopCalculationUsSection({
         action: 'pricing_calculation.us_store_table.export',
         targetType: 'store_sku_pricing_snapshot',
         targetId: selectedProjectId ?? undefined,
-        after: { project_id: selectedProjectId, project_name: selectedProjectName, row_count: itemsWithResults.length },
+        after: {
+          project_id: selectedProjectId,
+          project_name: selectedProjectName,
+          row_count: itemsWithResults.length,
+        },
       })
     } catch (err) {
-      notify({ type: 'error', title: '导出失败', message: err instanceof Error ? err.message : '导出失败' })
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: err instanceof Error ? err.message : '导出失败',
+      })
     } finally {
       setExporting(false)
     }
@@ -783,11 +799,13 @@ export function ShopCalculationUsSection({
   const hasCalculatedRows = filteredSkus.filter((i) => storeRows[i.id]?.result != null).length > 0
 
   return (
-    <div className='space-y-3'>
+    <div className="space-y-3">
       {/* Snapshot loading error banner */}
       {snapshotError && (
-        <div className='flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300'>
-          <span className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-amber-900 font-bold'>!</span>
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-amber-900 font-bold">
+            !
+          </span>
           <span>{snapshotError}</span>
         </div>
       )}
@@ -795,37 +813,37 @@ export function ShopCalculationUsSection({
       {/* Table Body */}
       <div>
         {storeSkusLoading ? (
-          <div className='flex h-48 flex-col items-center justify-center gap-3 p-4'>
+          <div className="flex h-48 flex-col items-center justify-center gap-3 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-10 w-full' />
+              <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
         ) : storeSkusError ? (
-          <div className='flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive'>
-            <span className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold'>!</span>
+          <div className="flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold">
+              !
+            </span>
             {storeSkusError}
           </div>
         ) : !selectedProjectName ? (
-          <div className='flex flex-col items-center justify-center gap-2 py-8 text-center'>
-            <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
-              <Package className='h-5 w-5 text-muted-foreground/40' />
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
+              <Package className="h-5 w-5 text-muted-foreground/40" />
             </div>
-            <p className='text-sm text-muted-foreground'>请选择项目以加载 SKU 数据</p>
+            <p className="text-sm text-muted-foreground">请选择项目以加载 SKU 数据</p>
           </div>
         ) : filteredSkus.length === 0 ? (
-          <div className='flex flex-col items-center justify-center gap-2 py-8 text-center'>
-            <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
-              <Search className='h-5 w-5 text-muted-foreground/40' />
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
+              <Search className="h-5 w-5 text-muted-foreground/40" />
             </div>
-            <p className='text-sm text-muted-foreground'>
-              {skuKeyword
-                ? `没有找到匹配的 SKU（${skuKeyword}）`
-                : `该项目在美国站下没有活跃 SKU`}
+            <p className="text-sm text-muted-foreground">
+              {skuKeyword ? `没有找到匹配的 SKU（${skuKeyword}）` : `该项目在美国站下没有活跃 SKU`}
             </p>
             {skuKeyword && (
               <button
                 onClick={() => onSkuKeywordChange('')}
-                className='text-xs text-[hsl(var(--primary))] underline-offset-2 hover:underline'
+                className="text-xs text-[hsl(var(--primary))] underline-offset-2 hover:underline"
               >
                 清除搜索
               </button>

@@ -68,8 +68,7 @@ export function SuggestionChips({
             <span
               className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
               style={{
-                background:
-                  'linear-gradient(135deg, rgba(20,136,252,0.15), rgba(99,102,241,0.08))',
+                background: 'linear-gradient(135deg, rgba(20,136,252,0.15), rgba(99,102,241,0.08))',
               }}
             />
             <Icon

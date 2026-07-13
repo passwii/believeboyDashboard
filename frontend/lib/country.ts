@@ -42,7 +42,11 @@ export function getCountryLabel(code: string): string {
  * 例如 "US,DE" → ["美国站", "德国站"]
  */
 export function getCountryLabels(codes: string): string[] {
-  return codes.split(',').map(c => c.trim()).filter(Boolean).map(getCountryLabel)
+  return codes
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map(getCountryLabel)
 }
 
 /**
@@ -57,6 +61,7 @@ export function getCountryDisplay(codes: string): string {
  * Select 选项列表，格式为 "美国站 (US)"。
  * 可直接用于 <SelectItem> 渲染。
  */
-export const COUNTRY_OPTIONS = Object.entries(COUNTRY_LABELS).map(
-  ([value, name]) => ({ value, label: `${name} (${value})` })
-)
+export const COUNTRY_OPTIONS = Object.entries(COUNTRY_LABELS).map(([value, name]) => ({
+  value,
+  label: `${name} (${value})`,
+}))

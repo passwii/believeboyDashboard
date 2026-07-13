@@ -30,9 +30,7 @@ export function NotesCard({ value, onChange }: NotesCardProps) {
         </div>
         <div className="flex items-center gap-2">
           {!collapsed && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-              {preview}
-            </span>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{preview}</span>
           )}
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}

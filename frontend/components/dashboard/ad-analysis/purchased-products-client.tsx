@@ -79,7 +79,7 @@ export function AdAnalysisPurchasedProductsClient() {
         if (purchasedAsinFilter) query.set('purchased_asin', purchasedAsinFilter)
         const response = await fetch(
           `${API_BASE}/api/v1/ad-analysis/purchased-products?${query.toString()}`,
-          { cache: 'no-store' },
+          { cache: 'no-store' }
         )
         if (!response.ok) throw new Error(await parseError(response))
         const payload = (await response.json()) as PurchasedProductsResponse
@@ -99,19 +99,22 @@ export function AdAnalysisPurchasedProductsClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, skuFilter])
 
-  if (!projectId) return <EmptyState rowHeight='lg' message='请先选择项目。' />
-  if (loading) return <EmptyState rowHeight='lg' message='正在加载已购买商品分析...' />
+  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
+  if (loading) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
   if (error) {
     return (
-      <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'>
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
         {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0) return <EmptyState rowHeight='lg' message='当前没有已购买商品明细。' />
+  if (!data || data.items.length === 0)
+    return <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
 
   const filteredItems = data.items.filter((item) => {
-    const matchesSku = skuFilter ? item.ad_sku.toLowerCase().includes(skuFilter.toLowerCase()) : true
+    const matchesSku = skuFilter
+      ? item.ad_sku.toLowerCase().includes(skuFilter.toLowerCase())
+      : true
     const matchesPurchasedAsin = purchasedAsinFilter
       ? item.purchased_asin.toLowerCase().includes(purchasedAsinFilter.toLowerCase())
       : true
@@ -119,11 +122,11 @@ export function AdAnalysisPurchasedProductsClient() {
   })
 
   if (filteredItems.length === 0) {
-    return <EmptyState rowHeight='lg' message='当前筛选下没有匹配的关联购买明细。' />
+    return <EmptyState rowHeight="lg" message="当前筛选下没有匹配的关联购买明细。" />
   }
 
   return (
-    <div className='space-y-5'>
+    <div className="space-y-5">
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
@@ -134,9 +137,9 @@ export function AdAnalysisPurchasedProductsClient() {
 
       <Card>
         <CardHeader>
-          <div className='flex items-center gap-2'>
-            <ShoppingBasket className='h-4 w-4 text-primary' />
-            <CardTitle className='text-lg'>广告带动的关联购买</CardTitle>
+          <div className="flex items-center gap-2">
+            <ShoppingBasket className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">广告带动的关联购买</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -157,10 +160,10 @@ export function AdAnalysisPurchasedProductsClient() {
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={`${item.purchased_asin}-${item.ad_sku}`}>
-                    <TableCell className='font-medium'>{item.purchased_asin}</TableCell>
+                    <TableCell className="font-medium">{item.purchased_asin}</TableCell>
                     <TableCell>
-                      <Badge variant='secondary'>
-                        <Boxes className='mr-1 h-3.5 w-3.5' />
+                      <Badge variant="secondary">
+                        <Boxes className="mr-1 h-3.5 w-3.5" />
                         {item.action}
                       </Badge>
                     </TableCell>
@@ -176,36 +179,39 @@ export function AdAnalysisPurchasedProductsClient() {
           </div>
 
           {/* 手机端：卡片列表 */}
-          <div className='lg:hidden space-y-3'>
+          <div className="lg:hidden space-y-3">
             {filteredItems.map((item) => (
-              <div key={`${item.purchased_asin}-${item.ad_sku}`} className='dashboard-surface p-4 space-y-3'>
-                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
-                  <div className='min-w-0 flex-1'>
-                    <p className='font-medium text-sm'>ASIN: {item.purchased_asin}</p>
-                    <p className='text-xs text-muted-foreground'>广告 SKU: {item.ad_sku}</p>
+              <div
+                key={`${item.purchased_asin}-${item.ad_sku}`}
+                className="dashboard-surface p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">ASIN: {item.purchased_asin}</p>
+                    <p className="text-xs text-muted-foreground">广告 SKU: {item.ad_sku}</p>
                   </div>
-                  <Badge variant='secondary' className='shrink-0'>
-                    <Boxes className='mr-1 h-3 w-3' />
+                  <Badge variant="secondary" className="shrink-0">
+                    <Boxes className="mr-1 h-3 w-3" />
                     {item.action}
                   </Badge>
                 </div>
 
-                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className='text-xs text-muted-foreground'>活动数</span>
-                    <div className='font-medium'>{item.campaign_count}</div>
+                    <span className="text-xs text-muted-foreground">活动数</span>
+                    <div className="font-medium">{item.campaign_count}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>Units</span>
-                    <div className='font-medium'>{item.other_sku_units_7d}</div>
+                    <span className="text-xs text-muted-foreground">Units</span>
+                    <div className="font-medium">{item.other_sku_units_7d}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>Orders</span>
-                    <div className='font-medium'>{item.other_sku_orders_7d}</div>
+                    <span className="text-xs text-muted-foreground">Orders</span>
+                    <div className="font-medium">{item.other_sku_orders_7d}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>Sales</span>
-                    <div className='font-medium'>${item.other_sku_sales_7d.toFixed(2)}</div>
+                    <span className="text-xs text-muted-foreground">Sales</span>
+                    <div className="font-medium">${item.other_sku_sales_7d.toFixed(2)}</div>
                   </div>
                 </div>
               </div>

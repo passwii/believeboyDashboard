@@ -6,7 +6,10 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
-import { fetchPeriodOverview, type InspectionOverview as InspectionOverviewType } from '@/lib/inspection-api'
+import {
+  fetchPeriodOverview,
+  type InspectionOverview as InspectionOverviewType,
+} from '@/lib/inspection-api'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { AlertTriangle, FileText, ImageIcon } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -19,17 +22,45 @@ interface InspectionOverviewProps {
 }
 
 const AHR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  Healthy: { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800' },
-  Good: { bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800' },
-  'At Risk': { bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-500/30 dark:border-amber-500/30' },
-  Critical: { bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-500/30 dark:border-rose-500/30' },
+  Healthy: {
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-800',
+  },
+  Good: {
+    bg: 'bg-blue-50 dark:bg-blue-950/40',
+    text: 'text-blue-700 dark:text-blue-400',
+    border: 'border-blue-200 dark:border-blue-800',
+  },
+  'At Risk': {
+    bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10',
+    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-amber-500/30 dark:border-amber-500/30',
+  },
+  Critical: {
+    bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10',
+    text: 'text-rose-700 dark:text-rose-400',
+    border: 'border-rose-500/30 dark:border-rose-500/30',
+  },
 }
 
 const STATUS_STYLES: Record<string, { badge: string; label: string }> = {
-  submitted: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400', label: '已提交' },
-  draft: { badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', label: '草稿' },
-  overdue: { badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400', label: '已逾期' },
-  pending: { badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400', label: '待填写' },
+  submitted: {
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+    label: '已提交',
+  },
+  draft: {
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    label: '草稿',
+  },
+  overdue: {
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
+    label: '已逾期',
+  },
+  pending: {
+    badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+    label: '待填写',
+  },
 }
 
 const SHIPPING_THRESHOLDS = {
@@ -46,7 +77,12 @@ function formatDate(dateStr: string): string {
 function formatDatetime(dateStr: string | null): string {
   if (!dateStr) return ''
   const date = new Date(dateStr)
-  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function formatDeadline(deadlineStr: string): { text: string; isOverdue: boolean } {
@@ -54,7 +90,10 @@ function formatDeadline(deadlineStr: string): { text: string; isOverdue: boolean
   const now = new Date()
   const isOverdue = now > deadline
   const text = deadline.toLocaleDateString('zh-CN', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
   return { text, isOverdue }
 }
@@ -63,7 +102,7 @@ type Severity = 'normal' | 'warning' | 'critical'
 
 function getMetricSeverity(
   value: number | undefined | null,
-  threshold: { warning: number; critical: number; inverted?: boolean } | undefined,
+  threshold: { warning: number; critical: number; inverted?: boolean } | undefined
 ): Severity {
   if (value === undefined || value === null || !threshold) return 'normal'
   if (threshold.inverted) {
@@ -78,8 +117,14 @@ function getMetricSeverity(
 
 const SEVERITY_STYLES: Record<Severity, { bg: string; text: string }> = {
   normal: { bg: '', text: 'text-foreground' },
-  warning: { bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10', text: 'text-amber-700 dark:text-amber-400' },
-  critical: { bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10', text: 'text-rose-700 dark:text-rose-400' },
+  warning: {
+    bg: 'bg-amber-500/[0.07] dark:bg-amber-500/10',
+    text: 'text-amber-700 dark:text-amber-400',
+  },
+  critical: {
+    bg: 'bg-rose-500/[0.07] dark:bg-rose-500/10',
+    text: 'text-rose-700 dark:text-rose-400',
+  },
 }
 
 type CardSeverity = 'normal' | 'warning' | 'critical'
@@ -87,26 +132,56 @@ type CardSeverity = 'normal' | 'warning' | 'critical'
 function getCardSeverity(item: InspectionOverviewType['items'][number]): CardSeverity {
   if (item.account_health_rating === 'Critical') return 'critical'
   if ((item.compliance_total ?? 0) >= 3) return 'critical'
-  if (getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'critical') return 'critical'
-  if (getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) === 'critical') return 'critical'
-  if (getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) === 'critical') return 'critical'
+  if (
+    getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) ===
+    'critical'
+  )
+    return 'critical'
+  if (
+    getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) ===
+    'critical'
+  )
+    return 'critical'
+  if (
+    getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) ===
+    'critical'
+  )
+    return 'critical'
 
   if (item.account_health_rating === 'At Risk') return 'warning'
   if ((item.compliance_total ?? 0) >= 1) return 'warning'
-  if (getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'warning') return 'warning'
-  if (getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) === 'warning') return 'warning'
-  if (getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) === 'warning') return 'warning'
+  if (
+    getMetricSeverity(item.late_shipment_rate, SHIPPING_THRESHOLDS.late_shipment_rate) === 'warning'
+  )
+    return 'warning'
+  if (
+    getMetricSeverity(item.valid_tracking_rate, SHIPPING_THRESHOLDS.valid_tracking_rate) ===
+    'warning'
+  )
+    return 'warning'
+  if (
+    getMetricSeverity(item.on_time_delivery_rate, SHIPPING_THRESHOLDS.on_time_delivery_rate) ===
+    'warning'
+  )
+    return 'warning'
 
   // 客户服务: any non-zero is a warning signal
-  if ((item.negative_feedback ?? 0) > 0 || (item.a2z_claims ?? 0) > 0 || (item.chargeback_claims ?? 0) > 0) return 'warning'
+  if (
+    (item.negative_feedback ?? 0) > 0 ||
+    (item.a2z_claims ?? 0) > 0 ||
+    (item.chargeback_claims ?? 0) > 0
+  )
+    return 'warning'
 
   return 'normal'
 }
 
 const CARD_SEVERITY_STYLES: Record<CardSeverity, string> = {
   normal: '',
-  warning: 'border-[3px] border-amber-500 dark:border-amber-400 shadow-[0_0_0_1px_rgb(245_158_11_/_0.15)]',
-  critical: 'border-[3px] border-rose-500 dark:border-rose-400 shadow-[0_0_0_1px_rgb(244_63_94_/_0.18)]',
+  warning:
+    'border-[3px] border-amber-500 dark:border-amber-400 shadow-[0_0_0_1px_rgb(245_158_11_/_0.15)]',
+  critical:
+    'border-[3px] border-rose-500 dark:border-rose-400 shadow-[0_0_0_1px_rgb(244_63_94_/_0.18)]',
 }
 
 const SEVERITY_RANK: Record<CardSeverity, number> = {
@@ -136,14 +211,15 @@ function MetricBadge({ label, value, unit = '%', threshold }: MetricBadgeProps) 
   const styles = SEVERITY_STYLES[severity]
 
   return (
-    <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${styles.bg || 'bg-[hsl(var(--surface-subtle))]'}`}>
+    <div
+      className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${styles.bg || 'bg-[hsl(var(--surface-subtle))]'}`}
+    >
       <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-1">
-        {severity !== 'normal' && (
-          <AlertTriangle className={`h-3 w-3 ${styles.text}`} />
-        )}
+        {severity !== 'normal' && <AlertTriangle className={`h-3 w-3 ${styles.text}`} />}
         <span className={`text-xs font-semibold ${styles.text}`}>
-          {value}{unit}
+          {value}
+          {unit}
         </span>
       </div>
     </div>
@@ -181,7 +257,10 @@ function ScreenshotCount({ count, onPreview }: { count: number; onPreview: () =>
   return (
     <button
       type="button"
-      onClick={(e) => { e.stopPropagation(); onPreview() }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onPreview()
+      }}
       className="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--surface-subtle))] px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
     >
       <ImageIcon className="h-3 w-3" />
@@ -198,12 +277,11 @@ interface ProjectCardProps {
 
 function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
   const style = STATUS_STYLES[item.status] || STATUS_STYLES.pending
-  const ahrStyle = item.account_health_rating
-    ? AHR_STYLES[item.account_health_rating]
-    : null
+  const ahrStyle = item.account_health_rating ? AHR_STYLES[item.account_health_rating] : null
   const cardSeverity = getCardSeverity(item)
   const screenshotCount = item.screenshots?.length ?? 0
-  const serviceTotal = (item.negative_feedback ?? 0) + (item.a2z_claims ?? 0) + (item.chargeback_claims ?? 0)
+  const serviceTotal =
+    (item.negative_feedback ?? 0) + (item.a2z_claims ?? 0) + (item.chargeback_claims ?? 0)
 
   return (
     <Card
@@ -220,10 +298,14 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
       <CardContent className="space-y-3 pt-0">
         {/* Section: 账号健康 + 客户服务 */}
         <div className="space-y-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">账号健康</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+            账号健康
+          </span>
           <div className="flex flex-wrap items-center gap-2">
             {item.account_health_rating ? (
-              <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ahrStyle!.bg} ${ahrStyle!.border}`}>
+              <div
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${ahrStyle!.bg} ${ahrStyle!.border}`}
+              >
                 <span className="text-xs font-medium text-muted-foreground">AHR</span>
                 <span className={`text-sm font-semibold ${ahrStyle!.text}`}>
                   {item.account_health_rating}
@@ -234,16 +316,22 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
                 <span className="text-xs text-muted-foreground/50">AHR --</span>
               </div>
             )}
-            <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
-              serviceTotal > 0
-                ? 'border-amber-500/30 bg-amber-500/[0.07] dark:border-amber-500/30 dark:bg-amber-500/10'
-                : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
-            }`}>
+            <div
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+                serviceTotal > 0
+                  ? 'border-amber-500/30 bg-amber-500/[0.07] dark:border-amber-500/30 dark:bg-amber-500/10'
+                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
+              }`}
+            >
               <span className="text-xs text-muted-foreground">客服</span>
               {serviceTotal > 0 ? (
-                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{serviceTotal}</span>
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  {serviceTotal}
+                </span>
               ) : (
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">0</span>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  0
+                </span>
               )}
             </div>
           </div>
@@ -251,7 +339,9 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
         {/* Section: 配送绩效 + 合规 */}
         <div className="space-y-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">配送 &amp; 合规</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+            配送 &amp; 合规
+          </span>
           <div className="grid grid-cols-2 gap-1.5">
             <MetricBadge
               label="迟发率"
@@ -268,29 +358,39 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
               value={item.on_time_delivery_rate}
               threshold={SHIPPING_THRESHOLDS.on_time_delivery_rate}
             />
-            <div className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
-              (item.compliance_total ?? 0) >= 3
-                ? 'bg-rose-500/[0.07] dark:bg-rose-500/10'
-                : (item.compliance_total ?? 0) >= 1
-                  ? 'bg-amber-500/[0.07] dark:bg-amber-500/10'
-                  : 'bg-[hsl(var(--surface-subtle))]'
-            }`}>
+            <div
+              className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${
+                (item.compliance_total ?? 0) >= 3
+                  ? 'bg-rose-500/[0.07] dark:bg-rose-500/10'
+                  : (item.compliance_total ?? 0) >= 1
+                    ? 'bg-amber-500/[0.07] dark:bg-amber-500/10'
+                    : 'bg-[hsl(var(--surface-subtle))]'
+              }`}
+            >
               <span className="text-xs text-muted-foreground">合规问题</span>
               {(item.compliance_total ?? 0) > 0 ? (
                 <div className="flex items-center gap-1">
-                  <AlertTriangle className={`h-3 w-3 ${
-                    (item.compliance_total ?? 0) >= 3
-                      ? 'text-rose-600 dark:text-rose-400'
-                      : 'text-amber-600 dark:text-amber-400'
-                  }`} />
-                  <span className={`text-xs font-semibold ${
-                    (item.compliance_total ?? 0) >= 3
-                      ? 'text-rose-700 dark:text-rose-400'
-                      : 'text-amber-700 dark:text-amber-400'
-                  }`}>{item.compliance_total}</span>
+                  <AlertTriangle
+                    className={`h-3 w-3 ${
+                      (item.compliance_total ?? 0) >= 3
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-semibold ${
+                      (item.compliance_total ?? 0) >= 3
+                        ? 'text-rose-700 dark:text-rose-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                    }`}
+                  >
+                    {item.compliance_total}
+                  </span>
                 </div>
               ) : item.compliance_total !== undefined && item.compliance_total !== null ? (
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">0</span>
+                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  0
+                </span>
               ) : (
                 <span className="text-xs text-muted-foreground/60">--</span>
               )}
@@ -316,9 +416,13 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
             count={screenshotCount}
             onPreview={() => {
               const first = item.screenshots?.[0]
-              const firstUrl = typeof first === 'object' && first !== null && 'url' in first && typeof (first as { url: unknown }).url === 'string'
-                ? (first as { url: string }).url
-                : undefined
+              const firstUrl =
+                typeof first === 'object' &&
+                first !== null &&
+                'url' in first &&
+                typeof (first as { url: unknown }).url === 'string'
+                  ? (first as { url: string }).url
+                  : undefined
               if (firstUrl) onPreviewScreenshot(firstUrl)
             }}
           />
@@ -426,20 +530,21 @@ export default function InspectionOverview({
   }
 
   const { text: deadlineText, isOverdue } = formatDeadline(overview.period.deadline)
-  const progressPercent = overview.total_projects > 0
-    ? (overview.submitted_count / overview.total_projects) * 100
-    : 0
-  const warningCount = overview.items.filter(i => getCardSeverity(i) === 'warning').length
-  const criticalCount = overview.items.filter(i => getCardSeverity(i) === 'critical').length
+  const progressPercent =
+    overview.total_projects > 0 ? (overview.submitted_count / overview.total_projects) * 100 : 0
+  const warningCount = overview.items.filter((i) => getCardSeverity(i) === 'warning').length
+  const criticalCount = overview.items.filter((i) => getCardSeverity(i) === 'critical').length
   const hasAlerts = overview.overdue_count > 0 || criticalCount > 0 || warningCount > 0
 
   return (
     <>
       <div className="space-y-4">
-        <div className={cn(
-          'dashboard-surface p-5',
-          isOverdue && 'border-t-[3px] border-t-rose-500 dark:border-t-rose-400'
-        )}>
+        <div
+          className={cn(
+            'dashboard-surface p-5',
+            isOverdue && 'border-t-[3px] border-t-rose-500 dark:border-t-rose-400'
+          )}
+        >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">
@@ -452,7 +557,11 @@ export default function InspectionOverview({
                 )}
               </p>
             </div>
-            <Badge className={isOverdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400' : ''}>
+            <Badge
+              className={
+                isOverdue ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400' : ''
+              }
+            >
               {overview.submitted_count} / {overview.total_projects} 已提交
             </Badge>
           </div>
@@ -472,15 +581,25 @@ export default function InspectionOverview({
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="text-sm">
               {overview.overdue_count > 0 && (
-                <span className="text-amber-800 dark:text-amber-300">{overview.overdue_count} 个项目已逾期</span>
+                <span className="text-amber-800 dark:text-amber-300">
+                  {overview.overdue_count} 个项目已逾期
+                </span>
               )}
-              {overview.overdue_count > 0 && criticalCount > 0 && <span className="mx-1.5 text-muted-foreground">·</span>}
+              {overview.overdue_count > 0 && criticalCount > 0 && (
+                <span className="mx-1.5 text-muted-foreground">·</span>
+              )}
               {criticalCount > 0 && (
-                <span className="font-medium text-rose-600 dark:text-rose-400">{criticalCount} 个项目严重异常</span>
+                <span className="font-medium text-rose-600 dark:text-rose-400">
+                  {criticalCount} 个项目严重异常
+                </span>
               )}
-              {criticalCount > 0 && warningCount > 0 && <span className="mx-1.5 text-muted-foreground">·</span>}
+              {criticalCount > 0 && warningCount > 0 && (
+                <span className="mx-1.5 text-muted-foreground">·</span>
+              )}
               {warningCount > 0 && (
-                <span className="text-amber-700 dark:text-amber-400">{warningCount} 个项目存在风险</span>
+                <span className="text-amber-700 dark:text-amber-400">
+                  {warningCount} 个项目存在风险
+                </span>
               )}
             </p>
           </div>

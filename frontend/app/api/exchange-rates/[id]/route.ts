@@ -5,10 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { requireAdminSession, requireUserSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  buildBackendProxyHeaders,
-  buildBackendUrl,
-} from '@/lib/server/backend-proxy'
+import { buildBackendProxyHeaders, buildBackendUrl } from '@/lib/server/backend-proxy'
 
 type BackendExchangeRateItem = {
   id: number
@@ -72,7 +69,11 @@ function toBackendPayload(body: any) {
       ? (body.noteImages ?? body.note_images).map((item: any) => ({
           id: String(item.id || ''),
           url: String(item.url || ''),
-          thumbnail_url: item.thumbnailUrl ? String(item.thumbnailUrl) : item.thumbnail_url ? String(item.thumbnail_url) : null,
+          thumbnail_url: item.thumbnailUrl
+            ? String(item.thumbnailUrl)
+            : item.thumbnail_url
+              ? String(item.thumbnail_url)
+              : null,
           filename: String(item.filename || ''),
           content_type: String(item.contentType || item.content_type || ''),
           size: Number(item.size || 0),
@@ -86,19 +87,24 @@ async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
     return NextResponse.json(
-      { error: normalizeErrorMessage(payload.error || payload.detail || payload.message, fallbackMessage) },
+      {
+        error: normalizeErrorMessage(
+          payload.error || payload.detail || payload.message,
+          fallbackMessage
+        ),
+      },
       { status: response.status }
     )
   } catch {
     const text = await response.text()
-    return NextResponse.json({ error: normalizeErrorMessage(text, fallbackMessage) }, { status: response.status })
+    return NextResponse.json(
+      { error: normalizeErrorMessage(text, fallbackMessage) },
+      { status: response.status }
+    )
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id)
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
@@ -133,10 +139,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id)
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })

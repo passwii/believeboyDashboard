@@ -36,7 +36,7 @@ function TokenFooter({ message }: { message: ChatMessage }) {
   const parts: string[] = []
   if (message.tokenUsage) {
     parts.push(
-      `prompt ${message.tokenUsage.prompt} · completion ${message.tokenUsage.completion} · total ${message.tokenUsage.total}`,
+      `prompt ${message.tokenUsage.prompt} · completion ${message.tokenUsage.completion} · total ${message.tokenUsage.total}`
     )
   }
   if (message.durationMs) {
@@ -138,12 +138,8 @@ export function ChatMessageList({
       {messages.length === 0 && !pendingSearchState?.searching && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Sparkles className="size-8 text-[#3a3a3f] mb-3" />
-          <p className="text-sm text-[#5a5a5f]">
-            开始对话，AI 将帮助你分析数据
-          </p>
-          <p className="text-xs text-[#4a4a4f] mt-1">
-            在下方输入问题或选择推荐问题开始
-          </p>
+          <p className="text-sm text-[#5a5a5f]">开始对话，AI 将帮助你分析数据</p>
+          <p className="text-xs text-[#4a4a4f] mt-1">在下方输入问题或选择推荐问题开始</p>
         </div>
       )}
 
@@ -154,15 +150,9 @@ export function ChatMessageList({
             if (el) messageRefs.current.set(msg.id, el)
             else messageRefs.current.delete(msg.id)
           }}
-          className={`group relative ${
-            msg.role === 'user' ? 'justify-end' : 'justify-start'
-          }`}
+          className={`group relative ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
         >
-          <div
-            className={`flex gap-3 sm:gap-4 ${
-              msg.role === 'user' ? 'flex-row-reverse' : ''
-            }`}
-          >
+          <div className={`flex gap-3 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             {/* Avatar */}
             <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/[0.06]">
               {msg.role === 'assistant' ? (
@@ -218,20 +208,19 @@ export function ChatMessageList({
 
               {/* Search sources */}
               {msg.role === 'assistant' &&
-                (msg.searchSearching ||
-                  (msg.searchSources && msg.searchSources.length > 0)) && (
+                (msg.searchSearching || (msg.searchSources && msg.searchSources.length > 0)) && (
                   <AIChatSearchSources
                     sources={msg.searchSources ?? []}
                     timeRange={msg.searchTimeRange ?? null}
                     query={msg.searchQuery ?? null}
-                    searching={!!msg.searchSearching && !(msg.searchSources && msg.searchSources.length > 0)}
+                    searching={
+                      !!msg.searchSearching && !(msg.searchSources && msg.searchSources.length > 0)
+                    }
                   />
                 )}
 
               {/* Token / duration footer */}
-              {msg.role === 'assistant' && !msg.streaming && (
-                <TokenFooter message={msg} />
-              )}
+              {msg.role === 'assistant' && !msg.streaming && <TokenFooter message={msg} />}
 
               {/* Streaming indicator */}
               {msg.streaming && msg.content && (
@@ -250,9 +239,7 @@ export function ChatMessageList({
                     }`}
                   />
                   <span className="hidden sm:inline">
-                    {msg.searchSources && msg.searchSources.length > 0
-                      ? '搜索中...'
-                      : '生成中...'}
+                    {msg.searchSources && msg.searchSources.length > 0 ? '搜索中...' : '生成中...'}
                   </span>
                 </span>
               )}
@@ -283,11 +270,7 @@ export function ChatMessageList({
                         ? () => onRegenerate(msg.id)
                         : undefined
                     }
-                    onEdit={
-                      msg.role === 'user' && onEdit
-                        ? () => onEdit(msg.id)
-                        : undefined
-                    }
+                    onEdit={msg.role === 'user' && onEdit ? () => onEdit(msg.id) : undefined}
                     onDelete={onDelete ? () => onDelete(msg.id) : undefined}
                   />
                 </div>

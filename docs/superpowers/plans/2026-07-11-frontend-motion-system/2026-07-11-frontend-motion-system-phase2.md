@@ -1,6 +1,6 @@
 # Phase 2 — hover / active 标准化
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0 + Phase 1 完成 ✅
 > **执行日期：** 2026-07-11
 > **执行者：** 子智能体（subagent-driven-development 调度）
@@ -65,4 +65,4 @@ c1cabcdd feat(动效): Button 接入 u-press/u-focus/u-interactive
 
 ✅ Phase 2 完成 → 进入 **Phase 3**（高级触感 + 内容 stagger 推广）。
 
-详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system-phase3.md`。
+详细任务在 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-phase3.md`。

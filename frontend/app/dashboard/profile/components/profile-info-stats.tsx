@@ -27,7 +27,7 @@ function StatCard({ icon, label, value, description }: StatCardProps) {
     <div
       className={cn(
         'group relative rounded-xl border border-border/60 bg-card/50 p-4 transition-all duration-200',
-        'hover:border-border hover:shadow-md hover:bg-card/80',
+        'hover:border-border hover:shadow-md hover:bg-card/80'
       )}
     >
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -84,9 +84,7 @@ export function ProfileInfoStats({ profile }: { profile: Profile }) {
             <span className="text-muted-foreground">—</span>
           )
         }
-        description={
-          profile.password_changed_at ? '点击查看完整时间戳' : '尚未修改过密码'
-        }
+        description={profile.password_changed_at ? '点击查看完整时间戳' : '尚未修改过密码'}
       />
     </div>
   )

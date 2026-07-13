@@ -13,12 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import {
-  Calendar,
-  Clock,
-  FileText,
-  Sparkles,
-} from 'lucide-react'
+import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -36,15 +31,8 @@ import {
 } from '@/components/ui/date-picker'
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import {
-  HistoryList,
-  ViewDialog,
-  GenerationDialog,
-} from '@/components/dashboard/ai-ad-analysis'
-import {
-  ScheduleList,
-  ScheduleDialog,
-} from '@/components/dashboard/ai-insights'
+import { HistoryList, ViewDialog, GenerationDialog } from '@/components/dashboard/ai-ad-analysis'
+import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
 import { cn } from '@/lib/utils'
 
 const COUNTRY_OPTIONS = [
@@ -189,11 +177,7 @@ function HistoryTab() {
             </div>
 
             <div className="flex items-end md:col-span-2">
-              <Button
-                onClick={handleGenerate}
-                disabled={!canGenerate}
-                className="w-full"
-              >
+              <Button onClick={handleGenerate} disabled={!canGenerate} className="w-full">
                 <Sparkles className="mr-2 h-4 w-4" />
                 立即生成
               </Button>
@@ -202,11 +186,7 @@ function HistoryTab() {
         </CardContent>
       </Card>
 
-      <HistoryList
-        projectId={projectId}
-        country={country}
-        refreshTrigger={refreshTrigger}
-      />
+      <HistoryList projectId={projectId} country={country} refreshTrigger={refreshTrigger} />
 
       <GenerationDialog
         open={generationDialogOpen}
@@ -237,7 +217,12 @@ function SchedulesTab() {
             配置定时任务，自动在指定时间生成 AI 广告分析报告
           </p>
         </div>
-        <Button onClick={() => { setEditingSchedule(null); setScheduleDialogOpen(true) }}>
+        <Button
+          onClick={() => {
+            setEditingSchedule(null)
+            setScheduleDialogOpen(true)
+          }}
+        >
           <Clock className="mr-2 h-4 w-4" />
           新建定时任务
         </Button>
@@ -297,7 +282,8 @@ export default function AdAnalysisPage() {
           <h1 className="text-xl font-semibold tracking-tight">AI 广告分析</h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 + 广告投放双专家，自主分析并给出可执行的调整建议。
+          基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 +
+          广告投放双专家，自主分析并给出可执行的调整建议。
         </p>
       </div>
 

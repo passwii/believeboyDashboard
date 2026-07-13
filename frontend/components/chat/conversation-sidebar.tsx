@@ -129,16 +129,15 @@ export function ConversationSidebar({
               自动保存
             </span>
           </div>
-          <p className="mt-1 truncate text-[10px] leading-4 text-[#505056]">
-            全部会话会自动保存
-          </p>
+          <p className="mt-1 truncate text-[10px] leading-4 text-[#505056]">全部会话会自动保存</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => {
               const btn = document.querySelector('.conv-new-btn')
-              if (btn) gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' })
+              if (btn)
+                gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' })
               onCreate()
             }}
             className="conv-new-btn flex items-center justify-center size-8 rounded-lg bg-white/[0.06] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
@@ -150,7 +149,14 @@ export function ConversationSidebar({
             type="button"
             onClick={() => {
               const el = document.querySelector('[data-sidebar]')
-              if (el) gsap.to(el, { opacity: 0, x: -280, duration: 0.25, ease: 'power2.in', onComplete: onClose })
+              if (el)
+                gsap.to(el, {
+                  opacity: 0,
+                  x: -280,
+                  duration: 0.25,
+                  ease: 'power2.in',
+                  onComplete: onClose,
+                })
             }}
             className="flex items-center justify-center size-8 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-200 active:scale-95"
             aria-label="关闭侧边栏"
@@ -197,9 +203,7 @@ export function ConversationSidebar({
                   <Sparkles className="size-3 text-blue-500/40 absolute -top-1 -right-1" />
                 </div>
                 <p className="text-sm font-medium text-[#6a6a6f]">还没有对话</p>
-                <p className="text-xs text-[#4a4a4f] mt-1 mb-4">
-                  发送一条消息即可自动创建
-                </p>
+                <p className="text-xs text-[#4a4a4f] mt-1 mb-4">发送一条消息即可自动创建</p>
                 <button
                   type="button"
                   onClick={onCreate}
@@ -222,7 +226,8 @@ export function ConversationSidebar({
             onClick={() => {
               if (editingId !== conv.id) {
                 const el = itemRefs.current.get(conv.id)
-                if (el) gsap.fromTo(el, { scale: 0.98 }, { scale: 1, duration: 0.15, ease: 'power2.out' })
+                if (el)
+                  gsap.fromTo(el, { scale: 0.98 }, { scale: 1, duration: 0.15, ease: 'power2.out' })
                 onSelect(conv.id)
               }
             }}
@@ -276,9 +281,7 @@ export function ConversationSidebar({
             ) : (
               <>
                 <div className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-medium truncate pr-1">
-                    {conv.title}
-                  </span>
+                  <span className="block text-[13px] font-medium truncate pr-1">{conv.title}</span>
                   {conv.messageCount > 0 && (
                     <span className="text-[10px] text-[#5a5a5f] mt-0.5 block">
                       {conv.messageCount} 条消息
@@ -320,9 +323,7 @@ export function ConversationSidebar({
       {/* Footer */}
       {conversations.length > 0 && (
         <div className="px-4 py-3 border-t border-white/[0.06]">
-          <p className="text-[10px] text-[#3a3a3f] text-center">
-            {conversations.length} 个对话
-          </p>
+          <p className="text-[10px] text-[#3a3a3f] text-center">{conversations.length} 个对话</p>
         </div>
       )}
     </div>

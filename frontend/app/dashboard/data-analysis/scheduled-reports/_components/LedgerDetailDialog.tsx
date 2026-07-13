@@ -2,14 +2,32 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, Copy, ExternalLink, FileText, ImageIcon, Loader2, RotateCcw, Sparkles, Square } from 'lucide-react'
+import {
+  AlertTriangle,
+  Copy,
+  ExternalLink,
+  FileText,
+  ImageIcon,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Square,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -20,8 +38,10 @@ import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './typ
 
 const HERO_BG: Record<string, string> = {
   sent: 'bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-background border-emerald-200 dark:border-emerald-800',
-  failed: 'bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-background border-red-200 dark:border-red-800',
-  missing: 'bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background border-amber-200 dark:border-amber-800',
+  failed:
+    'bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-background border-red-200 dark:border-red-800',
+  missing:
+    'bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background border-amber-200 dark:border-amber-800',
 }
 
 const HERO_LABEL: Record<string, { text: string; color: string }> = {
@@ -30,7 +50,8 @@ const HERO_LABEL: Record<string, { text: string; color: string }> = {
   missing: { text: '⚠ 记录缺失', color: 'text-amber-700 dark:text-amber-300' },
 }
 
-const SECTION_LABEL = 'text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2 block'
+const SECTION_LABEL =
+  'text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2 block'
 
 const MAX_VISIBLE_PROJECTS = 8
 
@@ -71,28 +92,34 @@ export function LedgerDetailDialog({
   const [showAllProjects, setShowAllProjects] = useState(false)
   const [summaryModelOpen, setSummaryModelOpen] = useState(false)
   const [summaryModel, setSummaryModel] = useState('')
-  const [pollingState, setPollingState] = useState<'polling' | 'timed_out' | 'network_error' | 'idle'>('idle')
+  const [pollingState, setPollingState] = useState<
+    'polling' | 'timed_out' | 'network_error' | 'idle'
+  >('idle')
   const [manualRefreshing, setManualRefreshing] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAtRef = useRef<number>(0)
   const failStreakRef = useRef<number>(0)
   const itemRef = useRef<LedgerItem | null>(item)
   const onItemRefreshedRef = useRef<typeof onItemRefreshed>(onItemRefreshed)
-  useEffect(() => { itemRef.current = item }, [item])
-  useEffect(() => { onItemRefreshedRef.current = onItemRefreshed }, [onItemRefreshed])
+  useEffect(() => {
+    itemRef.current = item
+  }, [item])
+  useEffect(() => {
+    onItemRefreshedRef.current = onItemRefreshed
+  }, [onItemRefreshed])
 
   const POLL_INTERVAL_MS = 2500
   const POLL_TIMEOUT_MS = 60_000
   const POLL_MAX_FAILS = 2
 
-  const sub = item ? subscriptions.find(s => s.id === item.subscription_id) : undefined
-  const fallbackModel = item ? (sub?.ai_model || modelConfig?.defaultModel || '') : ''
+  const sub = item ? subscriptions.find((s) => s.id === item.subscription_id) : undefined
+  const fallbackModel = item ? sub?.ai_model || modelConfig?.defaultModel || '' : ''
   const canTrigger = !!item && (canTriggerResend || item.can_resend)
   const canRegenerateSummary = !!item && canTriggerResend && item.status === 'sent'
-  const summaryInFlight = !regeneratingAiSummary && !!item && (
-    item.ai_summary_status === 'generating'
-    || item.ai_summary_status === 'pending'
-  )
+  const summaryInFlight =
+    !regeneratingAiSummary &&
+    !!item &&
+    (item.ai_summary_status === 'generating' || item.ai_summary_status === 'pending')
   // 补发（resend）场景下 AI 摘要偶尔会卡在「生成中」状态（同进程的 daemon
   // 线程被异常 kill 或后端重启后无人接手）。此时用户应当能「打断 + 重新
   // 生成」，而不是干等轮询超时——这是该 affordance 的来由。
@@ -126,10 +153,10 @@ export function LedgerDetailDialog({
 
   useEffect(() => {
     const shouldPoll =
-      open
-      && !!item
-      && !regeneratingAiSummary
-      && (item.ai_summary_status === 'pending' || item.ai_summary_status === 'generating')
+      open &&
+      !!item &&
+      !regeneratingAiSummary &&
+      (item.ai_summary_status === 'pending' || item.ai_summary_status === 'generating')
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -191,8 +218,15 @@ export function LedgerDetailDialog({
       : item.project_ids === '*'
         ? ['全部项目']
         : item.project_ids.split(',').filter(Boolean)
-  const countryList = !item ? [] : item.country.split(',').map(c => c.trim()).filter(Boolean)
-  const visibleProjects = showAllProjects ? projectNames : projectNames.slice(0, MAX_VISIBLE_PROJECTS)
+  const countryList = !item
+    ? []
+    : item.country
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+  const visibleProjects = showAllProjects
+    ? projectNames
+    : projectNames.slice(0, MAX_VISIBLE_PROJECTS)
   const hiddenCount = projectNames.length - visibleProjects.length
 
   return (
@@ -202,19 +236,21 @@ export function LedgerDetailDialog({
           className={cn(
             'max-w-[calc(100%-2rem)] sm:max-w-xl md:max-w-3xl p-0 gap-0',
             'flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden',
-            'dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]',
+            'dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]'
           )}
         >
           {item ? (
             <>
               <DialogHeader
-                className={cn(
-                  'shrink-0 border-b px-6 py-4 text-left',
-                  HERO_BG[item.status],
-                )}
+                className={cn('shrink-0 border-b px-6 py-4 text-left', HERO_BG[item.status])}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className={cn('text-[11px] font-medium tracking-wide flex items-center gap-1.5', HERO_LABEL[item.status].color)}>
+                  <div
+                    className={cn(
+                      'text-[11px] font-medium tracking-wide flex items-center gap-1.5',
+                      HERO_LABEL[item.status].color
+                    )}
+                  >
                     {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
                     {HERO_LABEL[item.status].text}
                   </div>
@@ -228,7 +264,9 @@ export function LedgerDetailDialog({
                       aria-label="刷新 AI 摘要"
                       title="刷新 AI 摘要"
                     >
-                      <RotateCcw className={cn('h-3.5 w-3.5', manualRefreshing && 'animate-spin')} />
+                      <RotateCcw
+                        className={cn('h-3.5 w-3.5', manualRefreshing && 'animate-spin')}
+                      />
                     </Button>
                   )}
                 </div>
@@ -238,7 +276,9 @@ export function LedgerDetailDialog({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>📨 {item.email}</span>
                   <span>{FREQUENCY_LABELS[item.frequency]}</span>
-                  {countryList.length > 0 && <span>{countryList.map(getCountryLabel).join(' · ')}</span>}
+                  {countryList.length > 0 && (
+                    <span>{countryList.map(getCountryLabel).join(' · ')}</span>
+                  )}
                 </div>
               </DialogHeader>
 
@@ -288,7 +328,7 @@ export function LedgerDetailDialog({
                   </div>
                   {countryList.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {countryList.map(c => (
+                      {countryList.map((c) => (
                         <Badge key={c} variant="outline" className="text-[11px]">
                           {getCountryLabel(c)}
                         </Badge>
@@ -361,20 +401,28 @@ export function LedgerDetailDialog({
                                     : '只重新生成 AI 摘要，不会重新截图或发送邮件。'}
                                 </p>
                                 <div>
-                                  <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
+                                  <label className="text-xs font-medium mb-1 block text-muted-foreground">
+                                    使用模型
+                                  </label>
                                   <Select
                                     value={summaryModel}
                                     onValueChange={setSummaryModel}
                                     disabled={isLoadingModelConfig || !modelConfig?.models.length}
                                   >
                                     <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                                      <SelectValue
+                                        placeholder={
+                                          isLoadingModelConfig ? '加载模型中...' : '选择模型'
+                                        }
+                                      />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {fallbackModel && (
                                         <SelectItem value={fallbackModel}>
                                           <span className="flex items-center gap-1">
-                                            <span className="text-muted-foreground">订阅预设：</span>
+                                            <span className="text-muted-foreground">
+                                              订阅预设：
+                                            </span>
                                             <span>{fallbackModel}</span>
                                           </span>
                                         </SelectItem>
@@ -382,23 +430,34 @@ export function LedgerDetailDialog({
                                       {(modelConfig?.premiumModels.length || 0) > 0 && (
                                         <SelectGroup>
                                           <SelectLabel>高级模型</SelectLabel>
-                                          {modelConfig?.premiumModels.map(m => (
-                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                          {modelConfig?.premiumModels.map((m) => (
+                                            <SelectItem key={m} value={m}>
+                                              {m}
+                                            </SelectItem>
                                           ))}
                                         </SelectGroup>
                                       )}
                                       {(modelConfig?.basicModels.length || 0) > 0 && (
                                         <SelectGroup>
                                           <SelectLabel>基础模型</SelectLabel>
-                                          {modelConfig?.basicModels.map(m => (
-                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                          {modelConfig?.basicModels.map((m) => (
+                                            <SelectItem key={m} value={m}>
+                                              {m}
+                                            </SelectItem>
                                           ))}
                                         </SelectGroup>
                                       )}
                                       {modelConfig?.models
-                                        .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m) && m !== fallbackModel)
-                                        .map(m => (
-                                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        .filter(
+                                          (m) =>
+                                            !modelConfig.premiumModels.includes(m) &&
+                                            !modelConfig.basicModels.includes(m) &&
+                                            m !== fallbackModel
+                                        )
+                                        .map((m) => (
+                                          <SelectItem key={m} value={m}>
+                                            {m}
+                                          </SelectItem>
                                         ))}
                                     </SelectContent>
                                   </Select>
@@ -415,7 +474,12 @@ export function LedgerDetailDialog({
                                   >
                                     {summaryInFlight ? '打断并重新生成' : '确认生成'}
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="flex-1" onClick={() => setSummaryModelOpen(false)}>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="flex-1"
+                                    onClick={() => setSummaryModelOpen(false)}
+                                  >
                                     取消
                                   </Button>
                                 </div>
@@ -444,7 +508,9 @@ export function LedgerDetailDialog({
                           </ReactMarkdown>
                         </div>
                       </div>
-                    ) : item.ai_summary_status === 'generating' || item.ai_summary_status === 'pending' || regeneratingAiSummary ? (
+                    ) : item.ai_summary_status === 'generating' ||
+                      item.ai_summary_status === 'pending' ||
+                      regeneratingAiSummary ? (
                       <div className="flex flex-col items-center gap-2 text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-12 border border-violet-100 justify-center min-h-[200px] dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-900">
                         <div className="flex items-center gap-2">
                           {pollingState === 'timed_out' || pollingState === 'network_error' ? (
@@ -455,32 +521,38 @@ export function LedgerDetailDialog({
                           <span>
                             {pollingState === 'timed_out' && 'AI 摘要生成较慢'}
                             {pollingState === 'network_error' && '网络异常，请重试'}
-                            {(pollingState === 'polling' || pollingState === 'idle') && 'AI 摘要生成中'}
+                            {(pollingState === 'polling' || pollingState === 'idle') &&
+                              'AI 摘要生成中'}
                           </span>
                         </div>
-                        {(pollingState === 'timed_out' || pollingState === 'network_error') && canTriggerResend && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              // 轮询超时 / 网络异常 → 一律走「打断并重新生成」，
-                              // 单纯刷新数据已经无法救出卡死的后台线程。
-                              setPollingState('idle')
-                              onRegenerateAiSummary(item, fallbackModel || null)
-                            }}
-                            disabled={regeneratingAiSummary}
-                            className="text-violet-700 dark:text-violet-300"
-                          >
-                            <RotateCcw className="mr-1 h-3 w-3" />
-                            打断并重新生成
-                          </Button>
-                        )}
+                        {(pollingState === 'timed_out' || pollingState === 'network_error') &&
+                          canTriggerResend && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                // 轮询超时 / 网络异常 → 一律走「打断并重新生成」，
+                                // 单纯刷新数据已经无法救出卡死的后台线程。
+                                setPollingState('idle')
+                                onRegenerateAiSummary(item, fallbackModel || null)
+                              }}
+                              disabled={regeneratingAiSummary}
+                              className="text-violet-700 dark:text-violet-300"
+                            >
+                              <RotateCcw className="mr-1 h-3 w-3" />
+                              打断并重新生成
+                            </Button>
+                          )}
                       </div>
                     ) : item.ai_summary_status === 'failed' ? (
                       <div className="flex flex-col items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-12 border border-red-100 justify-center min-h-[200px] dark:bg-red-950/30 dark:text-red-300 dark:border-red-900">
                         <AlertTriangle className="h-4 w-4" />
                         <span>AI 摘要生成失败，可点击上方按钮重试</span>
-                        {item.ai_summary_error && <span className="text-[11px] text-muted-foreground">{item.ai_summary_error}</span>}
+                        {item.ai_summary_error && (
+                          <span className="text-[11px] text-muted-foreground">
+                            {item.ai_summary_error}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-12 border border-dashed border-border/50 justify-center min-h-[200px]">
@@ -520,7 +592,7 @@ export function LedgerDetailDialog({
       {previewScreenshot && (
         <PortraitScreenshotDialog
           open
-          onOpenChange={o => !o && setPreviewScreenshot(null)}
+          onOpenChange={(o) => !o && setPreviewScreenshot(null)}
           src={previewScreenshot}
           alt="报告截图"
         />

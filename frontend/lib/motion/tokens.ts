@@ -30,7 +30,7 @@ export const DURATION = {
   base: 0.24,
   slow: 0.32,
   springPress: 0.22,
-} as const;
+} as const
 
 /** cubic-bezier 数组（framer-motion ease 字段）。
  * out ≈ easeOutExpo（惯性减弱）→ 进场 / 退出；
@@ -38,20 +38,20 @@ export const DURATION = {
 export const EASE = {
   out: [0.22, 1, 0.36, 1] as [number, number, number, number],
   standard: [0.16, 1, 0.3, 1] as [number, number, number, number],
-} as const;
+} as const
 
 /** framer-motion spring 物理参数（无对应 CSS token；CSS cubic-bezier 不能表达 spring）。
  * page → 路由过渡（近临界阻尼，~0.5-0.8s 收敛，几乎无 overshoot）。 */
 export const SPRING = {
-  page: { type: "spring", stiffness: 260, damping: 30, mass: 1 } as const,
-} as const;
+  page: { type: 'spring', stiffness: 260, damping: 30, mass: 1 } as const,
+} as const
 
 /** stagger 错落节奏。
  * step 对应 --stagger-step（70ms），childDelay 与 step 同值（staggerChildren 用），v2 调研建议合并。 */
 export const STAGGER = {
   step: 0.07,
   childDelay: 0.07,
-} as const;
+} as const
 
 /** 默认 reduced-motion 关闭（运行时应通过 framer-motion 的 useReducedMotion 读系统） */
-export const isReducedMotionDefault = false;
+export const isReducedMotionDefault = false

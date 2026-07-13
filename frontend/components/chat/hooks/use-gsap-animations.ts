@@ -115,9 +115,7 @@ export function useChatAnimations(scopeRef: React.RefObject<HTMLElement | null>)
   const animateConvItemHover = (el: HTMLElement, isHovered: boolean) => {
     gsap.to(el, {
       x: isHovered ? 2 : 0,
-      backgroundColor: isHovered
-        ? 'rgba(255,255,255,0.04)'
-        : 'rgba(255,255,255,0)',
+      backgroundColor: isHovered ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0)',
       duration: 0.2,
       ease: 'none',
     })
@@ -126,11 +124,7 @@ export function useChatAnimations(scopeRef: React.RefObject<HTMLElement | null>)
   // Send button press feedback
   const animateSendPress = (el: HTMLElement) => {
     if (prefersReducedMotion.current) return
-    gsap.fromTo(
-      el,
-      { scale: 0.92 },
-      { scale: 1, duration: 0.3, ease: 'back.out(3)' }
-    )
+    gsap.fromTo(el, { scale: 0.92 }, { scale: 1, duration: 0.3, ease: 'back.out(3)' })
   }
 
   return {

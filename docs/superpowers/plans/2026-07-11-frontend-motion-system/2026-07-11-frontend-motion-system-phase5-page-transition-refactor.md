@@ -1,6 +1,6 @@
 # Phase 5 — Hotfix 3 架构化 + 测试覆盖
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-4 完成 + 3 次 hotfix（9253ebd3 / f9feb11f / 85465b2f）
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）

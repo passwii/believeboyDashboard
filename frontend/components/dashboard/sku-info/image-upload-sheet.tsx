@@ -22,12 +22,7 @@ interface ImageUploadSheetProps {
 
 const API_BASE = '/api/backend'
 
-export function ImageUploadSheet({
-  open,
-  onOpenChange,
-  sku,
-  onSuccess,
-}: ImageUploadSheetProps) {
+export function ImageUploadSheet({ open, onOpenChange, sku, onSuccess }: ImageUploadSheetProps) {
   const { notify } = useNotifications()
   const [uploading, setUploading] = useState(false)
 
@@ -39,13 +34,10 @@ export function ImageUploadSheet({
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(
-        `${API_BASE}/api/v1/sku-info/${sku.id}/product-image`,
-        {
-          method: 'POST',
-          body: formData,
-        }
-      )
+      const response = await fetch(`${API_BASE}/api/v1/sku-info/${sku.id}/product-image`, {
+        method: 'POST',
+        body: formData,
+      })
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}))
@@ -94,8 +86,8 @@ export function ImageUploadSheet({
             showPreview={true}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            支持 JPG / PNG / WebP / GIF 格式，单文件不超过 10MB。
-            系统会自动生成 1920×1920 主图和 320×320 缩略图。
+            支持 JPG / PNG / WebP / GIF 格式，单文件不超过 10MB。 系统会自动生成 1920×1920 主图和
+            320×320 缩略图。
           </p>
         </div>
       </SheetContent>

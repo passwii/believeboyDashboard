@@ -5,11 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, ChevronRight, FolderKanban, UserCog } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  DataCard,
-  DataCardContent,
-  DataCardHeader,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -55,14 +51,19 @@ export default function ProfileClient() {
       const qs = params.toString()
       router.replace(qs ? `/dashboard/profile?${qs}` : '/dashboard/profile', { scroll: false })
     },
-    [router, searchParams],
+    [router, searchParams]
   )
 
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="flex flex-col gap-1 px-1">
-        <nav className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" aria-label="面包屑">
-          <a href="/dashboard" className="shrink-0 hover:text-foreground transition-colors">管理</a>
+        <nav
+          className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+          aria-label="面包屑"
+        >
+          <a href="/dashboard" className="shrink-0 hover:text-foreground transition-colors">
+            管理
+          </a>
           <ChevronRight className="h-3 w-3 shrink-0" />
           <span className="truncate">个人中心</span>
         </nav>
@@ -121,11 +122,7 @@ export default function ProfileClient() {
                 />
               </TabsContent>
               <TabsContent value="avatar" hidden={tab !== 'avatar'}>
-                <ProfileAvatarTab
-                  profile={profile}
-                  loading={loading}
-                  onRefetch={refetch}
-                />
+                <ProfileAvatarTab profile={profile} loading={loading} onRefetch={refetch} />
               </TabsContent>
               <TabsContent value="projects" hidden={tab !== 'projects'}>
                 <ProfileProjectsTab

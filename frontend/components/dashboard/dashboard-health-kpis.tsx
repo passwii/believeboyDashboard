@@ -3,11 +3,7 @@
 import { useMemo } from 'react'
 import { Activity, Eye, MousePointerClick, Percent, Users } from 'lucide-react'
 
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { fmtNum, fmtNumPrecise } from '@/lib/dashboard-format'
@@ -161,24 +157,25 @@ export function DashboardHealthKpis({
           trendData: meta.trend(currentRows),
         }
       }),
-    [currentRows, comparisonRows],
+    [currentRows, comparisonRows]
   )
 
   const isEmpty = currentRows.length === 0
 
   return (
     <DataCard className="h-full">
-      <DataCardHeader
-        title="库存 / 流量 健康度"
-        description="5 维度核心指标 · 含 7 日趋势"
-      />
+      <DataCardHeader title="库存 / 流量 健康度" description="5 维度核心指标 · 含 7 日趋势" />
       <DataCardContent className="space-y-2.5">
         {isEmpty ? (
           <EmptyHealth />
         ) : (
           <div className="grid grid-cols-1 gap-2.5">
             {kpis.map((kpi) => (
-              <HealthKpiRow key={kpi.key} kpi={kpi} loading={loading && kpi.trendData.every((v) => v === 0)} />
+              <HealthKpiRow
+                key={kpi.key}
+                kpi={kpi}
+                loading={loading && kpi.trendData.every((v) => v === 0)}
+              />
             ))}
           </div>
         )}
@@ -204,7 +201,7 @@ function HealthKpiRow({ kpi, loading }: HealthKpiRowProps) {
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              'flex h-4 w-4 shrink-0 items-center justify-center rounded text-white/90',
+              'flex h-4 w-4 shrink-0 items-center justify-center rounded text-white/90'
             )}
             style={{ backgroundColor: kpi.color }}
           >

@@ -69,7 +69,7 @@ function RoasTile({
   const bgClass = cn(
     badgeColor === 'green' && 'bg-secondary/5',
     badgeColor === 'yellow' && 'bg-amber-500/5',
-    badgeColor === 'red' && 'bg-destructive/5',
+    badgeColor === 'red' && 'bg-destructive/5'
   )
 
   return (
@@ -78,12 +78,14 @@ function RoasTile({
         <div className="flex min-w-0 flex-col gap-1">
           <p className="dashboard-kicker truncate">{title}</p>
           {/*
-            * Display number: floor 1.5rem (24px) prevents phone blow-up
-            * when the tile is ~158px wide; ceiling 2.4rem (38.4px) keeps
-            * desktop KPI punch. 1.2vw mid-term gives gentle growth from
-            * phone -> iPad Pro landscape without a hard jump.
-            */}
-          <p className="dashboard-display text-[clamp(1.5rem,1.2rem+1.2vw,2.4rem)] leading-none">{value}</p>
+           * Display number: floor 1.5rem (24px) prevents phone blow-up
+           * when the tile is ~158px wide; ceiling 2.4rem (38.4px) keeps
+           * desktop KPI punch. 1.2vw mid-term gives gentle growth from
+           * phone -> iPad Pro landscape without a hard jump.
+           */}
+          <p className="dashboard-display text-[clamp(1.5rem,1.2rem+1.2vw,2.4rem)] leading-none">
+            {value}
+          </p>
           <div className="flex items-center gap-1.5">
             <ChangeIndicator change={change} type={changeType} />
             {badge && (
@@ -100,7 +102,9 @@ function RoasTile({
             )}
           </div>
         </div>
-        <div className="shrink-0 rounded-lg bg-[hsl(var(--chart-3))]/10 p-2 text-[hsl(var(--chart-3))] sm:p-2.5">{icon}</div>
+        <div className="shrink-0 rounded-lg bg-[hsl(var(--chart-3))]/10 p-2 text-[hsl(var(--chart-3))] sm:p-2.5">
+          {icon}
+        </div>
       </div>
       <div className="flex-1 min-h-[60px] px-3.5 pb-3.5 pt-1 sm:min-h-[72px] sm:px-5 sm:pb-4">
         <AreaSparkline
@@ -134,10 +138,14 @@ function DefaultTile({
       <div className="flex items-start justify-between gap-2.5 px-3.5 pt-4 pb-2 sm:gap-3 sm:px-5 sm:pt-5">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="dashboard-kicker truncate">{title}</p>
-          <p className="dashboard-display text-[clamp(1.5rem,1.2rem+1.2vw,2.4rem)] leading-none">{value}</p>
+          <p className="dashboard-display text-[clamp(1.5rem,1.2rem+1.2vw,2.4rem)] leading-none">
+            {value}
+          </p>
           <ChangeIndicator change={change} type={changeType} />
         </div>
-        <div className="shrink-0 rounded-lg bg-secondary/10 p-2 text-secondary sm:p-2.5">{icon}</div>
+        <div className="shrink-0 rounded-lg bg-secondary/10 p-2 text-secondary sm:p-2.5">
+          {icon}
+        </div>
       </div>
       <div className="flex-1 min-h-[60px] px-3.5 pb-3.5 pt-1 sm:min-h-[72px] sm:px-5 sm:pb-4">
         <AreaSparkline

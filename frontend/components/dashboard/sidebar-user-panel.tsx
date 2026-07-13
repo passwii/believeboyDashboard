@@ -55,6 +55,8 @@ function getRoleLabel(roleType: string | undefined): string | null {
  * 性能要点：
  * - React.memo + 默认浅比较：user / 回调引用稳定时，路由切换不会重渲染本组件。
  * - 不订阅 usePathname()：本面板内容（用户信息、主题、退出登录）与路由无关。
+ * - 揭幕动画：纯 CSS（globals.css .sidebar-panel-reveal，opacity + translateY），
+ *   零 JS 动画运行时；分区跟随面板一起出现，与标准案例一致。
  */
 export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   user,
@@ -67,28 +69,28 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
 
   return (
     <div
-      id='sidebar-user-panel'
-      role='region'
-      aria-label='账户子菜单'
-      className='sidebar-panel-shell relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
+      id="sidebar-user-panel"
+      role="region"
+      aria-label="账户子菜单"
+      className="sidebar-panel-shell sidebar-panel-reveal relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header — 与 SidebarPanel 完全同款（56px，Pin + X） */}
-      <div className='flex h-[56px] shrink-0 items-center justify-between border-b border-[hsl(var(--sidebar-border))]/60 px-4'>
-        <div className='flex min-w-0 items-center gap-2'>
-          <Avatar className='h-7 w-7 shrink-0'>
+      <div className="flex h-[56px] shrink-0 items-center justify-between border-b border-[hsl(var(--sidebar-border))]/60 px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Avatar className="h-7 w-7 shrink-0">
             <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback className='bg-[hsl(var(--sidebar-foreground)/0.06)] text-[0.78rem] font-medium tracking-tight text-sidebar-foreground/85'>
+            <AvatarFallback className="bg-[hsl(var(--sidebar-foreground)/0.06)] text-[0.78rem] font-medium tracking-tight text-sidebar-foreground/85">
               {user.name?.[0]?.toUpperCase() ?? 'U'}
             </AvatarFallback>
           </Avatar>
-          <span className='truncate text-[0.95rem] font-semibold text-sidebar-foreground'>
+          <span className="truncate text-[0.95rem] font-semibold text-sidebar-foreground">
             账户
           </span>
         </div>
-        <div className='flex items-center gap-1'>
+        <div className="flex items-center gap-1">
           <button
-            type='button'
+            type="button"
             onClick={onPinToggle}
             aria-label={pinned ? '取消固定面板' : '固定面板'}
             title={pinned ? '取消固定' : '固定面板'}
@@ -96,97 +98,97 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
               'flex h-7 w-7 items-center justify-center rounded-md transition-colors',
               pinned
                 ? 'bg-primary/15 text-primary'
-                : 'text-sidebar-foreground/50 hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground',
+                : 'text-sidebar-foreground/50 hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground'
             )}
           >
-            {pinned ? <PinOff className='h-3.5 w-3.5' /> : <Pin className='h-3.5 w-3.5' />}
+            {pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
           </button>
           <button
-            type='button'
+            type="button"
             onClick={onClose}
-            aria-label='关闭面板'
-            title='关闭'
-            className='flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/50 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground'
+            aria-label="关闭面板"
+            title="关闭"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/50 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.05)] hover:text-sidebar-foreground"
           >
-            <X className='h-3.5 w-3.5' />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
       {/* Body — 信息卡 + 主题 + 操作 */}
-      <div className='flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3'>
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
         {/* 用户信息卡 */}
-        <section className='flex items-center gap-3'>
-          <Avatar className='h-14 w-14 rounded-md shrink-0'>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-14 w-14 rounded-md shrink-0">
             <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback className='rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85'>
+            <AvatarFallback className="rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85">
               {user.name?.[0]?.toUpperCase() ?? 'U'}
             </AvatarFallback>
           </Avatar>
-          <div className='grid flex-1 min-w-0 text-left text-sm leading-tight'>
-            <span className='truncate text-base font-semibold text-sidebar-foreground'>
+          <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+            <span className="truncate text-base font-semibold text-sidebar-foreground">
               {user.name}
             </span>
-            <span className='truncate text-xs text-muted-foreground'>{user.email}</span>
+            <span className="truncate text-xs text-muted-foreground">{user.email}</span>
             {roleLabel ? (
-              <span className='mt-1 inline-flex w-fit items-center rounded-full border border-sidebar-foreground/10 bg-sidebar-foreground/[0.04] px-1.5 py-0.5 text-[0.65rem] font-medium text-sidebar-foreground/70'>
+              <span className="mt-1 inline-flex w-fit items-center rounded-full border border-sidebar-foreground/10 bg-sidebar-foreground/[0.04] px-1.5 py-0.5 text-[0.65rem] font-medium text-sidebar-foreground/70">
                 {roleLabel}
               </span>
             ) : null}
           </div>
-        </section>
+        </div>
 
-        <div className='border-t border-[hsl(var(--sidebar-border))]/60' />
+        <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
 
         {/* 主题切换 */}
-        <section>
-          <div className='mb-2 flex items-center justify-between px-1'>
-            <span className='text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40'>
+        <div>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
               主题
             </span>
           </div>
           <ThemeSwitcher />
-        </section>
+        </div>
 
-        <div className='border-t border-[hsl(var(--sidebar-border))]/60' />
+        <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
 
         {/* 账户操作 */}
-        <section>
-          <div className='mb-2 flex items-center justify-between px-1'>
-            <span className='text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40'>
+        <div>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
               账户
             </span>
           </div>
-          <nav className='flex flex-col gap-0.5' aria-label='账户操作'>
+          <nav className="flex flex-col gap-0.5" aria-label="账户操作">
             <RouteLoadingLink
-              href='/dashboard/profile'
+              href="/dashboard/profile"
               onClick={onClose}
-              className='group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
-              <UserCog className='h-4 w-4 shrink-0 text-primary' />
-              <span className='min-w-0 flex-1 truncate'>个人资料</span>
+              <UserCog className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1 truncate">个人资料</span>
             </RouteLoadingLink>
             <RouteLoadingLink
-              href='/dashboard/change-password'
+              href="/dashboard/change-password"
               onClick={onClose}
-              className='group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
-              <KeyRound className='h-4 w-4 shrink-0 text-primary' />
-              <span className='min-w-0 flex-1 truncate'>修改密码</span>
+              <KeyRound className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1 truncate">修改密码</span>
             </RouteLoadingLink>
             <button
-              type='button'
+              type="button"
               onClick={() => {
                 onClose()
                 onLogout()
               }}
-              className='group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30'
+              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
-              <LogOut className='h-4 w-4 shrink-0 text-primary' />
-              <span className='min-w-0 flex-1 truncate'>退出登录</span>
+              <LogOut className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 flex-1 truncate">退出登录</span>
             </button>
           </nav>
-        </section>
+        </div>
       </div>
     </div>
   )
@@ -209,13 +211,13 @@ function ThemeSwitcher() {
   ]
 
   return (
-    <div className='grid grid-cols-3 gap-1' role='group' aria-label='主题切换'>
+    <div className="grid grid-cols-3 gap-1" role="group" aria-label="主题切换">
       {options.map(({ value, label, icon: Icon }) => {
         const active = currentTheme === value
         return (
           <button
             key={value}
-            type='button'
+            type="button"
             onClick={() => setTheme(value)}
             aria-label={label}
             aria-pressed={active}
@@ -224,13 +226,13 @@ function ThemeSwitcher() {
               'flex h-10 flex-col items-center justify-center gap-0.5 rounded-[0.6rem] text-[0.72rem] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
               active
                 ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
-                : 'text-sidebar-foreground/55 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground/85',
+                : 'text-sidebar-foreground/55 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground/85'
             )}
           >
-            <Icon className='h-3.5 w-3.5' />
-            <span className='flex items-center gap-0.5'>
+            <Icon className="h-3.5 w-3.5" />
+            <span className="flex items-center gap-0.5">
               {label}
-              {active ? <Check className='h-2.5 w-2.5 text-primary' /> : null}
+              {active ? <Check className="h-2.5 w-2.5 text-primary" /> : null}
             </span>
           </button>
         )

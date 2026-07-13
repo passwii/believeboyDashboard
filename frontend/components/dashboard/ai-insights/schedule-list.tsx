@@ -32,12 +32,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { parseCronExpression, formatDateTime, formatRelativeTime } from '@/lib/api/ai-insight-schedules'
+  parseCronExpression,
+  formatDateTime,
+  formatRelativeTime,
+} from '@/lib/api/ai-insight-schedules'
 import type { InsightScheduleItem } from '@/lib/api/ai-insight-schedules'
 import { cn } from '@/lib/utils'
 
@@ -92,9 +92,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
       if (!res.ok) throw new Error('操作失败')
       const data = await res.json()
       setSchedules((prev) =>
-        prev.map((s) =>
-          s.id === schedule.id ? { ...s, is_active: data.is_active } : s
-        )
+        prev.map((s) => (s.id === schedule.id ? { ...s, is_active: data.is_active } : s))
       )
     } catch (e: any) {
       setError(e.message || '切换失败')
@@ -173,9 +171,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
       <div className="rounded-lg border border-dashed border-border p-8 text-center">
         <Clock className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground mb-1">暂无定时任务</p>
-        <p className="text-xs text-muted-foreground">
-          点击上方「新建定时任务」按钮创建一个
-        </p>
+        <p className="text-xs text-muted-foreground">点击上方「新建定时任务」按钮创建一个</p>
       </div>
     )
   }
@@ -187,10 +183,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-700 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
-          <button
-            className="ml-auto text-xs underline"
-            onClick={() => setError(null)}
-          >
+          <button className="ml-auto text-xs underline" onClick={() => setError(null)}>
             关闭
           </button>
         </div>
@@ -310,10 +303,12 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                   <div className="flex items-center justify-center gap-1 text-xs">
                     <span className="text-emerald-600 font-medium">{schedule.run_count}</span>
                     <span className="text-muted-foreground">/</span>
-                    <span className={cn(
-                      'font-medium',
-                      schedule.failure_count > 0 ? 'text-red-500' : 'text-muted-foreground'
-                    )}>
+                    <span
+                      className={cn(
+                        'font-medium',
+                        schedule.failure_count > 0 ? 'text-red-500' : 'text-muted-foreground'
+                      )}
+                    >
                       {schedule.failure_count}
                     </span>
                   </div>

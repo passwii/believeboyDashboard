@@ -1,11 +1,4 @@
-import {
-  ArrowUpRight,
-  Building2,
-  Globe2,
-  ShoppingBag,
-  Store,
-  Tag,
-} from 'lucide-react'
+import { ArrowUpRight, Building2, Globe2, ShoppingBag, Store, Tag } from 'lucide-react'
 
 type Platform = {
   name: string
@@ -100,7 +93,9 @@ function PlatformGrid({ items }: PlatformGridProps) {
           className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] dark:hover:border-primary/30 dark:hover:shadow-primary/5"
           style={{ animationDelay: `${index * 40}ms` }}
         >
-          <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${platform.tone}`} />
+          <div
+            className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${platform.tone}`}
+          />
           <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/20 blur-2xl dark:bg-white/5" />
           <div className="relative z-10 flex h-full flex-col space-y-3">
             <div className="flex items-start justify-between gap-3">
@@ -116,7 +111,9 @@ function PlatformGrid({ items }: PlatformGridProps) {
               </div>
             </div>
 
-            <p className="min-h-12 flex-1 text-sm leading-6 text-muted-foreground">{platform.category}</p>
+            <p className="min-h-12 flex-1 text-sm leading-6 text-muted-foreground">
+              {platform.category}
+            </p>
 
             <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3 dark:border-border/80">
               <span className="inline-flex items-center rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
@@ -147,7 +144,10 @@ export default function SiteNavigationPage() {
           </div>
           <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">
             {stats.map((item) => (
-              <div key={item.label} className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+              <div
+                key={item.label}
+                className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]"
+              >
                 <item.icon className="mx-auto mb-1 h-4 w-4 text-primary/85" />
                 <p className="text-base font-semibold leading-tight">{item.value}</p>
                 <p className="text-[11px] text-muted-foreground">{item.label}</p>

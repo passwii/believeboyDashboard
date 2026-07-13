@@ -36,7 +36,8 @@ export default function DigitalEmployeesPage() {
   })
 
   const filtered = employees.filter((emp) => {
-    const matchSearch = !search || emp.name.includes(search) || (emp.description ?? '').includes(search)
+    const matchSearch =
+      !search || emp.name.includes(search) || (emp.description ?? '').includes(search)
     const matchStatus = !statusFilter || emp.status === statusFilter
     return matchSearch && matchStatus
   })
@@ -53,7 +54,9 @@ export default function DigitalEmployeesPage() {
             <Users className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Operations · Digital Employees</p>
+            <p className="text-sm font-medium text-muted-foreground">
+              Operations · Digital Employees
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -126,14 +129,17 @@ export default function DigitalEmployeesPage() {
               </div>
               <div className="flex gap-1.5 flex-wrap">
                 {STATUS_FILTERS.map((f) => {
-                  const count = f.value === null ? employees.length : employees.filter((e) => e.status === f.value).length
+                  const count =
+                    f.value === null
+                      ? employees.length
+                      : employees.filter((e) => e.status === f.value).length
                   return (
                     <Badge
                       key={f.label}
                       variant={statusFilter === f.value ? 'default' : 'outline'}
                       className={cn(
                         'cursor-pointer transition-all',
-                        statusFilter === f.value && 'shadow-sm',
+                        statusFilter === f.value && 'shadow-sm'
                       )}
                       onClick={() => setStatusFilter(statusFilter === f.value ? null : f.value)}
                     >

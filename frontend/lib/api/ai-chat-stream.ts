@@ -55,7 +55,10 @@ export type StreamCallbacks = {
   onStart?: () => void
   onChunk?: (delta: string) => void
   onThinking?: (delta: string) => void
-  onSources?: (sources: SearchSource[], meta?: { timeRange?: SearchTimeRange; query?: string }) => void
+  onSources?: (
+    sources: SearchSource[],
+    meta?: { timeRange?: SearchTimeRange; query?: string }
+  ) => void
   onUsage?: (usage: StreamUsage) => void
   onToolState?: (state: StreamToolState) => void
   onDone?: (payload: StreamDonePayload) => void
@@ -111,7 +114,7 @@ function normalizeUsage(value: unknown): StreamUsage | null {
 export async function consumeStream(
   response: Response,
   callbacks: StreamCallbacks,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<StreamDonePayload> {
   if (!response.ok) {
     // The error body may be JSON or plain text. Read once and try to extract
@@ -209,7 +212,7 @@ export async function consumeStream(
 function dispatchEvent(
   event: RawEvent,
   callbacks: StreamCallbacks,
-  toolState: StreamToolState,
+  toolState: StreamToolState
 ): StreamDonePayload | null {
   const type = event.type
   switch (type) {

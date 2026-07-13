@@ -8,18 +8,44 @@ import { RefreshButton } from '@/components/dashboard/console'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
+import {
+  MonthPicker,
+  formatMonthInputValue,
+  parseMonthInputValue,
+} from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader, DataTableCardStatBar } from '@/components/ui/data-card'
+import {
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+  DataTableCardStatBar,
+} from '@/components/ui/data-card'
 
 type ManageProject = {
   id: number
@@ -150,7 +176,10 @@ function lastMonthString(): string {
 function parseErrorBody(text: string, status: number): string {
   if (!text) return `请求失败 (${status})`
   try {
-    const payload = JSON.parse(text) as { detail?: string | unknown[] | Record<string, unknown>; error?: string }
+    const payload = JSON.parse(text) as {
+      detail?: string | unknown[] | Record<string, unknown>
+      error?: string
+    }
     if (typeof payload.detail === 'string') return payload.detail
     if (typeof payload.error === 'string') return payload.error
     if (Array.isArray(payload.detail)) {
@@ -258,7 +287,9 @@ export default function OperatorManagementPage() {
 
   const [commissionRows, setCommissionRows] = useState<CommissionRecord[]>([])
   const [ratioOverrideRows, setRatioOverrideRows] = useState<RatioOverrideItem[]>([])
-  const [commissionDrafts, setCommissionDrafts] = useState<Record<string, CommissionEditableDraft>>({})
+  const [commissionDrafts, setCommissionDrafts] = useState<Record<string, CommissionEditableDraft>>(
+    {}
+  )
 
   const roleMapByProjectPerson = useMemo(() => {
     return roleRows.reduce<Record<string, string>>((acc, item) => {
@@ -272,7 +303,8 @@ export default function OperatorManagementPage() {
     const total = scores.reduce((sum, value) => sum + value, 0)
     return {
       recordCount: performanceRows.length,
-      peopleCount: new Set(performanceRows.map((item) => `${item.project_id}-${item.person_name}`)).size,
+      peopleCount: new Set(performanceRows.map((item) => `${item.project_id}-${item.person_name}`))
+        .size,
       averageScore: scores.length > 0 ? total / scores.length : 0,
     }
   }, [performanceRows])
@@ -326,7 +358,12 @@ export default function OperatorManagementPage() {
         performanceSummary,
       }
     })
-  }, [commissionOverrideMap, commissionRows, performanceSummaryByProjectPerson, roleMapByProjectPerson])
+  }, [
+    commissionOverrideMap,
+    commissionRows,
+    performanceSummaryByProjectPerson,
+    roleMapByProjectPerson,
+  ])
 
   const loadBaseOptions = useCallback(async () => {
     const [projectsResponse, operatorsResponse] = await Promise.all([
@@ -356,10 +393,13 @@ export default function OperatorManagementPage() {
   const loadRoleInfo = useCallback(async () => {
     setRoleLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/role-assignments?report_month=${month}`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/commission-management/role-assignments?report_month=${month}`,
+        {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -374,10 +414,13 @@ export default function OperatorManagementPage() {
   const loadPerformance = useCallback(async () => {
     setPerformanceLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/operator-management/performance?report_month=${month}`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/operator-management/performance?report_month=${month}`,
+        {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -393,14 +436,20 @@ export default function OperatorManagementPage() {
     setCommissionLoading(true)
     try {
       const [recordsResponse, overrideResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/records?report_month=${month}`, {
-          cache: 'no-store',
-          headers: buildBackendClientHeaders(session),
-        }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/ratio-overrides?report_month=${month}`, {
-          cache: 'no-store',
-          headers: buildBackendClientHeaders(session),
-        }),
+        fetch(
+          `${API_BASE}/api/v1/system-management/commission-management/records?report_month=${month}`,
+          {
+            cache: 'no-store',
+            headers: buildBackendClientHeaders(session),
+          }
+        ),
+        fetch(
+          `${API_BASE}/api/v1/system-management/commission-management/ratio-overrides?report_month=${month}`,
+          {
+            cache: 'no-store',
+            headers: buildBackendClientHeaders(session),
+          }
+        ),
       ])
       if (!recordsResponse.ok) {
         throw new Error(parseErrorBody(await recordsResponse.text(), recordsResponse.status))
@@ -418,13 +467,21 @@ export default function OperatorManagementPage() {
       setCommissionDrafts(
         nextRows.reduce<Record<string, CommissionEditableDraft>>((acc, item) => {
           const key = `${item.project_id}::${item.person_name}::${item.income_category}`
-          const override = nextOverrides.find((row) => row.project_id === item.project_id && row.person_name === item.person_name && row.income_category === item.income_category)
+          const override = nextOverrides.find(
+            (row) =>
+              row.project_id === item.project_id &&
+              row.person_name === item.person_name &&
+              row.income_category === item.income_category
+          )
           acc[key] = {
-            ratio: ((override?.override_ratio ?? item.manual_bonus_ratio ?? item.operator_bonus_ratio) * 100).toFixed(2),
+            ratio: (
+              (override?.override_ratio ?? item.manual_bonus_ratio ?? item.operator_bonus_ratio) *
+              100
+            ).toFixed(2),
             reason: override?.reason ?? '',
           }
           return acc
-        }, {}),
+        }, {})
       )
     } finally {
       setCommissionLoading(false)
@@ -436,7 +493,11 @@ export default function OperatorManagementPage() {
       await loadBaseOptions()
       await Promise.all([loadRoleInfo(), loadPerformance(), loadCommission()])
     } catch (loadError) {
-      notify({ type: 'error', title: '数据加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
+      notify({
+        type: 'error',
+        title: '数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '加载失败',
+      })
     }
   }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo, notify])
 
@@ -474,7 +535,13 @@ export default function OperatorManagementPage() {
   }
 
   const saveRoleInfo = async () => {
-    const validRows = roleDraftRows.filter((item) => item.project_id && item.person_name.trim() && item.role_type.trim() && item.effective_from_month.trim())
+    const validRows = roleDraftRows.filter(
+      (item) =>
+        item.project_id &&
+        item.person_name.trim() &&
+        item.role_type.trim() &&
+        item.effective_from_month.trim()
+    )
     if (validRows.length === 0) {
       notify({ type: 'error', title: '请至少填写一条完整的运营信息' })
       return
@@ -482,23 +549,26 @@ export default function OperatorManagementPage() {
 
     setSavingRoles(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/role-assignments/upsert`, {
-        method: 'POST',
-        headers: {
-          ...buildBackendClientHeaders(session),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: validRows.map((item) => ({
-            id: item.id ?? null,
-            project_id: item.project_id,
-            role_type: item.role_type.trim(),
-            person_name: item.person_name.trim(),
-            effective_from_month: item.effective_from_month,
-            effective_to_month: item.effective_to_month.trim() || null,
-          })),
-        }),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/commission-management/role-assignments/upsert`,
+        {
+          method: 'POST',
+          headers: {
+            ...buildBackendClientHeaders(session),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            items: validRows.map((item) => ({
+              id: item.id ?? null,
+              project_id: item.project_id,
+              role_type: item.role_type.trim(),
+              person_name: item.person_name.trim(),
+              effective_from_month: item.effective_from_month,
+              effective_to_month: item.effective_to_month.trim() || null,
+            })),
+          }),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -507,14 +577,21 @@ export default function OperatorManagementPage() {
       setRoleDraftRows(buildRoleDraft(payload.items ?? []))
       notify({ type: 'success', title: '运营信息已保存' })
     } catch (submitError) {
-      notify({ type: 'error', title: '运营信息保存失败', message: submitError instanceof Error ? submitError.message : '运营信息保存失败' })
+      notify({
+        type: 'error',
+        title: '运营信息保存失败',
+        message: submitError instanceof Error ? submitError.message : '运营信息保存失败',
+      })
     } finally {
       setSavingRoles(false)
     }
   }
 
   const savePerformance = async () => {
-    const validRows = performanceDraftRows.filter((item) => item.project_id && item.person_name.trim() && item.role_type.trim() && item.score.trim())
+    const validRows = performanceDraftRows.filter(
+      (item) =>
+        item.project_id && item.person_name.trim() && item.role_type.trim() && item.score.trim()
+    )
     if (validRows.length === 0) {
       notify({ type: 'error', title: '请至少填写一条完整的运营绩效' })
       return
@@ -522,26 +599,29 @@ export default function OperatorManagementPage() {
 
     setSavingPerformance(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/operator-management/performance/upsert`, {
-        method: 'POST',
-        headers: {
-          ...buildBackendClientHeaders(session),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: validRows.map((item) => ({
-            id: item.id ?? null,
-            report_month: month,
-            week_index: item.week_index,
-            project_id: item.project_id,
-            project_name: toProjectName(projects, item.project_id),
-            person_name: item.person_name.trim(),
-            role_type: item.role_type.trim(),
-            score: Number(item.score),
-            note: item.note.trim() || null,
-          })),
-        }),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/operator-management/performance/upsert`,
+        {
+          method: 'POST',
+          headers: {
+            ...buildBackendClientHeaders(session),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            items: validRows.map((item) => ({
+              id: item.id ?? null,
+              report_month: month,
+              week_index: item.week_index,
+              project_id: item.project_id,
+              project_name: toProjectName(projects, item.project_id),
+              person_name: item.person_name.trim(),
+              role_type: item.role_type.trim(),
+              score: Number(item.score),
+              note: item.note.trim() || null,
+            })),
+          }),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -550,7 +630,11 @@ export default function OperatorManagementPage() {
       setPerformanceDraftRows(buildPerformanceDraft(payload.items ?? []))
       notify({ type: 'success', title: '运营绩效已保存' })
     } catch (submitError) {
-      notify({ type: 'error', title: '运营绩效保存失败', message: submitError instanceof Error ? submitError.message : '运营绩效保存失败' })
+      notify({
+        type: 'error',
+        title: '运营绩效保存失败',
+        message: submitError instanceof Error ? submitError.message : '运营绩效保存失败',
+      })
     } finally {
       setSavingPerformance(false)
     }
@@ -582,17 +666,20 @@ export default function OperatorManagementPage() {
 
     setSavingCommission(true)
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/ratio-overrides/upsert`, {
-        method: 'POST',
-        headers: {
-          ...buildBackendClientHeaders(session),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          report_month: month,
-          items,
-        }),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/commission-management/ratio-overrides/upsert`,
+        {
+          method: 'POST',
+          headers: {
+            ...buildBackendClientHeaders(session),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            report_month: month,
+            items,
+          }),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -600,7 +687,11 @@ export default function OperatorManagementPage() {
       setRatioOverrideRows(payload.items ?? [])
       notify({ type: 'success', title: '运营佣金比例与备注已保存' })
     } catch (submitError) {
-      notify({ type: 'error', title: '运营佣金保存失败', message: submitError instanceof Error ? submitError.message : '运营佣金保存失败' })
+      notify({
+        type: 'error',
+        title: '运营佣金保存失败',
+        message: submitError instanceof Error ? submitError.message : '运营佣金保存失败',
+      })
     } finally {
       setSavingCommission(false)
     }
@@ -612,7 +703,10 @@ export default function OperatorManagementPage() {
         <DataCard>
           <DataCardHeader
             badge={
-              <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+              <Badge
+                variant="outline"
+                className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+              >
                 系统管理
               </Badge>
             }
@@ -620,7 +714,12 @@ export default function OperatorManagementPage() {
             action={
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1.5">
-                  <label htmlFor="operator_management_month" className="text-xs text-muted-foreground">核算月份</label>
+                  <label
+                    htmlFor="operator_management_month"
+                    className="text-xs text-muted-foreground"
+                  >
+                    核算月份
+                  </label>
                   <MonthPicker
                     value={parseMonthInputValue(month)}
                     onChange={(date) => setMonth(formatMonthInputValue(date))}
@@ -636,16 +735,32 @@ export default function OperatorManagementPage() {
           />
         </DataCard>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OperatorPageTab)} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as OperatorPageTab)}
+          className="w-full"
+        >
           <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
             <TabsMotionGroup id="operator-management-tabs">
-              <SlidingTabsTrigger value="role-info" activeValue={activeTab} layoutId="operator-management-tabs">
+              <SlidingTabsTrigger
+                value="role-info"
+                activeValue={activeTab}
+                layoutId="operator-management-tabs"
+              >
                 运营信息
               </SlidingTabsTrigger>
-              <SlidingTabsTrigger value="performance" activeValue={activeTab} layoutId="operator-management-tabs">
+              <SlidingTabsTrigger
+                value="performance"
+                activeValue={activeTab}
+                layoutId="operator-management-tabs"
+              >
                 运营绩效
               </SlidingTabsTrigger>
-              <SlidingTabsTrigger value="commission" activeValue={activeTab} layoutId="operator-management-tabs">
+              <SlidingTabsTrigger
+                value="commission"
+                activeValue={activeTab}
+                layoutId="operator-management-tabs"
+              >
                 运营佣金
               </SlidingTabsTrigger>
             </TabsMotionGroup>
@@ -660,7 +775,9 @@ export default function OperatorManagementPage() {
               <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   {COMMON_ROLE_OPTIONS.map((item) => (
-                    <Badge key={item} variant="secondary" className="rounded-full">{toRoleLabel(item)}</Badge>
+                    <Badge key={item} variant="secondary" className="rounded-full">
+                      {toRoleLabel(item)}
+                    </Badge>
                   ))}
                 </div>
                 <div className="flex items-center gap-2">
@@ -669,7 +786,11 @@ export default function OperatorManagementPage() {
                     新增岗位
                   </Button>
                   <Button type="button" onClick={() => void saveRoleInfo()} disabled={savingRoles}>
-                    {savingRoles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {savingRoles ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                     保存运营信息
                   </Button>
                 </div>
@@ -688,10 +809,15 @@ export default function OperatorManagementPage() {
                   <TableBody>
                     {roleLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          加载中...
+                        </TableCell>
                       </TableRow>
                     ) : roleDraftRows.length === 0 ? (
-                      <EmptyTableState colSpan={5} message="当前月份还没有岗位记录，点击右上角新增岗位即可开始维护。" />
+                      <EmptyTableState
+                        colSpan={5}
+                        message="当前月份还没有岗位记录，点击右上角新增岗位即可开始维护。"
+                      />
                     ) : (
                       roleDraftRows.map((row, index) => (
                         <TableRow key={row.localId}>
@@ -701,7 +827,11 @@ export default function OperatorManagementPage() {
                               list="operator-name-options"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setRoleDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, person_name: value } : item))
+                                setRoleDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, person_name: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -709,7 +839,13 @@ export default function OperatorManagementPage() {
                             <Select
                               value={row.project_id ? String(row.project_id) : ''}
                               onValueChange={(value) => {
-                                setRoleDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, project_id: Number(value) } : item))
+                                setRoleDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, project_id: Number(value) }
+                                      : item
+                                  )
+                                )
                               }}
                             >
                               <SelectTrigger>
@@ -730,7 +866,11 @@ export default function OperatorManagementPage() {
                               list="operator-role-options"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setRoleDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, role_type: value } : item))
+                                setRoleDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, role_type: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -740,7 +880,13 @@ export default function OperatorManagementPage() {
                               placeholder="YYYY-MM"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setRoleDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, effective_from_month: value } : item))
+                                setRoleDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, effective_from_month: value }
+                                      : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -750,7 +896,13 @@ export default function OperatorManagementPage() {
                               placeholder="空代表持续有效"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setRoleDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, effective_to_month: value } : item))
+                                setRoleDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, effective_to_month: value }
+                                      : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -797,8 +949,16 @@ export default function OperatorManagementPage() {
                     <PlusCircle className="h-4 w-4" />
                     新增绩效
                   </Button>
-                  <Button type="button" onClick={() => void savePerformance()} disabled={savingPerformance}>
-                    {savingPerformance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  <Button
+                    type="button"
+                    onClick={() => void savePerformance()}
+                    disabled={savingPerformance}
+                  >
+                    {savingPerformance ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
                     保存绩效
                   </Button>
                 </div>
@@ -818,10 +978,15 @@ export default function OperatorManagementPage() {
                   <TableBody>
                     {performanceLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          加载中...
+                        </TableCell>
                       </TableRow>
                     ) : performanceDraftRows.length === 0 ? (
-                      <EmptyTableState colSpan={6} message="当前月份还没有绩效记录，新增后即可按周打分。" />
+                      <EmptyTableState
+                        colSpan={6}
+                        message="当前月份还没有绩效记录，新增后即可按周打分。"
+                      />
                     ) : (
                       performanceDraftRows.map((row, index) => (
                         <TableRow key={row.localId}>
@@ -831,7 +996,11 @@ export default function OperatorManagementPage() {
                               list="operator-name-options"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, person_name: value } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, person_name: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -839,7 +1008,13 @@ export default function OperatorManagementPage() {
                             <Select
                               value={row.project_id ? String(row.project_id) : ''}
                               onValueChange={(value) => {
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, project_id: Number(value) } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, project_id: Number(value) }
+                                      : item
+                                  )
+                                )
                               }}
                             >
                               <SelectTrigger>
@@ -860,7 +1035,11 @@ export default function OperatorManagementPage() {
                               list="operator-role-options"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, role_type: value } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, role_type: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -868,7 +1047,13 @@ export default function OperatorManagementPage() {
                             <Select
                               value={String(row.week_index)}
                               onValueChange={(value) => {
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, week_index: Number(value) } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, week_index: Number(value) }
+                                      : item
+                                  )
+                                )
                               }}
                             >
                               <SelectTrigger>
@@ -892,7 +1077,11 @@ export default function OperatorManagementPage() {
                               className="text-right"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, score: value } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, score: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -902,7 +1091,11 @@ export default function OperatorManagementPage() {
                               placeholder="补充说明"
                               onChange={(event) => {
                                 const value = event.target.value
-                                setPerformanceDraftRows((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, note: value } : item))
+                                setPerformanceDraftRows((prev) =>
+                                  prev.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, note: value } : item
+                                  )
+                                )
                               }}
                             />
                           </TableCell>
@@ -934,11 +1127,30 @@ export default function OperatorManagementPage() {
             <DataTableCard>
               <DataTableCardStatBar
                 items={[
-                  { label: '已关联绩效人员', value: commissionTableRows.filter((row) => row.performanceSummary.weekCount > 0).length },
-                  { label: '平均绩效点', value: commissionTableRows.length > 0
-                    ? (commissionTableRows.reduce((sum, row) => sum + row.performanceSummary.averageScore, 0) / commissionTableRows.length).toFixed(1)
-                    : '0.0' },
-                  { label: '总绩效点', value: commissionTableRows.reduce((sum, row) => sum + row.performanceSummary.totalScore, 0) },
+                  {
+                    label: '已关联绩效人员',
+                    value: commissionTableRows.filter((row) => row.performanceSummary.weekCount > 0)
+                      .length,
+                  },
+                  {
+                    label: '平均绩效点',
+                    value:
+                      commissionTableRows.length > 0
+                        ? (
+                            commissionTableRows.reduce(
+                              (sum, row) => sum + row.performanceSummary.averageScore,
+                              0
+                            ) / commissionTableRows.length
+                          ).toFixed(1)
+                        : '0.0',
+                  },
+                  {
+                    label: '总绩效点',
+                    value: commissionTableRows.reduce(
+                      (sum, row) => sum + row.performanceSummary.totalScore,
+                      0
+                    ),
+                  },
                 ]}
                 className={commissionLoading ? 'opacity-60' : ''}
               />
@@ -946,8 +1158,16 @@ export default function OperatorManagementPage() {
 
             <DataTableCard className="flex flex-1 flex-col overflow-hidden">
               <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
-                <Button type="button" onClick={() => void saveCommissionOverrides()} disabled={savingCommission}>
-                  {savingCommission ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                <Button
+                  type="button"
+                  onClick={() => void saveCommissionOverrides()}
+                  disabled={savingCommission}
+                >
+                  {savingCommission ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
                   保存佣金调整
                 </Button>
               </DataTableCardHeader>
@@ -975,10 +1195,15 @@ export default function OperatorManagementPage() {
                     <TableBody>
                       {commissionLoading ? (
                         <TableRow>
-                          <TableCell colSpan={13} className="text-center text-muted-foreground">加载中...</TableCell>
+                          <TableCell colSpan={13} className="text-center text-muted-foreground">
+                            加载中...
+                          </TableCell>
                         </TableRow>
                       ) : commissionTableRows.length === 0 ? (
-                        <EmptyTableState colSpan={13} message="当前月份暂无佣金记录，请先完成佣金核算。" />
+                        <EmptyTableState
+                          colSpan={13}
+                          message="当前月份暂无佣金记录，请先完成佣金核算。"
+                        />
                       ) : (
                         commissionTableRows.map((row) => {
                           const key = `${row.project_id}::${row.person_name}::${row.income_category}`
@@ -993,16 +1218,26 @@ export default function OperatorManagementPage() {
                               <TableCell>{toRoleLabel(row.role_type)}</TableCell>
                               <TableCell>{toIncomeCategoryLabel(row.income_category)}</TableCell>
                               <TableCell className="text-right tabular-nums font-medium">
-                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.totalScore : '-'}
+                                {row.performanceSummary.weekCount > 0
+                                  ? row.performanceSummary.totalScore
+                                  : '-'}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.averageScore.toFixed(1) : '-'}
+                                {row.performanceSummary.weekCount > 0
+                                  ? row.performanceSummary.averageScore.toFixed(1)
+                                  : '-'}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.weekCount : '-'}
+                                {row.performanceSummary.weekCount > 0
+                                  ? row.performanceSummary.weekCount
+                                  : '-'}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums">{formatUsd(row.income_total_usd)}</TableCell>
-                              <TableCell className="text-right tabular-nums">{formatPercent(row.factory_commission_rate)}</TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {formatUsd(row.income_total_usd)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {formatPercent(row.factory_commission_rate)}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <Input
                                   type="number"
@@ -1013,11 +1248,16 @@ export default function OperatorManagementPage() {
                                   className="min-w-[110px] text-right"
                                   onChange={(event) => {
                                     const value = event.target.value
-                                    setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, ratio: value } }))
+                                    setCommissionDrafts((prev) => ({
+                                      ...prev,
+                                      [key]: { ...draft, ratio: value },
+                                    }))
                                   }}
                                 />
                               </TableCell>
-                              <TableCell className="text-right tabular-nums font-medium">{formatRmb(row.bonus_amount_rmb)}</TableCell>
+                              <TableCell className="text-right tabular-nums font-medium">
+                                {formatRmb(row.bonus_amount_rmb)}
+                              </TableCell>
                               <TableCell>{row.override ? '手动' : '规则'}</TableCell>
                               <TableCell>
                                 <Input
@@ -1025,7 +1265,10 @@ export default function OperatorManagementPage() {
                                   placeholder="填写说明"
                                   onChange={(event) => {
                                     const value = event.target.value
-                                    setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, reason: value } }))
+                                    setCommissionDrafts((prev) => ({
+                                      ...prev,
+                                      [key]: { ...draft, reason: value },
+                                    }))
                                   }}
                                 />
                               </TableCell>
@@ -1042,7 +1285,9 @@ export default function OperatorManagementPage() {
                   {commissionLoading ? (
                     <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
                   ) : commissionTableRows.length === 0 ? (
-                    <div className="text-center text-sm text-muted-foreground py-8">当前月份暂无佣金记录</div>
+                    <div className="text-center text-sm text-muted-foreground py-8">
+                      当前月份暂无佣金记录
+                    </div>
                   ) : (
                     commissionTableRows.map((row) => {
                       const key = `${row.project_id}::${row.person_name}::${row.income_category}`
@@ -1056,11 +1301,17 @@ export default function OperatorManagementPage() {
                           <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
                             <div className="min-w-0">
                               <div className="font-semibold text-sm">{row.person_name}</div>
-                              <div className="text-xs text-muted-foreground truncate">{row.project_name}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {row.project_name}
+                              </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
-                              <Badge variant="secondary" className="text-xs">{toRoleLabel(row.role_type)}</Badge>
-                              <Badge variant="outline" className="text-xs">{toIncomeCategoryLabel(row.income_category)}</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {toRoleLabel(row.role_type)}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {toIncomeCategoryLabel(row.income_category)}
+                              </Badge>
                             </div>
                           </div>
 
@@ -1068,14 +1319,32 @@ export default function OperatorManagementPage() {
                           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                             <div>
                               <span className="text-xs text-muted-foreground">绩效总分</span>
-                              <div className={cn("font-medium", row.performanceSummary.weekCount > 0 ? '' : 'text-muted-foreground')}>
-                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.totalScore : '-'}
+                              <div
+                                className={cn(
+                                  'font-medium',
+                                  row.performanceSummary.weekCount > 0
+                                    ? ''
+                                    : 'text-muted-foreground'
+                                )}
+                              >
+                                {row.performanceSummary.weekCount > 0
+                                  ? row.performanceSummary.totalScore
+                                  : '-'}
                               </div>
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground">绩效均分</span>
-                              <div className={cn("font-medium", row.performanceSummary.weekCount > 0 ? '' : 'text-muted-foreground')}>
-                                {row.performanceSummary.weekCount > 0 ? row.performanceSummary.averageScore.toFixed(1) : '-'}
+                              <div
+                                className={cn(
+                                  'font-medium',
+                                  row.performanceSummary.weekCount > 0
+                                    ? ''
+                                    : 'text-muted-foreground'
+                                )}
+                              >
+                                {row.performanceSummary.weekCount > 0
+                                  ? row.performanceSummary.averageScore.toFixed(1)
+                                  : '-'}
                               </div>
                             </div>
                             <div>
@@ -1084,21 +1353,30 @@ export default function OperatorManagementPage() {
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground">项目佣金率</span>
-                              <div className="font-medium">{formatPercent(row.factory_commission_rate)}</div>
+                              <div className="font-medium">
+                                {formatPercent(row.factory_commission_rate)}
+                              </div>
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground">提成比例</span>
-                              <div className="font-medium">{formatPercent(row.operator_bonus_ratio)}</div>
+                              <div className="font-medium">
+                                {formatPercent(row.operator_bonus_ratio)}
+                              </div>
                             </div>
                             <div>
                               <span className="text-xs text-muted-foreground">提成金额</span>
-                              <div className="font-medium text-primary">{formatRmb(row.bonus_amount_rmb)}</div>
+                              <div className="font-medium text-primary">
+                                {formatRmb(row.bonus_amount_rmb)}
+                              </div>
                             </div>
                           </div>
 
                           {/* 绩效周数 */}
                           <div className="text-xs text-muted-foreground">
-                            绩效周数: {row.performanceSummary.weekCount > 0 ? `${row.performanceSummary.weekCount} 周` : '无'}
+                            绩效周数:{' '}
+                            {row.performanceSummary.weekCount > 0
+                              ? `${row.performanceSummary.weekCount} 周`
+                              : '无'}
                           </div>
 
                           {/* 可编辑字段 */}
@@ -1114,7 +1392,10 @@ export default function OperatorManagementPage() {
                                 className="h-9 min-h-[44px] text-sm"
                                 onChange={(event) => {
                                   const value = event.target.value
-                                  setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, ratio: value } }))
+                                  setCommissionDrafts((prev) => ({
+                                    ...prev,
+                                    [key]: { ...draft, ratio: value },
+                                  }))
                                 }}
                               />
                             </div>
@@ -1126,7 +1407,10 @@ export default function OperatorManagementPage() {
                                 className="h-9 min-h-[44px] text-sm"
                                 onChange={(event) => {
                                   const value = event.target.value
-                                  setCommissionDrafts((prev) => ({ ...prev, [key]: { ...draft, reason: value } }))
+                                  setCommissionDrafts((prev) => ({
+                                    ...prev,
+                                    [key]: { ...draft, reason: value },
+                                  }))
                                 }}
                               />
                             </div>
@@ -1135,7 +1419,10 @@ export default function OperatorManagementPage() {
                           {/* 比例来源 */}
                           <div className="flex items-center gap-2 text-xs">
                             <span className="text-muted-foreground">比例来源:</span>
-                            <Badge variant={row.override ? "default" : "secondary"} className="text-xs">
+                            <Badge
+                              variant={row.override ? 'default' : 'secondary'}
+                              className="text-xs"
+                            >
                               {row.override ? '手动' : '规则'}
                             </Badge>
                           </div>
@@ -1158,9 +1445,15 @@ export default function OperatorManagementPage() {
                     key={item.range}
                     className="rounded-2xl border border-white/80 bg-white/85 p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.45)] backdrop-blur-sm dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] dark:shadow-none"
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">Tier {index + 1}</p>
-                    <p className="mt-3 text-sm font-medium text-slate-500 dark:text-muted-foreground/80">月销售额</p>
-                    <p className="mt-1 text-base font-semibold text-slate-900 dark:text-foreground">{item.range}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">
+                      Tier {index + 1}
+                    </p>
+                    <p className="mt-3 text-sm font-medium text-slate-500 dark:text-muted-foreground/80">
+                      月销售额
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-slate-900 dark:text-foreground">
+                      {item.range}
+                    </p>
                     <div className="mt-4 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-500/12 dark:text-emerald-300 dark:ring-emerald-500/30">
                       运营提成比例 {item.ratio}
                     </div>

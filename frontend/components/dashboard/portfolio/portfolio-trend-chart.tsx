@@ -85,21 +85,18 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
 
   if (projects.length === 0) {
     return (
-      <div className='flex h-64 items-center justify-center text-muted-foreground'>
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
         暂无趋势数据
       </div>
     )
   }
 
   return (
-    <div className='dashboard-surface rounded-xl p-4'>
-      <div className='mb-4 flex items-center justify-between'>
-        <h3 className='text-sm font-medium'>多项目趋势对比</h3>
-        <Select
-          value={metric}
-          onValueChange={(v) => setMetric(v as MetricKey)}
-        >
-          <SelectTrigger className='w-32'>
+    <div className="dashboard-surface rounded-xl p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-medium">多项目趋势对比</h3>
+        <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
+          <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -111,14 +108,10 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
           </SelectContent>
         </Select>
       </div>
-      <ResponsiveContainer width='100%' height={350}>
+      <ResponsiveContainer width="100%" height={350}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray='3 3' stroke='hsl(var(--border))' />
-          <XAxis
-            dataKey='date'
-            tick={{ fontSize: 11 }}
-            tickFormatter={(v) => v.slice(5)}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
           <YAxis
             tick={{ fontSize: 11 }}
             tickFormatter={(v) => formatMetricValue(v, metric, country)}
@@ -131,7 +124,7 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
           {projects.map((p, i) => (
             <Line
               key={p.project_id}
-              type='monotone'
+              type="monotone"
               dataKey={`p${p.project_id}_${metric}`}
               name={p.project_name}
               stroke={CHART_COLORS[i % CHART_COLORS.length]}

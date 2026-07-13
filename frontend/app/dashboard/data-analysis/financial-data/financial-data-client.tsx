@@ -64,13 +64,12 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { getCountryLabel } from '@/lib/country'
 import { getExcelNumFmt } from './excel-num-fmt'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
-import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
-import { VAT_COUNTRIES } from '@/lib/console-constants'
 import {
-  CountrySelect,
-  FilterField,
-  RefreshButton,
-} from '@/components/dashboard/console'
+  DEFAULT_REPORT_UPLOAD_COUNTRY,
+  type ReportUploadCountry,
+} from '@/components/report-upload/types'
+import { VAT_COUNTRIES } from '@/lib/console-constants'
+import { CountrySelect, FilterField, RefreshButton } from '@/components/dashboard/console'
 
 export type ProjectOption = {
   id: number | null
@@ -182,14 +181,14 @@ function financialSeriesCacheKey(
   projectId: number,
   country: string,
   startMonth: string,
-  endMonth: string,
+  endMonth: string
 ): string {
   return `financial:series:${projectId}:${country}:${startMonth || 'none'}:${endMonth || 'none'}`
 }
 
 function buildMonthRateMap(
   months: string[],
-  sourceMap: Record<string, number>,
+  sourceMap: Record<string, number>
 ): Record<string, number> {
   const map: Record<string, number> = {}
   months.forEach((month) => {
@@ -259,16 +258,13 @@ function parseErrorBody(text: string, status: number): string {
           if (typeof item === 'string') return item
           if (item && typeof item === 'object') {
             const maybeMsg = (item as { msg?: unknown }).msg
-            return typeof maybeMsg === 'string'
-              ? maybeMsg
-              : JSON.stringify(item)
+            return typeof maybeMsg === 'string' ? maybeMsg : JSON.stringify(item)
           }
           return String(item)
         })
         .join('; ')
     }
-    if (payload.detail && typeof payload.detail === 'object')
-      return JSON.stringify(payload.detail)
+    if (payload.detail && typeof payload.detail === 'object') return JSON.stringify(payload.detail)
     return text
   } catch {
     return text
@@ -296,9 +292,7 @@ function isMonthWithinRange(month: string, startMonth: string, endMonth: string)
 
 function calculateNetProfitUsd(row: FinancialSeriesRow, exchangeRate: number): number {
   const totalCostUsd =
-    exchangeRate > 0
-      ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate
-      : 0
+    exchangeRate > 0 ? (row.fob_cost_rmb + row.first_leg_cost_rmb) / exchangeRate : 0
   return row.amazon_pay_back - totalCostUsd - row.credit_card_deduction_usd
 }
 
@@ -481,16 +475,14 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       incomeSalesWithTax: (acc.incomeSalesWithTax ?? 0) + (row.incomeSalesWithTax ?? 0),
       expenseVatTotal: (acc.expenseVatTotal ?? 0) + (row.expenseVatTotal ?? 0),
       amazonPayBack: acc.amazonPayBack + row.amazonPayBack,
-      creditCardDeductionUsd:
-        acc.creditCardDeductionUsd + row.creditCardDeductionUsd,
+      creditCardDeductionUsd: acc.creditCardDeductionUsd + row.creditCardDeductionUsd,
       fobCostRmb: acc.fobCostRmb + row.fobCostRmb,
       firstLegCostRmb: acc.firstLegCostRmb + row.firstLegCostRmb,
       netProfitRmb: acc.netProfitRmb + row.netProfitRmb,
       netProfitUsd: acc.netProfitUsd + row.netProfitUsd,
       evaluationFeeRmb: acc.evaluationFeeRmb + row.evaluationFeeRmb,
       prepaymentOtherRmb: acc.prepaymentOtherRmb + row.prepaymentOtherRmb,
-      operationCommissionRmb:
-        acc.operationCommissionRmb + (row.operationCommissionRmb ?? 0),
+      operationCommissionRmb: acc.operationCommissionRmb + (row.operationCommissionRmb ?? 0),
       payableTotalRmb: acc.payableTotalRmb + (row.payableTotalRmb ?? 0),
       exchangeRateSum: acc.exchangeRateSum + (row.exchangeRate > 0 ? row.exchangeRate : 0),
       exchangeRateCount: acc.exchangeRateCount + (row.exchangeRate > 0 ? 1 : 0),
@@ -524,7 +516,7 @@ function buildFinancialExportTotals(rows: FinancialExportDetailRow[]): Financial
       payableTotalRmb: 0,
       exchangeRateSum: 0,
       exchangeRateCount: 0,
-    },
+    }
   )
 }
 
@@ -747,9 +739,9 @@ type FinancialDataClientProps = {
 
 function FinancialFilterSkeleton() {
   return (
-    <div className='space-y-1.5'>
-      <Skeleton className='h-3 w-14' />
-      <Skeleton className='h-9 w-full' />
+    <div className="space-y-1.5">
+      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-9 w-full" />
     </div>
   )
 }
@@ -765,9 +757,7 @@ export default function FinancialDataClient({
   const { data: session, status: sessionStatus } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const [projects, setProjects] = useState<ProjectOption[]>(initialProjects)
-  const [projectsLoading, setProjectsLoading] = useState(
-    initialProjects.length === 0,
-  )
+  const [projectsLoading, setProjectsLoading] = useState(initialProjects.length === 0)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
@@ -779,16 +769,13 @@ export default function FinancialDataClient({
   const [country, setCountry] = useUrlParam<ReportUploadCountry>(
     'country',
     DEFAULT_REPORT_UPLOAD_COUNTRY,
-    { allowed: ['US', 'DE', 'UK'] },
+    { allowed: ['US', 'DE', 'UK'] }
   )
   const [startMonth, setStartMonth] = useUrlParam<string>('fromMonth', initialStartMonth)
   const [endMonth, setEndMonth] = useUrlParam<string>('toMonth', initialEndMonth)
 
   // DE/UK 报表启用 VAT 列；US 报表无 VAT 数据
-  const showVatColumn = useMemo(
-    () => VAT_COUNTRIES.has(country as 'DE' | 'UK'),
-    [country],
-  )
+  const showVatColumn = useMemo(() => VAT_COUNTRIES.has(country as 'DE' | 'UK'), [country])
 
   // Currency label and symbol based on country
   const currencySymbol = useMemo(() => {
@@ -813,9 +800,9 @@ export default function FinancialDataClient({
   const [error, setError] = useState<string | null>(null)
   // 重算后触发核算明细刷新的计数器
   const [accountingRefreshKey, setAccountingRefreshKey] = useState(0)
-  const [exchangeRateByMonth, setExchangeRateByMonth] = useState<
-    Record<string, number>
-  >(initialExchangeRateByMonth)
+  const [exchangeRateByMonth, setExchangeRateByMonth] = useState<Record<string, number>>(
+    initialExchangeRateByMonth
+  )
 
   // 图表线条可见性状态
   const [visibleLines, setVisibleLines] = useState({
@@ -824,9 +811,7 @@ export default function FinancialDataClient({
   })
   const [activeTab, setActiveTab] = useState<FinancialViewTab>('financial')
   const [accountingMonth, setAccountingMonth] = useState('')
-  const [accountingRows, setAccountingRows] = useState<
-    FinancialAccountingDetailLine[]
-  >([])
+  const [accountingRows, setAccountingRows] = useState<FinancialAccountingDetailLine[]>([])
   const [accountingLoading, setAccountingLoading] = useState(false)
   const [accountingExporting, setAccountingExporting] = useState(false)
   const [accountingError, setAccountingError] = useState<string | null>(null)
@@ -864,73 +849,70 @@ export default function FinancialDataClient({
       // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
       // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
       if (payload.length > 0) {
-        const existsInList =
-          projectId && payload.some((p) => String(p.id) === projectId)
+        const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
         if (!projectId || !existsInList) {
           setProjectId(String(payload[0].id))
         }
       }
     } catch (loadError) {
-      setProjectLoadError(
-        loadError instanceof Error ? loadError.message : '项目列表加载失败',
-      )
+      setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
     } finally {
       setProjectsLoading(false)
     }
   }, [projectId, session])
 
-  const loadExchangeRates = useCallback(async (months: string[]) => {
-    const uniqueMonths = Array.from(new Set(months.filter(Boolean)))
-    if (uniqueMonths.length === 0) {
-      setExchangeRateByMonth({})
-      return
-    }
-
-    const cacheKey = getExchangeRateCacheKey(currencyLabel)
-    const cached = getClientCache<Record<string, number>>(
-      cacheKey,
-      EXCHANGE_RATE_CACHE_TTL_MS,
-    )
-    const hasCompleteCachedMonths =
-      Boolean(cached) &&
-      uniqueMonths.every((month) => month in (cached as Record<string, number>))
-    if (cached) {
-      setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, cached))
-      setError(null)
-      if (hasCompleteCachedMonths) {
+  const loadExchangeRates = useCallback(
+    async (months: string[]) => {
+      const uniqueMonths = Array.from(new Set(months.filter(Boolean)))
+      if (uniqueMonths.length === 0) {
+        setExchangeRateByMonth({})
         return
       }
-    }
 
-    let page = 1
-    let totalPages = 1
-    const fetchedMap: Record<string, number> = {}
-
-    while (page <= totalPages) {
-      const response = await fetch(
-        `/api/exchange-rates?currency=${currencyLabel}&page=${page}&pageSize=200`,
-        {
-          cache: 'no-store',
-        },
-      )
-      if (!response.ok) {
-        throw new Error(parseErrorBody(await response.text(), response.status))
-      }
-      const payload = (await response.json()) as ExchangeRateListResponse
-      const rows = Array.isArray(payload.data) ? payload.data : []
-      rows.forEach((row) => {
-        if (row.year_month) {
-          fetchedMap[row.year_month] = Number(row.rate) || 0
+      const cacheKey = getExchangeRateCacheKey(currencyLabel)
+      const cached = getClientCache<Record<string, number>>(cacheKey, EXCHANGE_RATE_CACHE_TTL_MS)
+      const hasCompleteCachedMonths =
+        Boolean(cached) &&
+        uniqueMonths.every((month) => month in (cached as Record<string, number>))
+      if (cached) {
+        setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, cached))
+        setError(null)
+        if (hasCompleteCachedMonths) {
+          return
         }
-      })
-      totalPages = Number(payload.pagination?.totalPages || 1)
-      page += 1
-    }
+      }
 
-    setClientCache(getExchangeRateCacheKey(currencyLabel), fetchedMap)
-    setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, fetchedMap))
-    setError(null)
-  }, [currencyLabel])
+      let page = 1
+      let totalPages = 1
+      const fetchedMap: Record<string, number> = {}
+
+      while (page <= totalPages) {
+        const response = await fetch(
+          `/api/exchange-rates?currency=${currencyLabel}&page=${page}&pageSize=200`,
+          {
+            cache: 'no-store',
+          }
+        )
+        if (!response.ok) {
+          throw new Error(parseErrorBody(await response.text(), response.status))
+        }
+        const payload = (await response.json()) as ExchangeRateListResponse
+        const rows = Array.isArray(payload.data) ? payload.data : []
+        rows.forEach((row) => {
+          if (row.year_month) {
+            fetchedMap[row.year_month] = Number(row.rate) || 0
+          }
+        })
+        totalPages = Number(payload.pagination?.totalPages || 1)
+        page += 1
+      }
+
+      setClientCache(getExchangeRateCacheKey(currencyLabel), fetchedMap)
+      setExchangeRateByMonth(buildMonthRateMap(uniqueMonths, fetchedMap))
+      setError(null)
+    },
+    [currencyLabel]
+  )
 
   const loadFinancialSeries = useCallback(
     async (options?: { force?: boolean }) => {
@@ -942,17 +924,9 @@ export default function FinancialDataClient({
       }
 
       const useCache = !options?.force
-      const cacheKey = financialSeriesCacheKey(
-        parsedProjectId,
-        country,
-        startMonth,
-        endMonth,
-      )
+      const cacheKey = financialSeriesCacheKey(parsedProjectId, country, startMonth, endMonth)
       const cachedPayload = useCache
-        ? getClientCache<FinancialSeriesResponse>(
-            cacheKey,
-            FINANCIAL_SERIES_CACHE_TTL_MS,
-          )
+        ? getClientCache<FinancialSeriesResponse>(cacheKey, FINANCIAL_SERIES_CACHE_TTL_MS)
         : null
       const hasCachedPayload = Boolean(cachedPayload)
       if (cachedPayload) {
@@ -982,12 +956,10 @@ export default function FinancialDataClient({
           {
             cache: 'no-store',
             headers: authHeaders(),
-          },
+          }
         )
         if (!response.ok) {
-          throw new Error(
-            parseErrorBody(await response.text(), response.status),
-          )
+          throw new Error(parseErrorBody(await response.text(), response.status))
         }
 
         const payload = (await response.json()) as FinancialSeriesResponse
@@ -998,9 +970,7 @@ export default function FinancialDataClient({
         if (latestRequestIdRef.current !== requestId) return
         if (!hasCachedPayload) {
           setData(null)
-          setError(
-            loadError instanceof Error ? loadError.message : '财务数据加载失败',
-          )
+          setError(loadError instanceof Error ? loadError.message : '财务数据加载失败')
         }
       } finally {
         if (latestRequestIdRef.current === requestId) {
@@ -1008,7 +978,7 @@ export default function FinancialDataClient({
         }
       }
     },
-    [projectId, country, startMonth, endMonth],
+    [projectId, country, startMonth, endMonth]
   )
 
   const recalculateFinancialSeries = useCallback(async () => {
@@ -1036,7 +1006,7 @@ export default function FinancialDataClient({
           method: 'POST',
           cache: 'no-store',
           headers: authHeaders(),
-        },
+        }
       )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -1044,12 +1014,7 @@ export default function FinancialDataClient({
 
       const payload = (await response.json()) as FinancialSeriesResponse
       setData(payload)
-      const cacheKey = financialSeriesCacheKey(
-        parsedProjectId,
-        country,
-        startMonth,
-        endMonth,
-      )
+      const cacheKey = financialSeriesCacheKey(parsedProjectId, country, startMonth, endMonth)
       setClientCache(cacheKey, payload)
 
       // 重算完成后，如果当前在核算明细 tab，触发明细刷新
@@ -1066,9 +1031,7 @@ export default function FinancialDataClient({
 
   const accountingMonthOptions = useMemo(() => {
     const rows = data?.rows ?? []
-    return rows
-      .filter((row) => row.has_source_report)
-      .map((row) => row.report_month)
+    return rows.filter((row) => row.has_source_report).map((row) => row.report_month)
   }, [data?.rows])
 
   useEffect(() => {
@@ -1100,7 +1063,7 @@ export default function FinancialDataClient({
         {
           cache: 'no-store',
           headers: authHeaders(),
-        },
+        }
       )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -1109,9 +1072,7 @@ export default function FinancialDataClient({
       setAccountingRows(payload.rows ?? [])
     } catch (loadError) {
       setAccountingRows([])
-      setAccountingError(
-        loadError instanceof Error ? loadError.message : '核算明细加载失败',
-      )
+      setAccountingError(loadError instanceof Error ? loadError.message : '核算明细加载失败')
     } finally {
       setAccountingLoading(false)
     }
@@ -1141,7 +1102,7 @@ export default function FinancialDataClient({
         {
           cache: 'no-store',
           headers: authHeaders(),
-        },
+        }
       )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
@@ -1166,9 +1127,7 @@ export default function FinancialDataClient({
         },
       })
     } catch (exportError) {
-      setAccountingError(
-        exportError instanceof Error ? exportError.message : '导出核算明细失败',
-      )
+      setAccountingError(exportError instanceof Error ? exportError.message : '导出核算明细失败')
     } finally {
       setAccountingExporting(false)
     }
@@ -1181,9 +1140,9 @@ export default function FinancialDataClient({
           initialData.project_id,
           country,
           initialStartMonth,
-          initialEndMonth,
+          initialEndMonth
         ),
-        initialData,
+        initialData
       )
     }
     if (Object.keys(initialExchangeRateByMonth).length > 0) {
@@ -1239,9 +1198,7 @@ export default function FinancialDataClient({
       return
     }
     void loadExchangeRates(months).catch((loadError) => {
-      setError(
-        loadError instanceof Error ? loadError.message : '汇率数据加载失败',
-      )
+      setError(loadError instanceof Error ? loadError.message : '汇率数据加载失败')
     })
   }, [data, loadExchangeRates])
 
@@ -1259,8 +1216,7 @@ export default function FinancialDataClient({
 
   // 计算趋势（最后一个有数据的月份与上一个的比较）
   const trends = useMemo(() => {
-    if (!data || data.trend.points.length < 2)
-      return { income: 0, expense: 0, amazon: 0 }
+    if (!data || data.trend.points.length < 2) return { income: 0, expense: 0, amazon: 0 }
     const points = data.trend.points
     const validPoints = points.filter((p) => p.has_source_report)
     if (validPoints.length < 2) return { income: 0, expense: 0, amazon: 0 }
@@ -1271,28 +1227,22 @@ export default function FinancialDataClient({
     return {
       income:
         prev.income_total !== 0
-          ? ((last.income_total - prev.income_total) /
-              Math.abs(prev.income_total)) *
-            100
+          ? ((last.income_total - prev.income_total) / Math.abs(prev.income_total)) * 100
           : 0,
       expense:
         prev.expense_total !== 0
-          ? ((last.expense_total - prev.expense_total) /
-              Math.abs(prev.expense_total)) *
-            100
+          ? ((last.expense_total - prev.expense_total) / Math.abs(prev.expense_total)) * 100
           : 0,
       amazon:
         prev.amazon_pay_back !== 0
-          ? ((last.amazon_pay_back - prev.amazon_pay_back) /
-              Math.abs(prev.amazon_pay_back)) *
-            100
+          ? ((last.amazon_pay_back - prev.amazon_pay_back) / Math.abs(prev.amazon_pay_back)) * 100
           : 0,
     }
   }, [data])
 
   const selectedProject = useMemo(
     () => projects.find((project) => String(project.id) === projectId) ?? null,
-    [projects, projectId],
+    [projects, projectId]
   )
   const commissionRate = selectedProject?.commission_rate ?? 0
   const commissionBasis = selectedProject?.commission_basis ?? null
@@ -1312,10 +1262,8 @@ export default function FinancialDataClient({
           incomeTotalUsd: row.income_total,
           amazonPaybackUsd: row.amazon_pay_back,
         })
-        const operationCommissionRmb =
-          operationCommission.commissionUsd * exchangeRate
-        const payableTotalRmb =
-          evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+        const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
+        const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
         const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
         const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
 
@@ -1324,36 +1272,27 @@ export default function FinancialDataClient({
           income_refund: acc.income_refund + row.income_refund,
           income_adjustment: acc.income_adjustment + row.income_adjustment,
           income_other: acc.income_other + row.income_other,
-          expense_selling_fee:
-            acc.expense_selling_fee + row.expense_selling_fee,
+          expense_selling_fee: acc.expense_selling_fee + row.expense_selling_fee,
           expense_fba_fee: acc.expense_fba_fee + row.expense_fba_fee,
-          expense_inventory_fee:
-            acc.expense_inventory_fee + row.expense_inventory_fee,
-          expense_service_fee:
-            acc.expense_service_fee + row.expense_service_fee,
-          expense_advertising:
-            acc.expense_advertising + row.expense_advertising,
+          expense_inventory_fee: acc.expense_inventory_fee + row.expense_inventory_fee,
+          expense_service_fee: acc.expense_service_fee + row.expense_service_fee,
+          expense_advertising: acc.expense_advertising + row.expense_advertising,
           expense_other_fees: acc.expense_other_fees + row.expense_other_fees,
           income_total: acc.income_total + row.income_total,
           expense_total: acc.expense_total + row.expense_total,
-          income_vat_total:
-            acc.income_vat_total + (row.income_vat_total ?? 0),
+          income_vat_total: acc.income_vat_total + (row.income_vat_total ?? 0),
           amazon_pay_back: acc.amazon_pay_back + row.amazon_pay_back,
-          credit_card_deduction_usd:
-            acc.credit_card_deduction_usd + creditCardUsd,
+          credit_card_deduction_usd: acc.credit_card_deduction_usd + creditCardUsd,
           fob_cost_rmb: acc.fob_cost_rmb + row.fob_cost_rmb,
           first_leg_cost_rmb: acc.first_leg_cost_rmb + row.first_leg_cost_rmb,
           net_profit_rmb: acc.net_profit_rmb + netProfitRmb,
           net_profit_usd: acc.net_profit_usd + netProfitUsd,
           evaluation_fee_rmb: acc.evaluation_fee_rmb + evaluationFeeRmb,
           prepayment_other_rmb: acc.prepayment_other_rmb + prepaymentOtherRmb,
-          operation_commission_rmb:
-            acc.operation_commission_rmb + operationCommissionRmb,
+          operation_commission_rmb: acc.operation_commission_rmb + operationCommissionRmb,
           payable_total_rmb: acc.payable_total_rmb + payableTotalRmb,
-          exchange_rate_sum:
-            acc.exchange_rate_sum + (exchangeRate > 0 ? exchangeRate : 0),
-          exchange_rate_count:
-            acc.exchange_rate_count + (exchangeRate > 0 ? 1 : 0),
+          exchange_rate_sum: acc.exchange_rate_sum + (exchangeRate > 0 ? exchangeRate : 0),
+          exchange_rate_count: acc.exchange_rate_count + (exchangeRate > 0 ? 1 : 0),
         }
       },
       {
@@ -1382,7 +1321,7 @@ export default function FinancialDataClient({
         payable_total_rmb: 0,
         exchange_rate_sum: 0,
         exchange_rate_count: 0,
-      },
+      }
     )
   }, [data, exchangeRateByMonth, commissionRate, commissionBasis])
 
@@ -1398,10 +1337,8 @@ export default function FinancialDataClient({
         incomeTotalUsd: row.income_total,
         amazonPaybackUsd: row.amazon_pay_back,
       })
-      const operationCommissionRmb =
-        operationCommission.commissionUsd * exchangeRate
-      const payableTotalRmb =
-        evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+      const operationCommissionRmb = operationCommission.commissionUsd * exchangeRate
+      const payableTotalRmb = evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
       const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
       const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
 
@@ -1431,55 +1368,33 @@ export default function FinancialDataClient({
         netProfitRate: toSignedRatio(netProfitUsd, row.income_total),
         evaluationFeeRmb,
         prepaymentOtherRmb,
-        operationCommissionRmb: disableCommission
-          ? null
-          : operationCommissionRmb,
+        operationCommissionRmb: disableCommission ? null : operationCommissionRmb,
         payableTotalRmb: disableCommission ? null : payableTotalRmb,
         exchangeRate,
-        platformRatio: toPositiveRatio(
-          row.expense_selling_fee,
-          row.income_total,
-        ),
+        platformRatio: toPositiveRatio(row.expense_selling_fee, row.income_total),
         deliveryRatio: toPositiveRatio(row.expense_fba_fee, row.income_total),
-        storageRatio: toPositiveRatio(
-          row.expense_inventory_fee,
-          row.income_total,
-        ),
-        serviceRatio: toPositiveRatio(
-          row.expense_service_fee,
-          row.income_total,
-        ),
+        storageRatio: toPositiveRatio(row.expense_inventory_fee, row.income_total),
+        serviceRatio: toPositiveRatio(row.expense_service_fee, row.income_total),
         adRatio: toPositiveRatio(row.expense_advertising, row.income_total),
         refundRatio: toPositiveRatio(row.income_refund, resolveDisplaySales(row)),
         paybackRatio: toSignedRatio(row.amazon_pay_back, row.income_total),
         hasSourceReport: row.has_source_report,
       }
     })
-  }, [
-    commissionBasis,
-    commissionRate,
-    data?.rows,
-    disableCommission,
-    exchangeRateByMonth,
-  ])
+  }, [commissionBasis, commissionRate, data?.rows, disableCommission, exchangeRateByMonth])
 
   const exportFinancialAnalysis = useCallback(async () => {
-    const usdNumFmt =
-      getExcelNumFmt('currency_usd', currencySymbol) ?? '$#,##0.00;[Red]-$#,##0.00'
+    const usdNumFmt = getExcelNumFmt('currency_usd', currencySymbol) ?? '$#,##0.00;[Red]-$#,##0.00'
     if (!data || detailExportRows.length === 0) {
       setError('当前没有可导出的月度财务数据。')
       return
     }
 
     const exportTrendPoints = data.trend.points.filter((point) =>
-      isMonthWithinRange(point.report_month, data.start_month, data.end_month),
+      isMonthWithinRange(point.report_month, data.start_month, data.end_month)
     )
     const exportDetailRows = detailExportRows.filter((_, index) =>
-      isMonthWithinRange(
-        data.rows[index]?.report_month ?? '',
-        data.start_month,
-        data.end_month,
-      ),
+      isMonthWithinRange(data.rows[index]?.report_month ?? '', data.start_month, data.end_month)
     )
     if (exportDetailRows.length === 0) {
       setError('当前没有可导出的月度财务数据。')
@@ -1504,10 +1419,8 @@ export default function FinancialDataClient({
             100
           : 0,
       amazon:
-        exportTrendSummary.length === 2 &&
-        exportTrendSummary[0].amazon_pay_back !== 0
-          ? ((exportTrendSummary[1].amazon_pay_back -
-              exportTrendSummary[0].amazon_pay_back) /
+        exportTrendSummary.length === 2 && exportTrendSummary[0].amazon_pay_back !== 0
+          ? ((exportTrendSummary[1].amazon_pay_back - exportTrendSummary[0].amazon_pay_back) /
               Math.abs(exportTrendSummary[0].amazon_pay_back)) *
             100
           : 0,
@@ -1521,7 +1434,7 @@ export default function FinancialDataClient({
       workbook.creator = 'Codex'
       workbook.created = new Date()
       const activeExportColumns = EXPORT_DETAIL_COLUMNS.filter(
-        (column) => isAdmin || !ADMIN_ONLY_EXPORT_KEYS.has(column.key),
+        (column) => isAdmin || !ADMIN_ONLY_EXPORT_KEYS.has(column.key)
       )
 
       const summarySheet = workbook.addWorksheet('汇总', {
@@ -1585,30 +1498,15 @@ export default function FinancialDataClient({
       })
 
       const summaryKpis: Array<[string, number, string, number]> = [
-        [
-          '收入合计',
-          exportTotals.incomeTotal,
-          '所选区间全部平台收入汇总',
-          exportTrends.income,
-        ],
-        [
-          '支出合计',
-          exportTotals.expenseTotal,
-          '所选区间全部平台支出汇总',
-          exportTrends.expense,
-        ],
+        ['收入合计', exportTotals.incomeTotal, '所选区间全部平台收入汇总', exportTrends.income],
+        ['支出合计', exportTotals.expenseTotal, '所选区间全部平台支出汇总', exportTrends.expense],
         [
           'VAT (销售税)',
           exportTotals.incomeVatTotal ?? 0,
           '市场代扣销售税（从销售额中扣除，故为负）',
           0,
         ],
-        [
-          '亚马逊返款',
-          exportTotals.amazonPayBack,
-          '所选区间返款总额',
-          exportTrends.amazon,
-        ],
+        ['亚马逊返款', exportTotals.amazonPayBack, '所选区间返款总额', exportTrends.amazon],
         [
           '净额合计',
           exportTrendPoints.reduce((sum, point) => sum + point.net_amount, 0),
@@ -1644,12 +1542,7 @@ export default function FinancialDataClient({
       })
 
       const trendStartRow = 11
-      summarySheet.mergeCells(
-        trendStartRow,
-        1,
-        trendStartRow,
-        summaryLastColumn,
-      )
+      summarySheet.mergeCells(trendStartRow, 1, trendStartRow, summaryLastColumn)
       summarySheet.getCell(trendStartRow, 1).value = '月度趋势'
       summarySheet.getCell(trendStartRow, 1).font = {
         name: 'Microsoft YaHei',
@@ -1714,12 +1607,7 @@ export default function FinancialDataClient({
         })
       })
 
-      summarySheet.columns = [
-        { width: 16 },
-        { width: 16 },
-        { width: 28 },
-        { width: 12 },
-      ]
+      summarySheet.columns = [{ width: 16 }, { width: 16 }, { width: 28 }, { width: 12 }]
 
       const detailLastColumn = activeExportColumns.length
       detailSheet.mergeCells(1, 1, 1, detailLastColumn)
@@ -1765,12 +1653,8 @@ export default function FinancialDataClient({
       groupRow.height = 24
       headRow.height = 28
       let currentColumn = 1
-      Array.from(
-        new Set(activeExportColumns.map((column) => column.group)),
-      ).forEach((group) => {
-        const groupColumns = activeExportColumns.filter(
-          (column) => column.group === group,
-        )
+      Array.from(new Set(activeExportColumns.map((column) => column.group))).forEach((group) => {
+        const groupColumns = activeExportColumns.filter((column) => column.group === group)
         const startColumn = currentColumn
         groupColumns.forEach((column) => {
           headRow.getCell(currentColumn).value = column.title
@@ -1838,8 +1722,7 @@ export default function FinancialDataClient({
         activeExportColumns.forEach((column, columnIndex) => {
           const cell = row.getCell(columnIndex + 1)
           const value = rowData[column.key]
-          cell.value =
-            column.format === 'boolean' ? (value ? '有' : '无') : (value ?? '-')
+          cell.value = column.format === 'boolean' ? (value ? '有' : '无') : (value ?? '-')
           cell.font = {
             name: 'Microsoft YaHei',
             size: 10,
@@ -1850,10 +1733,7 @@ export default function FinancialDataClient({
           }
           cell.alignment = {
             vertical: 'middle',
-            horizontal:
-              column.format === 'text' || column.format === 'boolean'
-                ? 'left'
-                : 'right',
+            horizontal: column.format === 'text' || column.format === 'boolean' ? 'left' : 'right',
           }
           cell.fill = {
             type: 'pattern',
@@ -1926,40 +1806,19 @@ export default function FinancialDataClient({
               ? exportTotals.exchangeRateSum / exportTotals.exchangeRateCount
               : 0
         } else if (column.key === 'platformRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.expenseSellingFee,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toPositiveRatio(exportTotals.expenseSellingFee, exportTotals.incomeTotal)
         } else if (column.key === 'deliveryRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.expenseFbaFee,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toPositiveRatio(exportTotals.expenseFbaFee, exportTotals.incomeTotal)
         } else if (column.key === 'storageRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.expenseInventoryFee,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toPositiveRatio(exportTotals.expenseInventoryFee, exportTotals.incomeTotal)
         } else if (column.key === 'serviceRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.expenseServiceFee,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toPositiveRatio(exportTotals.expenseServiceFee, exportTotals.incomeTotal)
         } else if (column.key === 'adRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.expenseAdvertising,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toPositiveRatio(exportTotals.expenseAdvertising, exportTotals.incomeTotal)
         } else if (column.key === 'refundRatio') {
-          cell.value = toPositiveRatio(
-            exportTotals.incomeRefund,
-            exportTotals.incomeSales,
-          )
+          cell.value = toPositiveRatio(exportTotals.incomeRefund, exportTotals.incomeSales)
         } else if (column.key === 'paybackRatio') {
-          cell.value = toSignedRatio(
-            exportTotals.amazonPayBack,
-            exportTotals.incomeTotal,
-          )
+          cell.value = toSignedRatio(exportTotals.amazonPayBack, exportTotals.incomeTotal)
         } else if (column.key === 'vatTotal') {
           cell.value = exportTotals.vatTotal
         } else {
@@ -1990,16 +1849,9 @@ export default function FinancialDataClient({
         }
       })
 
-      const compactWidthKeys = new Set<string>([
-        'hasSourceReport',
-      ])
+      const compactWidthKeys = new Set<string>(['hasSourceReport'])
       detailSheet.columns = activeExportColumns.map((column) => ({
-        width:
-          column.key === 'monthLabel'
-            ? 12
-            : compactWidthKeys.has(column.key)
-              ? 10
-              : 12,
+        width: column.key === 'monthLabel' ? 12 : compactWidthKeys.has(column.key) ? 10 : 12,
       }))
 
       const buffer = await workbook.xlsx.writeBuffer()
@@ -2030,22 +1882,30 @@ export default function FinancialDataClient({
         },
       })
     } catch (exportError) {
-      setError(
-        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
-      )
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
       setExporting(false)
     }
-  }, [data, detailExportRows, disableCommission, endMonth, isAdmin, projectId, country, startMonth, currencySymbol])
+  }, [
+    data,
+    detailExportRows,
+    disableCommission,
+    endMonth,
+    isAdmin,
+    projectId,
+    country,
+    startMonth,
+    currencySymbol,
+  ])
   const showSkeleton = loading && !data
 
   return (
-    <div className='min-w-0 w-full space-y-6 overflow-x-hidden'>
+    <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
       <DataCard>
         <DataCardHeader
-          title='财务分析'
-          titleClassName='text-2xl tracking-tight'
-          badge={<p className='dashboard-kicker'>分析控制台</p>}
+          title="财务分析"
+          titleClassName="text-2xl tracking-tight"
+          badge={<p className="dashboard-kicker">分析控制台</p>}
         />
         <DataCardContent className="px-4 pb-4 pt-4">
           {/* 手机端：2列网格无标签 */}
@@ -2153,24 +2013,24 @@ export default function FinancialDataClient({
       </DataCard>
 
       {projectLoadError ? (
-        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {projectLoadError}
         </div>
       ) : null}
       {error ? (
-        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
       ) : null}
       {accountingError ? (
-        <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {accountingError}
         </div>
       ) : null}
 
       <DataTableCard>
         <DataTableCardStatBar
-          className='border-b border-border/70 bg-[hsl(var(--surface-subtle))]'
+          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
           items={[
             {
               label: '收入合计',
@@ -2196,14 +2056,14 @@ export default function FinancialDataClient({
       </DataTableCard>
 
       {/* 优化后的图表 - 使用 AreaChart 和渐变 */}
-      <DataCard className='animate-enter'>
+      <DataCard className="animate-enter">
         <DataCardHeader
-          title='月度趋势'
-          badge={<p className='dashboard-kicker'>财务趋势</p>}
+          title="月度趋势"
+          badge={<p className="dashboard-kicker">财务趋势</p>}
           action={
-            <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2217,18 +2077,18 @@ export default function FinancialDataClient({
                 }`}
               >
                 {visibleLines.income_sales ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--chart-2))' }}
                 />
                 销售额
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2242,12 +2102,12 @@ export default function FinancialDataClient({
                 }`}
               >
                 {visibleLines.income_refund ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--destructive))' }}
                 />
                 退款
@@ -2255,57 +2115,34 @@ export default function FinancialDataClient({
             </div>
           }
         />
-        <DataCardContent className='px-2 pt-4 sm:px-6 sm:pt-6'>
+        <DataCardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
           {loading && data ? (
-            <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
+            <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
               趋势图更新中...
             </div>
           ) : null}
           {showSkeleton ? (
-            <Skeleton className='h-[320px] w-full' />
+            <Skeleton className="h-[320px] w-full" />
           ) : trendPoints.length > 0 ? (
-            <ChartContainer
-              config={chartConfig}
-              className='aspect-auto h-[320px] w-full'
-            >
+            <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
               <AreaChart
                 accessibilityLayer
                 data={trendPoints}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               >
                 <defs>
-                  <linearGradient id='fillSales' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-income_sales)'
-                      stopOpacity={0.7}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-income_sales)'
-                      stopOpacity={0.05}
-                    />
+                  <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-income_sales)" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="var(--color-income_sales)" stopOpacity={0.05} />
                   </linearGradient>
-                  <linearGradient id='fillRefund' x1='0' y1='0' x2='0' y2='1'>
-                    <stop
-                      offset='5%'
-                      stopColor='var(--color-income_refund)'
-                      stopOpacity={0.7}
-                    />
-                    <stop
-                      offset='95%'
-                      stopColor='var(--color-income_refund)'
-                      stopOpacity={0.05}
-                    />
+                  <linearGradient id="fillRefund" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-income_refund)" stopOpacity={0.7} />
+                    <stop offset="95%" stopColor="var(--color-income_refund)" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid
-                  vertical={false}
-                  stroke='hsl(var(--border))'
-                  strokeOpacity={0.5}
-                />
+                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
                 <XAxis
-                  dataKey='month_label'
+                  dataKey="month_label"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={12}
@@ -2341,29 +2178,26 @@ export default function FinancialDataClient({
                           income_sales: '销售额',
                           income_refund: '退款',
                         }
-                        const displayName =
-                          nameMap[String(name)] || String(name)
+                        const displayName = nameMap[String(name)] || String(name)
                         return (
-                          <div className='flex items-center justify-between gap-4'>
-                            <span className='text-muted-foreground'>
-                              {displayName}
-                            </span>
-                            <span className='font-medium'>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">{displayName}</span>
+                            <span className="font-medium">
                               {formatCurrency(Number(value), currencySymbol)}
                             </span>
                           </div>
                         )
                       }}
-                      indicator='dot'
+                      indicator="dot"
                     />
                   }
                 />
                 {visibleLines.income_refund && (
                   <Area
-                    type='monotone'
-                    dataKey='income_refund'
-                    stroke='var(--color-income_refund)'
-                    fill='url(#fillRefund)'
+                    type="monotone"
+                    dataKey="income_refund"
+                    stroke="var(--color-income_refund)"
+                    fill="url(#fillRefund)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 0 }}
@@ -2371,10 +2205,10 @@ export default function FinancialDataClient({
                 )}
                 {visibleLines.income_sales && (
                   <Area
-                    type='monotone'
-                    dataKey='income_sales'
-                    stroke='var(--color-income_sales)'
-                    fill='url(#fillSales)'
+                    type="monotone"
+                    dataKey="income_sales"
+                    stroke="var(--color-income_sales)"
+                    fill="url(#fillSales)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 0 }}
@@ -2383,21 +2217,21 @@ export default function FinancialDataClient({
               </AreaChart>
             </ChartContainer>
           ) : (
-            <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
+            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
               暂无趋势数据
             </div>
           )}
         </DataCardContent>
       </DataCard>
 
-      <DataTableCard className='animate-enter'>
-        <DataTableCardHeader className='flex flex-wrap items-start justify-between gap-3 px-6 py-4'>
+      <DataTableCard className="animate-enter">
+        <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-3 px-6 py-4">
           <div>
-            <p className='dashboard-kicker'>操作台账</p>
-            <div className='text-base font-semibold text-foreground'>
+            <p className="dashboard-kicker">操作台账</p>
+            <div className="text-base font-semibold text-foreground">
               {activeTab === 'financial' ? '月度汇总' : '月度明细'}
             </div>
-            <p className='text-sm text-muted-foreground'>
+            <p className="text-sm text-muted-foreground">
               {activeTab === 'financial'
                 ? data
                   ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
@@ -2407,7 +2241,7 @@ export default function FinancialDataClient({
                   : '请选择有源报表的月份查看月度明细'}
             </p>
           </div>
-          <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {activeTab === 'accounting' ? (
               <>
                 <Select
@@ -2415,8 +2249,8 @@ export default function FinancialDataClient({
                   onValueChange={setAccountingMonth}
                   disabled={accountingMonthOptions.length === 0}
                 >
-                  <SelectTrigger className='h-8 w-[190px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                    <SelectValue placeholder='请选择月份' />
+                  <SelectTrigger className="h-8 w-[190px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                    <SelectValue placeholder="请选择月份" />
                   </SelectTrigger>
                   <SelectContent>
                     {accountingMonthOptions.map((month) => (
@@ -2427,29 +2261,27 @@ export default function FinancialDataClient({
                   </SelectContent>
                 </Select>
                 <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8'
+                  type="button"
+                  variant="outline"
+                  className="h-8"
                   onClick={() => void loadAccountingDetail()}
                   disabled={accountingLoading || !accountingMonth}
                 >
                   {accountingLoading ? '加载中...' : '刷新核算明细'}
                 </Button>
                 <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8'
+                  type="button"
+                  variant="outline"
+                  className="h-8"
                   onClick={() => void exportAccountingDetail()}
                   disabled={
-                    accountingExporting ||
-                    !accountingMonth ||
-                    accountingMonthOptions.length === 0
+                    accountingExporting || !accountingMonth || accountingMonthOptions.length === 0
                   }
                 >
                   {accountingExporting ? (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className='mr-2 h-4 w-4' />
+                    <Download className="mr-2 h-4 w-4" />
                   )}
                   导出 Excel
                 </Button>
@@ -2457,49 +2289,45 @@ export default function FinancialDataClient({
             ) : (
               <>
                 <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8'
+                  type="button"
+                  variant="outline"
+                  className="h-8"
                   onClick={() => void exportFinancialAnalysis()}
-                  disabled={
-                    exporting ||
-                    !data ||
-                    detailExportRows.length === 0
-                  }
+                  disabled={exporting || !data || detailExportRows.length === 0}
                 >
                   {exporting ? (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className='mr-2 h-4 w-4' />
+                    <Download className="mr-2 h-4 w-4" />
                   )}
                   导出 Excel
                 </Button>
                 <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8'
+                  type="button"
+                  variant="outline"
+                  className="h-8"
                   onClick={() => void recalculateFinancialSeries()}
                   disabled={recalculating || !data || data.rows.length === 0}
                 >
                   {recalculating ? (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <RefreshCw className='mr-2 h-4 w-4' />
+                    <RefreshCw className="mr-2 h-4 w-4" />
                   )}
                   重新核算
                 </Button>
               </>
             )}
-            <div className='inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
+            <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
               <button
-                type='button'
+                type="button"
                 className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'financial' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
                 onClick={() => setActiveTab('financial')}
               >
                 月度汇总
               </button>
               <button
-                type='button'
+                type="button"
                 className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'accounting' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
                 onClick={() => setActiveTab('accounting')}
               >
@@ -2512,602 +2340,493 @@ export default function FinancialDataClient({
           {activeTab === 'financial' ? (
             <>
               {loading && data ? (
-            <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
-              财务明细更新中...
-            </div>
-          ) : null}
-          {showSkeleton ? (
-            <BarSkeleton rows={5} />
-          ) : data && data.rows.length > 0 ? (
-            <Table
-              containerClassName='w-full max-w-full overflow-x-auto'
-              className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
-            >
-              <TableHeader>
-                <TableRow className='bg-muted/30 hover:bg-muted/30'>
-                  <TableHead
-                    rowSpan={2}
-                    className='sticky z-40 border-r border-border bg-muted px-2 py-2 text-center'
-                    style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
-                  >
-                    年/月度
-                  </TableHead>
-                  <TableHead
-                    colSpan={4}
-                    className='border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900/80 dark:text-emerald-100'
-                  >
-                    平台-收入 Income
-                  </TableHead>
-                  <TableHead
-                    colSpan={6}
-                    className='border-r bg-amber-500/15 px-2 py-2 text-center text-foreground'
-                  >
-                    平台-支出 Expense
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    收入合计
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    支出合计
-                  </TableHead>
-                  {showVatColumn ? (
-                    <TableHead
-                      rowSpan={2}
-                      className='border-r px-2 py-2 text-center'
-                    >
-                      VAT
-                    </TableHead>
-                  ) : null}
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    亚马逊回款
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    信用卡扣款
-                  </TableHead>
-                  {isAdmin ? (
-                    <>
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                  财务明细更新中...
+                </div>
+              ) : null}
+              {showSkeleton ? (
+                <BarSkeleton rows={5} />
+              ) : data && data.rows.length > 0 ? (
+                <Table
+                  containerClassName="w-full max-w-full overflow-x-auto"
+                  className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
+                >
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead
                         rowSpan={2}
-                        className='border-r px-2 py-2 text-center'
-                      >
-                        测评费用RMB
-                      </TableHead>
-                      <TableHead
-                        rowSpan={2}
-                        className='border-r px-2 py-2 text-center'
-                      >
-                        垫付其他RMB
-                      </TableHead>
-                      <TableHead
-                        rowSpan={2}
-                        className='border-r px-2 py-2 text-center'
-                      >
-                        运营佣金RMB
-                      </TableHead>
-                      <TableHead
-                        rowSpan={2}
-                        className='border-r px-2 py-2 text-center'
-                      >
-                        应付总计RMB
-                      </TableHead>
-                      <TableHead
-                        rowSpan={2}
-                        className='border-r px-2 py-2 text-center'
-                      >
-                        汇率
-                      </TableHead>
-                    </>
-                  ) : null}
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    平台占比
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    配送占比
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    仓储占比
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    服务占比
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    广告占比
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    退款率
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    回款率
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    FOB成本
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    头程成本
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='border-r px-2 py-2 text-center'
-                  >
-                    净利润RMB
-                  </TableHead>
-                  <TableHead rowSpan={2} className='px-2 py-2 text-center'>
-                    净利润{currencyLabel}
-                  </TableHead>
-                  <TableHead rowSpan={2} className='px-2 py-2 text-center'>
-                    净利率
-                  </TableHead>
-                </TableRow>
-                <TableRow className='bg-muted/20 hover:bg-muted/20'>
-                  <TableHead className='border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
-                    销售额
-                  </TableHead>
-                  <TableHead className='border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
-                    退款
-                  </TableHead>
-                  <TableHead className='border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
-                    赔偿
-                  </TableHead>
-                  <TableHead className='border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
-                    其他收入
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    平台费
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    配送费
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    仓储费
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    服务费
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    广告费
-                  </TableHead>
-                  <TableHead className='border-r bg-amber-500/10 px-2 py-1.5 text-center'>
-                    其他费用
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.rows.map((row) => {
-                  const exchangeRate =
-                    exchangeRateByMonth[row.report_month] ?? 0
-                  const creditCard = row.credit_card_deduction_usd
-                  const evaluationFeeRmb = 0
-                  const prepaymentOtherRmb = 0
-                  const operationCommission = resolveProjectCommissionUsd({
-                    commissionBasis,
-                    configuredCommissionRate: commissionRate,
-                    incomeTotalUsd: row.income_total,
-                    amazonPaybackUsd: row.amazon_pay_back,
-                  })
-                  const operationCommissionRmb =
-                    operationCommission.commissionUsd * exchangeRate
-                  const payableTotalRmb =
-                    evaluationFeeRmb +
-                    prepaymentOtherRmb +
-                    operationCommissionRmb
-                  const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
-                  const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
-                  const rowBg = !row.has_source_report
-                    ? 'bg-muted'
-                    : 'bg-background'
-                  const platformRatio = toPositiveRatio(
-                    row.expense_selling_fee,
-                    row.income_total,
-                  )
-                  const deliveryRatio = toPositiveRatio(
-                    row.expense_fba_fee,
-                    row.income_total,
-                  )
-                  const storageRatio = toPositiveRatio(
-                    row.expense_inventory_fee,
-                    row.income_total,
-                  )
-                  const serviceRatio = toPositiveRatio(
-                    row.expense_service_fee,
-                    row.income_total,
-                  )
-                  const adRatio = toPositiveRatio(
-                    row.expense_advertising,
-                    row.income_total,
-                  )
-                  const refundRatio = toPositiveRatio(
-                    row.income_refund,
-                    resolveDisplaySales(row),
-                  )
-                  const paybackRatio = toSignedRatio(
-                    row.amazon_pay_back,
-                    row.income_total,
-                  )
-                  const netProfitRate = toSignedRatio(netProfitUsd, row.income_total)
-
-                  return (
-                    <TableRow
-                      key={row.report_month}
-                      className={
-                        !row.has_source_report ? 'bg-muted/20' : undefined
-                      }
-                    >
-                      <TableCell
-                        className={`sticky z-20 border-r border-border px-2 py-1.5 font-medium ${rowBg}`}
+                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center"
                         style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                       >
-                        <div className='flex items-center justify-between gap-1'>
-                          <span className='whitespace-nowrap'>
-                            {formatMonth(row.report_month)}
-                          </span>
-                          {!row.has_source_report ? (
-                            <Badge
-                              variant='outline'
-                              className='h-4 whitespace-nowrap rounded-sm border-amber-500/30 bg-amber-500/10 px-1 text-[9px] leading-none text-amber-700 dark:text-amber-300'
-                            >
-                              无
-                            </Badge>
+                        年/月度
+                      </TableHead>
+                      <TableHead
+                        colSpan={4}
+                        className="border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900/80 dark:text-emerald-100"
+                      >
+                        平台-收入 Income
+                      </TableHead>
+                      <TableHead
+                        colSpan={6}
+                        className="border-r bg-amber-500/15 px-2 py-2 text-center text-foreground"
+                      >
+                        平台-支出 Expense
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        收入合计
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        支出合计
+                      </TableHead>
+                      {showVatColumn ? (
+                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          VAT
+                        </TableHead>
+                      ) : null}
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        亚马逊回款
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        信用卡扣款
+                      </TableHead>
+                      {isAdmin ? (
+                        <>
+                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                            测评费用RMB
+                          </TableHead>
+                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                            垫付其他RMB
+                          </TableHead>
+                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                            运营佣金RMB
+                          </TableHead>
+                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                            应付总计RMB
+                          </TableHead>
+                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                            汇率
+                          </TableHead>
+                        </>
+                      ) : null}
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        平台占比
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        配送占比
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        仓储占比
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        服务占比
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        广告占比
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        退款率
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        回款率
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        FOB成本
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        头程成本
+                      </TableHead>
+                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        净利润RMB
+                      </TableHead>
+                      <TableHead rowSpan={2} className="px-2 py-2 text-center">
+                        净利润{currencyLabel}
+                      </TableHead>
+                      <TableHead rowSpan={2} className="px-2 py-2 text-center">
+                        净利率
+                      </TableHead>
+                    </TableRow>
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                        销售额
+                      </TableHead>
+                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                        退款
+                      </TableHead>
+                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                        赔偿
+                      </TableHead>
+                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                        其他收入
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        平台费
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        配送费
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        仓储费
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        服务费
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        广告费
+                      </TableHead>
+                      <TableHead className="border-r bg-amber-500/10 px-2 py-1.5 text-center">
+                        其他费用
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.rows.map((row) => {
+                      const exchangeRate = exchangeRateByMonth[row.report_month] ?? 0
+                      const creditCard = row.credit_card_deduction_usd
+                      const evaluationFeeRmb = 0
+                      const prepaymentOtherRmb = 0
+                      const operationCommission = resolveProjectCommissionUsd({
+                        commissionBasis,
+                        configuredCommissionRate: commissionRate,
+                        incomeTotalUsd: row.income_total,
+                        amazonPaybackUsd: row.amazon_pay_back,
+                      })
+                      const operationCommissionRmb =
+                        operationCommission.commissionUsd * exchangeRate
+                      const payableTotalRmb =
+                        evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
+                      const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
+                      const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
+                      const rowBg = !row.has_source_report ? 'bg-muted' : 'bg-background'
+                      const platformRatio = toPositiveRatio(
+                        row.expense_selling_fee,
+                        row.income_total
+                      )
+                      const deliveryRatio = toPositiveRatio(row.expense_fba_fee, row.income_total)
+                      const storageRatio = toPositiveRatio(
+                        row.expense_inventory_fee,
+                        row.income_total
+                      )
+                      const serviceRatio = toPositiveRatio(
+                        row.expense_service_fee,
+                        row.income_total
+                      )
+                      const adRatio = toPositiveRatio(row.expense_advertising, row.income_total)
+                      const refundRatio = toPositiveRatio(
+                        row.income_refund,
+                        resolveDisplaySales(row)
+                      )
+                      const paybackRatio = toSignedRatio(row.amazon_pay_back, row.income_total)
+                      const netProfitRate = toSignedRatio(netProfitUsd, row.income_total)
+
+                      return (
+                        <TableRow
+                          key={row.report_month}
+                          className={!row.has_source_report ? 'bg-muted/20' : undefined}
+                        >
+                          <TableCell
+                            className={`sticky z-20 border-r border-border px-2 py-1.5 font-medium ${rowBg}`}
+                            style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="whitespace-nowrap">
+                                {formatMonth(row.report_month)}
+                              </span>
+                              {!row.has_source_report ? (
+                                <Badge
+                                  variant="outline"
+                                  className="h-4 whitespace-nowrap rounded-sm border-amber-500/30 bg-amber-500/10 px-1 text-[9px] leading-none text-amber-700 dark:text-amber-300"
+                                >
+                                  无
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(resolveDisplaySales(row), currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.income_refund, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.income_adjustment, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.income_other, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_selling_fee, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_fba_fee, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_inventory_fee, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_service_fee, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_advertising, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(row.expense_other_fees, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatCurrency(row.income_total, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatCurrency(row.expense_total, currencySymbol)}
+                          </TableCell>
+                          {showVatColumn ? (
+                            <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                              {formatCurrency(Math.abs(row.income_vat_total ?? 0), currencySymbol)}
+                            </TableCell>
                           ) : null}
-                        </div>
+                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatCurrency(row.amazon_pay_back, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatCurrency(creditCard, currencySymbol)}
+                          </TableCell>
+                          {isAdmin ? (
+                            <>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                                {formatRmb(evaluationFeeRmb)}
+                              </TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                                {formatRmb(prepaymentOtherRmb)}
+                              </TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                                {disableCommission ? '-' : formatRmb(operationCommissionRmb)}
+                              </TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                                {disableCommission ? '-' : formatRmb(payableTotalRmb)}
+                              </TableCell>
+                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                                {formatRate(exchangeRate)}
+                              </TableCell>
+                            </>
+                          ) : null}
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(platformRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(deliveryRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(storageRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(serviceRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(adRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRatio(refundRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatSignedRatio(paybackRatio)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRmb(row.fob_cost_rmb)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            {formatRmb(row.first_leg_cost_rmb)}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatRmb(netProfitRmb)}
+                          </TableCell>
+                          <TableCell className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatCurrency(netProfitUsd, currencySymbol)}
+                          </TableCell>
+                          <TableCell className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {formatSignedRatio(netProfitRate)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow className="bg-muted font-semibold hover:bg-muted">
+                      <TableCell
+                        className="sticky z-30 border-r border-border bg-muted px-2 py-2"
+                        style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
+                      >
+                        合计
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(resolveDisplaySales(row), currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.income_sales, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_refund, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.income_refund, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_adjustment, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.income_adjustment, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.income_other, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.income_other, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_selling_fee, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_selling_fee, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_fba_fee, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_fba_fee, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_inventory_fee, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_inventory_fee, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_service_fee, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_service_fee, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_advertising, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_advertising, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(row.expense_other_fees, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_other_fees, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.income_total, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.income_total, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.expense_total, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.expense_total, currencySymbol)}
                       </TableCell>
                       {showVatColumn ? (
-                        <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                          {formatCurrency(
-                            Math.abs(row.income_vat_total ?? 0),
-                            currencySymbol,
-                          )}
+                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          {formatCurrency(totals.income_vat_total ?? 0, currencySymbol)}
                         </TableCell>
                       ) : null}
-                      <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(row.amazon_pay_back, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.amazon_pay_back, currencySymbol)}
                       </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatCurrency(creditCard, currencySymbol)}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.credit_card_deduction_usd, currencySymbol)}
                       </TableCell>
                       {isAdmin ? (
                         <>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                            {formatRmb(evaluationFeeRmb)}
+                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                            {formatRmb(totals.evaluation_fee_rmb)}
                           </TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                            {formatRmb(prepaymentOtherRmb)}
+                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                            {formatRmb(totals.prepayment_other_rmb)}
                           </TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                            {disableCommission
-                              ? '-'
-                              : formatRmb(operationCommissionRmb)}
+                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                            {disableCommission ? '-' : formatRmb(totals.operation_commission_rmb)}
                           </TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                            {disableCommission
-                              ? '-'
-                              : formatRmb(payableTotalRmb)}
+                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                            {disableCommission ? '-' : formatRmb(totals.payable_total_rmb)}
                           </TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                            {formatRate(exchangeRate)}
+                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                            {formatRate(
+                              totals.exchange_rate_count > 0
+                                ? totals.exchange_rate_sum / totals.exchange_rate_count
+                                : 0
+                            )}
                           </TableCell>
                         </>
                       ) : null}
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(platformRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(deliveryRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(storageRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(serviceRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(adRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRatio(refundRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatSignedRatio(paybackRatio)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRmb(row.fob_cost_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
-                        {formatRmb(row.first_leg_cost_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatRmb(netProfitRmb)}
-                      </TableCell>
-                      <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatCurrency(netProfitUsd, currencySymbol)}
-                      </TableCell>
-                      <TableCell className='px-2 py-1.5 text-right font-semibold tabular-nums'>
-                        {formatSignedRatio(netProfitRate)}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-              <TableFooter>
-                <TableRow className='bg-muted font-semibold hover:bg-muted'>
-                  <TableCell
-                    className='sticky z-30 border-r border-border bg-muted px-2 py-2'
-                    style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
-                  >
-                    合计
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_sales, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_refund, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_adjustment, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_other, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_selling_fee, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_fba_fee, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_inventory_fee, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_service_fee, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_advertising, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_other_fees, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.income_total, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.expense_total, currencySymbol)}
-                  </TableCell>
-                  {showVatColumn ? (
-                    <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                      {formatCurrency(
-                        totals.income_vat_total ?? 0,
-                        currencySymbol,
-                      )}
-                    </TableCell>
-                  ) : null}
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.amazon_pay_back, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.credit_card_deduction_usd, currencySymbol)}
-                  </TableCell>
-                  {isAdmin ? (
-                    <>
-                      <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                        {formatRmb(totals.evaluation_fee_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                        {formatRmb(totals.prepayment_other_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                        {disableCommission
-                          ? '-'
-                          : formatRmb(totals.operation_commission_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                        {disableCommission
-                          ? '-'
-                          : formatRmb(totals.payable_total_rmb)}
-                      </TableCell>
-                      <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                        {formatRate(
-                          totals.exchange_rate_count > 0
-                            ? totals.exchange_rate_sum /
-                                totals.exchange_rate_count
-                            : 0,
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(
+                          toPositiveRatio(totals.expense_selling_fee, totals.income_total)
                         )}
                       </TableCell>
-                    </>
-                  ) : null}
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.expense_selling_fee,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.expense_fba_fee,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.expense_inventory_fee,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.expense_service_fee,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.expense_advertising,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRatio(
-                      toPositiveRatio(
-                        totals.income_refund,
-                        totals.income_sales,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatSignedRatio(
-                      toSignedRatio(
-                        totals.amazon_pay_back,
-                        totals.income_total,
-                      ),
-                    )}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRmb(totals.fob_cost_rmb)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRmb(totals.first_leg_cost_rmb)}
-                  </TableCell>
-                  <TableCell className='border-r px-2 py-2 text-right tabular-nums'>
-                    {formatRmb(totals.net_profit_rmb)}
-                  </TableCell>
-                  <TableCell className='px-2 py-2 text-right tabular-nums'>
-                    {formatCurrency(totals.net_profit_usd, currencySymbol)}
-                  </TableCell>
-                  <TableCell className='px-2 py-2 text-right tabular-nums'>
-                    {formatSignedRatio(
-                      toSignedRatio(totals.net_profit_usd, totals.income_total),
-                    )}
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-          ) : (
-            <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-              当前筛选条件暂无财务数据
-            </div>
-          )}
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(toPositiveRatio(totals.expense_fba_fee, totals.income_total))}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(
+                          toPositiveRatio(totals.expense_inventory_fee, totals.income_total)
+                        )}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(
+                          toPositiveRatio(totals.expense_service_fee, totals.income_total)
+                        )}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(
+                          toPositiveRatio(totals.expense_advertising, totals.income_total)
+                        )}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRatio(toPositiveRatio(totals.income_refund, totals.income_sales))}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatSignedRatio(
+                          toSignedRatio(totals.amazon_pay_back, totals.income_total)
+                        )}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRmb(totals.fob_cost_rmb)}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRmb(totals.first_leg_cost_rmb)}
+                      </TableCell>
+                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        {formatRmb(totals.net_profit_rmb)}
+                      </TableCell>
+                      <TableCell className="px-2 py-2 text-right tabular-nums">
+                        {formatCurrency(totals.net_profit_usd, currencySymbol)}
+                      </TableCell>
+                      <TableCell className="px-2 py-2 text-right tabular-nums">
+                        {formatSignedRatio(
+                          toSignedRatio(totals.net_profit_usd, totals.income_total)
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              ) : (
+                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                  当前筛选条件暂无财务数据
+                </div>
+              )}
             </>
           ) : (
             <>
               {accountingLoading && accountingRows.length > 0 ? (
-                <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
+                <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                   月度明细更新中...
                 </div>
               ) : null}
               {accountingLoading && accountingRows.length === 0 ? (
-                <div className='space-y-3'>
+                <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className='h-10 w-full' />
+                    <Skeleton key={i} className="h-10 w-full" />
                   ))}
                 </div>
               ) : accountingMonth && accountingRows.length > 0 ? (
                 <Table
-                  containerClassName='w-full max-w-full overflow-x-auto'
-                  className='w-max min-w-[1400px] table-fixed text-xs'
+                  containerClassName="w-full max-w-full overflow-x-auto"
+                  className="w-max min-w-[1400px] table-fixed text-xs"
                 >
                   <TableHeader>
-                    <TableRow className='bg-muted/30 hover:bg-muted/30'>
-                      <TableHead colSpan={4} className='border-r bg-emerald-100 px-2 py-2 text-center dark:bg-emerald-900/80 dark:text-emerald-100'>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead
+                        colSpan={4}
+                        className="border-r bg-emerald-100 px-2 py-2 text-center dark:bg-emerald-900/80 dark:text-emerald-100"
+                      >
                         Income（收入）
                       </TableHead>
-                      <TableHead className='border-r px-2 py-2 text-center' />
-                      <TableHead colSpan={4} className='bg-amber-500/15 px-2 py-2 text-center'>
+                      <TableHead className="border-r px-2 py-2 text-center" />
+                      <TableHead colSpan={4} className="bg-amber-500/15 px-2 py-2 text-center">
                         Expense（支出）
                       </TableHead>
                     </TableRow>
-                    <TableRow className='bg-muted/20 hover:bg-muted/20'>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>Income</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>收入</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>In金额（{accountingCurrencyLabel}）</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>In源表</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center' />
-                      <TableHead className='border-r px-2 py-1.5 text-center'>Expense</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>支出</TableHead>
-                      <TableHead className='border-r px-2 py-1.5 text-center'>Ex金额（{accountingCurrencyLabel}）</TableHead>
-                      <TableHead className='px-2 py-1.5 text-center'>Ex源表</TableHead>
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableHead className="border-r px-2 py-1.5 text-center">Income</TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center">收入</TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center">
+                        In金额（{accountingCurrencyLabel}）
+                      </TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center">In源表</TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center" />
+                      <TableHead className="border-r px-2 py-1.5 text-center">Expense</TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center">支出</TableHead>
+                      <TableHead className="border-r px-2 py-1.5 text-center">
+                        Ex金额（{accountingCurrencyLabel}）
+                      </TableHead>
+                      <TableHead className="px-2 py-1.5 text-center">Ex源表</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3131,10 +2850,10 @@ export default function FinancialDataClient({
                         return (
                           <TableRow
                             key={`spacer-${index}`}
-                            className='h-2 bg-muted/30 hover:bg-muted/30'
-                            aria-hidden='true'
+                            className="h-2 bg-muted/30 hover:bg-muted/30"
+                            aria-hidden="true"
                           >
-                            <TableCell colSpan={9} className='border-0 p-0' />
+                            <TableCell colSpan={9} className="border-0 p-0" />
                           </TableRow>
                         )
                       }
@@ -3142,33 +2861,33 @@ export default function FinancialDataClient({
                         return (
                           <TableRow
                             key={`total-${index}`}
-                            className='border-t-2 border-slate-400 font-semibold hover:bg-transparent'
+                            className="border-t-2 border-slate-400 font-semibold hover:bg-transparent"
                           >
-                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {row.income_en}
                             </TableCell>
-                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {row.income_zh}
                             </TableCell>
-                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-right tabular-nums text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-right tabular-nums text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
                             </TableCell>
-                            <TableCell className='border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'>
+                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {row.income_source || '\u00A0'}
                             </TableCell>
-                            <TableCell className='border-r bg-slate-100 px-2 py-2 text-center text-muted-foreground dark:bg-slate-800'>
+                            <TableCell className="border-r bg-slate-100 px-2 py-2 text-center text-muted-foreground dark:bg-slate-800">
                               |
                             </TableCell>
-                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
                               {row.expense_en}
                             </TableCell>
-                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
                               {row.expense_zh}
                             </TableCell>
-                            <TableCell className='border-r bg-rose-100 px-2 py-2 text-right tabular-nums text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                            <TableCell className="border-r bg-rose-100 px-2 py-2 text-right tabular-nums text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
                               {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
                             </TableCell>
-                            <TableCell className='bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100'>
+                            <TableCell className="bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">
                               {row.expense_source || '\u00A0'}
                             </TableCell>
                           </TableRow>
@@ -3176,29 +2895,39 @@ export default function FinancialDataClient({
                       }
                       return (
                         <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
-                          <TableCell className='border-r px-2 py-1.5'>{row.income_en || '-'}</TableCell>
-                          <TableCell className='border-r px-2 py-1.5'>{row.income_zh || '-'}</TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                          <TableCell className="border-r px-2 py-1.5">
+                            {row.income_en || '-'}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5">
+                            {row.income_zh || '-'}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
                           </TableCell>
-                          <TableCell className='border-r px-2 py-1.5'>{row.income_source || '-'}</TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-center text-muted-foreground'>|</TableCell>
-                          <TableCell className='border-r px-2 py-1.5'>{row.expense_en || '-'}</TableCell>
-                          <TableCell className='border-r px-2 py-1.5'>{row.expense_zh || '-'}</TableCell>
-                          <TableCell className='border-r px-2 py-1.5 text-right tabular-nums'>
+                          <TableCell className="border-r px-2 py-1.5">
+                            {row.income_source || '-'}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-center text-muted-foreground">
+                            |
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5">
+                            {row.expense_en || '-'}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5">
+                            {row.expense_zh || '-'}
+                          </TableCell>
+                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
                             {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
                           </TableCell>
-                          <TableCell className='px-2 py-1.5'>{row.expense_source || '-'}</TableCell>
+                          <TableCell className="px-2 py-1.5">{row.expense_source || '-'}</TableCell>
                         </TableRow>
                       )
                     })}
                   </TableBody>
                 </Table>
               ) : (
-                <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-                  {accountingMonth
-                    ? '当前月份暂无月度明细'
-                    : '请选择有源报表月份查看月度明细'}
+                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                  {accountingMonth ? '当前月份暂无月度明细' : '请选择有源报表月份查看月度明细'}
                 </div>
               )}
             </>

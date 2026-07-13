@@ -125,24 +125,25 @@ export function AiParseContextSheet({
   const hasAnyContent = editingItems && Object.keys(editingItems).length > 0
 
   return (
-    <Sheet open={open} onOpenChange={(openState) => { if (!openState) onClose() }}>
+    <Sheet
+      open={open}
+      onOpenChange={(openState) => {
+        if (!openState) onClose()
+      }}
+    >
       <SheetContent className="w-full max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <span className="text-2xl">🤖</span>
             AI 辅助填充项目背景
           </SheetTitle>
-          <div className="text-sm text-muted-foreground">
-            项目：{projectName}
-          </div>
+          <div className="text-sm text-muted-foreground">项目：{projectName}</div>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
           {/* 输入区域 */}
           <div className="space-y-3">
-            <label className="text-sm font-medium">
-              项目背景描述
-            </label>
+            <label className="text-sm font-medium">项目背景描述</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -162,14 +163,8 @@ export function AiParseContextSheet({
               disabled={parsing}
             />
             <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">
-                AI 会自动识别并生成维度名称和对应描述
-              </p>
-              <Button
-                onClick={handleParse}
-                disabled={parsing || !description.trim()}
-                size="sm"
-              >
+              <p className="text-xs text-muted-foreground">AI 会自动识别并生成维度名称和对应描述</p>
+              <Button onClick={handleParse} disabled={parsing || !description.trim()} size="sm">
                 {parsing ? (
                   <>
                     <span className="mr-2 animate-spin">⏳</span>
@@ -186,9 +181,7 @@ export function AiParseContextSheet({
           {isEditing && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
-                <label className="text-sm font-medium">
-                  解析结果（可编辑）
-                </label>
+                <label className="text-sm font-medium">解析结果（可编辑）</label>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="text-xs">
                     {Object.keys(editingItems).length} 个维度
@@ -203,7 +196,10 @@ export function AiParseContextSheet({
               {/* 维度列表 */}
               <div className="space-y-3">
                 {Object.entries(editingItems).map(([key, value], index) => (
-                  <div key={`${key}-${index}`} className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-2">
+                  <div
+                    key={`${key}-${index}`}
+                    className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-2"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-lg">📋</span>
                       <Input
@@ -258,11 +254,7 @@ export function AiParseContextSheet({
                 <Button variant="outline" size="sm" onClick={onClose}>
                   取消
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={!hasAnyContent}
-                >
+                <Button size="sm" onClick={handleSave} disabled={!hasAnyContent}>
                   填充到表单
                 </Button>
               </div>

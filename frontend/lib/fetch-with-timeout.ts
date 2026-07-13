@@ -10,7 +10,7 @@ interface FetchWithTimeoutInit extends RequestInit {
 
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
-  init?: FetchWithTimeoutInit,
+  init?: FetchWithTimeoutInit
 ): Promise<Response> {
   const { timeoutMs = 5_000, signal: userSignal, ...rest } = init ?? {}
 

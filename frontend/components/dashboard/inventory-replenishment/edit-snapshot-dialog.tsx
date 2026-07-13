@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { Camera, Pencil } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -88,9 +95,7 @@ export function EditSnapshotDialog({
             <Pencil className="h-5 w-5" />
             编辑快照
           </DialogTitle>
-          <DialogDescription>
-            修改快照的名称和备注信息。
-          </DialogDescription>
+          <DialogDescription>修改快照的名称和备注信息。</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

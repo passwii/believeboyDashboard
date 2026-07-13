@@ -51,7 +51,10 @@ async function fetchCachedJson<T>(
     headers: buildBackendClientHeaders(options?.session ?? null),
   })
   if (!response.ok) {
-    const message = await parseError(response, options?.fallbackError || `请求失败 (${response.status})`)
+    const message = await parseError(
+      response,
+      options?.fallbackError || `请求失败 (${response.status})`
+    )
     throw new Error(normalizeErrorMessage(message, options?.fallbackError || '加载失败'))
   }
 
@@ -65,22 +68,22 @@ export function clearProjectClientCaches(): void {
 }
 
 export async function fetchProjectOptionsCached<T>(): Promise<T> {
-  return fetchCachedJson<T>(
-    `${PROJECT_CACHE_PREFIX}options`,
-    '/api/backend/api/v1/projects',
-    { fallbackError: '项目列表加载失败' }
-  )
+  return fetchCachedJson<T>(`${PROJECT_CACHE_PREFIX}options`, '/api/backend/api/v1/projects', {
+    fallbackError: '项目列表加载失败',
+  })
 }
 
-export async function fetchManagedProjectsCached<T>(session?: Session | null, showInactive?: boolean): Promise<T> {
+export async function fetchManagedProjectsCached<T>(
+  session?: Session | null,
+  showInactive?: boolean
+): Promise<T> {
   const url = showInactive
     ? '/api/backend/api/v1/projects/manage?show_inactive=true'
     : '/api/backend/api/v1/projects/manage'
-  return fetchCachedJson<T>(
-    managedProjectsCacheKey(session, showInactive),
-    url,
-    { session, fallbackError: '项目列表加载失败' }
-  )
+  return fetchCachedJson<T>(managedProjectsCacheKey(session, showInactive), url, {
+    session,
+    fallbackError: '项目列表加载失败',
+  })
 }
 
 export async function fetchProjectOperatorOptionsCached(): Promise<string[]> {

@@ -15,7 +15,13 @@ import {
   formatDateInputValue,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -82,7 +88,10 @@ export function AdDataTopFilters() {
     }
   }, [country, pathname, projectId, router, searchParams, session])
 
-  const updateSearchParam = (key: 'projectId' | 'country' | 'dateFrom' | 'dateTo', value: string) => {
+  const updateSearchParam = (
+    key: 'projectId' | 'country' | 'dateFrom' | 'dateTo',
+    value: string
+  ) => {
     const next = new URLSearchParams(searchParams.toString())
     if (value) next.set(key, value)
     else next.delete(key)
@@ -134,11 +143,16 @@ export function AdDataTopFilters() {
       <CardContent className="space-y-3 pt-0">
         <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              项目
+            </div>
             {projectsLoading ? (
               <Skeleton className="h-10 w-full rounded-lg" />
             ) : (
-              <Select value={projectId} onValueChange={(value) => updateSearchParam('projectId', value)}>
+              <Select
+                value={projectId}
+                onValueChange={(value) => updateSearchParam('projectId', value)}
+              >
                 <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
@@ -154,7 +168,9 @@ export function AdDataTopFilters() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              国家站点
+            </div>
             <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
               <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                 <SelectValue placeholder="请选择国家站点" />
@@ -170,7 +186,9 @@ export function AdDataTopFilters() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              日期范围
+            </div>
             <DateRangePicker
               value={parseDateRangeInputValue(dateFrom, dateTo)}
               onChange={updateDateRange}
@@ -181,7 +199,9 @@ export function AdDataTopFilters() {
         </div>
 
         {projectsError ? (
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div>
+          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {projectsError}
+          </div>
         ) : null}
 
         {projectsLoading ? (

@@ -1,20 +1,20 @@
-"use client";
+'use client'
 
-import React, { useRef, useCallback, type FormEvent } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
-import AnimatedButton from "./animated-button";
-import AnimatedError from "./animated-error";
+import React, { useRef, useCallback, type FormEvent } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
+import AnimatedButton from './animated-button'
+import AnimatedError from './animated-error'
 
 interface RightFormPanelProps {
-  email: string;
-  setEmail: (v: string) => void;
-  password: string;
-  setPassword: (v: string) => void;
-  submitting: boolean;
-  error: string | null;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  email: string
+  setEmail: (v: string) => void
+  password: string
+  setPassword: (v: string) => void
+  submitting: boolean
+  error: string | null
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void
 }
 
 const RightFormPanel = ({
@@ -26,63 +26,63 @@ const RightFormPanel = ({
   error,
   onSubmit,
 }: RightFormPanelProps) => {
-  const formRef = useRef<HTMLDivElement>(null);
-  const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+  const formRef = useRef<HTMLDivElement>(null)
+  const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
 
   // Input focus micro-animation: label color shift + border highlight
   useGSAP(
     () => {
-      const form = formRef.current;
-      if (!form) return;
+      const form = formRef.current
+      if (!form) return
 
-      const inputs = form.querySelectorAll<HTMLInputElement>("input");
+      const inputs = form.querySelectorAll<HTMLInputElement>('input')
 
-      const cleanups: (() => void)[] = [];
+      const cleanups: (() => void)[] = []
 
       inputs.forEach((input) => {
-        const label = input.closest("div")?.querySelector("label");
+        const label = input.closest('div')?.querySelector('label')
 
         const onFocus = () => {
           gsap.to(input, {
-            borderColor: "hsl(214, 89%, 53%)",
+            borderColor: 'hsl(214, 89%, 53%)',
             duration: 0.25,
-            ease: "power2.out",
-          });
+            ease: 'power2.out',
+          })
           if (label) {
-            gsap.to(label, { color: "hsl(214, 89%, 43%)", duration: 0.2 });
+            gsap.to(label, { color: 'hsl(214, 89%, 43%)', duration: 0.2 })
           }
-        };
+        }
 
         const onBlur = () => {
           gsap.to(input, {
-            borderColor: "",
+            borderColor: '',
             duration: 0.3,
-            ease: "power2.inOut",
-          });
+            ease: 'power2.inOut',
+          })
           if (label) {
-            gsap.to(label, { color: "", duration: 0.3 });
+            gsap.to(label, { color: '', duration: 0.3 })
           }
-        };
+        }
 
-        input.addEventListener("focus", onFocus);
-        input.addEventListener("blur", onBlur);
+        input.addEventListener('focus', onFocus)
+        input.addEventListener('blur', onBlur)
 
         cleanups.push(() => {
-          input.removeEventListener("focus", onFocus);
-          input.removeEventListener("blur", onBlur);
-        });
-      });
+          input.removeEventListener('focus', onFocus)
+          input.removeEventListener('blur', onBlur)
+        })
+      })
 
-      return () => cleanups.forEach((fn) => fn());
+      return () => cleanups.forEach((fn) => fn())
     },
     { scope: formRef }
-  );
+  )
 
   return (
     <div
       ref={formRef}
       className="flex w-full flex-col justify-center bg-white p-6 sm:p-8 lg:p-10 lg:w-1/2 dark:bg-[hsl(var(--card))]"
-      style={{ perspective: "800px" }}
+      style={{ perspective: '800px' }}
     >
       <div>
         <h1 className="right-heading mb-1 text-2xl font-bold text-gray-800 opacity-0 dark:text-[hsl(var(--card-foreground))] md:text-3xl">
@@ -122,7 +122,7 @@ const RightFormPanel = ({
             <div className="relative">
               <input
                 id="password"
-                type={isPasswordVisible ? "text" : "password"}
+                type={isPasswordVisible ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入登录密码"
@@ -134,7 +134,7 @@ const RightFormPanel = ({
                 type="button"
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-[hsl(var(--muted-foreground))] dark:hover:text-[hsl(var(--foreground))]"
                 onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-                aria-label={isPasswordVisible ? "隐藏密码" : "显示密码"}
+                aria-label={isPasswordVisible ? '隐藏密码' : '显示密码'}
               >
                 {isPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -146,7 +146,7 @@ const RightFormPanel = ({
           </div>
 
           <AnimatedButton type="submit" isLoading={submitting}>
-            {submitting ? "登录中..." : "立即登录"}
+            {submitting ? '登录中...' : '立即登录'}
           </AnimatedButton>
 
           <p className="login-form-field pt-1 text-center text-sm font-medium text-blue-700 opacity-0 dark:text-blue-400">
@@ -155,7 +155,7 @@ const RightFormPanel = ({
         </form>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default RightFormPanel;
+export default RightFormPanel

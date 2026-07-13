@@ -30,7 +30,10 @@ export function buildBackendUrl(path: string) {
   return `${getBackendBaseUrl()}/${trimLeadingSlash(path)}`
 }
 
-export function buildBackendProxyHeaders(session: Session | null, requestHeaders?: Headers): Headers {
+export function buildBackendProxyHeaders(
+  session: Session | null,
+  requestHeaders?: Headers
+): Headers {
   // Delegate the actual session + API-key header construction to
   // `buildBackendAuthHeaders` in `lib/backend-auth.ts` so there is exactly one
   // source of truth for "what headers do we send to the backend". The
@@ -119,9 +122,7 @@ export async function toProxyResponse(response: Response) {
 
   const body = await response.arrayBuffer()
   const responseBody =
-    NULL_BODY_STATUS_CODES.has(response.status) || body.byteLength === 0
-      ? null
-      : body
+    NULL_BODY_STATUS_CODES.has(response.status) || body.byteLength === 0 ? null : body
 
   return new Response(responseBody, {
     status: response.status,

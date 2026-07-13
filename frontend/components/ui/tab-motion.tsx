@@ -64,7 +64,6 @@ export function SlidingTabsTrigger({
 }: SlidingTabsTriggerProps) {
   const prefersReducedMotion = useReducedMotion()
   const isActive = activeValue === value
-  void layoutId
 
   return (
     <TabsTrigger
@@ -79,15 +78,16 @@ export function SlidingTabsTrigger({
         {isActive ? (
           <motion.span
             key="active-fill"
-            initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+            layoutId={layoutId}
+            initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
             transition={
               prefersReducedMotion
                 ? { duration: 0 }
                 : {
-                    duration: 0.2,
-                    ease: [0.22, 1, 0.36, 1],
+                    layout: { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 },
+                    opacity: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
                   }
             }
             className="absolute inset-0 -z-10 rounded-[inherit] border border-[hsl(0_0%_100%/0.96)] bg-[linear-gradient(180deg,hsl(0_0%_100%/1),hsl(210_20%_99%/1))] shadow-[0_1px_0_hsl(0_0%_100%/1),0_10px_22px_-14px_rgba(15,23,42,0.18),0_2px_6px_rgba(15,23,42,0.06)] dark:border-[hsl(var(--surface-high))] dark:bg-[linear-gradient(180deg,hsl(var(--surface-high)/0.95),hsl(var(--surface-elevated)/0.98))] dark:shadow-[0_0_0_1px_hsl(var(--primary)/0.25),0_0_24px_-8px_hsl(var(--primary)/0.45),0_0_48px_-16px_hsl(var(--primary)/0.25),0_4px_12px_-4px_rgba(0,0,0,0.5),inset_0_1px_0_hsl(var(--surface-bright)/0.12)]"

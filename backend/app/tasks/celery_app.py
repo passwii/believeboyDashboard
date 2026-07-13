@@ -99,6 +99,14 @@ def _build_celery_app() -> Celery:
 
 # Singleton Celery app — import this from `app.tasks.celery_app` everywhere.
 celery_app: Celery = _build_celery_app()
+# BEL-128 follow-up: `set_as_current()` only pins the *main* thread's
+# `current_app`. FastAPI runs sync endpoints (ledger resend, etc.) in a
+# ThreadPoolExecutor; those threads fall back to the process-wide default
+# app. Without `set_default()`, the fallback is `Celery("default")` with
+# broker=None → AMQP localhost:5672 → `Connection refused` on `.delay()`.
+# Making believeboy the default binds `@shared_task` correctly in every
+# thread. See tests/tasks/test_celery_app_config.py.
+celery_app.set_default()
 
 
 # Re-export the smoke-test task so callers can do `from app.tasks.celery_app

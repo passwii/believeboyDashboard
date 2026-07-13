@@ -22,57 +22,52 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
 const LazyDashboardSalesChart = dynamic(
-  () =>
-    import('@/components/dashboard/dashboard-sales-chart').then(
-      (m) => m.DashboardSalesChart,
-    ),
+  () => import('@/components/dashboard/dashboard-sales-chart').then((m) => m.DashboardSalesChart),
   {
     ssr: false,
     loading: () => (
-      <div className='dashboard-surface p-5'>
-        <div className='flex items-center justify-between pb-4'>
-          <div className='space-y-2'>
-            <Skeleton className='h-5 w-28' />
-            <Skeleton className='h-3 w-36' />
+      <div className="dashboard-surface p-5">
+        <div className="flex items-center justify-between pb-4">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-3 w-36" />
           </div>
-          <Skeleton className='h-8 w-16' />
+          <Skeleton className="h-8 w-16" />
         </div>
-        <div className='flex gap-3 pb-4'>
-          <Skeleton className='h-14 w-40' />
-          <Skeleton className='h-14 w-40' />
+        <div className="flex gap-3 pb-4">
+          <Skeleton className="h-14 w-40" />
+          <Skeleton className="h-14 w-40" />
         </div>
-        <Skeleton className='h-[280px] w-full rounded-lg' />
+        <Skeleton className="h-[280px] w-full rounded-lg" />
       </div>
     ),
-  },
+  }
 )
 
 // Row 3 右侧「销售 vs 广告花费」同样依赖 recharts,也需要 ssr:false
 const LazyDashboardAdSpendChart = dynamic(
   () =>
-    import('@/components/dashboard/dashboard-ad-spend-chart').then(
-      (m) => m.DashboardAdSpendChart,
-    ),
+    import('@/components/dashboard/dashboard-ad-spend-chart').then((m) => m.DashboardAdSpendChart),
   {
     ssr: false,
     loading: () => (
-      <div className='dashboard-surface p-5'>
-        <div className='flex items-center justify-between pb-3'>
-          <div className='space-y-2'>
-            <Skeleton className='h-5 w-36' />
-            <Skeleton className='h-3 w-48' />
+      <div className="dashboard-surface p-5">
+        <div className="flex items-center justify-between pb-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-3 w-48" />
           </div>
-          <Skeleton className='h-7 w-7 rounded-md' />
+          <Skeleton className="h-7 w-7 rounded-md" />
         </div>
-        <div className='grid grid-cols-3 gap-3 pb-3'>
-          <Skeleton className='h-16 w-full' />
-          <Skeleton className='h-16 w-full' />
-          <Skeleton className='h-16 w-full' />
+        <div className="grid grid-cols-3 gap-3 pb-3">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
         </div>
-        <Skeleton className='h-[260px] sm:h-[320px] w-full rounded-lg' />
+        <Skeleton className="h-[260px] sm:h-[320px] w-full rounded-lg" />
       </div>
     ),
-  },
+  }
 )
 
 type DailyAnalysisRow = {
@@ -135,7 +130,23 @@ function addDays(date: Date, amount: number): Date {
   return next
 }
 
-function aggregateMetric(rows: DailyAnalysisRow[], key: keyof DailyAnalysisRow & ('order_qty' | 'sales_amount' | 'impressions' | 'clicks' | 'cpc' | 'ad_spend' | 'ad_orders' | 'page_views' | 'units_ordered' | 'sessions' | 'conversion_rate')): number {
+function aggregateMetric(
+  rows: DailyAnalysisRow[],
+  key: keyof DailyAnalysisRow &
+    (
+      | 'order_qty'
+      | 'sales_amount'
+      | 'impressions'
+      | 'clicks'
+      | 'cpc'
+      | 'ad_spend'
+      | 'ad_orders'
+      | 'page_views'
+      | 'units_ordered'
+      | 'sessions'
+      | 'conversion_rate'
+    )
+): number {
   if (!rows.length) return 0
   if (key === 'cpc') {
     const totalClicks = rows.reduce((s, r) => s + r.clicks, 0)
@@ -154,7 +165,7 @@ function aggregateMetric(rows: DailyAnalysisRow[], key: keyof DailyAnalysisRow &
 
 /** 解析后端 /all-countries 返回的 country_breakdown,过滤非法 entry */
 function parseCountryBreakdown(
-  countryBreakdown: Record<string, CountryBreakdownEntry> | undefined,
+  countryBreakdown: Record<string, CountryBreakdownEntry> | undefined
 ): Record<string, DailyAnalysisRow[]> {
   const result: Record<string, DailyAnalysisRow[]> = {}
   if (!countryBreakdown) return result
@@ -179,24 +190,29 @@ export default function DashboardPage() {
 
   const today = useMemo(() => getTodayInTimezone(US_TIMEZONE), [])
   const yesterday = useMemo(() => addDays(today, -1), [today])
-  const dateRange = useMemo(() => ({
-    from: addDays(yesterday, -6),
-    to: yesterday,
-  }), [yesterday])
+  const dateRange = useMemo(
+    () => ({
+      from: addDays(yesterday, -6),
+      to: yesterday,
+    }),
+    [yesterday]
+  )
 
   // 项目列表由 useManagedProjects hook 统一管理(单一 fetch + 2min client cache),
   // 子组件 <ProjectSelect> 也通过 props 复用同一份数据,避免重复请求
-  const {
-    projects,
-    loading: projectsLoading,
-    error: projectsError,
-  } = useManagedProjects()
+  const { projects, loading: projectsLoading, error: projectsError } = useManagedProjects()
   const [currentRows, setCurrentRows] = useState<DailyAnalysisRow[]>([])
   const [comparisonRows, setComparisonRows] = useState<DailyAnalysisRow[]>([])
-  const [projectBreakdown, setProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>({})
-  const [compareProjectBreakdown, setCompareProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>({})
+  const [projectBreakdown, setProjectBreakdown] = useState<Record<number, ProjectBreakdownEntry>>(
+    {}
+  )
+  const [compareProjectBreakdown, setCompareProjectBreakdown] = useState<
+    Record<number, ProjectBreakdownEntry>
+  >({})
   const [countryRowsByCode, setCountryRowsByCode] = useState<Record<string, DailyAnalysisRow[]>>({})
-  const [countryCompareRowsByCode, setCountryCompareRowsByCode] = useState<Record<string, DailyAnalysisRow[]>>({})
+  const [countryCompareRowsByCode, setCountryCompareRowsByCode] = useState<
+    Record<string, DailyAnalysisRow[]>
+  >({})
   const [countryCurrencyNote, setCountryCurrencyNote] = useState<string | null>(null)
   /** 跨国家卡片的"代表项目"(用户可手动切换);null 表示跟随默认 projectIds[0] */
   const [representativeProjectId, setRepresentativeProjectId] = useState<number | null>(null)
@@ -206,7 +222,7 @@ export default function DashboardPage() {
   // hook 返回的项目 id 必为 number;保留 ?. 防御性兜底(后端 schema 升级时)
   const projectIds = useMemo(
     () => projects.map((p) => p.id).filter((id): id is number => typeof id === 'number'),
-    [projects],
+    [projects]
   )
 
   // 代表项目初始化 + 失效回退:
@@ -237,9 +253,8 @@ export default function DashboardPage() {
     const startDate = formatYMD(dateRange.from)
     const endDate = formatYMD(dateRange.to)
 
-    const currentDayCount = Math.floor(
-      (dateRange.to.getTime() - dateRange.from.getTime()) / 86400000
-    ) + 1
+    const currentDayCount =
+      Math.floor((dateRange.to.getTime() - dateRange.from.getTime()) / 86400000) + 1
     const prevFrom = addDays(dateRange.from, -currentDayCount)
     const prevTo = addDays(dateRange.from, -1)
 
@@ -263,13 +278,14 @@ export default function DashboardPage() {
       // /all-countries 只接受单 project_id,首页是多项目合并 —— 用户可在 Row 3 切换"代表项目",
       // 未指定时 fallback 到 projectIds[0]
       const effectiveRepresentativeProjectId = representativeProjectId ?? projectIds[0]
-      const countriesParams = effectiveRepresentativeProjectId !== undefined
-        ? new URLSearchParams({
-            project_id: String(effectiveRepresentativeProjectId),
-            start_date: startDate,
-            end_date: endDate,
-          })
-        : null
+      const countriesParams =
+        effectiveRepresentativeProjectId !== undefined
+          ? new URLSearchParams({
+              project_id: String(effectiveRepresentativeProjectId),
+              start_date: startDate,
+              end_date: endDate,
+            })
+          : null
       const countriesCompareParams =
         effectiveRepresentativeProjectId !== undefined
           ? new URLSearchParams({
@@ -281,12 +297,19 @@ export default function DashboardPage() {
 
       const fetches: Array<Promise<Response>> = [
         fetch(`/api/backend/api/v1/daily-analysis/all?${params.toString()}`, { cache: 'no-store' }),
-        fetch(`/api/backend/api/v1/daily-analysis/all?${compareParams.toString()}`, { cache: 'no-store' }),
+        fetch(`/api/backend/api/v1/daily-analysis/all?${compareParams.toString()}`, {
+          cache: 'no-store',
+        }),
       ]
       if (countriesParams && countriesCompareParams) {
         fetches.push(
-          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesParams.toString()}`, { cache: 'no-store' }),
-          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesCompareParams.toString()}`, { cache: 'no-store' }),
+          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesParams.toString()}`, {
+            cache: 'no-store',
+          }),
+          fetch(
+            `/api/backend/api/v1/daily-analysis/all-countries?${countriesCompareParams.toString()}`,
+            { cache: 'no-store' }
+          )
         )
       }
 
@@ -323,23 +346,26 @@ export default function DashboardPage() {
       }
       if (countriesCompareRes && countriesCompareRes.ok) {
         try {
-          const compareCountriesPayload = (await countriesCompareRes.json()) as DailyAnalysisAllCountriesResponse
-          nextCountryCompareRowsByCode = parseCountryBreakdown(compareCountriesPayload.country_breakdown)
+          const compareCountriesPayload =
+            (await countriesCompareRes.json()) as DailyAnalysisAllCountriesResponse
+          nextCountryCompareRowsByCode = parseCountryBreakdown(
+            compareCountriesPayload.country_breakdown
+          )
         } catch {
           nextCountryCompareRowsByCode = {}
         }
       }
 
-if (requestId !== latestRequestRef.current) return
+      if (requestId !== latestRequestRef.current) return
 
-    setCurrentRows(payload.summary_rows)
-    setComparisonRows(comparePayload?.summary_rows ?? [])
-    setProjectBreakdown(payload.project_breakdown ?? {})
-    setCompareProjectBreakdown(comparePayload?.project_breakdown ?? {})
-    setCountryRowsByCode(nextCountryRowsByCode)
-    setCountryCompareRowsByCode(nextCountryCompareRowsByCode)
-    setCountryCurrencyNote(nextCurrencyNote)
-  } catch (err) {
+      setCurrentRows(payload.summary_rows)
+      setComparisonRows(comparePayload?.summary_rows ?? [])
+      setProjectBreakdown(payload.project_breakdown ?? {})
+      setCompareProjectBreakdown(comparePayload?.project_breakdown ?? {})
+      setCountryRowsByCode(nextCountryRowsByCode)
+      setCountryCompareRowsByCode(nextCountryCompareRowsByCode)
+      setCountryCurrencyNote(nextCurrencyNote)
+    } catch (err) {
       if (requestId !== latestRequestRef.current) return
       notify({
         type: 'error',
@@ -372,7 +398,8 @@ if (requestId !== latestRequestRef.current) return
     const totalAdOrders = aggregateMetric(currentRows, 'ad_orders')
     const roas = totalSales > 0 ? (totalAdSpend / totalSales) * 100 : 0
 
-    const prevSales = comparisonRows.length > 0 ? aggregateMetric(comparisonRows, 'sales_amount') : 0
+    const prevSales =
+      comparisonRows.length > 0 ? aggregateMetric(comparisonRows, 'sales_amount') : 0
     const prevOrders = comparisonRows.length > 0 ? aggregateMetric(comparisonRows, 'order_qty') : 0
 
     const salesChange = prevSales > 0 ? ((totalSales - prevSales) / prevSales) * 100 : 0
@@ -384,14 +411,25 @@ if (requestId !== latestRequestRef.current) return
     const roasBadge = roas <= 20 ? '优秀' : roas <= 40 ? '正常' : '偏高'
     const roasBadgeColor = roas <= 20 ? 'green' : roas <= 40 ? 'yellow' : 'red'
 
-    const salesChangeType = salesChange > 0.5 ? 'up' as const : salesChange < -0.5 ? 'down' as const : 'neutral' as const
-    const ordersChangeType = ordersChange > 0.5 ? 'up' as const : ordersChange < -0.5 ? 'down' as const : 'neutral' as const
+    const salesChangeType =
+      salesChange > 0.5
+        ? ('up' as const)
+        : salesChange < -0.5
+          ? ('down' as const)
+          : ('neutral' as const)
+    const ordersChangeType =
+      ordersChange > 0.5
+        ? ('up' as const)
+        : ordersChange < -0.5
+          ? ('down' as const)
+          : ('neutral' as const)
 
     const dateLabels = currentRows.map((r) => {
       const [, m, d] = r.date.split('-')
       return `${Number(m)}/${Number(d)}`
     })
-    const fmtAdMoney = (v: number) => `$${v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const fmtAdMoney = (v: number) =>
+      `$${v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     const fmtAdNum = (v: number) => v.toLocaleString('zh-CN')
     const fmtRoas = (v: number) => `${v.toFixed(1)}%`
 
@@ -406,7 +444,12 @@ if (requestId !== latestRequestRef.current) return
         formatValue: fmtAdMoney,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         ),
         accentColor: 'hsl(var(--chart-1))',
@@ -421,7 +464,12 @@ if (requestId !== latestRequestRef.current) return
         formatValue: fmtAdNum,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+            />
           </svg>
         ),
         accentColor: 'hsl(var(--chart-3))',
@@ -430,13 +478,21 @@ if (requestId !== latestRequestRef.current) return
         title: '广告投放比',
         value: `${roas.toFixed(1)}%`,
         change: totalAdSpend > 0 ? fmtPct(-roas) : '—',
-        changeType: (roas <= 20 ? 'up' : roas >= 40 ? 'down' : 'neutral') as 'up' | 'down' | 'neutral',
+        changeType: (roas <= 20 ? 'up' : roas >= 40 ? 'down' : 'neutral') as
+          | 'up'
+          | 'down'
+          | 'neutral',
         trend: orderTrend,
         labels: dateLabels,
         formatValue: fmtRoas,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
           </svg>
         ),
         badge: roasBadge,
@@ -446,15 +502,23 @@ if (requestId !== latestRequestRef.current) return
         title: '广告花费',
         value: fmtMoney(totalAdSpend),
         change: totalAdOrders > 0 ? fmtPct(totalAdOrders) : '—',
-        changeType: totalAdSpend > prevSales && prevSales > 0
-          ? (totalAdSpend > aggregateMetric(comparisonRows, 'ad_spend') ? 'down' : 'up') as 'up' | 'down'
-          : 'neutral' as 'up' | 'down' | 'neutral',
+        changeType:
+          totalAdSpend > prevSales && prevSales > 0
+            ? ((totalAdSpend > aggregateMetric(comparisonRows, 'ad_spend') ? 'down' : 'up') as
+                | 'up'
+                | 'down')
+            : ('neutral' as 'up' | 'down' | 'neutral'),
         trend: currentRows.map((r) => r.ad_spend),
         labels: dateLabels,
         formatValue: fmtAdMoney,
         icon: (
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+            />
           </svg>
         ),
         accentColor: 'hsl(var(--chart-1))',
@@ -462,10 +526,13 @@ if (requestId !== latestRequestRef.current) return
     ] satisfies MetricTileProps[]
   }, [currentRows, comparisonRows])
 
-  const dailyData: DashboardDailyData = useMemo(() => ({
-    currentRows,
-    comparisonRows,
-  }), [currentRows, comparisonRows])
+  const dailyData: DashboardDailyData = useMemo(
+    () => ({
+      currentRows,
+      comparisonRows,
+    }),
+    [currentRows, comparisonRows]
+  )
 
   /**
    * 库存健康度快照 —— 同步给 DashboardAlertWidget 卡片底部使用。
@@ -499,12 +566,12 @@ if (requestId !== latestRequestRef.current) return
   return (
     <div className="space-y-5">
       {/*
-        * iPad portrait (768–1023px) intentionally stays single-column:
-        * the 2:3 split would compress tiles to ~200px each. Side-by-side
-        * kicks in at lg (1024px) so iPad Pro landscape + small laptop
-        * get the full dashboard feel. Stacked on phone so the chart
-        * gets the full width.
-        */}
+       * iPad portrait (768–1023px) intentionally stays single-column:
+       * the 2:3 split would compress tiles to ~200px each. Side-by-side
+       * kicks in at lg (1024px) so iPad Pro landscape + small laptop
+       * get the full dashboard feel. Stacked on phone so the chart
+       * gets the full width.
+       */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
         <MotionStagger className="contents">
@@ -514,28 +581,31 @@ if (requestId !== latestRequestRef.current) return
             </DashboardSurfaceCard>
           </MotionStaggerItem>
           <MotionStaggerItem>
-            <LazyDashboardSalesChart dailyData={dailyData} dateRange={dateRange} projects={projects} loading={dataLoading} onRefresh={handleRefresh} />
+            <LazyDashboardSalesChart
+              dailyData={dailyData}
+              dateRange={dateRange}
+              projects={projects}
+              loading={dataLoading}
+              onRefresh={handleRefresh}
+            />
           </MotionStaggerItem>
         </MotionStagger>
       </section>
       {/*
-        * Row 2 — 高度填充 + 信息密度补充
-        *   - 左 2fr：DashboardAlertWidget（自管 fetch，与 KPI 时段无关）
-        *   - 右 3fr：DashboardTopProjects（Top 5 项目/店铺，Tab 切换 销售额/广告花费）
-        * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
-        *
-        * 注意：三个子组件根节点已通过 DataCard / DataTableCard 自带 dashboard-surface，
-        * 因此不再用 <DashboardSurfaceCard> 包裹（避免 dashboard-surface 嵌套）；仅用
-        * MotionStagger 做错峰入场。
-        */}
+       * Row 2 — 高度填充 + 信息密度补充
+       *   - 左 2fr：DashboardAlertWidget（自管 fetch，与 KPI 时段无关）
+       *   - 右 3fr：DashboardTopProjects（Top 5 项目/店铺，Tab 切换 销售额/广告花费）
+       * iPad portrait 同样保持单列堆叠（与 Row 1 同一断点逻辑）。
+       *
+       * 注意：三个子组件根节点已通过 DataCard / DataTableCard 自带 dashboard-surface，
+       * 因此不再用 <DashboardSurfaceCard> 包裹（避免 dashboard-surface 嵌套）；仅用
+       * MotionStagger 做错峰入场。
+       */}
       <section className="grid gap-5 lg:grid-cols-3">
         {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
         <MotionStagger className="contents">
           <MotionStaggerItem>
-            <DashboardAlertWidget
-              stockSnapshot={stockSnapshot}
-              stockLoading={dataLoading}
-            />
+            <DashboardAlertWidget stockSnapshot={stockSnapshot} stockLoading={dataLoading} />
           </MotionStaggerItem>
           <MotionStaggerItem>
             <DashboardHealthKpis
@@ -556,13 +626,13 @@ if (requestId !== latestRequestRef.current) return
       </section>
 
       {/*
-        * Row 3 — 销售/广告全景
-        *   - 左 2fr：跨国家 TOP（取 representativeProjectId 为代表项目调 /all-countries,静默降级)
-        *   - 右 3fr：销售 vs 广告花费 双轴对比图（复用 page.tsx 同一份 currentRows/comparisonRows）
-        *
-        * 子组件根节点已通过 DataTableCard / DataCard 自带 dashboard-surface,
-        * 与 row 2 一致,不再包 <DashboardSurfaceCard>,仅加 MotionStagger。
-        */}
+       * Row 3 — 销售/广告全景
+       *   - 左 2fr：跨国家 TOP（取 representativeProjectId 为代表项目调 /all-countries,静默降级)
+       *   - 右 3fr：销售 vs 广告花费 双轴对比图（复用 page.tsx 同一份 currentRows/comparisonRows）
+       *
+       * 子组件根节点已通过 DataTableCard / DataCard 自带 dashboard-surface,
+       * 与 row 2 一致,不再包 <DashboardSurfaceCard>,仅加 MotionStagger。
+       */}
       <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* Stagger 容器用 display:contents,不破坏 grid 布局 */}
         <MotionStagger className="contents">
@@ -573,7 +643,7 @@ if (requestId !== latestRequestRef.current) return
               currencyNote={countryCurrencyNote}
               representativeProjectName={
                 representativeProjectId
-                  ? projects.find((p) => p.id === representativeProjectId)?.name ?? null
+                  ? (projects.find((p) => p.id === representativeProjectId)?.name ?? null)
                   : null
               }
               projectSelector={

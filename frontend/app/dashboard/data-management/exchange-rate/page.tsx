@@ -1,19 +1,19 @@
-"use client"
+'use client'
 
-import { useState, useEffect, useCallback } from "react"
-import Image from "next/image"
-import { useSession } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { UploadZone } from "@/components/ui/upload-zone"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
+import { useSession } from 'next-auth/react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { UploadZone } from '@/components/ui/upload-zone'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -29,27 +29,37 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { PortraitScreenshotDialog } from "@/components/ui/image-preview-dialog"
-import { EmptyTableState } from "@/components/ui/empty-state"
-import { DataCard, DataCardHeader, DataCardContent } from "@/components/ui/data-card"
-import { Badge } from "@/components/ui/badge"
-import { Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, CheckCircle, AlertCircle } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useNotifications } from "@/components/notifications"
+} from '@/components/ui/dialog'
+import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
+import { EmptyTableState } from '@/components/ui/empty-state'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  RotateCcw,
+  ImagePlus,
+  Loader2,
+  X,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
 
 // 预定义货币选项
 const CURRENCY_OPTIONS = [
-  { value: "USD", label: "USD - 美元" },
-  { value: "EUR", label: "EUR - 欧元" },
-  { value: "CNY", label: "CNY - 人民币" },
-  { value: "JPY", label: "JPY - 日元" },
-  { value: "GBP", label: "GBP - 英镑" },
-  { value: "HKD", label: "HKD - 港币" },
-  { value: "AUD", label: "AUD - 澳元" },
-  { value: "CAD", label: "CAD - 加元" },
-  { value: "KRW", label: "KRW - 韩元" },
-  { value: "SGD", label: "SGD - 新加坡元" },
+  { value: 'USD', label: 'USD - 美元' },
+  { value: 'EUR', label: 'EUR - 欧元' },
+  { value: 'CNY', label: 'CNY - 人民币' },
+  { value: 'JPY', label: 'JPY - 日元' },
+  { value: 'GBP', label: 'GBP - 英镑' },
+  { value: 'HKD', label: 'HKD - 港币' },
+  { value: 'AUD', label: 'AUD - 澳元' },
+  { value: 'CAD', label: 'CAD - 加元' },
+  { value: 'KRW', label: 'KRW - 韩元' },
+  { value: 'SGD', label: 'SGD - 新加坡元' },
 ]
 
 // 生成当前年份前后各5年的选项
@@ -72,7 +82,7 @@ interface Filters {
   month: string
 }
 
-const ALL_FILTER_VALUE = "__ALL__"
+const ALL_FILTER_VALUE = '__ALL__'
 
 interface ExchangeRate {
   id: number
@@ -116,26 +126,26 @@ const getCurrencyBadgeMeta = (currency: string) => {
   const normalizedCurrency = currency.trim().toUpperCase()
 
   switch (normalizedCurrency) {
-    case "USD":
+    case 'USD':
       return {
-        symbol: "$",
-        accent: "美元",
+        symbol: '$',
+        accent: '美元',
         className:
-          "border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100",
+          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
       }
-    case "EUR":
+    case 'EUR':
       return {
-        symbol: "€",
-        accent: "欧元",
+        symbol: '€',
+        accent: '欧元',
         className:
-          "border-blue-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-blue-100",
+          'border-blue-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-blue-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-blue-100',
       }
-      default:
+    default:
       return {
-        symbol: "¤",
-        accent: "其他货币",
+        symbol: '¤',
+        accent: '其他货币',
         className:
-          "border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground",
+          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
       }
   }
 }
@@ -153,9 +163,9 @@ export default function ExchangeRatePage() {
     totalPages: 0,
   })
   const [filters, setFilters] = useState<Filters>({
-    currency: "",
-    year: "",
-    month: "",
+    currency: '',
+    year: '',
+    month: '',
   })
 
   // 弹窗状态
@@ -165,18 +175,25 @@ export default function ExchangeRatePage() {
   const [deletingRate, setDeletingRate] = useState<ExchangeRate | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [imageUploadState, setImageUploadState] = useState<ImageUploadState>({ status: 'idle', message: '' })
+  const [imageUploadState, setImageUploadState] = useState<ImageUploadState>({
+    status: 'idle',
+    message: '',
+  })
   const [submitting, setSubmitting] = useState(false)
-  const [formValidation, setFormValidation] = useState<FormValidation>({ currency: null, currencyName: null, rate: null })
+  const [formValidation, setFormValidation] = useState<FormValidation>({
+    currency: null,
+    currencyName: null,
+    rate: null,
+  })
 
   // 表单状态
   const [formData, setFormData] = useState({
-    currency: "",
-    currencyName: "",
+    currency: '',
+    currencyName: '',
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
-    rate: "",
-    description: "",
+    rate: '',
+    description: '',
     noteImages: [] as NoteImage[],
   })
 
@@ -189,20 +206,20 @@ export default function ExchangeRatePage() {
         pageSize: pagination.pageSize.toString(),
       })
 
-      if (filters.currency) queryParams.append("currency", filters.currency)
-      if (filters.year) queryParams.append("year", filters.year)
-      if (filters.month) queryParams.append("month", filters.month)
+      if (filters.currency) queryParams.append('currency', filters.currency)
+      if (filters.year) queryParams.append('year', filters.year)
+      if (filters.month) queryParams.append('month', filters.month)
 
       const response = await fetch(`/api/exchange-rates?${queryParams}`)
       if (!response.ok) {
-        throw new Error("Failed to fetch exchange rates")
+        throw new Error('Failed to fetch exchange rates')
       }
 
       const result = await response.json()
       setRates(result.data)
       setPagination(result.pagination)
     } catch (error) {
-      console.error("Error fetching rates:", error)
+      console.error('Error fetching rates:', error)
       // Error handling without toast
     } finally {
       setLoading(false)
@@ -222,7 +239,7 @@ export default function ExchangeRatePage() {
 
   // 重置筛选
   const resetFilters = () => {
-    setFilters({ currency: "", year: "", month: "" })
+    setFilters({ currency: '', year: '', month: '' })
     setPagination((prev) => ({ ...prev, page: 1 }))
   }
 
@@ -230,12 +247,12 @@ export default function ExchangeRatePage() {
   const handleAdd = () => {
     setEditingRate(null)
     setFormData({
-      currency: "",
-      currencyName: "",
+      currency: '',
+      currencyName: '',
       year: new Date().getFullYear(),
       month: new Date().getMonth() + 1,
-      rate: "",
-      description: "",
+      rate: '',
+      description: '',
       noteImages: [],
     })
     setDialogOpen(true)
@@ -250,7 +267,7 @@ export default function ExchangeRatePage() {
       year: rate.year,
       month: rate.month,
       rate: rate.rate.toString(),
-      description: rate.description || "",
+      description: rate.description || '',
       noteImages: rate.noteImages || [],
     })
     setDialogOpen(true)
@@ -291,28 +308,30 @@ export default function ExchangeRatePage() {
 
     setSubmitting(true)
     try {
-      const url = editingRate
-        ? `/api/exchange-rates/${editingRate.id}`
-        : "/api/exchange-rates"
-      const method = editingRate ? "PUT" : "POST"
+      const url = editingRate ? `/api/exchange-rates/${editingRate.id}` : '/api/exchange-rates'
+      const method = editingRate ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "操作失败")
+        throw new Error(error.error || '操作失败')
       }
 
       setDialogOpen(false)
       fetchRates()
       notify({ type: 'success', title: editingRate ? '汇率已更新' : '汇率已添加' })
     } catch (error: any) {
-      console.error("Error saving exchange rate:", error)
-      notify({ type: 'error', title: '保存失败', message: error instanceof Error ? error.message : '操作失败' })
+      console.error('Error saving exchange rate:', error)
+      notify({
+        type: 'error',
+        title: '保存失败',
+        message: error instanceof Error ? error.message : '操作失败',
+      })
     } finally {
       setSubmitting(false)
     }
@@ -324,11 +343,11 @@ export default function ExchangeRatePage() {
 
     try {
       const response = await fetch(`/api/exchange-rates/${deletingRate.id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       })
 
       if (!response.ok) {
-        throw new Error("删除失败")
+        throw new Error('删除失败')
       }
 
       setDeleteDialogOpen(false)
@@ -336,8 +355,12 @@ export default function ExchangeRatePage() {
       fetchRates()
       notify({ type: 'success', title: '汇率记录已删除' })
     } catch (error) {
-      console.error("Error deleting exchange rate:", error)
-      notify({ type: 'error', title: '删除失败', message: error instanceof Error ? error.message : '删除失败' })
+      console.error('Error deleting exchange rate:', error)
+      notify({
+        type: 'error',
+        title: '删除失败',
+        message: error instanceof Error ? error.message : '删除失败',
+      })
     }
   }
 
@@ -347,9 +370,7 @@ export default function ExchangeRatePage() {
     setFormData((prev) => ({
       ...prev,
       currency,
-      currencyName: selected
-        ? selected.label.split(" - ")[1]
-        : prev.currencyName,
+      currencyName: selected ? selected.label.split(' - ')[1] : prev.currencyName,
     }))
   }
 
@@ -373,10 +394,10 @@ export default function ExchangeRatePage() {
     setUploadingImage(true)
     try {
       const payload = new FormData()
-      payload.append("file", file)
+      payload.append('file', file)
 
-      const response = await fetch("/api/exchange-rates/upload-image", {
-        method: "POST",
+      const response = await fetch('/api/exchange-rates/upload-image', {
+        method: 'POST',
         body: payload,
       })
 
@@ -388,7 +409,7 @@ export default function ExchangeRatePage() {
       const result = await response.json()
       const image = result?.data as NoteImage
       if (!image?.id || !image?.url) {
-        throw new Error("图片信息异常")
+        throw new Error('图片信息异常')
       }
 
       setFormData((prev) => ({
@@ -398,8 +419,11 @@ export default function ExchangeRatePage() {
       setImageUploadState({ status: 'success', message: '上传成功' })
       setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
     } catch (error: any) {
-      console.error("Error uploading image:", error)
-      setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+      console.error('Error uploading image:', error)
+      setImageUploadState({
+        status: 'error',
+        message: error instanceof Error ? error.message : '上传失败',
+      })
       setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
     } finally {
       setUploadingImage(false)
@@ -419,8 +443,6 @@ export default function ExchangeRatePage() {
     return `${(size / (1024 * 1024)).toFixed(1)}MB`
   }
 
-
-
   return (
     <div className="min-w-0 space-y-6 text-foreground">
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
@@ -437,16 +459,14 @@ export default function ExchangeRatePage() {
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
           <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 sm:grid-cols-2 lg:flex lg:flex-row lg:flex-wrap lg:gap-4">
-            <div className="hidden lg:block lg:flex-1">
-              {/* Placeholder for layout balance */}
-            </div>
+            <div className="hidden lg:block lg:flex-1">{/* Placeholder for layout balance */}</div>
             <Select
               value={filters.currency || ALL_FILTER_VALUE}
               onValueChange={(value) =>
-                handleFilterChange("currency", value === ALL_FILTER_VALUE ? "" : value)
+                handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
               }
             >
-                <SelectTrigger className="w-full sm:w-[180px] dark:bg-[hsl(var(--surface-soft))]">
+              <SelectTrigger className="w-full sm:w-[180px] dark:bg-[hsl(var(--surface-soft))]">
                 <SelectValue placeholder="全部货币" />
               </SelectTrigger>
               <SelectContent>
@@ -462,10 +482,10 @@ export default function ExchangeRatePage() {
             <Select
               value={filters.year || ALL_FILTER_VALUE}
               onValueChange={(value) =>
-                handleFilterChange("year", value === ALL_FILTER_VALUE ? "" : value)
+                handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
               }
             >
-                <SelectTrigger className="w-full sm:w-[120px] dark:bg-[hsl(var(--surface-soft))]">
+              <SelectTrigger className="w-full sm:w-[120px] dark:bg-[hsl(var(--surface-soft))]">
                 <SelectValue placeholder="全部年份" />
               </SelectTrigger>
               <SelectContent>
@@ -481,21 +501,21 @@ export default function ExchangeRatePage() {
             <Select
               value={filters.month || ALL_FILTER_VALUE}
               onValueChange={(value) =>
-                handleFilterChange("month", value === ALL_FILTER_VALUE ? "" : value)
+                handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
               }
             >
-                <SelectTrigger className="w-full sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]">
+              <SelectTrigger className="w-full sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]">
                 <SelectValue placeholder="全部月份" />
               </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
-                  {MONTH_OPTIONS.map((month) => (
-                    <SelectItem key={month.value} value={month.value.toString()}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectContent>
+                <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
+                {MONTH_OPTIONS.map((month) => (
+                  <SelectItem key={month.value} value={month.value.toString()}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <Button variant="outline" size="sm" onClick={resetFilters} className="w-full sm:w-auto">
               <RotateCcw className="mr-1 h-4 w-4" />
@@ -531,7 +551,10 @@ export default function ExchangeRatePage() {
                       </TableCell>
                     </TableRow>
                   ) : rates.length === 0 ? (
-                    <EmptyTableState colSpan={isAdmin ? 8 : 7} message={isAdmin ? "暂无汇率数据，点击右上角按钮新增" : "暂无汇率数据"} />
+                    <EmptyTableState
+                      colSpan={isAdmin ? 8 : 7}
+                      message={isAdmin ? '暂无汇率数据，点击右上角按钮新增' : '暂无汇率数据'}
+                    />
                   ) : (
                     rates.map((rate) => (
                       <TableRow key={rate.id}>
@@ -542,7 +565,7 @@ export default function ExchangeRatePage() {
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]",
+                                  'gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-[0.18em]',
                                   badgeMeta.className
                                 )}
                                 title={`${rate.currency} - ${badgeMeta.accent}`}
@@ -562,7 +585,7 @@ export default function ExchangeRatePage() {
                         <TableCell className="max-w-[280px]">
                           <div className="space-y-2">
                             <p className="truncate text-sm">
-                              {rate.description || (rate.noteImages?.length > 0 ? "" : "-")}
+                              {rate.description || (rate.noteImages?.length > 0 ? '' : '-')}
                             </p>
                             {rate.noteImages?.length > 0 && (
                               <div className="flex flex-wrap gap-2">
@@ -593,7 +616,7 @@ export default function ExchangeRatePage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {new Date(rate.updatedAt).toLocaleString("zh-CN")}
+                          {new Date(rate.updatedAt).toLocaleString('zh-CN')}
                         </TableCell>
                         {isAdmin ? (
                           <TableCell className="text-right">
@@ -601,7 +624,12 @@ export default function ExchangeRatePage() {
                               <Button variant="ghost" size="icon" onClick={() => handleEdit(rate)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteClick(rate)}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteClick(rate)}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -632,7 +660,7 @@ export default function ExchangeRatePage() {
                             <Badge
                               variant="outline"
                               className={cn(
-                                "gap-1.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.18em]",
+                                'gap-1.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.18em]',
                                 badgeMeta.className
                               )}
                             >
@@ -641,18 +669,22 @@ export default function ExchangeRatePage() {
                             </Badge>
                           )
                         })()}
-                        <div className="mt-1 text-xs text-muted-foreground">{rate.currencyName}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {rate.currencyName}
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono text-lg font-semibold">{Number(rate.rate).toFixed(4)}</div>
-                        <div className="text-xs text-muted-foreground">{rate.year}/{rate.month}月</div>
+                        <div className="font-mono text-lg font-semibold">
+                          {Number(rate.rate).toFixed(4)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {rate.year}/{rate.month}月
+                        </div>
                       </div>
                     </div>
 
                     {/* 备注 */}
-                    {rate.description && (
-                      <div className="text-sm">{rate.description}</div>
-                    )}
+                    {rate.description && <div className="text-sm">{rate.description}</div>}
 
                     {/* 截图缩略图（移动端） */}
                     {rate.noteImages?.length > 0 && (
@@ -684,7 +716,7 @@ export default function ExchangeRatePage() {
 
                     {/* 更新时间 */}
                     <div className="text-xs text-muted-foreground">
-                      更新: {new Date(rate.updatedAt).toLocaleString("zh-CN")}
+                      更新: {new Date(rate.updatedAt).toLocaleString('zh-CN')}
                     </div>
 
                     {/* 操作按钮 */}
@@ -749,18 +781,19 @@ export default function ExchangeRatePage() {
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent aria-describedby="exchange-rate-dialog-description" className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent
+          aria-describedby="exchange-rate-dialog-description"
+          className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+        >
           <span id="exchange-rate-dialog-description" className="sr-only">
-            {editingRate ? "修改汇率信息" : "录入新的月度汇率信息，每个月每种货币仅可录入一条"}
+            {editingRate ? '修改汇率信息' : '录入新的月度汇率信息，每个月每种货币仅可录入一条'}
           </span>
           <DialogHeader>
-            <DialogTitle>
-              {editingRate ? "编辑汇率信息" : "新增汇率信息"}
-            </DialogTitle>
+            <DialogTitle>{editingRate ? '编辑汇率信息' : '新增汇率信息'}</DialogTitle>
             <DialogDescription>
               {editingRate
-                ? "修改汇率信息，保存后将立即生效"
-                : "录入新的月度汇率信息，每个月每种货币仅可录入一条。SKU 信息页维护的是人民币 FOB 成本，其他页面会按站点和月份使用这里的汇率自动换算。"}
+                ? '修改汇率信息，保存后将立即生效'
+                : '录入新的月度汇率信息，每个月每种货币仅可录入一条。SKU 信息页维护的是人民币 FOB 成本，其他页面会按站点和月份使用这里的汇率自动换算。'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -774,7 +807,7 @@ export default function ExchangeRatePage() {
                   onValueChange={handleCurrencyChange}
                   disabled={!!editingRate}
                 >
-                <SelectTrigger id="currency" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="currency" className="dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择货币" />
                   </SelectTrigger>
                   <SelectContent>
@@ -785,9 +818,7 @@ export default function ExchangeRatePage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {editingRate && (
-                  <p className="text-xs text-muted-foreground">货币代码不可修改</p>
-                )}
+                {editingRate && <p className="text-xs text-muted-foreground">货币代码不可修改</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="currencyName">
@@ -816,7 +847,7 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                <SelectTrigger id="year" className="dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger id="year" className="dark:bg-[hsl(var(--surface-soft))]">
                     <SelectValue placeholder="选择年份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -839,7 +870,10 @@ export default function ExchangeRatePage() {
                   }
                   disabled={!!editingRate}
                 >
-                <SelectTrigger id="month" className="w-[112px] dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger
+                    id="month"
+                    className="w-[112px] dark:bg-[hsl(var(--surface-soft))]"
+                  >
                     <SelectValue placeholder="选择月份" />
                   </SelectTrigger>
                   <SelectContent>
@@ -862,13 +896,12 @@ export default function ExchangeRatePage() {
                 type="number"
                 step="0.000001"
                 value={formData.rate}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, rate: e.target.value }))
-                }
+                onChange={(e) => setFormData((prev) => ({ ...prev, rate: e.target.value }))}
                 placeholder="如：7.234500"
               />
               <p className="text-xs text-muted-foreground">
-                输入 1 单位外币对应多少人民币，例如 USD 填 7.200000、EUR 填 7.850000、GBP 填 9.150000
+                输入 1 单位外币对应多少人民币，例如 USD 填 7.200000、EUR 填 7.850000、GBP 填
+                9.150000
               </p>
             </div>
 
@@ -877,9 +910,7 @@ export default function ExchangeRatePage() {
               <Input
                 id="description"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, description: e.target.value }))
-                }
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="可选：添加相关备注信息"
               />
             </div>
@@ -900,10 +931,10 @@ export default function ExchangeRatePage() {
                   setUploadingImage(true)
                   try {
                     const payload = new FormData()
-                    payload.append("file", file)
+                    payload.append('file', file)
 
-                    const response = await fetch("/api/exchange-rates/upload-image", {
-                      method: "POST",
+                    const response = await fetch('/api/exchange-rates/upload-image', {
+                      method: 'POST',
                       body: payload,
                     })
 
@@ -915,7 +946,7 @@ export default function ExchangeRatePage() {
                     const result = await response.json()
                     const image = result?.data as NoteImage
                     if (!image?.id || !image?.url) {
-                      throw new Error("图片信息异常")
+                      throw new Error('图片信息异常')
                     }
 
                     setFormData((prev) => ({
@@ -925,8 +956,11 @@ export default function ExchangeRatePage() {
                     setImageUploadState({ status: 'success', message: '上传成功' })
                     setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
                   } catch (error: any) {
-                    console.error("Error uploading image:", error)
-                    setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+                    console.error('Error uploading image:', error)
+                    setImageUploadState({
+                      status: 'error',
+                      message: error instanceof Error ? error.message : '上传失败',
+                    })
                     setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
                     throw error
                   } finally {
@@ -937,12 +971,14 @@ export default function ExchangeRatePage() {
                 disabled={uploadingImage}
               />
               {imageUploadState.message && imageUploadState.status !== 'idle' && (
-                <div className={cn(
-                  "text-xs",
-                  imageUploadState.status === 'error' && "text-destructive",
-                  imageUploadState.status === 'success' && "text-green-600",
-                  imageUploadState.status === 'uploading' && "text-muted-foreground"
-                )}>
+                <div
+                  className={cn(
+                    'text-xs',
+                    imageUploadState.status === 'error' && 'text-destructive',
+                    imageUploadState.status === 'success' && 'text-green-600',
+                    imageUploadState.status === 'uploading' && 'text-muted-foreground'
+                  )}
+                >
                   {imageUploadState.message}
                 </div>
               )}
@@ -963,11 +999,16 @@ export default function ExchangeRatePage() {
                           unoptimized
                         />
                       </button>
-                        <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
+                      <div
+                        className="w-20 truncate text-[10px] text-muted-foreground"
+                        title={image.filename}
+                      >
                         {image.filename}
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground">{formatFileSize(image.size)}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatFileSize(image.size)}
+                        </span>
                         <button
                           type="button"
                           className="text-[10px] text-destructive"
@@ -992,8 +1033,10 @@ export default function ExchangeRatePage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   保存中...
                 </>
+              ) : editingRate ? (
+                '保存修改'
               ) : (
-                editingRate ? "保存修改" : "确认创建"
+                '确认创建'
               )}
             </Button>
           </DialogFooter>
@@ -1002,23 +1045,26 @@ export default function ExchangeRatePage() {
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent aria-describedby="delete-exchange-rate-dialog-description" className="sm:max-w-[425px]">
-          <span id="delete-exchange-rate-dialog-description" className="sr-only">确认删除汇率记录</span>
+        <DialogContent
+          aria-describedby="delete-exchange-rate-dialog-description"
+          className="sm:max-w-[425px]"
+        >
+          <span id="delete-exchange-rate-dialog-description" className="sr-only">
+            确认删除汇率记录
+          </span>
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>
-              您确定要删除这条汇率记录吗？此操作不可恢复。
-            </DialogDescription>
+            <DialogDescription>您确定要删除这条汇率记录吗？此操作不可恢复。</DialogDescription>
           </DialogHeader>
           {deletingRate && (
             <div className="my-4 rounded-md bg-[hsl(var(--surface-subtle))] p-3 text-sm">
               <p>
-                <span className="font-medium">货币:</span>{" "}
-                {deletingRate.currency} ({deletingRate.currencyName})
+                <span className="font-medium">货币:</span> {deletingRate.currency} (
+                {deletingRate.currencyName})
               </p>
               <p>
-                <span className="font-medium">时间:</span>{" "}
-                {deletingRate.year}年{deletingRate.month}月
+                <span className="font-medium">时间:</span> {deletingRate.year}年{deletingRate.month}
+                月
               </p>
               <p>
                 <span className="font-medium">汇率:</span> {deletingRate.rate}

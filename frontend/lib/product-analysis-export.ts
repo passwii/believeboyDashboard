@@ -16,8 +16,17 @@ export const EXPORT_SUMMARY_COLUMN_GROUPS = [
   {
     title: '推广流量',
     columns: [
-      '广告展示量', '广告点击量', '广告点击率', '广告订单量', '广告单占比',
-      '广告转化率', '广告花费', '广告销售额', 'CPC', 'ACOS', 'SP占比',
+      '广告展示量',
+      '广告点击量',
+      '广告点击率',
+      '广告订单量',
+      '广告单占比',
+      '广告转化率',
+      '广告花费',
+      '广告销售额',
+      'CPC',
+      'ACOS',
+      'SP占比',
     ],
   },
   {
@@ -27,15 +36,29 @@ export const EXPORT_SUMMARY_COLUMN_GROUPS = [
   {
     title: '费用占比',
     columns: [
-      '产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比',
-      '平台佣金', '佣金占比', '总成本', '总成本占比',
+      '产品FOB',
+      '成本占比',
+      '销售头程',
+      '头程占比',
+      'FBA配送费',
+      '配送费占比',
+      '平台佣金',
+      '佣金占比',
+      '总成本',
+      '总成本占比',
     ],
   },
   {
     title: '财务结算',
     columns: [
-      '实际销售额', '实际销售量', '实际退款额', '实际退款量',
-      '平均售价', '退款率', '利润', '利润率',
+      '实际销售额',
+      '实际销售量',
+      '实际退款额',
+      '实际退款量',
+      '平均售价',
+      '退款率',
+      '利润',
+      '利润率',
     ],
   },
 ] as const
@@ -55,8 +78,17 @@ export const EXPORT_DETAIL_COLUMN_GROUPS = [
   {
     title: '推广流量',
     columns: [
-      '广告展示量', '广告点击量', '广告点击率', '广告订单量', '广告单占比',
-      '广告转化率', '广告花费', '广告销售额', 'CPC', 'ACOS', 'SP占比',
+      '广告展示量',
+      '广告点击量',
+      '广告点击率',
+      '广告订单量',
+      '广告单占比',
+      '广告转化率',
+      '广告花费',
+      '广告销售额',
+      'CPC',
+      'ACOS',
+      'SP占比',
     ],
   },
   {
@@ -66,15 +98,29 @@ export const EXPORT_DETAIL_COLUMN_GROUPS = [
   {
     title: '费用占比',
     columns: [
-      '产品FOB', '成本占比', '销售头程', '头程占比', 'FBA配送费', '配送费占比',
-      '平台佣金', '佣金占比', '总成本', '总成本占比',
+      '产品FOB',
+      '成本占比',
+      '销售头程',
+      '头程占比',
+      'FBA配送费',
+      '配送费占比',
+      '平台佣金',
+      '佣金占比',
+      '总成本',
+      '总成本占比',
     ],
   },
   {
     title: '财务结算',
     columns: [
-      '实际销售额', '实际销售量', '实际退款额', '实际退款量',
-      '平均售价', '退款率', '利润', '利润率',
+      '实际销售额',
+      '实际销售量',
+      '实际退款额',
+      '实际退款量',
+      '平均售价',
+      '退款率',
+      '利润',
+      '利润率',
     ],
   },
 ] as const
@@ -86,30 +132,59 @@ export const EXPORT_DETAIL_COLUMNS = [
 ]
 
 export const EXPORT_PERCENT_COLUMNS = new Set([
-  '总转化', '广告点击率', '广告单占比', '广告转化率',
-  'ACOS', 'SP占比', '自然流量占比', '自然单转化',
-  '成本占比', '头程占比', '配送费占比', '佣金占比',
-  '总成本占比', '利润率', '退款率',
+  '总转化',
+  '广告点击率',
+  '广告单占比',
+  '广告转化率',
+  'ACOS',
+  'SP占比',
+  '自然流量占比',
+  '自然单转化',
+  '成本占比',
+  '头程占比',
+  '配送费占比',
+  '佣金占比',
+  '总成本占比',
+  '利润率',
+  '退款率',
 ])
 
 export const EXPORT_CURRENCY_COLUMNS = new Set([
-  '总销售额', '广告花费', '广告销售额', 'CPC',
-  '产品FOB', '销售头程', 'FBA配送费', '平台佣金',
-  '总成本', '利润', '实际销售额', '实际退款额', '平均售价',
+  '总销售额',
+  '广告花费',
+  '广告销售额',
+  'CPC',
+  '产品FOB',
+  '销售头程',
+  'FBA配送费',
+  '平台佣金',
+  '总成本',
+  '利润',
+  '实际销售额',
+  '实际退款额',
+  '平均售价',
 ])
 
 export const EXPORT_INTEGER_COLUMNS = new Set([
-  '总销量', '页面浏览量', '总访客', '广告展示量', '广告点击量',
-  '广告订单量', '自然流量', '自然单', '实际销售量', '实际退款量',
+  '总销量',
+  '页面浏览量',
+  '总访客',
+  '广告展示量',
+  '广告点击量',
+  '广告订单量',
+  '自然流量',
+  '自然单',
+  '实际销售量',
+  '实际退款量',
 ])
 
 export const GROUP_COLORS: Record<string, string> = {
-  '销售': 'FFDCEEFF',
-  '推广流量': 'FFFFE6D5',
-  '自然流量': 'FFDDF7EA',
-  '费用占比': 'FFFCE7C3',
-  '库存': 'FFF1F5F9',
-  '财务结算': 'FFEADFEE',
+  销售: 'FFDCEEFF',
+  推广流量: 'FFFFE6D5',
+  自然流量: 'FFDDF7EA',
+  费用占比: 'FFFCE7C3',
+  库存: 'FFF1F5F9',
+  财务结算: 'FFEADFEE',
 }
 
 export function toExportNumber(value: unknown): number {
@@ -122,7 +197,7 @@ export function toExportNumber(value: unknown): number {
 
 export function getExportNumberFormat(
   column: string,
-  targetCountry: ExportCountryOption = 'US',
+  targetCountry: ExportCountryOption = 'US'
 ): string | null {
   if (EXPORT_PERCENT_COLUMNS.has(column)) return '0.00%'
   if (EXPORT_CURRENCY_COLUMNS.has(column)) return CURRENCY_CONFIG[targetCountry].excelFmt
@@ -134,7 +209,9 @@ export function getExportCellValue(column: string, value: unknown): string | num
   if (value === null || value === undefined) return '-'
   const isNumeric =
     typeof value === 'number' ||
-    (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value.replace(/,/g, ''))))
+    (typeof value === 'string' &&
+      value.trim() !== '' &&
+      Number.isFinite(Number(value.replace(/,/g, ''))))
   if ((EXPORT_SUMMARY_COLUMN_SET.has(column) || column === '库存') && isNumeric) {
     return toExportNumber(value)
   }
@@ -175,7 +252,7 @@ export function getISOWeek(dateStr: string): string {
   const dayNum = d.getUTCDay() || 7
   d.setUTCDate(d.getUTCDate() + 4 - dayNum)
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
   return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`
 }
 
@@ -202,16 +279,9 @@ export interface ExportProductAnalysisOptions {
  * Used by both the weekly 「产品核算」 tab and the monthly 「月度 SKU 分析」 tab.
  */
 export async function exportProductAnalysisToExcel(
-  opts: ExportProductAnalysisOptions,
+  opts: ExportProductAnalysisOptions
 ): Promise<void> {
-  const {
-    periods,
-    projectName,
-    country,
-    startDate,
-    endDate,
-    fileNamePrefix = '产品核算',
-  } = opts
+  const { periods, projectName, country, startDate, endDate, fileNamePrefix = '产品核算' } = opts
 
   if (periods.length === 0) return
 
@@ -230,13 +300,31 @@ export async function exportProductAnalysisToExcel(
 
   summarySheet.mergeCells(1, 1, 1, lastCol)
   summarySheet.getCell(1, 1).value = `${fileNamePrefix} - 汇总`
-  summarySheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  summarySheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  summarySheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  summarySheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
 
   summarySheet.mergeCells(2, 1, 2, lastCol)
-  summarySheet.getCell(2, 1).value = `店铺：${projectLabel}    站点：${country}    日期：${startDate} 至 ${endDate}`
-  summarySheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  summarySheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  summarySheet.getCell(2, 1).value =
+    `店铺：${projectLabel}    站点：${country}    日期：${startDate} 至 ${endDate}`
+  summarySheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  summarySheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
 
   const groupRow = summarySheet.getRow(4)
   const headRow = summarySheet.getRow(5)
@@ -257,7 +345,11 @@ export async function exportProductAnalysisToExcel(
     gc.value = group.title
     gc.alignment = { vertical: 'middle', horizontal: 'center' }
     gc.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    gc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GROUP_COLORS[group.title] || 'FFE2E8F0' } }
+    gc.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: GROUP_COLORS[group.title] || 'FFE2E8F0' },
+    }
     applyCellBorder(gc)
   })
   ;[groupRow, headRow].forEach((row) => {
@@ -281,7 +373,10 @@ export async function exportProductAnalysisToExcel(
       const cell = row.getCell(idx + 3)
       const val = getExportCellValue(column, period.summary[column])
       cell.value = val
-      cell.alignment = { vertical: 'middle', horizontal: typeof val === 'number' ? 'right' : 'left' }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: typeof val === 'number' ? 'right' : 'left',
+      }
       const numFmt = getExportNumberFormat(column, country)
       if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
       applyCellBorder(cell)
@@ -289,7 +384,11 @@ export async function exportProductAnalysisToExcel(
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }
       }
     })
-    row.getCell(1).font = { name: 'Microsoft YaHei', bold: true, color: period.is_partial ? { argb: 'FFB45309' } : { argb: 'FF0F172A' } }
+    row.getCell(1).font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: period.is_partial ? { argb: 'FFB45309' } : { argb: 'FF0F172A' },
+    }
     row.getCell(2).font = { name: 'Microsoft YaHei' }
     applyCellBorder(row.getCell(1))
     applyCellBorder(row.getCell(2))
@@ -311,7 +410,11 @@ export async function exportProductAnalysisToExcel(
     cell.alignment = { vertical: 'middle', horizontal: 'right' }
     const numFmt = getExportNumberFormat(column, country)
     if (numFmt) cell.numFmt = numFmt
-    cell.font = { name: 'Microsoft YaHei', bold: true, color: column === '利润' || column === '利润率' ? { argb: 'FF047857' } : { argb: 'FF0F172A' } }
+    cell.font = {
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: column === '利润' || column === '利润率' ? { argb: 'FF047857' } : { argb: 'FF0F172A' },
+    }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
     applyCellBorder(cell, 'FFCBD5E1')
   })
@@ -334,7 +437,8 @@ export async function exportProductAnalysisToExcel(
   }
 
   summarySheet.columns = [
-    { width: 12 }, { width: 24 },
+    { width: 12 },
+    { width: 24 },
     ...EXPORT_SUMMARY_COLUMNS.map((c) => ({
       width: EXPORT_PERCENT_COLUMNS.has(c) ? 12 : EXPORT_CURRENCY_COLUMNS.has(c) ? 14 : 12,
     })),
@@ -348,13 +452,31 @@ export async function exportProductAnalysisToExcel(
 
   detailSheet.mergeCells(1, 1, 1, dLastCol)
   detailSheet.getCell(1, 1).value = `${fileNamePrefix} - SKU明细`
-  detailSheet.getCell(1, 1).font = { name: 'Microsoft YaHei', size: 16, bold: true, color: { argb: 'FF0F172A' } }
-  detailSheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
+  detailSheet.getCell(1, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 16,
+    bold: true,
+    color: { argb: 'FF0F172A' },
+  }
+  detailSheet.getCell(1, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE2E8F0' },
+  }
 
   detailSheet.mergeCells(2, 1, 2, dLastCol)
-  detailSheet.getCell(2, 1).value = `店铺：${projectLabel}    站点：${country}    日期：${startDate} 至 ${endDate}`
-  detailSheet.getCell(2, 1).font = { name: 'Microsoft YaHei', size: 10, color: { argb: 'FF475569' } }
-  detailSheet.getCell(2, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+  detailSheet.getCell(2, 1).value =
+    `店铺：${projectLabel}    站点：${country}    日期：${startDate} 至 ${endDate}`
+  detailSheet.getCell(2, 1).font = {
+    name: 'Microsoft YaHei',
+    size: 10,
+    color: { argb: 'FF475569' },
+  }
+  detailSheet.getCell(2, 1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8FAFC' },
+  }
 
   const dGroupRow = detailSheet.getRow(4)
   const dHeadRow = detailSheet.getRow(5)
@@ -375,7 +497,11 @@ export async function exportProductAnalysisToExcel(
     gc.value = group.title
     gc.alignment = { vertical: 'middle', horizontal: 'center' }
     gc.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-    gc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GROUP_COLORS[group.title] || 'FFE2E8F0' } }
+    gc.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: GROUP_COLORS[group.title] || 'FFE2E8F0' },
+    }
     applyCellBorder(gc)
   })
   ;[dGroupRow, dHeadRow].forEach((row) => {
@@ -420,7 +546,8 @@ export async function exportProductAnalysisToExcel(
         ;(cell.value as string | number) = val
         cell.alignment = {
           vertical: 'middle',
-          horizontal: column === '日期' || column === 'SKU' || typeof val !== 'number' ? 'left' : 'right',
+          horizontal:
+            column === '日期' || column === 'SKU' || typeof val !== 'number' ? 'left' : 'right',
         }
         const numFmt = getExportNumberFormat(column, country)
         if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
@@ -442,7 +569,10 @@ export async function exportProductAnalysisToExcel(
         if (typeof val === 'number' && numFmt) cell.numFmt = numFmt
       }
       cell.font = { name: 'Microsoft YaHei', bold: true }
-      cell.alignment = { vertical: 'middle', horizontal: typeof cell.value === 'number' ? 'right' : 'left' }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: typeof cell.value === 'number' ? 'right' : 'left',
+      }
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } }
       applyCellBorder(cell)
     })
@@ -453,12 +583,23 @@ export async function exportProductAnalysisToExcel(
   })
 
   detailSheet.columns = EXPORT_DETAIL_COLUMNS.map((col) => ({
-    width: col === '日期' ? 14 : col === 'SKU' ? 22 : EXPORT_PERCENT_COLUMNS.has(col) ? 12 : EXPORT_CURRENCY_COLUMNS.has(col) ? 14 : 12,
+    width:
+      col === '日期'
+        ? 14
+        : col === 'SKU'
+          ? 22
+          : EXPORT_PERCENT_COLUMNS.has(col)
+            ? 12
+            : EXPORT_CURRENCY_COLUMNS.has(col)
+              ? 14
+              : 12,
   }))
   autosizeWorksheetColumns(detailSheet)
 
   const buffer = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

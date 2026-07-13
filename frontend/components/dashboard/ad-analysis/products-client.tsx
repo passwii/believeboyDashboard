@@ -101,7 +101,7 @@ export function AdAnalysisProductsClient() {
         if (skuFilter) query.set('sku', skuFilter)
         const response = await fetch(
           `${API_BASE}/api/v1/ad-analysis/products?${query.toString()}`,
-          { cache: 'no-store' },
+          { cache: 'no-store' }
         )
         if (!response.ok) throw new Error(await parseError(response))
         const payload = (await response.json()) as ProductResponse
@@ -119,42 +119,43 @@ export function AdAnalysisProductsClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, projectId, skuFilter])
 
-  if (!projectId) return <EmptyState rowHeight='lg' message='请先选择项目。' />
-  if (loading) return <EmptyState rowHeight='lg' message='正在加载 SKU 分析...' />
+  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
+  if (loading) return <EmptyState rowHeight="lg" message="正在加载 SKU 分析..." />
   if (error) {
     return (
-      <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'>
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
         {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0) return <EmptyState rowHeight='lg' message='当前没有推广商品明细。' />
+  if (!data || data.items.length === 0)
+    return <EmptyState rowHeight="lg" message="当前没有推广商品明细。" />
 
   const filteredItems = skuFilter
     ? data.items.filter((item) => item.ad_sku.toLowerCase().includes(skuFilter.toLowerCase()))
     : data.items
 
   if (filteredItems.length === 0) {
-    return <EmptyState rowHeight='lg' message={`当前筛选下没有匹配“${skuFilter}”的 SKU。`} />
+    return <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${skuFilter}”的 SKU。`} />
   }
 
   return (
-    <div className='space-y-5'>
+    <div className="space-y-5">
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
           ...(skuFilter ? [{ label: '当前 SKU', value: skuFilter }] : []),
         ]}
       />
-      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {data.summary_cards.map((card) => (
           <Card key={card.label}>
-            <CardHeader className='pb-2'>
-              <CardTitle className='text-base'>{card.label}</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{card.label}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className='text-2xl font-semibold'>{card.value}</p>
-              <p className='mt-1 text-sm text-muted-foreground'>{card.helper || '-'}</p>
+              <p className="text-2xl font-semibold">{card.value}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{card.helper || '-'}</p>
             </CardContent>
           </Card>
         ))}
@@ -162,9 +163,9 @@ export function AdAnalysisProductsClient() {
 
       <Card>
         <CardHeader>
-          <div className='flex items-center gap-2'>
-            <Package2 className='h-4 w-4 text-primary' />
-            <CardTitle className='text-lg'>SKU 承接表现</CardTitle>
+          <div className="flex items-center gap-2">
+            <Package2 className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">SKU 承接表现</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -187,20 +188,20 @@ export function AdAnalysisProductsClient() {
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={`${item.ad_sku}-${item.ad_asin}`}>
-                    <TableCell className='align-top'>
-                      <div className='space-y-1'>
-                        <p className='font-medium'>{item.ad_sku}</p>
-                        <p className='text-xs text-muted-foreground'>
+                    <TableCell className="align-top">
+                      <div className="space-y-1">
+                        <p className="font-medium">{item.ad_sku}</p>
+                        <p className="text-xs text-muted-foreground">
                           {item.ad_asin} / {item.campaign_count} 个活动
                         </p>
-                        <p className='text-xs text-muted-foreground'>
+                        <p className="text-xs text-muted-foreground">
                           CTR {(item.ctr * 100).toFixed(2)}% / CVR {(item.cvr_7d * 100).toFixed(2)}%
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant='secondary'>
-                        <Target className='mr-1 h-3.5 w-3.5' />
+                      <Badge variant="secondary">
+                        <Target className="mr-1 h-3.5 w-3.5" />
                         {item.grade}
                       </Badge>
                     </TableCell>
@@ -208,29 +209,33 @@ export function AdAnalysisProductsClient() {
                     <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
                     <TableCell>{item.orders_7d}</TableCell>
                     <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                    <TableCell className='align-top'>
-                      <div className='space-y-1 text-sm'>
+                    <TableCell className="align-top">
+                      <div className="space-y-1 text-sm">
                         <p>${item.cross_sell_sales_7d.toFixed(2)}</p>
-                        <p className='text-muted-foreground'>
+                        <p className="text-muted-foreground">
                           {item.cross_sell_orders_7d} 单 / {item.cross_sell_asin_count} 个 ASIN
                         </p>
-                        <p className='text-xs text-muted-foreground'>Top ASIN: {item.top_purchased_asin}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Top ASIN: {item.top_purchased_asin}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className='space-y-1'>
-                        <Badge variant='outline'>{item.cross_sell_action}</Badge>
-                        <p className='max-w-[220px] text-xs text-muted-foreground'>{item.next_action}</p>
+                      <div className="space-y-1">
+                        <Badge variant="outline">{item.cross_sell_action}</Badge>
+                        <p className="max-w-[220px] text-xs text-muted-foreground">
+                          {item.next_action}
+                        </p>
                       </div>
                     </TableCell>
-                    <TableCell className='align-top'>
+                    <TableCell className="align-top">
                       <AdAnalysisDrillLinks
                         links={[
                           {
                             href: buildAnalysisDrillHref(
                               'campaigns',
                               { projectId, country, dateFrom, dateTo },
-                              { campaign: item.primary_campaign, sku: item.ad_sku },
+                              { campaign: item.primary_campaign, sku: item.ad_sku }
                             ),
                             label: '活动',
                           },
@@ -238,7 +243,7 @@ export function AdAnalysisProductsClient() {
                             href: buildAnalysisDrillHref(
                               'search-terms',
                               { projectId, country, dateFrom, dateTo },
-                              { campaign: item.primary_campaign, sku: item.ad_sku },
+                              { campaign: item.primary_campaign, sku: item.ad_sku }
                             ),
                             label: '搜索词',
                           },
@@ -246,7 +251,7 @@ export function AdAnalysisProductsClient() {
                             href: buildAnalysisDrillHref(
                               'targets',
                               { projectId, country, dateFrom, dateTo },
-                              { campaign: item.primary_campaign, sku: item.ad_sku },
+                              { campaign: item.primary_campaign, sku: item.ad_sku }
                             ),
                             label: '投放',
                           },
@@ -254,7 +259,7 @@ export function AdAnalysisProductsClient() {
                             href: buildAnalysisDrillHref(
                               'placements',
                               { projectId, country, dateFrom, dateTo },
-                              { campaign: item.primary_campaign, sku: item.ad_sku },
+                              { campaign: item.primary_campaign, sku: item.ad_sku }
                             ),
                             label: '广告位',
                           },
@@ -265,8 +270,11 @@ export function AdAnalysisProductsClient() {
                               {
                                 campaign: item.primary_campaign,
                                 sku: item.ad_sku,
-                                purchasedAsin: item.top_purchased_asin !== '-' ? item.top_purchased_asin : undefined,
-                              },
+                                purchasedAsin:
+                                  item.top_purchased_asin !== '-'
+                                    ? item.top_purchased_asin
+                                    : undefined,
+                              }
                             ),
                             label: '关联购买',
                           },
@@ -280,76 +288,96 @@ export function AdAnalysisProductsClient() {
           </div>
 
           {/* 手机端：卡片列表 */}
-          <div className='lg:hidden space-y-3'>
+          <div className="lg:hidden space-y-3">
             {filteredItems.map((item) => (
-              <div key={`${item.ad_sku}-${item.ad_asin}`} className='dashboard-surface p-4 space-y-3'>
-                <div className='flex items-start justify-between gap-2 border-b border-border/70 pb-3'>
-                  <div className='min-w-0 flex-1'>
-                    <p className='font-medium text-sm'>{item.ad_sku}</p>
-                    <p className='text-xs text-muted-foreground truncate'>{item.ad_asin}</p>
-                    <p className='text-xs text-muted-foreground'>CTR {(item.ctr * 100).toFixed(2)}% / CVR {(item.cvr_7d * 100).toFixed(2)}%</p>
+              <div
+                key={`${item.ad_sku}-${item.ad_asin}`}
+                className="dashboard-surface p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{item.ad_sku}</p>
+                    <p className="text-xs text-muted-foreground truncate">{item.ad_asin}</p>
+                    <p className="text-xs text-muted-foreground">
+                      CTR {(item.ctr * 100).toFixed(2)}% / CVR {(item.cvr_7d * 100).toFixed(2)}%
+                    </p>
                   </div>
-                  <Badge variant='secondary' className='shrink-0'>
-                    <Target className='mr-1 h-3 w-3' />
+                  <Badge variant="secondary" className="shrink-0">
+                    <Target className="mr-1 h-3 w-3" />
                     {item.grade}
                   </Badge>
                 </div>
 
-                <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-sm'>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className='text-xs text-muted-foreground'>Spend</span>
-                    <div className='font-medium'>${item.spend.toFixed(2)}</div>
+                    <span className="text-xs text-muted-foreground">Spend</span>
+                    <div className="font-medium">${item.spend.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>Sales</span>
-                    <div className='font-medium'>${item.sales_7d.toFixed(2)}</div>
+                    <span className="text-xs text-muted-foreground">Sales</span>
+                    <div className="font-medium">${item.sales_7d.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>Orders</span>
-                    <div className='font-medium'>{item.orders_7d}</div>
+                    <span className="text-xs text-muted-foreground">Orders</span>
+                    <div className="font-medium">{item.orders_7d}</div>
                   </div>
                   <div>
-                    <span className='text-xs text-muted-foreground'>ACOS</span>
-                    <div className={cn("font-medium", item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500')}>
+                    <span className="text-xs text-muted-foreground">ACOS</span>
+                    <div
+                      className={cn(
+                        'font-medium',
+                        item.acos > 0.3 ? 'text-red-500' : 'text-emerald-500'
+                      )}
+                    >
                       {(item.acos * 100).toFixed(2)}%
                     </div>
                   </div>
                 </div>
 
-                <div className='grid grid-cols-2 gap-x-4 gap-y-1 text-xs'>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <div>
-                    <span className='text-muted-foreground'>关联销售</span>
-                    <div className='font-medium'>${item.cross_sell_sales_7d.toFixed(2)}</div>
+                    <span className="text-muted-foreground">关联销售</span>
+                    <div className="font-medium">${item.cross_sell_sales_7d.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>关联单数</span>
-                    <div className='font-medium'>{item.cross_sell_orders_7d} 单</div>
+                    <span className="text-muted-foreground">关联单数</span>
+                    <div className="font-medium">{item.cross_sell_orders_7d} 单</div>
                   </div>
                 </div>
 
-                <div className='flex flex-wrap gap-2 pt-2 border-t border-border/70'>
-                  <Badge variant='outline' className='text-xs'>{item.cross_sell_action}</Badge>
-                  <p className='text-xs text-muted-foreground w-full'>{item.next_action}</p>
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-border/70">
+                  <Badge variant="outline" className="text-xs">
+                    {item.cross_sell_action}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground w-full">{item.next_action}</p>
                 </div>
 
-                <div className='flex gap-2 pt-2 border-t border-border/70'>
+                <div className="flex gap-2 pt-2 border-t border-border/70">
                   <Button
-                    variant='outline'
-                    size='sm'
-                    className='h-8 min-h-[44px] text-xs flex-1'
+                    variant="outline"
+                    size="sm"
+                    className="h-8 min-h-[44px] text-xs flex-1"
                     onClick={() => {
-                      const href = buildAnalysisDrillHref('campaigns', { projectId, country, dateFrom, dateTo }, { campaign: item.primary_campaign, sku: item.ad_sku })
+                      const href = buildAnalysisDrillHref(
+                        'campaigns',
+                        { projectId, country, dateFrom, dateTo },
+                        { campaign: item.primary_campaign, sku: item.ad_sku }
+                      )
                       if (href) window.location.href = href
                     }}
                   >
                     活动
                   </Button>
                   <Button
-                    variant='outline'
-                    size='sm'
-                    className='h-8 min-h-[44px] text-xs flex-1'
+                    variant="outline"
+                    size="sm"
+                    className="h-8 min-h-[44px] text-xs flex-1"
                     onClick={() => {
-                      const href = buildAnalysisDrillHref('search-terms', { projectId, country, dateFrom, dateTo }, { campaign: item.primary_campaign, sku: item.ad_sku })
+                      const href = buildAnalysisDrillHref(
+                        'search-terms',
+                        { projectId, country, dateFrom, dateTo },
+                        { campaign: item.primary_campaign, sku: item.ad_sku }
+                      )
                       if (href) window.location.href = href
                     }}
                   >

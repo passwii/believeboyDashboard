@@ -33,11 +33,7 @@ export function RefreshButton({
       className={cn('shrink-0', className)}
       title={label || '刷新'}
     >
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <RefreshCcw className="h-4 w-4" />
-      )}
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
       {label && size !== 'icon' ? <span className="ml-2">{label}</span> : null}
     </Button>
   )

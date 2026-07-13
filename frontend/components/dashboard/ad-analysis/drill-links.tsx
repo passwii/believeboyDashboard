@@ -32,12 +32,12 @@ export function AdAnalysisDrillLinks({ links }: { links: AdAnalysisDrillLinkItem
   if (filteredLinks.length === 0) return null
 
   return (
-    <div className='flex flex-wrap gap-2 text-sm'>
+    <div className="flex flex-wrap gap-2 text-sm">
       {filteredLinks.map((item) => (
         <Link
           key={`${item.label}-${item.href}`}
           href={item.href!}
-          className='text-primary underline-offset-4 hover:underline'
+          className="text-primary underline-offset-4 hover:underline"
         >
           {item.label}
         </Link>

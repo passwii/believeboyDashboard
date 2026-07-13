@@ -1,6 +1,6 @@
 # Phase 9 — 文档化 + Token v2
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 0-8 完成 + tag `phase8-perf-a11y`
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）
@@ -21,7 +21,7 @@
 - [x] commit `cac8a260` — docs(动效): tokens.ts 添加 CSS/JS 对照表与修改纪律注释
 
 ### ✅ 任务 9.3 — v2 token 优化建议调研报告
-- [x] `docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`（185 行）
+- [x] `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`（185 行）
 - [x] 调研数字真实（grep 结果直接填入）
 - [x] 关键发现：
   - **Z.\* 五档全部双重未用**（CSS 与 JS 都 0 引用）— Phase 0 定义但未迁移
@@ -76,7 +76,7 @@ cac8a260 docs(动效): tokens.ts 添加 CSS/JS 对照表与修改纪律注释
 
 **新增**：
 - `frontend/docs/motion-system.md`（299 行）
-- `docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`（185 行）
+- `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`（185 行）
 
 **修改**：
 - `frontend/lib/motion/tokens.ts`（+35 行注释）
@@ -104,7 +104,7 @@ cac8a260 docs(动效): tokens.ts 添加 CSS/JS 对照表与修改纪律注释
 
 ## 用户决策项（v2 token 优化）
 
-见 `docs/superpowers/plans/2026-07-11-frontend-motion-system-v2-token-recommendations.md`。建议：
+见 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system-v2-token-recommendations.md`。建议：
 
 - **立即清理**：`EASE.springBack` / `SPRING.press` / `Z.*`（5 个 token）0 引用可删除
 - **保留 mirror**：`DURATION.fast / slow` / `EASE.standard` / `STAGGER.step` JS 侧 0 引用但仍有 mirror 价值（中央定义）

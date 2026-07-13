@@ -7,18 +7,9 @@ import { CalendarDays, RefreshCw, AlertTriangle, TrendingDown } from 'lucide-rea
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { MultiSelect, type Option } from '@/components/ui/multi-select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 
@@ -130,7 +121,13 @@ function GanttBar(props: GanttBarProps) {
   )
 }
 
-function CustomBar(props: { x?: number; y?: number; width?: number; height?: number; fill?: string }) {
+function CustomBar(props: {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  fill?: string
+}) {
   const { x = 0, y = 0, width = 0, height = 0 } = props
   if (width <= 0) return null
   return (
@@ -192,7 +189,13 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
     const endDate = addDays(maxDate, 14)
 
     const dayCount = diffDays(endDate, startDate) + 1
-    const dateMarkers: { date: string; label: string; isWeekend: boolean; isToday: boolean; dayIndex: number }[] = []
+    const dateMarkers: {
+      date: string
+      label: string
+      isWeekend: boolean
+      isToday: boolean
+      dayIndex: number
+    }[] = []
 
     for (let i = 0; i < dayCount; i++) {
       const d = addDays(startDate, i)
@@ -211,7 +214,6 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
     const startEpoch = startDate.getTime()
 
     const items = rows.map((row, index) => {
-
       let orderX: number | null = null
       let orderWidth: number | null = null
       let warehouseX: number | null = null
@@ -295,10 +297,13 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
       if (dateFrom) params.set('date_from', formatDate(dateFrom))
       if (dateTo) params.set('date_to', formatDate(dateTo))
 
-      const response = await fetch(`${API_BASE}/api/v1/inventory-replenishment-calendar?${params.toString()}`, {
-        headers: authHeaders(),
-        cache: 'no-store',
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/inventory-replenishment-calendar?${params.toString()}`,
+        {
+          headers: authHeaders(),
+          cache: 'no-store',
+        }
+      )
       if (!response.ok) throw new Error(await parseError(response))
 
       const payload = (await response.json()) as CalendarResponse
@@ -308,7 +313,11 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
     } catch (loadError) {
       if (requestId !== latestRequestRef.current) return
       setRows([])
-      notify({ type: 'error', title: '日历数据加载失败', message: loadError instanceof Error ? loadError.message : '加载失败' })
+      notify({
+        type: 'error',
+        title: '日历数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '加载失败',
+      })
     } finally {
       if (requestId === latestRequestRef.current) setLoading(false)
     }
@@ -343,7 +352,11 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
       <DataCard>
         <DataCardHeader
           title="补货日历"
-          badge={<p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日历视图</p>}
+          badge={
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              日历视图
+            </p>
+          }
           action={
             <div className="flex items-center gap-2">
               <Button
@@ -383,9 +396,16 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                   item.alert && 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30'
                 )}
               >
-                <item.icon className={cn('h-4 w-4 text-muted-foreground', item.alert && 'text-red-500')} />
+                <item.icon
+                  className={cn('h-4 w-4 text-muted-foreground', item.alert && 'text-red-500')}
+                />
                 <span className="text-xs text-muted-foreground">{item.label}</span>
-                <span className={cn('text-sm font-semibold text-foreground', item.alert && 'text-red-600 dark:text-red-400')}>
+                <span
+                  className={cn(
+                    'text-sm font-semibold text-foreground',
+                    item.alert && 'text-red-600 dark:text-red-400'
+                  )}
+                >
                   {item.value}
                 </span>
               </div>
@@ -450,7 +470,9 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                   {/* Header with dates */}
                   <div className="flex border-b border-border/70 bg-[hsl(var(--surface-soft))]/50">
                     <div className="sticky left-0 z-10 w-64 shrink-0 border-r border-border/70 bg-[hsl(var(--surface-panel))]/95 px-3 py-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">SKU</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        SKU
+                      </span>
                     </div>
                     <div className="relative" style={{ width: chartData.chartWidth }}>
                       <div className="flex">
@@ -459,7 +481,8 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                             key={marker.date}
                             className={cn(
                               'relative flex-shrink-0 border-r border-border/30 py-2 text-center text-[10px]',
-                              marker.isToday && 'bg-violet-100/50 font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+                              marker.isToday &&
+                                'bg-violet-100/50 font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
                               marker.isWeekend && 'bg-muted/30'
                             )}
                             style={{ width: chartData.dayWidth }}
@@ -473,12 +496,19 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
 
                   {/* Gantt rows */}
                   {chartData.items.map((item) => (
-                    <div key={`${item.sku}-${item.country}`} className="flex border-b border-border/50 hover:bg-[hsl(var(--surface-soft))]/50">
+                    <div
+                      key={`${item.sku}-${item.country}`}
+                      className="flex border-b border-border/50 hover:bg-[hsl(var(--surface-soft))]/50"
+                    >
                       {/* SKU label */}
                       <div className="sticky left-0 z-10 flex w-64 shrink-0 items-center gap-2 border-r border-border/70 bg-[hsl(var(--surface-panel))]/95 px-3">
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-medium text-foreground">{item.sku}</div>
-                          <div className="truncate text-[10px] text-muted-foreground">{item.project_name}</div>
+                          <div className="truncate text-xs font-medium text-foreground">
+                            {item.sku}
+                          </div>
+                          <div className="truncate text-[10px] text-muted-foreground">
+                            {item.project_name}
+                          </div>
                         </div>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -486,9 +516,13 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                               variant="outline"
                               className={cn(
                                 'shrink-0 text-[10px]',
-                                item.is_critical && 'border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300',
-                                item.is_slow_moving && 'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300',
-                                !item.is_critical && !item.is_slow_moving && 'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground'
+                                item.is_critical &&
+                                  'border-red-200 bg-red-100 text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300',
+                                item.is_slow_moving &&
+                                  'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300',
+                                !item.is_critical &&
+                                  !item.is_slow_moving &&
+                                  'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground'
                               )}
                             >
                               {item.risk_status.slice(0, 3)}
@@ -502,11 +536,17 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                                 <div>风险状态: {item.risk_status}</div>
                                 <div>店铺库存: {item.available_inventory}</div>
                                 <div>在途: {item.in_transit_quantity}</div>
-                                {item.weighted_dms && <div>加权DMS: {item.weighted_dms.toFixed(2)}</div>}
+                                {item.weighted_dms && (
+                                  <div>加权DMS: {item.weighted_dms.toFixed(2)}</div>
+                                )}
                                 {item.sellout_date && <div>预计断货: {item.sellout_date}</div>}
                                 {item.order_date && <div>建议下单: {item.order_date}</div>}
-                                {item.warehouse_entry_date && <div>预计入仓: {item.warehouse_entry_date}</div>}
-                                {item.estimated_quantity && <div>建议补货: {item.estimated_quantity}</div>}
+                                {item.warehouse_entry_date && (
+                                  <div>预计入仓: {item.warehouse_entry_date}</div>
+                                )}
+                                {item.estimated_quantity && (
+                                  <div>建议补货: {item.estimated_quantity}</div>
+                                )}
                               </div>
                             </div>
                           </TooltipContent>
@@ -521,7 +561,10 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                             <div
                               key={marker.date}
                               className="absolute top-0 h-full bg-muted/20"
-                              style={{ left: marker.dayIndex * chartData.dayWidth, width: chartData.dayWidth }}
+                              style={{
+                                left: marker.dayIndex * chartData.dayWidth,
+                                width: chartData.dayWidth,
+                              }}
                             />
                           ) : null
                         )}
@@ -533,29 +576,31 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                         />
 
                         {/* Order window bar */}
-                        {item.orderX !== null && item.orderWidth !== null && item.orderWidth > 0 && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className="absolute top-2 h-8 cursor-pointer rounded"
-                                style={{
-                                  left: item.orderX,
-                                  width: item.orderWidth,
-                                  backgroundColor: item.transitColor,
-                                  opacity: 0.75,
-                                }}
-                              />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="text-xs">
-                                <div className="font-semibold">补货窗口</div>
-                                <div className="text-muted-foreground">
-                                  {item.order_date} → {item.warehouse_entry_date}
+                        {item.orderX !== null &&
+                          item.orderWidth !== null &&
+                          item.orderWidth > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="absolute top-2 h-8 cursor-pointer rounded"
+                                  style={{
+                                    left: item.orderX,
+                                    width: item.orderWidth,
+                                    backgroundColor: item.transitColor,
+                                    opacity: 0.75,
+                                  }}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-xs">
+                                  <div className="font-semibold">补货窗口</div>
+                                  <div className="text-muted-foreground">
+                                    {item.order_date} → {item.warehouse_entry_date}
+                                  </div>
                                 </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
 
                         {/* Sellout marker */}
                         {item.selloutX !== null && (
@@ -564,16 +609,24 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
                               <div
                                 className={cn(
                                   'absolute top-1 h-10 w-0 cursor-pointer border-l-2',
-                                  item.is_critical ? 'border-red-500' : item.is_slow_moving ? 'border-amber-500' : 'border-gray-400'
+                                  item.is_critical
+                                    ? 'border-red-500'
+                                    : item.is_slow_moving
+                                      ? 'border-amber-500'
+                                      : 'border-gray-400'
                                 )}
                                 style={{ left: item.selloutX - 1 }}
                               >
                                 <div
                                   className={cn(
                                     'absolute -top-1 left-1/2 -translate-x-1/2 rounded-full border-2 px-1.5 py-0.5 text-[9px] font-semibold',
-                                    item.is_critical && 'border-red-500 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
-                                    item.is_slow_moving && 'border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-                                    !item.is_critical && !item.is_slow_moving && 'border-gray-400 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                                    item.is_critical &&
+                                      'border-red-500 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+                                    item.is_slow_moving &&
+                                      'border-amber-500 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+                                    !item.is_critical &&
+                                      !item.is_slow_moving &&
+                                      'border-gray-400 bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                                   )}
                                 >
                                   断货

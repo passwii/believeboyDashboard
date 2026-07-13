@@ -3,22 +3,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  Check,
-  Copy,
-  Loader2,
-  Pencil,
-  Save,
-  X,
-} from 'lucide-react'
+import { Check, Copy, Loader2, Pencil, Save, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { DimensionPanel, type DimensionCoverage } from './dimension-panel'
@@ -68,10 +56,14 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
       return {
         analyzed: evo.dimensions_analyzed ?? [],
         cross: (evo.cross_analyses_performed ?? []).map((name: string) => ({
-          dimension_id: name, name, level: 2,
+          dimension_id: name,
+          name,
+          level: 2,
         })),
         temporal: (evo.temporal_analyses_performed ?? []).map((name: string) => ({
-          dimension_id: name, name, level: 3,
+          dimension_id: name,
+          name,
+          level: 3,
         })),
         skipped: evo.dimensions_skipped ?? [],
       }
@@ -144,12 +136,11 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <DialogTitle className="truncate">
-                {insight?.title ?? '加载中...'}
-              </DialogTitle>
+              <DialogTitle className="truncate">{insight?.title ?? '加载中...'}</DialogTitle>
               {insight && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {insight.project_name} · {insight.country} · {insight.date_range_start} ~ {insight.date_range_end}
+                  {insight.project_name} · {insight.country} · {insight.date_range_start} ~{' '}
+                  {insight.date_range_end}
                 </p>
               )}
             </div>
@@ -177,7 +168,12 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
               )}
               {editing && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(false)}
+                    disabled={saving}
+                  >
                     <X className="mr-1 h-3.5 w-3.5" />
                     取消
                   </Button>
@@ -214,21 +210,21 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
                 <DimensionPanel coverage={dimensionCoverage} defaultExpanded={false} />
               )}
               <div className="rounded-md border bg-card p-5">
-              <div
-                className={cn(
-                  'prose prose-sm dark:prose-invert max-w-none',
-                  '[&_a]:font-medium [&_a]:text-primary',
-                  '[&_h1]:mt-6 [&_h1]:text-xl [&_h1]:font-semibold',
-                  '[&_h2]:mt-5 [&_h2]:text-lg [&_h2]:font-semibold',
-                  '[&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold',
-                  '[&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm',
-                  '[&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-primary/5 [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:my-3 [&_blockquote]:italic',
-                  '[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:font-mono',
-                )}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.content}</ReactMarkdown>
+                <div
+                  className={cn(
+                    'prose prose-sm dark:prose-invert max-w-none',
+                    '[&_a]:font-medium [&_a]:text-primary',
+                    '[&_h1]:mt-6 [&_h1]:text-xl [&_h1]:font-semibold',
+                    '[&_h2]:mt-5 [&_h2]:text-lg [&_h2]:font-semibold',
+                    '[&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold',
+                    '[&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm',
+                    '[&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-primary/5 [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:my-3 [&_blockquote]:italic',
+                    '[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:font-mono'
+                  )}
+                >
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{insight.content}</ReactMarkdown>
+                </div>
               </div>
-            </div>
             </div>
           )}
 

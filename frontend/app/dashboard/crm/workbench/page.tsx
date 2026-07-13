@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
 export default function WorkbenchPage() {
- redirect('/dashboard/crm/customers')
+  redirect('/dashboard/crm/customers')
 }

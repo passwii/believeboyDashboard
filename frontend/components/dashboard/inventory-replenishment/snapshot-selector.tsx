@@ -130,7 +130,7 @@ export function SnapshotSelector({
     }
   }, [projectId, country, refreshNonce])
 
-  const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId)
+  const selectedSnapshot = snapshots.find((s) => s.id === selectedSnapshotId)
   const isLiveMode = selectedSnapshotId === null
 
   async function handleDelete(e: React.MouseEvent, snapshotId: number) {
@@ -162,17 +162,14 @@ export function SnapshotSelector({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          className="gap-2"
-        >
+        <Button variant="outline" size="sm" disabled={disabled} className="gap-2">
           {isLiveMode ? (
             <>
               <Clock className="h-4 w-4" />
               实时数据
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">LIVE</Badge>
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
+                LIVE
+              </Badge>
             </>
           ) : (
             <>
@@ -207,12 +204,10 @@ export function SnapshotSelector({
             <Skeleton className="h-8 w-full" />
           </div>
         ) : snapshots.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            暂无快照
-          </div>
+          <div className="p-4 text-center text-sm text-muted-foreground">暂无快照</div>
         ) : (
           <>
-            {snapshots.map(snapshot => (
+            {snapshots.map((snapshot) => (
               <DropdownMenuItem
                 key={snapshot.id}
                 onClick={() => {
@@ -229,9 +224,7 @@ export function SnapshotSelector({
                     {formatRelativeTime(snapshot.created_at)}
                   </span>
                 </div>
-                {selectedSnapshotId === snapshot.id && (
-                  <Badge className="ml-auto">当前</Badge>
-                )}
+                {selectedSnapshotId === snapshot.id && <Badge className="ml-auto">当前</Badge>}
                 {isAdmin && (
                   <div className="flex items-center gap-1 ml-auto">
                     <Button

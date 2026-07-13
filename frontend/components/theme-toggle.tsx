@@ -31,8 +31,12 @@ export function ThemeToggle() {
           size="icon"
           className="relative h-10 w-10 rounded-xl border-border/65 bg-[hsl(var(--surface-subtle))] shadow-none"
         >
-          <SunMedium className={`h-[1.05rem] w-[1.05rem] transition-all ${showDark ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100'}`} />
-          <Moon className={`absolute h-[1.05rem] w-[1.05rem] transition-all ${showDark ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0'}`} />
+          <SunMedium
+            className={`h-[1.05rem] w-[1.05rem] transition-all ${showDark ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100'}`}
+          />
+          <Moon
+            className={`absolute h-[1.05rem] w-[1.05rem] transition-all ${showDark ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0'}`}
+          />
           <span className="sr-only">切换主题</span>
         </Button>
       </DropdownMenuTrigger>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { BarChart3, DollarSign, Megaphone, RefreshCcw } from 'lucide-react'
 
@@ -12,11 +13,7 @@ import {
 } from '@/components/ui/chart'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { cn } from '@/lib/utils'
 import {
   fmtMoneyPrecise,
@@ -51,24 +48,23 @@ export function DashboardAdSpendChart({
 
   const totalSales = useMemo(
     () => currentRows.reduce((s, r) => s + (r.sales_amount ?? 0), 0),
-    [currentRows],
+    [currentRows]
   )
   const totalAdSpend = useMemo(
     () => currentRows.reduce((s, r) => s + (r.ad_spend ?? 0), 0),
-    [currentRows],
+    [currentRows]
   )
   const prevSales = useMemo(
     () => comparisonRows.reduce((s, r) => s + (r.sales_amount ?? 0), 0),
-    [comparisonRows],
+    [comparisonRows]
   )
   const prevAdSpend = useMemo(
     () => comparisonRows.reduce((s, r) => s + (r.ad_spend ?? 0), 0),
-    [comparisonRows],
+    [comparisonRows]
   )
 
   const salesChange = prevSales > 0 ? ((totalSales - prevSales) / prevSales) * 100 : null
-  const adSpendChange =
-    prevAdSpend > 0 ? ((totalAdSpend - prevAdSpend) / prevAdSpend) * 100 : null
+  const adSpendChange = prevAdSpend > 0 ? ((totalAdSpend - prevAdSpend) / prevAdSpend) * 100 : null
 
   /** 投放比 = ad_spend / sales_amount * 100,首页 KPI"广告投放比"同口径 */
   const acos = totalSales > 0 ? (totalAdSpend / totalSales) * 100 : 0
@@ -96,6 +92,7 @@ export function DashboardAdSpendChart({
   }, [currentRows, comparisonRows, dateRange])
 
   const hasComparison = comparisonRows.length > 0
+  const isMobile = useIsMobile()
   const isEmpty = currentRows.length === 0
 
   return (
@@ -151,7 +148,10 @@ export function DashboardAdSpendChart({
             </div>
 
             <ChartContainer config={CHART_CONFIG} className="h-[260px] sm:h-[320px] w-full">
-              <ComposedChart data={chartRows} margin={{ top: 10, right: 4, left: 0, bottom: 8 }}>
+              <ComposedChart
+                data={chartRows}
+                margin={{ top: 10, right: 4, left: isMobile ? -8 : 0, bottom: 8 }}
+              >
                 <CartesianGrid
                   vertical={false}
                   stroke="rgba(148,163,184,0.18)"
@@ -174,7 +174,8 @@ export function DashboardAdSpendChart({
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
+                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
                 />
                 <YAxis
                   yAxisId="ad_spend"
@@ -182,7 +183,8 @@ export function DashboardAdSpendChart({
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
+                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
                 />
                 <ChartTooltip
                   cursor={{ stroke: 'rgba(15,23,42,0.18)', strokeDasharray: '4 4' }}
@@ -193,9 +195,14 @@ export function DashboardAdSpendChart({
                       formatter={(value, name) => {
                         const label =
                           typeof name === 'string'
-                            ? (CHART_CONFIG as Record<string, { label?: string }>)[name]?.label ?? name
+                            ? ((CHART_CONFIG as Record<string, { label?: string }>)[name]?.label ??
+                              name)
                             : String(name)
-                        if (name === 'sales_amount' || name === 'ad_spend' || name === 'compare_sales') {
+                        if (
+                          name === 'sales_amount' ||
+                          name === 'ad_spend' ||
+                          name === 'compare_sales'
+                        ) {
                           return [`$${formatMoney(Number(value))}`, label]
                         }
                         return [String(value), label]
@@ -267,9 +274,11 @@ function KpiItem({ icon, label, value, change, badge, badgeColor, accent }: KpiI
             variant="outline"
             className={cn(
               'px-1.5 py-0 text-[10px]',
-              badgeColor === 'green' && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-              badgeColor === 'yellow' && 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-              badgeColor === 'red' && 'border-destructive/40 bg-destructive/10 text-destructive',
+              badgeColor === 'green' &&
+                'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+              badgeColor === 'yellow' &&
+                'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+              badgeColor === 'red' && 'border-destructive/40 bg-destructive/10 text-destructive'
             )}
           >
             {badge}
@@ -286,7 +295,7 @@ function KpiItem({ icon, label, value, change, badge, badgeColor, accent }: KpiI
               'shrink-0 text-[11px] font-medium tabular-nums',
               change > 0.5 && 'text-emerald-600 dark:text-emerald-400',
               change < -0.5 && 'text-destructive',
-              change >= -0.5 && change <= 0.5 && 'text-muted-foreground',
+              change >= -0.5 && change <= 0.5 && 'text-muted-foreground'
             )}
           >
             {fmtPct(change)}

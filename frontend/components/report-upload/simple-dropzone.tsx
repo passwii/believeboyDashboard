@@ -33,7 +33,7 @@ export function SimpleDropzone({
         dragActive
           ? 'border-slate-400/60 bg-slate-50 dark:border-slate-500/50 dark:bg-slate-800/25'
           : 'border-border/70 bg-[hsl(var(--surface-subtle))] hover:border-slate-300 dark:border-border/90 dark:hover:border-slate-600',
-        className,
+        className
       )}
       onDrop={onDrop}
       onDragOver={onDragOver}

@@ -5,11 +5,7 @@ import { ImageIcon, Pencil, Trash2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DataTableCard,
-  DataTableCardHeader,
-  DataTableCardBody,
-} from '@/components/ui/data-card'
+import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { useNotifications } from '@/components/notifications/notifications-context'
 import { ImageUploadSheet } from './image-upload-sheet'
 import { ImageLightbox } from './image-lightbox'
@@ -24,12 +20,7 @@ interface ImageTabContentProps {
   onRefresh: () => void
 }
 
-export function ImageTabContent({
-  projectName,
-  skus,
-  loading,
-  onRefresh,
-}: ImageTabContentProps) {
+export function ImageTabContent({ projectName, skus, loading, onRefresh }: ImageTabContentProps) {
   const { notify } = useNotifications()
   const [search, setSearch] = useState('')
   const [uploadSheetOpen, setUploadSheetOpen] = useState(false)
@@ -64,10 +55,9 @@ export function ImageTabContent({
         return
       }
       try {
-        const response = await fetch(
-          `${API_BASE}/api/v1/sku-info/${sku.id}/product-image`,
-          { method: 'DELETE' }
-        )
+        const response = await fetch(`${API_BASE}/api/v1/sku-info/${sku.id}/product-image`, {
+          method: 'DELETE',
+        })
         if (!response.ok) {
           const error = await response.json().catch(() => ({}))
           throw new Error(error.detail || `删除失败 (${response.status})`)
@@ -195,9 +185,7 @@ export function ImageTabContent({
                           {sku.sku}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-[13px] text-muted-foreground">
-                        {sku.asin}
-                      </td>
+                      <td className="px-4 py-2 text-[13px] text-muted-foreground">{sku.asin}</td>
                       <td className="px-4 py-2 text-[13px] text-muted-foreground">
                         {sku.product_name || '—'}
                       </td>

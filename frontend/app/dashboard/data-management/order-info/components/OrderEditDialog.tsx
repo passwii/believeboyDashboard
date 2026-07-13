@@ -4,11 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Save, Truck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  DatePicker,
-  formatDateInputValue,
-  parseDateInputValue,
-} from '@/components/ui/date-picker'
+import { DatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
 import {
   Dialog,
   DialogContent,
@@ -131,14 +127,19 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
 
       const response = await fetch(`/api/backend/api/v1/order-info/${order.id}`, {
         method: 'PATCH',
-        headers: { ...Object.fromEntries(authHeaders().entries()), 'Content-Type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(authHeaders().entries()),
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
         cache: 'no-store',
       })
       if (!response.ok) {
-        const errPayload = (await response.json().catch(() => null)) as
-          | { error?: string; detail?: string; message?: string }
-          | null
+        const errPayload = (await response.json().catch(() => null)) as {
+          error?: string
+          detail?: string
+          message?: string
+        } | null
         const msg = errPayload?.error || errPayload?.detail || errPayload?.message
         throw new Error(normalizeErrorMessage(msg, '保存失败'))
       }
@@ -167,8 +168,7 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
             编辑 FBM 订单 · 物流信息
           </DialogTitle>
           <DialogDescription>
-            订单号{' '}
-            <span className="font-mono text-xs">{order.amazon_order_id}</span> · 店铺{' '}
+            订单号 <span className="font-mono text-xs">{order.amazon_order_id}</span> · 店铺{' '}
             {order.project_name}
             {order.sku ? ` · SKU ${order.sku}` : ''}
             {order.country ? ` · 收货国 ${order.country}` : ''}
@@ -230,15 +230,15 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             取消
           </Button>
           <Button onClick={() => void handleSubmit()} disabled={submitting} className="gap-1">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
             保存
           </Button>
         </DialogFooter>

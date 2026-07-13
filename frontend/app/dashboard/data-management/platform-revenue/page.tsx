@@ -43,7 +43,17 @@ import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { CalendarIcon, Pencil, Trash2, Plus, RotateCcw, ImagePlus, Loader2, X, Download } from 'lucide-react'
+import {
+  CalendarIcon,
+  Pencil,
+  Trash2,
+  Plus,
+  RotateCcw,
+  ImagePlus,
+  Loader2,
+  X,
+  Download,
+} from 'lucide-react'
 
 // 币种选项
 const CURRENCY_OPTIONS = [
@@ -122,7 +132,7 @@ interface Filters {
 
 const formatCurrency = (amount: string | number, currency: string) => {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount
-  const symbol = CURRENCY_OPTIONS.find(c => c.value === currency)?.symbol || ''
+  const symbol = CURRENCY_OPTIONS.find((c) => c.value === currency)?.symbol || ''
   return `${symbol}${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -183,7 +193,10 @@ const calculateTotals = (revenues: PlatformRevenue[]) => {
 // 格式化合计行显示
 const formatTotals = (totals: Record<string, number>) => {
   return Object.entries(totals)
-    .map(([currency, amount]) => `${CURRENCY_OPTIONS.find(c => c.value === currency)?.symbol || currency}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+    .map(
+      ([currency, amount]) =>
+        `${CURRENCY_OPTIONS.find((c) => c.value === currency)?.symbol || currency}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    )
     .join(' | ')
 }
 
@@ -195,25 +208,29 @@ const getCurrencyBadgeMeta = (currency: string) => {
       return {
         symbol: '$',
         accent: '美元',
-        className: 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
+        className:
+          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100 to-lime-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-emerald-900 dark:to-lime-950 dark:text-emerald-100',
       }
     case 'GBP':
       return {
         symbol: '£',
         accent: '英镑',
-        className: 'border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-100 text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-amber-800 dark:from-amber-950 dark:via-amber-900 dark:to-yellow-950 dark:text-amber-100',
+        className:
+          'border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-100 text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-amber-800 dark:from-amber-950 dark:via-amber-900 dark:to-yellow-950 dark:text-amber-100',
       }
     case 'EUR':
       return {
         symbol: '€',
         accent: '欧元',
-        className: 'border-sky-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-sky-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-sky-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-sky-100',
+        className:
+          'border-sky-300 bg-gradient-to-r from-sky-50 via-blue-100 to-indigo-100 text-sky-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-sky-800 dark:from-sky-950 dark:via-blue-950 dark:to-indigo-950 dark:text-sky-100',
       }
     default:
       return {
         symbol: '¤',
         accent: '其他货币',
-        className: 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+        className:
+          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
       }
   }
 }
@@ -226,55 +243,64 @@ const getCountryBadgeMeta = (country: string) => {
       return {
         symbol: '🇺🇸',
         accent: '美国',
-        className: 'border-rose-300 bg-gradient-to-r from-rose-50 via-red-100 to-orange-100 text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-rose-800 dark:from-rose-950 dark:via-red-950 dark:to-orange-950 dark:text-rose-100',
+        className:
+          'border-rose-300 bg-gradient-to-r from-rose-50 via-red-100 to-orange-100 text-rose-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-rose-800 dark:from-rose-950 dark:via-red-950 dark:to-orange-950 dark:text-rose-100',
       }
     case 'UK':
       return {
         symbol: '🇬🇧',
         accent: '英国',
-        className: 'border-violet-300 bg-gradient-to-r from-violet-50 via-purple-100 to-fuchsia-100 text-violet-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-violet-800 dark:from-violet-950 dark:via-purple-950 dark:to-fuchsia-950 dark:text-violet-100',
+        className:
+          'border-violet-300 bg-gradient-to-r from-violet-50 via-purple-100 to-fuchsia-100 text-violet-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-violet-800 dark:from-violet-950 dark:via-purple-950 dark:to-fuchsia-950 dark:text-violet-100',
       }
     case 'DE':
       return {
         symbol: '🇩🇪',
         accent: '德国',
-        className: 'border-cyan-300 bg-gradient-to-r from-cyan-50 via-blue-100 to-indigo-100 text-cyan-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-cyan-800 dark:from-cyan-950 dark:via-blue-950 dark:to-indigo-950 dark:text-cyan-100',
+        className:
+          'border-cyan-300 bg-gradient-to-r from-cyan-50 via-blue-100 to-indigo-100 text-cyan-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-cyan-800 dark:from-cyan-950 dark:via-blue-950 dark:to-indigo-950 dark:text-cyan-100',
       }
     case 'CA':
       return {
         symbol: '🇨🇦',
         accent: '加拿大',
-        className: 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-100 to-cyan-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950 dark:text-emerald-100',
+        className:
+          'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-100 to-cyan-100 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-emerald-800 dark:from-emerald-950 dark:via-teal-950 dark:to-cyan-950 dark:text-emerald-100',
       }
     case 'JP':
       return {
         symbol: '🇯🇵',
         accent: '日本',
-        className: 'border-pink-300 bg-gradient-to-r from-pink-50 via-rose-100 to-fuchsia-100 text-pink-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-pink-800 dark:from-pink-950 dark:via-rose-950 dark:to-fuchsia-950 dark:text-pink-100',
+        className:
+          'border-pink-300 bg-gradient-to-r from-pink-50 via-rose-100 to-fuchsia-100 text-pink-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-pink-800 dark:from-pink-950 dark:via-rose-950 dark:to-fuchsia-950 dark:text-pink-100',
       }
     case 'AU':
       return {
         symbol: '🇦🇺',
         accent: '澳大利亚',
-        className: 'border-orange-300 bg-gradient-to-r from-orange-50 via-amber-100 to-yellow-100 text-orange-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-orange-800 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 dark:text-orange-100',
+        className:
+          'border-orange-300 bg-gradient-to-r from-orange-50 via-amber-100 to-yellow-100 text-orange-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-orange-800 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 dark:text-orange-100',
       }
     case 'MX':
       return {
         symbol: '🇲🇽',
         accent: '墨西哥',
-        className: 'border-teal-300 bg-gradient-to-r from-teal-50 via-cyan-100 to-sky-100 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-teal-800 dark:from-teal-950 dark:via-cyan-950 dark:to-sky-950 dark:text-teal-100',
+        className:
+          'border-teal-300 bg-gradient-to-r from-teal-50 via-cyan-100 to-sky-100 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-teal-800 dark:from-teal-950 dark:via-cyan-950 dark:to-sky-950 dark:text-teal-100',
       }
     case 'BR':
       return {
         symbol: '🇧🇷',
         accent: '巴西',
-        className: 'border-lime-300 bg-gradient-to-r from-lime-50 via-green-100 to-emerald-100 text-lime-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-lime-800 dark:from-lime-950 dark:via-green-950 dark:to-emerald-950 dark:text-lime-100',
+        className:
+          'border-lime-300 bg-gradient-to-r from-lime-50 via-green-100 to-emerald-100 text-lime-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-lime-800 dark:from-lime-950 dark:via-green-950 dark:to-emerald-950 dark:text-lime-100',
       }
     default:
       return {
         symbol: '🏳️',
         accent: '其他',
-        className: 'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
+        className:
+          'border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground',
       }
   }
 }
@@ -309,7 +335,10 @@ export default function PlatformRevenuePage() {
   const [deletingRevenue, setDeletingRevenue] = useState<PlatformRevenue | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [imageUploadState, setImageUploadState] = useState<{ status: 'idle' | 'uploading' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' })
+  const [imageUploadState, setImageUploadState] = useState<{
+    status: 'idle' | 'uploading' | 'success' | 'error'
+    message: string
+  }>({ status: 'idle', message: '' })
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -380,7 +409,9 @@ export default function PlatformRevenuePage() {
   // 获取项目的站点列表
   const fetchProjectCountries = useCallback(async (projectId: number) => {
     try {
-      const response = await fetch(`/api/backend/api/v1/platform-revenues/project-countries/${projectId}`)
+      const response = await fetch(
+        `/api/backend/api/v1/platform-revenues/project-countries/${projectId}`
+      )
       if (response.ok) {
         const result = await response.json()
         return result.countries || []
@@ -498,12 +529,14 @@ export default function PlatformRevenuePage() {
         ? {
             // PATCH: only send mutable fields (no project_id)
             country: formData.country,
-            received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
+            received_date: formData.received_date
+              ? format(formData.received_date, 'yyyy-MM-dd')
+              : '',
             amount: parsedAmount,
             currency: formData.currency,
             revenue_type: formData.revenue_type,
             note: formData.note || null,
-            attachments: formData.attachments.map(att => ({
+            attachments: formData.attachments.map((att) => ({
               id: att.id,
               filename: att.filename,
               stored_path: att.stored_path,
@@ -516,12 +549,14 @@ export default function PlatformRevenuePage() {
             // POST: include project_id
             project_id: parseInt(formData.project_id),
             country: formData.country,
-            received_date: formData.received_date ? format(formData.received_date, 'yyyy-MM-dd') : '',
+            received_date: formData.received_date
+              ? format(formData.received_date, 'yyyy-MM-dd')
+              : '',
             amount: parsedAmount,
             currency: formData.currency,
             revenue_type: formData.revenue_type,
             note: formData.note || null,
-            attachments: formData.attachments.map(att => ({
+            attachments: formData.attachments.map((att) => ({
               id: att.id,
               filename: att.filename,
               stored_path: att.stored_path,
@@ -557,7 +592,11 @@ export default function PlatformRevenuePage() {
       notify({ type: 'success', title: editingRevenue ? '回款记录已更新' : '回款记录已添加' })
     } catch (error: any) {
       console.error('Error saving revenue:', error)
-      notify({ type: 'error', title: '保存失败', message: error instanceof Error ? error.message : '操作失败' })
+      notify({
+        type: 'error',
+        title: '保存失败',
+        message: error instanceof Error ? error.message : '操作失败',
+      })
     }
   }
 
@@ -580,7 +619,11 @@ export default function PlatformRevenuePage() {
       notify({ type: 'success', title: '回款记录已删除' })
     } catch (error) {
       console.error('Error deleting revenue:', error)
-      notify({ type: 'error', title: '删除失败', message: error instanceof Error ? error.message : '删除失败' })
+      notify({
+        type: 'error',
+        title: '删除失败',
+        message: error instanceof Error ? error.message : '删除失败',
+      })
     }
   }
 
@@ -660,12 +703,16 @@ export default function PlatformRevenuePage() {
 
       // 筛选信息行
       const filterInfo = [
-        filters.project_id ? `项目: ${projects.find(p => p.id.toString() === filters.project_id)?.name || filters.project_id}` : '',
+        filters.project_id
+          ? `项目: ${projects.find((p) => p.id.toString() === filters.project_id)?.name || filters.project_id}`
+          : '',
         filters.year ? `年份: ${filters.year}` : '',
         filters.month ? `月份: ${filters.month}` : '',
         filters.currency ? `币种: ${filters.currency}` : '',
         filters.revenue_type ? `回款类型: ${filters.revenue_type}` : '',
-      ].filter(Boolean).join(' | ')
+      ]
+        .filter(Boolean)
+        .join(' | ')
       let currentRow = 2
       if (filterInfo) {
         worksheet.mergeCells(currentRow, 1, currentRow, 7)
@@ -744,9 +791,20 @@ export default function PlatformRevenuePage() {
             '🇲🇽': { bg: 'F0FDFA', fg: '0D9488' },
             '🇧🇷': { bg: 'F0FDF4', fg: '15803D' },
           }
-          const countryColors = countryColorMap[countryMeta.symbol] || { bg: 'F8FAFC', fg: '64748B' }
-          countryCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: countryColors.bg } }
-          countryCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: countryColors.fg } }
+          const countryColors = countryColorMap[countryMeta.symbol] || {
+            bg: 'F8FAFC',
+            fg: '64748B',
+          }
+          countryCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: countryColors.bg },
+          }
+          countryCell.font = {
+            name: 'Microsoft YaHei',
+            bold: true,
+            color: { argb: countryColors.fg },
+          }
         }
 
         // 为币种单元格添加颜色
@@ -754,13 +812,24 @@ export default function PlatformRevenuePage() {
         const currencyMeta = getCurrencyBadgeMeta(revenue.currency)
         if (currencyMeta.symbol !== '¤') {
           const currencyColorMap: Record<string, { bg: string; fg: string }> = {
-            '$': { bg: 'ECFDF5', fg: '047857' },
+            $: { bg: 'ECFDF5', fg: '047857' },
             '£': { bg: 'FFFBEB', fg: 'B45309' },
             '€': { bg: 'F0F9FF', fg: '0369A1' },
           }
-          const currencyColors = currencyColorMap[currencyMeta.symbol] || { bg: 'F8FAFC', fg: '64748B' }
-          currencyCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: currencyColors.bg } }
-          currencyCell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: currencyColors.fg } }
+          const currencyColors = currencyColorMap[currencyMeta.symbol] || {
+            bg: 'F8FAFC',
+            fg: '64748B',
+          }
+          currencyCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: currencyColors.bg },
+          }
+          currencyCell.font = {
+            name: 'Microsoft YaHei',
+            bold: true,
+            color: { argb: currencyColors.fg },
+          }
         }
 
         // 添加边框
@@ -814,12 +883,11 @@ export default function PlatformRevenuePage() {
       const link = document.createElement('a')
       const date = new Date().toISOString().slice(0, 10)
       const projectName = filters.project_id
-        ? (projects.find(p => p.id.toString() === filters.project_id)?.name || filters.project_id)
+        ? projects.find((p) => p.id.toString() === filters.project_id)?.name || filters.project_id
         : '全部项目'
       const uniqueCountries = Array.from(new Set(allRevenues.map((r) => r.country).filter(Boolean)))
-      const derivedCountryLabel = uniqueCountries.length === 1
-        ? getCountryLabel(uniqueCountries[0])
-        : '全部站点'
+      const derivedCountryLabel =
+        uniqueCountries.length === 1 ? getCountryLabel(uniqueCountries[0]) : '全部站点'
       const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '-')
       const safeCountryLabel = derivedCountryLabel.replace(/[\\/:*?"<>|]/g, '-')
       link.href = url
@@ -830,7 +898,11 @@ export default function PlatformRevenuePage() {
       notify({ type: 'success', title: `已导出 ${allRevenues.length} 条记录` })
     } catch (error) {
       console.error('Export error:', error)
-      notify({ type: 'error', title: '导出失败', message: error instanceof Error ? error.message : '未知错误' })
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: error instanceof Error ? error.message : '未知错误',
+      })
     } finally {
       setExporting(false)
     }
@@ -964,12 +1036,7 @@ export default function PlatformRevenuePage() {
                 <RotateCcw className="mr-1 h-4 w-4" />
                 重置
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={exporting}
-              >
+              <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
                 {exporting ? (
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
@@ -988,149 +1055,147 @@ export default function PlatformRevenuePage() {
           <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
             {/* 桌面端：完整表格 */}
             <div className="hidden lg:block">
-            <Table>
-              <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                <TableRow>
-                  <TableHead>回款日期</TableHead>
-                  <TableHead>项目</TableHead>
-                  <TableHead>站点</TableHead>
-                  <TableHead className="text-right">金额</TableHead>
-                  <TableHead>币种</TableHead>
-                  <TableHead>回款类型</TableHead>
-                  <TableHead>备注</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+              <Table>
+                <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      加载中...
-                    </TableCell>
+                    <TableHead>回款日期</TableHead>
+                    <TableHead>项目</TableHead>
+                    <TableHead>站点</TableHead>
+                    <TableHead className="text-right">金额</TableHead>
+                    <TableHead>币种</TableHead>
+                    <TableHead>回款类型</TableHead>
+                    <TableHead>备注</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
-                ) : revenues.length === 0 ? (
-                  <EmptyTableState colSpan={8} message="暂无回款数据，点击右上角按钮新增" />
-                ) : (
-                  revenues.map((revenue) => (
-                    <TableRow key={revenue.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {new Date(revenue.received_date).toLocaleDateString('zh-CN')}
-                      </TableCell>
-                      <TableCell className="font-medium">{revenue.project_name}</TableCell>
-                      <TableCell>
-                        {(() => {
-                          const badgeMeta = getCountryBadgeMeta(revenue.country)
-                          return (
-                            <Badge
-                              className={cn(
-                                "gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]",
-                                badgeMeta.className
-                              )}
-                              title={`${revenue.country} - ${badgeMeta.accent}`}
-                            >
-                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                              <span>{revenue.country}</span>
-                            </Badge>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm font-medium">
-                        {formatCurrency(revenue.amount, revenue.currency)}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const badgeMeta = getCurrencyBadgeMeta(revenue.currency)
-                          return (
-                            <Badge
-                              className={cn(
-                                "gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]",
-                                badgeMeta.className
-                              )}
-                              title={`${revenue.currency} - ${badgeMeta.accent}`}
-                            >
-                              <span className="text-sm leading-none">{badgeMeta.symbol}</span>
-                              <span>{revenue.currency}</span>
-                            </Badge>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`text-xs ${
-                          revenue.revenue_type === 'B2B回款'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                        }`}>
-                          {revenue.revenue_type || '订单回款'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[280px]">
-                        <div className="space-y-2">
-                          <p className="truncate text-sm">
-                            {revenue.note || (revenue.attachments?.length > 0 ? "" : "-")}
-                          </p>
-                          {revenue.attachments?.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {revenue.attachments.slice(0, 4).map((image) => (
-                                <button
-                                  key={image.id}
-                                  type="button"
-                                  className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
-                                  onClick={() => setPreviewImage(image.url)}
-                                  title={image.filename}
-                                >
-                                  <Image
-                                    src={image.url}
-                                    alt={image.filename}
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                </button>
-                              ))}
-                              {revenue.attachments.length > 4 && (
-                                <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
-                                  +{revenue.attachments.length - 4}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(revenue)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteClick(revenue)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center">
+                        加载中...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-                {/* 合计行 */}
-                {!loading && revenues.length > 0 && (
-                  <TableRow className="bg-muted/50 font-medium">
-                    <TableCell className="py-3">合计</TableCell>
-                    <TableCell colSpan={2}></TableCell>
-                    <TableCell className="text-right">
-                      {formatTotals(calculateTotals(revenues))}
-                    </TableCell>
-                    <TableCell colSpan={4}></TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  ) : revenues.length === 0 ? (
+                    <EmptyTableState colSpan={8} message="暂无回款数据，点击右上角按钮新增" />
+                  ) : (
+                    revenues.map((revenue) => (
+                      <TableRow key={revenue.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(revenue.received_date).toLocaleDateString('zh-CN')}
+                        </TableCell>
+                        <TableCell className="font-medium">{revenue.project_name}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const badgeMeta = getCountryBadgeMeta(revenue.country)
+                            return (
+                              <Badge
+                                className={cn(
+                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]',
+                                  badgeMeta.className
+                                )}
+                                title={`${revenue.country} - ${badgeMeta.accent}`}
+                              >
+                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                                <span>{revenue.country}</span>
+                              </Badge>
+                            )
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm font-medium">
+                          {formatCurrency(revenue.amount, revenue.currency)}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const badgeMeta = getCurrencyBadgeMeta(revenue.currency)
+                            return (
+                              <Badge
+                                className={cn(
+                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tracking-[0.1em]',
+                                  badgeMeta.className
+                                )}
+                                title={`${revenue.currency} - ${badgeMeta.accent}`}
+                              >
+                                <span className="text-sm leading-none">{badgeMeta.symbol}</span>
+                                <span>{revenue.currency}</span>
+                              </Badge>
+                            )
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`text-xs ${
+                              revenue.revenue_type === 'B2B回款'
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            }`}
+                          >
+                            {revenue.revenue_type || '订单回款'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[280px]">
+                          <div className="space-y-2">
+                            <p className="truncate text-sm">
+                              {revenue.note || (revenue.attachments?.length > 0 ? '' : '-')}
+                            </p>
+                            {revenue.attachments?.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {revenue.attachments.slice(0, 4).map((image) => (
+                                  <button
+                                    key={image.id}
+                                    type="button"
+                                    className="relative h-10 w-10 overflow-hidden rounded border border-border/70"
+                                    onClick={() => setPreviewImage(image.url)}
+                                    title={image.filename}
+                                  >
+                                    <Image
+                                      src={image.url}
+                                      alt={image.filename}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </button>
+                                ))}
+                                {revenue.attachments.length > 4 && (
+                                  <div className="flex h-10 w-10 items-center justify-center rounded border border-border/70 text-xs text-muted-foreground">
+                                    +{revenue.attachments.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(revenue)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClick(revenue)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                  {/* 合计行 */}
+                  {!loading && revenues.length > 0 && (
+                    <TableRow className="bg-muted/50 font-medium">
+                      <TableCell className="py-3">合计</TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                      <TableCell className="text-right">
+                        {formatTotals(calculateTotals(revenues))}
+                      </TableCell>
+                      <TableCell colSpan={4}></TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
 
             {/* 手机端：卡片列表 */}
@@ -1153,7 +1218,7 @@ export default function PlatformRevenuePage() {
                             return (
                               <Badge
                                 className={cn(
-                                  "gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.1em]",
+                                  'gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.1em]',
                                   badgeMeta.className
                                 )}
                                 title={`${revenue.country} - ${badgeMeta.accent}`}
@@ -1166,21 +1231,23 @@ export default function PlatformRevenuePage() {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="font-mono text-base font-semibold">{formatCurrency(revenue.amount, revenue.currency)}</div>
-                        <Badge className={`mt-1 text-[10px] ${
-                          revenue.revenue_type === 'B2B回款'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                        }`}>
+                        <div className="font-mono text-base font-semibold">
+                          {formatCurrency(revenue.amount, revenue.currency)}
+                        </div>
+                        <Badge
+                          className={`mt-1 text-[10px] ${
+                            revenue.revenue_type === 'B2B回款'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                          }`}
+                        >
                           {revenue.revenue_type || '订单回款'}
                         </Badge>
                       </div>
                     </div>
 
                     {/* 备注 */}
-                    {revenue.note && (
-                      <div className="text-sm">{revenue.note}</div>
-                    )}
+                    {revenue.note && <div className="text-sm">{revenue.note}</div>}
 
                     {/* 截图缩略图（移动端） */}
                     {revenue.attachments?.length > 0 && (
@@ -1276,18 +1343,17 @@ export default function PlatformRevenuePage() {
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent aria-describedby="platform-revenue-dialog-description" className="sm:max-w-[520px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]">
+        <DialogContent
+          aria-describedby="platform-revenue-dialog-description"
+          className="sm:max-w-[520px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+        >
           <span id="platform-revenue-dialog-description" className="sr-only">
             {editingRevenue ? '修改回款记录' : '录入新的回款记录'}
           </span>
           <DialogHeader>
-            <DialogTitle>
-              {editingRevenue ? '编辑回款记录' : '新增回款记录'}
-            </DialogTitle>
+            <DialogTitle>{editingRevenue ? '编辑回款记录' : '新增回款记录'}</DialogTitle>
             <DialogDescription>
-              {editingRevenue
-                ? '修改回款信息，保存后将立即生效'
-                : '录入新的回款记录'}
+              {editingRevenue ? '修改回款信息，保存后将立即生效' : '录入新的回款记录'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1299,7 +1365,7 @@ export default function PlatformRevenuePage() {
                 <Select
                   value={formData.project_id}
                   onValueChange={(value) => {
-                    const selectedProject = projects.find(p => p.id.toString() === value)
+                    const selectedProject = projects.find((p) => p.id.toString() === value)
                     setFormData((prev) => ({
                       ...prev,
                       project_id: value,
@@ -1330,9 +1396,9 @@ export default function PlatformRevenuePage() {
                   value={formData.country}
                   onValueChange={(value) => {
                     const currencyMap: Record<string, string> = {
-                      'US': 'USD',
-                      'UK': 'GBP',
-                      'DE': 'EUR',
+                      US: 'USD',
+                      UK: 'GBP',
+                      DE: 'EUR',
                     }
                     const newCurrency = currencyMap[value] || formData.currency
                     const isLocked = !!currencyMap[value]
@@ -1386,7 +1452,9 @@ export default function PlatformRevenuePage() {
                     <Calendar
                       mode="single"
                       selected={formData.received_date || undefined}
-                      onSelect={(date) => setFormData((prev) => ({ ...prev, received_date: date || null }))}
+                      onSelect={(date) =>
+                        setFormData((prev) => ({ ...prev, received_date: date || null }))
+                      }
                       initialFocus
                       locale={zhCN}
                     />
@@ -1428,7 +1496,10 @@ export default function PlatformRevenuePage() {
                   }}
                   disabled={formData.currencyLocked}
                 >
-                  <SelectTrigger id="currency" className="w-full dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger
+                    id="currency"
+                    className="w-full dark:bg-[hsl(var(--surface-soft))]"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1446,9 +1517,14 @@ export default function PlatformRevenuePage() {
                 </Label>
                 <Select
                   value={formData.revenue_type}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, revenue_type: value }))}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, revenue_type: value }))
+                  }
                 >
-                  <SelectTrigger id="revenue_type" className="w-full dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectTrigger
+                    id="revenue_type"
+                    className="w-full dark:bg-[hsl(var(--surface-soft))]"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1464,9 +1540,7 @@ export default function PlatformRevenuePage() {
               <Textarea
                 id="note"
                 value={formData.note}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, note: e.target.value }))
-                }
+                onChange={(e) => setFormData((prev) => ({ ...prev, note: e.target.value }))}
                 placeholder="可选：添加相关备注信息"
                 rows={2}
                 className="w-full"
@@ -1491,10 +1565,13 @@ export default function PlatformRevenuePage() {
                     uploadFormData.append('file', file)
                     uploadFormData.append('project_name', formData.project_name)
 
-                    const response = await fetch('/api/backend/api/v1/platform-revenues/upload-image', {
-                      method: 'POST',
-                      body: uploadFormData,
-                    })
+                    const response = await fetch(
+                      '/api/backend/api/v1/platform-revenues/upload-image',
+                      {
+                        method: 'POST',
+                        body: uploadFormData,
+                      }
+                    )
                     if (!response.ok) {
                       const errorData = await response.json().catch(() => ({}))
                       throw new Error(errorData.detail || '上传图片失败')
@@ -1513,7 +1590,10 @@ export default function PlatformRevenuePage() {
                     setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
                   } catch (error) {
                     console.error('Error uploading image:', error)
-                    setImageUploadState({ status: 'error', message: error instanceof Error ? error.message : '上传失败' })
+                    setImageUploadState({
+                      status: 'error',
+                      message: error instanceof Error ? error.message : '上传失败',
+                    })
                     setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
                     throw error
                   } finally {
@@ -1524,12 +1604,14 @@ export default function PlatformRevenuePage() {
                 disabled={uploadingImage}
               />
               {imageUploadState.message && imageUploadState.status !== 'idle' && (
-                <div className={cn(
-                  "text-xs",
-                  imageUploadState.status === 'error' && "text-destructive",
-                  imageUploadState.status === 'success' && "text-green-600",
-                  imageUploadState.status === 'uploading' && "text-muted-foreground"
-                )}>
+                <div
+                  className={cn(
+                    'text-xs',
+                    imageUploadState.status === 'error' && 'text-destructive',
+                    imageUploadState.status === 'success' && 'text-green-600',
+                    imageUploadState.status === 'uploading' && 'text-muted-foreground'
+                  )}
+                >
                   {imageUploadState.message}
                 </div>
               )}
@@ -1542,7 +1624,9 @@ export default function PlatformRevenuePage() {
                         tabIndex={0}
                         className="relative block h-20 w-20 cursor-pointer overflow-hidden rounded border"
                         onClick={() => setPreviewImage(image.url)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image.url) }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image.url)
+                        }}
                       >
                         <Image
                           src={image.url}
@@ -1562,7 +1646,10 @@ export default function PlatformRevenuePage() {
                           <X className="h-3 w-3" />
                         </button>
                       </div>
-                      <div className="w-20 truncate text-[10px] text-muted-foreground" title={image.filename}>
+                      <div
+                        className="w-20 truncate text-[10px] text-muted-foreground"
+                        title={image.filename}
+                      >
                         {image.filename}
                       </div>
                     </div>
@@ -1575,22 +1662,23 @@ export default function PlatformRevenuePage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>
-              {editingRevenue ? '保存修改' : '确认创建'}
-            </Button>
+            <Button onClick={handleSubmit}>{editingRevenue ? '保存修改' : '确认创建'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 删除确认弹窗 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent aria-describedby="delete-revenue-dialog-description" className="sm:max-w-[425px]">
-          <span id="delete-revenue-dialog-description" className="sr-only">确认删除回款记录</span>
+        <DialogContent
+          aria-describedby="delete-revenue-dialog-description"
+          className="sm:max-w-[425px]"
+        >
+          <span id="delete-revenue-dialog-description" className="sr-only">
+            确认删除回款记录
+          </span>
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>
-              您确定要删除这条回款记录吗？此操作不可恢复。
-            </DialogDescription>
+            <DialogDescription>您确定要删除这条回款记录吗？此操作不可恢复。</DialogDescription>
           </DialogHeader>
           {deletingRevenue && (
             <div className="my-4 rounded-md bg-[hsl(var(--surface-subtle))] p-3 text-sm">

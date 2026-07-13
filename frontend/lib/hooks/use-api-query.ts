@@ -60,12 +60,17 @@ function isTimeoutError(err: unknown): boolean {
 function isNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false
   return /fetch failed|failed to fetch|networkerror|network request failed|load failed|econnrefused|socket hang up/i.test(
-    err.message,
+    err.message
   )
 }
 
 function statusFromError(err: unknown): number | undefined {
-  if (err && typeof err === 'object' && 'status' in err && typeof (err as { status: unknown }).status === 'number') {
+  if (
+    err &&
+    typeof err === 'object' &&
+    'status' in err &&
+    typeof (err as { status: unknown }).status === 'number'
+  ) {
     return (err as { status: number }).status
   }
   return undefined
@@ -73,7 +78,7 @@ function statusFromError(err: unknown): number | undefined {
 
 export function useApiQuery<T>(
   loader: (signal: AbortSignal) => Promise<T>,
-  options: UseApiQueryOptions<T> = {},
+  options: UseApiQueryOptions<T> = {}
 ): UseApiQueryResult<T> {
   const {
     deps = [],
@@ -114,7 +119,9 @@ export function useApiQuery<T>(
     setLoading(true)
     setError(null)
 
-    const attempt = async (attemptNo: 1 | 2): Promise<{ ok: true; value: T } | { ok: false; err: ApiQueryError }> => {
+    const attempt = async (
+      attemptNo: 1 | 2
+    ): Promise<{ ok: true; value: T } | { ok: false; err: ApiQueryError }> => {
       const innerController = new AbortController()
       // Forward outer abort to inner
       const onOuterAbort = () => innerController.abort()
@@ -138,7 +145,11 @@ export function useApiQuery<T>(
         if (isTimeoutError(err)) {
           return {
             ok: false,
-            err: { kind: 'timeout', message: `请求超时（${timeoutMs / 1000}秒），请稍后重试`, attempts: attemptNo },
+            err: {
+              kind: 'timeout',
+              message: `请求超时（${timeoutMs / 1000}秒），请稍后重试`,
+              attempts: attemptNo,
+            },
           }
         }
         if (isNetworkError(err)) {
@@ -174,7 +185,11 @@ export function useApiQuery<T>(
 
     const first = result.err
     // Auto-retry on timeout or network errors (avoid retrying on 4xx/5xx)
-    if (autoRetry && (first.kind === 'timeout' || first.kind === 'network') && !outerController.signal.aborted) {
+    if (
+      autoRetry &&
+      (first.kind === 'timeout' || first.kind === 'network') &&
+      !outerController.signal.aborted
+    ) {
       // Small backoff so we don't hammer the backend on the very next tick
       await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_DELAY_MS))
       if (outerController.signal.aborted || myRunId !== runIdRef.current) return
@@ -187,9 +202,7 @@ export function useApiQuery<T>(
       }
     }
 
-    const finalErr = result.ok
-      ? first
-      : (result.err.attempts === 2 ? result.err : first)
+    const finalErr = result.ok ? first : result.err.attempts === 2 ? result.err : first
     if (myRunId !== runIdRef.current) return
 
     if (finalErr.kind === 'aborted') {

@@ -46,11 +46,7 @@ export function MessageActions({
         className="flex items-center justify-center size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95"
         aria-label={copied ? '已复制' : '复制'}
       >
-        {copied ? (
-          <Check className="size-3.5 text-emerald-400" />
-        ) : (
-          <Copy className="size-3.5" />
-        )}
+        {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
       </button>
 
       {role === 'user' && onEdit && (

@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import {
-  Calculator,
-  Download,
-  Loader2,
-  Search,
-} from 'lucide-react'
+import { Calculator, Download, Loader2, Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
@@ -33,7 +28,11 @@ import {
 } from '@/components/dashboard/pricing-calculation/snapshot-selector'
 import { CreatePricingSnapshotDialog } from '@/components/dashboard/pricing-calculation/create-snapshot-dialog'
 import { EditPricingSnapshotDialog } from '@/components/dashboard/pricing-calculation/edit-snapshot-dialog'
-import type { ProjectManageOption, ProductCostItem, ShopCalculationItem } from '@/lib/pricing-calculation-types'
+import type {
+  ProjectManageOption,
+  ProductCostItem,
+  ShopCalculationItem,
+} from '@/lib/pricing-calculation-types'
 import { logClientOperation } from '@/lib/operation-audit'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -103,7 +102,7 @@ export default function ShopCalculationPage() {
       const qs = params.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
-    [searchParams, router, pathname],
+    [searchParams, router, pathname]
   )
 
   // 切换项目 / 站点时，自动退出快照模式（避免历史快照与新项目错配）
@@ -118,11 +117,27 @@ export default function ShopCalculationPage() {
   const [storeSkus, setStoreSkus] = useState<ProductCostItem[]>([])
   const [snapshotMap, setSnapshotMap] = useState<Map<string, ShopCalculationItem>>(new Map())
   // Latest storeRows from US section (updated on every calculation)
-  const [usStoreRows, setUsStoreRows] = useState<Record<number, { draft: Record<string, string>; result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null }>>({})
+  const [usStoreRows, setUsStoreRows] = useState<
+    Record<
+      number,
+      {
+        draft: Record<string, string>
+        result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null
+      }
+    >
+  >({})
 
   // Store data for export (EU)
   const [euStoreSkus, setEuStoreSkus] = useState<ProductCostItem[]>([])
-  const [euStoreRows, setEuStoreRows] = useState<Record<number, { draft: Record<string, string>; result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null }>>({})
+  const [euStoreRows, setEuStoreRows] = useState<
+    Record<
+      number,
+      {
+        draft: Record<string, string>
+        result: import('@/lib/pricing-calculation-types').PricingCalculationRunItem | null
+      }
+    >
+  >({})
   const [hasEuCalculatedRows, setHasEuCalculatedRows] = useState(false)
 
   useEffect(() => {
@@ -131,7 +146,7 @@ export default function ShopCalculationPage() {
       try {
         const response = await fetch(`${API_BASE}/api/v1/projects/manage`, { cache: 'no-store' })
         if (!response.ok) throw new Error('项目列表加载失败')
-        setProjects(await response.json() as ProjectManageOption[])
+        setProjects((await response.json()) as ProjectManageOption[])
       } catch {
         setProjects([])
       } finally {
@@ -159,7 +174,7 @@ export default function ShopCalculationPage() {
         if (selectedSnapshotId !== null) {
           const snapshotResponse = await fetch(
             `${API_BASE}/api/v1/pricing-calculation-snapshots/${selectedSnapshotId}/items`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           )
           if (snapshotResponse.ok) {
             const payload = (await snapshotResponse.json()) as {
@@ -187,24 +202,24 @@ export default function ShopCalculationPage() {
         const [skuSearch, snapshotSearch] = await Promise.all([
           fetch(
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${selectedCountry}&is_active=true&page=1&page_size=200&include_total=true`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           ),
           fetch(
             `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           ),
         ])
 
         let skus: ProductCostItem[] = []
         if (skuSearch.ok) {
-          const payload = await skuSearch.json() as { items: ProductCostItem[] }
+          const payload = (await skuSearch.json()) as { items: ProductCostItem[] }
           skus = payload.items.filter((item) => item.country === selectedCountry && item.is_active)
         }
         setStoreSkus(skus)
 
         let snapMap = new Map<string, ShopCalculationItem>()
         if (snapshotSearch.ok) {
-          const payload = await snapshotSearch.json() as { items?: ShopCalculationItem[] }
+          const payload = (await snapshotSearch.json()) as { items?: ShopCalculationItem[] }
           for (const s of payload.items ?? []) {
             snapMap.set(s.sku, s)
           }
@@ -216,7 +231,10 @@ export default function ShopCalculationPage() {
         const profitable = skus.filter((i) => {
           const s = snapMap.get(i.sku)
           if (!s) return false
-          const profit = selectedCountry === 'US' ? s.profit?.profit_usd : (s.profit?.profit_after_vat_usd ?? s.profit?.profit_usd)
+          const profit =
+            selectedCountry === 'US'
+              ? s.profit?.profit_usd
+              : (s.profit?.profit_after_vat_usd ?? s.profit?.profit_usd)
           return profit !== undefined && profit >= 0
         }).length
         const passRate = calculated > 0 ? (profitable / calculated) * 100 : 0
@@ -270,26 +288,28 @@ export default function ShopCalculationPage() {
     try {
       const ExcelJS = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
-      const countryLabel = selectedCountry === 'US' ? '美国' : selectedCountry === 'DE' ? '德国' : '英国'
+      const countryLabel =
+        selectedCountry === 'US' ? '美国' : selectedCountry === 'DE' ? '德国' : '英国'
       const isUS = selectedCountry === 'US'
       const colCount = isUS ? 28 : 25
 
-      const ddpCurrency = selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
+      const ddpCurrency =
+        selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'
       const saleCurrency = ddpCurrency
 
       const groups = isUS
         ? [
-            { name: '店铺产品', start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
-            { name: '货品数据', start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
-            { name: 'DDP成本',  start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+            { name: '店铺产品', start: 1, end: 1, dark: 'FF312E81', sub: 'FFE0E7FF' },
+            { name: '货品数据', start: 2, end: 7, dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+            { name: 'DDP成本', start: 8, end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
             { name: '费用支出', start: 12, end: 22, dark: 'FF881337', sub: 'FFFFE4E6' },
             { name: '利润核算', start: 23, end: 26, dark: 'FF064E3B', sub: 'FFD1FAE5' },
             { name: '产品核定', start: 27, end: 28, dark: 'FF4C1D95', sub: 'FFEDE9FE' },
           ]
         : [
-            { name: '店铺产品', start: 1,  end: 1,  dark: 'FF312E81', sub: 'FFE0E7FF' },
-            { name: '货品数据', start: 2,  end: 7,  dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
-            { name: 'DDP成本',  start: 8,  end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
+            { name: '店铺产品', start: 1, end: 1, dark: 'FF312E81', sub: 'FFE0E7FF' },
+            { name: '货品数据', start: 2, end: 7, dark: 'FF0C4A6E', sub: 'FFE0F2FE' },
+            { name: 'DDP成本', start: 8, end: 11, dark: 'FF78350F', sub: 'FFFEF3C7' },
             { name: '费用支出', start: 12, end: 21, dark: 'FF881337', sub: 'FFFFE4E6' },
             { name: '利润核算', start: 22, end: 25, dark: 'FF064E3B', sub: 'FFD1FAE5' },
           ]
@@ -299,10 +319,10 @@ export default function ShopCalculationPage() {
 
       // Default border style used throughout
       const BORDER = {
-        top:    { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
-        left:   { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        top: { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        left: { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
         bottom: { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
-        right:  { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
+        right: { style: 'thin' as const, color: { argb: 'FFD0D5DD' } },
       }
 
       // Row 1: title
@@ -333,19 +353,61 @@ export default function ShopCalculationPage() {
 
       // Row 3: column headers
       const usHeaders = [
-        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
-        '头程(RMB)', 'DDP(RMB)', 'DDP(USD)', '汇率',
-        '售价(USD)', '广告费率%', '广告费', '退货折损率%', '退货损耗',
-        '佣金', '派送费', '配置费', '仓储月数', '仓储费',
-        '费用合计', '回款', '利润', '利润率',
-        '尺寸等级', '售价带', '规则',
+        'SKU',
+        'FOB(RMB)',
+        '长',
+        '宽',
+        '高',
+        '重量(kg)',
+        '计费重',
+        '头程(RMB)',
+        'DDP(RMB)',
+        'DDP(USD)',
+        '汇率',
+        '售价(USD)',
+        '广告费率%',
+        '广告费',
+        '退货折损率%',
+        '退货损耗',
+        '佣金',
+        '派送费',
+        '配置费',
+        '仓储月数',
+        '仓储费',
+        '费用合计',
+        '回款',
+        '利润',
+        '利润率',
+        '尺寸等级',
+        '售价带',
+        '规则',
       ]
       const euHeaders = [
-        'SKU', 'FOB(RMB)', '长', '宽', '高', '重量(kg)', '计费重',
-        '头程(RMB)', 'DDP(RMB)', `DDP(${ddpCurrency})`, '汇率',
-        `售价(${saleCurrency})`, '平台佣金', '广告费率%', '广告费', '退货率%', '退货损失',
-        '派送费', '配置费', '仓储费', '费用合计',
-        '回款', '增值税', '利润(扣税后)', '利润率(扣税)',
+        'SKU',
+        'FOB(RMB)',
+        '长',
+        '宽',
+        '高',
+        '重量(kg)',
+        '计费重',
+        '头程(RMB)',
+        'DDP(RMB)',
+        `DDP(${ddpCurrency})`,
+        '汇率',
+        `售价(${saleCurrency})`,
+        '平台佣金',
+        '广告费率%',
+        '广告费',
+        '退货率%',
+        '退货损失',
+        '派送费',
+        '配置费',
+        '仓储费',
+        '费用合计',
+        '回款',
+        '增值税',
+        '利润(扣税后)',
+        '利润率(扣税)',
       ]
       const headers = isUS ? usHeaders : euHeaders
 
@@ -362,7 +424,7 @@ export default function ShopCalculationPage() {
         cell.border = BORDER
       })
 
-      const LEFT_COLS  = isUS ? new Set([1, 28])           : new Set([1])
+      const LEFT_COLS = isUS ? new Set([1, 28]) : new Set([1])
       const CENTER_COLS = isUS ? new Set([22, 23, 24, 25, 26, 27]) : new Set([22, 23, 24, 25, 26])
 
       // Build data rows
@@ -370,10 +432,11 @@ export default function ShopCalculationPage() {
         const snapshot = isUS ? usStoreRows[item.id]?.result : euStoreRows[item.id]?.result
         if (!snapshot) return null
 
-        const s = snapshot as ShopCalculationItem & import('@/lib/pricing-calculation-types').PricingCalculationRunItem
+        const s = snapshot as ShopCalculationItem &
+          import('@/lib/pricing-calculation-types').PricingCalculationRunItem
         const chargeableWeight = Math.max(
           item.weight_kg,
-          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000,
+          (item.package_length_cm * item.package_width_cm * item.package_height_cm) / 6000
         )
         if (isUS) {
           return [
@@ -460,8 +523,9 @@ export default function ShopCalculationPage() {
 
           // Profit / profit rate columns: apply percentage format to rate, color to both
           const isProfitRateCol = (isUS && colNum === 25) || (!isUS && colNum === 24)
-          const isProfitCol = (isUS && (colNum === 24 || colNum === 25)) ||
-                              (!isUS && (colNum === 23 || colNum === 24))
+          const isProfitCol =
+            (isUS && (colNum === 24 || colNum === 25)) ||
+            (!isUS && (colNum === 23 || colNum === 24))
           if (isProfitRateCol) {
             cell.numFmt = '0.00%'
           } else if (Number.isFinite(num)) {
@@ -501,7 +565,9 @@ export default function ShopCalculationPage() {
       }
 
       const buffer = await workbook.xlsx.writeBuffer()
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -516,34 +582,43 @@ export default function ShopCalculationPage() {
         action: 'pricing_calculation.shop_calculation.export',
         targetType: 'shop_calculation',
         targetId: selectedProjectId ?? undefined,
-        after: { project_id: selectedProjectId, project_name: selectedProjectName, country: selectedCountry, row_count: itemsWithResults.length },
+        after: {
+          project_id: selectedProjectId,
+          project_name: selectedProjectName,
+          country: selectedCountry,
+          row_count: itemsWithResults.length,
+        },
       })
     } catch (err) {
-      notify({ type: 'error', title: '导出失败', message: err instanceof Error ? err.message : '导出失败' })
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: err instanceof Error ? err.message : '导出失败',
+      })
     } finally {
       setExporting(false)
     }
   }
 
   return (
-    <div className='dashboard-page-shell space-y-6'>
+    <div className="dashboard-page-shell space-y-6">
       {/* Card 1: 控制台 */}
-      <div className='animate-enter'>
-        <div className='dashboard-surface relative overflow-hidden'>
+      <div className="animate-enter">
+        <div className="dashboard-surface relative overflow-hidden">
           {/* Decorative background gradient */}
-          <div className='pointer-events-none absolute inset-0 opacity-60 dark:opacity-40'>
-            <div className='absolute inset-0 bg-gradient-to-br from-blue-500/6 via-transparent to-amber-500/5' />
-            <div className='absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[hsl(var(--primary)/0.06)] blur-3xl' />
+          <div className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-40">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/6 via-transparent to-amber-500/5" />
+            <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[hsl(var(--primary)/0.06)] blur-3xl" />
           </div>
 
-          <div className='relative z-10 flex flex-col gap-0 px-6 py-4'>
+          <div className="relative z-10 flex flex-col gap-0 px-6 py-4">
             {/* Top Row: Icon + Title + Snapshot Selector */}
-            <div className='flex items-center gap-3'>
-              <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.1)]'>
-                <Calculator className='h-5 w-5 text-[hsl(var(--primary))]' strokeWidth={2} />
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.1)]">
+                <Calculator className="h-5 w-5 text-[hsl(var(--primary))]" strokeWidth={2} />
               </div>
-              <div className='min-w-0 flex-1'>
-                <h1 className='text-[1.15rem] font-semibold tracking-tight text-foreground'>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[1.15rem] font-semibold tracking-tight text-foreground">
                   控制台
                 </h1>
               </div>
@@ -566,27 +641,31 @@ export default function ShopCalculationPage() {
             </div>
 
             {/* Divider */}
-            <div className='mt-4 mb-4 h-px bg-border/60' />
+            <div className="mt-4 mb-4 h-px bg-border/60" />
 
             {/* Bottom Row: Three Modules + Country Switch */}
             {/* 手机端：2列网格去除标签；平板+：横向排列 */}
-            <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               {/* Left: 项目 + 搜索 SKU + 导出 Excel */}
               {/* 手机: 2列网格；平板+: 3列网格 */}
-              <div className='grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'>
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                 {/* Module 1: 项目 */}
-                <div className='flex min-w-0 flex-col gap-2'>
-                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block'>项目</span>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
+                    项目
+                  </span>
                   {projectsLoading ? (
-                    <Skeleton className='h-9 w-full' />
+                    <Skeleton className="h-9 w-full" />
                   ) : (
                     <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
-                      <SelectTrigger className='h-9 text-xs'>
-                        <SelectValue placeholder='选择项目' />
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="选择项目" />
                       </SelectTrigger>
                       <SelectContent>
                         {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.name} className='text-xs'>{p.name}</SelectItem>
+                          <SelectItem key={p.id} value={p.name} className="text-xs">
+                            {p.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -594,32 +673,36 @@ export default function ShopCalculationPage() {
                 </div>
 
                 {/* Module 2: 搜索 SKU */}
-                <div className='flex min-w-0 flex-col gap-2'>
-                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block'>搜索 SKU</span>
-                  <div className='relative'>
-                    <Search className='pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
+                    搜索 SKU
+                  </span>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       value={skuKeyword}
                       onChange={(e) => setSkuKeyword(e.target.value)}
-                      placeholder='SKU / ASIN'
-                      className='h-9 pl-8 text-xs'
+                      placeholder="SKU / ASIN"
+                      className="h-9 pl-8 text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Module 3: 导出 Excel */}
-                <div className='flex min-w-0 flex-col gap-2'>
-                  <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block'>导出 Excel</span>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
+                    导出 Excel
+                  </span>
                   <Button
-                    variant='outline'
+                    variant="outline"
                     onClick={handleExport}
                     disabled={exporting || !hasCalculatedRows}
-                    className='h-9 text-xs'
+                    className="h-9 text-xs"
                   >
                     {exporting ? (
-                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Download className='mr-1.5 h-3.5 w-3.5' />
+                      <Download className="mr-1.5 h-3.5 w-3.5" />
                     )}
                     导出 Excel
                   </Button>
@@ -627,12 +710,14 @@ export default function ShopCalculationPage() {
               </div>
 
               {/* Right: 站点 */}
-              <div className='flex min-w-0 flex-col gap-2 sm:flex-shrink-0'>
-                <span className='text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block'>站点</span>
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-shrink-0">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
+                  站点
+                </span>
                 <div
-                  className='flex h-9 min-h-touch w-full items-stretch rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-px sm:w-48'
-                  role='group'
-                  aria-label='选择站点'
+                  className="flex h-9 min-h-touch w-full items-stretch rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-px sm:w-48"
+                  role="group"
+                  aria-label="选择站点"
                 >
                   {COUNTRY_OPTIONS.map((opt) => (
                     <button
@@ -644,7 +729,7 @@ export default function ShopCalculationPage() {
                           ? opt.region === 'US'
                             ? 'bg-[hsl(var(--primary))] text-primary-foreground shadow-sm'
                             : 'bg-[hsl(var(--chart-3)/0.85)] text-amber-950 dark:text-amber-100 shadow-sm'
-                          : 'text-muted-foreground hover:bg-[hsl(var(--accent))] hover:text-foreground',
+                          : 'text-muted-foreground hover:bg-[hsl(var(--accent))] hover:text-foreground'
                       )}
                       aria-pressed={selectedCountry === opt.value}
                     >
@@ -659,42 +744,80 @@ export default function ShopCalculationPage() {
       </div>
 
       {/* Card 2: DataTableCard with Stats */}
-      <div className='animate-fade-slide-up'>
+      <div className="animate-fade-slide-up">
         <DataTableCard>
           <DataTableCardStatBar
             items={[
               {
                 label: 'SKU',
-                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                value: showSkeleton ? (
+                  <Skeleton className="h-6 w-8" />
+                ) : (
                   <RefreshProgressBar refreshing={isRefreshing}>
-                    <span className='text-sm font-semibold tabular-nums text-foreground'>{stats.total}</span>
+                    <span className="text-sm font-semibold tabular-nums text-foreground">
+                      {stats.total}
+                    </span>
                   </RefreshProgressBar>
                 ),
               },
               {
                 label: '已测算',
-                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                value: showSkeleton ? (
+                  <Skeleton className="h-6 w-8" />
+                ) : (
                   <RefreshProgressBar refreshing={isRefreshing}>
-                    <span className={cn('text-sm font-semibold tabular-nums', stats.calculated > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.calculated}</span>
+                    <span
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        stats.calculated > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-foreground'
+                      )}
+                    >
+                      {stats.calculated}
+                    </span>
                   </RefreshProgressBar>
                 ),
               },
               {
                 label: '盈利',
-                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                value: showSkeleton ? (
+                  <Skeleton className="h-6 w-8" />
+                ) : (
                   <RefreshProgressBar refreshing={isRefreshing}>
-                    <span className={cn('text-sm font-semibold tabular-nums', stats.profitable > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground')}>{stats.profitable}</span>
+                    <span
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        stats.profitable > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-foreground'
+                      )}
+                    >
+                      {stats.profitable}
+                    </span>
                   </RefreshProgressBar>
                 ),
               },
               {
                 label: '盈利占比',
-                value: showSkeleton ? <Skeleton className='h-6 w-8' /> : (
+                value: showSkeleton ? (
+                  <Skeleton className="h-6 w-8" />
+                ) : (
                   <RefreshProgressBar refreshing={isRefreshing}>
-                    <span className={cn(
-                      'text-sm font-semibold tabular-nums',
-                      !hasCalculatedRows ? 'text-foreground' : stats.passRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : stats.passRate >= 25 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
-                    )}>{hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}</span>
+                    <span
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        !hasCalculatedRows
+                          ? 'text-foreground'
+                          : stats.passRate >= 50
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : stats.passRate >= 25
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-rose-600 dark:text-rose-400'
+                      )}
+                    >
+                      {hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}
+                    </span>
                   </RefreshProgressBar>
                 ),
               },

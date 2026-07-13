@@ -19,12 +19,7 @@ type Props = {
  * - 仅在真正需要 hover 聚光感的卡片（KPI / 数据卡片）显式改用此包装。
  * - 减透明 / 粗指针下 useSpotlight 不挂监听，CSS 通过 --spotlight-strength 关闭视觉。
  */
-export function DashboardSurfaceCard({
-  children,
-  className,
-  spotlight = true,
-  ...rest
-}: Props) {
+export function DashboardSurfaceCard({ children, className, spotlight = true, ...rest }: Props) {
   // 本地持有 ref，避免 useSpotlight 内部 useRef<T | null> 与 <div ref> 的类型不兼容
   const ref = useRef<HTMLDivElement>(null)
   useSpotlight<HTMLDivElement>({ enabled: spotlight, ref })
@@ -38,7 +33,7 @@ export function DashboardSurfaceCard({
         // spotlight 视觉：径向高光边；减透明时通过 globals.css 降级为 0
         spotlight &&
           'before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:opacity-[calc(var(--spotlight-strength)*0.85)] before:bg-[radial-gradient(220px_circle_at_var(--spot-x)_var(--spot-y),hsl(var(--primary)/0.18),transparent_60%)] before:transition-opacity before:duration-300',
-        className,
+        className
       )}
       {...rest}
     >

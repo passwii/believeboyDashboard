@@ -21,23 +21,26 @@ export function resolveApiUrl(path: string) {
 /** 将 project_ids 字符串转换为项目名称列表 */
 export function resolveProjectNames(
   projectIds: string,
-  projects: Array<{ id?: number | null; name: string }>,
+  projects: Array<{ id?: number | null; name: string }>
 ): string[] {
   if (projectIds === '*') return ['全部项目']
-  const ids = projectIds.split(',').map(id => id.trim()).filter(Boolean)
+  const ids = projectIds
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
   return ids
-    .map(id => {
+    .map((id) => {
       const idNum = parseInt(id, 10)
-      const found = projects.find(p => p.id === idNum)
+      const found = projects.find((p) => p.id === idNum)
       return found ? found.name : `项目${id}`
     })
-    .filter(name => name)
+    .filter((name) => name)
 }
 
 /** 格式化项目名称列表为截断显示 */
 export function formatProjectNames(
   projectNames: string[],
-  maxNames: number = 2,
+  maxNames: number = 2
 ): { display: string; full: string } {
   if (projectNames.length === 0) return { display: '全部项目', full: '全部项目' }
   if (projectNames.length <= maxNames) {
@@ -55,7 +58,7 @@ export function formatProjectNames(
 
 export async function fetchModelConfig(
   onConfig: (cfg: AIModelConfig) => void,
-  onDefaultModel?: (model: string) => void,
+  onDefaultModel?: (model: string) => void
 ): Promise<AIModelConfig | null> {
   try {
     const res = await fetch('/api/ai-chat/config', {
@@ -79,7 +82,7 @@ export async function fetchModelConfig(
 
 export async function fetchSubscriptions(
   session: unknown,
-  onData: (subs: Subscription[], projects: Array<{ id?: number | null; name: string }>) => void,
+  onData: (subs: Subscription[], projects: Array<{ id?: number | null; name: string }>) => void
 ) {
   const { fetchManagedProjectsCached } = await import('@/lib/project-client-cache')
   try {
@@ -92,26 +95,24 @@ export async function fetchSubscriptions(
     const subs = subRes.ok ? await subRes.json() : { items: [] }
     onData(
       subs.items || [],
-      projectData.filter((p: { name: string }) => typeof p.name === 'string' && p.name.trim()),
+      projectData.filter((p: { name: string }) => typeof p.name === 'string' && p.name.trim())
     )
   } catch (e) {
     console.error(e)
   }
 }
 
-export async function createSubscription(
-  data: {
-    email: string | null
-    project_ids: string
-    country: string
-    frequency: Frequency
-    dispatch_hour: number
-    dispatch_minute: number
-    dispatch_weekday: number | null
-    dispatch_day: number | null
-    ai_model: string | null
-  },
-): Promise<{ ok: boolean; error?: string }> {
+export async function createSubscription(data: {
+  email: string | null
+  project_ids: string
+  country: string
+  frequency: Frequency
+  dispatch_hour: number
+  dispatch_minute: number
+  dispatch_weekday: number | null
+  dispatch_day: number | null
+  ai_model: string | null
+}): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
       method: 'POST',
@@ -140,7 +141,7 @@ export async function updateSubscription(
     dispatch_weekday: number | null
     dispatch_day: number | null
     ai_model: string | null
-  },
+  }
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
@@ -158,9 +159,7 @@ export async function updateSubscription(
   }
 }
 
-export async function deleteSubscription(
-  id: number,
-): Promise<boolean> {
+export async function deleteSubscription(id: number): Promise<boolean> {
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
       method: 'DELETE',
@@ -175,7 +174,7 @@ export async function deleteSubscription(
 
 export async function toggleSubscription(
   id: number,
-  enabled: boolean,
+  enabled: boolean
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
@@ -191,15 +190,13 @@ export async function toggleSubscription(
 
 // ── 测试邮件 ──
 
-export async function sendTestEmail(
-  data: {
-    email: string
-    frequency: Frequency
-    project_ids: string
-    country: string
-    ai_model: string | null
-  },
-): Promise<{ success: boolean; message: string }> {
+export async function sendTestEmail(data: {
+  email: string
+  frequency: Frequency
+  project_ids: string
+  country: string
+  ai_model: string | null
+}): Promise<{ success: boolean; message: string }> {
   try {
     const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/test-email'), {
       method: 'POST',
@@ -225,7 +222,7 @@ export async function fetchLedger(
     limit?: number
   },
   onData: (items: LedgerItem[], summary: LedgerSummary | null) => void,
-  onError: (error: string) => void,
+  onError: (error: string) => void
 ) {
   const q = new URLSearchParams({
     start_date: params.startDate,
@@ -247,9 +244,7 @@ export async function fetchLedger(
   }
 }
 
-export async function fetchLedgerItemByKey(
-  sourceItem: LedgerItem,
-): Promise<LedgerItem | null> {
+export async function fetchLedgerItemByKey(sourceItem: LedgerItem): Promise<LedgerItem | null> {
   let found: LedgerItem | null = null
   await fetchLedger(
     {
@@ -261,9 +256,9 @@ export async function fetchLedgerItemByKey(
       limit: 100,
     },
     (items) => {
-      found = items.find(item => item.ledger_key === sourceItem.ledger_key) ?? null
+      found = items.find((item) => item.ledger_key === sourceItem.ledger_key) ?? null
     },
-    () => {},
+    () => {}
   )
   return found
 }
@@ -271,14 +266,16 @@ export async function fetchLedgerItemByKey(
 export async function resendLedgerEntry(
   ledgerKey: string,
   isAdmin: boolean,
-  overrideAiModel?: string | null,
+  overrideAiModel?: string | null
 ): Promise<{ ok: boolean; deliveryLogId?: number; error?: string }> {
   const params = new URLSearchParams()
   if (isAdmin) params.set('force', 'true')
   if (overrideAiModel?.trim()) params.set('ai_model', overrideAiModel.trim())
   const qs = params.toString()
   const url = qs
-    ? resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/resend?${qs}`)
+    ? resolveApiUrl(
+        `/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/resend?${qs}`
+      )
     : resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/resend`)
   try {
     const res = await fetch(url, {
@@ -295,14 +292,18 @@ export async function resendLedgerEntry(
 
 export async function regenerateLedgerAiSummary(
   ledgerKey: string,
-  overrideAiModel?: string | null,
+  overrideAiModel?: string | null
 ): Promise<{ ok: boolean; deliveryLogId?: number; status?: string; error?: string }> {
   const params = new URLSearchParams()
   if (overrideAiModel?.trim()) params.set('ai_model', overrideAiModel.trim())
   const qs = params.toString()
   const url = qs
-    ? resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate?${qs}`)
-    : resolveApiUrl(`/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate`)
+    ? resolveApiUrl(
+        `/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate?${qs}`
+      )
+    : resolveApiUrl(
+        `/api/v1/scheduled-reports/ledger/${encodeURIComponent(ledgerKey)}/ai-summary/regenerate`
+      )
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -322,7 +323,7 @@ export async function pollLedgerAiSummaryStatus(
   onItem: (item: LedgerItem) => void,
   onDone: (item: LedgerItem) => void,
   onError: (item: LedgerItem | null) => void,
-  pollInterval = 2500,
+  pollInterval = 2500
 ) {
   const poll = async () => {
     try {
@@ -354,14 +355,13 @@ export async function pollDeliveryLogStatus(
   onStage: (key: string, stage: string) => void,
   onDone: (key: string) => void,
   onError: (key: string) => void,
-  pollInterval = 2000,
+  pollInterval = 2000
 ) {
   const poll = async () => {
     try {
-      const res = await fetch(
-        resolveApiUrl('/api/v1/scheduled-reports/delivery-logs?limit=1'),
-        { headers: authHeaders() },
-      )
+      const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/delivery-logs?limit=1'), {
+        headers: authHeaders(),
+      })
       if (!res.ok) {
         setTimeout(poll, pollInterval * 2)
         return

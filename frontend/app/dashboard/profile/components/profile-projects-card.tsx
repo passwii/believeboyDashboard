@@ -6,11 +6,7 @@ import { ArrowUpRight, Crown, ShieldCheck, UserCog } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-import {
-  type ProjectItem,
-  TIER_BADGE_CLASS,
-  formatCommission,
-} from './profile-projects-tab-shared'
+import { type ProjectItem, TIER_BADGE_CLASS, formatCommission } from './profile-projects-tab-shared'
 
 interface ProfileProjectsCardProps {
   items: ProjectItem[]
@@ -38,7 +34,7 @@ export function ProfileProjectsCard({ items, isAdmin, roleFor }: ProfileProjects
             className={cn(
               'dashboard-surface block min-h-[120px] space-y-3 rounded-xl border border-border/60 p-4 transition-all',
               'hover:border-border hover:shadow-md hover:bg-card/80 active:scale-[0.99]',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
             )}
           >
             <div className="flex items-start justify-between gap-2">
@@ -64,10 +60,7 @@ export function ProfileProjectsCard({ items, isAdmin, roleFor }: ProfileProjects
                 {item.is_active ? '启用' : '停用'}
               </Badge>
               {role ? (
-                <Badge
-                  variant="outline"
-                  className="border-primary/30 bg-primary/10 text-primary"
-                >
+                <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
                   <RoleIcon role={role} />
                   {role}
                 </Badge>

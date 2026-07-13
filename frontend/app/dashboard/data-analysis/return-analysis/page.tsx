@@ -2,25 +2,54 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { DateRange } from 'react-day-picker'
-import {
-  Download,
-  Loader2,
-  RefreshCcw,
-} from 'lucide-react'
+import { Download, Loader2, RefreshCcw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import type { Worksheet } from 'exceljs'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, ColGroup } from '@/components/ui/table'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  ColGroup,
+} from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -32,15 +61,19 @@ import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
-import {
-  CountrySelect,
-  RefreshButton,
-} from '@/components/dashboard/console'
+import { CountrySelect, RefreshButton } from '@/components/dashboard/console'
 
 const API_BASE = '/api/backend/api/v1'
 
 type CountryOption = 'US' | 'DE' | 'UK'
-type ViewTab = 'rankings' | 'reason' | 'trend' | 'product-status' | 'inventory-status' | 'feedback' | 'summary'
+type ViewTab =
+  | 'rankings'
+  | 'reason'
+  | 'trend'
+  | 'product-status'
+  | 'inventory-status'
+  | 'feedback'
+  | 'summary'
 const VIEW_TAB_ORDER: ViewTab[] = [
   'rankings',
   'reason',
@@ -258,7 +291,15 @@ export default function ReturnAnalysisPage() {
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   const [activeTab, setActiveTab] = useUrlParam<ViewTab>('tab', 'rankings', {
-    allowed: ['rankings', 'reason', 'trend', 'product-status', 'inventory-status', 'feedback', 'summary'],
+    allowed: [
+      'rankings',
+      'reason',
+      'trend',
+      'product-status',
+      'inventory-status',
+      'feedback',
+      'summary',
+    ],
   })
 
   const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
@@ -278,8 +319,7 @@ export default function ReturnAnalysisPage() {
         // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
         // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
         if (validPayload.length > 0) {
-          const existsInList =
-            projectId && validPayload.some((p) => String(p.id) === projectId)
+          const existsInList = projectId && validPayload.some((p) => String(p.id) === projectId)
           if (!projectId || !existsInList) {
             setProjectId(String(validPayload[0].id))
           }
@@ -370,13 +410,28 @@ export default function ReturnAnalysisPage() {
       {
         const ws = workbook.addWorksheet('退货排行')
         const headers = [
-          'SKU', 'ASIN', '产品名称', '退货数量', '退货单数', '销售数量', '退货率(%)',
-          '平均退货周期(天)', '最快退货周期(天)', '最慢退货周期(天)',
+          'SKU',
+          'ASIN',
+          '产品名称',
+          '退货数量',
+          '退货单数',
+          '销售数量',
+          '退货率(%)',
+          '平均退货周期(天)',
+          '最快退货周期(天)',
+          '最慢退货周期(天)',
         ]
         ws.columns = [
-          { width: 18 }, { width: 16 }, { width: 30 },
-          { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 },
-          { width: 18 }, { width: 18 }, { width: 18 },
+          { width: 18 },
+          { width: 16 },
+          { width: 30 },
+          { width: 12 },
+          { width: 12 },
+          { width: 12 },
+          { width: 12 },
+          { width: 18 },
+          { width: 18 },
+          { width: 18 },
         ]
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
@@ -396,7 +451,9 @@ export default function ReturnAnalysisPage() {
             row.max_return_cycle_days != null ? row.max_return_cycle_days : '',
           ])
           r.font = { name: 'Microsoft YaHei' }
-          r.eachCell((cell) => { applyBorder(cell) })
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
         })
 
         // freeze header row
@@ -407,9 +464,7 @@ export default function ReturnAnalysisPage() {
       {
         const ws = workbook.addWorksheet('退货原因')
         const headers = ['退货原因', '退货数量', '退货单数', '占比(%)']
-        ws.columns = [
-          { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
-        ]
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
         styleHeaderRow(ws, 1)
@@ -422,7 +477,9 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
-          r.eachCell((cell) => { applyBorder(cell) })
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -432,9 +489,7 @@ export default function ReturnAnalysisPage() {
       {
         const ws = workbook.addWorksheet('商品状态')
         const headers = ['商品状态', '数量', '退货单数', '占比(%)']
-        ws.columns = [
-          { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
-        ]
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
         styleHeaderRow(ws, 1)
@@ -447,7 +502,9 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
-          r.eachCell((cell) => { applyBorder(cell) })
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -457,9 +514,7 @@ export default function ReturnAnalysisPage() {
       {
         const ws = workbook.addWorksheet('库存状态')
         const headers = ['库存状态', '数量', '退货单数', '占比(%)']
-        ws.columns = [
-          { width: 22 }, { width: 14 }, { width: 14 }, { width: 12 },
-        ]
+        ws.columns = [{ width: 22 }, { width: 14 }, { width: 14 }, { width: 12 }]
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
         styleHeaderRow(ws, 1)
@@ -472,7 +527,9 @@ export default function ReturnAnalysisPage() {
             parseFloat(row.percentage.toFixed(2)),
           ])
           r.font = { name: 'Microsoft YaHei' }
-          r.eachCell((cell) => { applyBorder(cell) })
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -482,9 +539,7 @@ export default function ReturnAnalysisPage() {
       {
         const ws = workbook.addWorksheet('顾客反馈')
         const headers = ['日期', 'SKU', '订单号', '退货原因', '顾客评论']
-        ws.columns = [
-          { width: 14 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 60 },
-        ]
+        ws.columns = [{ width: 14 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 60 }]
         const headerRow = ws.addRow(headers)
         headerRow.height = 22
         styleHeaderRow(ws, 1)
@@ -498,7 +553,9 @@ export default function ReturnAnalysisPage() {
             row.customer_comment,
           ])
           r.font = { name: 'Microsoft YaHei' }
-          r.eachCell((cell) => { applyBorder(cell) })
+          r.eachCell((cell) => {
+            applyBorder(cell)
+          })
         })
 
         ws.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }]
@@ -549,7 +606,9 @@ export default function ReturnAnalysisPage() {
         {/* 标题行 */}
         <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">退货分析</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              退货分析
+            </p>
             <h2 className="text-base font-semibold text-foreground leading-none">控制台</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -562,7 +621,11 @@ export default function ReturnAnalysisPage() {
                 disabled={exporting || loading}
                 className="w-full sm:w-auto"
               >
-                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
                 导出 Excel
               </Button>
             )}
@@ -621,19 +684,42 @@ export default function ReturnAnalysisPage() {
           <div className="border-t border-border/70 px-4 py-3">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {[
-                { label: '退货单数', value: data.summary.total_returns.toLocaleString(), highlight: false },
-                { label: '退货总量', value: data.summary.total_quantity.toLocaleString(), highlight: false },
-                { label: '销售数量', value: data.summary.total_sales_quantity.toLocaleString(), highlight: false },
+                {
+                  label: '退货单数',
+                  value: data.summary.total_returns.toLocaleString(),
+                  highlight: false,
+                },
+                {
+                  label: '退货总量',
+                  value: data.summary.total_quantity.toLocaleString(),
+                  highlight: false,
+                },
+                {
+                  label: '销售数量',
+                  value: data.summary.total_sales_quantity.toLocaleString(),
+                  highlight: false,
+                },
                 {
                   label: '整体退货率',
                   value: `${data.summary.overall_return_rate.toFixed(1)}%`,
                   highlight: true,
-                  color: data.summary.overall_return_rate > 8 ? 'text-red-500' : data.summary.overall_return_rate > 3 ? 'text-yellow-500' : 'text-green-500',
+                  color:
+                    data.summary.overall_return_rate > 8
+                      ? 'text-red-500'
+                      : data.summary.overall_return_rate > 3
+                        ? 'text-yellow-500'
+                        : 'text-green-500',
                 },
-                { label: '涉及SKU', value: data.summary.unique_skus.toLocaleString(), highlight: false },
+                {
+                  label: '涉及SKU',
+                  value: data.summary.unique_skus.toLocaleString(),
+                  highlight: false,
+                },
                 {
                   label: 'Top退货原因',
-                  value: data.summary.top_return_reason ? translateReason(data.summary.top_return_reason) : '--',
+                  value: data.summary.top_return_reason
+                    ? translateReason(data.summary.top_return_reason)
+                    : '--',
                   highlight: false,
                   small: true,
                 },
@@ -648,12 +734,16 @@ export default function ReturnAnalysisPage() {
                   key={i}
                   className="flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 px-2"
                 >
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{item.label}</div>
-                  <div className={cn(
-                    'mt-0.5 font-semibold leading-tight',
-                    (item as any).small ? 'text-sm truncate max-w-full' : 'text-xl',
-                    (item as any).color || 'text-foreground',
-                  )}>
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                    {item.label}
+                  </div>
+                  <div
+                    className={cn(
+                      'mt-0.5 font-semibold leading-tight',
+                      (item as any).small ? 'text-sm truncate max-w-full' : 'text-xl',
+                      (item as any).color || 'text-foreground'
+                    )}
+                  >
                     {item.value}
                   </div>
                   {(item as any).sub && (
@@ -667,7 +757,11 @@ export default function ReturnAnalysisPage() {
       </div>
 
       {/* Section 2: Tab Bar */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ViewTab)} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as ViewTab)}
+        className="w-full"
+      >
         <TabsMotionGroup id="return-analysis-tabs">
           <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-7 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
             {VIEW_TAB_ORDER.map((tab) => (
@@ -696,7 +790,11 @@ export default function ReturnAnalysisPage() {
               disabled={loading}
               className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
             >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-3.5 w-3.5" />
+              )}
               刷新
             </Button>
           </DataTableCardHeader>
@@ -705,28 +803,46 @@ export default function ReturnAnalysisPage() {
               <TabsContent forceMount value={activeTab} className="m-0">
                 {activeTab === 'rankings' && (
                   <Table containerClassName="bg-[hsl(var(--surface-panel))]/94" tableLayout="fixed">
-                    <ColGroup columns={[
-                      { width: 112 },
-                      { width: 144 },
-                      { width: 80 },
-                      { width: 96 },
-                      { width: 96 },
-                      { width: 80 },
-                      { width: 80 },
-                      { width: 80 },
-                      { width: 80 },
-                      { width: 80 },
-                    ]} />
+                    <ColGroup
+                      columns={[
+                        { width: 112 },
+                        { width: 144 },
+                        { width: 80 },
+                        { width: 96 },
+                        { width: 96 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                        { width: 80 },
+                      ]}
+                    />
                     <TableHeader>
                       <TableRow>
-                        <TableHead rowSpan={2} className="align-middle">SKU</TableHead>
-                        <TableHead rowSpan={2} className="align-middle">品名</TableHead>
-                        <TableHead rowSpan={2} className="align-middle">ASIN</TableHead>
-                        <TableHead rowSpan={2} className="text-right align-middle">退货数量</TableHead>
-                        <TableHead rowSpan={2} className="text-right align-middle">退货单数</TableHead>
-                        <TableHead rowSpan={2} className="text-right align-middle">销售数量</TableHead>
-                        <TableHead rowSpan={2} className="text-right align-middle">退货率</TableHead>
-                        <TableHead colSpan={3} className="text-center">退货周期(天)</TableHead>
+                        <TableHead rowSpan={2} className="align-middle">
+                          SKU
+                        </TableHead>
+                        <TableHead rowSpan={2} className="align-middle">
+                          品名
+                        </TableHead>
+                        <TableHead rowSpan={2} className="align-middle">
+                          ASIN
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货数量
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货单数
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          销售数量
+                        </TableHead>
+                        <TableHead rowSpan={2} className="text-right align-middle">
+                          退货率
+                        </TableHead>
+                        <TableHead colSpan={3} className="text-center">
+                          退货周期(天)
+                        </TableHead>
                       </TableRow>
                       <TableRow>
                         <TableHead className="text-right">平均</TableHead>
@@ -734,43 +850,98 @@ export default function ReturnAnalysisPage() {
                         <TableHead className="text-right">最慢</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                    <RefreshProgressBar
+                      refreshing={isRefreshing}
+                      as="tbody"
+                      className="[&_tr:last-child]:border-b-0"
+                    >
                       {showSkeleton ? (
                         Array.from({ length: 5 }).map((_, i) => (
                           <TableRow key={i}>
-                            <TableCell><div className="h-4 w-20 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell><div className="h-4 w-28 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell><div className="h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
-                            <TableCell className="text-right"><div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" /></TableCell>
+                            <TableCell>
+                              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell>
+                              <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell>
+                              <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : data?.ranking_rows.length ? (
                         data.ranking_rows.map((row) => (
                           <TableRow key={row.sku}>
                             <TableCell className="font-medium truncate">{row.sku}</TableCell>
-                            <TableCell className="truncate text-muted-foreground">{row.product_name || '--'}</TableCell>
-                            <TableCell className="text-muted-foreground">{row.asin || '--'}</TableCell>
-                            <TableCell className="text-right font-semibold">{row.total_quantity.toLocaleString()}</TableCell>
-                            <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                            <TableCell className="text-right">{row.sales_quantity.toLocaleString()}</TableCell>
-                            <TableCell className={`text-right font-semibold ${
-                              row.return_rate > 8 ? 'text-red-500' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500'
-                            }`}>
+                            <TableCell className="truncate text-muted-foreground">
+                              {row.product_name || '--'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {row.asin || '--'}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {row.total_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.return_count.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.sales_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-semibold ${
+                                row.return_rate > 8
+                                  ? 'text-red-500'
+                                  : row.return_rate > 3
+                                    ? 'text-yellow-500'
+                                    : 'text-green-500'
+                              }`}
+                            >
                               {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
                             </TableCell>
-                            <TableCell className="text-right">{row.avg_return_cycle_days != null ? row.avg_return_cycle_days.toFixed(1) : '--'}</TableCell>
-                            <TableCell className="text-right text-green-600">{row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}</TableCell>
-                            <TableCell className="text-right text-amber-600">{row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}</TableCell>
+                            <TableCell className="text-right">
+                              {row.avg_return_cycle_days != null
+                                ? row.avg_return_cycle_days.toFixed(1)
+                                : '--'}
+                            </TableCell>
+                            <TableCell className="text-right text-green-600">
+                              {row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}
+                            </TableCell>
+                            <TableCell className="text-right text-amber-600">
+                              {row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow><TableCell colSpan={10} className="py-12 text-center text-muted-foreground">暂无退货排行数据</TableCell></TableRow>
+                        <TableRow>
+                          <TableCell
+                            colSpan={10}
+                            className="py-12 text-center text-muted-foreground"
+                          >
+                            暂无退货排行数据
+                          </TableCell>
+                        </TableRow>
                       )}
                     </RefreshProgressBar>
                   </Table>
@@ -789,13 +960,21 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
                           {data?.reason_rows.length ? (
                             data.reason_rows.map((row) => (
                               <TableRow key={row.reason}>
                                 <TableCell className="font-medium">{row.reason_display}</TableCell>
-                                <TableCell className="text-right">{row.total_quantity.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                                <TableCell className="text-right">
+                                  {row.total_quantity.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
                               </TableRow>
                             ))
                           ) : (
@@ -807,7 +986,10 @@ export default function ReturnAnalysisPage() {
                       {/* Pie Chart */}
                       {data?.reason_rows && data.reason_rows.length > 0 && (
                         <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
-                          <ChartContainer config={chartConfig} className="h-[240px] w-full sm:h-[300px]">
+                          <ChartContainer
+                            config={chartConfig}
+                            className="h-[240px] w-full sm:h-[300px]"
+                          >
                             <PieChart>
                               <Pie
                                 data={data.reason_rows.slice(0, 5).map((r, i) => ({
@@ -824,9 +1006,7 @@ export default function ReturnAnalysisPage() {
                                   <Cell key={i} fill={REASON_COLORS[i % REASON_COLORS.length]} />
                                 ))}
                               </Pie>
-                              <ChartTooltip
-                                content={<ChartTooltipContent nameKey="name" />}
-                              />
+                              <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
                             </PieChart>
                           </ChartContainer>
                         </div>
@@ -840,7 +1020,10 @@ export default function ReturnAnalysisPage() {
                     <h3 className="text-base font-semibold">销售与退货趋势对比</h3>
                     {data?.trend_rows && data.trend_rows.length > 0 ? (
                       <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
-                        <ChartContainer config={chartConfig} className="h-[280px] w-full sm:h-[350px]">
+                        <ChartContainer
+                          config={chartConfig}
+                          className="h-[280px] w-full sm:h-[350px]"
+                        >
                           <ComposedChart
                             data={data.trend_rows}
                             margin={{ top: 12, right: 4, left: -12, bottom: 8 }}
@@ -876,10 +1059,16 @@ export default function ReturnAnalysisPage() {
                               width={35}
                             />
                             <ChartTooltip
-                              content={<ChartTooltipContent nameKey="date" formatter={(value, name) => {
-                                const label = chartConfig[name as keyof typeof chartConfig]?.label || name
-                                return [value, label]
-                              }} />}
+                              content={
+                                <ChartTooltipContent
+                                  nameKey="date"
+                                  formatter={(value, name) => {
+                                    const label =
+                                      chartConfig[name as keyof typeof chartConfig]?.label || name
+                                    return [value, label]
+                                  }}
+                                />
+                              }
                             />
                             <Bar
                               dataKey="sales_quantity"
@@ -910,13 +1099,16 @@ export default function ReturnAnalysisPage() {
                         </ChartContainer>
                         <div className="mt-2 flex flex-wrap gap-4 px-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-4))]" />销售数量
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-4))]" />
+                            销售数量
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-1))]" />退货单数
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-1))]" />
+                            退货单数
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm border-b-2 border-[hsl(var(--chart-1))]" />退货率（%）
+                            <span className="inline-block h-2.5 w-5 rounded-sm border-b-2 border-[hsl(var(--chart-1))]" />
+                            退货率（%）
                           </span>
                         </div>
                       </div>
@@ -938,7 +1130,11 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
                           {data?.disposition_rows.length ? (
                             data.disposition_rows.map((row) => (
                               <TableRow key={row.detailed_disposition}>
@@ -947,8 +1143,12 @@ export default function ReturnAnalysisPage() {
                                     {row.disposition_display}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                                <TableCell className="text-right">
+                                  {row.return_count.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
                               </TableRow>
                             ))
                           ) : (
@@ -980,7 +1180,11 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                        <RefreshProgressBar
+                          refreshing={isRefreshing}
+                          as="tbody"
+                          className="[&_tr:last-child]:border-b-0"
+                        >
                           {data?.status_rows.length ? (
                             data.status_rows.map((row) => (
                               <TableRow key={row.status}>
@@ -989,8 +1193,12 @@ export default function ReturnAnalysisPage() {
                                     {row.status_display}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                                <TableCell className="text-right">
+                                  {row.return_count.toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {row.percentage}%
+                                </TableCell>
                               </TableRow>
                             ))
                           ) : (
@@ -1022,18 +1230,27 @@ export default function ReturnAnalysisPage() {
                           <TableHead>顾客评论</TableHead>
                         </TableRow>
                       </TableHeader>
-                      <RefreshProgressBar refreshing={isRefreshing} as="tbody" className="[&_tr:last-child]:border-b-0">
+                      <RefreshProgressBar
+                        refreshing={isRefreshing}
+                        as="tbody"
+                        className="[&_tr:last-child]:border-b-0"
+                      >
                         {data?.feedback_rows.length ? (
                           data.feedback_rows.slice(0, 50).map((row, index) => (
                             <TableRow key={`${row.order_id}-${index}`}>
-                              <TableCell className="text-muted-foreground">{row.return_date}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {row.return_date}
+                              </TableCell>
                               <TableCell className="font-medium">{row.sku}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="text-xs">
                                   {row.reason_display}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="max-w-[300px] truncate text-muted-foreground" title={row.customer_comment}>
+                              <TableCell
+                                className="max-w-[300px] truncate text-muted-foreground"
+                                title={row.customer_comment}
+                              >
                                 {row.customer_comment}
                               </TableCell>
                             </TableRow>
@@ -1073,14 +1290,27 @@ export default function ReturnAnalysisPage() {
                                   if (!line.trim()) {
                                     return <div key={i} className="h-3" />
                                   }
-                                  if (line.startsWith('📊') || line.startsWith('⚠️') || line.startsWith('🔍') ||
-                                      line.startsWith('📈') || line.startsWith('📦') || line.startsWith('🏭') ||
-                                      line.startsWith('💡') || line.startsWith('🗓️') ||
-                                      line.startsWith('📏') || line.startsWith('🖼️') ||
-                                      line.startsWith('💬') || line.startsWith('📋') ||
-                                      line.startsWith('ℹ️') || line.startsWith('⚡')) {
+                                  if (
+                                    line.startsWith('📊') ||
+                                    line.startsWith('⚠️') ||
+                                    line.startsWith('🔍') ||
+                                    line.startsWith('📈') ||
+                                    line.startsWith('📦') ||
+                                    line.startsWith('🏭') ||
+                                    line.startsWith('💡') ||
+                                    line.startsWith('🗓️') ||
+                                    line.startsWith('📏') ||
+                                    line.startsWith('🖼️') ||
+                                    line.startsWith('💬') ||
+                                    line.startsWith('📋') ||
+                                    line.startsWith('ℹ️') ||
+                                    line.startsWith('⚡')
+                                  ) {
                                     return (
-                                      <p key={i} className="font-semibold text-foreground mt-4 first:mt-0 mb-1">
+                                      <p
+                                        key={i}
+                                        className="font-semibold text-foreground mt-4 first:mt-0 mb-1"
+                                      >
                                         {line}
                                       </p>
                                     )
@@ -1100,10 +1330,19 @@ export default function ReturnAnalysisPage() {
                                 <h4 className="text-sm font-semibold mb-3">📅 星期退货分布</h4>
                                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                                   {data.weekday_rows.map((row) => (
-                                    <div key={row.weekday} className="flex flex-col items-center p-2 rounded-md bg-[hsl(var(--surface-panel))]">
-                                      <div className="text-xs text-muted-foreground">{row.weekday_display}</div>
-                                      <div className="text-lg font-semibold mt-1">{row.return_count}</div>
-                                      <div className="text-xs text-muted-foreground">{row.percentage}%</div>
+                                    <div
+                                      key={row.weekday}
+                                      className="flex flex-col items-center p-2 rounded-md bg-[hsl(var(--surface-panel))]"
+                                    >
+                                      <div className="text-xs text-muted-foreground">
+                                        {row.weekday_display}
+                                      </div>
+                                      <div className="text-lg font-semibold mt-1">
+                                        {row.return_count}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {row.percentage}%
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -1111,31 +1350,40 @@ export default function ReturnAnalysisPage() {
                             )}
 
                             {/* Fulfillment Center Distribution */}
-                            {data.fulfillment_center_rows && data.fulfillment_center_rows.length > 0 && (
-                              <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
-                                <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
-                                <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>仓库</TableHead>
-                                      <TableHead className="text-right">退货单数</TableHead>
-                                      <TableHead className="text-right">退货件数</TableHead>
-                                      <TableHead className="text-right">占比</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {data.fulfillment_center_rows.slice(0, 10).map((row) => (
-                                      <TableRow key={row.fulfillment_center_id}>
-                                        <TableCell className="font-medium">{row.fulfillment_center_id}</TableCell>
-                                        <TableCell className="text-right">{row.return_count.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right">{row.quantity.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground">{row.percentage}%</TableCell>
+                            {data.fulfillment_center_rows &&
+                              data.fulfillment_center_rows.length > 0 && (
+                                <div className="rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] p-4">
+                                  <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
+                                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>仓库</TableHead>
+                                        <TableHead className="text-right">退货单数</TableHead>
+                                        <TableHead className="text-right">退货件数</TableHead>
+                                        <TableHead className="text-right">占比</TableHead>
                                       </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            )}
+                                    </TableHeader>
+                                    <TableBody>
+                                      {data.fulfillment_center_rows.slice(0, 10).map((row) => (
+                                        <TableRow key={row.fulfillment_center_id}>
+                                          <TableCell className="font-medium">
+                                            {row.fulfillment_center_id}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {row.return_count.toLocaleString()}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            {row.quantity.toLocaleString()}
+                                          </TableCell>
+                                          <TableCell className="text-right text-muted-foreground">
+                                            {row.percentage}%
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              )}
                           </div>
                         ) : (
                           <EmptyTableState colSpan={1} message="暂无总结数据" />

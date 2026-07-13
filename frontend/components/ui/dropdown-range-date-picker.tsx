@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import type { DateRange } from "react-day-picker"
+import type { DateRange } from 'react-day-picker'
 
-import { DateRangePicker, type DateRangePickerChangeMeta } from "@/components/ui/date-picker"
+import { DateRangePicker, type DateRangePickerChangeMeta } from '@/components/ui/date-picker'
 
 export interface DropdownRangeDatePickerProps {
   value?: DateRange

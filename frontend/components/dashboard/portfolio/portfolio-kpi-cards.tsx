@@ -43,23 +43,19 @@ interface KPICardProps {
 
 function KPICard({ label, value, icon, trend, description }: KPICardProps) {
   return (
-    <div className='dashboard-surface flex flex-col gap-2 rounded-xl p-4'>
-      <div className='flex items-center justify-between'>
-        <span className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>
+    <div className="dashboard-surface flex flex-col gap-2 rounded-xl p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
-        <div className='flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--chart-1))/0.15] text-[hsl(var(--chart-1))]'>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--chart-1))/0.15] text-[hsl(var(--chart-1))]">
           {icon}
         </div>
       </div>
-      <div className='flex flex-col'>
-        <span className='text-2xl font-bold tabular-nums'>{value}</span>
-        {trend && (
-          <span className='text-xs text-emerald-600 dark:text-emerald-400'>{trend}</span>
-        )}
-        {description && (
-          <span className='text-xs text-muted-foreground'>{description}</span>
-        )}
+      <div className="flex flex-col">
+        <span className="text-2xl font-bold tabular-nums">{value}</span>
+        {trend && <span className="text-xs text-emerald-600 dark:text-emerald-400">{trend}</span>}
+        {description && <span className="text-xs text-muted-foreground">{description}</span>}
       </div>
     </div>
   )
@@ -67,32 +63,32 @@ function KPICard({ label, value, icon, trend, description }: KPICardProps) {
 
 export function PortfolioKPICards({ data, country }: PortfolioKPICardsProps) {
   return (
-    <div className='grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5'>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
       <KPICard
-        label='总销售额'
+        label="总销售额"
         value={formatMoney(data.total_sales_amount, country)}
-        icon={<TrendingUp className='h-4 w-4' />}
+        icon={<TrendingUp className="h-4 w-4" />}
       />
       <KPICard
-        label='总订单量'
+        label="总订单量"
         value={formatNumber(data.total_order_qty)}
-        icon={<ShoppingCart className='h-4 w-4' />}
+        icon={<ShoppingCart className="h-4 w-4" />}
       />
       <KPICard
-        label='总广告费'
+        label="总广告费"
         value={formatMoney(data.total_ad_spend, country)}
-        icon={<CreditCard className='h-4 w-4' />}
+        icon={<CreditCard className="h-4 w-4" />}
       />
       <KPICard
-        label='平均转化率'
+        label="平均转化率"
         value={formatPercent(data.avg_conversion_rate)}
-        icon={<MousePointer className='h-4 w-4' />}
+        icon={<MousePointer className="h-4 w-4" />}
         description={`${data.total_sessions.toLocaleString()} 次访问`}
       />
       <KPICard
-        label='项目数量'
+        label="项目数量"
         value={String(data.projects.length)}
-        icon={<BarChart3 className='h-4 w-4' />}
+        icon={<BarChart3 className="h-4 w-4" />}
       />
     </div>
   )

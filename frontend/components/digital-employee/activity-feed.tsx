@@ -22,20 +22,23 @@ export async function fetchAllRecentTasks(): Promise<{
 
   const results = await Promise.allSettled(
     employees.map(async (emp) => {
-      const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${emp.id}/tasks?page=1&page_size=5`), {
-        cache: 'no-store',
-      })
+      const res = await fetch(
+        resolveApiUrl(`/api/v1/digital-employees/${emp.id}/tasks?page=1&page_size=5`),
+        {
+          cache: 'no-store',
+        }
+      )
       if (!res.ok) return []
       const data = await res.json()
       return (data.items as DigitalEmployeeTask[]).map((t) => ({ ...t, employee: emp }))
-    }),
+    })
   )
 
   const flat = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
   const sorted = flat.sort(
     (a, b) =>
       new Date(b.started_at ?? b.created_at).getTime() -
-      new Date(a.started_at ?? a.created_at).getTime(),
+      new Date(a.started_at ?? a.created_at).getTime()
   )
   return { tasks: sorted.slice(0, 50) }
 }
@@ -90,7 +93,7 @@ function buildActivityMessage(task: DigitalEmployeeTask): string {
 }
 
 function tasksToActivities(
-  tasks: (DigitalEmployeeTask & { employee: DigitalEmployee })[],
+  tasks: (DigitalEmployeeTask & { employee: DigitalEmployee })[]
 ): ActivityEvent[] {
   return tasks
     .filter((t) => t.started_at || t.status === 'PENDING')
@@ -154,13 +157,16 @@ function formatRelativeTime(date: Date): string {
   return `${days}天前`
 }
 
-const EVENT_STYLES: Record<ActivityEvent['eventType'], {
-  icon: string
-  color: string
-  border: string
-  label: string
-  bg: string
-}> = {
+const EVENT_STYLES: Record<
+  ActivityEvent['eventType'],
+  {
+    icon: string
+    color: string
+    border: string
+    label: string
+    bg: string
+  }
+> = {
   started: {
     icon: '🚀',
     color: 'text-blue-600 dark:text-blue-400',
@@ -209,13 +215,7 @@ function ProgressBar({ percent }: { percent: number }) {
   )
 }
 
-function ActivityItem({
-  activity,
-  compact,
-}: {
-  activity: ActivityEvent
-  compact?: boolean
-}) {
+function ActivityItem({ activity, compact }: { activity: ActivityEvent; compact?: boolean }) {
   const style = EVENT_STYLES[activity.eventType]
   const persona = PERSONA_MAP[activity.employeeType] || PERSONA_MAP.CUSTOM
   const avatar = activity.avatarUrl || persona.emoji
@@ -227,18 +227,24 @@ function ActivityItem({
         'hover:shadow-sm hover:-translate-y-0.5',
         style.border,
         style.bg,
-        compact ? 'py-2.5' : '',
+        compact ? 'py-2.5' : ''
       )}
     >
       {/* Timeline dot */}
-      <div className={cn('absolute -left-1.5 top-4 h-3 w-3 rounded-full border-2', style.border.replace('border-', 'bg-'), 'bg-background')} />
+      <div
+        className={cn(
+          'absolute -left-1.5 top-4 h-3 w-3 rounded-full border-2',
+          style.border.replace('border-', 'bg-'),
+          'bg-background'
+        )}
+      />
 
       {/* Avatar */}
       <div className="relative shrink-0">
         <div
           className={cn(
             'flex items-center justify-center rounded-xl border text-xl',
-            compact ? 'h-9 w-9 text-lg' : 'h-11 w-11 text-2xl',
+            compact ? 'h-9 w-9 text-lg' : 'h-11 w-11 text-2xl'
           )}
           style={{
             background: `linear-gradient(135deg, hsl(var(--${persona.color.split('-')[1]}-500)/.08) 0%, hsl(var(--${persona.color.split('-')[1]}-500)/.03) 100%)`,
@@ -258,7 +264,13 @@ function ActivityItem({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="truncate text-sm font-semibold">{activity.employeeName}</span>
-            <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', style.bg, style.color)}>
+            <span
+              className={cn(
+                'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                style.bg,
+                style.color
+              )}
+            >
               {style.label}
             </span>
           </div>
@@ -268,12 +280,21 @@ function ActivityItem({
         </div>
 
         {/* Task name */}
-        <p className={cn('mt-0.5 text-xs text-muted-foreground truncate', compact && 'text-[11px]')}>
+        <p
+          className={cn('mt-0.5 text-xs text-muted-foreground truncate', compact && 'text-[11px]')}
+        >
           {activity.taskName}
         </p>
 
         {/* Message */}
-        <p className={cn('mt-1 text-sm leading-relaxed', activity.eventType === 'failed' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-foreground/80')}>
+        <p
+          className={cn(
+            'mt-1 text-sm leading-relaxed',
+            activity.eventType === 'failed'
+              ? 'text-red-600 dark:text-red-400 font-medium'
+              : 'text-foreground/80'
+          )}
+        >
           {activity.message}
         </p>
 
@@ -286,7 +307,12 @@ function ActivityItem({
   )
 }
 
-export function ActivityFeed({ pollInterval = 15000, maxHeight = '600px', className, compact = false }: ActivityFeedProps) {
+export function ActivityFeed({
+  pollInterval = 15000,
+  maxHeight = '600px',
+  className,
+  compact = false,
+}: ActivityFeedProps) {
   const { activities, isLoading } = useActivityFeed(pollInterval)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -309,7 +335,12 @@ export function ActivityFeed({ pollInterval = 15000, maxHeight = '600px', classN
 
   if (activities.length === 0) {
     return (
-      <div className={cn('flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-muted-foreground',
+          className
+        )}
+      >
         <span className="text-3xl">🤖</span>
         <p className="mt-2 text-sm">暂无活动记录</p>
         <p className="text-xs">数字员工正在待命...</p>

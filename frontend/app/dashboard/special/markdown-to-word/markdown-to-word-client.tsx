@@ -5,7 +5,14 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { Download, Eye, FileCode2, FileDown, FileText, Loader2, Trash2, Upload } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
@@ -31,25 +38,28 @@ export default function MarkdownToWordClient() {
 
   const isEmpty = useMemo(() => markdown.trim().length === 0, [markdown])
 
-  const handleUploadFile = useCallback(async (file: File) => {
-    try {
-      const content = await readMarkdownFile(file)
-      setMarkdown(content)
-      setSourceFileName(file.name)
-      setSourceFileSize(file.size)
-      notify({
-        type: 'success',
-        title: 'Markdown 文件已读取',
-        message: file.name,
-      })
-    } catch (error) {
-      notify({
-        type: 'error',
-        title: '读取文件失败',
-        message: error instanceof Error ? error.message : '请重试',
-      })
-    }
-  }, [notify])
+  const handleUploadFile = useCallback(
+    async (file: File) => {
+      try {
+        const content = await readMarkdownFile(file)
+        setMarkdown(content)
+        setSourceFileName(file.name)
+        setSourceFileSize(file.size)
+        notify({
+          type: 'success',
+          title: 'Markdown 文件已读取',
+          message: file.name,
+        })
+      } catch (error) {
+        notify({
+          type: 'error',
+          title: '读取文件失败',
+          message: error instanceof Error ? error.message : '请重试',
+        })
+      }
+    },
+    [notify]
+  )
 
   const handleDownload = useCallback(async () => {
     if (isEmpty) {
@@ -142,7 +152,13 @@ export default function MarkdownToWordClient() {
                   直接粘贴 Markdown
                 </label>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={handleClear} className="h-9 px-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClear}
+                    className="h-9 px-3"
+                  >
                     <Trash2 className="mr-1.5 h-4 w-4" />
                     清空
                   </Button>
@@ -159,7 +175,9 @@ export default function MarkdownToWordClient() {
             </div>
           </CardContent>
           <CardFooter className="flex items-center justify-between gap-3 pt-4 text-xs text-muted-foreground">
-            <span>提示：支持标题、列表、表格、引用、代码块和链接；DOCX/PDF 会保留主要段落结构。</span>
+            <span>
+              提示：支持标题、列表、表格、引用、代码块和链接；DOCX/PDF 会保留主要段落结构。
+            </span>
             <span>{isEmpty ? '暂无内容' : '可导出'}</span>
           </CardFooter>
         </Card>

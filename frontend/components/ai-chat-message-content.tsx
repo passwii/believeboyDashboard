@@ -76,7 +76,7 @@ function CodeBlock({ language, code }: CodeBlockProps) {
           </button>
         </div>
       </div>
-      
+
       <div className={cn(showHtmlPreview && isHtml && 'hidden')}>
         <Prism
           language={language}
@@ -155,19 +155,23 @@ export function AIChatMessageContent({ content, className }: AIChatMessageConten
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             const isInline = !match && !String(children).includes('\n')
-            
+
             if (isInline) {
-              return <InlineCode className={className} {...props}>{children}</InlineCode>
+              return (
+                <InlineCode className={className} {...props}>
+                  {children}
+                </InlineCode>
+              )
             }
-            
+
             const language = match ? match[1] : ''
             const code = String(children).replace(/\n$/, '')
-            
+
             return <CodeBlock language={language} code={code} />
           },
           pre({ children }) {
             return <>{children}</>
-          }
+          },
         }}
       >
         {content}

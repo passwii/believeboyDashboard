@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
 // 预览 Dialog：左侧 HTML iframe 渲染 PDF 缩略，右侧下载按钮。
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Download, FileText, Loader2 } from "lucide-react"
-import { drawInvoice, downloadInvoice } from "../lib/invoice-pdf"
-import type { InvoiceForm, InvoiceSellerEntry } from "../types"
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Download, FileText, Loader2 } from 'lucide-react'
+import { drawInvoice, downloadInvoice } from '../lib/invoice-pdf'
+import type { InvoiceForm, InvoiceSellerEntry } from '../types'
 
 interface InvoicePreviewDialogProps {
   open: boolean
@@ -41,7 +41,7 @@ export function InvoicePreviewDialog({
     const id = setTimeout(() => {
       try {
         const doc = drawInvoice(seller, form)
-        const blob = doc.output("blob")
+        const blob = doc.output('blob')
         const url = URL.createObjectURL(blob)
         setPdfUrl((prev) => {
           if (prev) URL.revokeObjectURL(prev) // 释放上一次
@@ -49,7 +49,7 @@ export function InvoicePreviewDialog({
         })
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error("PDF render failed", err)
+        console.error('PDF render failed', err)
       } finally {
         setBuilding(false)
       }
@@ -73,7 +73,7 @@ export function InvoicePreviewDialog({
       downloadInvoice(seller, form)
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("PDF download failed", err)
+      console.error('PDF download failed', err)
     }
   }
 
@@ -123,7 +123,7 @@ export function InvoicePreviewDialog({
 
         <DialogFooter>
           <p className="text-xs text-muted-foreground">
-            {seller.company_name || "Seller"} · 订单 {form.order_id || "未填"} · {form.currency}
+            {seller.company_name || 'Seller'} · 订单 {form.order_id || '未填'} · {form.currency}
           </p>
         </DialogFooter>
       </DialogContent>

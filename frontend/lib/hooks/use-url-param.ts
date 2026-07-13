@@ -25,7 +25,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 export function useUrlParam<T extends string>(
   key: string,
   defaultValue: T,
-  options?: { allowed?: ReadonlyArray<T> },
+  options?: { allowed?: ReadonlyArray<T> }
 ): readonly [T, (next: T) => void] {
   const router = useRouter()
   const pathname = usePathname()
@@ -33,9 +33,7 @@ export function useUrlParam<T extends string>(
 
   const raw = searchParams.get(key) ?? defaultValue
   const value: T =
-    options?.allowed && !options.allowed.includes(raw as T)
-      ? defaultValue
-      : (raw as T)
+    options?.allowed && !options.allowed.includes(raw as T) ? defaultValue : (raw as T)
 
   const setValue = useCallback(
     (next: T) => {
@@ -48,7 +46,7 @@ export function useUrlParam<T extends string>(
       const qs = params.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
-    [searchParams, router, pathname, key, defaultValue],
+    [searchParams, router, pathname, key, defaultValue]
   )
 
   return [value, setValue] as const
@@ -78,7 +76,7 @@ export function useUrlParam<T extends string>(
  *       设回默认值（首次调用时的 default）的字段会从 URL 删除，保持 URL 干净。
  */
 export function useUrlParams<T extends Record<string, string>>(
-  defaults: T,
+  defaults: T
 ): readonly [T, (updates: Partial<T>) => void] {
   const router = useRouter()
   const pathname = usePathname()
@@ -108,7 +106,7 @@ export function useUrlParams<T extends Record<string, string>>(
       const qs = params.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     },
-    [searchParams, router, pathname, defaults],
+    [searchParams, router, pathname, defaults]
   )
 
   return [value, setValues] as const

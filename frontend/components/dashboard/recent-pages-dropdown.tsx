@@ -118,9 +118,7 @@ export function RecentPagesDropdown() {
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <Clock className="h-8 w-8 text-muted-foreground/30" />
             <div className="text-sm text-muted-foreground">暂无浏览记录</div>
-            <div className="text-xs text-muted-foreground/50">
-              访问页面后会自动记录
-            </div>
+            <div className="text-xs text-muted-foreground/50">访问页面后会自动记录</div>
           </div>
         ) : (
           <ScrollArea className="max-h-[22rem]">

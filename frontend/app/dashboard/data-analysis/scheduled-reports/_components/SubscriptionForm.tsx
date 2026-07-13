@@ -4,10 +4,23 @@ import { useMemo } from 'react'
 import { Check, ChevronsUpDown, Loader2, Mail, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
 import { getCountryLabel, COUNTRY_OPTIONS } from '@/lib/country'
 import { ProjectScopeSelect } from './ProjectScopeSelect'
@@ -51,16 +64,26 @@ interface Props {
 
 export function SubscriptionForm({
   mode,
-  formEmail, setFormEmail,
-  formProjectIds, setFormProjectIds,
-  formSelectedProjectIds, setFormSelectedProjectIds,
-  formCountries, setFormCountries,
-  formFrequency, setFormFrequency,
-  formDispatchHour, setFormDispatchHour,
-  formDispatchMinute, setFormDispatchMinute,
-  formDispatchWeekday, setFormDispatchWeekday,
-  formDispatchDay, setFormDispatchDay,
-  formAiModel, setFormAiModel,
+  formEmail,
+  setFormEmail,
+  formProjectIds,
+  setFormProjectIds,
+  formSelectedProjectIds,
+  setFormSelectedProjectIds,
+  formCountries,
+  setFormCountries,
+  formFrequency,
+  setFormFrequency,
+  formDispatchHour,
+  setFormDispatchHour,
+  formDispatchMinute,
+  setFormDispatchMinute,
+  formDispatchWeekday,
+  setFormDispatchWeekday,
+  formDispatchDay,
+  setFormDispatchDay,
+  formAiModel,
+  setFormAiModel,
   projects,
   modelConfig,
   isLoadingModelConfig,
@@ -94,11 +117,20 @@ export function SubscriptionForm({
       parts.push(timeStr)
     }
     if (formCountries.length > 0) {
-      parts.push(formCountries.map(c => getCountryLabel(c)).join(','))
+      parts.push(formCountries.map((c) => getCountryLabel(c)).join(','))
     }
     if (formAiModel) parts.push(formAiModel)
     return parts.join(' · ')
-  }, [formEmail, formFrequency, formDispatchHour, formDispatchMinute, formDispatchWeekday, formDispatchDay, formCountries, formAiModel])
+  }, [
+    formEmail,
+    formFrequency,
+    formDispatchHour,
+    formDispatchMinute,
+    formDispatchWeekday,
+    formDispatchDay,
+    formCountries,
+    formAiModel,
+  ])
 
   return (
     <div className="max-h-[calc(90vh-8rem)] overflow-y-auto pr-1">
@@ -122,7 +154,9 @@ export function SubscriptionForm({
               <div className="md:col-span-2">
                 <label className="text-sm font-medium mb-1.5 block">
                   邮箱地址
-                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">（可选，留空仅生成报告不发送邮件）</span>
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                    （可选，留空仅生成报告不发送邮件）
+                  </span>
                 </label>
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
@@ -130,10 +164,8 @@ export function SubscriptionForm({
                       type="email"
                       placeholder="ops@company.com"
                       value={formEmail}
-                      onChange={e => setFormEmail(e.target.value)}
-                      className={cn(
-                        formEmail && 'border-emerald-300 dark:border-emerald-700',
-                      )}
+                      onChange={(e) => setFormEmail(e.target.value)}
+                      className={cn(formEmail && 'border-emerald-300 dark:border-emerald-700')}
                     />
                     {formEmail && (
                       <CheckCircle2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
@@ -157,10 +189,12 @@ export function SubscriptionForm({
                 </div>
                 {/* 测试结果反馈 */}
                 {testResult && (
-                  <div className={cn(
-                    'mt-1.5 flex items-center gap-1.5 text-xs',
-                    testResult.success ? 'text-emerald-600' : 'text-destructive',
-                  )}>
+                  <div
+                    className={cn(
+                      'mt-1.5 flex items-center gap-1.5 text-xs',
+                      testResult.success ? 'text-emerald-600' : 'text-destructive'
+                    )}
+                  >
                     {testResult.success ? (
                       <CheckCircle2 className="h-3.5 w-3.5" />
                     ) : (
@@ -174,15 +208,21 @@ export function SubscriptionForm({
                 <label className="text-sm font-medium mb-1.5 block">推送频率</label>
                 <Select
                   value={formFrequency}
-                  onValueChange={v => {
+                  onValueChange={(v) => {
                     const newFreq = v as Frequency
                     setFormFrequency(newFreq)
-                    if (newFreq === 'weekly' && formDispatchWeekday === 0 && formDispatchHour < 16) {
+                    if (
+                      newFreq === 'weekly' &&
+                      formDispatchWeekday === 0 &&
+                      formDispatchHour < 16
+                    ) {
                       setFormDispatchHour(16)
                     }
                   }}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">每日</SelectItem>
                     <SelectItem value="weekly">每周</SelectItem>
@@ -194,7 +234,9 @@ export function SubscriptionForm({
                 <label className="text-sm font-medium mb-1.5 block">
                   发送时间（北京时间）
                   {isMondayRestricted && (
-                    <span className="ml-1.5 text-xs text-amber-600 font-normal">（周一 ≥ 16:00）</span>
+                    <span className="ml-1.5 text-xs text-amber-600 font-normal">
+                      （周一 ≥ 16:00）
+                    </span>
                   )}
                 </label>
                 <TimePicker
@@ -210,13 +252,15 @@ export function SubscriptionForm({
                   <label className="text-sm font-medium mb-1.5 block">发送星期</label>
                   <Select
                     value={String(formDispatchWeekday)}
-                    onValueChange={v => {
+                    onValueChange={(v) => {
                       const newWeekday = Number(v)
                       setFormDispatchWeekday(newWeekday)
                       if (newWeekday === 0 && formDispatchHour < 16) setFormDispatchHour(16)
                     }}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {WEEKDAY_LABELS.map((label, i) => (
                         <SelectItem key={i} value={String(i)}>
@@ -230,11 +274,18 @@ export function SubscriptionForm({
               {formFrequency === 'monthly' && (
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">发送日期</label>
-                  <Select value={String(formDispatchDay)} onValueChange={v => setFormDispatchDay(Number(v))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={String(formDispatchDay)}
+                    onValueChange={(v) => setFormDispatchDay(Number(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent className="max-h-[240px]">
                       {Array.from({ length: 27 }, (_, i) => (
-                        <SelectItem key={i + 2} value={String(i + 2)}>{i + 2} 日</SelectItem>
+                        <SelectItem key={i + 2} value={String(i + 2)}>
+                          {i + 2} 日
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -269,14 +320,14 @@ export function SubscriptionForm({
                       <span className="truncate">
                         {formCountries.length === 0
                           ? '选择国家...'
-                          : formCountries.map(c => getCountryLabel(c)).join(', ')}
+                          : formCountries.map((c) => getCountryLabel(c)).join(', ')}
                       </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[260px] p-2" align="start">
                     <div className="space-y-1 max-h-[240px] overflow-y-auto">
-                      {COUNTRY_OPTIONS.map(opt => {
+                      {COUNTRY_OPTIONS.map((opt) => {
                         const selected = formCountries.includes(opt.value)
                         return (
                           <button
@@ -284,20 +335,24 @@ export function SubscriptionForm({
                             type="button"
                             className={cn(
                               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors',
-                              selected && 'bg-accent',
+                              selected && 'bg-accent'
                             )}
                             onClick={() => {
                               if (selected) {
-                                setFormCountries(formCountries.filter(c => c !== opt.value))
+                                setFormCountries(formCountries.filter((c) => c !== opt.value))
                               } else {
                                 setFormCountries([...formCountries, opt.value])
                               }
                             }}
                           >
-                            <div className={cn(
-                              'flex h-4 w-4 items-center justify-center rounded-sm border',
-                              selected ? 'bg-primary border-primary text-primary-foreground' : 'border-input',
-                            )}>
+                            <div
+                              className={cn(
+                                'flex h-4 w-4 items-center justify-center rounded-sm border',
+                                selected
+                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  : 'border-input'
+                              )}
+                            >
                               {selected && <Check className="h-3 w-3" />}
                             </div>
                             <span>{opt.label}</span>
@@ -342,29 +397,41 @@ export function SubscriptionForm({
                   disabled={isLoadingModelConfig || !modelConfig?.models.length}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
+                    <SelectValue
+                      placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {(modelConfig?.premiumModels.length || 0) > 0 && (
                       <SelectGroup>
                         <SelectLabel>高级模型</SelectLabel>
-                        {modelConfig?.premiumModels.map(m => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        {modelConfig?.premiumModels.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
                         ))}
                       </SelectGroup>
                     )}
                     {(modelConfig?.basicModels.length || 0) > 0 && (
                       <SelectGroup>
                         <SelectLabel>基础模型</SelectLabel>
-                        {modelConfig?.basicModels.map(m => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        {modelConfig?.basicModels.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
                         ))}
                       </SelectGroup>
                     )}
                     {modelConfig?.models
-                      .filter(m => !modelConfig.premiumModels.includes(m) && !modelConfig.basicModels.includes(m))
-                      .map(m => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      .filter(
+                        (m) =>
+                          !modelConfig.premiumModels.includes(m) &&
+                          !modelConfig.basicModels.includes(m)
+                      )
+                      .map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
@@ -399,11 +466,7 @@ export function SubscriptionForm({
           取消
         </Button>
         <div className="flex-1 order-3 sm:order-2" />
-        <Button
-          onClick={onSubmit}
-          disabled={formSubmitting}
-          className="order-1 sm:order-3"
-        >
+        <Button onClick={onSubmit} disabled={formSubmitting} className="order-1 sm:order-3">
           {formSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
           {mode === 'create' ? '确认创建' : '保存修改'}
         </Button>

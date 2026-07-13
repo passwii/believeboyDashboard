@@ -1,52 +1,52 @@
-"use client";
+'use client'
 
-import { SunIcon as Sunburst } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { SunIcon as Sunburst } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 
 export const FullScreenSignup = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
   const validateEmail = (value: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  };
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  }
 
   const validatePassword = (value: string) => {
-    return value.length >= 8;
-  };
+    return value.length >= 8
+  }
 
   const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    let valid = true;
+    e.preventDefault()
+    let valid = true
 
     if (!validateEmail(email)) {
-      setEmailError("Please enter a valid email address.");
-      valid = false;
+      setEmailError('Please enter a valid email address.')
+      valid = false
     } else {
-      setEmailError("");
+      setEmailError('')
     }
 
     if (!validatePassword(password)) {
-      setPasswordError("Password must be at least 8 characters.");
-      valid = false;
+      setPasswordError('Password must be at least 8 characters.')
+      valid = false
     } else {
-      setPasswordError("");
+      setPasswordError('')
     }
 
-    setSubmitted(true);
+    setSubmitted(true)
 
     if (valid) {
-      console.log("Form submitted!");
-      console.log("Email:", email);
-      alert("Form submitted!");
-      setEmail("");
-      setPassword("");
-      setSubmitted(false);
+      console.log('Form submitted!')
+      console.log('Email:', email)
+      alert('Form submitted!')
+      setEmail('')
+      setPassword('')
+      setSubmitted(false)
     }
-  };
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-neutral-950 p-4">
@@ -55,8 +55,8 @@ export const FullScreenSignup = () => {
         style={{
           backgroundImage:
             "url('https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1800&q=80')",
-          backgroundPosition: "center",
-          backgroundSize: "cover",
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
         }}
       />
 
@@ -99,7 +99,7 @@ export const FullScreenSignup = () => {
                 id="email"
                 placeholder="hi@hextastudio.in"
                 className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
-                  emailError ? "border-red-500 dark:border-red-500" : "border-gray-300"
+                  emailError ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
                 }`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -121,7 +121,7 @@ export const FullScreenSignup = () => {
                 type="password"
                 id="password"
                 className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-[hsl(var(--muted))] dark:border-[hsl(var(--border))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))] ${
-                  passwordError ? "border-red-500 dark:border-red-500" : "border-gray-300"
+                  passwordError ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
                 }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -147,7 +147,7 @@ export const FullScreenSignup = () => {
             ) : null}
 
             <div className="text-center text-sm text-gray-600 dark:text-[hsl(var(--muted-foreground))]">
-              Already have account?{" "}
+              Already have account?{' '}
               <a href="/login" className="font-medium text-secondary-foreground underline">
                 Login
               </a>
@@ -156,5 +156,5 @@ export const FullScreenSignup = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}

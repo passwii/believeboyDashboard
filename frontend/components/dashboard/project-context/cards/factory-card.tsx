@@ -36,9 +36,7 @@ export function FactoryCard({ value, onChange }: FactoryCardProps) {
         </div>
         <div className="flex items-center gap-2">
           {!collapsed && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-              {preview}
-            </span>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{preview}</span>
           )}
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
@@ -49,9 +47,7 @@ export function FactoryCard({ value, onChange }: FactoryCardProps) {
       {!collapsed && (
         <CardContent className="space-y-3 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              说明
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">说明</label>
             <textarea
               value={value?.description || ''}
               onChange={(e) => onChange({ ...value, description: e.target.value })}
@@ -61,9 +57,7 @@ export function FactoryCard({ value, onChange }: FactoryCardProps) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              生产能力
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">生产能力</label>
             <textarea
               value={value?.productionCapacity || ''}
               onChange={(e) => onChange({ ...value, productionCapacity: e.target.value })}
@@ -73,9 +67,7 @@ export function FactoryCard({ value, onChange }: FactoryCardProps) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              沟通协作
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">沟通协作</label>
             <textarea
               value={value?.communication || ''}
               onChange={(e) => onChange({ ...value, communication: e.target.value })}

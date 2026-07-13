@@ -5,10 +5,7 @@ import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  buildBackendProxyHeaders,
-  buildBackendUrl,
-} from '@/lib/server/backend-proxy'
+import { buildBackendProxyHeaders, buildBackendUrl } from '@/lib/server/backend-proxy'
 
 export async function POST(request: Request) {
   const session = await requireAdminSession()
@@ -24,7 +21,10 @@ export async function POST(request: Request) {
       cache: 'no-store',
     })
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null
+      const payload = (await response.json().catch(() => null)) as {
+        detail?: string
+        message?: string
+      } | null
       return NextResponse.json(
         { error: normalizeErrorMessage(payload?.detail || payload?.message, '图片上传失败') },
         { status: response.status }

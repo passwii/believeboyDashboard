@@ -124,9 +124,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
   }
 
   if (error && !profile) {
-    return (
-      <p className="text-sm text-muted-foreground">无法加载个人资料，请稍后重试。</p>
-    )
+    return <p className="text-sm text-muted-foreground">无法加载个人资料，请稍后重试。</p>
   }
 
   if (!profile) {
@@ -137,7 +135,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     cn(
       'tabular-nums',
       n > MAX_LENGTH - 25 && n < MAX_LENGTH && 'text-amber-600 dark:text-amber-400',
-      n === MAX_LENGTH && 'text-destructive',
+      n === MAX_LENGTH && 'text-destructive'
     )
 
   return (
@@ -147,14 +145,10 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
           <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
           邮箱
         </Label>
-        <Input
-          id="profile-email"
-          type="email"
-          value={profile.email}
-          disabled
-          readOnly
-        />
-        <p className="text-xs text-muted-foreground">邮箱用于登录，不可修改。如需更换请联系管理员。</p>
+        <Input id="profile-email" type="email" value={profile.email} disabled readOnly />
+        <p className="text-xs text-muted-foreground">
+          邮箱用于登录，不可修改。如需更换请联系管理员。
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -172,7 +166,9 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
           <span>用于 sidebar 与项目匹配</span>
-          <span className={counterClass(name.length)}>{name.length}/{MAX_LENGTH}</span>
+          <span className={counterClass(name.length)}>
+            {name.length}/{MAX_LENGTH}
+          </span>
         </p>
       </div>
 
@@ -191,7 +187,9 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
           <span>真实姓名，用于内部协作（可选）</span>
-          <span className={counterClass(fullName.length)}>{fullName.length}/{MAX_LENGTH}</span>
+          <span className={counterClass(fullName.length)}>
+            {fullName.length}/{MAX_LENGTH}
+          </span>
         </p>
       </div>
 
@@ -210,7 +208,9 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
           <span>⚠ 此字段用于与项目里的运营 / 助理运营名进行匹配。修改后会自动同步到项目管理。</span>
-          <span className={counterClass(operatorName.length)}>{operatorName.length}/{MAX_LENGTH}</span>
+          <span className={counterClass(operatorName.length)}>
+            {operatorName.length}/{MAX_LENGTH}
+          </span>
         </p>
       </div>
 

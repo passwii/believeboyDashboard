@@ -78,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           operator_name_zh: body.operator_name_zh,
         }),
         cache: 'no-store',
-      },
+      }
     )
     return NextResponse.json({ item: toFrontendUser(data.item) })
   } catch (err) {

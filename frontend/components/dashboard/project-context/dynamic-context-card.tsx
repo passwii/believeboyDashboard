@@ -27,7 +27,7 @@ export function DynamicContextCard({
   onAiImport,
   collapsed: controlledCollapsed,
   onCollapsedChange,
-  readOnly = false
+  readOnly = false,
 }: DynamicContextCardProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   const collapsed = controlledCollapsed ?? internalCollapsed
@@ -40,7 +40,10 @@ export function DynamicContextCard({
   const [newValue, setNewValue] = useState('')
   const keyInputRef = useRef<HTMLInputElement>(null)
 
-  const dimensions: DimensionItem[] = Object.entries(value).map(([key, val]) => ({ key, value: val }))
+  const dimensions: DimensionItem[] = Object.entries(value).map(([key, val]) => ({
+    key,
+    value: val,
+  }))
 
   useEffect(() => {
     if (editingKey && keyInputRef.current) {
@@ -116,7 +119,10 @@ export function DynamicContextCard({
         <div className="flex items-center gap-2">
           {!collapsed && dimensions.length > 0 && (
             <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-              {dimensions.slice(0, 3).map(d => d.key).join('、')}
+              {dimensions
+                .slice(0, 3)
+                .map((d) => d.key)
+                .join('、')}
               {dimensions.length > 3 && ` 等 ${dimensions.length} 个`}
             </span>
           )}
@@ -132,9 +138,7 @@ export function DynamicContextCard({
           {/* 操作栏 */}
           {!readOnly && (
             <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-muted/20">
-              <span className="text-xs text-muted-foreground">
-                {dimensions.length} 个维度
-              </span>
+              <span className="text-xs text-muted-foreground">{dimensions.length} 个维度</span>
               <div className="flex items-center gap-2">
                 {onAiImport && (
                   <Button
@@ -163,7 +167,10 @@ export function DynamicContextCard({
           {/* 维度列表 */}
           <div className="divide-y divide-border/50">
             {dimensions.map(({ key, value: dimValue }) => (
-              <div key={key} className="flex items-start px-4 py-3 hover:bg-muted/20 transition-colors">
+              <div
+                key={key}
+                className="flex items-start px-4 py-3 hover:bg-muted/20 transition-colors"
+              >
                 {/* Key */}
                 <div className="w-28 shrink-0 pr-4">
                   {editingKey === key && !readOnly ? (
@@ -285,9 +292,7 @@ export function DynamicContextCard({
           {dimensions.length === 0 && !newKeyMode && (
             <div className="text-center py-8 text-muted-foreground text-sm">
               <p>暂无维度信息</p>
-              {!readOnly && (
-                <p className="text-xs mt-1">点击「添加维度」或「AI 辅助」开始</p>
-              )}
+              {!readOnly && <p className="text-xs mt-1">点击「添加维度」或「AI 辅助」开始</p>}
             </div>
           )}
         </div>

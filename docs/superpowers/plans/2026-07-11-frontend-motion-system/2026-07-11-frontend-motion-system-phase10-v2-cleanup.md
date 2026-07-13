@@ -1,6 +1,6 @@
 # Phase 10 — v2 Token 优化实施（清理冗余）
 
-> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`
+> **父 plan：** `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`
 > **依赖：** Phase 9 完成 + tag `phase9-docs` + v2-token-recommendations.md 调研结论
 > **执行日期：** 2026-07-12
 > **执行者：** 子智能体（subagent-driven-development 调度）

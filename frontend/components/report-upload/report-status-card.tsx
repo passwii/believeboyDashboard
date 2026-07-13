@@ -1,12 +1,33 @@
 'use client'
 
-import { AlertCircle, CalendarDays, CheckCircle2, CircleHelp, FileText, Globe, Loader2, PackageSearch } from 'lucide-react'
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  CircleHelp,
+  FileText,
+  Globe,
+  Loader2,
+  PackageSearch,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardTitle } from '@/components/ui/card'
-import { DateRangePicker, SingleDatePicker, formatDateInputValue, parseDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DateRangePicker,
+  SingleDatePicker,
+  formatDateInputValue,
+  parseDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { ReportCardConfig, ReportCardState } from '@/components/report-upload/types'
 import { getMultiCountryDisplay } from '@/components/report-upload/types'
 import { cn } from '@/lib/utils'
@@ -40,7 +61,8 @@ function statusBadge(state: ReportCardState) {
       </span>
     )
   }
-  if (state.commitStatus === 'saving') return <Badge className="bg-slate-600 text-white hover:bg-slate-600">处理中</Badge>
+  if (state.commitStatus === 'saving')
+    return <Badge className="bg-slate-600 text-white hover:bg-slate-600">处理中</Badge>
   if (state.commitStatus === 'error') return <Badge variant="destructive">失败</Badge>
   if (state.candidates.length > 1) return <Badge variant="secondary">多文件待确认</Badge>
   if (state.recognition) return <Badge variant="secondary">待确认</Badge>
@@ -92,8 +114,13 @@ export function ReportStatusCard({
   const recognition = state.recognition
   const projectWarning = needsProjectAttention(state)
   const dateWarning = needsDateAttention(state)
-  const useRangePicker = recognition?.date_input_mode === 'range_manual' || recognition?.date_input_mode === 'range_auto' || (!recognition && config.type === 'payment_report')
-  const isMultiCountry = Boolean(recognition?.detected_countries && recognition.detected_countries.length > 1)
+  const useRangePicker =
+    recognition?.date_input_mode === 'range_manual' ||
+    recognition?.date_input_mode === 'range_auto' ||
+    (!recognition && config.type === 'payment_report')
+  const isMultiCountry = Boolean(
+    recognition?.detected_countries && recognition.detected_countries.length > 1
+  )
 
   return (
     <Card className="flex h-full flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm dark:border-border/90">
@@ -141,7 +168,10 @@ export function ReportStatusCard({
                 </Select>
               ) : null}
               {recognition && state.candidates.length <= 1 ? (
-                <p className="truncate text-xs font-medium text-muted-foreground" title={recognition.original_filename}>
+                <p
+                  className="truncate text-xs font-medium text-muted-foreground"
+                  title={recognition.original_filename}
+                >
                   {recognition.original_filename}
                 </p>
               ) : null}
@@ -153,9 +183,18 @@ export function ReportStatusCard({
           <div className="grid gap-3">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
-                <PackageSearch className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', projectWarning && 'text-slate-500 dark:text-slate-400')} />
+                <PackageSearch
+                  className={cn(
+                    'h-4 w-4 text-slate-400 dark:text-slate-500',
+                    projectWarning && 'text-slate-500 dark:text-slate-400'
+                  )}
+                />
               </div>
-              <Select value={state.selectedProject || undefined} onValueChange={onProjectChange} disabled={projectLocked}>
+              <Select
+                value={state.selectedProject || undefined}
+                onValueChange={onProjectChange}
+                disabled={projectLocked}
+              >
                 <SelectTrigger
                   className={cn(
                     'rounded-md border-border/70 bg-[hsl(var(--surface-soft))] dark:border-border/95',
@@ -177,7 +216,12 @@ export function ReportStatusCard({
 
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))]">
-                <CalendarDays className={cn('h-4 w-4 text-slate-400 dark:text-slate-500', dateWarning && 'text-slate-500 dark:text-slate-400')} />
+                <CalendarDays
+                  className={cn(
+                    'h-4 w-4 text-slate-400 dark:text-slate-500',
+                    dateWarning && 'text-slate-500 dark:text-slate-400'
+                  )}
+                />
               </div>
               {datesLocked ? (
                 <div className="rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] px-3 py-2 text-sm text-foreground">
@@ -235,7 +279,10 @@ export function ReportStatusCard({
           <div className="rounded-xl border border-blue-300/60 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-400/35 dark:bg-blue-400/10 dark:text-blue-100">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 shrink-0" />
-              <span>检测到多站点数据：{getMultiCountryDisplay(recognition.detected_countries)}，系统将自动按站点拆分</span>
+              <span>
+                检测到多站点数据：{getMultiCountryDisplay(recognition.detected_countries)}
+                ，系统将自动按站点拆分
+              </span>
             </div>
           </div>
         ) : null}
@@ -255,7 +302,11 @@ export function ReportStatusCard({
           </div>
         ) : null}
 
-        <Button onClick={onCommit} disabled={!canCommit || state.commitStatus === 'saving'} className="mt-auto w-full">
+        <Button
+          onClick={onCommit}
+          disabled={!canCommit || state.commitStatus === 'saving'}
+          className="mt-auto w-full"
+        >
           {state.commitStatus === 'saving' ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -54,11 +54,7 @@ export function ProfileAvatarDisplay({
   }, [userId, avatarUrl, refreshTick])
 
   const hasAvatar = Boolean(previewSrc)
-  const label = previewFromCache
-    ? '已从本地缓存加载'
-    : avatarUrl
-      ? '已从 R2 加载'
-      : '尚未上传头像'
+  const label = previewFromCache ? '已从本地缓存加载' : avatarUrl ? '已从 R2 加载' : '尚未上传头像'
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -70,9 +66,7 @@ export function ProfileAvatarDisplay({
         className={cn(
           'group relative rounded-2xl ring-offset-background transition-all duration-200',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          hasAvatar
-            ? 'cursor-zoom-in hover:ring-4 hover:ring-primary/30'
-            : 'cursor-default',
+          hasAvatar ? 'cursor-zoom-in hover:ring-4 hover:ring-primary/30' : 'cursor-default'
         )}
       >
         <Avatar className="h-40 w-40 rounded-2xl border border-border/60 shadow-sm transition-shadow group-hover:shadow-md">

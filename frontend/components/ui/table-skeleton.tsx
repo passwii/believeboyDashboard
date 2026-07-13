@@ -1,7 +1,14 @@
 'use client'
 
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 interface TableSkeletonRowsProps {
@@ -40,11 +47,7 @@ interface BarSkeletonProps {
   className?: string
 }
 
-export function BarSkeleton({
-  rows = 5,
-  height = 'h-10',
-  className,
-}: BarSkeletonProps) {
+export function BarSkeleton({ rows = 5, height = 'h-10', className }: BarSkeletonProps) {
   return (
     <div className={cn('space-y-3', className)}>
       {Array.from({ length: rows }).map((_, index) => (
@@ -65,7 +68,7 @@ export function PricingTableSkeleton({ rows = 8 }: PricingTableSkeletonProps) {
         <TableRow>
           {Array.from({ length: 6 }).map((_, index) => (
             <TableHead key={index}>
-              <Skeleton className='h-4 w-full' />
+              <Skeleton className="h-4 w-full" />
             </TableHead>
           ))}
         </TableRow>
@@ -75,7 +78,7 @@ export function PricingTableSkeleton({ rows = 8 }: PricingTableSkeletonProps) {
           <TableRow key={rowIndex}>
             {Array.from({ length: 6 }).map((_, cellIndex) => (
               <TableCell key={cellIndex}>
-                <Skeleton className='h-4 w-16' />
+                <Skeleton className="h-4 w-16" />
               </TableCell>
             ))}
           </TableRow>

@@ -2,10 +2,7 @@
 
 import { useEffect } from 'react'
 
-import {
-  StatusHomeAction,
-  StatusPageShell,
-} from '@/components/system/status-page-shell'
+import { StatusHomeAction, StatusPageShell } from '@/components/system/status-page-shell'
 import { StatusRetryButton } from '@/components/system/status-retry-button'
 import {
   BACKEND_UNAVAILABLE_MESSAGE,

@@ -1,12 +1,19 @@
 'use client'
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { formatRmb, formatPercent } from './utils'
 
-const FULL_BLEED_TABLE_CLASS = "[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3"
-const FULL_BLEED_TABLE_CONTAINER_CLASS = "-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none"
+const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
+const FULL_BLEED_TABLE_CONTAINER_CLASS = '-m-px h-[calc(100%+2px)] w-[calc(100%+2px)] rounded-none'
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -61,7 +68,10 @@ function ProjectSummarySkeletonRow() {
 function ProjectSummarySkeletonContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-      <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
+      <Table
+        className={FULL_BLEED_TABLE_CLASS}
+        containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
+      >
         <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
           <TableRow>
             <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
@@ -113,7 +123,10 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit] transition-opacity duration-200"
         style={{ opacity: loading ? 0 : 1 }}
       >
-        <Table className={FULL_BLEED_TABLE_CLASS} containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}>
+        <Table
+          className={FULL_BLEED_TABLE_CLASS}
+          containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
+        >
           <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
             <TableRow>
               <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">

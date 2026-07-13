@@ -11,9 +11,11 @@ const BACKEND_UNAVAILABLE_PATTERNS = [
 ] as const
 
 export const BACKEND_UNAVAILABLE_TITLE = '后端服务暂时不可用'
-export const BACKEND_UNAVAILABLE_MESSAGE = '当前无法连接后端服务，请稍后重试；如果问题持续出现，请联系管理员检查服务状态。'
+export const BACKEND_UNAVAILABLE_MESSAGE =
+  '当前无法连接后端服务，请稍后重试；如果问题持续出现，请联系管理员检查服务状态。'
 export const GENERIC_ERROR_TITLE = '页面暂时不可用'
-export const GENERIC_ERROR_MESSAGE = '页面遇到异常，请刷新后重试；如果仍然无法恢复，请联系管理员协助处理。'
+export const GENERIC_ERROR_MESSAGE =
+  '页面遇到异常，请刷新后重试；如果仍然无法恢复，请联系管理员协助处理。'
 
 function toErrorText(value: unknown): string {
   if (typeof value === 'string') return value
@@ -31,10 +33,7 @@ export function isBackendUnavailableError(value: unknown): boolean {
   return BACKEND_UNAVAILABLE_PATTERNS.some((pattern) => text.includes(pattern))
 }
 
-export function normalizeErrorMessage(
-  value: unknown,
-  fallback = GENERIC_ERROR_MESSAGE
-): string {
+export function normalizeErrorMessage(value: unknown, fallback = GENERIC_ERROR_MESSAGE): string {
   if (isBackendUnavailableError(value)) {
     return BACKEND_UNAVAILABLE_MESSAGE
   }

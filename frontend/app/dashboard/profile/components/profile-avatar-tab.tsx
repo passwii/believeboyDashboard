@@ -24,10 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  deleteAvatar,
-  uploadAvatar,
-} from '@/lib/client-api/profile-client'
+import { deleteAvatar, uploadAvatar } from '@/lib/client-api/profile-client'
 import { invalidateUserAvatar } from '@/lib/user-avatar-cache'
 import type { Profile } from '@/types/profile'
 
@@ -147,11 +144,7 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    onClick={onPickFile}
-                    disabled={uploading || removing}
-                  >
+                  <Button type="button" onClick={onPickFile} disabled={uploading || removing}>
                     {uploading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -160,7 +153,9 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
                     {uploading ? '上传中...' : avatarUrl ? '替换头像' : '上传头像'}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>推荐尺寸 200×200px，PNG / JPG / WEBP / GIF，最大 5MB</TooltipContent>
+                <TooltipContent>
+                  推荐尺寸 200×200px，PNG / JPG / WEBP / GIF，最大 5MB
+                </TooltipContent>
               </Tooltip>
 
               {avatarUrl ? (

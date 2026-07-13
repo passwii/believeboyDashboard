@@ -33,7 +33,7 @@ export function buildAnalysisDrillHref(
     dateFrom?: string
     dateTo?: string
   },
-  extras: Record<string, string | undefined> = {},
+  extras: Record<string, string | undefined> = {}
 ): string | null {
   const pathname = AD_ANALYSIS_DRILL_PATHS[tab]
   if (!pathname) return null

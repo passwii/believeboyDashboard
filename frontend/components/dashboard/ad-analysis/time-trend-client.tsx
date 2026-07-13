@@ -79,9 +79,12 @@ export function AdAnalysisTimeTrendClient() {
         })
         if (dateFrom) query.set('date_from', dateFrom)
         if (dateTo) query.set('date_to', dateTo)
-        const response = await fetch(`${API_BASE}/api/v1/ad-analysis/time-trend?${query.toString()}`, {
-          cache: 'no-store',
-        })
+        const response = await fetch(
+          `${API_BASE}/api/v1/ad-analysis/time-trend?${query.toString()}`,
+          {
+            cache: 'no-store',
+          }
+        )
         if (!response.ok) throw new Error(await parseError(response))
         const payload = (await response.json()) as TimeTrendResponse
         if (active) setData(payload)
@@ -98,83 +101,96 @@ export function AdAnalysisTimeTrendClient() {
     }
   }, [country, dateFrom, dateTo, projectId])
 
-  if (!projectId) return <EmptyState rowHeight='lg' message='请先选择项目。' />
-  if (loading) return <EmptyState rowHeight='lg' message='正在加载趋势分析...' />
+  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
+  if (loading) return <EmptyState rowHeight="lg" message="正在加载趋势分析..." />
   if (error) {
     return (
-      <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'>
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
         {error}
       </div>
     )
   }
-  if (!data || data.summary.length === 0) return <EmptyState rowHeight='lg' message='当前没有趋势数据。' />
+  if (!data || data.summary.length === 0)
+    return <EmptyState rowHeight="lg" message="当前没有趋势数据。" />
 
   const latest = data.summary[data.summary.length - 1]
   const comparison = data.comparison
 
   return (
-    <div className='space-y-5'>
-      <AdAnalysisContextBanner items={focusDate ? [{ label: '当前聚焦日期', value: focusDate }] : []} />
+    <div className="space-y-5">
+      <AdAnalysisContextBanner
+        items={focusDate ? [{ label: '当前聚焦日期', value: focusDate }] : []}
+      />
       {comparison ? (
         <Card>
           <CardHeader>
-            <CardTitle className='text-lg'>周期对比</CardTitle>
+            <CardTitle className="text-lg">周期对比</CardTitle>
           </CardHeader>
-          <CardContent className='space-y-3'>
-            <p className='text-sm text-muted-foreground'>
-              当前周期 {comparison.current_start} ~ {comparison.current_end}
-              {' '}对比上一周期 {comparison.previous_start} ~ {comparison.previous_end}
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              当前周期 {comparison.current_start} ~ {comparison.current_end} 对比上一周期{' '}
+              {comparison.previous_start} ~ {comparison.previous_end}
             </p>
-            {comparison.summary ? <p className='text-sm leading-6 text-foreground/90'>{comparison.summary}</p> : null}
-            <div className='grid gap-3 md:grid-cols-3'>
-              <div className='rounded-lg border border-border/70 px-3 py-3 text-sm'>
-                <p className='text-muted-foreground'>花费变化</p>
-                <p className='mt-1 font-medium'>
-                  {comparison.spend_change_ratio != null ? `${(comparison.spend_change_ratio * 100).toFixed(2)}%` : '-'}
+            {comparison.summary ? (
+              <p className="text-sm leading-6 text-foreground/90">{comparison.summary}</p>
+            ) : null}
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
+                <p className="text-muted-foreground">花费变化</p>
+                <p className="mt-1 font-medium">
+                  {comparison.spend_change_ratio != null
+                    ? `${(comparison.spend_change_ratio * 100).toFixed(2)}%`
+                    : '-'}
                 </p>
               </div>
-              <div className='rounded-lg border border-border/70 px-3 py-3 text-sm'>
-                <p className='text-muted-foreground'>点击变化</p>
-                <p className='mt-1 font-medium'>
-                  {comparison.clicks_change_ratio != null ? `${(comparison.clicks_change_ratio * 100).toFixed(2)}%` : '-'}
+              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
+                <p className="text-muted-foreground">点击变化</p>
+                <p className="mt-1 font-medium">
+                  {comparison.clicks_change_ratio != null
+                    ? `${(comparison.clicks_change_ratio * 100).toFixed(2)}%`
+                    : '-'}
                 </p>
               </div>
-              <div className='rounded-lg border border-border/70 px-3 py-3 text-sm'>
-                <p className='text-muted-foreground'>CPC 变化</p>
-                <p className='mt-1 font-medium'>
-                  {comparison.cpc_change_ratio != null ? `${(comparison.cpc_change_ratio * 100).toFixed(2)}%` : '-'}
+              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
+                <p className="text-muted-foreground">CPC 变化</p>
+                <p className="mt-1 font-medium">
+                  {comparison.cpc_change_ratio != null
+                    ? `${(comparison.cpc_change_ratio * 100).toFixed(2)}%`
+                    : '-'}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
       ) : null}
-      <div className='grid gap-4 md:grid-cols-3'>
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-base'>累计花费</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">累计花费</CardTitle>
           </CardHeader>
-          <CardContent className='text-2xl font-semibold'>${latest.running_spend.toFixed(2)}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            ${latest.running_spend.toFixed(2)}
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-base'>最新单日点击</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">最新单日点击</CardTitle>
           </CardHeader>
-          <CardContent className='text-2xl font-semibold'>{latest.clicks}</CardContent>
+          <CardContent className="text-2xl font-semibold">{latest.clicks}</CardContent>
         </Card>
         <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-base'>最新单日 CPC</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">最新单日 CPC</CardTitle>
           </CardHeader>
-          <CardContent className='text-2xl font-semibold'>${latest.cpc.toFixed(2)}</CardContent>
+          <CardContent className="text-2xl font-semibold">${latest.cpc.toFixed(2)}</CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <div className='flex items-center gap-2'>
-            <LineChart className='h-4 w-4 text-primary' />
-            <CardTitle className='text-lg'>按日趋势</CardTitle>
+          <div className="flex items-center gap-2">
+            <LineChart className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">按日趋势</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -196,9 +212,9 @@ export function AdAnalysisTimeTrendClient() {
                     key={item.report_date}
                     className={focusDate === item.report_date ? 'bg-muted/40' : undefined}
                   >
-                    <TableCell className='font-medium'>
-                      <div className='flex items-center gap-2'>
-                        <TimerReset className='h-3.5 w-3.5 text-muted-foreground' />
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <TimerReset className="h-3.5 w-3.5 text-muted-foreground" />
                         {item.report_date}
                       </div>
                     </TableCell>
@@ -213,7 +229,7 @@ export function AdAnalysisTimeTrendClient() {
           </div>
 
           {/* 手机端：卡片列表 */}
-          <div className='lg:hidden space-y-2'>
+          <div className="lg:hidden space-y-2">
             {data.summary.map((item) => (
               <div
                 key={item.report_date}
@@ -222,31 +238,31 @@ export function AdAnalysisTimeTrendClient() {
                   focusDate === item.report_date ? 'border-primary/50 bg-primary/5' : ''
                 )}
               >
-                <div className='flex items-center justify-between gap-2'>
-                  <div className='flex items-center gap-2'>
-                    <TimerReset className='h-3.5 w-3.5 text-muted-foreground' />
-                    <span className='font-medium text-sm'>{item.report_date}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <TimerReset className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium text-sm">{item.report_date}</span>
                   </div>
                   {focusDate === item.report_date && (
-                    <span className='text-xs text-primary'>当前</span>
+                    <span className="text-xs text-primary">当前</span>
                   )}
                 </div>
-                <div className='grid grid-cols-4 gap-2 mt-2 text-xs'>
+                <div className="grid grid-cols-4 gap-2 mt-2 text-xs">
                   <div>
-                    <span className='text-muted-foreground'>Clicks</span>
-                    <div className='font-medium'>{item.clicks}</div>
+                    <span className="text-muted-foreground">Clicks</span>
+                    <div className="font-medium">{item.clicks}</div>
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>Spend</span>
-                    <div className='font-medium'>${item.spend.toFixed(2)}</div>
+                    <span className="text-muted-foreground">Spend</span>
+                    <div className="font-medium">${item.spend.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>CPC</span>
-                    <div className='font-medium'>${item.cpc.toFixed(2)}</div>
+                    <span className="text-muted-foreground">CPC</span>
+                    <div className="font-medium">${item.cpc.toFixed(2)}</div>
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>Running</span>
-                    <div className='font-medium'>${item.running_spend.toFixed(2)}</div>
+                    <span className="text-muted-foreground">Running</span>
+                    <div className="font-medium">${item.running_spend.toFixed(2)}</div>
                   </div>
                 </div>
               </div>

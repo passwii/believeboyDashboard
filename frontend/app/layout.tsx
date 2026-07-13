@@ -29,13 +29,9 @@ export const metadata: Metadata = {
   description: 'A modern dashboard built with Next.js and shadcn/ui',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-<html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${manrope.variable} ${spaceGrotesk.variable} min-h-screen antialiased`}>
         <SkipLink href="#main-content">Skip to main content</SkipLink>
         <SkipLink href="#main-navigation">Skip to navigation</SkipLink>

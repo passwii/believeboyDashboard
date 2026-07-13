@@ -72,11 +72,16 @@ export function getMultiCountryDisplay(countries: string[]): string {
   if (countries.length === 1) {
     return getReportUploadCountryLabel(countries[0], true)
   }
-  return countries.map(c => getReportUploadCountryLabel(c, true)).join(' + ')
+  return countries.map((c) => getReportUploadCountryLabel(c, true)).join(' + ')
 }
 
 export type RecognitionStatus = 'recognized' | 'unsupported' | 'error'
-export type DateInputMode = 'single_manual' | 'single_auto' | 'range_manual' | 'range_auto' | 'multi_auto'
+export type DateInputMode =
+  | 'single_manual'
+  | 'single_auto'
+  | 'range_manual'
+  | 'range_auto'
+  | 'multi_auto'
 export type ProjectMatchStatus = 'unmatched' | 'matched' | 'conflict' | 'manual'
 export type CommitStatus = 'idle' | 'saving' | 'success' | 'error'
 

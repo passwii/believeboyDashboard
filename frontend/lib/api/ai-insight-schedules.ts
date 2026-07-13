@@ -35,7 +35,13 @@ export interface InsightScheduleCreate {
   country: 'US' | 'DE' | 'UK'
   insight_type: 'daily' | 'weekly' | 'monthly' | 'custom' | 'ad_analysis'
   cron_expression: string
-  date_range_strategy: 'yesterday' | 'last_7d' | 'last_30d' | 'prev_month' | 'current_month' | 'last_week'
+  date_range_strategy:
+    | 'yesterday'
+    | 'last_7d'
+    | 'last_30d'
+    | 'prev_month'
+    | 'current_month'
+    | 'last_week'
   model?: string | null
 }
 
@@ -48,7 +54,13 @@ export interface InsightScheduleUpdate {
   country?: 'US' | 'DE' | 'UK'
   insight_type?: 'daily' | 'weekly' | 'monthly' | 'custom' | 'ad_analysis'
   cron_expression?: string
-  date_range_strategy?: 'yesterday' | 'last_7d' | 'last_30d' | 'prev_month' | 'current_month' | 'last_week'
+  date_range_strategy?:
+    | 'yesterday'
+    | 'last_7d'
+    | 'last_30d'
+    | 'prev_month'
+    | 'current_month'
+    | 'last_week'
   model?: string | null
   is_active?: boolean
 }
@@ -194,7 +206,10 @@ export async function createSchedule(data: InsightScheduleCreate): Promise<Insig
   return handleResponse<InsightScheduleItem>(res)
 }
 
-export async function updateSchedule(id: number, data: InsightScheduleUpdate): Promise<InsightScheduleItem> {
+export async function updateSchedule(
+  id: number,
+  data: InsightScheduleUpdate
+): Promise<InsightScheduleItem> {
   const res = await fetch(`/api/backend/v1/ai-insights/schedules/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

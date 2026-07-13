@@ -1693,7 +1693,7 @@ git tag -a "v1-motion-system" -m "Phase 4: validated; motion system v1 ready"
 
 ## 执行交接
 
-**计划已保存到 `docs/superpowers/plans/2026-07-11-frontend-motion-system.md`。**
+**计划已保存到 `docs/superpowers/plans/2026-07-11-frontend-motion-system/2026-07-11-frontend-motion-system.md`。**
 
 两种执行方式：
 

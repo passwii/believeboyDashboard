@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { DateRange } from 'react-day-picker'
 import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { ArrowDown, ArrowUp, DollarSign, ShoppingBag } from 'lucide-react'
@@ -12,11 +13,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { RefreshButton } from '@/components/dashboard/console'
 import { cn } from '@/lib/utils'
 import {
@@ -60,24 +57,30 @@ interface DashboardSalesChartProps {
   onRefresh?: () => void
 }
 
-export function DashboardSalesChart({ dailyData, dateRange, projects, loading = false, onRefresh }: DashboardSalesChartProps) {
+export function DashboardSalesChart({
+  dailyData,
+  dateRange,
+  projects,
+  loading = false,
+  onRefresh,
+}: DashboardSalesChartProps) {
   const { currentRows, comparisonRows } = dailyData
 
   const totalSales = useMemo(
     () => currentRows.reduce((sum, row) => sum + row.sales_amount, 0),
-    [currentRows],
+    [currentRows]
   )
   const totalOrders = useMemo(
     () => currentRows.reduce((sum, row) => sum + row.order_qty, 0),
-    [currentRows],
+    [currentRows]
   )
   const prevSales = useMemo(
     () => comparisonRows.reduce((sum, row) => sum + row.sales_amount, 0),
-    [comparisonRows],
+    [comparisonRows]
   )
   const prevOrders = useMemo(
     () => comparisonRows.reduce((sum, row) => sum + row.order_qty, 0),
-    [comparisonRows],
+    [comparisonRows]
   )
   const salesChange = prevSales > 0 ? ((totalSales - prevSales) / prevSales) * 100 : null
   const ordersChange = prevOrders > 0 ? ((totalOrders - prevOrders) / prevOrders) * 100 : null
@@ -101,6 +104,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
   }, [currentRows, comparisonRows, dateRange])
 
   const hasComparison = comparisonRows.length > 0
+  const isMobile = useIsMobile()
 
   return (
     <DataCard>
@@ -121,8 +125,8 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
       />
       <DataCardContent className="space-y-4">
         {currentRows.length > 0 && (
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-[13rem]">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-soft))]/60 px-2.5 py-2 min-w-0">
               <div className="rounded-md bg-primary/10 p-2 text-primary">
                 <DollarSign className="h-4 w-4" />
               </div>
@@ -138,7 +142,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                         'gap-1 text-[10px]',
                         salesChange >= 0
                           ? 'bg-secondary/10 text-secondary'
-                          : 'bg-destructive/10 text-destructive',
+                          : 'bg-destructive/10 text-destructive'
                       )}
                     >
                       {salesChange >= 0 ? (
@@ -171,7 +175,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                         'gap-1 text-[10px]',
                         ordersChange >= 0
                           ? 'bg-secondary/10 text-secondary'
-                          : 'bg-destructive/10 text-destructive',
+                          : 'bg-destructive/10 text-destructive'
                       )}
                     >
                       {ordersChange >= 0 ? (
@@ -210,13 +214,10 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
               )}
             </div>
 
-            <ChartContainer
-              config={CHART_CONFIG}
-              className="h-[260px] sm:h-[320px] w-full"
-            >
+            <ChartContainer config={CHART_CONFIG} className="h-[260px] sm:h-[320px] w-full">
               <ComposedChart
                 data={chartRows}
-                margin={{ top: 10, right: 4, left: 0, bottom: 8 }}
+                margin={{ top: 10, right: 4, left: isMobile ? -8 : 0, bottom: 8 }}
               >
                 <CartesianGrid
                   vertical={false}
@@ -239,9 +240,9 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
-                  width={36}
+                  width={isMobile ? 0 : 36}
                 />
                 <YAxis
                   yAxisId="orders"
@@ -249,9 +250,9 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
                   tickFormatter={(v) => Number(v).toLocaleString('zh-CN')}
-                  width={32}
+                  width={isMobile ? 0 : 32}
                 />
                 <ChartTooltip
                   cursor={{
@@ -268,7 +269,11 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                       formatter={(value, name) => (
                         <div className="flex w-full items-center justify-between gap-4">
                           <span className="font-medium">
-                            {name === 'sales_amount' ? '销售额' : name === 'order_qty' ? '订单量' : String(name)}
+                            {name === 'sales_amount'
+                              ? '销售额'
+                              : name === 'order_qty'
+                                ? '订单量'
+                                : String(name)}
                           </span>
                           <span className="font-mono font-medium text-foreground">
                             {name === 'sales_amount'
@@ -294,11 +299,11 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
                 )}
                 <Bar
                   yAxisId="sales"
- dataKey="sales_amount"
- name="sales_amount"
-                    fill="var(--color-sales_amount)"
-                    radius={[8, 8, 0, 0]}
-                    barSize={16}
+                  dataKey="sales_amount"
+                  name="sales_amount"
+                  fill="var(--color-sales_amount)"
+                  radius={[8, 8, 0, 0]}
+                  barSize={16}
                   isAnimationActive
                   animationDuration={360}
                   animationEasing="ease-out"
@@ -341,9 +346,7 @@ export function DashboardSalesChart({ dailyData, dateRange, projects, loading = 
         ) : (
           <div className="flex min-h-[280px] items-center justify-center rounded-lg bg-[hsl(var(--surface-soft))]/82 px-6 text-center">
             <div className="space-y-2">
-              <div className="text-base font-semibold text-foreground">
-                暂无销售数据
-              </div>
+              <div className="text-base font-semibold text-foreground">暂无销售数据</div>
               <div className="text-sm text-muted-foreground">
                 请前往每日销售分析页面查看详细数据
               </div>

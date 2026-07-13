@@ -100,7 +100,13 @@ const STATUS_DOT_COLORS: Record<DigitalEmployeeStatus, string> = {
   SUSPENDED: 'bg-amber-500',
 }
 
-export function EmployeeAvatar({ employeeType, emoji, size = 'md', status, className = '' }: EmployeeAvatarProps) {
+export function EmployeeAvatar({
+  employeeType,
+  emoji,
+  size = 'md',
+  status,
+  className = '',
+}: EmployeeAvatarProps) {
   const config = employeeType ? PERSONA_MAP[employeeType] : null
   const resolvedEmoji = emoji || config?.emoji || '🤖'
   const colorKey = config?.colorKey || 'slate'
@@ -110,7 +116,7 @@ export function EmployeeAvatar({ employeeType, emoji, size = 'md', status, class
       <div
         className={cn(
           'flex items-center justify-center rounded-2xl border-2 shadow-sm',
-          SIZE_MAP[size],
+          SIZE_MAP[size]
         )}
         style={{
           background: getPersonaGradient(colorKey),
@@ -123,7 +129,7 @@ export function EmployeeAvatar({ employeeType, emoji, size = 'md', status, class
         <span
           className={cn(
             'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background',
-            STATUS_DOT_COLORS[status],
+            STATUS_DOT_COLORS[status]
           )}
         />
       )}

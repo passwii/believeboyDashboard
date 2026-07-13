@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { cn } from '@/lib/utils'
 
@@ -47,7 +53,7 @@ export function CountrySelect({
       <SelectTrigger
         className={cn(
           'h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
-          triggerClassName,
+          triggerClassName
         )}
       >
         <SelectValue placeholder={placeholder} />

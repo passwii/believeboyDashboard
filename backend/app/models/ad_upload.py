@@ -166,6 +166,9 @@ class AdUploadCampaignRow(Base):
     sales_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     roas: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -206,6 +209,10 @@ class AdUploadSearchTermRow(Base):
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     roas: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     cvr_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -261,6 +268,10 @@ class AdUploadPromotedProductRow(Base):
     scope_status: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default='included_product'
     )
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -302,6 +313,10 @@ class AdUploadTargetRow(Base):
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     roas: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     cvr_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -344,6 +359,9 @@ class AdUploadSearchTermShareRow(Base):
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     roas: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     cvr_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -408,6 +426,10 @@ class AdUploadPurchasedProductRow(Base):
     other_sku_units_7d: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     other_sku_orders_7d: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     other_sku_sales_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -447,6 +469,15 @@ class AdUploadBudgetRow(Base):
     sales_7d: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     orders_7d: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    campaign_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    targeting_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    bidding_strategy: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    impressions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    clicks: Mapped[int | None] = mapped_column(Integer, nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -484,6 +515,10 @@ class AdUploadPlacementRow(Base):
     units_7d: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     acos: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
     roas: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    portfolio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -518,5 +553,7 @@ class AdUploadInvalidTrafficRow(Base):
     valid_clicks: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     invalid_clicks: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     invalid_click_rate: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False, server_default='0')
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    retailer: Mapped[str | None] = mapped_column(String(64), nullable=True)
     raw_row: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

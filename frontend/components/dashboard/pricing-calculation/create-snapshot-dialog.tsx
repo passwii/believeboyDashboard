@@ -59,7 +59,7 @@ export function CreatePricingSnapshotDialog({
             name: name.trim() || null,
             description: description.trim() || null,
           }),
-        },
+        }
       )
 
       if (!response.ok) {

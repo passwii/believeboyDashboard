@@ -111,7 +111,12 @@ export function AIChatSearchSources({
   const hasRealSources = sources.length > 0
   if (!hasRealSources) {
     return (
-      <div className={cn('mt-3 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground/70', className)}>
+      <div
+        className={cn(
+          'mt-3 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground/70',
+          className
+        )}
+      >
         <Globe className="h-3 w-3 shrink-0" />
         <span>搜索完成，未找到匹配结果</span>
       </div>
@@ -191,8 +196,12 @@ export function AIChatSearchSources({
                     <Globe className="mt-0.5 h-[18px] w-[18px] shrink-0 text-muted-foreground/60" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-foreground/95">{source.title || '未命名'}</p>
-                    <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground/70">{source.domain || '未知来源'}</p>
+                    <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-foreground/95">
+                      {source.title || '未命名'}
+                    </p>
+                    <p className="mt-1 truncate text-[11px] leading-4 text-muted-foreground/70">
+                      {source.domain || '未知来源'}
+                    </p>
                   </div>
                 </a>
                 {source.snippet && (

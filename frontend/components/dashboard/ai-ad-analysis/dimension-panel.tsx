@@ -1,15 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Layers,
-  Link2,
-  Clock,
-  SkipForward,
-  Signal,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Layers, Link2, Clock, SkipForward, Signal } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -65,14 +57,24 @@ const SIGNAL_STYLES: Record<string, { bg: string; text: string; dot: string; lab
 function SignalBadge({ strength }: { strength?: string }) {
   const s = SIGNAL_STYLES[strength ?? 'empty'] ?? SIGNAL_STYLES.empty
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium', s.bg, s.text)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+        s.bg,
+        s.text
+      )}
+    >
       <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
       {s.label}
     </span>
   )
 }
 
-export function DimensionPanel({ coverage, className, defaultExpanded = false }: DimensionPanelProps) {
+export function DimensionPanel({
+  coverage,
+  className,
+  defaultExpanded = false,
+}: DimensionPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   const total =
@@ -90,7 +92,11 @@ export function DimensionPanel({ coverage, className, defaultExpanded = false }:
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/40 transition-colors"
       >
-        {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+        {expanded ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+        )}
         <Signal className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="font-medium">分析策略</span>
         <span className="text-muted-foreground">
@@ -115,7 +121,7 @@ export function DimensionPanel({ coverage, className, defaultExpanded = false }:
                     key={d.dimension_id}
                     className={cn(
                       'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400',
+                      'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
                     )}
                   >
                     {d.name}
@@ -141,14 +147,12 @@ export function DimensionPanel({ coverage, className, defaultExpanded = false }:
                     key={d.dimension_id}
                     className={cn(
                       'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400',
+                      'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400'
                     )}
                   >
                     {d.name}
                     {d.depends_on && d.depends_on.length > 0 && (
-                      <span className="text-[9px] opacity-60">
-                        ({d.depends_on.length} 依赖)
-                      </span>
+                      <span className="text-[9px] opacity-60">({d.depends_on.length} 依赖)</span>
                     )}
                   </span>
                 ))}
@@ -171,7 +175,7 @@ export function DimensionPanel({ coverage, className, defaultExpanded = false }:
                     key={d.dimension_id}
                     className={cn(
                       'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-400',
+                      'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-400'
                     )}
                   >
                     {d.name}

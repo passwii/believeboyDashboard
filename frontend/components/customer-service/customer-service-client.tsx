@@ -83,9 +83,9 @@ export function CustomerServiceClient() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-4'>
+    <div className="flex h-full flex-col gap-4">
       <ScenarioTabs scenarios={scenarios} selectedId={selectedId} onSelect={setSelectedId} />
-      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2'>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <InputPane
           scenario={scenario}
           freeText={freeText}
@@ -100,7 +100,7 @@ export function CustomerServiceClient() {
           isGenerating={isGenerating}
           canGenerate={canGenerate}
         />
-        <div className='flex min-h-0 flex-col gap-3 overflow-y-auto pr-1'>
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
           {scenario?.toneOptions.map((tone) => (
             <ToneCard
               key={tone.id}
@@ -115,7 +115,7 @@ export function CustomerServiceClient() {
               onStreamingChange={handleStreaming}
             />
           ))}
-          {!scenario && <p className='text-sm text-muted-foreground'>请选择一个场景。</p>}
+          {!scenario && <p className="text-sm text-muted-foreground">请选择一个场景。</p>}
         </div>
       </div>
     </div>

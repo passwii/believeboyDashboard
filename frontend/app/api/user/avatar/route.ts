@@ -20,10 +20,7 @@ export async function POST(request: Request) {
   // body keeps the multipart envelope intact.
   const contentType = request.headers.get('content-type') || ''
   if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
-    return NextResponse.json(
-      { message: '请求必须是 multipart/form-data' },
-      { status: 400 },
-    )
+    return NextResponse.json({ message: '请求必须是 multipart/form-data' }, { status: 400 })
   }
 
   try {
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
   } catch (err) {
     return NextResponse.json(
       { message: normalizeErrorMessage(err, '头像上传失败') },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
@@ -70,13 +67,13 @@ export async function DELETE() {
           accept: 'application/json',
         }),
         cache: 'no-store',
-      },
+      }
     )
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json(
       { message: normalizeErrorMessage(err, '删除头像失败') },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

@@ -1,14 +1,24 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { fetchProjectContext, updateProjectContext, type ProjectContextResponse } from '@/lib/project-context'
+import {
+  fetchProjectContext,
+  updateProjectContext,
+  type ProjectContextResponse,
+} from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
 import { Loader2, Check, Pencil, Save } from 'lucide-react'
@@ -114,7 +124,10 @@ export function ProjectContextDialog({
 
   const handleOpenChange = async (newOpen: boolean) => {
     if (!newOpen && hasChanges) {
-      const confirmed = await confirm({ title: '有未保存的更改，确定要关闭吗？', variant: 'destructive' })
+      const confirmed = await confirm({
+        title: '有未保存的更改，确定要关闭吗？',
+        variant: 'destructive',
+      })
       if (!confirmed) return
     }
     setHasChanges(false)
@@ -127,7 +140,7 @@ export function ProjectContextDialog({
   }
 
   const handleAiParsed = (parsed: Record<string, string>) => {
-    setDraftContext(prev => ({ ...prev, ...parsed }))
+    setDraftContext((prev) => ({ ...prev, ...parsed }))
     notify({
       type: 'success',
       title: '已填充到表单',
@@ -142,12 +155,14 @@ export function ProjectContextDialog({
 
   const handleCancelEdit = () => {
     if (hasChanges) {
-      confirm({ title: '有未保存的更改，确定要取消吗？', variant: 'destructive' }).then((confirmed) => {
-        if (confirmed) {
-          setDraftContext((context?.project_context as Record<string, string>) || {})
-          setIsEditing(false)
+      confirm({ title: '有未保存的更改，确定要取消吗？', variant: 'destructive' }).then(
+        (confirmed) => {
+          if (confirmed) {
+            setDraftContext((context?.project_context as Record<string, string>) || {})
+            setIsEditing(false)
+          }
         }
-      })
+      )
     } else {
       setIsEditing(false)
     }
@@ -209,11 +224,7 @@ export function ProjectContextDialog({
             <div className="flex gap-2">
               {isEditing ? (
                 <>
-                  <Button
-                    variant="outline"
-                    onClick={handleCancelEdit}
-                    disabled={submitting}
-                  >
+                  <Button variant="outline" onClick={handleCancelEdit} disabled={submitting}>
                     取消
                   </Button>
                   <Button
@@ -241,15 +252,10 @@ export function ProjectContextDialog({
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="outline"
-                    onClick={() => onOpenChange(false)}
-                  >
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
                     关闭
                   </Button>
-                  <Button
-                    onClick={handleStartEdit}
-                  >
+                  <Button onClick={handleStartEdit}>
                     <Pencil className="mr-2 h-4 w-4" />
                     编辑背景
                   </Button>

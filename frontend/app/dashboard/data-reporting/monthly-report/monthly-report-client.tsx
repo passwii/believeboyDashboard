@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, DatabaseZap, Download, FileSearch, Loader2, Sparkles, Upload } from 'lucide-react'
+import {
+  AlertCircle,
+  DatabaseZap,
+  Download,
+  FileSearch,
+  Loader2,
+  Sparkles,
+  Upload,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 type RecognizedFileType =
@@ -14,15 +22,28 @@ type RecognizedFileType =
   | 'unknown'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { MonthPicker, formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
+import {
+  MonthPicker,
+  formatMonthInputValue,
+  parseMonthInputValue,
+} from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
-import { DEFAULT_REPORT_UPLOAD_COUNTRY, type ReportUploadCountry } from '@/components/report-upload/types'
+import {
+  DEFAULT_REPORT_UPLOAD_COUNTRY,
+  type ReportUploadCountry,
+} from '@/components/report-upload/types'
 import {
   CountrySelect,
   FilterField,
@@ -101,7 +122,13 @@ const TYPE_LABEL: Record<UploadType, string> = {
   payment_report: '交易明细 CSV',
   monthly_summary_pdf: '月度总结 PDF',
 }
-const PROGRESS_STEP_LABELS = ['处理中', '合成数据（报表总览）', '合成数据（报表核算/明细）', '处理表格样式', '完成']
+const PROGRESS_STEP_LABELS = [
+  '处理中',
+  '合成数据（报表总览）',
+  '合成数据（报表核算/明细）',
+  '处理表格样式',
+  '完成',
+]
 
 function authHeaders(_operator?: string, _isAdmin = false): Record<string, string> {
   return {}
@@ -147,8 +174,20 @@ function isUploadType(value: string): value is UploadType {
 
 function createEmptyUploadState(): Record<UploadType, UploadStateItem> {
   return {
-    payment_report: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
-    monthly_summary_pdf: { status: 'empty', mappedRowId: null, selectedFile: null, error: null, uploaded: null },
+    payment_report: {
+      status: 'empty',
+      mappedRowId: null,
+      selectedFile: null,
+      error: null,
+      uploaded: null,
+    },
+    monthly_summary_pdf: {
+      status: 'empty',
+      mappedRowId: null,
+      selectedFile: null,
+      error: null,
+      uploaded: null,
+    },
   }
 }
 
@@ -177,11 +216,17 @@ function validateFile(type: UploadType, file: File): string | null {
 }
 
 function getUploadMeta(state: UploadStateItem) {
-  if (state.status === 'success') return { text: '已上传', dot: 'bg-emerald-500', bar: 'bg-emerald-500' }
-  if (state.status === 'uploading') return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
+  if (state.status === 'success')
+    return { text: '已上传', dot: 'bg-emerald-500', bar: 'bg-emerald-500' }
+  if (state.status === 'uploading')
+    return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
   if (state.status === 'error') return { text: '上传失败', dot: 'bg-rose-500', bar: 'bg-rose-500' }
   if (state.status === 'ready') return { text: '待上传', dot: 'bg-sky-500', bar: 'bg-sky-500' }
-  return { text: '未识别', dot: 'bg-[hsl(var(--surface-outline))]', bar: 'bg-[hsl(var(--surface-outline))]' }
+  return {
+    text: '未识别',
+    dot: 'bg-[hsl(var(--surface-outline))]',
+    bar: 'bg-[hsl(var(--surface-outline))]',
+  }
 }
 
 function normalizeProgress(value: number) {
@@ -213,10 +258,14 @@ function parseProgressLog(logExcerpt?: string | null): JobProgress | null {
   }
 }
 
-function fallbackProgressByStatus(status: 'pending' | 'running' | 'success' | 'failed'): JobProgress {
+function fallbackProgressByStatus(
+  status: 'pending' | 'running' | 'success' | 'failed'
+): JobProgress {
   if (status === 'pending') return { stage: 'started', progress: 2, message: '处理中：任务排队中' }
-  if (status === 'running') return { stage: 'processing', progress: 10, message: '处理中：任务执行中' }
-  if (status === 'success') return { stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' }
+  if (status === 'running')
+    return { stage: 'processing', progress: 10, message: '处理中：任务执行中' }
+  if (status === 'success')
+    return { stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' }
   return { stage: 'failed', progress: 100, message: '处理失败' }
 }
 
@@ -225,7 +274,8 @@ function resolveProgressStepIndex(stage?: string | null): number {
   if (stage === 'completed') return 4
   if (stage === 'building_overview') return 1
   if (stage === 'building_accounting' || stage === 'writing_detail_sheets') return 2
-  if (stage === 'styling_workbook' || stage === 'saving_workbook' || stage === 'persisting_results') return 3
+  if (stage === 'styling_workbook' || stage === 'saving_workbook' || stage === 'persisting_results')
+    return 3
   return 0
 }
 
@@ -237,7 +287,13 @@ function normalizePersistenceStatus(value: unknown): PersistenceSyncState['statu
 export default function MonthlyReportClient() {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
+  const currentOperator = (
+    session?.user?.operatorNameZh ||
+    session?.user?.name ||
+    session?.user?.email ||
+    session?.user?.id ||
+    ''
+  ).trim()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -248,9 +304,13 @@ export default function MonthlyReportClient() {
   // 默认月份用 useMemo 锁定（保持与原 useState 一致的"挂载时一次性快照"语义）。
   const defaultReportMonth = useMemo(() => currentMonthString(), [])
   const [projectName, setProjectName] = useUrlParam<string>('project', '')
-  const [country, setCountry] = useUrlParam<CountryOption>('country', DEFAULT_REPORT_UPLOAD_COUNTRY, {
-    allowed: ['US', 'DE', 'UK'],
-  })
+  const [country, setCountry] = useUrlParam<CountryOption>(
+    'country',
+    DEFAULT_REPORT_UPLOAD_COUNTRY,
+    {
+      allowed: ['US', 'DE', 'UK'],
+    }
+  )
   const [reportMonth, setReportMonth] = useUrlParam<string>('month', defaultReportMonth)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -258,12 +318,20 @@ export default function MonthlyReportClient() {
   const [dragActive, setDragActive] = useState(false)
   const [mappingBusy, setMappingBusy] = useState(false)
 
-  const [uploadState, setUploadState] = useState<Record<UploadType, UploadStateItem>>(createEmptyUploadState)
+  const [uploadState, setUploadState] =
+    useState<Record<UploadType, UploadStateItem>>(createEmptyUploadState)
   const [uploadBusy, setUploadBusy] = useState(false)
 
-  const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle', message: null, filename: null })
+  const [submitState, setSubmitState] = useState<SubmitState>({
+    status: 'idle',
+    message: null,
+    filename: null,
+  })
   const [jobProgress, setJobProgress] = useState<JobProgress | null>(null)
-  const [persistenceSync, setPersistenceSync] = useState<PersistenceSyncState>({ status: 'idle', message: null })
+  const [persistenceSync, setPersistenceSync] = useState<PersistenceSyncState>({
+    status: 'idle',
+    message: null,
+  })
   const [downloadTarget, setDownloadTarget] = useState<DownloadTarget>({
     endpoint: null,
     filenameHint: null,
@@ -280,10 +348,14 @@ export default function MonthlyReportClient() {
       setProjectsLoading(true)
       setProjectLoadError(null)
       try {
-        const raw = await fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
+        const raw =
+          await fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
         const data = raw
           .filter((item) => typeof item.name === 'string' && item.name.trim().length > 0)
-          .map((item) => ({ id: typeof item.id === 'number' && item.id > 0 ? item.id : null, name: item.name as string }))
+          .map((item) => ({
+            id: typeof item.id === 'number' && item.id > 0 ? item.id : null,
+            name: item.name as string,
+          }))
         setProjects(data)
       } catch (error) {
         setProjectLoadError(normalizeErrorMessage(error, '项目列表加载失败'))
@@ -312,7 +384,10 @@ export default function MonthlyReportClient() {
           return
         }
 
-        if (previous.mappedRowId === assigned.id && (previous.status === 'success' || previous.status === 'uploading')) {
+        if (
+          previous.mappedRowId === assigned.id &&
+          (previous.status === 'success' || previous.status === 'uploading')
+        ) {
           next[type] = previous
           return
         }
@@ -344,14 +419,20 @@ export default function MonthlyReportClient() {
     [mappingRows]
   )
 
-  const dropZoneHeight = Math.min(380, 190 + Math.max(2, manualMatchRows.length + UPLOAD_TYPES.length) * 30)
+  const dropZoneHeight = Math.min(
+    380,
+    190 + Math.max(2, manualMatchRows.length + UPLOAD_TYPES.length) * 30
+  )
 
   const canGenerate =
     projectName.trim().length > 0 &&
     reportMonth.length > 0 &&
     REQUIRED_TYPES.every((type) => uploadState[type].status === 'success') &&
     submitState.status !== 'submitting'
-  const currentProgressStep = useMemo(() => resolveProgressStepIndex(jobProgress?.stage), [jobProgress?.stage])
+  const currentProgressStep = useMemo(
+    () => resolveProgressStepIndex(jobProgress?.stage),
+    [jobProgress?.stage]
+  )
   const hasProgressState = submitState.status !== 'idle' || jobProgress !== null
 
   const generationMeta = useMemo(() => {
@@ -582,8 +663,10 @@ export default function MonthlyReportClient() {
       }
       const jobId = created.job_id
       latestTaskIdRef.current = jobId
-      const statusEndpoint = created.status_endpoint?.trim() || `/api/v1/monthly-reports/tasks/${jobId}`
-      const resultEndpoint = created.result_endpoint?.trim() || `/api/v1/monthly-reports/tasks/${jobId}/result`
+      const statusEndpoint =
+        created.status_endpoint?.trim() || `/api/v1/monthly-reports/tasks/${jobId}`
+      const resultEndpoint =
+        created.result_endpoint?.trim() || `/api/v1/monthly-reports/tasks/${jobId}/result`
 
       const pollStartedAt = Date.now()
       let finished = created.status === 'success'
@@ -634,12 +717,18 @@ export default function MonthlyReportClient() {
           typeof statusPayload.stage === 'string'
             ? {
                 stage: statusPayload.stage,
-                progress: normalizeProgress(typeof statusPayload.progress === 'number' ? statusPayload.progress : 0),
-                message: (statusPayload.message || '').trim() || fallbackProgressByStatus(statusPayload.status).message,
+                progress: normalizeProgress(
+                  typeof statusPayload.progress === 'number' ? statusPayload.progress : 0
+                ),
+                message:
+                  (statusPayload.message || '').trim() ||
+                  fallbackProgressByStatus(statusPayload.status).message,
               }
             : null
         const currentProgress =
-          directProgress ?? parseProgressLog(latestRun?.log_excerpt) ?? fallbackProgressByStatus(statusPayload.status)
+          directProgress ??
+          parseProgressLog(latestRun?.log_excerpt) ??
+          fallbackProgressByStatus(statusPayload.status)
         setJobProgress(currentProgress)
         const persistenceStatus = normalizePersistenceStatus(statusPayload.persistence_status)
         if (persistenceStatus !== 'idle') {
@@ -650,7 +739,11 @@ export default function MonthlyReportClient() {
         }
 
         if (statusPayload.status === 'failed') {
-          failedMessage = statusPayload.error_message ?? latestRun?.error_message ?? currentProgress.message ?? '任务失败'
+          failedMessage =
+            statusPayload.error_message ??
+            latestRun?.error_message ??
+            currentProgress.message ??
+            '任务失败'
           finished = true
           break
         }
@@ -671,7 +764,11 @@ export default function MonthlyReportClient() {
       if (!finished) throw new Error('任务超时，请稍后重试')
 
       const fallbackName = `${projectName.trim()}_Monthly_Report_${reportMonth}.xlsx`
-      setDownloadTarget({ endpoint: resultEndpoint, filenameHint: fallbackName, downloading: false })
+      setDownloadTarget({
+        endpoint: resultEndpoint,
+        filenameHint: fallbackName,
+        downloading: false,
+      })
 
       const pollPersistenceStatus = async () => {
         const startedAt = Date.now()
@@ -700,7 +797,11 @@ export default function MonthlyReportClient() {
 
       // 默认不自动下载，由用户点击"下载报表"按钮触发
       setJobProgress({ stage: 'completed', progress: 100, message: '处理完成：报表已生成，可下载' })
-      setSubmitState({ status: 'success', message: '生成成功，可点击"下载报表"按钮下载', filename: fallbackName })
+      setSubmitState({
+        status: 'success',
+        message: '生成成功，可点击"下载报表"按钮下载',
+        filename: fallbackName,
+      })
       void pollPersistenceStatus()
     } catch (error) {
       setJobProgress((prev) => prev ?? { stage: 'failed', progress: 100, message: '处理失败' })
@@ -717,8 +818,13 @@ export default function MonthlyReportClient() {
     setDownloadTarget((prev) => ({ ...prev, downloading: true }))
 
     try {
-      const fallbackName = downloadTarget.filenameHint || `${projectName.trim()}_Monthly_Report_${reportMonth}.xlsx`
-      const filename = await downloadByEndpoint(downloadTarget.endpoint, fallbackName, currentOperator)
+      const fallbackName =
+        downloadTarget.filenameHint || `${projectName.trim()}_Monthly_Report_${reportMonth}.xlsx`
+      const filename = await downloadByEndpoint(
+        downloadTarget.endpoint,
+        fallbackName,
+        currentOperator
+      )
       setSubmitState({ status: 'success', message: `下载成功：${filename}`, filename })
       setDownloadTarget((prev) => ({ ...prev, filenameHint: filename, downloading: false }))
     } catch (error) {
@@ -766,9 +872,13 @@ export default function MonthlyReportClient() {
                     </SelectContent>
                   </Select>
                   {!projectsLoading && !projectLoadError && projects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">暂无项目，请先到项目信息页面新增。</p>
+                    <p className="text-xs text-muted-foreground">
+                      暂无项目，请先到项目信息页面新增。
+                    </p>
                   ) : null}
-                  {projectLoadError ? <p className="text-xs text-destructive">{projectLoadError}</p> : null}
+                  {projectLoadError ? (
+                    <p className="text-xs text-destructive">{projectLoadError}</p>
+                  ) : null}
                 </FilterField>
               )}
 
@@ -795,15 +905,21 @@ export default function MonthlyReportClient() {
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">识别</p>
-                <p className="mt-1 text-sm font-semibold">{recognizedCount}/{UPLOAD_TYPES.length}</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {recognizedCount}/{UPLOAD_TYPES.length}
+                </p>
               </div>
               <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">上传</p>
-                <p className="mt-1 text-sm font-semibold">{uploadedCount}/{UPLOAD_TYPES.length}</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {uploadedCount}/{UPLOAD_TYPES.length}
+                </p>
               </div>
               <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">表格生成</p>
-                <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>{generationMeta.label}</p>
+                <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>
+                  {generationMeta.label}
+                </p>
               </div>
               <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">数据同步</p>
@@ -811,7 +927,11 @@ export default function MonthlyReportClient() {
               </div>
             </div>
 
-            {formError ? <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</p> : null}
+            {formError ? (
+              <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {formError}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -820,115 +940,169 @@ export default function MonthlyReportClient() {
             <CardTitle className="text-lg">文件识别与上传</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
-            <div
-              className={cn(
-                'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
-                dragActive ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20' : 'border-border bg-[hsl(var(--surface-subtle))]'
-              )}
-              style={{ minHeight: `${dropZoneHeight}px` }}
-              onDrop={(event) => void onDrop(event)}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setDragActive(true)
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault()
-                setDragActive(false)
-              }}
-            >
-              <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
-              <p className="mt-1 text-xs text-muted-foreground">支持 csv/pdf 批量识别</p>
+            <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
+              <div
+                className={cn(
+                  'flex flex-col rounded-xl border-2 border-dashed p-4 text-center transition-colors',
+                  dragActive
+                    ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20'
+                    : 'border-border bg-[hsl(var(--surface-subtle))]'
+                )}
+                style={{ minHeight: `${dropZoneHeight}px` }}
+                onDrop={(event) => void onDrop(event)}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDragActive(true)
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault()
+                  setDragActive(false)
+                }}
+              >
+                <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
+                <p className="mt-1 text-xs text-muted-foreground">支持 csv/pdf 批量识别</p>
 
-              <div className="mt-auto space-y-2 pt-4">
-                <Button type="button" variant="outline" className="w-full" onClick={() => document.getElementById('monthly-file-picker')?.click()}>
-                  <FileSearch className="mr-1 h-4 w-4" />
-                  选择多个文件
-                </Button>
-                <Input
-                  id="monthly-file-picker"
-                  type="file"
-                  multiple
-                  accept=".csv,.pdf"
-                  className="hidden"
-                  onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
-                />
-                <Button type="button" className="w-full" onClick={() => void uploadAllConfirmed()} disabled={uploadBusy || mappingBusy || !projectName.trim()}>
-                  {uploadBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
-                  一键上传已匹配文件
-                </Button>
+                <div className="mt-auto space-y-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => document.getElementById('monthly-file-picker')?.click()}
+                  >
+                    <FileSearch className="mr-1 h-4 w-4" />
+                    选择多个文件
+                  </Button>
+                  <Input
+                    id="monthly-file-picker"
+                    type="file"
+                    multiple
+                    accept=".csv,.pdf"
+                    className="hidden"
+                    onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
+                  />
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => void uploadAllConfirmed()}
+                    disabled={uploadBusy || mappingBusy || !projectName.trim()}
+                  >
+                    {uploadBusy ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="mr-1 h-4 w-4" />
+                    )}
+                    一键上传已匹配文件
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {UPLOAD_TYPES.map((type) => {
+                  const state = uploadState[type]
+                  const meta = getUploadMeta(state)
+                  const matched = state.status !== 'empty'
+                  return (
+                    <div
+                      key={type}
+                      className="flex min-h-[120px] flex-col rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-3"
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
+                          <p className="text-sm font-semibold text-foreground">
+                            {TYPE_LABEL[type]}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{meta.text}</span>
+                      </div>
+
+                      <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
+                        <div
+                          className={cn(
+                            'h-full transition-all duration-200',
+                            matched
+                              ? meta.bar
+                              : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
+                          )}
+                          style={{ width: matched ? '100%' : '28%' }}
+                        />
+                      </div>
+
+                      <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs text-muted-foreground">
+                            {state.selectedFile?.name ?? '等待识别或手动匹配'}
+                          </p>
+                          {state.error ? (
+                            <p className="mt-1 text-xs text-destructive">{state.error}</p>
+                          ) : null}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void uploadType(type)}
+                          disabled={
+                            state.status === 'empty' ||
+                            state.status === 'uploading' ||
+                            !projectName.trim()
+                          }
+                        >
+                          {state.status === 'uploading' ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          上传
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {manualMatchRows.length > 0 ? (
+                  <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                      手动匹配
+                    </p>
+                    <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">
+                      以下文件识别失败，请手动指定类型。
+                    </p>
+
+                    <div className="mt-3 space-y-2">
+                      {manualMatchRows.map((row) => (
+                        <div
+                          key={row.id}
+                          className="grid gap-2 rounded-md border border-blue-200/70 bg-[hsl(var(--surface-panel))] p-2 dark:border-blue-800/40 md:grid-cols-[1fr_190px]"
+                        >
+                          <div>
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {row.file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
+                          </div>
+                          <Select
+                            value={row.assignedType}
+                            onValueChange={(value) =>
+                              changeAssignedType(row.id, value as AssignedType)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="手动选择类型" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="payment_report">交易明细 CSV</SelectItem>
+                              <SelectItem value="monthly_summary_pdf">月度总结 PDF</SelectItem>
+                              <SelectItem value="skip">跳过</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
-
-            <div className="space-y-4">
-              {UPLOAD_TYPES.map((type) => {
-                const state = uploadState[type]
-                const meta = getUploadMeta(state)
-                const matched = state.status !== 'empty'
-                return (
-                  <div key={type} className="flex min-h-[120px] flex-col rounded-lg border border-border/70 bg-[hsl(var(--surface-panel))] p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('h-2.5 w-2.5 rounded-full', meta.dot)} />
-                        <p className="text-sm font-semibold text-foreground">{TYPE_LABEL[type]}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{meta.text}</span>
-                    </div>
-
-                    <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
-                      <div className={cn('h-full transition-all duration-200', matched ? meta.bar : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]')} style={{ width: matched ? '100%' : '28%' }} />
-                    </div>
-
-                    <div className="mt-auto flex items-end justify-between gap-3 pt-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs text-muted-foreground">{state.selectedFile?.name ?? '等待识别或手动匹配'}</p>
-                        {state.error ? <p className="mt-1 text-xs text-destructive">{state.error}</p> : null}
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void uploadType(type)}
-                        disabled={state.status === 'empty' || state.status === 'uploading' || !projectName.trim()}
-                      >
-                        {state.status === 'uploading' ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1 h-3.5 w-3.5" />}
-                        上传
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {manualMatchRows.length > 0 ? (
-                <div className="rounded-lg border border-blue-200/70 bg-blue-50/60 p-3 dark:border-blue-800/50 dark:bg-blue-950/20">
-                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">手动匹配</p>
-                  <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">以下文件识别失败，请手动指定类型。</p>
-
-                  <div className="mt-3 space-y-2">
-                    {manualMatchRows.map((row) => (
-                      <div key={row.id} className="grid gap-2 rounded-md border border-blue-200/70 bg-[hsl(var(--surface-panel))] p-2 dark:border-blue-800/40 md:grid-cols-[1fr_190px]">
-                        <div>
-                          <p className="truncate text-sm font-medium text-foreground">{row.file.name}</p>
-                          <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
-                        </div>
-                        <Select value={row.assignedType} onValueChange={(value) => changeAssignedType(row.id, value as AssignedType)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="手动选择类型" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="payment_report">交易明细 CSV</SelectItem>
-                            <SelectItem value="monthly_summary_pdf">月度总结 PDF</SelectItem>
-                            <SelectItem value="skip">跳过</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-            </div>
-          </div>
           </CardContent>
         </Card>
       </div>
@@ -941,10 +1115,16 @@ export default function MonthlyReportClient() {
           <div className="space-y-3 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
-                {submitState.status === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : <DatabaseZap className="h-4 w-4 text-muted-foreground" />}
+                {submitState.status === 'submitting' ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                ) : (
+                  <DatabaseZap className="h-4 w-4 text-muted-foreground" />
+                )}
                 <span>{submitState.message || '等待生成任务'}</span>
               </div>
-              <span className="text-xs font-semibold text-muted-foreground">{normalizeProgress(jobProgress?.progress ?? 0)}%</span>
+              <span className="text-xs font-semibold text-muted-foreground">
+                {normalizeProgress(jobProgress?.progress ?? 0)}%
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-[hsl(var(--surface-high))] dark:bg-[hsl(var(--surface-high))]">
               <div
@@ -954,7 +1134,9 @@ export default function MonthlyReportClient() {
             </div>
             <div className="space-y-2 text-sm">
               {PROGRESS_STEP_LABELS.map((label, index) => {
-                const done = hasProgressState && (currentProgressStep > index || (currentProgressStep === 4 && index === 4))
+                const done =
+                  hasProgressState &&
+                  (currentProgressStep > index || (currentProgressStep === 4 && index === 4))
                 const active = hasProgressState && currentProgressStep === index && !done
                 const isLastStep = index === 4
                 return (
@@ -962,7 +1144,11 @@ export default function MonthlyReportClient() {
                     <span
                       className={cn(
                         'h-2.5 w-2.5 rounded-full transition-colors',
-                        done ? 'bg-emerald-500' : active ? 'bg-blue-500' : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
+                        done
+                          ? 'bg-emerald-500'
+                          : active
+                            ? 'bg-blue-500'
+                            : 'bg-[hsl(var(--surface-outline))] dark:bg-[hsl(var(--surface-outline))]'
                       )}
                     />
                     <div className="flex items-center gap-2">
@@ -997,15 +1183,17 @@ export default function MonthlyReportClient() {
             </div>
           ) : null}
 
-
-
           <div className="space-y-2 pt-2">
             <Button
               type="button"
               variant="outline"
               className="w-full"
               onClick={() => void retryDownload()}
-              disabled={!downloadTarget.endpoint || downloadTarget.downloading || submitState.status === 'submitting'}
+              disabled={
+                !downloadTarget.endpoint ||
+                downloadTarget.downloading ||
+                submitState.status === 'submitting'
+              }
             >
               {downloadTarget.downloading ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -1021,7 +1209,11 @@ export default function MonthlyReportClient() {
               onClick={() => void generateReport()}
               disabled={!canGenerate}
             >
-              {submitState.status === 'submitting' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+              {submitState.status === 'submitting' ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1 h-4 w-4" />
+              )}
               生成财务月报
             </Button>
           </div>

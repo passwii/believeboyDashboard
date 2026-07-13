@@ -52,7 +52,8 @@ import type {
 // Minimal type-level assertion helpers
 // ---------------------------------------------------------------------------
 
-type IsExact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
+type IsExact<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 type Expect<T extends true> = T
 type Equal<X, Y> = IsExact<X, Y> extends true ? true : false
 
@@ -66,17 +67,31 @@ type _HealthDataMatches = Expect<Equal<HealthData, components['schemas']['Health
 type _ComplianceDataMatches = Expect<Equal<ComplianceData, components['schemas']['ComplianceData']>>
 type _PeriodMatches = Expect<Equal<InspectionPeriod, components['schemas']['InspectionPeriodItem']>>
 type _ReportMatches = Expect<Equal<InspectionReport, components['schemas']['InspectionReportItem']>>
-type _OverviewMatches = Expect<Equal<InspectionOverview, components['schemas']['InspectionOverviewResponse']>>
-type _HistoryResponseMatches = Expect<Equal<InspectionHistoryResponse, components['schemas']['InspectionHistoryResponse']>>
-type _TemplateMatches = Expect<Equal<InspectionTemplate, components['schemas']['InspectionTemplateResponse']>>
-type _ScreenshotMatches = Expect<Equal<InspectionScreenshot, components['schemas']['InspectionScreenshotItem']>>
-type _OverviewItemMatches = Expect<Equal<InspectionOverviewItem, components['schemas']['InspectionOverviewItem']>>
-type _HistoryItemMatches = Expect<Equal<InspectionHistoryItem, components['schemas']['InspectionHistoryItem']>>
+type _OverviewMatches = Expect<
+  Equal<InspectionOverview, components['schemas']['InspectionOverviewResponse']>
+>
+type _HistoryResponseMatches = Expect<
+  Equal<InspectionHistoryResponse, components['schemas']['InspectionHistoryResponse']>
+>
+type _TemplateMatches = Expect<
+  Equal<InspectionTemplate, components['schemas']['InspectionTemplateResponse']>
+>
+type _ScreenshotMatches = Expect<
+  Equal<InspectionScreenshot, components['schemas']['InspectionScreenshotItem']>
+>
+type _OverviewItemMatches = Expect<
+  Equal<InspectionOverviewItem, components['schemas']['InspectionOverviewItem']>
+>
+type _HistoryItemMatches = Expect<
+  Equal<InspectionHistoryItem, components['schemas']['InspectionHistoryItem']>
+>
 
 // Required-field assertions. If a backend field is ever loosened from
 // required to Optional, this will catch it. If it is tightened from
 // Optional to required, the inverse will catch it.
-type _HealthDataHasAccountHealthRating = 'account_health_rating' extends keyof HealthData ? true : false
+type _HealthDataHasAccountHealthRating = 'account_health_rating' extends keyof HealthData
+  ? true
+  : false
 type _PeriodHasId = 'id' extends keyof InspectionPeriod ? true : false
 type _ReportHasScreenshots = 'screenshots' extends keyof InspectionReport ? true : false
 type _OverviewHasPeriod = 'period' extends keyof InspectionOverview ? true : false
@@ -85,12 +100,24 @@ type _OverviewHasPeriod = 'period' extends keyof InspectionOverview ? true : fal
 // Pricing schema contract
 // ---------------------------------------------------------------------------
 
-type _PricingRunItemMatches = Expect<Equal<PricingCalculationRunItem, components['schemas']['PricingCalculationRunItem']>>
-type _ShopItemMatches = Expect<Equal<ShopCalculationItem, components['schemas']['ShopCalculationItem']>>
-type _PricingDimensions = Expect<Equal<PricingCalculationDimensions, components['schemas']['PricingCalculationDimensions']>>
-type _PricingWeight = Expect<Equal<PricingCalculationWeight, components['schemas']['PricingCalculationWeight']>>
-type _PricingFees = Expect<Equal<PricingCalculationFees, components['schemas']['PricingCalculationFees']>>
-type _PricingProfit = Expect<Equal<PricingCalculationProfit, components['schemas']['PricingCalculationProfit']>>
+type _PricingRunItemMatches = Expect<
+  Equal<PricingCalculationRunItem, components['schemas']['PricingCalculationRunItem']>
+>
+type _ShopItemMatches = Expect<
+  Equal<ShopCalculationItem, components['schemas']['ShopCalculationItem']>
+>
+type _PricingDimensions = Expect<
+  Equal<PricingCalculationDimensions, components['schemas']['PricingCalculationDimensions']>
+>
+type _PricingWeight = Expect<
+  Equal<PricingCalculationWeight, components['schemas']['PricingCalculationWeight']>
+>
+type _PricingFees = Expect<
+  Equal<PricingCalculationFees, components['schemas']['PricingCalculationFees']>
+>
+type _PricingProfit = Expect<
+  Equal<PricingCalculationProfit, components['schemas']['PricingCalculationProfit']>
+>
 
 // ---------------------------------------------------------------------------
 // Compile-time guard: any backend-issued `FetchReportResponse` shape that

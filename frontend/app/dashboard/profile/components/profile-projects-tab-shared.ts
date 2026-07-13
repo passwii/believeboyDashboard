@@ -55,6 +55,6 @@ export function deriveRole(item: ProjectItem, operatorNames: string[]): ProjectR
 export function formatCommission(basis: string | null, rate: number | null): string {
   if (rate === null) return '—'
   const pct = (rate * 100).toFixed(2)
-  const basisLabel = basis ? COMMISSION_BASIS_LABEL[basis] ?? basis : null
+  const basisLabel = basis ? (COMMISSION_BASIS_LABEL[basis] ?? basis) : null
   return basisLabel ? `${pct}% · ${basisLabel}` : `${pct}%`
 }

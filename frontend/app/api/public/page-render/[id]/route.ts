@@ -13,10 +13,7 @@ import { backendFetchJson } from '@/lib/server/backend-api'
  * Cache: 60s browser, 5m CDN, 1h SWR. Content is immutable (uploads have
  * no versioning) so a long revalidate window is safe and reduces R2 egress.
  */
-export async function GET(
-  _request: Request,
-  ctx: { params: Promise<{ id: string }> },
-) {
+export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params
 
   const apiKeyOrResponse = getBackendApiKeyOrFail()

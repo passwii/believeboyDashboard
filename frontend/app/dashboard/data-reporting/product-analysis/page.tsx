@@ -10,10 +10,16 @@ import ProductCalculationPanel from './components/product-calculation-panel'
 
 export default function ProductAnalysisPage() {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState<'product-calculation' | 'manual' | 'monthly-sku'>('product-calculation')
+  const [activeTab, setActiveTab] = useState<'product-calculation' | 'manual' | 'monthly-sku'>(
+    'product-calculation'
+  )
 
   return (
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-4">
+    <Tabs
+      value={activeTab}
+      onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+      className="space-y-4"
+    >
       <TabsList>
         <TabsTrigger value="product-calculation">产品核算</TabsTrigger>
         <TabsTrigger value="manual">手动核算</TabsTrigger>
