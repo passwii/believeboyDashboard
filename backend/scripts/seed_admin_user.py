@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -16,15 +17,32 @@ from app.db.session import engine
 from create_user_accounts_table import CREATE_USER_ACCOUNTS_TABLE_SQL
 
 DEFAULT_ADMIN_EMAIL = 'yawei@believeboy.com'
-DEFAULT_ADMIN_PASSWORD = 'XeonJJ2024@'
 DEFAULT_ADMIN_NAME = 'yawei'
 
 
+def _load_env_file() -> None:
+    """Populate os.environ from backend/.env (not committed) so secrets stay out of source."""
+    env_path = ROOT / '.env'
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, val = line.partition('=')
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
 def parse_args() -> argparse.Namespace:
+    _load_env_file()
     parser = argparse.ArgumentParser(description='Seed default admin user to Supabase user_accounts table.')
     parser.add_argument('--name', default=DEFAULT_ADMIN_NAME, help='Admin display name')
     parser.add_argument('--email', default=DEFAULT_ADMIN_EMAIL, help='Admin email')
-    parser.add_argument('--password', default=DEFAULT_ADMIN_PASSWORD, help='Admin password')
+    parser.add_argument(
+        '--password',
+        default=os.getenv('ADMIN_SEED_PASSWORD'),
+        help='Admin password. Falls back to the ADMIN_SEED_PASSWORD env var. Required.',
+    )
     parser.add_argument(
         '--reset-password',
         action='store_true',
@@ -35,6 +53,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    if not args.password:
+        print(
+            'Seed admin user failed: no password provided. Pass --password '
+            'or set the ADMIN_SEED_PASSWORD environment variable.',
+            file=sys.stderr,
+        )
+        return 1
 
     if engine.dialect.name != 'postgresql':
         print(

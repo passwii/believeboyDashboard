@@ -19,19 +19,30 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 BACKEND_API_BASE = f"{BACKEND_URL}/api/v1"
 
-# Test accounts — update these before running
+
+def _require(name: str) -> str:
+    val = os.getenv(name)
+    if not val:
+        raise RuntimeError(
+            f"Missing required env var {name}. Set it before running agent tests "
+            "(e.g. in backend/.env, never commit real credentials)."
+        )
+    return val
+
+
+# Test accounts — credentials MUST come from env, never hardcoded.
 TEST_ACCOUNTS = {
     "admin": {
         "email": os.getenv("TEST_ADMIN_EMAIL", "yawei@believeboy.com"),
-        "password": os.getenv("TEST_ADMIN_PASSWORD", "XeonJJ2024@"),
+        "password": _require("TEST_ADMIN_PASSWORD"),
     },
     "operator": {
         "email": os.getenv("TEST_OPERATOR_EMAIL", "test_operator@believeboy.com"),
-        "password": os.getenv("TEST_OPERATOR_PASSWORD", "TestPassword123"),
+        "password": _require("TEST_OPERATOR_PASSWORD"),
     },
     "businessdev": {
         "email": os.getenv("TEST_BUSINESSDEV_EMAIL", "test_businessdev@believeboy.com"),
-        "password": os.getenv("TEST_BUSINESSDEV_PASSWORD", "TestPassword123"),
+        "password": _require("TEST_BUSINESSDEV_PASSWORD"),
     },
 }
 

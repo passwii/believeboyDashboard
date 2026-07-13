@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -24,7 +25,21 @@ from app.core.passwords import hash_password
 from app.db.session import engine
 from create_user_accounts_table import CREATE_USER_ACCOUNTS_TABLE_SQL
 
-DEFAULT_TEST_PASSWORD = "TestPassword123"
+def _load_env_file() -> None:
+    """Populate os.environ from backend/.env (not committed) so secrets stay out of source."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+_load_env_file()
+DEFAULT_TEST_PASSWORD = os.getenv("TEST_ACCOUNT_PASSWORD")
 
 TEST_ACCOUNTS = [
     {
@@ -54,6 +69,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    if not DEFAULT_TEST_PASSWORD:
+        print(
+            "Seed test accounts failed: no password provided. Set the "
+            "TEST_ACCOUNT_PASSWORD environment variable.",
+            file=sys.stderr,
+        )
+        return 1
 
     if engine.dialect.name != "postgresql":
         print(
