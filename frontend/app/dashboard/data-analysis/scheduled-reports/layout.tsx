@@ -1,81 +1,83 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { useCallback } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
-import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { cn } from '@/lib/utils'
 
-const TABS = [
-  {
-    key: 'subscriptions',
-    label: '订阅管理',
-    href: '/dashboard/data-analysis/scheduled-reports/subscriptions',
-  },
-  {
-    key: 'ledger',
-    label: '调度记录',
-    href: '/dashboard/data-analysis/scheduled-reports/ledger',
-  },
-] as const
+import SubscriptionsView from './_components/SubscriptionsView'
+import LedgerView from './_components/LedgerView'
 
-type ScheduledReportTabKey = (typeof TABS)[number]['key']
+type ScheduledReportTabKey = 'subscriptions' | 'ledger'
 
-function resolveActiveTab(pathname: string): ScheduledReportTabKey {
-  return TABS.find((tab) => pathname.startsWith(tab.href))?.key ?? 'subscriptions'
+const TAB_LAYOUT_ID = 'scheduled-reports-tab-indicator'
+
+function resolveInitialTab(pathname: string): ScheduledReportTabKey {
+  return pathname.includes('/ledger') ? 'ledger' : 'subscriptions'
 }
 
-function isScheduledReportTab(value: string): value is ScheduledReportTabKey {
-  return TABS.some((tab) => tab.key === value)
-}
-
-export default function ScheduledReportsLayout({
-  children,
-}: {
-  children: ReactNode
-}) {
+export default function ScheduledReportsLayout() {
   const pathname = usePathname()
-  const router = useRouter()
-  const activeTab = resolveActiveTab(pathname)
-
-  const handleTabChange = useCallback(
-    (nextValue: string) => {
-      if (!isScheduledReportTab(nextValue)) return
-
-      const nextTab = TABS.find((tab) => tab.key === nextValue)
-      if (!nextTab || pathname.startsWith(nextTab.href)) return
-
-      router.push(nextTab.href)
-    },
-    [pathname, router],
+  const [activeTab, setActiveTab] = useState<ScheduledReportTabKey>(() =>
+    resolveInitialTab(pathname),
   )
+  // 懒挂载：首次访问该 tab 时才挂载其视图（避免一开始两个 tab 都发请求），
+  // 挂载后常驻，切回时已加载的数据与状态保留，切换零重拉、零卡顿。
+  const [mounted, setMounted] = useState<Set<ScheduledReportTabKey>>(
+    () => new Set<ScheduledReportTabKey>([resolveInitialTab(pathname)]),
+  )
+
+  const handleTabChange = (next: string) => {
+    setActiveTab(next as ScheduledReportTabKey)
+    setMounted((prev) => {
+      if (prev.has(next as ScheduledReportTabKey)) return prev
+      const nextSet = new Set(prev)
+      nextSet.add(next as ScheduledReportTabKey)
+      return nextSet
+    })
+  }
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
       <div className="overflow-x-auto">
         <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-background/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]/95 sm:w-fit">
           <TabsMotionGroup id="scheduled-reports-tabs">
-            {TABS.map((tab) => (
-              <SlidingTabsTrigger
-                key={tab.key}
-                value={tab.key}
-                activeValue={activeTab}
-                layoutId="scheduled-reports-tabs"
-                className="min-w-[7rem]"
-              >
-                {tab.label}
-              </SlidingTabsTrigger>
-            ))}
+            <SlidingTabsTrigger
+              value="subscriptions"
+              activeValue={activeTab}
+              layoutId={TAB_LAYOUT_ID}
+              className="min-w-[7rem]"
+            >
+              订阅管理
+            </SlidingTabsTrigger>
+            <SlidingTabsTrigger
+              value="ledger"
+              activeValue={activeTab}
+              layoutId={TAB_LAYOUT_ID}
+              className="min-w-[7rem]"
+            >
+              调度记录
+            </SlidingTabsTrigger>
           </TabsMotionGroup>
         </TabsList>
       </div>
 
-      {TABS.map((tab) => (
-        <TabsContent key={tab.key} value={tab.key} className="mt-0">
-          {activeTab === tab.key ? children : null}
-        </TabsContent>
-      ))}
+      <TabsContent
+        value="subscriptions"
+        forceMount
+        className={cn('mt-0', !mounted.has('subscriptions') && 'hidden')}
+      >
+        {mounted.has('subscriptions') && <SubscriptionsView />}
+      </TabsContent>
+      <TabsContent
+        value="ledger"
+        forceMount
+        className={cn('mt-0', !mounted.has('ledger') && 'hidden')}
+      >
+        {mounted.has('ledger') && <LedgerView />}
+      </TabsContent>
     </Tabs>
   )
 }
