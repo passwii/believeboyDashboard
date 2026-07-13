@@ -3,12 +3,9 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import {
-  DirectionalTabTransition,
-  SlidingTabsTrigger,
-  TabsMotionGroup,
-} from '@/components/ui/tab-motion'
+import { Tabs, TabsList } from '@/components/ui/tabs'
+import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import { cn } from '@/lib/utils'
 
 import SubscriptionsView from './_components/SubscriptionsView'
 import LedgerView from './_components/LedgerView'
@@ -16,7 +13,6 @@ import LedgerView from './_components/LedgerView'
 type ScheduledReportTabKey = 'subscriptions' | 'ledger'
 
 const TAB_LAYOUT_ID = 'scheduled-reports-tab-indicator'
-const TAB_ORDER: readonly ScheduledReportTabKey[] = ['subscriptions', 'ledger']
 
 function resolveInitialTab(pathname: string): ScheduledReportTabKey {
   return pathname.includes('/ledger') ? 'ledger' : 'subscriptions'
@@ -57,12 +53,14 @@ export default function ScheduledReportsLayout() {
         </TabsList>
       </div>
 
-      <DirectionalTabTransition value={activeTab} order={TAB_ORDER}>
-        <TabsContent forceMount value={activeTab} className="mt-0">
-          {activeTab === 'subscriptions' && <SubscriptionsView />}
-          {activeTab === 'ledger' && <LedgerView />}
-        </TabsContent>
-      </DirectionalTabTransition>
+      {/* 两个 view 常驻挂载，靠 hidden 切换可见性：切 tab 不卸载、不重新拉取数据，
+          骨架屏仅在各自首次加载时出现一次。 */}
+      <div className={cn(activeTab === 'subscriptions' ? 'block' : 'hidden')}>
+        <SubscriptionsView />
+      </div>
+      <div className={cn(activeTab === 'ledger' ? 'block' : 'hidden')}>
+        <LedgerView />
+      </div>
     </Tabs>
   )
 }

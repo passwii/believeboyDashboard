@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
@@ -44,7 +45,8 @@ export default function LedgerView() {
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([])
-  const [ledgerLoading, setLedgerLoading] = useState(false)
+  // 初始为 true：tab 切换重新挂载时立即显示骨架屏，避免先闪「暂无台账记录」空状态。
+  const [ledgerLoading, setLedgerLoading] = useState(true)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
   const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
   const [regeneratingSummaryKeys, setRegeneratingSummaryKeys] = useState<Set<string>>(new Set())
@@ -383,22 +385,20 @@ export default function LedgerView() {
         <CardContent className="p-0">
           {/* 桌面端表格 */}
           <div className="hidden md:block">
-            {ledgerItems.length === 0 ? (
+            {ledgerLoading && ledgerItems.length === 0 ? (
+              <div className="space-y-3 p-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-11/12" />
+                <Skeleton className="h-10 w-4/5" />
+              </div>
+            ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
-                {ledgerLoading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">台账加载中...</span>
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="h-8 w-8 text-muted-foreground/30" />
-                    <span className="text-sm text-muted-foreground">暂无台账记录</span>
-                    <span className="text-xs text-muted-foreground/60">
-                      调整筛选条件或点击「刷新台账」
-                    </span>
-                  </>
-                )}
+                <RotateCcw className="h-8 w-8 text-muted-foreground/30" />
+                <span className="text-sm text-muted-foreground">暂无台账记录</span>
+                <span className="text-xs text-muted-foreground/60">
+                  调整筛选条件或点击「刷新台账」
+                </span>
               </div>
             ) : (
               <div>
@@ -429,19 +429,16 @@ export default function LedgerView() {
 
           {/* 手机端卡片列表 */}
           <div className="md:hidden divide-y divide-border/60">
-            {ledgerItems.length === 0 ? (
+            {ledgerLoading && ledgerItems.length === 0 ? (
+              <div className="space-y-3 p-4">
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </div>
+            ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                {ledgerLoading ? (
-                  <>
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">台账加载中...</p>
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">暂无台账记录</p>
-                  </>
-                )}
+                <RotateCcw className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">暂无台账记录</p>
               </div>
             ) : (
               ledgerItems.map((item) => {
