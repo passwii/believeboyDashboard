@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import { useTheme } from 'next-themes'
-import { motion } from 'framer-motion'
 import {
   Check,
   KeyRound,
@@ -18,7 +17,6 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
-import { sidebarPanelContainer, sidebarPanelItem, sidebarPanelReveal } from '@/lib/motion/variants'
 import { cn } from '@/lib/utils'
 
 interface SidebarUserPanelProps {
@@ -57,6 +55,8 @@ function getRoleLabel(roleType: string | undefined): string | null {
  * 性能要点：
  * - React.memo + 默认浅比较：user / 回调引用稳定时，路由切换不会重渲染本组件。
  * - 不订阅 usePathname()：本面板内容（用户信息、主题、退出登录）与路由无关。
+ * - 揭幕动画：纯 CSS（globals.css .sidebar-panel-reveal，opacity + translateY），
+ *   零 JS 动画运行时；分区跟随面板一起出现，与标准案例一致。
  */
 export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   user,
@@ -68,16 +68,12 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   const roleLabel = getRoleLabel(user.roleType)
 
   return (
-    <motion.div
+    <div
       id='sidebar-user-panel'
       role='region'
       aria-label='账户子菜单'
-      className='sidebar-panel-shell relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
+      className='sidebar-panel-shell sidebar-panel-reveal relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
       onMouseDown={(e) => e.stopPropagation()}
-      initial='initial'
-      animate='animate'
-      exit='exit'
-      variants={sidebarPanelReveal()}
     >
       {/* Header — 与 SidebarPanel 完全同款（56px，Pin + X） */}
       <div className='flex h-[56px] shrink-0 items-center justify-between border-b border-[hsl(var(--sidebar-border))]/60 px-4'>
@@ -120,12 +116,9 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
       </div>
 
       {/* Body — 信息卡 + 主题 + 操作 */}
-      <motion.div
-        className='flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3'
-        variants={sidebarPanelContainer()}
-      >
+      <div className='flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3'>
         {/* 用户信息卡 */}
-        <motion.div variants={sidebarPanelItem()} className='flex items-center gap-3'>
+        <div className='flex items-center gap-3'>
           <Avatar className='h-14 w-14 rounded-md shrink-0'>
             <AvatarImage src={user.avatar} alt={user.name} />
             <AvatarFallback className='rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85'>
@@ -143,24 +136,24 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
               </span>
             ) : null}
           </div>
-        </motion.div>
+        </div>
 
         <div className='border-t border-[hsl(var(--sidebar-border))]/60' />
 
         {/* 主题切换 */}
-        <motion.div variants={sidebarPanelItem()}>
+        <div>
           <div className='mb-2 flex items-center justify-between px-1'>
             <span className='text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40'>
               主题
             </span>
           </div>
           <ThemeSwitcher />
-        </motion.div>
+        </div>
 
         <div className='border-t border-[hsl(var(--sidebar-border))]/60' />
 
         {/* 账户操作 */}
-        <motion.div variants={sidebarPanelItem()}>
+        <div>
           <div className='mb-2 flex items-center justify-between px-1'>
             <span className='text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40'>
               账户
@@ -195,9 +188,9 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
               <span className='min-w-0 flex-1 truncate'>退出登录</span>
             </button>
           </nav>
-        </motion.div>
-      </motion.div>
-    </motion.div>
+        </div>
+      </div>
+    </div>
   )
 })
 

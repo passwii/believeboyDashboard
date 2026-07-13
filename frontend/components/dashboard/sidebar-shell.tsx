@@ -4,7 +4,6 @@ import * as React from 'react'
 import { usePathname } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { PanelLeft } from 'lucide-react'
-import { MotionConfig } from 'framer-motion'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -50,6 +49,8 @@ const USER_CHIP_ID = 'user'
  *   group chip 不会提交。
  * - per-group hover handler 通过 useMemo 预生成映射，handler 引用跨渲染稳定，
  *   RailChip 自定义 comparator 命中，跳过无效 commit。
+ * - 第二层揭幕动画：纯 CSS（globals.css .sidebar-panel-reveal，opacity+translateY），
+ *   零 JS 动画运行时；菜单项跟随面板一起出现，与标准案例一致。
  */
 export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  const pathname = usePathname()
@@ -126,65 +127,63 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
  // Mobile sheet open state
  const [mobileOpen, setMobileOpen] = React.useState(false)
 
-  return (
-    <MotionConfig reducedMotion="user">
+ return (
+   <>
      {/* Desktop sidebar (>=md)
       *
       * 桌面端结构：外层 wrapper 是 relative 容器，rail 永远占 68px，
       * panel 改为 absolute 浮在 rail 右侧 0.5rem 处（不挤占主内容区宽度）。
       * 主内容区始终拿到完整可用宽度，仅在 panel 打开时被覆盖。
       */}
+     <div
+       className='relative hidden md:flex z-[80]'
+       onMouseLeave={() => { hoverLeave() }}
+     >
+      <SidebarIconRail
+        groups={visibleGroups}
+        activeGroupId={activeGroupId}
+        pinnedGroupId={pinnedGroupId}
+        pathnameMatchByGroupId={pathnameMatchByGroupId}
+        onHoverEnterByGroupId={onHoverEnterByGroupId}
+        onUserHoverEnter={onUserHoverEnter}
+        user={displayUser}
+      />
       <div
-        className='relative hidden md:flex z-[80]'
-        onMouseLeave={() => { hoverLeave() }}
+        className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),inset_0_0_0_1px_hsl(0_0%_100%/0.05),inset_-1px_0_0_hsl(0_0%_100%/0.05),0_24px_60px_-24px_rgba(2,6,16,0.5)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.34,1.32,0.64,1)] ${
+          activeGroupId
+            ? 'translate-x-2 scale-100 opacity-100'
+            : '-translate-x-3 scale-[0.97] opacity-0'
+        }`}
+        onMouseEnter={() => {
+          if (!activeGroupId) return
+          // Re-enter hover state for the active group when mouse comes back into panel area
+          hoverEnter(activeGroupId)
+        }}
       >
-       <SidebarIconRail
-         groups={visibleGroups}
-         activeGroupId={activeGroupId}
-         pinnedGroupId={pinnedGroupId}
-         pathnameMatchByGroupId={pathnameMatchByGroupId}
-         onHoverEnterByGroupId={onHoverEnterByGroupId}
-         onUserHoverEnter={onUserHoverEnter}
-         user={displayUser}
-       />
-       <div
-         className={`sidebar-panel-shell pointer-events-none absolute left-[68px] top-0 z-40 flex h-screen w-[240px] flex-col overflow-hidden rounded-r-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background)/0.85)] backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),inset_0_0_0_1px_hsl(0_0%_100%/0.05),inset_-1px_0_0_hsl(0_0%_100%/0.05),0_24px_60px_-24px_rgba(2,6,16,0.5)] ring-1 ring-black/[0.04] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.34,1.32,0.64,1)] ${
-           activeGroupId
-             ? 'translate-x-2 scale-100 opacity-100'
-             : '-translate-x-3 scale-[0.97] opacity-0'
-         }`}
-         onMouseEnter={() => {
-           if (!activeGroupId) return
-           // Re-enter hover state for the active group when mouse comes back into panel area
-           hoverEnter(activeGroupId)
-         }}
-       >
-         <div
-           className={`flex h-full w-full flex-col ${
-             activeGroupId ? 'pointer-events-auto' : 'pointer-events-none'
-           }`}
-         >
-            {activeGroupId === USER_CHIP_ID ? (
-              <SidebarUserPanel
-                key={USER_CHIP_ID}
-                user={displayUser}
-                pinned={pinnedGroupId === USER_CHIP_ID}
-                onClose={onPanelClose}
-                onPinToggle={onUserPinToggle}
-                onLogout={onUserLogout}
-              />
-            ) : activeGroup ? (
-              <SidebarPanel
-                key={activeGroup.id}
-                group={activeGroup}
-                pinnedGroupId={pinnedGroupId}
-                onClose={onPanelClose}
-                onPinToggle={onActiveGroupPinToggle}
-                onNavigate={onPanelNavigate}
-              />
-           ) : null}
-         </div>
-       </div>
+        <div
+          className={`flex h-full w-full flex-col ${
+            activeGroupId ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+        >
+           {activeGroupId === USER_CHIP_ID ? (
+             <SidebarUserPanel
+               user={displayUser}
+               pinned={pinnedGroupId === USER_CHIP_ID}
+               onClose={onPanelClose}
+               onPinToggle={onUserPinToggle}
+               onLogout={onUserLogout}
+             />
+           ) : activeGroup ? (
+             <SidebarPanel
+               group={activeGroup}
+               pinnedGroupId={pinnedGroupId}
+               onClose={onPanelClose}
+               onPinToggle={onActiveGroupPinToggle}
+               onNavigate={onPanelNavigate}
+             />
+          ) : null}
+        </div>
+      </div>
      </div>
 
      {/* Mobile trigger + sheet (<md) */}
@@ -217,8 +216,8 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
          </SheetContent>
        </Sheet>
      </div>
-    </MotionConfig>
-  )
+   </>
+ )
 }
 
 /**
@@ -241,7 +240,7 @@ function MobileGroupSection({
      <button
        type='button'
        onClick={() => setOpen((v) => !v)}
-       className='flex w-full items-center gap-2 px-3 py-2.5 text-left'
+       className='flex w-full items-center gap-2 px-2.5 py-2.5 text-left'
      >
        <span
          className={`flex h-7 w-7 items-center justify-center rounded-md border border-[hsl(var(--sidebar-foreground)/0.08)] ${group.accent}`}

@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import { usePathname } from 'next/navigation'
-import { motion } from 'framer-motion'
 import {
   ChevronRight,
   Pin,
@@ -12,7 +11,6 @@ import {
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { isLinkActive, type SidebarTopGroup } from '@/lib/sidebar-config'
-import { sidebarPanelContainer, sidebarPanelItem, sidebarPanelReveal } from '@/lib/motion/variants'
 import { cn } from '@/lib/utils'
 
 interface SidebarPanelProps {
@@ -33,6 +31,8 @@ interface SidebarPanelProps {
  *   独立于 rail / shell 的其他 re-render（否则 rail 任何重渲染都会顺带拉上 panel）。
  * - React.memo + 默认浅比较：仅当 group / pinnedGroupId / 回调变化时才提交。
  *   shell 端必须传稳定引用（useCallback）才能生效。
+ * - 揭幕动画：纯 CSS（globals.css .sidebar-panel-reveal，opacity + translateY），
+ *   零 JS 动画运行时；菜单项跟随面板一起出现（无逐项 stagger），与标准案例一致。
  */
 export const SidebarPanel = React.memo(function SidebarPanel({
   group,
@@ -49,16 +49,12 @@ export const SidebarPanel = React.memo(function SidebarPanel({
   const groupItems = group.items
 
   return (
-    <motion.div
+    <div
       id='sidebar-panel'
       role='region'
       aria-label={`${group.label} 子菜单`}
-      className='sidebar-panel-shell relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
+      className='sidebar-panel-shell sidebar-panel-reveal relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]'
       onMouseDown={(e) => e.stopPropagation()}
-      initial='initial'
-      animate='animate'
-      exit='exit'
-      variants={sidebarPanelReveal()}
     >
       {/* Header */}
       <div className='flex h-[56px] shrink-0 items-center justify-between border-b border-[hsl(var(--sidebar-border))]/60 px-4'>
@@ -111,32 +107,27 @@ export const SidebarPanel = React.memo(function SidebarPanel({
               </p>
             </div>
           ) : (
-            <motion.nav
+            <nav
               className='flex flex-col gap-0.5'
               aria-label={`${group.label} 子菜单`}
-              variants={sidebarPanelContainer()}
             >
               {groupItems.map((item) => {
                 const isActive = isLinkActive(pathname, item)
                 const ItemIcon = item.icon ?? group.icon
                 return (
-                  <motion.div
+                  <RouteLoadingLink
                     key={item.url}
-                    variants={sidebarPanelItem()}
-                    className='w-full'
+                    href={item.url}
+                    onClick={onNavigate}
+                    data-active={isActive}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'group/link flex h-10 w-full items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium u-interactive transition-colors',
+                      isActive
+                        ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
+                        : 'text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground',
+                    )}
                   >
-                    <RouteLoadingLink
-                      href={item.url}
-                      onClick={onNavigate}
-                      data-active={isActive}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={cn(
-                        'group/link flex h-10 w-full items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium u-interactive transition-colors',
-                        isActive
-                          ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
-                          : 'text-sidebar-foreground/72 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground',
-                      )}
-                    >
                     <ItemIcon
                       className={cn(
                         'h-4 w-4 shrink-0 transition-colors',
@@ -145,14 +136,13 @@ export const SidebarPanel = React.memo(function SidebarPanel({
                     />
                     <span className='min-w-0 flex-1 truncate'>{item.title}</span>
                     {isActive && <ChevronRight className='h-3.5 w-3.5 text-sidebar-foreground/40' />}
-                    </RouteLoadingLink>
-                  </motion.div>
+                  </RouteLoadingLink>
                 )
               })}
-            </motion.nav>
+            </nav>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 })

@@ -46,19 +46,6 @@ export const SPRING = {
   page: { type: "spring", stiffness: 260, damping: 30, mass: 1 } as const,
 } as const;
 
-/**
- * 贝塞尔曲线专用组（用于 framer-motion ease 字段；CSS 侧另见 globals.css --motion-ease-*）。
- * 与页面过渡的 EASE.out/standard 不同，这里是为「第二层菜单揭示」等需要
- * 过冲/回弹的动效单独调的曲线，让揭幕更有灵动感、更出众。
- *
- * - panelReveal：轻微过冲的 easeOutBack（控制点 y>1），滑入时带回弹。
- * - itemReveal：标准易出，干净不拖泥，作为逐项揭幕的兜底曲线。
- */
-export const BEZIER = {
-  panelReveal: [0.34, 1.4, 0.64, 1] as [number, number, number, number],
-  itemReveal: [0.22, 1, 0.36, 1] as [number, number, number, number],
-} as const;
-
 /** stagger 错落节奏。
  * step 对应 --stagger-step（70ms），childDelay 与 step 同值（staggerChildren 用），v2 调研建议合并。 */
 export const STAGGER = {

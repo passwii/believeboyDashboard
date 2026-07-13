@@ -379,6 +379,16 @@
     }
   }
 
+  /* ── Sidebar second-level reveal (reference-inspired: simple, silky) ───── */
+  /* Pure CSS keyframe; items ride with the panel (no per-item stagger). */
+  @keyframes sidebar-panel-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .sidebar-panel-reveal {
+    animation: sidebar-panel-enter 0.32s var(--motion-ease-out) both;
+  }
+
   .dashboard-full-width > * {
     width: 100%;
     max-width: none !important;
