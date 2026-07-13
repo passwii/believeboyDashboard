@@ -339,7 +339,7 @@ export function getAggregateColumns(config: AdDataReportType): AdDataColumn[] {
       col.key === 'report_end_date' ||
       config.groupBy.includes(col.key) ||
       ADDITIVE_KEYS.has(col.key) ||
-      RATIO_FORMULA_KEYS.has(col.key),
+      RATIO_FORMULA_KEYS.has(col.key)
   )
 }
 
@@ -357,7 +357,7 @@ type AggBucket = {
  */
 export function aggregateAdDataRows(
   rows: Record<string, unknown>[],
-  config: AdDataReportType,
+  config: AdDataReportType
 ): Record<string, unknown>[] {
   const groupKeys = config.groupBy
   const buckets = new Map<string, AggBucket>()
@@ -416,16 +416,11 @@ function escapeCsvCell(value: string): string {
 }
 
 /** 把（已筛选/排序后的）行构造成 CSV 文本，列头用中文 label。 */
-export function buildAdDataCsv(
-  rows: Record<string, unknown>[],
-  columns: AdDataColumn[],
-): string {
+export function buildAdDataCsv(rows: Record<string, unknown>[], columns: AdDataColumn[]): string {
   const header = columns.map((col) => escapeCsvCell(col.label)).join(',')
   const body = rows
     .map((row) =>
-      columns
-        .map((col) => escapeCsvCell(formatAdDataValue(row[col.key], col.format)))
-        .join(','),
+      columns.map((col) => escapeCsvCell(formatAdDataValue(row[col.key], col.format))).join(',')
     )
     .join('\n')
   return header + '\n' + body

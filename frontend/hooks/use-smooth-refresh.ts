@@ -26,7 +26,10 @@ interface UseSmoothRefreshReturn {
  * const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: rows.length > 0 })
  * ```
  */
-export function useSmoothRefresh({ loading, hasData }: UseSmoothRefreshOptions): UseSmoothRefreshReturn {
+export function useSmoothRefresh({
+  loading,
+  hasData,
+}: UseSmoothRefreshOptions): UseSmoothRefreshReturn {
   const everHadData = useRef(hasData)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
 

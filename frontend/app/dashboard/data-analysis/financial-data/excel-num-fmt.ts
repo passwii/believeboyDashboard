@@ -26,7 +26,7 @@ export type ExcelColumnFormat =
  */
 export function getExcelNumFmt(
   format: ExcelColumnFormat,
-  currencySymbol: string = '$',
+  currencySymbol: string = '$'
 ): string | null {
   if (format === 'currency_usd')
     return `"${currencySymbol}"#,##0.00;[Red]-"${currencySymbol}"#,##0.00`

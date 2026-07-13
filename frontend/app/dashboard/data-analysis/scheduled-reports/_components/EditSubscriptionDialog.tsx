@@ -48,10 +48,18 @@ export function EditSubscriptionDialog({
         setFormSelectedProjectIds([])
       } else {
         setFormSelectedProjectIds(
-          subscription.project_ids.split(',').map(s => s.trim()).filter(Boolean),
+          subscription.project_ids
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
         )
       }
-      setFormCountries(subscription.country.split(',').map(c => c.trim()).filter(Boolean))
+      setFormCountries(
+        subscription.country
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean)
+      )
       setFormFrequency(subscription.frequency)
       setFormDispatchHour(subscription.dispatch_hour)
       setFormDispatchMinute(subscription.dispatch_minute ?? 0)
@@ -112,16 +120,26 @@ export function EditSubscriptionDialog({
       <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-[540px] md:max-w-2xl dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <SubscriptionForm
           mode="edit"
-          formEmail={formEmail} setFormEmail={setFormEmail}
-          formProjectIds={formProjectIds} setFormProjectIds={setFormProjectIds}
-          formSelectedProjectIds={formSelectedProjectIds} setFormSelectedProjectIds={setFormSelectedProjectIds}
-          formCountries={formCountries} setFormCountries={setFormCountries}
-          formFrequency={formFrequency} setFormFrequency={setFormFrequency}
-          formDispatchHour={formDispatchHour} setFormDispatchHour={setFormDispatchHour}
-          formDispatchMinute={formDispatchMinute} setFormDispatchMinute={setFormDispatchMinute}
-          formDispatchWeekday={formDispatchWeekday} setFormDispatchWeekday={setFormDispatchWeekday}
-          formDispatchDay={formDispatchDay} setFormDispatchDay={setFormDispatchDay}
-          formAiModel={formAiModel} setFormAiModel={setFormAiModel}
+          formEmail={formEmail}
+          setFormEmail={setFormEmail}
+          formProjectIds={formProjectIds}
+          setFormProjectIds={setFormProjectIds}
+          formSelectedProjectIds={formSelectedProjectIds}
+          setFormSelectedProjectIds={setFormSelectedProjectIds}
+          formCountries={formCountries}
+          setFormCountries={setFormCountries}
+          formFrequency={formFrequency}
+          setFormFrequency={setFormFrequency}
+          formDispatchHour={formDispatchHour}
+          setFormDispatchHour={setFormDispatchHour}
+          formDispatchMinute={formDispatchMinute}
+          setFormDispatchMinute={setFormDispatchMinute}
+          formDispatchWeekday={formDispatchWeekday}
+          setFormDispatchWeekday={setFormDispatchWeekday}
+          formDispatchDay={formDispatchDay}
+          setFormDispatchDay={setFormDispatchDay}
+          formAiModel={formAiModel}
+          setFormAiModel={setFormAiModel}
           projects={projects}
           modelConfig={modelConfig}
           isLoadingModelConfig={isLoadingModelConfig}

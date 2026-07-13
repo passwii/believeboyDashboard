@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
 const MOBILE_BREAKPOINT = 768
 
@@ -16,19 +16,22 @@ const MOBILE_BREAKPOINT = 768
  *   `tailwindcss` 自行补充桌面样式。
  */
 export function useIsMobile(breakpoint: number = MOBILE_BREAKPOINT): boolean {
-  const subscribe = React.useCallback((onStoreChange: () => void) => {
-    if (typeof window === "undefined") {
-      return () => {}
-    }
-    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
-    const onChange = () => onStoreChange()
-    mql.addEventListener("change", onChange)
-    return () => mql.removeEventListener("change", onChange)
-  }, [breakpoint])
+  const subscribe = React.useCallback(
+    (onStoreChange: () => void) => {
+      if (typeof window === 'undefined') {
+        return () => {}
+      }
+      const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+      const onChange = () => onStoreChange()
+      mql.addEventListener('change', onChange)
+      return () => mql.removeEventListener('change', onChange)
+    },
+    [breakpoint]
+  )
 
   const getSnapshot = React.useCallback(
-    () => typeof window !== "undefined" && window.innerWidth < breakpoint,
-    [breakpoint],
+    () => typeof window !== 'undefined' && window.innerWidth < breakpoint,
+    [breakpoint]
   )
 
   const getServerSnapshot = React.useCallback(() => false, [])

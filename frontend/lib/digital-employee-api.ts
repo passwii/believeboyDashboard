@@ -63,7 +63,9 @@ export async function fetchDigitalEmployee(id: number) {
 }
 
 export async function fetchEmployeeTasks(id: number) {
-  const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/tasks`), { cache: 'no-store' })
+  const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/tasks`), {
+    cache: 'no-store',
+  })
   if (res.status === 401) {
     void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
@@ -76,7 +78,10 @@ export async function fetchEmployeeTasks(id: number) {
 }
 
 export async function fetchEmployeeLogs(employeeId: number, taskId: number) {
-  const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${employeeId}/tasks/${taskId}/logs`), { cache: 'no-store' })
+  const res = await fetch(
+    resolveApiUrl(`/api/v1/digital-employees/${employeeId}/tasks/${taskId}/logs`),
+    { cache: 'no-store' }
+  )
   if (res.status === 401) {
     void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
@@ -86,9 +91,12 @@ export async function fetchEmployeeLogs(employeeId: number, taskId: number) {
 }
 
 export async function fetchEmployeeRecentLogs(employeeId: number, limit = 20) {
-  const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${employeeId}/recent-logs?limit=${limit}`), {
-    cache: 'no-store',
-  })
+  const res = await fetch(
+    resolveApiUrl(`/api/v1/digital-employees/${employeeId}/recent-logs?limit=${limit}`),
+    {
+      cache: 'no-store',
+    }
+  )
   if (res.status === 401) {
     void redirectToLoginWithCallback()
     throw new Error('Unauthorized')

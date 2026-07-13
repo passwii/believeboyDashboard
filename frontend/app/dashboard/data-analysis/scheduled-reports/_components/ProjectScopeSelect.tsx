@@ -29,11 +29,8 @@ export function ProjectScopeSelect({
 }) {
   const isAll = value === '*'
   const options: MultiSelectOption[] = useMemo(
-    () =>
-      projects
-        .filter(p => p.id != null)
-        .map(p => ({ value: String(p.id), label: p.name })),
-    [projects],
+    () => projects.filter((p) => p.id != null).map((p) => ({ value: String(p.id), label: p.name })),
+    [projects]
   )
 
   const handleToggleAll = (checked: boolean) => {
@@ -64,13 +61,13 @@ export function ProjectScopeSelect({
           'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
           'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
           'disabled:cursor-not-allowed disabled:opacity-50',
-          isAll && 'bg-accent',
+          isAll && 'bg-accent'
         )}
       >
         <div
           className={cn(
             'flex h-4 w-4 items-center justify-center rounded-sm border',
-            isAll ? 'bg-primary border-primary text-primary-foreground' : 'border-input',
+            isAll ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
           )}
         >
           {isAll && <Check className="h-3 w-3" />}

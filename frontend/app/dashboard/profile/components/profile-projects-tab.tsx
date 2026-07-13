@@ -6,11 +6,7 @@ import { useSession } from 'next-auth/react'
 import { Crown, ExternalLink, ShieldCheck, UserCog } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-} from '@/components/ui/data-card'
+import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import {
   Table,
   TableBody,
@@ -111,10 +107,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
   }
 
   const RoleBadge = ({ role }: { role: string }) => (
-    <Badge
-      variant="outline"
-      className="border-primary/30 bg-primary/10 text-primary"
-    >
+    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
       {role === '主运营' && <Crown className="mr-1 h-3 w-3" />}
       {role === '助理运营' && <UserCog className="mr-1 h-3 w-3" />}
       {role === '管理员' && <ShieldCheck className="mr-1 h-3 w-3" />}
@@ -136,7 +129,9 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
               <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">项目名</TableHead>
+                    <TableHead className="sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                      项目名
+                    </TableHead>
                     <TableHead>品牌</TableHead>
                     <TableHead>店铺地址</TableHead>
                     <TableHead>等级</TableHead>
@@ -146,54 +141,62 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
                     <TableHead className="w-[80px]" />
                   </TableRow>
                 </TableHeader>
-              <TableBody>
-                {visibleItems.map((item) => {
-                  const role = isAdmin ? '管理员' : roleFor(item)
-                  const tierClass = item.project_tier ? TIER_BADGE_CLASS[item.project_tier] : ''
-                  return (
-                    <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
-                      <TableCell className="sticky left-0 z-10 bg-background/95 font-medium text-foreground backdrop-blur supports-[backdrop-filter]:bg-background/60">{item.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.brand_name || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {item.store_address || '—'}
-                      </TableCell>
-                      <TableCell>
-                        {item.project_tier ? (
-                          <Badge variant="outline" className={tierClass}>
-                            {item.project_tier}
+                <TableBody>
+                  {visibleItems.map((item) => {
+                    const role = isAdmin ? '管理员' : roleFor(item)
+                    const tierClass = item.project_tier ? TIER_BADGE_CLASS[item.project_tier] : ''
+                    return (
+                      <TableRow key={item.id} className="transition-colors hover:bg-muted/40">
+                        <TableCell className="sticky left-0 z-10 bg-background/95 font-medium text-foreground backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                          {item.name}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {item.brand_name || '—'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {item.store_address || '—'}
+                        </TableCell>
+                        <TableCell>
+                          {item.project_tier ? (
+                            <Badge variant="outline" className={tierClass}>
+                              {item.project_tier}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={item.is_active ? 'default' : 'secondary'}
+                            className={item.is_active ? '' : 'opacity-70'}
+                          >
+                            {item.is_active ? '启用' : '停用'}
                           </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={item.is_active ? 'default' : 'secondary'}
-                          className={item.is_active ? '' : 'opacity-70'}
-                        >
-                          {item.is_active ? '启用' : '停用'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {role ? <RoleBadge role={role} /> : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatCommission(item.commission_basis, item.commission_rate)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link
-                          href={`/dashboard/system-management/project-info?projectId=${item.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          查看
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell>
+                          {role ? (
+                            <RoleBadge role={role} />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatCommission(item.commission_basis, item.commission_rate)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link
+                            href={`/dashboard/system-management/project-info?projectId=${item.id}`}
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            查看
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
             </div>
           </div>
 

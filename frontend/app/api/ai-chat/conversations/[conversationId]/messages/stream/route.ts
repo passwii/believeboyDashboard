@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
-import { buildSystemPrompt, validatePromptPresetIds, buildScenarioSystemPrompt, validateScenarioIds } from '@/lib/server/ai-chat'
+import {
+  buildSystemPrompt,
+  validatePromptPresetIds,
+  buildScenarioSystemPrompt,
+  validateScenarioIds,
+} from '@/lib/server/ai-chat'
 import { getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
@@ -46,27 +51,30 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: '场景或语气选项无效' }, { status: 400 })
   }
 
-  const upstream = await fetch(`${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`, {
-    method: 'POST',
-    headers: buildBackendAuthHeaders(session, {
-      apiKey: apiKeyOrResponse.apiKey,
-      contentType: 'application/json',
-    }),
-    body: JSON.stringify({
-      content: body.content?.trim() || '',
-      model: body.model?.trim() || undefined,
-      reasoning_effort: body.reasoningEffort?.trim() || null,
-      regenerate: Boolean(body.regenerate),
-      target_message_id: body.target_message_id ?? null,
-      system_prompt: body.scenarioId
-        ? buildScenarioSystemPrompt(body.scenarioId, body.toneId, body.language, body.length)
-        : buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
-      enable_web_search: Boolean(body.enableWebSearch),
-      attached_file_content: body.attachedFileContent?.trim() || null,
-      attached_file_name: body.attachedFileName?.trim() || null,
-    }),
-    cache: 'no-store',
-  })
+  const upstream = await fetch(
+    `${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`,
+    {
+      method: 'POST',
+      headers: buildBackendAuthHeaders(session, {
+        apiKey: apiKeyOrResponse.apiKey,
+        contentType: 'application/json',
+      }),
+      body: JSON.stringify({
+        content: body.content?.trim() || '',
+        model: body.model?.trim() || undefined,
+        reasoning_effort: body.reasoningEffort?.trim() || null,
+        regenerate: Boolean(body.regenerate),
+        target_message_id: body.target_message_id ?? null,
+        system_prompt: body.scenarioId
+          ? buildScenarioSystemPrompt(body.scenarioId, body.toneId, body.language, body.length)
+          : buildSystemPrompt(body.overviewPromptId, body.detailPromptId),
+        enable_web_search: Boolean(body.enableWebSearch),
+        attached_file_content: body.attachedFileContent?.trim() || null,
+        attached_file_name: body.attachedFileName?.trim() || null,
+      }),
+      cache: 'no-store',
+    }
+  )
 
   if (!upstream.ok) {
     const text = await upstream.text()

@@ -30,7 +30,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
     })
     return NextResponse.json(data)
   } catch (err) {
-    return NextResponse.json({ message: normalizeErrorMessage(err, '加载消息失败') }, { status: 500 })
+    return NextResponse.json(
+      { message: normalizeErrorMessage(err, '加载消息失败') },
+      { status: 500 }
+    )
   }
 }
 

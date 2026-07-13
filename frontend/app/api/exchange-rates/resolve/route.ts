@@ -5,21 +5,27 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { requireUserSession } from '@/lib/auth/server'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import {
-  buildBackendProxyHeaders,
-  buildBackendUrl,
-} from '@/lib/server/backend-proxy'
+import { buildBackendProxyHeaders, buildBackendUrl } from '@/lib/server/backend-proxy'
 
 async function toErrorResponse(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { detail?: string; message?: string; error?: string }
     return NextResponse.json(
-      { success: false, error: normalizeErrorMessage(payload.error || payload.detail || payload.message, fallbackMessage) },
+      {
+        success: false,
+        error: normalizeErrorMessage(
+          payload.error || payload.detail || payload.message,
+          fallbackMessage
+        ),
+      },
       { status: response.status }
     )
   } catch {
     const text = await response.text()
-    return NextResponse.json({ success: false, error: normalizeErrorMessage(text, fallbackMessage) }, { status: response.status })
+    return NextResponse.json(
+      { success: false, error: normalizeErrorMessage(text, fallbackMessage) },
+      { status: response.status }
+    )
   }
 }
 

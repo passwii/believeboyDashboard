@@ -1,54 +1,54 @@
-"use client"
+'use client'
 
 // 欧洲 VAT 发票生成器 — 主客户端协调器
 // 流程：选店铺 → 加载 Seller 列表 → 选国家 → 录入订单/明细/运费 → 实时汇总 → 预览 → 下载 PDF
 
-import { useMemo, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { FileText } from "lucide-react"
-import { SellerCard } from "./components/seller-card"
-import { InvoiceFormSection } from "./components/invoice-form"
-import { LineItemsEditor } from "./components/line-items-editor"
-import { InvoiceSummary } from "./components/invoice-summary"
-import { InvoicePreviewDialog } from "./components/invoice-preview-dialog"
-import { computeInvoiceTotal } from "./lib/vat-calc"
-import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry } from "./types"
+import { useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { FileText } from 'lucide-react'
+import { SellerCard } from './components/seller-card'
+import { InvoiceFormSection } from './components/invoice-form'
+import { LineItemsEditor } from './components/line-items-editor'
+import { InvoiceSummary } from './components/invoice-summary'
+import { InvoicePreviewDialog } from './components/invoice-preview-dialog'
+import { computeInvoiceTotal } from './lib/vat-calc'
+import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry } from './types'
 
 const emptyBuyer = {
-  name: "",
-  address_line: "",
-  postal_code: "",
-  city: "",
-  country: "",
+  name: '',
+  address_line: '',
+  postal_code: '',
+  city: '',
+  country: '',
 }
 
 const initialForm: InvoiceForm = {
   project_id: null, // null = 未选
-  currency: "EUR",
-  order_id: "",
-  invoice_date: "",
+  currency: 'EUR',
+  order_id: '',
+  invoice_date: '',
   buyer: { ...emptyBuyer },
   line_items: [],
   shipping_incl_vat: 0,
 }
 
 const emptySellerEntry: InvoiceSellerEntry = {
-  company_name: "",
-  vat_id: "",
-  address_line: "",
-  postal_code: "",
-  city: "",
-  country: "",
+  company_name: '',
+  vat_id: '',
+  address_line: '',
+  postal_code: '',
+  city: '',
+  country: '',
 }
 
-function getSymbol(currency: InvoiceForm["currency"]): string {
+function getSymbol(currency: InvoiceForm['currency']): string {
   return CURRENCY_OPTIONS.find((c) => c.value === currency)?.symbol ?? currency
 }
 
 export default function VatInvoiceClient() {
   const [form, setForm] = useState<InvoiceForm>(initialForm)
   const [sellers, setSellers] = useState<InvoiceSellerEntry[]>([])
-  const [selectedCountry, setSelectedCountry] = useState<string>("")
+  const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const symbol = getSymbol(form.currency)
@@ -56,7 +56,7 @@ export default function VatInvoiceClient() {
   // 当前选中 Seller
   const seller = useMemo(
     () => sellers.find((s) => s.country === selectedCountry) ?? null,
-    [sellers, selectedCountry],
+    [sellers, selectedCountry]
   )
 
   // 校验：发票可预览的最小条件
@@ -77,11 +77,10 @@ export default function VatInvoiceClient() {
     <div className="space-y-4 px-1 py-1">
       {/* 页面 Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          VAT 发票生成器
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">VAT 发票生成器</h1>
         <p className="text-sm text-muted-foreground">
-          为欧洲订单快速生成 VAT 发票：选择店铺自动预填 Seller 信息，录入订单后实时计算 VAT 并导出 PDF。
+          为欧洲订单快速生成 VAT 发票：选择店铺自动预填 Seller 信息，录入订单后实时计算 VAT 并导出
+          PDF。
         </p>
       </div>
 

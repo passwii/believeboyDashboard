@@ -1,6 +1,6 @@
 declare module 'react-syntax-highlighter' {
   import { ComponentType } from 'react'
-  
+
   export interface SyntaxHighlighterProps {
     children: string
     language?: string

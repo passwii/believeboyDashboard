@@ -9,12 +9,7 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 
 import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   ChartContainer,
   ChartTooltip,
@@ -54,21 +49,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  clearClientCache,
-  getClientCache,
-  setClientCache,
-} from '@/lib/client-cache'
+import { clearClientCache, getClientCache, setClientCache } from '@/lib/client-cache'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
-import {
-  CountrySelect,
-  FilterField,
-  RefreshButton,
-} from '@/components/dashboard/console'
+import { CountrySelect, FilterField, RefreshButton } from '@/components/dashboard/console'
 
 type ProjectOption = {
   id: number | null
@@ -116,14 +103,14 @@ type PT1DetailsResponse = {
 function WeeklyFilterSkeleton({ width = 'w-full' }: { width?: string }) {
   return (
     <div className={`space-y-1.5 ${width}`}>
-      <Skeleton className='h-3 w-14' />
-      <Skeleton className='h-9 w-full' />
+      <Skeleton className="h-3 w-14" />
+      <Skeleton className="h-9 w-full" />
     </div>
   )
 }
 
 function WeeklyStatSkeleton() {
-  return <Skeleton className='h-[132px] w-full rounded-lg' />
+  return <Skeleton className="h-[132px] w-full rounded-lg" />
 }
 
 function LoadingScrim({
@@ -134,7 +121,7 @@ function LoadingScrim({
   className?: string
 }) {
   return (
-    <div className='absolute inset-0 z-20 flex items-center justify-center bg-background/78 backdrop-blur-[2px]'>
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/78 backdrop-blur-[2px]">
       <div className={className}>{children}</div>
     </div>
   )
@@ -143,7 +130,7 @@ function LoadingScrim({
 // 骨架屏占位加载状态：用于切换项目/国家时的平滑过渡
 type SkeletonState = 'idle' | 'loading' | 'visible'
 
-const SKELETON_DELAY_MS = 80   // 骨架屏延迟显示，避免快速切换闪烁
+const SKELETON_DELAY_MS = 80 // 骨架屏延迟显示，避免快速切换闪烁
 const FADE_DURATION_MS = 250 // 内容淡入 + 骨架屏淡出的交叉时间
 
 const API_BASE = '/api/backend'
@@ -154,7 +141,7 @@ function weeklyDataCacheKey(
   projectId: number,
   country: CountryOption,
   startDate: string,
-  endDate: string,
+  endDate: string
 ): string {
   return `weekly-analysis:data:${projectId}:${country}:${startDate || 'none'}:${endDate || 'none'}`
 }
@@ -427,16 +414,13 @@ function parseErrorBody(text: string, status: number): string {
           if (typeof item === 'string') return item
           if (item && typeof item === 'object') {
             const maybeMsg = (item as { msg?: unknown }).msg
-            return typeof maybeMsg === 'string'
-              ? maybeMsg
-              : JSON.stringify(item)
+            return typeof maybeMsg === 'string' ? maybeMsg : JSON.stringify(item)
           }
           return String(item)
         })
         .join('; ')
     }
-    if (payload.detail && typeof payload.detail === 'object')
-      return JSON.stringify(payload.detail)
+    if (payload.detail && typeof payload.detail === 'object') return JSON.stringify(payload.detail)
     return text
   } catch {
     return text
@@ -483,7 +467,7 @@ function getISOWeek(dateStr: string): string {
   const dayNum = d.getUTCDay() || 7
   d.setUTCDate(d.getUTCDate() + 4 - dayNum)
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
   return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`
 }
 
@@ -499,7 +483,10 @@ type PeriodCompleteness = {
   payment_missing_dates?: string[]
 }
 
-function extractCompleteness(row: WeeklyDataRow): { isPartial: boolean; completeness: PeriodCompleteness | null } {
+function extractCompleteness(row: WeeklyDataRow): {
+  isPartial: boolean
+  completeness: PeriodCompleteness | null
+} {
   const raw = row.summary_row
   if (!raw || typeof raw !== 'object') return { isPartial: false, completeness: null }
   const isPartial = raw._is_partial === true
@@ -531,11 +518,7 @@ function hasValue(value: unknown): boolean {
   return true
 }
 
-function formatSummaryCell(
-  column: string,
-  value: unknown,
-  country: CountryOption = 'US',
-): string {
+function formatSummaryCell(column: string, value: unknown, country: CountryOption = 'US'): string {
   if (!hasValue(value)) return '-'
 
   const numeric = toNumber(value)
@@ -558,16 +541,11 @@ function formatSummaryCell(
   return numeric.toLocaleString('en-US', { maximumFractionDigits: 4 })
 }
 
-function sumSummaryValue(
-  rows: Array<Record<string, unknown>>,
-  column: string,
-): number {
+function sumSummaryValue(rows: Array<Record<string, unknown>>, column: string): number {
   return rows.reduce((acc, row) => acc + toNumber(row[column]), 0)
 }
 
-function buildSummaryTotals(
-  rows: Array<Record<string, unknown>>,
-): Record<string, number> {
+function buildSummaryTotals(rows: Array<Record<string, unknown>>): Record<string, number> {
   const totals: Record<string, number> = {}
   SUMMARY_COLUMNS.forEach((column) => {
     totals[column] = sumSummaryValue(rows, column)
@@ -595,10 +573,7 @@ function buildSummaryTotals(
 }
 
 function buildSummaryForRow(row: WeeklyDataRow): Record<string, unknown> {
-  const rawSummary =
-    row.summary_row && typeof row.summary_row === 'object'
-      ? row.summary_row
-      : {}
+  const rawSummary = row.summary_row && typeof row.summary_row === 'object' ? row.summary_row : {}
   const summary: Record<string, unknown> = { ...rawSummary }
 
   if (!hasValue(summary['总销量'])) summary['总销量'] = row.total_units
@@ -611,26 +586,19 @@ function buildSummaryForRow(row: WeeklyDataRow): Record<string, unknown> {
 }
 
 function buildDetailRow(
-  rawRow: Record<string, unknown> | null | undefined,
+  rawRow: Record<string, unknown> | null | undefined
 ): Record<string, unknown> {
   if (!rawRow || typeof rawRow !== 'object') return {}
   return { ...rawRow }
 }
 
-function formatDetailCell(
-  column: string,
-  value: unknown,
-  country: CountryOption = 'US',
-): string {
+function formatDetailCell(column: string, value: unknown, country: CountryOption = 'US'): string {
   if (!hasValue(value)) return '-'
   if (column === '日期' || column === 'SKU') return String(value)
   return formatSummaryCell(column, value, country)
 }
 
-function sumAnyNumericColumn(
-  rows: Array<Record<string, unknown>>,
-  column: string,
-): number | null {
+function sumAnyNumericColumn(rows: Array<Record<string, unknown>>, column: string): number | null {
   let hasNumeric = false
   const total = rows.reduce((acc, row) => {
     const raw = row[column]
@@ -712,7 +680,7 @@ function fillSummaryWorksheet(
     country: CountryOption
     startDate: string
     endDate: string
-  },
+  }
 ) {
   const lastColumn = SUMMARY_COLUMNS.length + 2
   worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
@@ -813,10 +781,7 @@ function fillSummaryWorksheet(
     const { isPartial } = extractCompleteness(item.row)
     const weekLabel = getISOWeek(item.row.report_start_date)
     row.getCell(1).value = isPartial ? `${weekLabel} *` : weekLabel
-    row.getCell(2).value = formatDateRange(
-      item.row.report_start_date,
-      item.row.report_end_date,
-    )
+    row.getCell(2).value = formatDateRange(item.row.report_start_date, item.row.report_end_date)
     SUMMARY_COLUMNS.forEach((column, idx) => {
       const cell = row.getCell(idx + 3)
       const value = getExcelCellValue(column, item.summary[column])
@@ -865,8 +830,7 @@ function fillSummaryWorksheet(
       name: 'Microsoft YaHei',
       bold: true,
       color: {
-        argb:
-          column === '利润' || column === '利润率' ? 'FF047857' : 'FF0F172A',
+        argb: column === '利润' || column === '利润率' ? 'FF047857' : 'FF0F172A',
       },
     }
     cell.fill = {
@@ -931,7 +895,7 @@ function fillDetailWorksheet(
     weekRange: string
     projectName: string
     country: CountryOption
-  },
+  }
 ) {
   const lastColumn = detailColumns.length
   worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
@@ -1059,9 +1023,7 @@ function fillDetailWorksheet(
       cell.alignment = {
         vertical: 'middle',
         horizontal:
-          column === '日期' || column === 'SKU' || typeof value !== 'number'
-            ? 'left'
-            : 'right',
+          column === '日期' || column === 'SKU' || typeof value !== 'number' ? 'left' : 'right',
       }
       const numFmt = getExcelNumberFormat(column)
       if (typeof value === 'number' && numFmt) cell.numFmt = numFmt
@@ -1079,10 +1041,7 @@ function fillDetailWorksheet(
       cell.value = `${detailRows.length} 行`
     } else if (SUMMARY_COLUMN_SET.has(column)) {
       cell.value = detailTotals[column] ?? 0
-    } else if (
-      detailExtraTotals[column] !== null &&
-      detailExtraTotals[column] !== undefined
-    ) {
+    } else if (detailExtraTotals[column] !== null && detailExtraTotals[column] !== undefined) {
       cell.value = detailExtraTotals[column] as number
     } else {
       cell.value = '-'
@@ -1145,9 +1104,7 @@ export default function WeeklyProductAnalysisPage() {
   const [selectedWeekId, setSelectedWeekId] = useState('')
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>(
-    [],
-  )
+  const [detailRows, setDetailRows] = useState<Array<Record<string, unknown>>>([])
   const [inventorySnapshotAt, setInventorySnapshotAt] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -1170,7 +1127,7 @@ export default function WeeklyProductAnalysisPage() {
   const latestDetailsRequestIdRef = useRef(0)
   const summaryWeekHeadRef = useRef<HTMLTableCellElement | null>(null)
   const [summaryWeekColumnWidth, setSummaryWeekColumnWidth] = useState(
-    SUMMARY_WEEK_COLUMN_FALLBACK_WIDTH,
+    SUMMARY_WEEK_COLUMN_FALLBACK_WIDTH
   )
 
   const loadProjects = useCallback(async () => {
@@ -1189,9 +1146,7 @@ export default function WeeklyProductAnalysisPage() {
         }
       }
     } catch (loadError) {
-      setProjectLoadError(
-        loadError instanceof Error ? loadError.message : '项目列表加载失败',
-      )
+      setProjectLoadError(loadError instanceof Error ? loadError.message : '项目列表加载失败')
     } finally {
       setProjectsLoading(false)
     }
@@ -1207,12 +1162,7 @@ export default function WeeklyProductAnalysisPage() {
       }
 
       const useCache = !options?.force
-      const cacheKey = weeklyDataCacheKey(
-        parsedProjectId,
-        country,
-        startDate,
-        endDate,
-      )
+      const cacheKey = weeklyDataCacheKey(parsedProjectId, country, startDate, endDate)
       const cachedPayload = useCache
         ? getClientCache<WeeklyDataRow[]>(cacheKey, WEEKLY_DATA_CACHE_TTL_MS)
         : null
@@ -1243,12 +1193,10 @@ export default function WeeklyProductAnalysisPage() {
           {
             cache: 'no-store',
             headers: authHeaders(),
-          },
+          }
         )
         if (!response.ok) {
-          throw new Error(
-            parseErrorBody(await response.text(), response.status),
-          )
+          throw new Error(parseErrorBody(await response.text(), response.status))
         }
 
         const payload = (await response.json()) as WeeklyDataRow[]
@@ -1259,11 +1207,7 @@ export default function WeeklyProductAnalysisPage() {
         if (latestRequestIdRef.current !== requestId) return
         if (!hasCachedPayload) {
           setData([])
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : '产品分析数据加载失败',
-          )
+          setError(loadError instanceof Error ? loadError.message : '产品分析数据加载失败')
         }
       } finally {
         if (latestRequestIdRef.current === requestId) {
@@ -1271,7 +1215,7 @@ export default function WeeklyProductAnalysisPage() {
         }
       }
     },
-    [projectId, country, startDate, endDate],
+    [projectId, country, startDate, endDate]
   )
 
   const loadWeeklyDetails = useCallback(
@@ -1288,10 +1232,7 @@ export default function WeeklyProductAnalysisPage() {
       const useCache = !options?.force
       const cacheKey = weeklyDetailsCacheKey(pt1Id, country)
       const cachedRows = useCache
-        ? getClientCache<Array<Record<string, unknown>>>(
-            cacheKey,
-            WEEKLY_DETAILS_CACHE_TTL_MS,
-          )
+        ? getClientCache<Array<Record<string, unknown>>>(cacheKey, WEEKLY_DETAILS_CACHE_TTL_MS)
         : null
       const hasCachedRows = Array.isArray(cachedRows)
       if (cachedRows) {
@@ -1324,12 +1265,10 @@ export default function WeeklyProductAnalysisPage() {
             {
               cache: 'no-store',
               headers: authHeaders(),
-            },
+            }
           )
           if (!response.ok) {
-            throw new Error(
-              parseErrorBody(await response.text(), response.status),
-            )
+            throw new Error(parseErrorBody(await response.text(), response.status))
           }
 
           const payload = (await response.json()) as PT1DetailsResponse
@@ -1356,7 +1295,7 @@ export default function WeeklyProductAnalysisPage() {
             })
             const invResponse = await fetch(
               `${API_BASE}/api/v1/product-analysis/inventory/current?${inventorySearch.toString()}`,
-              { cache: 'no-store', headers: authHeaders() },
+              { cache: 'no-store', headers: authHeaders() }
             )
             if (invResponse.ok) {
               const invPayload = (await invResponse.json()) as {
@@ -1398,9 +1337,7 @@ export default function WeeklyProductAnalysisPage() {
         if (latestDetailsRequestIdRef.current !== requestId) return
         if (!hasCachedRows) {
           setDetailRows([])
-          setDetailsError(
-            loadError instanceof Error ? loadError.message : 'SKU明细 加载失败',
-          )
+          setDetailsError(loadError instanceof Error ? loadError.message : 'SKU明细 加载失败')
         }
       } finally {
         if (latestDetailsRequestIdRef.current === requestId) {
@@ -1408,7 +1345,7 @@ export default function WeeklyProductAnalysisPage() {
         }
       }
     },
-    [selectedWeekId, country, projectId],
+    [selectedWeekId, country, projectId]
   )
 
   const handleRecomputeHistory = useCallback(async () => {
@@ -1432,40 +1369,34 @@ export default function WeeklyProductAnalysisPage() {
         {
           method: 'POST',
           headers: authHeaders(),
-        },
+        }
       )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
 
       const payload = (await response.json()) as { recomputed?: number }
-      clearClientCache(
-        weeklyDataCacheKey(parsedProjectId, country, startDate, endDate),
-      )
+      clearClientCache(weeklyDataCacheKey(parsedProjectId, country, startDate, endDate))
       if (selectedWeekId) {
         clearClientCache(weeklyDetailsCacheKey(Number(selectedWeekId), country))
       }
       await loadWeeklyData({ force: true })
-      notify({ type: 'success', title: '周度数据重算完成', message: `已重算并持久化 ${Number(payload.recomputed || 0)} 个周报` })
+      notify({
+        type: 'success',
+        title: '周度数据重算完成',
+        message: `已重算并持久化 ${Number(payload.recomputed || 0)} 个周报`,
+      })
     } catch (recomputeError) {
-      setError(
-        recomputeError instanceof Error
-          ? recomputeError.message
-          : '历史周报重算失败',
-      )
-      notify({ type: 'error', title: '周度数据重算失败', message: recomputeError instanceof Error ? recomputeError.message : '历史周报重算失败' })
+      setError(recomputeError instanceof Error ? recomputeError.message : '历史周报重算失败')
+      notify({
+        type: 'error',
+        title: '周度数据重算失败',
+        message: recomputeError instanceof Error ? recomputeError.message : '历史周报重算失败',
+      })
     } finally {
       setRecomputing(false)
     }
-  }, [
-    notify,
-    projectId,
-    country,
-    startDate,
-    endDate,
-    selectedWeekId,
-    loadWeeklyData,
-  ])
+  }, [notify, projectId, country, startDate, endDate, selectedWeekId, loadWeeklyData])
 
   useEffect(() => {
     void loadProjects()
@@ -1483,16 +1414,18 @@ export default function WeeklyProductAnalysisPage() {
 
     // 延迟显示骨架屏（避免快速切换闪烁），同时开始加载数据
     skeletonTimerRef.current = setTimeout(() => {
-      setSkeletonState(prev => prev === 'idle' ? 'loading' : prev)
+      setSkeletonState((prev) => (prev === 'idle' ? 'loading' : prev))
     }, SKELETON_DELAY_MS)
 
-    void loadWeeklyData().then(() => {
-      // 加载完成后，开始 content 淡入，250ms 后骨架屏消失
-      setSkeletonState('visible')
-    }).finally(() => {
-      // 兜底：确保骨架屏不会永久卡住
-      setSkeletonState('visible')
-    })
+    void loadWeeklyData()
+      .then(() => {
+        // 加载完成后，开始 content 淡入，250ms 后骨架屏消失
+        setSkeletonState('visible')
+      })
+      .finally(() => {
+        // 兜底：确保骨架屏不会永久卡住
+        setSkeletonState('visible')
+      })
   }, [projectId, projectsLoading, loadWeeklyData])
 
   // 首次加载时设置为可见
@@ -1514,9 +1447,7 @@ export default function WeeklyProductAnalysisPage() {
   const trendRows = useMemo(() => {
     if (!data || data.length === 0) return []
     return [...data].sort((a, b) => {
-      const dateOrder = String(a.report_start_date).localeCompare(
-        String(b.report_start_date),
-      )
+      const dateOrder = String(a.report_start_date).localeCompare(String(b.report_start_date))
       if (dateOrder !== 0) return dateOrder
       return Number(a.id || 0) - Number(b.id || 0)
     })
@@ -1560,7 +1491,7 @@ export default function WeeklyProductAnalysisPage() {
         sales_amount: 0,
         units_sold: 0,
         ad_spend: 0,
-      },
+      }
     )
   }, [data])
 
@@ -1576,14 +1507,8 @@ export default function WeeklyProductAnalysisPage() {
     const prevAd = Number(prev.total_ad_spend || 0)
 
     return {
-      sales:
-        prevSales !== 0
-          ? ((lastSales - prevSales) / Math.abs(prevSales)) * 100
-          : 0,
-      units:
-        prevUnits !== 0
-          ? ((lastUnits - prevUnits) / Math.abs(prevUnits)) * 100
-          : 0,
+      sales: prevSales !== 0 ? ((lastSales - prevSales) / Math.abs(prevSales)) * 100 : 0,
+      units: prevUnits !== 0 ? ((lastUnits - prevUnits) / Math.abs(prevUnits)) * 100 : 0,
       ad: prevAd !== 0 ? ((lastAd - prevAd) / Math.abs(prevAd)) * 100 : 0,
     }
   }, [trendRows])
@@ -1604,9 +1529,7 @@ export default function WeeklyProductAnalysisPage() {
     const updateWidth = () => {
       const nextWidth = Math.ceil(headerCell.getBoundingClientRect().width)
       if (nextWidth > 0) {
-        setSummaryWeekColumnWidth((prev) =>
-          prev === nextWidth ? prev : nextWidth,
-        )
+        setSummaryWeekColumnWidth((prev) => (prev === nextWidth ? prev : nextWidth))
       }
     }
 
@@ -1620,8 +1543,7 @@ export default function WeeklyProductAnalysisPage() {
 
   useEffect(() => {
     setSelectedWeekId((prev) => {
-      if (prev && summaryRows.some((item) => String(item.row.id) === prev))
-        return prev
+      if (prev && summaryRows.some((item) => String(item.row.id) === prev)) return prev
       return summaryRows.length > 0 ? String(summaryRows[0].row.id) : ''
     })
   }, [summaryRows])
@@ -1652,12 +1574,10 @@ export default function WeeklyProductAnalysisPage() {
       columns: group.columns.filter((column) => detailColumnSet.has(column)),
     })).filter((group) => group.columns.length > 0)
 
-    const groupedColumns = new Set<string>(
-      groups.flatMap((group) => group.columns),
-    )
+    const groupedColumns = new Set<string>(groups.flatMap((group) => group.columns))
     const coreColumnSet = new Set<string>(DETAIL_CORE_COLUMNS)
     const extras = detailColumns.filter(
-      (column) => !coreColumnSet.has(column) && !groupedColumns.has(column),
+      (column) => !coreColumnSet.has(column) && !groupedColumns.has(column)
     )
     const headClassByColumn: Record<string, string> = {}
     groups.forEach((group) => {
@@ -1668,10 +1588,7 @@ export default function WeeklyProductAnalysisPage() {
     return { groups, extras, headClassByColumn }
   }, [detailColumns])
 
-  const detailTotals = useMemo(
-    () => buildSummaryTotals(detailRows),
-    [detailRows],
-  )
+  const detailTotals = useMemo(() => buildSummaryTotals(detailRows), [detailRows])
 
   const detailExtraTotals = useMemo(() => {
     const totals: Record<string, number | null> = {}
@@ -1684,9 +1601,7 @@ export default function WeeklyProductAnalysisPage() {
   const showDetailsSkeleton = detailsLoading && detailRows.length === 0
 
   const exportWeeklyAnalysis = useCallback(async () => {
-    const projectName =
-      projects.find((item) => String(item.id) === projectId)?.name ??
-      '未命名店铺'
+    const projectName = projects.find((item) => String(item.id) === projectId)?.name ?? '未命名店铺'
     if (summaryRows.length === 0) {
       setError('当前没有可导出的周汇总数据。')
       return
@@ -1694,8 +1609,7 @@ export default function WeeklyProductAnalysisPage() {
 
     const targetWeekId = selectedWeekId || String(summaryRows[0]?.row.id || '')
     const targetWeek =
-      summaryRows.find((item) => String(item.row.id) === targetWeekId) ??
-      summaryRows[0]
+      summaryRows.find((item) => String(item.row.id) === targetWeekId) ?? summaryRows[0]
     if (!targetWeek) {
       setError('当前没有可导出的周次数据。')
       return
@@ -1707,17 +1621,11 @@ export default function WeeklyProductAnalysisPage() {
 
     try {
       let exportDetailRows = detailRows
-      if (
-        String(targetWeek.row.id) !== selectedWeekId ||
-        detailRows.length === 0
-      ) {
-        const cacheKey = weeklyDetailsCacheKey(
-          Number(targetWeek.row.id),
-          country,
-        )
+      if (String(targetWeek.row.id) !== selectedWeekId || detailRows.length === 0) {
+        const cacheKey = weeklyDetailsCacheKey(Number(targetWeek.row.id), country)
         const cachedRows = getClientCache<Array<Record<string, unknown>>>(
           cacheKey,
-          WEEKLY_DETAILS_CACHE_TTL_MS,
+          WEEKLY_DETAILS_CACHE_TTL_MS
         )
         if (cachedRows) {
           exportDetailRows = cachedRows
@@ -1737,17 +1645,13 @@ export default function WeeklyProductAnalysisPage() {
               {
                 cache: 'no-store',
                 headers: authHeaders(),
-              },
+              }
             )
             if (!response.ok) {
-              throw new Error(
-                parseErrorBody(await response.text(), response.status),
-              )
+              throw new Error(parseErrorBody(await response.text(), response.status))
             }
             const payload = (await response.json()) as PT1DetailsResponse
-            merged.push(
-              ...payload.rows.map((row) => buildDetailRow(row.raw_row)),
-            )
+            merged.push(...payload.rows.map((row) => buildDetailRow(row.raw_row)))
             hasNext = payload.has_next
             page += 1
           }
@@ -1766,36 +1670,27 @@ export default function WeeklyProductAnalysisPage() {
                 new Set(
                   exportDetailRows.flatMap((row) =>
                     Object.keys(row).filter(
-                      (key) =>
-                        key !== 'ASIN' && !DETAIL_BASE_COLUMN_SET.has(key),
-                    ),
-                  ),
-                ),
+                      (key) => key !== 'ASIN' && !DETAIL_BASE_COLUMN_SET.has(key)
+                    )
+                  )
+                )
               ),
             ]
 
       const exportDetailColumnSet = new Set<string>(exportDetailColumns)
       const exportGroups = DETAIL_COLUMN_GROUPS.map((group) => ({
         ...group,
-        columns: group.columns.filter((column) =>
-          exportDetailColumnSet.has(column),
-        ),
+        columns: group.columns.filter((column) => exportDetailColumnSet.has(column)),
       })).filter((group) => group.columns.length > 0)
-      const exportGroupedColumns = new Set<string>(
-        exportGroups.flatMap((group) => group.columns),
-      )
+      const exportGroupedColumns = new Set<string>(exportGroups.flatMap((group) => group.columns))
       const exportExtras = exportDetailColumns.filter(
         (column) =>
-          !DETAIL_CORE_COLUMNS.includes(
-            column as (typeof DETAIL_CORE_COLUMNS)[number],
-          ) && !exportGroupedColumns.has(column),
+          !DETAIL_CORE_COLUMNS.includes(column as (typeof DETAIL_CORE_COLUMNS)[number]) &&
+          !exportGroupedColumns.has(column)
       )
       const exportDetailTotals = buildSummaryTotals(exportDetailRows)
       const exportDetailExtraTotals = Object.fromEntries(
-        exportExtras.map((column) => [
-          column,
-          sumAnyNumericColumn(exportDetailRows, column),
-        ]),
+        exportExtras.map((column) => [column, sumAnyNumericColumn(exportDetailRows, column)])
       )
 
       const ExcelJS = await import('exceljs')
@@ -1829,9 +1724,9 @@ export default function WeeklyProductAnalysisPage() {
           weekLabel: getISOWeek(targetWeek.row.report_start_date),
           weekRange: formatDateRange(
             targetWeek.row.report_start_date,
-            targetWeek.row.report_end_date,
+            targetWeek.row.report_end_date
           ),
-        },
+        }
       )
 
       const buffer = await workbook.xlsx.writeBuffer()
@@ -1863,9 +1758,7 @@ export default function WeeklyProductAnalysisPage() {
         },
       })
     } catch (exportError) {
-      setError(
-        exportError instanceof Error ? exportError.message : '导出 Excel 失败',
-      )
+      setError(exportError instanceof Error ? exportError.message : '导出 Excel 失败')
     } finally {
       setExporting(false)
     }
@@ -1882,7 +1775,7 @@ export default function WeeklyProductAnalysisPage() {
   ])
 
   return (
-    <div className='w-full space-y-6'>
+    <div className="w-full space-y-6">
       <DataCard>
         <DataCardContent className="flex flex-wrap items-end gap-3">
           {projectsLoading ? (
@@ -1934,15 +1827,15 @@ export default function WeeklyProductAnalysisPage() {
         </DataCardContent>
 
         {projectLoadError ? (
-          <div className='border-t border-border/70 px-6 pb-4 pt-2'>
-            <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          <div className="border-t border-border/70 px-6 pb-4 pt-2">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {projectLoadError}
             </div>
           </div>
         ) : null}
         {error ? (
-          <div className='border-t border-border/70 px-6 pb-4 pt-2'>
-            <div className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          <div className="border-t border-border/70 px-6 pb-4 pt-2">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </div>
           </div>
@@ -1951,12 +1844,11 @@ export default function WeeklyProductAnalysisPage() {
 
       <DataCard>
         <DataCardHeader
-          title='周度趋势'
-
+          title="周度趋势"
           action={
-            <div className='flex flex-wrap items-center justify-center gap-2 sm:justify-end'>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -1970,18 +1862,18 @@ export default function WeeklyProductAnalysisPage() {
                 }`}
               >
                 {visibleLines.sales_amount ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--chart-2))' }}
                 />
                 销售额
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -1995,18 +1887,18 @@ export default function WeeklyProductAnalysisPage() {
                 }`}
               >
                 {visibleLines.units_sold ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--primary))' }}
                 />
                 销量
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2020,18 +1912,18 @@ export default function WeeklyProductAnalysisPage() {
                 }`}
               >
                 {visibleLines.ad_spend ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--destructive))' }}
                 />
                 广告花费
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2045,18 +1937,18 @@ export default function WeeklyProductAnalysisPage() {
                 }`}
               >
                 {visibleLines.ad_clicks ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--chart-4))' }}
                 />
                 广告点击量
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2070,18 +1962,18 @@ export default function WeeklyProductAnalysisPage() {
                 }`}
               >
                 {visibleLines.organic_traffic ? (
-                  <Eye className='h-3 w-3' />
+                  <Eye className="h-3 w-3" />
                 ) : (
-                  <EyeOff className='h-3 w-3' />
+                  <EyeOff className="h-3 w-3" />
                 )}
                 <span
-                  className='h-2 w-2 rounded-full'
+                  className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: 'hsl(var(--chart-5))' }}
                 />
                 自然流量
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2094,19 +1986,19 @@ export default function WeeklyProductAnalysisPage() {
                     : 'border-muted bg-muted/30 text-muted-foreground line-through'
                 }`}
               >
-                {visibleLines.acos ? (
-                  <Eye className='h-3 w-3' />
-                ) : (
-                  <EyeOff className='h-3 w-3' />
-                )}
+                {visibleLines.acos ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                 <span
-                  className='h-2 w-2 rounded-full'
-                  style={{ backgroundColor: 'hsl(var(--chart-3))', border: '2px dashed hsl(var(--chart-3))', background: 'transparent' }}
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: 'hsl(var(--chart-3))',
+                    border: '2px dashed hsl(var(--chart-3))',
+                    background: 'transparent',
+                  }}
                 />
                 ACOS
               </button>
               <button
-                type='button'
+                type="button"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
@@ -2119,14 +2011,14 @@ export default function WeeklyProductAnalysisPage() {
                     : 'border-muted bg-muted/30 text-muted-foreground line-through'
                 }`}
               >
-                {visibleLines.ctr ? (
-                  <Eye className='h-3 w-3' />
-                ) : (
-                  <EyeOff className='h-3 w-3' />
-                )}
+                {visibleLines.ctr ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                 <span
-                  className='h-2 w-2 rounded-full'
-                  style={{ backgroundColor: 'hsl(var(--warning))', border: '2px dashed hsl(var(--warning))', background: 'transparent' }}
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: 'hsl(var(--warning))',
+                    border: '2px dashed hsl(var(--warning))',
+                    background: 'transparent',
+                  }}
                 />
                 广告点击率
               </button>
@@ -2134,7 +2026,7 @@ export default function WeeklyProductAnalysisPage() {
           }
         />
         <DataTableCardStatBar
-          className='border-b border-border/70 bg-[hsl(var(--surface-subtle))]'
+          className="border-b border-border/70 bg-[hsl(var(--surface-subtle))]"
           items={[
             {
               label: '销售额合计',
@@ -2145,20 +2037,17 @@ export default function WeeklyProductAnalysisPage() {
             { label: '广告花费合计', value: formatCurrency(totals.ad_spend, country) },
           ]}
         />
-        <div className='relative px-2 pt-4 sm:px-6 sm:pt-6'>
+        <div className="relative px-2 pt-4 sm:px-6 sm:pt-6">
           {loading && data.length > 0 ? (
-            <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
+            <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
               趋势数据更新中...
             </div>
           ) : null}
           {showSummarySkeleton ? (
-            <Skeleton className='h-[320px] w-full' />
+            <Skeleton className="h-[320px] w-full" />
           ) : trendPoints.length > 0 ? (
-            <div className='rounded-lg bg-[hsl(var(--surface-soft))]/82 p-3 sm:p-4'>
-              <ChartContainer
-                config={chartConfig}
-                className='aspect-auto h-[320px] w-full'
-              >
+            <div className="rounded-lg bg-[hsl(var(--surface-soft))]/82 p-3 sm:p-4">
+              <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
                 <ComposedChart
                   accessibilityLayer
                   data={trendPoints}
@@ -2166,11 +2055,11 @@ export default function WeeklyProductAnalysisPage() {
                 >
                   <CartesianGrid
                     vertical={false}
-                    stroke='rgba(148,163,184,0.18)'
-                    strokeDasharray='0'
+                    stroke="rgba(148,163,184,0.18)"
+                    strokeDasharray="0"
                   />
                   <XAxis
-                    dataKey='week_label'
+                    dataKey="week_label"
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
@@ -2179,7 +2068,7 @@ export default function WeeklyProductAnalysisPage() {
                   />
                   {/* Primary Y-axis for absolute values */}
                   <YAxis
-                    yAxisId='primary'
+                    yAxisId="primary"
                     tickFormatter={(v) => {
                       const num = Number(v)
                       if (Math.abs(num) >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -2194,8 +2083,8 @@ export default function WeeklyProductAnalysisPage() {
                   />
                   {/* Secondary Y-axis for percentages */}
                   <YAxis
-                    yAxisId='percent'
-                    orientation='right'
+                    yAxisId="percent"
+                    orientation="right"
                     domain={[0, 'auto']}
                     tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
                     tickLine={false}
@@ -2226,14 +2115,11 @@ export default function WeeklyProductAnalysisPage() {
                           const metricKey = String(name)
                           const isCurrencyMetric =
                             metricKey === 'sales_amount' || metricKey === 'ad_spend'
-                          const isPercentMetric =
-                            metricKey === 'acos' || metricKey === 'ctr'
+                          const isPercentMetric = metricKey === 'acos' || metricKey === 'ctr'
                           return (
-                            <div className='flex items-center justify-between gap-4'>
-                              <span className='text-muted-foreground'>
-                                {displayName}
-                              </span>
-                              <span className='font-medium'>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">{displayName}</span>
+                              <span className="font-medium">
                                 {isCurrencyMetric
                                   ? formatCurrency(Number(value), country)
                                   : isPercentMetric
@@ -2243,17 +2129,17 @@ export default function WeeklyProductAnalysisPage() {
                             </div>
                           )
                         }}
-                        indicator='dot'
+                        indicator="dot"
                       />
                     }
                   />
                   {/* Sales Amount Bar */}
                   {visibleLines.sales_amount ? (
                     <Bar
-                      yAxisId='primary'
-                      type='monotone'
-                      dataKey='sales_amount'
-                      fill='var(--color-sales_amount)'
+                      yAxisId="primary"
+                      type="monotone"
+                      dataKey="sales_amount"
+                      fill="var(--color-sales_amount)"
                       radius={[4, 4, 0, 0]}
                       barSize={24}
                       opacity={0.9}
@@ -2262,10 +2148,10 @@ export default function WeeklyProductAnalysisPage() {
                   {/* Units Sold Bar */}
                   {visibleLines.units_sold ? (
                     <Bar
-                      yAxisId='primary'
-                      type='monotone'
-                      dataKey='units_sold'
-                      fill='var(--color-units_sold)'
+                      yAxisId="primary"
+                      type="monotone"
+                      dataKey="units_sold"
+                      fill="var(--color-units_sold)"
                       radius={[4, 4, 0, 0]}
                       barSize={24}
                       opacity={0.7}
@@ -2274,10 +2160,10 @@ export default function WeeklyProductAnalysisPage() {
                   {/* Ad Spend Line */}
                   {visibleLines.ad_spend ? (
                     <Line
-                      yAxisId='primary'
-                      type='monotone'
-                      dataKey='ad_spend'
-                      stroke='var(--color-ad_spend)'
+                      yAxisId="primary"
+                      type="monotone"
+                      dataKey="ad_spend"
+                      stroke="var(--color-ad_spend)"
                       strokeWidth={2.5}
                       dot={{ r: 4, fill: 'var(--color-ad_spend)', strokeWidth: 0 }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
@@ -2286,10 +2172,10 @@ export default function WeeklyProductAnalysisPage() {
                   {/* Ad Clicks Line */}
                   {visibleLines.ad_clicks ? (
                     <Line
-                      yAxisId='primary'
-                      type='monotone'
-                      dataKey='ad_clicks'
-                      stroke='var(--color-ad_clicks)'
+                      yAxisId="primary"
+                      type="monotone"
+                      dataKey="ad_clicks"
+                      stroke="var(--color-ad_clicks)"
                       strokeWidth={2}
                       dot={{ r: 3, fill: 'var(--color-ad_clicks)', strokeWidth: 0 }}
                       activeDot={{ r: 5, strokeWidth: 0 }}
@@ -2298,10 +2184,10 @@ export default function WeeklyProductAnalysisPage() {
                   {/* Organic Traffic Line */}
                   {visibleLines.organic_traffic ? (
                     <Line
-                      yAxisId='primary'
-                      type='monotone'
-                      dataKey='organic_traffic'
-                      stroke='var(--color-organic_traffic)'
+                      yAxisId="primary"
+                      type="monotone"
+                      dataKey="organic_traffic"
+                      stroke="var(--color-organic_traffic)"
                       strokeWidth={2}
                       dot={{ r: 3, fill: 'var(--color-organic_traffic)', strokeWidth: 0 }}
                       activeDot={{ r: 5, strokeWidth: 0 }}
@@ -2310,85 +2196,97 @@ export default function WeeklyProductAnalysisPage() {
                   {/* ACOS Line (percentage on secondary axis) */}
                   {visibleLines.acos ? (
                     <Line
-                      yAxisId='percent'
-                      type='monotone'
-                      dataKey='acos'
-                      stroke='var(--color-acos)'
+                      yAxisId="percent"
+                      type="monotone"
+                      dataKey="acos"
+                      stroke="var(--color-acos)"
                       strokeWidth={2.5}
                       dot={{ r: 4, fill: 'var(--color-acos)', strokeWidth: 0 }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
-                      strokeDasharray='5 5'
+                      strokeDasharray="5 5"
                     />
                   ) : null}
                   {/* CTR Line (percentage on secondary axis) */}
                   {visibleLines.ctr ? (
                     <Line
-                      yAxisId='percent'
-                      type='monotone'
-                      dataKey='ctr'
-                      stroke='var(--color-ctr)'
+                      yAxisId="percent"
+                      type="monotone"
+                      dataKey="ctr"
+                      stroke="var(--color-ctr)"
                       strokeWidth={2.5}
                       dot={{ r: 4, fill: 'var(--color-ctr)', strokeWidth: 0 }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
-                      strokeDasharray='5 5'
+                      strokeDasharray="5 5"
                     />
                   ) : null}
                 </ComposedChart>
               </ChartContainer>
               {/* Legend */}
-              <div className='mt-3 flex flex-wrap items-center justify-center gap-2'>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 {visibleLines.sales_amount && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-sm bg-[hsl(var(--chart-1))]' />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-1))]" />
                     销售额
                   </div>
                 )}
                 {visibleLines.units_sold && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]' />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]" />
                     销量
                   </div>
                 )}
                 {visibleLines.ad_spend && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--destructive))]' />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--destructive))]" />
                     广告花费
                   </div>
                 )}
                 {visibleLines.ad_clicks && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-4))]' />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--chart-4))]" />
                     广告点击量
                   </div>
                 )}
                 {visibleLines.organic_traffic && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-5))]' />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--chart-5))]" />
                     自然流量
                   </div>
                 )}
                 {visibleLines.acos && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--chart-3))]' style={{ border: '2px dashed hsl(var(--chart-3))', background: 'transparent' }} />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span
+                      className="h-3 w-3 rounded-full bg-[hsl(var(--chart-3))]"
+                      style={{
+                        border: '2px dashed hsl(var(--chart-3))',
+                        background: 'transparent',
+                      }}
+                    />
                     ACOS
                   </div>
                 )}
                 {visibleLines.ctr && (
-                  <div className='inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs'>
-                    <span className='h-3 w-3 rounded-full bg-[hsl(var(--warning))]' style={{ border: '2px dashed hsl(var(--warning))', background: 'transparent' }} />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                    <span
+                      className="h-3 w-3 rounded-full bg-[hsl(var(--warning))]"
+                      style={{
+                        border: '2px dashed hsl(var(--warning))',
+                        background: 'transparent',
+                      }}
+                    />
                     广告点击率
                   </div>
                 )}
               </div>
             </div>
-            ) : (
-              <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-                暂无趋势数据
-              </div>
-            )}
-            {loading && trendPoints.length > 0 ? (
-            <LoadingScrim className='w-full px-4'>
-              <Skeleton className='h-[320px] w-full rounded-xl' />
+          ) : (
+            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+              暂无趋势数据
+            </div>
+          )}
+          {loading && trendPoints.length > 0 ? (
+            <LoadingScrim className="w-full px-4">
+              <Skeleton className="h-[320px] w-full rounded-xl" />
             </LoadingScrim>
           ) : null}
         </div>
@@ -2400,162 +2298,295 @@ export default function WeeklyProductAnalysisPage() {
           'transition-all relative',
           skeletonState === 'loading' ? 'opacity-0' : 'opacity-100'
         )}
-        style={{ transitionDuration: skeletonState === 'loading' ? '0ms' : `${FADE_DURATION_MS}ms` }}
+        style={{
+          transitionDuration: skeletonState === 'loading' ? '0ms' : `${FADE_DURATION_MS}ms`,
+        }}
       >
         {/* 骨架屏覆盖层：切换项目/国家时覆盖表格区域 */}
         {skeletonState === 'loading' && (
-          <div className='absolute inset-0 z-10 rounded-xl border border-border/70 bg-background'>
-            <div className='space-y-4 p-6'>
-              <div className='grid grid-cols-3 gap-4'>
-                <Skeleton className='h-8 w-full' />
-                <Skeleton className='h-8 w-full' />
-                <Skeleton className='h-8 w-full' />
+          <div className="absolute inset-0 z-10 rounded-xl border border-border/70 bg-background">
+            <div className="space-y-4 p-6">
+              <div className="grid grid-cols-3 gap-4">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
               </div>
-              <Skeleton className='h-[320px] w-full' />
+              <Skeleton className="h-[320px] w-full" />
               <BarSkeleton rows={5} />
             </div>
           </div>
         )}
-        <DataTableCard className='animate-enter'>
-        <DataTableCardHeader className='flex flex-wrap items-center justify-between gap-3 px-6 py-4'>
-          <div>
-            <div className='text-base font-semibold text-foreground'>
-              每周分析明细
+        <DataTableCard className="animate-enter">
+          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+            <div>
+              <div className="text-base font-semibold text-foreground">每周分析明细</div>
+              <p className="text-sm text-muted-foreground"></p>
             </div>
-            <p className='text-sm text-muted-foreground'>
-            </p>
-          </div>
-          <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
-            {activeTab === 'details' ? (
-              <>
-                <Select
-                  value={selectedWeekId}
-                  onValueChange={setSelectedWeekId}
-                  disabled={summaryRows.length === 0}
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {activeTab === 'details' ? (
+                <>
+                  <Select
+                    value={selectedWeekId}
+                    onValueChange={setSelectedWeekId}
+                    disabled={summaryRows.length === 0}
+                  >
+                    <SelectTrigger className="h-8 w-[250px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                      <SelectValue placeholder="选择周次" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <TooltipProvider delayDuration={0}>
+                        {summaryRows.map((item, index) => {
+                          const { isPartial } = extractCompleteness(item.row)
+                          return (
+                            <SelectItem key={item.row.id} value={String(item.row.id)}>
+                              {getISOWeek(item.row.report_start_date)} ·{' '}
+                              {formatDateRange(
+                                item.row.report_start_date,
+                                item.row.report_end_date
+                              )}
+                              {isPartial && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="ml-1.5 inline-block">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent sideOffset={4}>
+                                    数据不完整，仅供参考
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </SelectItem>
+                          )
+                        })}
+                      </TooltipProvider>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+                    onClick={() => void loadWeeklyDetails({ force: true })}
+                    disabled={!selectedWeekId || detailsLoading}
+                  >
+                    {detailsLoading ? '加载中...' : '刷新 SKU明细'}
+                  </Button>
+                </>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8"
+                onClick={() => void exportWeeklyAnalysis()}
+                disabled={exporting || summaryRows.length === 0}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                导出 Excel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8"
+                onClick={() => void handleRecomputeHistory()}
+                disabled={recomputing || loading || !projectId}
+              >
+                {recomputing ? '重新核算中...' : '重新核算'}
+              </Button>
+              <div className="inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+                <button
+                  type="button"
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setActiveTab('summary')}
                 >
-                  <SelectTrigger className='h-8 w-[250px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'>
-                    <SelectValue placeholder='选择周次' />
-                  </SelectTrigger>
-                  <SelectContent>
+                  周汇总
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setActiveTab('details')}
+                >
+                  SKU明细
+                </button>
+              </div>
+            </div>
+          </DataTableCardHeader>
+          <DataTableCardBody className="relative">
+            {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
+              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                周汇总更新中...
+              </div>
+            ) : null}
+            {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
+              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                SKU 明细更新中...
+              </div>
+            ) : null}
+            {activeTab === 'summary' ? (
+              showSummarySkeleton ? (
+                <BarSkeleton rows={5} />
+              ) : summaryRows.length > 0 ? (
+                <Table
+                  containerClassName="w-full max-w-full overflow-x-auto"
+                  className="w-max min-w-[4200px] table-fixed text-xs"
+                >
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead
+                        ref={summaryWeekHeadRef}
+                        rowSpan={2}
+                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        style={{ left: 0 }}
+                      >
+                        周次
+                      </TableHead>
+                      <TableHead
+                        rowSpan={2}
+                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        style={{ left: summaryWeekColumnWidth }}
+                      >
+                        日期范围
+                      </TableHead>
+                      {SUMMARY_COLUMN_GROUPS.map((group) => (
+                        <TableHead
+                          key={group.title}
+                          colSpan={group.columns.length}
+                          className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}
+                        >
+                          {group.title}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                    <TableRow className="bg-muted/30">
+                      {SUMMARY_COLUMN_GROUPS.flatMap((group) =>
+                        group.columns.map((column) => (
+                          <TableHead
+                            key={column}
+                            className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${group.headClass}`}
+                          >
+                            {column}
+                          </TableHead>
+                        ))
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     <TooltipProvider delayDuration={0}>
                       {summaryRows.map((item, index) => {
-                        const { isPartial } = extractCompleteness(item.row)
+                        const row = item.row
+                        const { isPartial } = extractCompleteness(row)
+                        const rowBg = row.is_current ? 'bg-background' : 'bg-muted/20'
                         return (
-                          <SelectItem key={item.row.id} value={String(item.row.id)}>
-                            {getISOWeek(item.row.report_start_date)} ·{' '}
-                            {formatDateRange(
-                              item.row.report_start_date,
-                              item.row.report_end_date,
-                            )}
-                            {isPartial && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className='ml-1.5 inline-block'>
-                                    <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent sideOffset={4}>
-                                  数据不完整，仅供参考
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </SelectItem>
+                          <TableRow
+                            key={row.id}
+                            className={!row.is_current ? 'bg-muted/15' : undefined}
+                          >
+                            <TableCell
+                              className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
+                              style={{ left: 0 }}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {getISOWeek(row.report_start_date)}
+                                {isPartial && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-block">
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={4}>
+                                      数据不完整，仅供参考
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </span>
+                            </TableCell>
+                            <TableCell
+                              className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
+                              style={{ left: summaryWeekColumnWidth }}
+                            >
+                              {formatDateRange(row.report_start_date, row.report_end_date)}
+                            </TableCell>
+                            {SUMMARY_COLUMNS.map((column) => (
+                              <TableCell
+                                key={`${row.id}-${column}`}
+                                className="border-r px-2 py-1.5 text-right tabular-nums"
+                              >
+                                {formatSummaryCell(column, item.summary[column], country)}
+                              </TableCell>
+                            ))}
+                          </TableRow>
                         )
                       })}
                     </TooltipProvider>
-                  </SelectContent>
-                </Select>
-                <Button
-                  type='button'
-                  variant='outline'
-                  className='h-8 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]'
-                  onClick={() => void loadWeeklyDetails({ force: true })}
-                  disabled={!selectedWeekId || detailsLoading}
-                >
-                  {detailsLoading ? '加载中...' : '刷新 SKU明细'}
-                </Button>
-              </>
-            ) : null}
-            <Button
-              type='button'
-              variant='outline'
-              className='h-8'
-              onClick={() => void exportWeeklyAnalysis()}
-              disabled={exporting || summaryRows.length === 0}
-            >
-              {exporting ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow className="bg-muted font-semibold hover:bg-muted">
+                      <TableCell
+                        className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        style={{ left: 0 }}
+                      >
+                        合计
+                      </TableCell>
+                      <TableCell
+                        className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        style={{ left: summaryWeekColumnWidth }}
+                      >
+                        {summaryRows.length} 周
+                      </TableCell>
+                      {SUMMARY_COLUMNS.map((column) => (
+                        <TableCell
+                          key={`summary-total-${column}`}
+                          className="border-r px-2 py-2 text-right tabular-nums"
+                        >
+                          {formatSummaryCell(column, summaryTotals[column], country)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableFooter>
+                </Table>
               ) : (
-                <Download className='mr-2 h-4 w-4' />
-              )}
-              导出 Excel
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-8'
-              onClick={() => void handleRecomputeHistory()}
-              disabled={recomputing || loading || !projectId}
-            >
-              {recomputing ? '重新核算中...' : '重新核算'}
-            </Button>
-            <div className='inline-flex rounded-md border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
-              <button
-                type='button'
-                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                onClick={() => setActiveTab('summary')}
-              >
-                周汇总
-              </button>
-              <button
-                type='button'
-                className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                onClick={() => setActiveTab('details')}
-              >
-                SKU明细
-              </button>
-            </div>
-          </div>
-        </DataTableCardHeader>
-        <DataTableCardBody className='relative'>
-          {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
-            <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
-              周汇总更新中...
-            </div>
-          ) : null}
-          {activeTab === 'details' &&
-          detailsLoading &&
-          detailRows.length > 0 ? (
-            <div className='mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm'>
-              SKU 明细更新中...
-            </div>
-          ) : null}
-          {activeTab === 'summary' ? (
-            showSummarySkeleton ? (
-              <BarSkeleton rows={5} />
-            ) : summaryRows.length > 0 ? (
-<Table
-                containerClassName='w-full max-w-full overflow-x-auto'
-                className='w-max min-w-[4200px] table-fixed text-xs'
+                <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                  当前筛选条件暂无产品分析周汇总数据
+                </div>
+              )
+            ) : showDetailsSkeleton ? (
+              <BarSkeleton rows={8} />
+            ) : detailsError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {detailsError}
+              </div>
+            ) : detailRows.length > 0 ? (
+              <Table
+                containerClassName="w-full max-w-full overflow-x-auto"
+                className="w-max min-w-[3600px] table-fixed text-xs"
               >
                 <TableHeader>
-                  <TableRow className='bg-muted/30 hover:bg-muted/30'>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableHead
-                      ref={summaryWeekHeadRef}
                       rowSpan={2}
-                      className='sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap'
-                      style={{ left: 0 }}
+                      className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
+                      style={{
+                        left: DETAIL_STICKY_LEFT[0],
+                        minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
+                      }}
                     >
-                      周次
+                      日期
                     </TableHead>
                     <TableHead
                       rowSpan={2}
-                      className='sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap'
-                      style={{ left: summaryWeekColumnWidth }}
+                      className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
+                      style={{
+                        left: DETAIL_STICKY_LEFT[1],
+                        minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
+                      }}
                     >
-                      日期范围
+                      SKU
                     </TableHead>
-                    {SUMMARY_COLUMN_GROUPS.map((group) => (
+                    {detailGroupMeta.groups.map((group) => (
                       <TableHead
                         key={group.title}
                         colSpan={group.columns.length}
@@ -2564,266 +2595,125 @@ export default function WeeklyProductAnalysisPage() {
                         {group.title}
                       </TableHead>
                     ))}
+                    {detailGroupMeta.extras.map((column) => (
+                      <TableHead
+                        key={`detail-extra-top-${column}`}
+                        rowSpan={2}
+                        className="border-r px-2 py-2 text-center whitespace-nowrap bg-muted/20"
+                      >
+                        {column}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                  <TableRow className='bg-muted/30'>
-                    {SUMMARY_COLUMN_GROUPS.flatMap((group) =>
+                  <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    {detailGroupMeta.groups.map((group) =>
                       group.columns.map((column) => (
                         <TableHead
                           key={column}
-                          className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${group.headClass}`}
+                          className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${detailGroupMeta.headClassByColumn[column] || ''}`}
                         >
                           {column}
                         </TableHead>
-                      )),
+                      ))
                     )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TooltipProvider delayDuration={0}>
-                    {summaryRows.map((item, index) => {
-                      const row = item.row
-                      const { isPartial } = extractCompleteness(row)
-                      const rowBg = row.is_current
-                        ? 'bg-background'
-                        : 'bg-muted/20'
-                      return (
-                        <TableRow
-                          key={row.id}
-                          className={!row.is_current ? 'bg-muted/15' : undefined}
+                  {detailRows.map((row, idx) => (
+                    <TableRow key={`detail-${idx}`}>
+                      {detailColumns.map((column) => (
+                        <TableCell
+                          key={`detail-${idx}-${column}`}
+                          className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${column === '日期' || column === 'SKU' ? 'sticky z-20 border-border bg-background text-left' : 'text-right'}`}
+                          style={
+                            column === '日期'
+                              ? {
+                                  left: DETAIL_STICKY_LEFT[0],
+                                  minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
+                                }
+                              : column === 'SKU'
+                                ? {
+                                    left: DETAIL_STICKY_LEFT[1],
+                                    minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
+                                  }
+                                : undefined
+                          }
                         >
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
-                            style={{ left: 0 }}
-                          >
-                            <span className='inline-flex items-center gap-1'>
-                              {getISOWeek(row.report_start_date)}
-                              {isPartial && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className='inline-block'>
-                                      <AlertTriangle className='h-3.5 w-3.5 text-amber-500' />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent sideOffset={4}>
-                                    数据不完整，仅供参考
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </span>
-                          </TableCell>
-                          <TableCell
-                            className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
-                            style={{ left: summaryWeekColumnWidth }}
-                          >
-                            {formatDateRange(
-                              row.report_start_date,
-                              row.report_end_date,
-                            )}
-                          </TableCell>
-                          {SUMMARY_COLUMNS.map((column) => (
-                            <TableCell
-                              key={`${row.id}-${column}`}
-                              className='border-r px-2 py-1.5 text-right tabular-nums'
-                            >
-                              {formatSummaryCell(column, item.summary[column], country)}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      )
-                    })}
-                  </TooltipProvider>
+                          {formatDetailCell(column, row[column], country)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
                 </TableBody>
                 <TableFooter>
-                  <TableRow className='bg-muted font-semibold hover:bg-muted'>
-                    <TableCell
-                      className='sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap'
-                      style={{ left: 0 }}
-                    >
-                      合计
-                    </TableCell>
-                    <TableCell
-                      className='sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap'
-                      style={{ left: summaryWeekColumnWidth }}
-                    >
-                      {summaryRows.length} 周
-                    </TableCell>
-                    {SUMMARY_COLUMNS.map((column) => (
-                      <TableCell
-                        key={`summary-total-${column}`}
-                        className='border-r px-2 py-2 text-right tabular-nums'
-                      >
-                        {formatSummaryCell(column, summaryTotals[column], country)}
-                      </TableCell>
-                    ))}
+                  <TableRow className="bg-muted font-semibold hover:bg-muted">
+                    {detailColumns.map((column) => {
+                      if (column === '日期')
+                        return (
+                          <TableCell
+                            key="detail-total-date"
+                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
+                            style={{
+                              left: DETAIL_STICKY_LEFT[0],
+                              minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
+                            }}
+                          >
+                            合计
+                          </TableCell>
+                        )
+                      if (column === 'SKU')
+                        return (
+                          <TableCell
+                            key="detail-total-sku"
+                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
+                            style={{
+                              left: DETAIL_STICKY_LEFT[1],
+                              minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
+                            }}
+                          >
+                            {detailRows.length} 行
+                          </TableCell>
+                        )
+                      if (SUMMARY_COLUMN_SET.has(column))
+                        return (
+                          <TableCell
+                            key={`detail-total-${column}`}
+                            className="border-r px-2 py-2 text-right tabular-nums"
+                          >
+                            {formatDetailCell(column, detailTotals[column], country)}
+                          </TableCell>
+                        )
+                      const extraTotal = detailExtraTotals[column]
+                      return (
+                        <TableCell
+                          key={`detail-total-${column}`}
+                          className="border-r px-2 py-2 text-right tabular-nums"
+                        >
+                          {extraTotal === null
+                            ? '-'
+                            : formatDetailCell(column, extraTotal, country)}
+                        </TableCell>
+                      )
+                    })}
                   </TableRow>
                 </TableFooter>
               </Table>
             ) : (
-              <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-                当前筛选条件暂无产品分析周汇总数据
+              <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                当前周次暂无 SKU明细 数据
               </div>
-            )
-          ) : showDetailsSkeleton ? (
-            <BarSkeleton rows={8} />
-          ) : detailsError ? (
-            <div className='rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
-              {detailsError}
-            </div>
-          ) : detailRows.length > 0 ? (
-            <Table
-              containerClassName='w-full max-w-full overflow-x-auto'
-              className='w-max min-w-[3600px] table-fixed text-xs'
-            >
-              <TableHeader>
-                <TableRow className='bg-muted/30 hover:bg-muted/30'>
-                  <TableHead
-                    rowSpan={2}
-                    className='sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap'
-                    style={{
-                      left: DETAIL_STICKY_LEFT[0],
-                      minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
-                    }}
-                  >
-                    日期
-                  </TableHead>
-                  <TableHead
-                    rowSpan={2}
-                    className='sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap'
-                    style={{
-                      left: DETAIL_STICKY_LEFT[1],
-                      minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
-                    }}
-                  >
-                    SKU
-                  </TableHead>
-                  {detailGroupMeta.groups.map((group) => (
-                    <TableHead
-                      key={group.title}
-                      colSpan={group.columns.length}
-                      className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}
-                    >
-                      {group.title}
-                    </TableHead>
-                  ))}
-                  {detailGroupMeta.extras.map((column) => (
-                    <TableHead
-                      key={`detail-extra-top-${column}`}
-                      rowSpan={2}
-                      className='border-r px-2 py-2 text-center whitespace-nowrap bg-muted/20'
-                    >
-                      {column}
-                    </TableHead>
-                  ))}
-                </TableRow>
-                <TableRow className='bg-muted/20 hover:bg-muted/20'>
-                  {detailGroupMeta.groups.map((group) =>
-                    group.columns.map((column) => (
-                      <TableHead
-                        key={column}
-                        className={`border-r px-2 py-1.5 text-center whitespace-nowrap ${detailGroupMeta.headClassByColumn[column] || ''}`}
-                      >
-                        {column}
-                      </TableHead>
-                    )),
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detailRows.map((row, idx) => (
-                  <TableRow key={`detail-${idx}`}>
-                    {detailColumns.map((column) => (
-                      <TableCell
-                        key={`detail-${idx}-${column}`}
-                        className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${column === '日期' || column === 'SKU' ? 'sticky z-20 border-border bg-background text-left' : 'text-right'}`}
-                        style={
-                          column === '日期'
-                            ? {
-                                left: DETAIL_STICKY_LEFT[0],
-                                minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
-                              }
-                            : column === 'SKU'
-                              ? {
-                                  left: DETAIL_STICKY_LEFT[1],
-                                  minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
-                                }
-                              : undefined
-                        }
-                      >
-                        {formatDetailCell(column, row[column], country)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-                </TableBody>
-              <TableFooter>
-                <TableRow className='bg-muted font-semibold hover:bg-muted'>
-                  {detailColumns.map((column) => {
-                    if (column === '日期')
-                      return (
-                        <TableCell
-                          key='detail-total-date'
-                          className='sticky z-30 border-r border-border bg-muted px-2 py-2 text-left'
-                          style={{
-                            left: DETAIL_STICKY_LEFT[0],
-                            minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
-                          }}
-                        >
-                          合计
-                        </TableCell>
-                      )
-                    if (column === 'SKU')
-                      return (
-                        <TableCell
-                          key='detail-total-sku'
-                          className='sticky z-30 border-r border-border bg-muted px-2 py-2 text-left'
-                          style={{
-                            left: DETAIL_STICKY_LEFT[1],
-                            minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
-                          }}
-                        >
-                          {detailRows.length} 行
-                        </TableCell>
-                      )
-                    if (SUMMARY_COLUMN_SET.has(column))
-                      return (
-                        <TableCell
-                          key={`detail-total-${column}`}
-                          className='border-r px-2 py-2 text-right tabular-nums'
-                        >
-                          {formatDetailCell(column, detailTotals[column], country)}
-                        </TableCell>
-                      )
-                    const extraTotal = detailExtraTotals[column]
-                    return (
-                      <TableCell
-                        key={`detail-total-${column}`}
-                        className='border-r px-2 py-2 text-right tabular-nums'
-                      >
-                        {extraTotal === null
-                          ? '-'
-                          : formatDetailCell(column, extraTotal, country)}
-                      </TableCell>
-                    )
-                  })}
-                </TableRow>
-              </TableFooter>
-            </Table>
-          ) : (
-            <div className='rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground'>
-              当前周次暂无 SKU明细 数据
-            </div>
-          )}
-          {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
-            <LoadingScrim className='w-full px-6 py-8'>
-              <BarSkeleton rows={6} className='w-full' />
-            </LoadingScrim>
-          ) : null}
-          {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
-            <LoadingScrim className='w-full px-6 py-8'>
-              <BarSkeleton rows={8} className='w-full' />
-            </LoadingScrim>
-          ) : null}
-        </DataTableCardBody>
+            )}
+            {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
+              <LoadingScrim className="w-full px-6 py-8">
+                <BarSkeleton rows={6} className="w-full" />
+              </LoadingScrim>
+            ) : null}
+            {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
+              <LoadingScrim className="w-full px-6 py-8">
+                <BarSkeleton rows={8} className="w-full" />
+              </LoadingScrim>
+            ) : null}
+          </DataTableCardBody>
         </DataTableCard>
       </div>
     </div>

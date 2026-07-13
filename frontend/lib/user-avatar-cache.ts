@@ -30,10 +30,7 @@ interface AvatarCacheEntry {
 }
 
 const memoryBlobs = new Map<string, Blob>()
-const memoryMeta = new Map<
-  string,
-  { url: string; contentType: string; updatedAt: number }
->()
+const memoryMeta = new Map<string, { url: string; contentType: string; updatedAt: number }>()
 
 function safeStorage(): Storage | null {
   if (typeof window === 'undefined') return null
@@ -72,7 +69,7 @@ function writeEntry(entry: AvatarCacheEntry): void {
   try {
     storage.setItem(
       `${AVATAR_STORAGE_PREFIX}${compositeKey(entry.userId, entry.url)}`,
-      JSON.stringify(entry),
+      JSON.stringify(entry)
     )
   } catch {
     // Storage quota exceeded or disabled — degrade gracefully.
@@ -121,7 +118,7 @@ export interface CachedAvatar {
 export async function loadUserAvatar(
   userId: string,
   url: string,
-  options?: { fetchImpl?: typeof fetch },
+  options?: { fetchImpl?: typeof fetch }
 ): Promise<CachedAvatar | null> {
   if (!userId || !url) return null
 

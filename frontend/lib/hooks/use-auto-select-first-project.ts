@@ -22,16 +22,14 @@ export interface AutoSelectProjectOption {
 export function useAutoSelectFirstProject(
   projects: AutoSelectProjectOption[],
   projectId: string,
-  setProjectId: (value: string) => void,
+  setProjectId: (value: string) => void
 ) {
   useEffect(() => {
     if (projects.length === 0) return
 
     const isAll = projectId === 'all'
     const existsInList =
-      !!projectId &&
-      !isAll &&
-      projects.some((p) => p.id !== null && String(p.id) === projectId)
+      !!projectId && !isAll && projects.some((p) => p.id !== null && String(p.id) === projectId)
 
     if (!projectId || (!isAll && !existsInList)) {
       const first = projects.find((p) => p.id !== null)

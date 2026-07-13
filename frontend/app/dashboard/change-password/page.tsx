@@ -65,7 +65,10 @@ export default function ChangePasswordPage() {
       <Card className="dashboard-surface border-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(241,244,247,0.96))] dark:border-border/80 dark:bg-[linear-gradient(180deg,hsl(var(--surface-panel)),hsl(var(--surface-soft)))]">
         <CardHeader className="space-y-3">
           <p className="dashboard-kicker">配置工作台</p>
-          <Badge variant="outline" className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+          <Badge
+            variant="outline"
+            className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+          >
             账号安全
           </Badge>
           <p className="flex items-center gap-2 text-lg font-semibold">
@@ -98,7 +101,9 @@ export default function ChangePasswordPage() {
                 onChange={(event) => setNewPassword(event.target.value)}
                 disabled={submitting}
               />
-              <p className="text-xs text-muted-foreground dark:text-muted-foreground/80">建议至少 8 位，包含字母、数字与符号。</p>
+              <p className="text-xs text-muted-foreground dark:text-muted-foreground/80">
+                建议至少 8 位，包含字母、数字与符号。
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -114,7 +119,11 @@ export default function ChangePasswordPage() {
             </div>
 
             <Button type="submit" disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="h-4 w-4" />
+              )}
               {submitting ? '提交中...' : '确认修改'}
             </Button>
           </form>

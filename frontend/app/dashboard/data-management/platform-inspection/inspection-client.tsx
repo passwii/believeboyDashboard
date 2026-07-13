@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 import { useNotifications } from '@/components/notifications'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
@@ -62,26 +66,34 @@ export default function InspectionClient() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsMotionGroup id="inspection-tabs">
           <TabsList>
-            <SlidingTabsTrigger value="overview" activeValue={activeTab} layoutId="inspection-tab-indicator">概览</SlidingTabsTrigger>
-            <SlidingTabsTrigger value="history" activeValue={activeTab} layoutId="inspection-tab-indicator">历史记录</SlidingTabsTrigger>
+            <SlidingTabsTrigger
+              value="overview"
+              activeValue={activeTab}
+              layoutId="inspection-tab-indicator"
+            >
+              概览
+            </SlidingTabsTrigger>
+            <SlidingTabsTrigger
+              value="history"
+              activeValue={activeTab}
+              layoutId="inspection-tab-indicator"
+            >
+              历史记录
+            </SlidingTabsTrigger>
           </TabsList>
         </TabsMotionGroup>
 
         <DirectionalTabTransition value={activeTab} order={INSPECTION_TAB_ORDER}>
           <TabsContent forceMount value={activeTab} className="mt-0">
-            {activeTab === 'overview' ? (
-              currentPeriodId && (
-                <InspectionOverview
-                  periodId={currentPeriodId}
-                  refreshKey={refreshKey}
-                  onSelectProject={handleSelectProject}
-                />
-              )
-            ) : (
-              currentPeriodId && (
-                <InspectionHistory periodId={currentPeriodId} />
-              )
-            )}
+            {activeTab === 'overview'
+              ? currentPeriodId && (
+                  <InspectionOverview
+                    periodId={currentPeriodId}
+                    refreshKey={refreshKey}
+                    onSelectProject={handleSelectProject}
+                  />
+                )
+              : currentPeriodId && <InspectionHistory periodId={currentPeriodId} />}
           </TabsContent>
         </DirectionalTabTransition>
       </Tabs>

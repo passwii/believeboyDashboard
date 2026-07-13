@@ -5,16 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import {
-  Copy,
-  ExternalLink,
-  Eye,
-  FileCode2,
-  Globe,
-  Loader2,
-  Trash2,
-  Upload,
-} from 'lucide-react'
+import { Copy, ExternalLink, Eye, FileCode2, Globe, Loader2, Trash2, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,8 +21,7 @@ import { zhCN } from 'date-fns/locale'
 
 const API_BASE = '/api/backend'
 const MAX_SIZE_MB = 2
-const ACCEPT =
-  '.md,.markdown,.html,.htm,text/markdown,text/x-markdown,text/html,text/plain'
+const ACCEPT = '.md,.markdown,.html,.htm,text/markdown,text/x-markdown,text/html,text/plain'
 
 type SourceFormat = 'markdown' | 'html'
 
@@ -80,7 +70,7 @@ function MarkdownPreview({ content }: { content: string }) {
               <code
                 className={cn(
                   'rounded-[0.4rem] bg-muted/70 px-1.5 py-0.5 font-mono text-[0.85em]',
-                  className,
+                  className
                 )}
                 {...props}
               >
@@ -156,7 +146,11 @@ export default function PageRenderClient() {
     async (file: File) => {
       const format = detectFormat(file.name)
       if (!format) {
-        notify({ type: 'error', title: '文件类型不支持', message: '请上传 .md / .markdown / .html / .htm 文件' })
+        notify({
+          type: 'error',
+          title: '文件类型不支持',
+          message: '请上传 .md / .markdown / .html / .htm 文件',
+        })
         return
       }
 
@@ -197,7 +191,7 @@ export default function PageRenderClient() {
         setIsUploading(false)
       }
     },
-    [notify, refreshHistory, titleInput],
+    [notify, refreshHistory, titleInput]
   )
 
   const handleCopyLink = useCallback(
@@ -212,7 +206,7 @@ export default function PageRenderClient() {
         notify({ type: 'info', title: '复制失败', message: '请手动复制：' + absoluteUrl })
       }
     },
-    [notify],
+    [notify]
   )
 
   const handleDelete = useCallback(
@@ -238,7 +232,7 @@ export default function PageRenderClient() {
         notify({ type: 'error', title: '删除失败', message: normalizeErrorMessage(err) })
       }
     },
-    [confirm, notify, recentlyUploaded, refreshHistory],
+    [confirm, notify, recentlyUploaded, refreshHistory]
   )
 
   const historyRows = useMemo(() => history, [history])
@@ -255,10 +249,13 @@ export default function PageRenderClient() {
                 上传 Markdown 或 HTML
               </CardTitle>
               <CardDescription>
-                支持 .md / .markdown / .html / .htm，最大 {MAX_SIZE_MB} MB。上传后将生成公开链接，任何人凭链接可访问。
+                支持 .md / .markdown / .html / .htm，最大 {MAX_SIZE_MB}{' '}
+                MB。上传后将生成公开链接，任何人凭链接可访问。
               </CardDescription>
             </div>
-            <Badge variant="outline" className="shrink-0">特殊功能</Badge>
+            <Badge variant="outline" className="shrink-0">
+              特殊功能
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -306,7 +303,7 @@ export default function PageRenderClient() {
                   '[&>table]:w-full [&>table]:overflow-hidden [&>table]:rounded-xl [&>table]:border [&>table]:border-border',
                   '[&_th]:border [&_th]:border-border [&_th]:bg-muted/60 [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold',
                   '[&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2',
-                  '[&_ul]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:ml-5 [&_ol]:list-decimal [&>ol]:space-y-1',
+                  '[&_ul]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:ml-5 [&_ol]:list-decimal [&>ol]:space-y-1'
                 )}
               >
                 <MarkdownPreview content={previewContent} />
@@ -342,19 +339,11 @@ export default function PageRenderClient() {
                   ? `${window.location.origin}/p/${recentlyUploaded.id}`
                   : `/p/${recentlyUploaded.id}`}
               </code>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCopyLink(recentlyUploaded)}
-              >
+              <Button variant="outline" size="sm" onClick={() => handleCopyLink(recentlyUploaded)}>
                 <Copy className="mr-1.5 h-4 w-4" />
                 复制链接
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-              >
+              <Button variant="ghost" size="sm" asChild>
                 <a href={`/p/${recentlyUploaded.id}`} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-1.5 h-4 w-4" />
                   打开
@@ -373,7 +362,9 @@ export default function PageRenderClient() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <Upload className="h-4 w-4 text-primary" />
                 我的历史
-                <Badge variant="secondary" className="ml-1">{historyTotal}</Badge>
+                <Badge variant="secondary" className="ml-1">
+                  {historyTotal}
+                </Badge>
               </CardTitle>
               <CardDescription>仅显示你上传的页面。</CardDescription>
             </div>
@@ -425,11 +416,7 @@ export default function PageRenderClient() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                          >
+                          <Button variant="ghost" size="sm" asChild>
                             <a href={`/p/${row.id}`} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>

@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
 import { useNotifications } from '@/components/notifications'
 import {
@@ -438,7 +440,10 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                       </TableCell>
                       <TableCell className="max-w-[280px]">
                         {item.status_summary ? (
-                          <span className="line-clamp-2 text-sm text-foreground/90" title={item.status_summary}>
+                          <span
+                            className="line-clamp-2 text-sm text-foreground/90"
+                            title={item.status_summary}
+                          >
                             {item.status_summary}
                           </span>
                         ) : (
@@ -453,7 +458,10 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                                 key={s.id}
                                 type="button"
                                 className="relative h-10 w-10 overflow-hidden rounded border border-border/70 transition-opacity hover:opacity-80"
-                                onClick={(e) => { e.stopPropagation(); setTablePreviewImage(s.url) }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setTablePreviewImage(s.url)
+                                }}
                                 title={s.caption || '查看截图'}
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -481,11 +489,7 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
                         {formatDateTime(item.submitted_at)}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleViewDetail(item)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => handleViewDetail(item)}>
                           <Eye className="mr-1 h-4 w-4" />
                           查看
                         </Button>

@@ -42,10 +42,7 @@ const STREAM_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/ai-insights\/generate\/stream$/,
 ]
 
-const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = [
-  'text/event-stream',
-  'application/x-ndjson',
-]
+const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = ['text/event-stream', 'application/x-ndjson']
 
 const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/scheduled-reports\/test-email$/,
@@ -82,7 +79,12 @@ const LIST_PATH_PATTERNS: ReadonlyArray<RegExp> = [
 ]
 
 export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
-  { label: 'stream', pathPattern: matchAny(STREAM_PATH_PATTERNS), acceptContains: STREAM_ACCEPT_TOKENS, timeoutMs: 0 },
+  {
+    label: 'stream',
+    pathPattern: matchAny(STREAM_PATH_PATTERNS),
+    acceptContains: STREAM_ACCEPT_TOKENS,
+    timeoutMs: 0,
+  },
   { label: 'report', pathPattern: matchAny(REPORT_PATH_PATTERNS), timeoutMs: 60_000 },
   { label: 'ai', pathPattern: matchAny(AI_PATH_PATTERNS), timeoutMs: 30_000 },
   { label: 'stats', pathPattern: matchAny(STATS_PATH_PATTERNS), timeoutMs: 15_000 },

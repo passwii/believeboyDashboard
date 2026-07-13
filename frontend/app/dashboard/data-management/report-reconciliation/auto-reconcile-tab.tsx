@@ -21,17 +21,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { ProjectSelect } from '@/components/dashboard/console/project-select'
 import { CountrySelect } from '@/components/dashboard/console/country-select'
 import { cn } from '@/lib/utils'
@@ -44,7 +35,7 @@ type AvailableReport = {
   country: string
   report_month: string
   has_summary_pdf: boolean
-  pdf_url: string | null  // R2 URL for direct access
+  pdf_url: string | null // R2 URL for direct access
   pdf_uploaded_at: string | null
   pt3_calculation_complete: boolean
   pt4_calculation_complete: boolean
@@ -193,15 +184,15 @@ function getReconcileStatus(
 function ReconcileStatusIcon({ status }: { status: ReconcileStatus }) {
   switch (status) {
     case 'pending':
-      return <Minus className='h-5 w-5 text-muted-foreground/40' />
+      return <Minus className="h-5 w-5 text-muted-foreground/40" />
     case 'reconciling':
-      return <Loader2 className='h-5 w-5 animate-spin text-muted-foreground' />
+      return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     case 'success':
-      return <CheckCircle2 className='h-5 w-5 text-emerald-500' />
+      return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
     case 'warning':
-      return <AlertCircle className='h-5 w-5 text-amber-500' />
+      return <AlertCircle className="h-5 w-5 text-amber-500" />
     case 'error':
-      return <XCircle className='h-5 w-5 text-red-500' />
+      return <XCircle className="h-5 w-5 text-red-500" />
   }
 }
 
@@ -218,7 +209,7 @@ function PDFUploadPanel({
   report: AvailableReport
   onUploadSuccess: () => void
   onClose: () => void
-  errorMessage?: string  // NEW: external error to display
+  errorMessage?: string // NEW: external error to display
 }) {
   const { notify } = useNotifications()
   const [uploadState, setUploadState] = useState<PDFUploadState>('idle')
@@ -283,13 +274,13 @@ function PDFUploadPanel({
   }
 
   return (
-    <div className='flex flex-col items-center justify-center py-12 px-4'>
+    <div className="flex flex-col items-center justify-center py-12 px-4">
       {/* Header Info */}
-      <div className='mb-6 text-center'>
-        <h3 className='text-lg font-semibold mb-1'>
+      <div className="mb-6 text-center">
+        <h3 className="text-lg font-semibold mb-1">
           {isReplacing ? '更新 PDF 文件' : '上传 PDF 文件'}
         </h3>
-        <p className='text-sm text-muted-foreground'>
+        <p className="text-sm text-muted-foreground">
           {isPdfMissing
             ? '原文件已丢失，请重新上传'
             : isReplacing
@@ -299,7 +290,7 @@ function PDFUploadPanel({
       </div>
 
       {/* Upload Zone */}
-      <div className='w-full max-w-md'>
+      <div className="w-full max-w-md">
         <UploadZone
           accept=".pdf,application/pdf"
           maxSize={50}
@@ -312,21 +303,17 @@ function PDFUploadPanel({
 
       {/* Selected File Info */}
       {selectedFile && uploadState === 'idle' && (
-        <div className='mt-4 flex flex-col items-center gap-3'>
-          <div className='flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30'>
-            <File className='h-7 w-7 text-emerald-600 dark:text-emerald-400' />
+        <div className="mt-4 flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+            <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className='text-center'>
-            <p className='text-sm font-medium truncate max-w-[280px]'>{selectedFile.name}</p>
-            <p className='text-xs text-muted-foreground'>
+          <div className="text-center">
+            <p className="text-sm font-medium truncate max-w-[280px]">{selectedFile.name}</p>
+            <p className="text-xs text-muted-foreground">
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={handleRemoveFile}
-          >
+          <Button variant="outline" size="sm" onClick={handleRemoveFile}>
             移除
           </Button>
         </div>
@@ -334,31 +321,31 @@ function PDFUploadPanel({
 
       {/* Error Message */}
       {displayError && (
-        <div className='mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400'>
-          <XCircle className='h-4 w-4' />
+        <div className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+          <XCircle className="h-4 w-4" />
           {displayError}
         </div>
       )}
 
       {/* Success State */}
       {uploadState === 'success' && (
-        <div className='mt-6 flex flex-col items-center gap-2'>
-          <div className='flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30'>
-            <Check className='h-6 w-6 text-emerald-600 dark:text-emerald-400' />
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className='text-sm font-medium text-emerald-600 dark:text-emerald-400'>上传成功</p>
+          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className='mt-6 flex items-center gap-3'>
+      <div className="mt-6 flex items-center gap-3">
         {uploadState !== 'success' && (
-          <Button variant='outline' onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             取消
           </Button>
         )}
         {uploadState === 'success' && (
-          <Button variant='outline' onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             关闭
           </Button>
         )}
@@ -366,7 +353,7 @@ function PDFUploadPanel({
 
       {/* Warning for replacement */}
       {isReplacing && !isPdfMissing && (
-        <p className='mt-4 text-xs text-amber-600 dark:text-amber-400'>
+        <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
           注意：上传新文件将覆盖原有的 PDF 文件
         </p>
       )}
@@ -374,7 +361,10 @@ function PDFUploadPanel({
   )
 }
 
-async function handleDownloadCSV(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+async function handleDownloadCSV(
+  reportId: number,
+  notify: ReturnType<typeof useNotifications>['notify']
+) {
   try {
     const response = await fetch(
       `/api/backend/api/v1/report-reconciliation/reports/${reportId}/download-csv`
@@ -383,9 +373,7 @@ async function handleDownloadCSV(reportId: number, notify: ReturnType<typeof use
     const blob = await response.blob()
     const disposition = response.headers.get('Content-Disposition') || ''
     const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-    const filename = utf8Match?.[1]
-      ? decodeURIComponent(utf8Match[1])
-      : 'transaction.csv'
+    const filename = utf8Match?.[1] ? decodeURIComponent(utf8Match[1]) : 'transaction.csv'
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -447,7 +435,9 @@ function CSVUploadPanel({
         title: '上传成功',
         message: isReplacing ? 'CSV 已更新' : 'CSV 已上传',
       })
-      setTimeout(() => { onUploadSuccess() }, 1000)
+      setTimeout(() => {
+        onUploadSuccess()
+      }, 1000)
     } catch (error) {
       setUploadState('error')
       setLocalErrorMessage(error instanceof Error ? error.message : '上传失败')
@@ -467,12 +457,12 @@ function CSVUploadPanel({
   }
 
   return (
-    <div className='flex flex-col items-center justify-center py-12 px-4'>
-      <div className='mb-6 text-center'>
-        <h3 className='text-lg font-semibold mb-1'>
+    <div className="flex flex-col items-center justify-center py-12 px-4">
+      <div className="mb-6 text-center">
+        <h3 className="text-lg font-semibold mb-1">
           {isReplacing ? '更新 CSV 文件' : '上传 CSV 文件'}
         </h3>
-        <p className='text-sm text-muted-foreground'>
+        <p className="text-sm text-muted-foreground">
           {isCsvMissing
             ? '原文件已丢失，请重新上传'
             : isReplacing
@@ -481,59 +471,65 @@ function CSVUploadPanel({
         </p>
       </div>
 
-      <div className='w-full max-w-md'>
+      <div className="w-full max-w-md">
         <UploadZone
-          accept='.csv,text/csv'
+          accept=".csv,text/csv"
           maxSize={50}
           onUpload={handleUpload}
-          uploadingText='上传中...'
+          uploadingText="上传中..."
           disabled={uploadState === 'uploading'}
-          className='[&>div:first-child]:flex-col'
+          className="[&>div:first-child]:flex-col"
         />
       </div>
 
       {selectedFile && uploadState === 'idle' && (
-        <div className='mt-4 flex flex-col items-center gap-3'>
-          <div className='flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30'>
-            <File className='h-7 w-7 text-emerald-600 dark:text-emerald-400' />
+        <div className="mt-4 flex flex-col items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+            <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className='text-center'>
-            <p className='text-sm font-medium truncate max-w-[280px]'>{selectedFile.name}</p>
-            <p className='text-xs text-muted-foreground'>
+          <div className="text-center">
+            <p className="text-sm font-medium truncate max-w-[280px]">{selectedFile.name}</p>
+            <p className="text-xs text-muted-foreground">
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
-          <Button variant='outline' size='sm' onClick={handleRemoveFile}>移除</Button>
+          <Button variant="outline" size="sm" onClick={handleRemoveFile}>
+            移除
+          </Button>
         </div>
       )}
 
       {displayError && (
-        <div className='mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400'>
-          <XCircle className='h-4 w-4' />
+        <div className="mt-4 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+          <XCircle className="h-4 w-4" />
           {displayError}
         </div>
       )}
 
       {uploadState === 'success' && (
-        <div className='mt-6 flex flex-col items-center gap-2'>
-          <div className='flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30'>
-            <Check className='h-6 w-6 text-emerald-600 dark:text-emerald-400' />
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className='text-sm font-medium text-emerald-600 dark:text-emerald-400'>上传成功</p>
+          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
         </div>
       )}
 
-      <div className='mt-6 flex items-center gap-3'>
+      <div className="mt-6 flex items-center gap-3">
         {uploadState !== 'success' && (
-          <Button variant='outline' onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>
+            取消
+          </Button>
         )}
         {uploadState === 'success' && (
-          <Button variant='outline' onClick={onClose}>关闭</Button>
+          <Button variant="outline" onClick={onClose}>
+            关闭
+          </Button>
         )}
       </div>
 
       {isReplacing && !isCsvMissing && (
-        <p className='mt-4 text-xs text-amber-600 dark:text-amber-400'>
+        <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
           注意：上传新文件将覆盖原有的 CSV 文件
         </p>
       )}
@@ -556,43 +552,43 @@ function RawFilesGroup({
   const csvAvailable = report.has_transaction_csv && !report.transaction_csv_missing
 
   return (
-    <div className='mt-6 rounded-lg border'>
-      <div className='border-b px-4 py-3'>
-        <span className='text-sm font-medium text-muted-foreground'>原始文件 / 数据</span>
+    <div className="mt-6 rounded-lg border">
+      <div className="border-b px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground">原始文件 / 数据</span>
       </div>
-      <div className='divide-y'>
+      <div className="divide-y">
         {/* PT3 Excel Download */}
         <button
-          className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+          className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
           onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
         >
-          <Table className='h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400' />
-          <div className='text-left'>
-            <div className='text-sm font-medium'>数据库数据</div>
-            <div className='text-xs text-muted-foreground'>PT3 核算数据 (.xlsx)</div>
+          <Table className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <div className="text-left">
+            <div className="text-sm font-medium">数据库数据</div>
+            <div className="text-xs text-muted-foreground">PT3 核算数据 (.xlsx)</div>
           </div>
-          <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+          <Download className="ml-auto h-4 w-4 text-muted-foreground" />
         </button>
 
         {/* PDF Download */}
         {pdfAvailable ? (
           <button
-            className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
             onClick={() => handleDownloadPDF(report.report_id, notify)}
           >
-            <FileText className='h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400' />
-            <div className='text-left'>
-              <div className='text-sm font-medium'>PDF 原文</div>
-              <div className='text-xs text-muted-foreground'>结算汇总 PDF</div>
+            <FileText className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+            <div className="text-left">
+              <div className="text-sm font-medium">PDF 原文</div>
+              <div className="text-xs text-muted-foreground">结算汇总 PDF</div>
             </div>
-            <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+            <Download className="ml-auto h-4 w-4 text-muted-foreground" />
           </button>
         ) : (
-          <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
-            <FileText className='h-5 w-5 shrink-0 text-muted-foreground' />
-            <div className='text-left'>
-              <div className='text-sm font-medium'>PDF 原文</div>
-              <div className='text-xs text-muted-foreground'>PDF 文件不可用</div>
+          <div className="flex w-full items-center gap-3 px-4 py-3 opacity-50">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="text-left">
+              <div className="text-sm font-medium">PDF 原文</div>
+              <div className="text-xs text-muted-foreground">PDF 文件不可用</div>
             </div>
           </div>
         )}
@@ -600,22 +596,22 @@ function RawFilesGroup({
         {/* CSV Download */}
         {csvAvailable ? (
           <button
-            className='flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
+            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-[hsl(var(--surface-subtle))]"
             onClick={() => handleDownloadCSV(report.report_id, notify)}
           >
-            <Table className='h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400' />
-            <div className='text-left'>
-              <div className='text-sm font-medium'>源 CSV</div>
-              <div className='text-xs text-muted-foreground'>结算交易 CSV</div>
+            <Table className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="text-left">
+              <div className="text-sm font-medium">源 CSV</div>
+              <div className="text-xs text-muted-foreground">结算交易 CSV</div>
             </div>
-            <Download className='ml-auto h-4 w-4 text-muted-foreground' />
+            <Download className="ml-auto h-4 w-4 text-muted-foreground" />
           </button>
         ) : (
-          <div className='flex w-full items-center gap-3 px-4 py-3 opacity-50'>
-            <Table className='h-5 w-5 shrink-0 text-muted-foreground' />
-            <div className='text-left'>
-              <div className='text-sm font-medium'>源 CSV</div>
-              <div className='text-xs text-muted-foreground'>
+          <div className="flex w-full items-center gap-3 px-4 py-3 opacity-50">
+            <Table className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="text-left">
+              <div className="text-sm font-medium">源 CSV</div>
+              <div className="text-xs text-muted-foreground">
                 {report.transaction_csv_missing ? '源文件已丢失' : '暂无源文件'}
               </div>
             </div>
@@ -624,13 +620,13 @@ function RawFilesGroup({
       </div>
 
       {/* Re-upload buttons */}
-      <div className='flex flex-wrap justify-center gap-3 border-t px-4 py-3'>
-        <Button variant='outline' onClick={() => onShowUpload('pdf')}>
-          <Upload className='mr-2 h-4 w-4' />
+      <div className="flex flex-wrap justify-center gap-3 border-t px-4 py-3">
+        <Button variant="outline" onClick={() => onShowUpload('pdf')}>
+          <Upload className="mr-2 h-4 w-4" />
           重新上传 PDF
         </Button>
-        <Button variant='outline' onClick={() => onShowUpload('csv')}>
-          <FileUp className='mr-2 h-4 w-4' />
+        <Button variant="outline" onClick={() => onShowUpload('csv')}>
+          <FileUp className="mr-2 h-4 w-4" />
           重新上传 CSV
         </Button>
       </div>
@@ -643,7 +639,10 @@ function RawFilesGroup({
 // Error types for reconciliation
 type ReconcileErrorType = 'pdf_download_failed' | 'extraction_failed' | 'unknown' | null
 
-async function handleDownloadPT3Excel(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+async function handleDownloadPT3Excel(
+  reportId: number,
+  notify: ReturnType<typeof useNotifications>['notify']
+) {
   try {
     const response = await fetch(
       `/api/backend/api/v1/report-reconciliation/reports/${reportId}/export-pt3`
@@ -654,9 +653,7 @@ async function handleDownloadPT3Excel(reportId: number, notify: ReturnType<typeo
     const blob = await response.blob()
     const disposition = response.headers.get('Content-Disposition') || ''
     const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-    const filename = utf8Match?.[1]
-      ? decodeURIComponent(utf8Match[1])
-      : 'pt3-data.xlsx'
+    const filename = utf8Match?.[1] ? decodeURIComponent(utf8Match[1]) : 'pt3-data.xlsx'
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -674,7 +671,10 @@ async function handleDownloadPT3Excel(reportId: number, notify: ReturnType<typeo
   }
 }
 
-async function handleDownloadPDF(reportId: number, notify: ReturnType<typeof useNotifications>['notify']) {
+async function handleDownloadPDF(
+  reportId: number,
+  notify: ReturnType<typeof useNotifications>['notify']
+) {
   try {
     const response = await fetch(
       `/api/backend/api/v1/report-reconciliation/reports/${reportId}/download-pdf`
@@ -683,9 +683,7 @@ async function handleDownloadPDF(reportId: number, notify: ReturnType<typeof use
     const blob = await response.blob()
     const disposition = response.headers.get('Content-Disposition') || ''
     const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
-    const filename = utf8Match?.[1]
-      ? decodeURIComponent(utf8Match[1])
-      : 'summary.pdf'
+    const filename = utf8Match?.[1] ? decodeURIComponent(utf8Match[1]) : 'summary.pdf'
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -769,207 +767,209 @@ function DetailPanel({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className='max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0'>
-        <DialogHeader className='border-b px-6 py-4'>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>
             {formatMonth(report.report_month)} - {COUNTRY_LABELS[country] || country}
           </DialogTitle>
-          <p className='text-sm text-muted-foreground'>{report.project_name}</p>
+          <p className="text-sm text-muted-foreground">{report.project_name}</p>
         </DialogHeader>
 
         {/* Content */}
-        <div className='flex-1 overflow-y-auto p-6'>
-        {/* Show upload panel if needs upload or file is missing or has error */}
-        {showUploadPanel ? (
-          uploadTargetResolved === 'csv' ? (
-            <CSVUploadPanel
-              report={report}
-              onUploadSuccess={onUploadSuccess}
-              onClose={onClose}
-              errorMessage={errorType ? getErrorMessage() : undefined}
-            />
-          ) : (
-            <PDFUploadPanel
-              report={report}
-              onUploadSuccess={onUploadSuccess}
-              onClose={onClose}
-              errorMessage={errorType ? getErrorMessage() : undefined}
-            />
-          )
-        ) : needsCalculation ? (
-          /* Show message if calculation not done */
-          <div className='flex flex-col items-center justify-center py-20'>
-            <AlertCircle className='h-10 w-10 text-amber-500' />
-            <p className='mt-4 text-center font-medium'>报表核算未完成</p>
-            <p className='mt-2 text-center text-sm text-muted-foreground'>
-              请先在月报核算页面完成 PT3 报表核算，再进行核对
-            </p>
-            {/* Always show re-upload button */}
-            <div className='mt-6 flex gap-3'>
-              <Button variant='outline' onClick={() => onReconcile(report)}>
-                <RefreshCw className='mr-2 h-4 w-4' />
-                重新核对
-              </Button>
-              <Button variant='ghost' onClick={onClose}>
-                关闭
-              </Button>
-            </div>
-          </div>
-        ) : !result && reconciling ? (
-          /* Loading state */
-          <div className='flex flex-col items-center justify-center py-20'>
-            <Loader2 className='h-10 w-10 animate-spin text-muted-foreground' />
-            <p className='mt-4 text-muted-foreground'>正在核对...</p>
-          </div>
-        ) : result ? (
-          /* Show reconciliation result */
-          <>
-            {/* Summary Stats */}
-            <div className='mb-6 grid grid-cols-3 gap-4'>
-              <div className='rounded-lg border bg-[hsl(var(--surface-subtle))] p-4'>
-                <div className='text-sm text-muted-foreground'>收入合计</div>
-                <div className='mt-1 font-mono text-xl font-semibold'>
-                  {formatCurrency(result.summary.db_total_income, country)}
-                </div>
-              </div>
-              <div className='rounded-lg border bg-[hsl(var(--surface-subtle))] p-4'>
-                <div className='text-sm text-muted-foreground'>支出合计</div>
-                <div className='mt-1 font-mono text-xl font-semibold'>
-                  {formatCurrency(result.summary.db_total_expense, country)}
-                </div>
-              </div>
-              <div className='rounded-lg border bg-[hsl(var(--surface-subtle))] p-4'>
-                <div className='text-sm text-muted-foreground'>净收款</div>
-                <div className='mt-1 font-mono text-xl font-semibold text-emerald-600 dark:text-emerald-400'>
-                  {formatCurrency(result.summary.db_net_amount, country)}
-                </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Show upload panel if needs upload or file is missing or has error */}
+          {showUploadPanel ? (
+            uploadTargetResolved === 'csv' ? (
+              <CSVUploadPanel
+                report={report}
+                onUploadSuccess={onUploadSuccess}
+                onClose={onClose}
+                errorMessage={errorType ? getErrorMessage() : undefined}
+              />
+            ) : (
+              <PDFUploadPanel
+                report={report}
+                onUploadSuccess={onUploadSuccess}
+                onClose={onClose}
+                errorMessage={errorType ? getErrorMessage() : undefined}
+              />
+            )
+          ) : needsCalculation ? (
+            /* Show message if calculation not done */
+            <div className="flex flex-col items-center justify-center py-20">
+              <AlertCircle className="h-10 w-10 text-amber-500" />
+              <p className="mt-4 text-center font-medium">报表核算未完成</p>
+              <p className="mt-2 text-center text-sm text-muted-foreground">
+                请先在月报核算页面完成 PT3 报表核算，再进行核对
+              </p>
+              {/* Always show re-upload button */}
+              <div className="mt-6 flex gap-3">
+                <Button variant="outline" onClick={() => onReconcile(report)}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  重新核对
+                </Button>
+                <Button variant="ghost" onClick={onClose}>
+                  关闭
+                </Button>
               </div>
             </div>
-
-            {/* Match Rate Badge */}
-            <div className='mb-6 flex items-center gap-4'>
-              <div
-                className={cn(
-                  'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
-                  result.match_rate === 100
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : result.match_rate >= 70
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                )}
-              >
-                {result.match_rate === 100 ? (
-                  <CheckCircle2 className='h-4 w-4' />
-                ) : result.match_rate >= 70 ? (
-                  <AlertCircle className='h-4 w-4' />
-                ) : (
-                  <XCircle className='h-4 w-4' />
-                )}
-                匹配率 {result.match_rate}%
-              </div>
-              <span className='text-sm text-muted-foreground'>
-                {result.matched_items}/{result.total_items} 匹配 · {result.mismatched_items} 差异 ·{' '}
-                {result.missing_items} 缺失
-              </span>
+          ) : !result && reconciling ? (
+            /* Loading state */
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+              <p className="mt-4 text-muted-foreground">正在核对...</p>
             </div>
+          ) : result ? (
+            /* Show reconciliation result */
+            <>
+              {/* Summary Stats */}
+              <div className="mb-6 grid grid-cols-3 gap-4">
+                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                  <div className="text-sm text-muted-foreground">收入合计</div>
+                  <div className="mt-1 font-mono text-xl font-semibold">
+                    {formatCurrency(result.summary.db_total_income, country)}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                  <div className="text-sm text-muted-foreground">支出合计</div>
+                  <div className="mt-1 font-mono text-xl font-semibold">
+                    {formatCurrency(result.summary.db_total_expense, country)}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
+                  <div className="text-sm text-muted-foreground">净收款</div>
+                  <div className="mt-1 font-mono text-xl font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(result.summary.db_net_amount, country)}
+                  </div>
+                </div>
+              </div>
 
-            {/* Detail Table */}
-            <div className='rounded-lg border overflow-hidden'>
-              <table className='w-full border-collapse'>
-                <thead>
-                  <tr className='border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                    <th className='border-r px-4 py-3 text-left'>字段</th>
-                    <th className='border-r px-4 py-3 text-right'>数据库</th>
-                    <th className='border-r px-4 py-3 text-right'>PDF</th>
-                    <th className='px-4 py-3 text-right'>差异</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.items.map((item, index) => {
-                    const label = FIELD_NAME_LABELS[item.field_name] || item.field_name
-                    const isMatch = item.match
-                    const rowBg = isMatch
-                      ? 'bg-emerald-50/50 dark:bg-emerald-900/10'
-                      : 'bg-red-50/50 dark:bg-red-900/10'
+              {/* Match Rate Badge */}
+              <div className="mb-6 flex items-center gap-4">
+                <div
+                  className={cn(
+                    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
+                    result.match_rate === 100
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : result.match_rate >= 70
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  )}
+                >
+                  {result.match_rate === 100 ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : result.match_rate >= 70 ? (
+                    <AlertCircle className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                  匹配率 {result.match_rate}%
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {result.matched_items}/{result.total_items} 匹配 · {result.mismatched_items} 差异
+                  · {result.missing_items} 缺失
+                </span>
+              </div>
 
-                    return (
-                      <tr key={index} className={cn('border-b last:border-b-0', rowBg)}>
-                        <td className='border-r px-4 py-3'>
-                          <div className='flex items-center gap-2'>
-                            {isMatch ? (
-                              <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-500' />
-                            ) : (
-                              <XCircle className='h-4 w-4 shrink-0 text-red-500' />
-                            )}
-                            <span className='font-medium text-sm'>{label}</span>
-                          </div>
-                        </td>
-                        <td
-                          className={cn(
-                            'border-r px-4 py-3 text-right font-mono',
-                            isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
-                          )}
-                        >
-                          {formatCurrency(item.db_value, country)}
-                        </td>
-                        <td
-                          className={cn(
-                            'border-r px-4 py-3 text-right font-mono',
-                            isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
-                          )}
-                        >
-                          {formatCurrency(item.pdf_value, country)}
-                        </td>
-                        <td className='px-4 py-3 text-right'>
-                          {isMatch ? (
-                            <span className='text-xs font-medium text-emerald-600 dark:text-emerald-400'>
-                              OK
-                            </span>
-                          ) : (
-                            <div className='flex flex-col items-end gap-0.5'>
-                              <span className='text-xs font-medium text-red-600 dark:text-red-400'>
-                                {formatCurrency(item.difference, country)}
-                              </span>
-                              {item.difference_percent !== null && (
-                                <span className='text-xs text-muted-foreground'>
-                                  ({item.difference_percent}%)
-                                </span>
+              {/* Detail Table */}
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <th className="border-r px-4 py-3 text-left">字段</th>
+                      <th className="border-r px-4 py-3 text-right">数据库</th>
+                      <th className="border-r px-4 py-3 text-right">PDF</th>
+                      <th className="px-4 py-3 text-right">差异</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.items.map((item, index) => {
+                      const label = FIELD_NAME_LABELS[item.field_name] || item.field_name
+                      const isMatch = item.match
+                      const rowBg = isMatch
+                        ? 'bg-emerald-50/50 dark:bg-emerald-900/10'
+                        : 'bg-red-50/50 dark:bg-red-900/10'
+
+                      return (
+                        <tr key={index} className={cn('border-b last:border-b-0', rowBg)}>
+                          <td className="border-r px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {isMatch ? (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 shrink-0 text-red-500" />
                               )}
+                              <span className="font-medium text-sm">{label}</span>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td
+                            className={cn(
+                              'border-r px-4 py-3 text-right font-mono',
+                              isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
+                            {formatCurrency(item.db_value, country)}
+                          </td>
+                          <td
+                            className={cn(
+                              'border-r px-4 py-3 text-right font-mono',
+                              isMatch ? 'text-foreground' : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
+                            {formatCurrency(item.pdf_value, country)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isMatch ? (
+                              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                OK
+                              </span>
+                            ) : (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                                  {formatCurrency(item.difference, country)}
+                                </span>
+                                {item.difference_percent !== null && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({item.difference_percent}%)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            /* Empty state - should not happen normally */
+            <div className="flex flex-col items-center justify-center py-20">
+              <FileText className="h-10 w-10 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">暂无数据</p>
+              <div className="mt-6 flex gap-3">
+                <Button variant="outline" onClick={() => onReconcile(report)}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  重新核对
+                </Button>
+                <Button variant="ghost" onClick={onClose}>
+                  关闭
+                </Button>
+              </div>
             </div>
+          )}
 
-          </>
-        ) : (
-          /* Empty state - should not happen normally */
-          <div className='flex flex-col items-center justify-center py-20'>
-            <FileText className='h-10 w-10 text-muted-foreground/50' />
-            <p className='mt-4 text-muted-foreground'>暂无数据</p>
-            <div className='mt-6 flex gap-3'>
-              <Button variant='outline' onClick={() => onReconcile(report)}>
-                <RefreshCw className='mr-2 h-4 w-4' />
-                重新核对
-              </Button>
-              <Button variant='ghost' onClick={onClose}>
-                关闭
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {!showUploadPanel && (
-          <RawFilesGroup report={report} onShowUpload={onShowUpload} />
-        )}
-      </div>
-    </DialogContent>
-  </Dialog>
+          {!showUploadPanel && <RawFilesGroup report={report} onShowUpload={onShowUpload} />}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1028,7 +1028,9 @@ export default function AutoReconcileTab() {
         ...(country ? { country } : {}),
       })
 
-      const response = await fetch(`/api/backend/api/v1/report-reconciliation/available-reports?${params}`)
+      const response = await fetch(
+        `/api/backend/api/v1/report-reconciliation/available-reports?${params}`
+      )
       if (!response.ok) throw new Error('Failed to fetch available reports')
 
       const data = await response.json()
@@ -1156,25 +1158,28 @@ export default function AutoReconcileTab() {
   }
 
   // Trigger reconcile (called from DetailPanel)
-  const handleReconcile = useCallback(async (report: AvailableReport) => {
-    // Close upload panel first
-    setUploadTarget(null)
+  const handleReconcile = useCallback(
+    async (report: AvailableReport) => {
+      // Close upload panel first
+      setUploadTarget(null)
 
-    // Clear error state
-    if (reconcileError?.reportId === report.report_id) {
-      setReconcileError(null)
-    }
+      // Clear error state
+      if (reconcileError?.reportId === report.report_id) {
+        setReconcileError(null)
+      }
 
-    // Clear cached result to force re-reconcile
-    setReconcileResults((prev) => {
-      const newMap = new Map(prev)
-      newMap.delete(report.report_id)
-      return newMap
-    })
+      // Clear cached result to force re-reconcile
+      setReconcileResults((prev) => {
+        const newMap = new Map(prev)
+        newMap.delete(report.report_id)
+        return newMap
+      })
 
-    // Trigger the row click to re-open panel and reconcile
-    await handleRowClick(report)
-  }, [reconcileError])
+      // Trigger the row click to re-open panel and reconcile
+      await handleRowClick(report)
+    },
+    [reconcileError]
+  )
 
   // Handle upload success - refresh reports and trigger reconcile
   const handleUploadSuccess = useCallback(() => {
@@ -1277,9 +1282,12 @@ export default function AutoReconcileTab() {
   }, [])
 
   // Row-level fallback: download settlement CSV directly (no dialog needed)
-  const handleRowDownloadCSV = useCallback((report: AvailableReport) => {
-    handleDownloadCSV(report.report_id, notify)
-  }, [notify])
+  const handleRowDownloadCSV = useCallback(
+    (report: AvailableReport) => {
+      handleDownloadCSV(report.report_id, notify)
+    },
+    [notify]
+  )
 
   // Row-level fallback: open dialog directly in CSV re-upload mode
   const handleRowReuploadCSV = useCallback((report: AvailableReport) => {
@@ -1291,9 +1299,7 @@ export default function AutoReconcileTab() {
   // Handle clear error
   const handleClearError = useCallback(() => {
     if (selectedReport) {
-      setReconcileError((prev) =>
-        prev?.reportId === selectedReport.report_id ? null : prev
-      )
+      setReconcileError((prev) => (prev?.reportId === selectedReport.report_id ? null : prev))
     }
   }, [selectedReport])
 
@@ -1303,30 +1309,25 @@ export default function AutoReconcileTab() {
   )
 
   return (
-    <div className='space-y-6'>
+    <div className="space-y-6">
       {/* Console / Filter Bar */}
-      <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-        <DataCardContent className='p-4'>
-          <div className='flex flex-wrap items-end gap-4'>
-            <div className='w-48'>
-              <label className='mb-1 block text-xs font-medium text-muted-foreground'>项目</label>
+      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+        <DataCardContent className="p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="w-48">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">项目</label>
               <ProjectSelect
                 value={projectId}
                 onChange={setProjectId}
-                placeholder='选择项目'
+                placeholder="选择项目"
                 autoSelectFirst={false}
               />
             </div>
-            <div className='w-36'>
-              <label className='mb-1 block text-xs font-medium text-muted-foreground'>站点</label>
+            <div className="w-36">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">站点</label>
               <CountrySelect value={country} onChange={setCountry} />
             </div>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={fetchAvailableReports}
-              disabled={loading}
-            >
+            <Button variant="outline" size="sm" onClick={fetchAvailableReports} disabled={loading}>
               <RefreshCw className={cn('mr-1 h-4 w-4', loading && 'animate-spin')} />
               刷新
             </Button>
@@ -1337,37 +1338,42 @@ export default function AutoReconcileTab() {
       {/* Reports List */}
       {projectId && (
         <>
-          <div className='flex items-center justify-between'>
-            <h2 className='text-lg font-semibold'>可核对月报</h2>
-            <span className='text-sm text-muted-foreground'>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">可核对月报</h2>
+            <span className="text-sm text-muted-foreground">
               共 {availableReports.length} 条记录
               {canReconcileReports.length > 0 && (
-                <span className='ml-2 text-emerald-600'>
+                <span className="ml-2 text-emerald-600">
                   ({canReconcileReports.length} 条可核对)
                 </span>
               )}
             </span>
           </div>
 
-          <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
+          <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
             {availableReports.length > 0 ? (
-              <div className='overflow-x-auto'>
-                <table className='w-full border-collapse'>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
                   <thead>
-                    <tr className='border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                      <th className='px-4 py-3 text-left'>月份</th>
-                      <th className='px-4 py-3 text-left'>站点</th>
-                      <th className='px-4 py-3 text-center'>PDF</th>
-                      <th className='px-4 py-3 text-center'>核算</th>
-                      <th className='px-4 py-3 text-center'>核对</th>
-                      <th className='px-4 py-3 text-center'>操作</th>
+                    <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <th className="px-4 py-3 text-left">月份</th>
+                      <th className="px-4 py-3 text-left">站点</th>
+                      <th className="px-4 py-3 text-center">PDF</th>
+                      <th className="px-4 py-3 text-center">核算</th>
+                      <th className="px-4 py-3 text-center">核对</th>
+                      <th className="px-4 py-3 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {availableReports.map((report) => {
                       const result = reconcileResults.get(report.report_id) ?? null
                       const isReconciling = reconciling === report.report_id
-                      const status = getReconcileStatus(result, isReconciling, report.reconciled, report.reconcile_match_rate)
+                      const status = getReconcileStatus(
+                        result,
+                        isReconciling,
+                        report.reconciled,
+                        report.reconcile_match_rate
+                      )
                       const canReconcile = report.has_summary_pdf && report.pt3_calculation_complete
                       const isSelected = selectedReport?.report_id === report.report_id
 
@@ -1376,72 +1382,75 @@ export default function AutoReconcileTab() {
                           key={report.report_id}
                           className={cn(
                             'cursor-pointer border-b transition-colors',
-                            isSelected
-                              ? 'bg-primary/5'
-                              : 'hover:bg-[hsl(var(--surface-subtle))'
+                            isSelected ? 'bg-primary/5' : 'hover:bg-[hsl(var(--surface-subtle))'
                           )}
                           onClick={() => handleRowClick(report)}
                         >
-                          <td className='px-4 py-3'>
-                            <span className='font-medium'>{formatMonth(report.report_month)}</span>
+                          <td className="px-4 py-3">
+                            <span className="font-medium">{formatMonth(report.report_month)}</span>
                           </td>
-                          <td className='px-4 py-3 text-sm'>
+                          <td className="px-4 py-3 text-sm">
                             {COUNTRY_LABELS[report.country] || report.country}
                           </td>
-                          <td className='px-4 py-3'>
-                            <div className='flex justify-center' title={report.pdf_file_missing ? 'PDF 文件缺失' : ''}>
+                          <td className="px-4 py-3">
+                            <div
+                              className="flex justify-center"
+                              title={report.pdf_file_missing ? 'PDF 文件缺失' : ''}
+                            >
                               {report.pdf_file_missing ? (
-                                <FileX className='h-5 w-5 text-red-400' />
+                                <FileX className="h-5 w-5 text-red-400" />
                               ) : report.has_summary_pdf ? (
-                                <CheckCircle2 className='h-5 w-5 text-emerald-500' />
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                               ) : (
-                                <XCircle className='h-5 w-5 text-red-500' />
+                                <XCircle className="h-5 w-5 text-red-500" />
                               )}
                             </div>
                           </td>
-                          <td className='px-4 py-3'>
-                            <div className='flex justify-center'>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center">
                               {report.pt3_calculation_complete ? (
-                                <CheckCircle2 className='h-5 w-5 text-emerald-500' />
+                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                               ) : (
-                                <XCircle className='h-5 w-5 text-red-500' />
+                                <XCircle className="h-5 w-5 text-red-500" />
                               )}
                             </div>
                           </td>
-                          <td className='px-4 py-3'>
-                            <div className='flex justify-center'>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center">
                               {/* If can reconcile OR was previously reconciled, show status */}
-                              {(canReconcile || report.reconciled) ? (
+                              {canReconcile || report.reconciled ? (
                                 <ReconcileStatusIcon status={status} />
                               ) : (
-                                <Minus className='h-5 w-5 text-muted-foreground/40' />
+                                <Minus className="h-5 w-5 text-muted-foreground/40" />
                               )}
                             </div>
                           </td>
-                          <td className='px-4 py-3'>
-                            <div className='flex items-center justify-center gap-1'>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
                               <Button
-                                variant='ghost'
-                                size='icon'
-                                title='下载源 CSV'
-                                disabled={!report.has_transaction_csv || !!report.transaction_csv_missing}
+                                variant="ghost"
+                                size="icon"
+                                title="下载源 CSV"
+                                disabled={
+                                  !report.has_transaction_csv || !!report.transaction_csv_missing
+                                }
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleRowDownloadCSV(report)
                                 }}
                               >
-                                <Download className='h-4 w-4' />
+                                <Download className="h-4 w-4" />
                               </Button>
                               <Button
-                                variant='ghost'
-                                size='icon'
-                                title='补传源 CSV'
+                                variant="ghost"
+                                size="icon"
+                                title="补传源 CSV"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleRowReuploadCSV(report)
                                 }}
                               >
-                                <FileUp className='h-4 w-4' />
+                                <FileUp className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
@@ -1452,29 +1461,29 @@ export default function AutoReconcileTab() {
                 </table>
               </div>
             ) : (
-              <DataCardContent className='p-8 text-center text-muted-foreground'>
-                <FileText className='mx-auto h-12 w-12 opacity-50' />
-                <p className='mt-4'>暂无月报数据</p>
+              <DataCardContent className="p-8 text-center text-muted-foreground">
+                <FileText className="mx-auto h-12 w-12 opacity-50" />
+                <p className="mt-4">暂无月报数据</p>
               </DataCardContent>
             )}
           </DataCard>
 
           {/* Legend */}
-          <div className='flex flex-wrap items-center gap-6 text-sm text-muted-foreground'>
-            <span className='flex items-center gap-2'>
-              <Minus className='h-4 w-4 text-muted-foreground/40' />
+          <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <Minus className="h-4 w-4 text-muted-foreground/40" />
               待核对
             </span>
-            <span className='flex items-center gap-2'>
-              <CheckCircle2 className='h-4 w-4 text-emerald-500' />
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               100% 匹配
             </span>
-            <span className='flex items-center gap-2'>
-              <AlertCircle className='h-4 w-4 text-amber-500' />
+            <span className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-500" />
               70-99% 匹配
             </span>
-            <span className='flex items-center gap-2'>
-              <XCircle className='h-4 w-4 text-red-500' />
+            <span className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-500" />
               &lt;70% 匹配
             </span>
           </div>
@@ -1483,9 +1492,9 @@ export default function AutoReconcileTab() {
 
       {/* Empty state before project selection */}
       {!projectId && (
-        <div className='rounded-lg border border-dashed p-8 text-center'>
-          <FileText className='mx-auto h-12 w-12 text-muted-foreground/50' />
-          <p className='mt-4 text-muted-foreground'>请先选择项目和站点</p>
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
+          <p className="mt-4 text-muted-foreground">请先选择项目和站点</p>
         </div>
       )}
 

@@ -3,7 +3,16 @@
 import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { FileDown, FileText, Image as ImageIcon, Package2, RefreshCw, Ruler, Tag, Upload } from 'lucide-react'
+import {
+  FileDown,
+  FileText,
+  Image as ImageIcon,
+  Package2,
+  RefreshCw,
+  Ruler,
+  Tag,
+  Upload,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -157,11 +166,9 @@ function escapeCsvCell(value: string | number | null | undefined): string {
 function downloadCsvFile(
   filename: string,
   header: string[],
-  rows: Array<Array<string | number | null | undefined>>,
+  rows: Array<Array<string | number | null | undefined>>
 ) {
-  const csvBody = [header, ...rows]
-    .map((row) => row.map(escapeCsvCell).join(','))
-    .join('\n')
+  const csvBody = [header, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\n')
   const csv = `\uFEFF${csvBody}\n`
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -186,7 +193,7 @@ function downloadCostTemplate(projectName: string) {
       'FOB单价(RMB)',
       '国家',
     ],
-    [[projectName, 'JDB-M35-13PCS', '', '', '', '2.57', 'US']],
+    [[projectName, 'JDB-M35-13PCS', '', '', '', '2.57', 'US']]
   )
 }
 
@@ -229,13 +236,13 @@ function downloadDimensionTemplate(projectName: string) {
         '9.2',
         '12',
       ],
-    ],
+    ]
   )
 }
 
 function sortProductCosts(rows: ProductCostItem[]): ProductCostItem[] {
   return [...rows].sort((a, b) =>
-    a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.id - b.id,
+    a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.id - b.id
   )
 }
 
@@ -270,9 +277,9 @@ const EMPTY_EDIT_ROW = {
 
 function FilterFieldSkeleton() {
   return (
-    <div className='grid gap-2'>
-      <Skeleton className='h-4 w-16' />
-      <Skeleton className='h-10 w-full' />
+    <div className="grid gap-2">
+      <Skeleton className="h-4 w-16" />
+      <Skeleton className="h-10 w-full" />
     </div>
   )
 }
@@ -289,9 +296,9 @@ function TableSkeletonRows({
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <tr key={`table-skeleton-${rowIndex}`} className='border-b'>
+        <tr key={`table-skeleton-${rowIndex}`} className="border-b">
           {Array.from({ length: columns }).map((__, cellIndex) => (
-            <td key={cellIndex} className='p-4'>
+            <td key={cellIndex} className="p-4">
               <Skeleton className={`h-4 ${cellWidth}`} />
             </td>
           ))}
@@ -322,12 +329,8 @@ export default function SkuInfoPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [skuFilter, setSkuFilter] = useState('')
   const [asinFilter, setAsinFilter] = useState('')
-  const [countryFilter, setCountryFilter] = useState<
-    'all' | 'US' | 'DE' | 'UK'
-  >('all')
-  const [statusFilter, setStatusFilter] = useState<
-    'all' | 'active' | 'inactive'
-  >('all')
+  const [countryFilter, setCountryFilter] = useState<'all' | 'US' | 'DE' | 'UK'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const [batchImporting, setBatchImporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -346,14 +349,8 @@ export default function SkuInfoPage() {
   const [labelDownloading, setLabelDownloading] = useState(false)
   const [selectedLabelSkus, setSelectedLabelSkus] = useState<ProductCostItem[]>([])
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / pageSize)),
-    [total, pageSize],
-  )
-  const visibleActiveCount = useMemo(
-    () => items.filter((item) => item.is_active).length,
-    [items],
-  )
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const visibleActiveCount = useMemo(() => items.filter((item) => item.is_active).length, [items])
   const pendingFirstLegSyncCount = useMemo(
     () =>
       items.filter((item) => {
@@ -361,15 +358,14 @@ export default function SkuInfoPage() {
         const historicalValue = item.historical_first_leg_cost_rmb
         if (historicalValue == null || historicalValue <= 0) return false
         return (
-          normalizeMoneyToCent(item.first_leg_cost_rmb) !==
-          normalizeMoneyToCent(historicalValue)
+          normalizeMoneyToCent(item.first_leg_cost_rmb) !== normalizeMoneyToCent(historicalValue)
         )
       }).length,
-    [items],
+    [items]
   )
   const selectedProject = useMemo(
     () => projects.find((project) => project.name === projectFilter) ?? null,
-    [projectFilter, projects],
+    [projectFilter, projects]
   )
 
   useEffect(() => {
@@ -384,9 +380,7 @@ export default function SkuInfoPage() {
         const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (loadError) {
-        setProjectLoadError(
-          normalizeErrorMessage(loadError, '项目列表加载失败'),
-        )
+        setProjectLoadError(normalizeErrorMessage(loadError, '项目列表加载失败'))
       } finally {
         setProjectsLoading(false)
       }
@@ -407,7 +401,7 @@ export default function SkuInfoPage() {
       resetPage?: boolean
       pageOverride?: number
       clearOnMissingProject?: boolean
-    },
+    }
   ) => {
     const projectValue = (filters?.project_name ?? projectFilter).trim()
     const skuValue = (filters?.sku ?? skuFilter).trim()
@@ -456,13 +450,10 @@ export default function SkuInfoPage() {
       ]
       if (selectedProject?.id) {
         requests.push(
-          fetch(
-            `${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`,
-            {
-              headers: authHeaders(),
-              cache: 'no-store',
-            },
-          ),
+          fetch(`${API_BASE}/api/v1/shipment-schedules/sku-summary?${summarySearch.toString()}`, {
+            headers: authHeaders(),
+            cache: 'no-store',
+          })
         )
       }
 
@@ -471,31 +462,29 @@ export default function SkuInfoPage() {
       const payload = (await response.json()) as ProductCostsPage
       let summaryBySku = new Map<string, number>()
       if (summaryResponse) {
-        if (!summaryResponse.ok)
-          throw new Error(await parseError(summaryResponse))
-        const summaryPayload =
-          (await summaryResponse.json()) as ShipmentSkuSummaryResponse
+        if (!summaryResponse.ok) throw new Error(await parseError(summaryResponse))
+        const summaryPayload = (await summaryResponse.json()) as ShipmentSkuSummaryResponse
         summaryBySku = new Map(
-          summaryPayload.items.map((item) => [
-            item.sku,
-            item.average_logistics_unit_price,
-          ]),
+          summaryPayload.items.map((item) => [item.sku, item.average_logistics_unit_price])
         )
       }
       setItems(
         sortProductCosts(
           payload.items.map((item) => ({
             ...item,
-            historical_first_leg_cost_rmb:
-              summaryBySku.get(item.sku) ?? item.first_leg_cost_rmb,
-          })),
-        ),
+            historical_first_leg_cost_rmb: summaryBySku.get(item.sku) ?? item.first_leg_cost_rmb,
+          }))
+        )
       )
       setTotal(Math.max(0, payload.total ?? 0))
       setHasNextPage(payload.has_next)
       setPage(nextPage)
     } catch (loadError) {
-      notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(loadError, '加载失败') })
+      notify({
+        type: 'error',
+        title: '加载失败',
+        message: normalizeErrorMessage(loadError, '加载失败'),
+      })
     } finally {
       setLoading(false)
     }
@@ -527,7 +516,7 @@ export default function SkuInfoPage() {
         sku: urlSku,
         asin: urlAsin,
       },
-      { resetPage: true },
+      { resetPage: true }
     )
 
     initialSearchTriggeredRef.current = true
@@ -569,7 +558,7 @@ export default function SkuInfoPage() {
         country: countryFilter,
         status: statusFilter,
       },
-      { resetPage: true, clearOnMissingProject: true },
+      { resetPage: true, clearOnMissingProject: true }
     )
   }
 
@@ -593,7 +582,7 @@ export default function SkuInfoPage() {
 
   const handleBatchImportFile = async (
     event: ChangeEvent<HTMLInputElement>,
-    importMode: ImportMode,
+    importMode: ImportMode
   ) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -604,7 +593,7 @@ export default function SkuInfoPage() {
       formData.append('file', file)
       const response = await fetch(
         `${API_BASE}/api/v1/sku-info/import-csv?import_mode=${importMode}`,
-        { method: 'POST', headers: authHeaders(), body: formData },
+        { method: 'POST', headers: authHeaders(), body: formData }
       )
       if (!response.ok) throw new Error(await parseError(response))
       const payload = (await response.json()) as {
@@ -612,14 +601,22 @@ export default function SkuInfoPage() {
         updated: number
         skipped?: number
       }
-      notify({ type: 'success', title: `CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成`, message: `新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条` })
+      notify({
+        type: 'success',
+        title: `CSV ${importMode === 'create' ? '批量上新' : '批量修改'}完成`,
+        message: `新增 ${payload.inserted} 条，更新 ${payload.updated} 条，跳过 ${payload.skipped ?? 0} 条`,
+      })
       if (projectFilter.trim())
         await loadData(undefined, {
           resetPage: true,
           clearOnMissingProject: true,
         })
     } catch (importError) {
-      notify({ type: 'error', title: 'CSV 批量导入失败', message: normalizeErrorMessage(importError, 'CSV 批量导入失败') })
+      notify({
+        type: 'error',
+        title: 'CSV 批量导入失败',
+        message: normalizeErrorMessage(importError, 'CSV 批量导入失败'),
+      })
     } finally {
       setBatchImporting(false)
     }
@@ -649,7 +646,11 @@ export default function SkuInfoPage() {
       }
       await loadData(undefined, { resetPage: true })
     } catch (syncError) {
-      notify({ type: 'error', title: '同步失败', message: normalizeErrorMessage(syncError, '同步失败') })
+      notify({
+        type: 'error',
+        title: '同步失败',
+        message: normalizeErrorMessage(syncError, '同步失败'),
+      })
     } finally {
       setSyncing(false)
     }
@@ -663,13 +664,10 @@ export default function SkuInfoPage() {
     try {
       const search = buildFilterSearchParams()
       search.set('export_type', activeTab)
-      const response = await fetch(
-        `${API_BASE}/api/v1/sku-info/export?${search.toString()}`,
-        {
-          headers: authHeaders(),
-          cache: 'no-store',
-        },
-      )
+      const response = await fetch(`${API_BASE}/api/v1/sku-info/export?${search.toString()}`, {
+        headers: authHeaders(),
+        cache: 'no-store',
+      })
       if (!response.ok) throw new Error(await parseError(response))
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -687,7 +685,11 @@ export default function SkuInfoPage() {
       URL.revokeObjectURL(url)
       notify({ type: 'success', title: '已导出当前筛选结果的批量修改模板' })
     } catch (exportError) {
-      notify({ type: 'error', title: '导出失败', message: normalizeErrorMessage(exportError, '导出失败') })
+      notify({
+        type: 'error',
+        title: '导出失败',
+        message: normalizeErrorMessage(exportError, '导出失败'),
+      })
     }
   }
 
@@ -709,10 +711,7 @@ export default function SkuInfoPage() {
       carton_height_cm: String(row.carton_height_cm),
       carton_weight_kg: String(row.carton_weight_kg),
       units_per_carton: String(row.units_per_carton),
-      country: (normalizeCountry(row.country || 'US') ?? 'US') as
-        | 'US'
-        | 'DE'
-        | 'UK',
+      country: (normalizeCountry(row.country || 'US') ?? 'US') as 'US' | 'DE' | 'UK',
       sort_order: String(row.sort_order),
       is_active: Boolean(row.is_active),
     })
@@ -758,12 +757,16 @@ export default function SkuInfoPage() {
       })
       notify({ type: 'success', title: '该行已更新' })
     } catch (saveError) {
-      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(saveError, '保存失败') })
+      notify({
+        type: 'error',
+        title: '保存失败',
+        message: normalizeErrorMessage(saveError, '保存失败'),
+      })
     }
   }
 
   const deleteRow = async (rowId: number) => {
-    if (!await confirm({ title: '确定要删除该 SKU 记录吗？', variant: 'destructive' })) return
+    if (!(await confirm({ title: '确定要删除该 SKU 记录吗？', variant: 'destructive' }))) return
     try {
       const response = await fetch(`${API_BASE}/api/v1/sku-info/${rowId}`, {
         method: 'DELETE',
@@ -777,7 +780,11 @@ export default function SkuInfoPage() {
       })
       notify({ type: 'success', title: '该行已删除' })
     } catch (deleteError) {
-      notify({ type: 'error', title: '删除失败', message: normalizeErrorMessage(deleteError, '删除失败') })
+      notify({
+        type: 'error',
+        title: '删除失败',
+        message: normalizeErrorMessage(deleteError, '删除失败'),
+      })
     }
   }
 
@@ -791,7 +798,7 @@ export default function SkuInfoPage() {
     try {
       const response = await fetch(
         `${API_BASE}/api/v1/sku-info/${skuRecordId}/fnsku-label/download`,
-        { headers: authHeaders() },
+        { headers: authHeaders() }
       )
       if (!response.ok) throw new Error(await parseError(response))
       const blob = await response.blob()
@@ -802,28 +809,27 @@ export default function SkuInfoPage() {
       link.click()
       URL.revokeObjectURL(url)
     } catch (downloadError) {
-      notify({ type: 'error', title: '标签下载失败', message: normalizeErrorMessage(downloadError, '下载失败') })
+      notify({
+        type: 'error',
+        title: '标签下载失败',
+        message: normalizeErrorMessage(downloadError, '下载失败'),
+      })
     }
   }
 
   const handleBatchDownloadLabels = async () => {
-    const ids = selectedLabelSkus
-      .filter((s) => s.fnsku_label_r2_key)
-      .map((s) => s.id)
+    const ids = selectedLabelSkus.filter((s) => s.fnsku_label_r2_key).map((s) => s.id)
     if (ids.length === 0) {
       notify({ type: 'error', title: '所选 SKU 均无 FNSKU 标签' })
       return
     }
     setLabelDownloading(true)
     try {
-      const response = await fetch(
-        `${API_BASE}/api/v1/sku-info/fnsku-labels/batch-download`,
-        {
-          method: 'POST',
-          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sku_record_ids: ids }),
-        },
-      )
+      const response = await fetch(`${API_BASE}/api/v1/sku-info/fnsku-labels/batch-download`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku_record_ids: ids }),
+      })
       if (!response.ok) throw new Error(await parseError(response))
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -840,40 +846,38 @@ export default function SkuInfoPage() {
         message: Number(skipped) > 0 ? `跳过 ${skipped} 个无标签的 SKU` : undefined,
       })
     } catch (batchError) {
-      notify({ type: 'error', title: '批量下载失败', message: normalizeErrorMessage(batchError, '下载失败') })
+      notify({
+        type: 'error',
+        title: '批量下载失败',
+        message: normalizeErrorMessage(batchError, '下载失败'),
+      })
     } finally {
       setLabelDownloading(false)
     }
   }
 
   return (
-    <div className='w-full space-y-6 text-foreground'>
-      <DataCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-        <DataCardHeader title='筛选条件' />
-        <DataCardContent className='p-4 lg:p-6'>
-          <div className='grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end lg:gap-4'>
+    <div className="w-full space-y-6 text-foreground">
+      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+        <DataCardHeader title="筛选条件" />
+        <DataCardContent className="p-4 lg:p-6">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end lg:gap-4">
             {projectsLoading ? (
-              <div className='col-span-1'>
+              <div className="col-span-1">
                 <FilterFieldSkeleton />
               </div>
             ) : (
-              <div className='grid gap-2'>
-                <label className='text-sm font-medium text-foreground'>
-                  项目名
-                </label>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">项目名</label>
                 <Select
                   value={projectFilter}
                   onValueChange={(value) => void onProjectFilterChange(value)}
                   disabled={projects.length === 0}
                 >
-                  <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
-                    <SelectValue
-                      placeholder={
-                        projects.length ? '请选择项目名' : '暂无可选项目'
-                      }
-                    />
+                  <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                    <SelectValue placeholder={projects.length ? '请选择项目名' : '暂无可选项目'} />
                   </SelectTrigger>
-                  <SelectContent className='max-h-64 overflow-y-auto'>
+                  <SelectContent className="max-h-64 overflow-y-auto">
                     {projects.map((project) => (
                       <SelectItem key={project.name} value={project.name}>
                         {project.name}
@@ -882,43 +886,37 @@ export default function SkuInfoPage() {
                   </SelectContent>
                 </Select>
                 {projectLoadError ? (
-                  <p className='text-xs text-destructive'>{projectLoadError}</p>
+                  <p className="text-xs text-destructive">{projectLoadError}</p>
                 ) : null}
               </div>
             )}
-            <div className='grid gap-2'>
-              <label className='text-sm font-medium text-foreground'>SKU</label>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground">SKU</label>
               <Input
-                placeholder='输入 SKU'
+                placeholder="输入 SKU"
                 value={skuFilter}
                 onChange={(e) => setSkuFilter(e.target.value)}
               />
             </div>
-            <div className='grid gap-2'>
-              <label className='text-sm font-medium text-foreground'>
-                ASIN
-              </label>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground">ASIN</label>
               <Input
-                placeholder='输入 ASIN'
+                placeholder="输入 ASIN"
                 value={asinFilter}
                 onChange={(e) => setAsinFilter(e.target.value)}
               />
             </div>
-            <div className='grid gap-2'>
-              <label className='text-sm font-medium text-foreground'>
-                国家站点
-              </label>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground">国家站点</label>
               <Select
                 value={countryFilter}
-                onValueChange={(value) =>
-                  setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')
-                }
+                onValueChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
               >
-                <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
-                  <SelectValue placeholder='全部国家站点' />
+                <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue placeholder="全部国家站点" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='all'>全部</SelectItem>
+                  <SelectItem value="all">全部</SelectItem>
                   {COUNTRY_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -927,31 +925,27 @@ export default function SkuInfoPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className='grid gap-2'>
-              <label className='text-sm font-medium text-foreground'>
-                状态
-              </label>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-foreground">状态</label>
               <Select
                 value={statusFilter}
-                onValueChange={(value) =>
-                  setStatusFilter(value as 'all' | 'active' | 'inactive')
-                }
+                onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
               >
-                <SelectTrigger className='h-10 dark:bg-[hsl(var(--surface-soft))]'>
-                  <SelectValue placeholder='全部状态' />
+                <SelectTrigger className="h-10 dark:bg-[hsl(var(--surface-soft))]">
+                  <SelectValue placeholder="全部状态" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='all'>全部</SelectItem>
-                  <SelectItem value='active'>活跃</SelectItem>
-                  <SelectItem value='inactive'>不活跃</SelectItem>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="active">活跃</SelectItem>
+                  <SelectItem value="inactive">不活跃</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className='flex items-center justify-end gap-2'>
-              <Button type='button' variant='outline' onClick={onResetFilters}>
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onResetFilters}>
                 重置
               </Button>
-              <Button type='button' onClick={() => void onSearch()}>
+              <Button type="button" onClick={() => void onSearch()}>
                 查询
               </Button>
             </div>
@@ -962,62 +956,62 @@ export default function SkuInfoPage() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ActiveTab)}
-        className='space-y-4'
+        className="space-y-4"
       >
-        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-          <TabsMotionGroup id='sku-cost-tabs'>
-            <TabsList className='inline-flex h-auto w-full max-w-[600px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none'>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <TabsMotionGroup id="sku-cost-tabs">
+            <TabsList className="inline-flex h-auto w-full max-w-[600px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
               <SlidingTabsTrigger
-                value='cost'
+                value="cost"
                 activeValue={activeTab}
-                layoutId='sku-cost-tab-indicator'
-                className='flex-1 gap-2 px-4 py-2'
+                layoutId="sku-cost-tab-indicator"
+                className="flex-1 gap-2 px-4 py-2"
               >
-                <Package2 className='h-4 w-4' />
+                <Package2 className="h-4 w-4" />
                 成本管理
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
-                value='dimension'
+                value="dimension"
                 activeValue={activeTab}
-                layoutId='sku-cost-tab-indicator'
-                className='flex-1 gap-2 px-4 py-2'
+                layoutId="sku-cost-tab-indicator"
+                className="flex-1 gap-2 px-4 py-2"
               >
-                <Ruler className='h-4 w-4' />
+                <Ruler className="h-4 w-4" />
                 尺寸管理
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
-                value='factory'
+                value="factory"
                 activeValue={activeTab}
-                layoutId='sku-cost-tab-indicator'
-                className='flex-1 gap-2 px-4 py-2'
+                layoutId="sku-cost-tab-indicator"
+                className="flex-1 gap-2 px-4 py-2"
               >
-                <FileText className='h-4 w-4' />
+                <FileText className="h-4 w-4" />
                 产品属性
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
-                value='label'
+                value="label"
                 activeValue={activeTab}
-                layoutId='sku-cost-tab-indicator'
-                className='flex-1 gap-2 px-4 py-2'
+                layoutId="sku-cost-tab-indicator"
+                className="flex-1 gap-2 px-4 py-2"
               >
-                <Tag className='h-4 w-4' />
+                <Tag className="h-4 w-4" />
                 产品标签
               </SlidingTabsTrigger>
               <SlidingTabsTrigger
-                value='image'
+                value="image"
                 activeValue={activeTab}
-                layoutId='sku-cost-tab-indicator'
-                className='flex-1 gap-2 px-4 py-2'
+                layoutId="sku-cost-tab-indicator"
+                className="flex-1 gap-2 px-4 py-2"
               >
-                <ImageIcon className='h-4 w-4' />
+                <ImageIcon className="h-4 w-4" />
                 产品图片
               </SlidingTabsTrigger>
             </TabsList>
           </TabsMotionGroup>
-          <div className='flex gap-2'>
+          <div className="flex gap-2">
             <Badge
-              variant='outline'
-              className='border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]'
+              variant="outline"
+              className="border-border/60 bg-[hsl(var(--surface-panel))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))]"
             >
               {loading && items.length === 0
                 ? '数据准备中...'
@@ -1029,11 +1023,11 @@ export default function SkuInfoPage() {
         <DirectionalTabTransition value={activeTab} order={ACTIVE_TAB_ORDER}>
           <TabsContent forceMount value={activeTab}>
             {activeTab === 'cost' ? (
-              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-                <DataTableCardHeader className='px-6 py-5'>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div className='space-y-1'>
-                      <h2 className='text-base font-semibold'>成本管理</h2>
+              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                <DataTableCardHeader className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h2 className="text-base font-semibold">成本管理</h2>
                     </div>
                     <ActionsBar
                       batchImporting={batchImporting}
@@ -1049,9 +1043,9 @@ export default function SkuInfoPage() {
                     />
                     {selectedSkus.length > 0 && (
                       <Button
-                        type='button'
-                        size='sm'
-                        variant='outline'
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         onClick={() => setBatchSheetOpen(true)}
                       >
                         批量编辑属性 ({selectedSkus.length})
@@ -1060,22 +1054,24 @@ export default function SkuInfoPage() {
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
-                  className='relative overflow-auto'
+                  className="relative overflow-auto"
                   style={{ maxHeight: '560px' }}
                 >
                   {loading && items.length > 0 ? (
-                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className='w-full border-separate border-spacing-0 text-sm'>
-                    <thead className='[&_tr]:border-b'>
-                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10'>
+                  <table className="w-full border-separate border-spacing-0 text-sm">
+                    <thead className="[&_tr]:border-b">
+                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10">
                           <input
-                            type='checkbox'
-                            className='h-4 w-4 rounded border-border/60'
-                            checked={selectedSkus.length > 0 && selectedSkus.length === items.length}
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-border/60"
+                            checked={
+                              selectedSkus.length > 0 && selectedSkus.length === items.length
+                            }
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedSkus([...items])
@@ -1085,48 +1081,46 @@ export default function SkuInfoPage() {
                             }}
                           />
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           排序
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           项目名
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           品名
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           头程成本(历史加权)
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-right text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           FOB
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           国家
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           状态
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           操作
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {loading && items.length === 0 ? (
-                        <TableSkeletonRows columns={9} />
-                      ) : null}
+                      {loading && items.length === 0 ? <TableSkeletonRows columns={9} /> : null}
                       {items.map((row) => (
                         <tr
                           key={row.id}
                           className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
                         >
-                          <td className='border-b border-r border-border/60 p-4 align-top text-center w-10'>
+                          <td className="border-b border-r border-border/60 p-4 align-top text-center w-10">
                             <input
-                              type='checkbox'
-                              className='h-4 w-4 rounded border-border/60'
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-border/60"
                               checked={selectedSkus.some((s) => s.id === row.id)}
                               onChange={(e) => {
                                 if (e.target.checked) {
@@ -1137,10 +1131,10 @@ export default function SkuInfoPage() {
                               }}
                             />
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-16'
+                                className="h-8 w-16"
                                 value={editRow.sort_order}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1153,15 +1147,15 @@ export default function SkuInfoPage() {
                               row.sort_order
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
+                          <td className="border-b border-r border-border/60 p-4 align-top font-medium">
                             {row.project_name}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             <div>
-                              <div className='font-medium'>
+                              <div className="font-medium">
                                 {editingId === row.id ? (
                                   <Input
-                                    className='h-8 w-24'
+                                    className="h-8 w-24"
                                     value={editRow.sku}
                                     onChange={(e) =>
                                       setEditRow((current) => ({
@@ -1174,12 +1168,12 @@ export default function SkuInfoPage() {
                                   row.sku
                                 )}
                               </div>
-                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
+                              <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
                                 <span>
                                   ASIN:{' '}
                                   {editingId === row.id ? (
                                     <Input
-                                      className='h-6 w-20 text-xs'
+                                      className="h-6 w-20 text-xs"
                                       value={editRow.asin}
                                       onChange={(e) =>
                                         setEditRow((current) => ({
@@ -1196,7 +1190,7 @@ export default function SkuInfoPage() {
                                   FNSKU:{' '}
                                   {editingId === row.id ? (
                                     <Input
-                                      className='h-6 w-24 text-xs'
+                                      className="h-6 w-24 text-xs"
                                       value={editRow.fnsku}
                                       onChange={(e) =>
                                         setEditRow((current) => ({
@@ -1212,10 +1206,10 @@ export default function SkuInfoPage() {
                               </div>
                             </div>
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-28'
+                                className="h-8 w-28"
                                 value={editRow.product_name}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1223,22 +1217,21 @@ export default function SkuInfoPage() {
                                     product_name: e.target.value,
                                   }))
                                 }
-                                placeholder='品名'
+                                placeholder="品名"
                               />
                             ) : (
                               row.product_name || '-'
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top text-right'>
-                            {(
-                              row.historical_first_leg_cost_rmb ??
-                              row.first_leg_cost_rmb
-                            ).toFixed(2)}
+                          <td className="border-b border-r border-border/60 p-4 align-top text-right">
+                            {(row.historical_first_leg_cost_rmb ?? row.first_leg_cost_rmb).toFixed(
+                              2
+                            )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top text-right'>
+                          <td className="border-b border-r border-border/60 p-4 align-top text-right">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-20'
+                                className="h-8 w-20"
                                 value={editRow.fob_unit_cost}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1251,7 +1244,7 @@ export default function SkuInfoPage() {
                               row.fob_unit_cost.toFixed(2)
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Select
                                 value={editRow.country}
@@ -1262,32 +1255,26 @@ export default function SkuInfoPage() {
                                   }))
                                 }
                               >
-                                <SelectTrigger className='h-8 w-28'>
+                                <SelectTrigger className="h-8 w-28">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {COUNTRY_OPTIONS.map((option) => (
-                                    <SelectItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
+                                    <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             ) : (
-                              COUNTRY_OPTIONS.find(
-                                (option) => option.value === row.country,
-                              )?.label || row.country
+                              COUNTRY_OPTIONS.find((option) => option.value === row.country)
+                                ?.label || row.country
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Select
-                                value={
-                                  editRow.is_active ? 'active' : 'inactive'
-                                }
+                                value={editRow.is_active ? 'active' : 'inactive'}
                                 onValueChange={(value) =>
                                   setEditRow((current) => ({
                                     ...current,
@@ -1295,19 +1282,17 @@ export default function SkuInfoPage() {
                                   }))
                                 }
                               >
-                                <SelectTrigger className='h-8 w-24'>
+                                <SelectTrigger className="h-8 w-24">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value='active'>活跃</SelectItem>
-                                  <SelectItem value='inactive'>
-                                    不活跃
-                                  </SelectItem>
+                                  <SelectItem value="active">活跃</SelectItem>
+                                  <SelectItem value="inactive">不活跃</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
                               <Badge
-                                variant='outline'
+                                variant="outline"
                                 className={
                                   row.is_active
                                     ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
@@ -1318,44 +1303,44 @@ export default function SkuInfoPage() {
                               </Badge>
                             )}
                           </td>
-                          <td className='border-b border-border/60 p-4 align-top'>
-                            <div className='flex gap-2'>
+                          <td className="border-b border-border/60 p-4 align-top">
+                            <div className="flex gap-2">
                               {editingId === row.id ? (
-                                  <>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      onClick={() => void saveRow(row.id)}
-                                    >
-                                      保存
-                                    </Button>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      variant='outline'
-                                      onClick={() => setEditingId(null)}
-                                    >
-                                      取消
-                                    </Button>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      variant='destructive'
-                                      onClick={() => void deleteRow(row.id)}
-                                    >
-                                      删除
-                                    </Button>
-                                  </>
-                                ) : (
+                                <>
                                   <Button
-                                    type='button'
-                                    size='sm'
-                                    variant='outline'
-                                    onClick={() => startEditRow(row)}
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => void saveRow(row.id)}
                                   >
-                                    编辑
+                                    保存
                                   </Button>
-                                )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    取消
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void deleteRow(row.id)}
+                                  >
+                                    删除
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditRow(row)}
+                                >
+                                  编辑
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1375,11 +1360,11 @@ export default function SkuInfoPage() {
                 </DataTableCardBody>
               </DataTableCard>
             ) : activeTab === 'dimension' ? (
-              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-                <DataTableCardHeader className='px-6 py-5'>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div className='space-y-1'>
-                      <h2 className='text-base font-semibold'>尺寸管理</h2>
+              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                <DataTableCardHeader className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h2 className="text-base font-semibold">尺寸管理</h2>
                     </div>
                     <ActionsBar
                       batchImporting={batchImporting}
@@ -1396,64 +1381,64 @@ export default function SkuInfoPage() {
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
-                  className='relative overflow-auto'
+                  className="relative overflow-auto"
                   style={{ maxHeight: '560px' }}
                 >
                   {loading && items.length > 0 ? (
-                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className='w-full border-separate border-spacing-0 text-sm'>
-                    <thead className='[&_tr]:border-b'>
-                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                  <table className="w-full border-separate border-spacing-0 text-sm">
+                    <thead className="[&_tr]:border-b">
+                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           项目名
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           单品尺寸
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           单品重量
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           外箱尺寸
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           外箱重量
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           装箱数量
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           状态
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           操作
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading && items.length === 0 ? (
-                        <TableSkeletonRows columns={9} cellWidth='w-24' />
+                        <TableSkeletonRows columns={9} cellWidth="w-24" />
                       ) : null}
                       {items.map((row) => (
                         <tr
                           key={row.id}
                           className={`border-b border-border/50 transition-colors ${editingId === row.id ? 'bg-[hsl(var(--surface-subtle))]' : 'hover:bg-[hsl(var(--surface-subtle))]'} `}
                         >
-                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
+                          <td className="border-b border-r border-border/60 p-4 align-top font-medium">
                             {row.project_name}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             <div>
-                              <div className='font-medium'>
+                              <div className="font-medium">
                                 {editingId === row.id ? (
                                   <Input
-                                    className='h-8 w-24'
+                                    className="h-8 w-24"
                                     value={editRow.sku}
                                     onChange={(e) =>
                                       setEditRow((current) => ({
@@ -1466,12 +1451,12 @@ export default function SkuInfoPage() {
                                   row.sku
                                 )}
                               </div>
-                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
+                              <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
                                 <span>
                                   ASIN:{' '}
                                   {editingId === row.id ? (
                                     <Input
-                                      className='h-6 w-20 text-xs'
+                                      className="h-6 w-20 text-xs"
                                       value={editRow.asin}
                                       onChange={(e) =>
                                         setEditRow((current) => ({
@@ -1488,7 +1473,7 @@ export default function SkuInfoPage() {
                                   FNSKU:{' '}
                                   {editingId === row.id ? (
                                     <Input
-                                      className='h-6 w-24 text-xs'
+                                      className="h-6 w-24 text-xs"
                                       value={editRow.fnsku}
                                       onChange={(e) =>
                                         setEditRow((current) => ({
@@ -1504,7 +1489,7 @@ export default function SkuInfoPage() {
                               </div>
                             </div>
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <TripleInput
                                 values={[
@@ -1525,10 +1510,10 @@ export default function SkuInfoPage() {
                               `${row.package_length_cm} × ${row.package_width_cm} × ${row.package_height_cm} cm`
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-24'
+                                className="h-8 w-24"
                                 value={editRow.weight_kg}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1541,7 +1526,7 @@ export default function SkuInfoPage() {
                               `${row.weight_kg} kg`
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <TripleInput
                                 values={[
@@ -1562,10 +1547,10 @@ export default function SkuInfoPage() {
                               `${row.carton_length_cm} × ${row.carton_width_cm} × ${row.carton_height_cm} cm`
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-24'
+                                className="h-8 w-24"
                                 value={editRow.carton_weight_kg}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1578,10 +1563,10 @@ export default function SkuInfoPage() {
                               `${row.carton_weight_kg} kg`
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Input
-                                className='h-8 w-24'
+                                className="h-8 w-24"
                                 value={editRow.units_per_carton}
                                 onChange={(e) =>
                                   setEditRow((current) => ({
@@ -1594,12 +1579,10 @@ export default function SkuInfoPage() {
                               `${row.units_per_carton} pcs/箱`
                             )}
                           </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
+                          <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
                               <Select
-                                value={
-                                  editRow.is_active ? 'active' : 'inactive'
-                                }
+                                value={editRow.is_active ? 'active' : 'inactive'}
                                 onValueChange={(value) =>
                                   setEditRow((current) => ({
                                     ...current,
@@ -1607,19 +1590,17 @@ export default function SkuInfoPage() {
                                   }))
                                 }
                               >
-                                <SelectTrigger className='h-8 w-24'>
+                                <SelectTrigger className="h-8 w-24">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value='active'>活跃</SelectItem>
-                                  <SelectItem value='inactive'>
-                                    不活跃
-                                  </SelectItem>
+                                  <SelectItem value="active">活跃</SelectItem>
+                                  <SelectItem value="inactive">不活跃</SelectItem>
                                 </SelectContent>
                               </Select>
                             ) : (
                               <Badge
-                                variant='outline'
+                                variant="outline"
                                 className={
                                   row.is_active
                                     ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
@@ -1630,44 +1611,44 @@ export default function SkuInfoPage() {
                               </Badge>
                             )}
                           </td>
-                          <td className='border-b border-border/60 p-4 align-top'>
-                            <div className='flex gap-2'>
+                          <td className="border-b border-border/60 p-4 align-top">
+                            <div className="flex gap-2">
                               {editingId === row.id ? (
-                                  <>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      onClick={() => void saveRow(row.id)}
-                                    >
-                                      保存
-                                    </Button>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      variant='outline'
-                                      onClick={() => setEditingId(null)}
-                                    >
-                                      取消
-                                    </Button>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      variant='destructive'
-                                      onClick={() => void deleteRow(row.id)}
-                                    >
-                                      删除
-                                    </Button>
-                                  </>
-                                ) : (
+                                <>
                                   <Button
-                                    type='button'
-                                    size='sm'
-                                    variant='outline'
-                                    onClick={() => startEditRow(row)}
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => void saveRow(row.id)}
                                   >
-                                    编辑
+                                    保存
                                   </Button>
-                                )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    取消
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void deleteRow(row.id)}
+                                  >
+                                    删除
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditRow(row)}
+                                >
+                                  编辑
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1687,130 +1668,136 @@ export default function SkuInfoPage() {
                 </DataTableCardBody>
               </DataTableCard>
             ) : activeTab === 'factory' ? (
-              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-                <DataTableCardHeader className='px-6 py-5'>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div className='space-y-1'>
-                      <h2 className='text-base font-semibold'>产品属性</h2>
+              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                <DataTableCardHeader className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h2 className="text-base font-semibold">产品属性</h2>
                     </div>
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
-                  className='relative overflow-auto'
+                  className="relative overflow-auto"
                   style={{ maxHeight: '560px' }}
                 >
                   {loading && items.length > 0 ? (
-                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className='w-full border-separate border-spacing-0 text-sm'>
-                    <thead className='[&_tr]:border-b'>
-                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                  <table className="w-full border-separate border-spacing-0 text-sm">
+                    <thead className="[&_tr]:border-b">
+                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           项目名
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           产品属性
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           编辑人
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           更新时间
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           操作
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading && items.length === 0 ? (
-                        <TableSkeletonRows columns={6} cellWidth='w-24' />
+                        <TableSkeletonRows columns={6} cellWidth="w-24" />
                       ) : null}
                       {items.map((row) => (
                         <Fragment key={row.id}>
-                        <tr
-                          className='border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
-                        >
-                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
-                            {row.project_name}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
-                            <div>
-                              <div className='font-medium'>{row.sku}</div>
-                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
-                                <span>ASIN: {row.asin || '-'}</span>
-                                <span>FNSKU: {row.fnsku || '-'}</span>
+                          <tr className="border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]">
+                            <td className="border-b border-r border-border/60 p-4 align-top font-medium">
+                              {row.project_name}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top">
+                              <div>
+                                <div className="font-medium">{row.sku}</div>
+                                <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
+                                  <span>ASIN: {row.asin || '-'}</span>
+                                  <span>FNSKU: {row.fnsku || '-'}</span>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
-                            {row.sku_factory_info && Object.keys(row.sku_factory_info).length > 0 ? (
-                              <HoverCard
-                                side='top'
-                                scaleOnHover={false}
-                                trigger={
-                                  <Badge
-                                    variant='outline'
-                                    className='cursor-help border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                  >
-                                    有描述
-                                  </Badge>
-                                }
-                                content={
-                                  <div className='space-y-2'>
-                                    <p className='text-sm font-medium'>产品属性信息</p>
-                                    <div className='space-y-1'>
-                                      {Object.entries(row.sku_factory_info).slice(0, 5).map(([key, value]) => (
-                                        <div key={key} className='text-xs'>
-                                          <span className='font-medium'>{key}: </span>
-                                          <span className='text-muted-foreground'>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
-                                        </div>
-                                      ))}
-                                      {Object.keys(row.sku_factory_info).length > 5 && (
-                                        <div className='text-xs text-muted-foreground'>
-                                          ...还有 {Object.keys(row.sku_factory_info).length - 5} 个字段
-                                        </div>
-                                      )}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top">
+                              {row.sku_factory_info &&
+                              Object.keys(row.sku_factory_info).length > 0 ? (
+                                <HoverCard
+                                  side="top"
+                                  scaleOnHover={false}
+                                  trigger={
+                                    <Badge
+                                      variant="outline"
+                                      className="cursor-help border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                    >
+                                      有描述
+                                    </Badge>
+                                  }
+                                  content={
+                                    <div className="space-y-2">
+                                      <p className="text-sm font-medium">产品属性信息</p>
+                                      <div className="space-y-1">
+                                        {Object.entries(row.sku_factory_info)
+                                          .slice(0, 5)
+                                          .map(([key, value]) => (
+                                            <div key={key} className="text-xs">
+                                              <span className="font-medium">{key}: </span>
+                                              <span className="text-muted-foreground">
+                                                {typeof value === 'string'
+                                                  ? value
+                                                  : JSON.stringify(value)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        {Object.keys(row.sku_factory_info).length > 5 && (
+                                          <div className="text-xs text-muted-foreground">
+                                            ...还有 {Object.keys(row.sku_factory_info).length - 5}{' '}
+                                            个字段
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                }
-                              />
-                            ) : (
-                              <Badge
-                                variant='outline'
-                                className='border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
+                                  }
+                                />
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+                                >
+                                  未填写
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground">
+                              {row.sku_factory_info_updated_by || '-'}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground">
+                              {row.sku_factory_info_updated_at
+                                ? new Date(row.sku_factory_info_updated_at).toLocaleString('zh-CN')
+                                : '-'}
+                            </td>
+                            <td className="border-b border-border/60 p-4 align-top">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setFactoryEditingRow(row)
+                                  setFactorySheetOpen(true)
+                                }}
                               >
-                                未填写
-                              </Badge>
-                            )}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground'>
-                            {row.sku_factory_info_updated_by || '-'}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground'>
-                            {row.sku_factory_info_updated_at
-                              ? new Date(row.sku_factory_info_updated_at).toLocaleString('zh-CN')
-                              : '-'}
-                          </td>
-                          <td className='border-b border-border/60 p-4 align-top'>
-                            <Button
-                              type='button'
-                              size='sm'
-                              variant='outline'
-                              onClick={() => {
-                                setFactoryEditingRow(row)
-                                setFactorySheetOpen(true)
-                              }}
-                            >
-                              编辑
-                            </Button>
-                          </td>
-                        </tr>
+                                编辑
+                              </Button>
+                            </td>
+                          </tr>
                         </Fragment>
                       ))}
                       {!loading && items.length === 0 ? (
@@ -1829,22 +1816,24 @@ export default function SkuInfoPage() {
               </DataTableCard>
             ) : activeTab === 'label' ? (
               /* ── 产品标签 Tab ── */
-              <DataTableCard className='overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90'>
-                <DataTableCardHeader className='px-6 py-5'>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div className='space-y-1'>
-                      <h2 className='text-base font-semibold'>产品标签</h2>
-                      <p className='text-xs text-muted-foreground'>上传和管理每个 SKU 的 FNSKU 标签 PDF</p>
+              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                <DataTableCardHeader className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h2 className="text-base font-semibold">产品标签</h2>
+                      <p className="text-xs text-muted-foreground">
+                        上传和管理每个 SKU 的 FNSKU 标签 PDF
+                      </p>
                     </div>
                     {selectedLabelSkus.length > 0 && (
                       <Button
-                        type='button'
-                        size='sm'
-                        variant='default'
+                        type="button"
+                        size="sm"
+                        variant="default"
                         disabled={labelDownloading}
                         onClick={() => void handleBatchDownloadLabels()}
                       >
-                        <FileDown className='mr-2 h-4 w-4' />
+                        <FileDown className="mr-2 h-4 w-4" />
                         {labelDownloading
                           ? '下载中...'
                           : `批量下载标签 (${selectedLabelSkus.filter((s) => s.fnsku_label_r2_key).length})`}
@@ -1853,22 +1842,25 @@ export default function SkuInfoPage() {
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
-                  className='relative overflow-auto'
+                  className="relative overflow-auto"
                   style={{ maxHeight: '560px' }}
                 >
                   {loading && items.length > 0 ? (
-                    <div className='pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm'>
+                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className='w-full border-separate border-spacing-0 text-sm'>
-                    <thead className='[&_tr]:border-b'>
-                      <tr className='border-b bg-[hsl(var(--surface-subtle))]'>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10'>
+                  <table className="w-full border-separate border-spacing-0 text-sm">
+                    <thead className="[&_tr]:border-b">
+                      <tr className="border-b bg-[hsl(var(--surface-subtle))]">
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-2 text-center w-10">
                           <input
-                            type='checkbox'
-                            className='h-4 w-4 rounded border-border/60'
-                            checked={selectedLabelSkus.length > 0 && selectedLabelSkus.length === items.length}
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-border/60"
+                            checked={
+                              selectedLabelSkus.length > 0 &&
+                              selectedLabelSkus.length === items.length
+                            }
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedLabelSkus([...items])
@@ -1878,155 +1870,176 @@ export default function SkuInfoPage() {
                             }}
                           />
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           项目名
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           SKU / ASIN / FNSKU
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           产品名称
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           标签状态
                         </th>
-                        <th className='sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground'>
+                        <th className="sticky top-0 z-10 h-12 border-b border-border/60 bg-[hsl(var(--surface-subtle))] px-4 text-left text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                           操作
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading && items.length === 0 ? (
-                        <TableSkeletonRows columns={6} cellWidth='w-24' />
+                        <TableSkeletonRows columns={6} cellWidth="w-24" />
                       ) : null}
                       {items.map((row) => (
                         <Fragment key={row.id}>
-                        <tr
-                          className='border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]'
-                        >
-                          <td className='border-b border-r border-border/60 p-4 align-top text-center w-10'>
-                            <input
-                              type='checkbox'
-                              className='h-4 w-4 rounded border-border/60'
-                              checked={selectedLabelSkus.some((s) => s.id === row.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedLabelSkus((prev) => [...prev, row])
-                                } else {
-                                  setSelectedLabelSkus((prev) => prev.filter((s) => s.id !== row.id))
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top font-medium'>
-                            {row.project_name}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
-                            <div>
-                              <div className='font-medium'>{row.sku}</div>
-                              <div className='mt-0.5 flex gap-3 text-xs text-muted-foreground'>
-                                <span>ASIN: {row.asin || '-'}</span>
-                                <span>FNSKU: {row.fnsku || '-'}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top text-sm'>
-                            {row.product_name || '-'}
-                          </td>
-                          <td className='border-b border-r border-border/60 p-4 align-top'>
-                            {row.fnsku_label_r2_key ? (
-                              <Badge
-                                variant='outline'
-                                className='border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                              >
-                                已上传
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant='outline'
-                                className='border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground'
-                              >
-                                未上传
-                              </Badge>
-                            )}
-                          </td>
-                          <td className='border-b border-border/60 p-4 align-top'>
-                            <div className='flex gap-2'>
-                              <Button
-                                type='button'
-                                size='sm'
-                                variant='outline'
-                                disabled={labelUploadingId === row.id}
-                                onClick={() => handleLabelUploadClick(row.id)}
-                              >
-                                <Upload className='mr-1.5 h-3.5 w-3.5' />
-                                {labelUploadingId === row.id ? '上传中...' : '上传标签'}
-                              </Button>
-                              {row.fnsku_label_r2_key && (
-                                <Button
-                                  type='button'
-                                  size='sm'
-                                  variant='ghost'
-                                  onClick={() => void handleLabelDownload(row.id, row.sku)}
-                                >
-                                  <FileDown className='mr-1.5 h-3.5 w-3.5' />
-                                  下载
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        {labelUploadingId === row.id && (
-                          <tr className='border-b border-border/50 bg-[hsl(var(--surface-subtle))]'>
-                            <td colSpan={6} className='px-6 py-4'>
-                              <div className='flex items-center justify-between mb-2'>
-                                <span className='text-sm font-medium text-foreground'>
-                                  粘贴、拖拽或选择 PDF 文件上传标签
-                                </span>
-                                <Button
-                                  type='button'
-                                  size='sm'
-                                  variant='ghost'
-                                  className='h-7 px-2 text-xs'
-                                  onClick={() => setLabelUploadingId(null)}
-                                >
-                                  取消
-                                </Button>
-                              </div>
-                              <UploadZone
-                                accept='application/pdf'
-                                maxSize={20}
-                                showPreview={false}
-                                onUpload={async (file) => {
-                                  const formData = new FormData()
-                                  formData.append('file', file)
-                                  try {
-                                    const response = await fetch(
-                                      `${API_BASE}/api/v1/sku-info/${row.id}/fnsku-label`,
-                                      { method: 'POST', headers: authHeaders(), body: formData },
+                          <tr className="border-b border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))]">
+                            <td className="border-b border-r border-border/60 p-4 align-top text-center w-10">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-border/60"
+                                checked={selectedLabelSkus.some((s) => s.id === row.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedLabelSkus((prev) => [...prev, row])
+                                  } else {
+                                    setSelectedLabelSkus((prev) =>
+                                      prev.filter((s) => s.id !== row.id)
                                     )
-                                    if (!response.ok) throw new Error(await parseError(response))
-                                    const data = await response.json() as {
-                                      fnsku_verified?: boolean
-                                      fnsku_verification_message?: string
-                                    }
-                                    if (data.fnsku_verified) {
-                                      notify({ type: 'success', title: 'FNSKU 标签上传成功', message: data.fnsku_verification_message })
-                                    } else if (data.fnsku_verification_message?.includes('不匹配')) {
-                                      notify({ type: 'warning', title: '标签已上传，但 FNSKU 不匹配', message: data.fnsku_verification_message })
-                                    } else {
-                                      notify({ type: 'success', title: 'FNSKU 标签上传成功', message: data.fnsku_verification_message })
-                                    }
-                                    setLabelUploadingId(null)
-                                    await loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
-                                  } catch (uploadError) {
-                                    notify({ type: 'error', title: '标签上传失败', message: normalizeErrorMessage(uploadError, '上传失败') })
                                   }
                                 }}
                               />
                             </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top font-medium">
+                              {row.project_name}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top">
+                              <div>
+                                <div className="font-medium">{row.sku}</div>
+                                <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
+                                  <span>ASIN: {row.asin || '-'}</span>
+                                  <span>FNSKU: {row.fnsku || '-'}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top text-sm">
+                              {row.product_name || '-'}
+                            </td>
+                            <td className="border-b border-r border-border/60 p-4 align-top">
+                              {row.fnsku_label_r2_key ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                                >
+                                  已上传
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-border/70 bg-[hsl(var(--surface-subtle))] text-muted-foreground dark:bg-[hsl(var(--surface-soft))] dark:text-foreground"
+                                >
+                                  未上传
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="border-b border-border/60 p-4 align-top">
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={labelUploadingId === row.id}
+                                  onClick={() => handleLabelUploadClick(row.id)}
+                                >
+                                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                                  {labelUploadingId === row.id ? '上传中...' : '上传标签'}
+                                </Button>
+                                {row.fnsku_label_r2_key && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => void handleLabelDownload(row.id, row.sku)}
+                                  >
+                                    <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                                    下载
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
-                        )}
+                          {labelUploadingId === row.id && (
+                            <tr className="border-b border-border/50 bg-[hsl(var(--surface-subtle))]">
+                              <td colSpan={6} className="px-6 py-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-foreground">
+                                    粘贴、拖拽或选择 PDF 文件上传标签
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => setLabelUploadingId(null)}
+                                  >
+                                    取消
+                                  </Button>
+                                </div>
+                                <UploadZone
+                                  accept="application/pdf"
+                                  maxSize={20}
+                                  showPreview={false}
+                                  onUpload={async (file) => {
+                                    const formData = new FormData()
+                                    formData.append('file', file)
+                                    try {
+                                      const response = await fetch(
+                                        `${API_BASE}/api/v1/sku-info/${row.id}/fnsku-label`,
+                                        { method: 'POST', headers: authHeaders(), body: formData }
+                                      )
+                                      if (!response.ok) throw new Error(await parseError(response))
+                                      const data = (await response.json()) as {
+                                        fnsku_verified?: boolean
+                                        fnsku_verification_message?: string
+                                      }
+                                      if (data.fnsku_verified) {
+                                        notify({
+                                          type: 'success',
+                                          title: 'FNSKU 标签上传成功',
+                                          message: data.fnsku_verification_message,
+                                        })
+                                      } else if (
+                                        data.fnsku_verification_message?.includes('不匹配')
+                                      ) {
+                                        notify({
+                                          type: 'warning',
+                                          title: '标签已上传，但 FNSKU 不匹配',
+                                          message: data.fnsku_verification_message,
+                                        })
+                                      } else {
+                                        notify({
+                                          type: 'success',
+                                          title: 'FNSKU 标签上传成功',
+                                          message: data.fnsku_verification_message,
+                                        })
+                                      }
+                                      setLabelUploadingId(null)
+                                      await loadData(undefined, {
+                                        pageOverride: page,
+                                        clearOnMissingProject: true,
+                                      })
+                                    } catch (uploadError) {
+                                      notify({
+                                        type: 'error',
+                                        title: '标签上传失败',
+                                        message: normalizeErrorMessage(uploadError, '上传失败'),
+                                      })
+                                    }
+                                  }}
+                                />
+                              </td>
+                            </tr>
+                          )}
                         </Fragment>
                       ))}
                       {!loading && items.length === 0 ? (
@@ -2111,18 +2124,15 @@ function ActionsBar({
   projectName: string
   onDownloadCreateTemplate: (projectName: string) => void
   onDownloadUpdateTemplate: () => void
-  onUpload: (
-    event: ChangeEvent<HTMLInputElement>,
-    importMode: ImportMode,
-  ) => void
+  onUpload: (event: ChangeEvent<HTMLInputElement>, importMode: ImportMode) => void
   onSync: () => void
 }) {
   return (
-    <div className='flex flex-wrap gap-2'>
+    <div className="flex flex-wrap gap-2">
       <Button
-        type='button'
-        size='sm'
-        variant='default'
+        type="button"
+        size="sm"
+        variant="default"
         onClick={onSync}
         disabled={syncing || syncDisabled}
         title={
@@ -2141,45 +2151,40 @@ function ActionsBar({
             : '同步头程'}
       </Button>
       <Button
-        type='button'
-        size='sm'
-        variant='outline'
+        type="button"
+        size="sm"
+        variant="outline"
         onClick={() => onDownloadCreateTemplate(projectName)}
         disabled={!projectName}
         title={!projectName ? '请先选择项目' : undefined}
       >
-        <FileDown className='mr-2 h-4 w-4' />
+        <FileDown className="mr-2 h-4 w-4" />
         下载上新模板
       </Button>
-      <Button
-        type='button'
-        size='sm'
-        variant='outline'
-        onClick={onDownloadUpdateTemplate}
-      >
-        <FileDown className='mr-2 h-4 w-4' />
+      <Button type="button" size="sm" variant="outline" onClick={onDownloadUpdateTemplate}>
+        <FileDown className="mr-2 h-4 w-4" />
         导出批量修改
       </Button>
-      <Button asChild size='sm' variant='outline' disabled={batchImporting}>
+      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
         <label>
-          <Upload className='mr-2 h-4 w-4' />
+          <Upload className="mr-2 h-4 w-4" />
           {batchImporting ? '导入中...' : '批量上新'}
           <input
-            type='file'
-            accept='.csv'
-            className='hidden'
+            type="file"
+            accept=".csv"
+            className="hidden"
             onChange={(event) => onUpload(event, 'create')}
           />
         </label>
       </Button>
-      <Button asChild size='sm' variant='outline' disabled={batchImporting}>
+      <Button asChild size="sm" variant="outline" disabled={batchImporting}>
         <label>
-          <Upload className='mr-2 h-4 w-4' />
+          <Upload className="mr-2 h-4 w-4" />
           {batchImporting ? '导入中...' : '批量修改'}
           <input
-            type='file'
-            accept='.csv'
-            className='hidden'
+            type="file"
+            accept=".csv"
+            className="hidden"
             onChange={(event) => onUpload(event, 'update')}
           />
         </label>
@@ -2196,19 +2201,19 @@ function TripleInput({
   onChange: (values: [string, string, string]) => void
 }) {
   return (
-    <div className='grid grid-cols-3 gap-2'>
+    <div className="grid grid-cols-3 gap-2">
       <Input
-        className='h-8'
+        className="h-8"
         value={values[0]}
         onChange={(e) => onChange([e.target.value, values[1], values[2]])}
       />
       <Input
-        className='h-8'
+        className="h-8"
         value={values[1]}
         onChange={(e) => onChange([values[0], e.target.value, values[2]])}
       />
       <Input
-        className='h-8'
+        className="h-8"
         value={values[2]}
         onChange={(e) => onChange([values[0], values[1], e.target.value])}
       />

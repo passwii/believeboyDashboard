@@ -1,7 +1,16 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  Download,
+  Loader2,
+  XCircle,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -11,7 +20,13 @@ import {
   formatDateInputValue,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
@@ -21,7 +36,7 @@ type CountryOption = 'US' | 'DE' | 'UK'
 
 // Currency configuration by country
 const CURRENCY_CONFIG: Record<CountryOption, { symbol: string; excelFmt: string }> = {
-  US: { symbol: '$',  excelFmt: '$#,##0.00;[Red]-$#,##0.00' },
+  US: { symbol: '$', excelFmt: '$#,##0.00;[Red]-$#,##0.00' },
   DE: { symbol: '€', excelFmt: '#,##0.00;[Red]-#,##0.00 €' },
   UK: { symbol: '£', excelFmt: '£#,##0.00;[Red]-£#,##0.00' },
 }
@@ -128,7 +143,11 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
 const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 const REPORT_ROWS = [
-  { key: 'business_report', label: '业务报告', getMissing: (a: DataAvailability) => a.business_report_missing },
+  {
+    key: 'business_report',
+    label: '业务报告',
+    getMissing: (a: DataAvailability) => a.business_report_missing,
+  },
   { key: 'ad_report', label: '广告报告', getMissing: (a: DataAvailability) => a.ad_report_missing },
   { key: 'inventory', label: '库存报告', getMissing: (a: DataAvailability) => a.inventory_missing },
 ] as const
@@ -207,8 +226,14 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
       payment: {
         hasData: (d: string) => paymentDailySet.has(d),
         isPeriodicOnly: (d: string) => paymentPeriodicOnlySet.has(d),
-        isObjectiveEmpty: (d: string) => paymentObjectiveEmptySet.has(d) && !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d),
-        isMissing: (d: string) => !paymentDailySet.has(d) && !paymentPeriodicOnlySet.has(d) && !paymentObjectiveEmptySet.has(d),
+        isObjectiveEmpty: (d: string) =>
+          paymentObjectiveEmptySet.has(d) &&
+          !paymentDailySet.has(d) &&
+          !paymentPeriodicOnlySet.has(d),
+        isMissing: (d: string) =>
+          !paymentDailySet.has(d) &&
+          !paymentPeriodicOnlySet.has(d) &&
+          !paymentObjectiveEmptySet.has(d),
       },
     }
   }, [availability, dates])
@@ -216,15 +241,18 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
   // Inventory missing set
   const inventoryMissingSet = useMemo(
     () => new Set(availability.inventory_missing || []),
-    [availability.inventory_missing],
+    [availability.inventory_missing]
   )
 
   // Check if any periodic coverage exists (with safety checks for API compatibility)
-  const hasPeriodicData = useMemo(() => ({
-    business: availability.business_period_info?.length > 0,
-    ad: availability.ad_period_info?.length > 0,
-    payment: availability.payment_periods_overlapping?.length > 0,
-  }), [availability])
+  const hasPeriodicData = useMemo(
+    () => ({
+      business: availability.business_period_info?.length > 0,
+      ad: availability.ad_period_info?.length > 0,
+      payment: availability.payment_periods_overlapping?.length > 0,
+    }),
+    [availability]
+  )
 
   // Check if periodic data covers all dates (for right column indicator)
   const periodicCoversAllDates = useMemo(() => {
@@ -241,26 +269,44 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
       }
     }
     return {
-      business: dates.length > 0 && dates.every(d => businessPeriodDates.has(d)),
-      ad: dates.length > 0 && dates.every(d => adPeriodDates.has(d)),
+      business: dates.length > 0 && dates.every((d) => businessPeriodDates.has(d)),
+      ad: dates.length > 0 && dates.every((d) => adPeriodDates.has(d)),
     }
   }, [availability, dates])
 
-  const getCellClass = (hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, isMissing: boolean) => {
+  const getCellClass = (
+    hasData: boolean,
+    isPeriodicOnly: boolean,
+    isObjectiveEmpty: boolean,
+    isMissing: boolean
+  ) => {
     if (hasData) return 'bg-emerald-500'
-    if (isPeriodicOnly) return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
+    if (isPeriodicOnly)
+      return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
     if (isObjectiveEmpty) return 'bg-amber-500'
     return 'bg-rose-500'
   }
 
-  const getCellIcon = (hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, _isMissing: boolean) => {
+  const getCellIcon = (
+    hasData: boolean,
+    isPeriodicOnly: boolean,
+    isObjectiveEmpty: boolean,
+    _isMissing: boolean
+  ) => {
     if (hasData) return <CheckCircle2 className="h-4 w-4 text-white" />
     if (isPeriodicOnly) return <span className="text-xs text-white">P</span>
     if (isObjectiveEmpty) return <AlertTriangle className="h-4 w-4 text-white" />
     return <XCircle className="h-4 w-4 text-white" />
   }
 
-  const getCellTitle = (label: string, d: string, hasData: boolean, isPeriodicOnly: boolean, isObjectiveEmpty: boolean, isMissing: boolean) => {
+  const getCellTitle = (
+    label: string,
+    d: string,
+    hasData: boolean,
+    isPeriodicOnly: boolean,
+    isObjectiveEmpty: boolean,
+    isMissing: boolean
+  ) => {
     if (hasData) return `${label} ${d} 有单日数据`
     if (isPeriodicOnly) return `${label} ${d} 周期性数据兜底`
     if (isObjectiveEmpty) return `${label} ${d} 已导入，但当日客观无数据`
@@ -314,7 +360,9 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                 key={d}
                 className="flex flex-col items-center justify-center border border-b-0 border-border/60 bg-[hsl(var(--surface-subtle))] px-1 py-2 text-xs"
               >
-                <span className="text-[10px] text-muted-foreground">{WEEKDAY_LABELS[weekdayIdx]}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {WEEKDAY_LABELS[weekdayIdx]}
+                </span>
                 <span className="font-medium">{formatDayAbbr(d)}</span>
               </div>
             )
@@ -333,10 +381,17 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                title={getCellTitle('业务报告', d, hasData(d), isPeriodicOnly(d), false, isMissing(d))}
+                title={getCellTitle(
+                  '业务报告',
+                  d,
+                  hasData(d),
+                  isPeriodicOnly(d),
+                  false,
+                  isMissing(d)
+                )}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d))
                 )}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
@@ -347,15 +402,21 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           <div
             className={cn(
               'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
-              hasPeriodicData.business ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+              hasPeriodicData.business
+                ? 'bg-blue-500 text-white'
+                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
             )}
-            title={hasPeriodicData.business
-              ? `有周期性数据（覆盖 ${availability.business_period_info.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
-              : '无周期性数据'}
+            title={
+              hasPeriodicData.business
+                ? `有周期性数据（覆盖 ${availability.business_period_info.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+                : '无周期性数据'
+            }
           >
             {hasPeriodicData.business ? (
               <div className="flex flex-col items-center">
-                <span className="font-medium">{periodicCoversAllDates.business ? '全周期' : '部分'}</span>
+                <span className="font-medium">
+                  {periodicCoversAllDates.business ? '全周期' : '部分'}
+                </span>
                 <span className="text-[10px] opacity-80">P</span>
               </div>
             ) : (
@@ -372,10 +433,17 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                title={getCellTitle('广告报告', d, hasData(d), isPeriodicOnly(d), false, isMissing(d))}
+                title={getCellTitle(
+                  '广告报告',
+                  d,
+                  hasData(d),
+                  isPeriodicOnly(d),
+                  false,
+                  isMissing(d)
+                )}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d))
                 )}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
@@ -386,11 +454,15 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           <div
             className={cn(
               'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
-              hasPeriodicData.ad ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+              hasPeriodicData.ad
+                ? 'bg-blue-500 text-white'
+                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
             )}
-            title={hasPeriodicData.ad
-              ? `有周期性数据（覆盖 ${availability.ad_period_info.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
-              : '无周期性数据'}
+            title={
+              hasPeriodicData.ad
+                ? `有周期性数据（覆盖 ${availability.ad_period_info.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+                : '无周期性数据'
+            }
           >
             {hasPeriodicData.ad ? (
               <div className="flex flex-col items-center">
@@ -414,7 +486,7 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                 title={isMissing ? `库存报告 缺少 ${d}` : `库存报告 ${d} 有数据`}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  isMissing ? 'bg-rose-500' : 'bg-emerald-500',
+                  isMissing ? 'bg-rose-500' : 'bg-emerald-500'
                 )}
               >
                 {isMissing ? (
@@ -439,10 +511,17 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
             return (
               <div
                 key={d}
-                title={getCellTitle('付款报告', d, hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))}
+                title={getCellTitle(
+                  '付款报告',
+                  d,
+                  hasData(d),
+                  isPeriodicOnly(d),
+                  isObjectiveEmpty(d),
+                  isMissing(d)
+                )}
                 className={cn(
                   'flex items-center justify-center border border-t-0 border-border/60 py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d)),
+                  getCellClass(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))
                 )}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))}
@@ -453,15 +532,21 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
           <div
             className={cn(
               'flex items-center justify-center border border-t-0 border-border/60 py-2.5 text-xs',
-              hasPeriodicData.payment ? 'bg-blue-500 text-white' : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed',
+              hasPeriodicData.payment
+                ? 'bg-blue-500 text-white'
+                : 'bg-[hsl(var(--surface-panel))] text-muted-foreground border-dashed'
             )}
-            title={hasPeriodicData.payment
-              ? `有周期性数据（覆盖 ${availability.payment_periods_overlapping.map(p => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
-              : '无周期性数据'}
+            title={
+              hasPeriodicData.payment
+                ? `有周期性数据（覆盖 ${availability.payment_periods_overlapping.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
+                : '无周期性数据'
+            }
           >
             {hasPeriodicData.payment ? (
               <div className="flex flex-col items-center">
-                <span className="font-medium">{availability.payment_full_period_covered ? '全周期' : '部分'}</span>
+                <span className="font-medium">
+                  {availability.payment_full_period_covered ? '全周期' : '部分'}
+                </span>
                 <span className="text-[10px] opacity-80">P</span>
               </div>
             ) : (
@@ -591,12 +676,11 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.name === selectedProjectName),
-    [projects, selectedProjectName],
+    [projects, selectedProjectName]
   )
 
   const dateRangeValid = !!startDate && !!endDate && startDate <= endDate
-  const canCheck =
-    Boolean(selectedProject?.id) && dateRangeValid && checkState !== 'checking'
+  const canCheck = Boolean(selectedProject?.id) && dateRangeValid && checkState !== 'checking'
 
   const authHeaders: Record<string, string> = {}
   if (isAdmin) authHeaders['X-Is-Admin'] = 'true'
@@ -682,11 +766,17 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
   }
 
   function renderCell(value: unknown, fmt?: 'percent' | 'currency') {
-    if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>
+    if (value === null || value === undefined)
+      return <span className="text-muted-foreground">-</span>
     if (fmt === 'percent') return <span>{formatPercent(value)}</span>
     if (fmt === 'currency') {
       const sym = CURRENCY_CONFIG[country].symbol
-      return <span>{sym}{formatNumber(value)}</span>
+      return (
+        <span>
+          {sym}
+          {formatNumber(value)}
+        </span>
+      )
     }
     return <span>{formatNumber(value)}</span>
   }
@@ -809,9 +899,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
                   runState === 'running'
                 }
               >
-                {runState === 'running' ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : null}
+                {runState === 'running' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
                 执行核算
               </Button>
             </div>
@@ -844,11 +932,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Grid table */}
-            <AvailabilityGrid
-              startDate={startDate}
-              endDate={endDate}
-              availability={availability}
-            />
+            <AvailabilityGrid startDate={startDate} endDate={endDate} availability={availability} />
 
             {/* Minimum Data Summary */}
             <div className="flex items-center gap-2 border-t border-[hsl(var(--border))] pt-2.5">
@@ -881,9 +965,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base">核算结果</CardTitle>
-                <CardDescription className="text-xs">
-                  共 {periods.length} 个周期
-                </CardDescription>
+                <CardDescription className="text-xs">共 {periods.length} 个周期</CardDescription>
               </div>
               <Button
                 size="sm"
@@ -898,9 +980,7 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
           </CardHeader>
           <CardContent>
             {periods.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                无核算数据
-              </div>
+              <div className="py-8 text-center text-sm text-muted-foreground">无核算数据</div>
             ) : (
               <div className="space-y-3">
                 {periods.map((period, idx) => {
@@ -952,7 +1032,8 @@ export default function ProductCalculationPanel({ session }: ProductCalculationP
                               title={`数据不完整：业务报告 ${period.completeness.available_business_days}/${period.completeness.total_days} 天，广告报告 ${period.completeness.available_ad_days}/${period.completeness.total_days} 天${period.completeness.payment_missing ? '，缺少付款数据' : ''}`}
                             >
                               <AlertTriangle className="h-3 w-3" />
-                              {period.completeness.available_business_days}/{period.completeness.total_days}天
+                              {period.completeness.available_business_days}/
+                              {period.completeness.total_days}天
                             </span>
                           )}
                         </span>

@@ -6,8 +6,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Loader2, Database, Clock, CheckCircle, XCircle, AlertTriangle, RefreshCw, Shield, Info } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Loader2,
+  Database,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  RefreshCw,
+  Shield,
+  Info,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -161,7 +177,7 @@ export function BackupManagementClient() {
       const data = await res.json()
 
       if (res.ok) {
-        setRecords(prev => [{ ...data, ...data }, ...prev])
+        setRecords((prev) => [{ ...data, ...data }, ...prev])
         setShowTriggerDialog(false)
         // Refresh status
         const statusRes = await fetch(`${API_BASE}/api/v1/backups/status`)
@@ -213,9 +229,14 @@ export function BackupManagementClient() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">备份管理</h1>
-          <p className="text-sm text-muted-foreground mt-1">PostgreSQL 数据库备份到 Cloudflare R2</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            PostgreSQL 数据库备份到 Cloudflare R2
+          </p>
         </div>
-        <Button onClick={() => setShowTriggerDialog(true)} disabled={statusSummary?.is_backup_running}>
+        <Button
+          onClick={() => setShowTriggerDialog(true)}
+          disabled={statusSummary?.is_backup_running}
+        >
           <Database className="mr-2 h-4 w-4" />
           {statusSummary?.is_backup_running ? '备份进行中...' : '手动备份'}
         </Button>
@@ -268,16 +289,22 @@ export function BackupManagementClient() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className={cn(
-                'p-2 rounded-lg',
-                statusSummary?.is_backup_running
-                  ? 'bg-blue-100 dark:bg-blue-900'
-                  : 'bg-slate-100 dark:bg-slate-800'
-              )}>
-                <RefreshCw className={cn(
-                  'h-5 w-5',
-                  statusSummary?.is_backup_running ? 'text-blue-600 dark:text-blue-400 animate-spin' : 'text-slate-600 dark:text-slate-400'
-                )} />
+              <div
+                className={cn(
+                  'p-2 rounded-lg',
+                  statusSummary?.is_backup_running
+                    ? 'bg-blue-100 dark:bg-blue-900'
+                    : 'bg-slate-100 dark:bg-slate-800'
+                )}
+              >
+                <RefreshCw
+                  className={cn(
+                    'h-5 w-5',
+                    statusSummary?.is_backup_running
+                      ? 'text-blue-600 dark:text-blue-400 animate-spin'
+                      : 'text-slate-600 dark:text-slate-400'
+                  )}
+                />
               </div>
               <div>
                 <p className="text-2xl font-semibold">
@@ -313,7 +340,9 @@ export function BackupManagementClient() {
               </div>
               <div>
                 <p className="text-muted-foreground">备份时间</p>
-                <p className="font-medium">{formatDatetime(statusSummary.last_backup.started_at)}</p>
+                <p className="font-medium">
+                  {formatDatetime(statusSummary.last_backup.started_at)}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground">大小</p>
@@ -368,11 +397,13 @@ export function BackupManagementClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map(record => (
+                    {records.map((record) => (
                       <tr key={record.id} className="border-b border-border/30">
                         <td className="py-3 px-4 text-muted-foreground">#{record.id}</td>
                         <td className="py-3 px-4">
-                          <Badge variant="outline">{TYPE_LABELS[record.backup_type] || record.backup_type}</Badge>
+                          <Badge variant="outline">
+                            {TYPE_LABELS[record.backup_type] || record.backup_type}
+                          </Badge>
                         </td>
                         <td className="py-3 px-4">
                           <Badge className={STATUS_COLORS[record.status as BackupStatus]}>

@@ -1,5 +1,5 @@
-import type { Variants } from "framer-motion";
-import { DURATION, EASE, SPRING, STAGGER } from "./tokens";
+import type { Variants } from 'framer-motion'
+import { DURATION, EASE, SPRING, STAGGER } from './tokens'
 
 /**
  * 页面容器（C 形态）：scale + blur + opacity，spring 物理。
@@ -11,11 +11,11 @@ import { DURATION, EASE, SPRING, STAGGER } from "./tokens";
  */
 export function pageTransitionContainer(): Variants {
   return {
-    initial: { opacity: 0, scale: 0.985, filter: "blur(8px)", y: 6 },
-    animate: { opacity: 1, scale: 1, filter: "blur(0px)", y: 0 },
-    exit: { opacity: 0, scale: 0.99, filter: "blur(4px)", y: -4 },
+    initial: { opacity: 0, scale: 0.985, filter: 'blur(8px)', y: 6 },
+    animate: { opacity: 1, scale: 1, filter: 'blur(0px)', y: 0 },
+    exit: { opacity: 0, scale: 0.99, filter: 'blur(4px)', y: -4 },
     transition: SPRING.page,
-  } as Variants;
+  } as Variants
 }
 
 /** 通用 fade-up，opacity + y。 */
@@ -24,7 +24,7 @@ export function fadeUp(): Variants {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: DURATION.base, ease: EASE.out },
-  } as Variants;
+  } as Variants
 }
 
 /** stagger 容器：staggerChildren 0.07。 */
@@ -32,7 +32,7 @@ export function staggerContainer(): Variants {
   return {
     initial: {},
     animate: { transition: { staggerChildren: STAGGER.childDelay, delayChildren: 0.02 } },
-  };
+  }
 }
 
 /** stagger 子项：fadeUp + ease out。 */
@@ -41,10 +41,10 @@ export function staggerItem(): Variants {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: DURATION.base, ease: EASE.out },
-  } as Variants;
+  } as Variants
 }
 
 /** 按下反馈：scale 0.97。 */
 export function pressTap() {
-  return { whileTap: { scale: 0.97 } };
+  return { whileTap: { scale: 0.97 } }
 }

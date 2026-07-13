@@ -1,7 +1,14 @@
 'use client'
 
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 
 export function ProfileInfoSkeleton() {
@@ -25,10 +32,7 @@ export function ProfileInfoSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-3"
-          >
+          <div key={i} className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-3">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="mt-2 h-5 w-24" />
           </div>

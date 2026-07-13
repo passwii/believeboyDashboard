@@ -62,7 +62,10 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     if (cached) return cached
   } catch (error) {
     // Cache failures must NEVER break the request — log and fall through.
-    console.warn('[proxy] backend cache failed, falling through to live fetch:', normalizeErrorMessage(error, 'unknown'))
+    console.warn(
+      '[proxy] backend cache failed, falling through to live fetch:',
+      normalizeErrorMessage(error, 'unknown')
+    )
   }
 
   // Endpoint-tiered timeout: stream → no timeout, AI / report → 30-60s,

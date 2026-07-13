@@ -24,8 +24,10 @@ export const STATUS_LABELS: Record<LedgerStatus, string> = {
 
 export const STATUS_BG: Record<LedgerStatus, string> = {
   sent: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-  failed: 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
-  missing: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+  failed:
+    'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
+  missing:
+    'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
 }
 
 /** 周日为 0，与 Date#getDay() 一致（适用于 ledger 按日分组的星期显示） */

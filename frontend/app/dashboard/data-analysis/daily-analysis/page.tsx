@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import {
-  Check,
-  ChevronsUpDown,
-  FileDown,
-  Loader2,
-  RefreshCcw,
-  Target,
-} from 'lucide-react'
+import { Check, ChevronsUpDown, FileDown, Loader2, RefreshCcw, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
@@ -29,10 +22,7 @@ import {
   DataTableCardHeader,
   DataTableCardBody,
 } from '@/components/ui/data-card'
-import {
-  DateRangePicker,
-  COUNTRY_TIMEZONE_MAP,
-} from '@/components/ui/date-picker'
+import { DateRangePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import {
   Command,
@@ -337,24 +327,14 @@ function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
   const { from, to } = normalized
 
   const isFirstDayOfMonth = from.getDate() === 1
-  const currentRangeLastDay = new Date(
-    to.getFullYear(),
-    to.getMonth() + 1,
-    0,
-  ).getDate()
+  const currentRangeLastDay = new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate()
   const isLastDayOfMonth = to.getDate() === currentRangeLastDay
 
   if (isFirstDayOfMonth && isLastDayOfMonth) {
     const monthSpan =
-      (to.getFullYear() - from.getFullYear()) * 12 +
-      (to.getMonth() - from.getMonth()) +
-      1
+      (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1
 
-    const previousStart = new Date(
-      from.getFullYear(),
-      from.getMonth() - monthSpan,
-      1,
-    )
+    const previousStart = new Date(from.getFullYear(), from.getMonth() - monthSpan, 1)
     const previousEnd = new Date(from.getFullYear(), from.getMonth(), 0)
     return { from: previousStart, to: previousEnd }
   }
@@ -365,7 +345,6 @@ function getPreviousPeriodRange(range?: DateRange): DateRange | undefined {
     to: addDays(normalized.from, -1),
   }
 }
-
 
 function getNextMonthRange(range?: DateRange): DateRange | undefined {
   const normalized = normalizeDateRange(range)
@@ -442,7 +421,7 @@ function aggregateMetric(rows: DailyAnalysisRow[], metric: ChartMetricKey) {
 function spreadSummaryRow(
   row: DailyAnalysisRow | undefined,
   date: string,
-  compareValue: number | null,
+  compareValue: number | null
 ): Record<string, unknown> {
   return {
     date,
@@ -471,7 +450,7 @@ function spreadSummaryRow(
 function spreadDetailRow(
   row: DailyAnalysisDetailRow | undefined,
   date: string,
-  compareValue: number | null,
+  compareValue: number | null
 ): Record<string, unknown> {
   return spreadSummaryRow(row, date, compareValue)
 }
@@ -489,7 +468,7 @@ async function exportDailyAnalysisToExcel(
   country: string,
   dateRange: string,
   skuOptions: ProjectSkuOption[],
-  granularity: 'daily' | 'monthly' = 'daily',
+  granularity: 'daily' | 'monthly' = 'daily'
 ) {
   const ExcelJS = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
@@ -531,8 +510,7 @@ async function exportDailyAnalysisToExcel(
   summarySheet.columns = summaryCols
 
   summarySheet.mergeCells(1, 1, 1, summaryCols.length)
-  summarySheet.getCell(1, 1).value =
-    `销售数据汇总 - ${projectName} - ${country}`
+  summarySheet.getCell(1, 1).value = `销售数据汇总 - ${projectName} - ${country}`
   summarySheet.getCell(1, 1).font = {
     name: 'Microsoft YaHei',
     size: 16,
@@ -550,8 +528,7 @@ async function exportDailyAnalysisToExcel(
   }
 
   summarySheet.mergeCells(2, 1, 2, summaryCols.length)
-  summarySheet.getCell(2, 1).value =
-    `导出时间：${exportedAt}    日期范围：${dateRange}`
+  summarySheet.getCell(2, 1).value = `导出时间：${exportedAt}    日期范围：${dateRange}`
   summarySheet.getCell(2, 1).font = {
     name: 'Microsoft YaHei',
     size: 10,
@@ -646,8 +623,7 @@ async function exportDailyAnalysisToExcel(
   detailSheet.columns = detailCols
 
   detailSheet.mergeCells(1, 1, 1, detailCols.length)
-  detailSheet.getCell(1, 1).value =
-    `销售数据SKU明细 - ${projectName} - ${country}`
+  detailSheet.getCell(1, 1).value = `销售数据SKU明细 - ${projectName} - ${country}`
   detailSheet.getCell(1, 1).font = {
     name: 'Microsoft YaHei',
     size: 16,
@@ -704,9 +680,7 @@ async function exportDailyAnalysisToExcel(
     applyHeaderBorder(cell)
   })
 
-  const skuProductNameMap = new Map(
-    skuOptions.map((s) => [s.sku, s.product_name ?? ''])
-  )
+  const skuProductNameMap = new Map(skuOptions.map((s) => [s.sku, s.product_name ?? '']))
 
   detailRows.forEach((row, rowIndex) => {
     const productName = skuProductNameMap.get(row.sku) ?? ''
@@ -759,11 +733,7 @@ async function exportDailyAnalysisToExcel(
     const groupBorder = 'FFCBD5E1'
     const strongGroupBorder = 'FF94A3B8'
 
-    for (
-      let currentRow = groupStartRow;
-      currentRow <= mergeEndRow;
-      currentRow += 1
-    ) {
+    for (let currentRow = groupStartRow; currentRow <= mergeEndRow; currentRow += 1) {
       const row = detailSheet.getRow(currentRow)
       for (let colNumber = 1; colNumber <= detailCols.length; colNumber += 1) {
         const cell = row.getCell(colNumber)
@@ -867,27 +837,24 @@ function SearchableSkuField({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
-        <Button
-          type='button'
-          variant='outline'
-          disabled={disabled}
-          className={cn(
-            'h-9 w-[200px] justify-between px-3 font-normal shadow-sm',
-            disabled && 'opacity-50 cursor-not-allowed',
-          )}
-          onClick={() => !disabled && setOpen(true)}
-        >
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        className={cn(
+          'h-9 w-[200px] justify-between px-3 font-normal shadow-sm',
+          disabled && 'opacity-50 cursor-not-allowed'
+        )}
+        onClick={() => !disabled && setOpen(true)}
+      >
         <span
-          className={cn(
-            'truncate text-left',
-            value ? 'text-foreground' : 'text-muted-foreground',
-          )}
+          className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}
         >
           {selectedSku ? (
-            <span className='flex items-center gap-1.5'>
-              <span className='truncate font-medium'>{selectedSku.sku}</span>
+            <span className="flex items-center gap-1.5">
+              <span className="truncate font-medium">{selectedSku.sku}</span>
               {selectedSku.product_name && (
-                <span className='hidden truncate text-muted-foreground lg:inline'>
+                <span className="hidden truncate text-muted-foreground lg:inline">
                   / {selectedSku.product_name}
                 </span>
               )}
@@ -898,35 +865,32 @@ function SearchableSkuField({
             '全部 SKU'
           )}
         </span>
-        <ChevronsUpDown className='ml-1 h-4 w-4 shrink-0 opacity-50' />
+        <ChevronsUpDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
       </Button>
-      <DialogContent aria-describedby="sku-search-dialog-description" className='overflow-hidden p-0 sm:max-w-xl'>
-        <span id="sku-search-dialog-description" className="sr-only">搜索并选择 SKU</span>
-        <Command className='max-h-[70vh]'>
-          <CommandInput placeholder='搜索 SKU' />
+      <DialogContent
+        aria-describedby="sku-search-dialog-description"
+        className="overflow-hidden p-0 sm:max-w-xl"
+      >
+        <span id="sku-search-dialog-description" className="sr-only">
+          搜索并选择 SKU
+        </span>
+        <Command className="max-h-[70vh]">
+          <CommandInput placeholder="搜索 SKU" />
           <CommandList>
-            <CommandEmpty>
-              {loading ? 'SKU 加载中...' : '没有匹配的 SKU'}
-            </CommandEmpty>
+            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
             <CommandItem
-              value='__all__'
+              value="__all__"
               onSelect={() => {
                 onChange('')
                 setOpen(false)
               }}
               className={cn('flex items-center gap-2', !value && 'bg-accent')}
             >
-              <Check
-                className={cn(
-                  'h-4 w-4 shrink-0',
-                  !value ? 'opacity-100' : 'opacity-0',
-                )}
-              />
-              <span className='font-medium'>全部 SKU</span>
+              <Check className={cn('h-4 w-4 shrink-0', !value ? 'opacity-100' : 'opacity-0')} />
+              <span className="font-medium">全部 SKU</span>
             </CommandItem>
             {options.map((option) => {
-              const missingUnits =
-                !option.units_per_carton || option.units_per_carton <= 0
+              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
               return (
                 <CommandItem
                   key={option.sku}
@@ -938,27 +902,23 @@ function SearchableSkuField({
                       setOpen(false)
                     }
                   }}
-                  className={cn(
-                    missingUnits && 'opacity-50 cursor-not-allowed',
-                  )}
+                  className={cn(missingUnits && 'opacity-50 cursor-not-allowed')}
                 >
                   <Check
                     className={cn(
                       'h-4 w-4 shrink-0',
-                      value === option.sku ? 'opacity-100' : 'opacity-0',
+                      value === option.sku ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='truncate flex-1 font-medium'>
-                      {option.sku}
-                    </span>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate flex-1 font-medium">{option.sku}</span>
                     {option.product_name && (
-                      <span className='shrink-0 truncate max-w-[200px] text-muted-foreground text-xs'>
+                      <span className="shrink-0 truncate max-w-[200px] text-muted-foreground text-xs">
                         {option.product_name}
                       </span>
                     )}
                     {missingUnits && (
-                      <span className='shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
+                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                         未维护单箱数
                       </span>
                     )}
@@ -975,9 +935,9 @@ function SearchableSkuField({
 
 function FilterSkeleton() {
   return (
-    <div className='space-y-1.5'>
-      <Skeleton className='h-3 w-16' />
-      <Skeleton className='h-10 w-full' />
+    <div className="space-y-1.5">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-10 w-full" />
     </div>
   )
 }
@@ -1007,8 +967,7 @@ const LINE_METRICS: MetricDef<ChartMetricKey>[] = CHART_METRICS.map((m) => {
     isNegativeBetter: !metricIncreaseIsGood(m.key),
     format,
     precision: isQuantizedByFormat ? undefined : 0,
-    preferredChart:
-      m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
+    preferredChart: m.key === 'cpc' || m.key === 'conversion_rate' ? 'line' : 'bar',
   }
 })
 
@@ -1029,9 +988,7 @@ export default function DailyAnalysisPage() {
     allowed: ['US', 'DE', 'UK', 'ALL'],
   })
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    defaultRange,
-  )
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
   // 当用户在 DateRangePicker 里点了 preset 侧边栏时，记下触发的 preset label；
   // 手动选日期（onChange 第二参数 meta 为 undefined）会清掉它，之后按 days diff 判定粒度。
   const [datePresetKey, setDatePresetKey] = useState<string | undefined>(undefined)
@@ -1086,10 +1043,7 @@ export default function DailyAnalysisPage() {
         notify({
           type: 'error',
           title: '项目列表加载失败',
-          message:
-            fetchError instanceof Error
-              ? fetchError.message
-              : '项目列表加载失败',
+          message: fetchError instanceof Error ? fetchError.message : '项目列表加载失败',
         })
       } finally {
         setProjectsLoading(false)
@@ -1176,13 +1130,10 @@ export default function DailyAnalysisPage() {
               cache: 'no-store',
             }),
             compareSearch
-              ? fetch(
-                  `${API_BASE}/api/v1/daily-analysis/all?${compareSearch.toString()}`,
-                  {
-                    headers: authHeaders(),
-                    cache: 'no-store',
-                  },
-                )
+              ? fetch(`${API_BASE}/api/v1/daily-analysis/all?${compareSearch.toString()}`, {
+                  headers: authHeaders(),
+                  cache: 'no-store',
+                })
               : Promise.resolve(null),
           ])
           if (!response.ok) {
@@ -1223,12 +1174,8 @@ export default function DailyAnalysisPage() {
             detail_rows: payload.detail_rows,
             available_dates: payload.available_dates,
           })
-          setComparisonSummaryRows(
-            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
-          )
-          setComparisonDetailRows(
-            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
-          )
+          setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
+          setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
         } else if (country === 'ALL') {
           // 跨国家站点聚合：仅支持单项目 + 国家=ALL；后端对 US/DE/UK 分别加载并求和。
           if (!projectId) {
@@ -1250,20 +1197,17 @@ export default function DailyAnalysisPage() {
             : null
 
           const [response, compareResponse] = await Promise.all([
-            fetch(
-              `${API_BASE}/api/v1/daily-analysis/all-countries?${search.toString()}`,
-              {
-                headers: authHeaders(),
-                cache: 'no-store',
-              },
-            ),
+            fetch(`${API_BASE}/api/v1/daily-analysis/all-countries?${search.toString()}`, {
+              headers: authHeaders(),
+              cache: 'no-store',
+            }),
             compareSearch
               ? fetch(
                   `${API_BASE}/api/v1/daily-analysis/all-countries?${compareSearch.toString()}`,
                   {
                     headers: authHeaders(),
                     cache: 'no-store',
-                  },
+                  }
                 )
               : Promise.resolve(null),
           ])
@@ -1287,12 +1231,8 @@ export default function DailyAnalysisPage() {
             detail_rows: payload.detail_rows,
             available_dates: payload.available_dates,
           })
-          setComparisonSummaryRows(
-            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
-          )
-          setComparisonDetailRows(
-            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
-          )
+          setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
+          setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
         } else {
           if (!projectId) {
             notify({ type: 'error', title: '请先选择项目' })
@@ -1322,13 +1262,10 @@ export default function DailyAnalysisPage() {
               cache: 'no-store',
             }),
             compareSearch
-              ? fetch(
-                  `${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`,
-                  {
-                    headers: authHeaders(),
-                    cache: 'no-store',
-                  },
-                )
+              ? fetch(`${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`, {
+                  headers: authHeaders(),
+                  cache: 'no-store',
+                })
               : Promise.resolve(null),
           ])
           if (!response.ok) {
@@ -1346,22 +1283,15 @@ export default function DailyAnalysisPage() {
             : null
           if (requestId !== latestLoadRequestRef.current) return
           setData(payload)
-          setComparisonSummaryRows(
-            comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS,
-          )
-          setComparisonDetailRows(
-            comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS,
-          )
+          setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
+          setComparisonDetailRows(comparePayload?.detail_rows ?? EMPTY_DETAIL_ROWS)
         }
       } catch (fetchError) {
         if (requestId !== latestLoadRequestRef.current) return
         notify({
           type: 'error',
           title: '销售数据加载失败',
-          message:
-            fetchError instanceof Error
-              ? fetchError.message
-              : '销售数据加载失败',
+          message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败',
         })
         setData(null)
         setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
@@ -1371,15 +1301,13 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [projectId, country, dateRange, notify, isAllProjects, projects],
+    [projectId, country, dateRange, notify, isAllProjects, projects]
   )
 
   const loadProjectSkus = useCallback(
     async (projectIdText: string, countryValue: string) => {
       const projectIdNum = Number(projectIdText)
-      const projectName = projects.find(
-        (project) => project.id === projectIdNum,
-      )?.name
+      const projectName = projects.find((project) => project.id === projectIdNum)?.name
       if (!projectName) {
         setSkuOptions([])
         return
@@ -1398,13 +1326,10 @@ export default function DailyAnalysisPage() {
             page: String(nextPage),
             page_size: '200',
           })
-          const response = await fetch(
-            `${API_BASE}/api/v1/sku-info?${params.toString()}`,
-            {
-              headers: authHeaders(),
-              cache: 'no-store',
-            },
-          )
+          const response = await fetch(`${API_BASE}/api/v1/sku-info?${params.toString()}`, {
+            headers: authHeaders(),
+            cache: 'no-store',
+          })
           if (!response.ok) throw new Error(await response.text())
 
           const payload = (await response.json()) as {
@@ -1432,7 +1357,7 @@ export default function DailyAnalysisPage() {
               carton_width_cm: item.carton_width_cm,
               carton_height_cm: item.carton_height_cm,
               carton_weight_kg: item.carton_weight_kg,
-            })),
+            }))
           )
           hasNextPage = payload.has_next
           nextPage += 1
@@ -1450,7 +1375,7 @@ export default function DailyAnalysisPage() {
         setSkuLoading(false)
       }
     },
-    [notify, projects],
+    [notify, projects]
   )
 
   useEffect(() => {
@@ -1487,13 +1412,13 @@ export default function DailyAnalysisPage() {
     setGoalLoading(true)
     fetch(
       `${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`,
-      { cache: 'no-store' },
+      { cache: 'no-store' }
     )
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return
         const monthly = (data.monthly_progress ?? []).find(
-          (m: { month: number }) => m.month === month,
+          (m: { month: number }) => m.month === month
         )
         if (monthly) setGoalProgress(monthly)
       })
@@ -1508,32 +1433,26 @@ export default function DailyAnalysisPage() {
   // granularity === 'monthly' 时把 summary / detail 行按月汇总（详见 lib/aggregate.ts）。
   // KPI 卡片、图表、表格、Excel 导出都通过这两个变量读数，自动获得月度视图。
   const summaryRows = useMemo(
-    () =>
-      granularity === 'monthly'
-        ? bucketSummaryByMonth(rawSummaryRows)
-        : rawSummaryRows,
-    [rawSummaryRows, granularity],
+    () => (granularity === 'monthly' ? bucketSummaryByMonth(rawSummaryRows) : rawSummaryRows),
+    [rawSummaryRows, granularity]
   )
   const detailRows = useMemo(
-    () =>
-      granularity === 'monthly'
-        ? bucketDetailByMonth(rawDetailRows)
-        : rawDetailRows,
-    [rawDetailRows, granularity],
+    () => (granularity === 'monthly' ? bucketDetailByMonth(rawDetailRows) : rawDetailRows),
+    [rawDetailRows, granularity]
   )
   const comparisonSummaryRows = useMemo(
     () =>
       granularity === 'monthly'
         ? bucketSummaryByMonth(rawComparisonSummaryRows)
         : rawComparisonSummaryRows,
-    [rawComparisonSummaryRows, granularity],
+    [rawComparisonSummaryRows, granularity]
   )
   const comparisonDetailRows = useMemo(
     () =>
       granularity === 'monthly'
         ? bucketDetailByMonth(rawComparisonDetailRows)
         : rawComparisonDetailRows,
-    [rawComparisonDetailRows, granularity],
+    [rawComparisonDetailRows, granularity]
   )
   const consoleData = data?.console ?? null
 
@@ -1552,21 +1471,14 @@ export default function DailyAnalysisPage() {
       const groupDate = rowsToGroup[index].date
       let endIndex = index + 1
 
-      while (
-        endIndex < rowsToGroup.length &&
-        rowsToGroup[endIndex].date === groupDate
-      ) {
+      while (endIndex < rowsToGroup.length && rowsToGroup[endIndex].date === groupDate) {
         endIndex += 1
       }
 
       const rowSpan = endIndex - index
       const isTintedGroup = groupIndex % 2 === 0
 
-      for (
-        let currentIndex = index;
-        currentIndex < endIndex;
-        currentIndex += 1
-      ) {
+      for (let currentIndex = index; currentIndex < endIndex; currentIndex += 1) {
         const row = rowsToGroup[currentIndex]
         const skuInfo = skuOptions.find((s) => s.sku === row.sku)
         groupedRows.push({
@@ -1588,20 +1500,17 @@ export default function DailyAnalysisPage() {
 
   const selectedProjectName = useMemo(
     () => projects.find((p) => String(p.id) === projectId)?.name ?? '',
-    [projects, projectId],
+    [projects, projectId]
   )
 
   const chartDataRows = selectedSku ? filteredDetailRows : summaryRows
 
   const filteredComparisonRows = useMemo(() => {
-    if (!selectedSku || comparisonDetailRows.length === 0)
-      return EMPTY_DETAIL_ROWS
+    if (!selectedSku || comparisonDetailRows.length === 0) return EMPTY_DETAIL_ROWS
     return comparisonDetailRows.filter((row) => row.sku === selectedSku)
   }, [selectedSku, comparisonDetailRows])
 
-  const comparisonDataRows = selectedSku
-    ? filteredComparisonRows
-    : comparisonSummaryRows
+  const comparisonDataRows = selectedSku ? filteredComparisonRows : comparisonSummaryRows
 
   const hasComparisonData = comparisonDataRows.length > 0
   // 对比语义：当前周期第 N 天 ↔ 上一周期第 N 天（同位日 position-aligned）。
@@ -1633,24 +1542,16 @@ export default function DailyAnalysisPage() {
         // 上一周期不可计算时只画当前周期；MetricSwitcherCard 看到 compareMetricValue
         // 全为 null 不会渲染对比 bar/line，仅显示当前周期。
         const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
-        const existingData = new Map(
-          filteredDetailRows.map((row) => [row.date, row]),
-        )
+        const existingData = new Map(filteredDetailRows.map((row) => [row.date, row]))
         return allDates.map((date) =>
           selectedSku
-            ? spreadDetailRow(
-                existingData.get(date),
-                date,
-                null,
-              )
-            : spreadSummaryRow(summaryData.get(date), date, null),
+            ? spreadDetailRow(existingData.get(date), date, null)
+            : spreadSummaryRow(summaryData.get(date), date, null)
         )
       }
 
       if (selectedSku) {
-        const existingData = new Map(
-          filteredDetailRows.map((row) => [row.date, row]),
-        )
+        const existingData = new Map(filteredDetailRows.map((row) => [row.date, row]))
         // filteredComparisonRows 已经按 sku 过滤；按"上一周期自己的 date"建 Map。
         const comparisonDataByDate = new Map<string, DailyAnalysisDetailRow>()
         for (const compareRow of filteredComparisonRows) {
@@ -1667,19 +1568,13 @@ export default function DailyAnalysisPage() {
               ? dateToMonthKeyFromDate(addMonths(previousStart, index))
               : formatYMD(addDays(previousStart, index))
           const compareRow = comparisonDataByDate.get(compareDate)
-          return spreadDetailRow(
-            row,
-            date,
-            compareRow ? compareRow[selected] : null,
-          )
+          return spreadDetailRow(row, date, compareRow ? compareRow[selected] : null)
         })
       }
 
       const summaryData = new Map(summaryRows.map((row) => [row.date, row]))
       // 后端 summary_rows 已按 date 升序且同 date 唯一，Map 安全。
-      const comparisonDataByDate = new Map(
-        comparisonSummaryRows.map((row) => [row.date, row]),
-      )
+      const comparisonDataByDate = new Map(comparisonSummaryRows.map((row) => [row.date, row]))
 
       return allDates.map((date, index) => {
         const row = summaryData.get(date)
@@ -1689,11 +1584,7 @@ export default function DailyAnalysisPage() {
             ? dateToMonthKeyFromDate(addMonths(previousStart, index))
             : formatYMD(addDays(previousStart, index))
         const compareRow = comparisonDataByDate.get(compareDate)
-        return spreadSummaryRow(
-          row,
-          date,
-          compareRow ? compareRow[selected] : null,
-        )
+        return spreadSummaryRow(row, date, compareRow ? compareRow[selected] : null)
       })
     },
     [
@@ -1704,7 +1595,7 @@ export default function DailyAnalysisPage() {
       comparisonSummaryRows,
       dateRange,
       granularity,
-    ],
+    ]
   )
 
   const summaryTableRows = selectedSku ? filteredDetailRows : summaryRows
@@ -1726,7 +1617,7 @@ export default function DailyAnalysisPage() {
         country,
         dateRangeDisplay,
         skuOptions,
-        granularity,
+        granularity
       )
       await logClientOperation({
         action: 'daily_analysis.export',
@@ -1755,15 +1646,12 @@ export default function DailyAnalysisPage() {
   }
 
   return (
-    <div className='space-y-5 lg:space-y-6'>
+    <div className="space-y-5 lg:space-y-6">
       <DataCard>
-        <DataCardHeader
-          title='控制台'
-          titleClassName='text-2xl tracking-tight'
-        />
-        <div className='space-y-0'>
+        <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
+        <div className="space-y-0">
           {/* 筛选区 — 桌面端横向排列（无标签） */}
-          <div className='dashboard-toolbar hidden md:flex flex-wrap items-center gap-3 px-4 py-4 lg:px-6 lg:py-5'>
+          <div className="dashboard-toolbar hidden md:flex flex-wrap items-center gap-3 px-4 py-4 lg:px-6 lg:py-5">
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger className="h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay)]">
                 <SelectValue placeholder="选择项目" />
@@ -1771,18 +1659,51 @@ export default function DailyAnalysisPage() {
               <SelectContent>
                 <SelectItem value="all">全部项目</SelectItem>
                 {projects.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
+                  <SelectItem key={item.id} value={String(item.id)}>
+                    {item.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9 w-[120px]" />
-            <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-            <DateRangePicker value={dateRange} onChange={(range, meta) => { setDateRange(range); setDatePresetKey(meta?.presetKey) }} className='h-9 w-[220px]' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
-            <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新数据" size="default" variant="outline" className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
+            <CountrySelect
+              value={country}
+              onChange={(value) => setCountry(value as CountryOption)}
+              triggerClassName="h-9 w-[120px]"
+            />
+            <SearchableSkuField
+              value={selectedSku}
+              options={skuOptions}
+              loading={skuLoading}
+              disabled={country === 'ALL'}
+              onChange={(value) => {
+                selectedSkuRef.current = value
+                setSelectedSku(value)
+                setActiveTab('summary')
+                void loadData()
+              }}
+            />
+            <DateRangePicker
+              value={dateRange}
+              onChange={(range, meta) => {
+                setDateRange(range)
+                setDatePresetKey(meta?.presetKey)
+              }}
+              className="h-9 w-[220px]"
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
+              onApply={() => void loadData()}
+            />
+            <RefreshButton
+              onClick={() => void loadData(undefined, true)}
+              loading={loading || projectsLoading}
+              label="刷新数据"
+              size="default"
+              variant="outline"
+              className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            />
           </div>
           {/* 筛选区 — 手机端 2 列网格（无标签） */}
-          <div className='dashboard-toolbar md:hidden px-4 py-3'>
-            <div className='grid grid-cols-2 gap-2'>
+          <div className="dashboard-toolbar md:hidden px-4 py-3">
+            <div className="grid grid-cols-2 gap-2">
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="项目" />
@@ -1790,43 +1711,125 @@ export default function DailyAnalysisPage() {
                 <SelectContent>
                   <SelectItem value="all">全部项目</SelectItem>
                   {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
+                    <SelectItem key={item.id} value={String(item.id)}>
+                      {item.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <CountrySelect value={country} onChange={(value) => setCountry(value as CountryOption)} triggerClassName="h-9" />
+              <CountrySelect
+                value={country}
+                onChange={(value) => setCountry(value as CountryOption)}
+                triggerClassName="h-9"
+              />
             </div>
-            <div className='mt-2'>
-              <div className='grid grid-cols-2 gap-2'>
-                <SearchableSkuField value={selectedSku} options={skuOptions} loading={skuLoading} disabled={country === 'ALL'} onChange={(value) => { selectedSkuRef.current = value; setSelectedSku(value); setActiveTab('summary'); void loadData() }} />
-                <DateRangePicker value={dateRange} onChange={(range, meta) => { setDateRange(range); setDatePresetKey(meta?.presetKey) }} className='h-9 w-full' timezone={COUNTRY_TIMEZONE_MAP[country]} onApply={() => void loadData()} />
+            <div className="mt-2">
+              <div className="grid grid-cols-2 gap-2">
+                <SearchableSkuField
+                  value={selectedSku}
+                  options={skuOptions}
+                  loading={skuLoading}
+                  disabled={country === 'ALL'}
+                  onChange={(value) => {
+                    selectedSkuRef.current = value
+                    setSelectedSku(value)
+                    setActiveTab('summary')
+                    void loadData()
+                  }}
+                />
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={(range, meta) => {
+                    setDateRange(range)
+                    setDatePresetKey(meta?.presetKey)
+                  }}
+                  className="h-9 w-full"
+                  timezone={COUNTRY_TIMEZONE_MAP[country]}
+                  onApply={() => void loadData()}
+                />
               </div>
             </div>
-            <div className='flex gap-2 mt-2'>
-              <RefreshButton onClick={() => void loadData(undefined, true)} loading={loading || projectsLoading} label="刷新" size="sm" variant="outline" className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]" />
-              <Button type='button' variant='outline' size='sm' onClick={() => void handleQuickRange(lastSevenDaysRange(country))} className='flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85'>近7天</Button>
+            <div className="flex gap-2 mt-2">
+              <RefreshButton
+                onClick={() => void loadData(undefined, true)}
+                loading={loading || projectsLoading}
+                label="刷新"
+                size="sm"
+                variant="outline"
+                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
+                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85"
+              >
+                近7天
+              </Button>
             </div>
           </div>
           {goalProgress && goalProgress.target_amount > 0 && (
-            <div className='dashboard-toolbar flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 px-4 py-3 md:px-6'>
-              <Target className='h-4 w-4 shrink-0 text-blue-500' />
-              <div className='text-xs font-medium text-foreground shrink-0'>{new Date().getMonth() + 1}月目标<span className='ml-1.5 text-muted-foreground'>{goalProgress.today_day}/{goalProgress.days_in_month}日</span></div>
-              <div className='flex items-center gap-1.5 shrink-0'>
-                <div className='w-20 md:w-24 rounded-full bg-muted/70 h-1'><div className='h-full rounded-full transition-all' style={{ width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`, background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6' }} /></div>
-                <span className='text-xs font-semibold tabular-nums'>{(goalProgress.completion_vs_monthly * 100).toFixed(1)}%</span>
+            <div className="dashboard-toolbar flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 px-4 py-3 md:px-6">
+              <Target className="h-4 w-4 shrink-0 text-blue-500" />
+              <div className="text-xs font-medium text-foreground shrink-0">
+                {new Date().getMonth() + 1}月目标
+                <span className="ml-1.5 text-muted-foreground">
+                  {goalProgress.today_day}/{goalProgress.days_in_month}日
+                </span>
               </div>
-              <div className='flex items-center gap-1.5 shrink-0'>
-                <div className='w-20 md:w-24 rounded-full bg-muted/70 h-1'><div className='h-full rounded-full transition-all' style={{ width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`, background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6' }} /></div>
-                <span className='text-xs font-semibold tabular-nums'>{(goalProgress.completion_vs_daily * 100).toFixed(1)}%</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
+                      background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6',
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-semibold tabular-nums">
+                  {(goalProgress.completion_vs_monthly * 100).toFixed(1)}%
+                </span>
               </div>
-              <span className='text-xs text-muted-foreground truncate'>{goalProgress.currency}{goalProgress.achieved_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {goalProgress.currency}{goalProgress.target_amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <Link href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`} className='shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline'>目标详情 →</Link>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-20 md:w-24 rounded-full bg-muted/70 h-1">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
+                      background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6',
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-semibold tabular-nums">
+                  {(goalProgress.completion_vs_daily * 100).toFixed(1)}%
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground truncate">
+                {goalProgress.currency}
+                {goalProgress.achieved_amount.toLocaleString('zh-CN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{' '}
+                / {goalProgress.currency}
+                {goalProgress.target_amount.toLocaleString('zh-CN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <Link
+                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
+                className="shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline"
+              >
+                目标详情 →
+              </Link>
             </div>
           )}
         </div>
       </DataCard>
 
-      {(summaryRows.length || (selectedSku && filteredDetailRows.length)) ? (
+      {summaryRows.length || (selectedSku && filteredDetailRows.length) ? (
         // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
         // 不传 defaultMetric —— MetricSwitcherCard 内部 selected 用 metrics[0] = 'order_qty' 初始化。
         // 选中 metric 由 MetricSwitcherCard 内部 state 管理；renderLine 接收其当前 selected
@@ -1835,18 +1838,15 @@ export default function DailyAnalysisPage() {
           metrics={LINE_METRICS}
           chartKind="auto"
           showChartKindToggle
-          colors={Object.fromEntries(
-            LINE_METRICS.map((m) => [
-              m.key,
-              SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? '',
-            ]),
-          ) as Partial<Record<ChartMetricKey, string>>}
+          colors={
+            Object.fromEntries(
+              LINE_METRICS.map((m) => [m.key, SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? ''])
+            ) as Partial<Record<ChartMetricKey, string>>
+          }
           heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
           getCurrent={(k) => aggregateMetric(chartDataRows, k)}
           getPrevious={(k) =>
-            comparisonDataRows.length > 0
-              ? aggregateMetric(comparisonDataRows, k)
-              : null
+            comparisonDataRows.length > 0 ? aggregateMetric(comparisonDataRows, k) : null
           }
           renderLine={(selected) => buildChartRows(selected)}
           tooltipFormatter={(value, key) => formatMetricValue(key, value)}
@@ -1863,14 +1863,10 @@ export default function DailyAnalysisPage() {
           }}
         />
       ) : (
-        <div className='dashboard-surface flex min-h-[320px] items-center justify-center rounded-lg px-6 text-center'>
-          <div className='space-y-2'>
-            <div className='text-base font-semibold text-foreground'>
-              图表区域暂时没有内容
-            </div>
-            <div className='text-sm text-muted-foreground'>
-              当前筛选范围内暂无可用于绘图的数据
-            </div>
+        <div className="dashboard-surface flex min-h-[320px] items-center justify-center rounded-lg px-6 text-center">
+          <div className="space-y-2">
+            <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
+            <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
           </div>
         </div>
       )}
@@ -1878,268 +1874,217 @@ export default function DailyAnalysisPage() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ViewTab)}
-        className='w-full'
+        className="w-full"
       >
         <div className="sticky top-0 z-30">
-        <DataTableCard>
-          <DataTableCardHeader className='flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between pb-3 sm:pb-4 px-4 md:px-6'>
-            <div>
-              <div className='text-sm sm:text-base font-semibold text-foreground'>
-                销售数据工作区
+          <DataTableCard>
+            <DataTableCardHeader className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between pb-3 sm:pb-4 px-4 md:px-6">
+              <div>
+                <div className="text-sm sm:text-base font-semibold text-foreground">
+                  销售数据工作区
+                </div>
               </div>
-            </div>
-            <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => void handleExportExcel()}
-                disabled={exporting || !data}
-                className='h-9 px-3 sm:px-4 w-full sm:w-auto'
-              >
-                {exporting ? (
-                  <Loader2 className='mr-1.5 sm:mr-2 h-4 w-4 animate-spin' />
-                ) : (
-                  <FileDown className='mr-1.5 sm:mr-2 h-4 w-4' />
-                )}
-                导出
-              </Button>
-              <TabsMotionGroup id='daily-analysis-tabs'>
-                <TabsList className='grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]'>
-                  <SlidingTabsTrigger
-                    value='summary'
-                    activeValue={activeTab}
-                    layoutId='daily-analysis-tab-indicator'
-                    className='py-2'
-                  >
-                    每日汇总
-                  </SlidingTabsTrigger>
-                  <SlidingTabsTrigger
-                    value='details'
-                    activeValue={activeTab}
-                    layoutId='daily-analysis-tab-indicator'
-                    className='py-2'
-                  >
-                    SKU 明细
-                  </SlidingTabsTrigger>
-                </TabsList>
-              </TabsMotionGroup>
-            </div>
-          </DataTableCardHeader>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleExportExcel()}
+                  disabled={exporting || !data}
+                  className="h-9 px-3 sm:px-4 w-full sm:w-auto"
+                >
+                  {exporting ? (
+                    <Loader2 className="mr-1.5 sm:mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="mr-1.5 sm:mr-2 h-4 w-4" />
+                  )}
+                  导出
+                </Button>
+                <TabsMotionGroup id="daily-analysis-tabs">
+                  <TabsList className="grid h-auto w-full grid-cols-2 border border-border/70 bg-[hsl(var(--surface-soft))]/90 p-1 sm:w-[260px] dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+                    <SlidingTabsTrigger
+                      value="summary"
+                      activeValue={activeTab}
+                      layoutId="daily-analysis-tab-indicator"
+                      className="py-2"
+                    >
+                      每日汇总
+                    </SlidingTabsTrigger>
+                    <SlidingTabsTrigger
+                      value="details"
+                      activeValue={activeTab}
+                      layoutId="daily-analysis-tab-indicator"
+                      className="py-2"
+                    >
+                      SKU 明细
+                    </SlidingTabsTrigger>
+                  </TabsList>
+                </TabsMotionGroup>
+              </div>
+            </DataTableCardHeader>
 
-          <DataTableCardBody>
-            <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
-              <TabsContent forceMount value={activeTab} className='m-0'>
-                {activeTab === 'summary' ? (
-                  <Table
-                    containerClassName='bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96 max-h-[calc(100vh-16rem)] overflow-auto'
-                  >
-                    <TableHeader className={STICKY_TOP_ROW}>
-                      <TableRow className='border-0 hover:bg-transparent'>
-                        <TableHead className='min-w-[120px]'>日期</TableHead>
-                        <TableHead>订单量</TableHead>
-                        <TableHead>销售额</TableHead>
-                        <TableHead>曝光量</TableHead>
-                        <TableHead>点击量</TableHead>
-                        <TableHead>CPC</TableHead>
-                        <TableHead>广告花费</TableHead>
-                        <TableHead>广告订单</TableHead>
-                        <TableHead>可售库存</TableHead>
-                        <TableHead>页面浏览量</TableHead>
-                        <TableHead>销量</TableHead>
-                        <TableHead>访问量</TableHead>
-                        <TableHead>转化率</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {loading ? (
-                        <TableSkeletonRows
-                          columns={13}
-                          rows={6}
-                          widths={Array(13).fill('w-full max-w-[90px]')}
-                          rowClassName='border-0'
-                        />
-                      ) : summaryTableRows.length ? (
-                        summaryTableRows.map((row, index) => (
-                          <TableRow
-                            key={`${row.date}-${index}`}
-                            className={cn(
-                              index % 2 === 0 &&
-                                'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70',
-                            )}
-                          >
-                            <TableCell className='font-medium text-foreground'>
-                              {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
-                            </TableCell>
-                            <TableCell>
-                              {row.order_qty.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {formatMoney(row.sales_amount)}
-                            </TableCell>
-                            <TableCell>
-                              {row.impressions.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {row.clicks.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>{formatMoney(row.cpc)}</TableCell>
-                            <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                            <TableCell>
-                              {row.ad_orders.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {row.available_qty.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {row.page_views.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {row.units_ordered.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {row.sessions.toLocaleString('zh-CN')}
-                            </TableCell>
-                            <TableCell>
-                              {(row.conversion_rate * 100).toFixed(2)}%
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <EmptyTableState
-                          colSpan={13}
-                          message='当前筛选范围内还没有可展示的销售数据汇总。'
-                        />
-                      )}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <Table
-                    containerClassName='bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98 max-h-[calc(100vh-16rem)] overflow-auto'
-                  >
-                    <TableHeader className={STICKY_TOP_ROW}>
-                      <TableRow className='hover:bg-transparent'>
-                        <TableHead className='min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]'>
-                          日期
-                        </TableHead>
-                        <TableHead className='min-w-[200px]'>SKU</TableHead>
-                        <TableHead className='min-w-[200px]'>品名</TableHead>
-                        <TableHead>订单量</TableHead>
-                        <TableHead>销售额</TableHead>
-                        <TableHead>曝光量</TableHead>
-                        <TableHead>点击量</TableHead>
-                        <TableHead>CPC</TableHead>
-                        <TableHead>广告花费</TableHead>
-                        <TableHead>广告订单</TableHead>
-                        <TableHead>可售库存</TableHead>
-                        <TableHead>在途数量</TableHead>
-                        <TableHead>页面浏览量</TableHead>
-                        <TableHead>销量</TableHead>
-                        <TableHead>访问量</TableHead>
-                        <TableHead>转化率</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {loading ? (
-                        <TableSkeletonRows
-                          columns={15}
-                          rows={8}
-                          widths={Array(15).fill('w-full max-w-[90px]')}
-                        />
-                      ) : detailDisplayRows.length ? (
-                        detailDisplayRows.map(
-                          ({
-                            row,
-                            rowKey,
-                            showDate,
-                            rowSpan,
-                            isTintedGroup,
-                            productName,
-                          }) => (
+            <DataTableCardBody>
+              <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
+                <TabsContent forceMount value={activeTab} className="m-0">
+                  {activeTab === 'summary' ? (
+                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/94 dark:bg-[hsl(var(--surface-panel))]/96 max-h-[calc(100vh-16rem)] overflow-auto">
+                      <TableHeader className={STICKY_TOP_ROW}>
+                        <TableRow className="border-0 hover:bg-transparent">
+                          <TableHead className="min-w-[120px]">日期</TableHead>
+                          <TableHead>订单量</TableHead>
+                          <TableHead>销售额</TableHead>
+                          <TableHead>曝光量</TableHead>
+                          <TableHead>点击量</TableHead>
+                          <TableHead>CPC</TableHead>
+                          <TableHead>广告花费</TableHead>
+                          <TableHead>广告订单</TableHead>
+                          <TableHead>可售库存</TableHead>
+                          <TableHead>页面浏览量</TableHead>
+                          <TableHead>销量</TableHead>
+                          <TableHead>访问量</TableHead>
+                          <TableHead>转化率</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loading ? (
+                          <TableSkeletonRows
+                            columns={13}
+                            rows={6}
+                            widths={Array(13).fill('w-full max-w-[90px]')}
+                            rowClassName="border-0"
+                          />
+                        ) : summaryTableRows.length ? (
+                          summaryTableRows.map((row, index) => (
                             <TableRow
-                              key={rowKey}
+                              key={`${row.date}-${index}`}
                               className={cn(
-                                'transition-colors',
-                                isTintedGroup
-                                  ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
-                                  : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40',
+                                index % 2 === 0 &&
+                                  'bg-[hsl(var(--surface-soft))]/45 dark:bg-[hsl(var(--surface-strong))]/70'
                               )}
                             >
-                              {showDate ? (
-                                <TableCell
-                                  rowSpan={rowSpan}
-                                  className={cn(
-                                    'align-middle text-center font-semibold text-foreground',
-                                    isTintedGroup
-                                      ? 'bg-[hsl(var(--primary))]/[0.1]'
-                                      : 'bg-[hsl(var(--surface-soft))]/0',
-                                  )}
-                                >
-                                  {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
-                                </TableCell>
-                              ) : null}
-                              <TableCell>{row.sku}</TableCell>
-                              <TableCell className='max-w-[200px] truncate text-muted-foreground'>
-                                {productName || '--'}
+                              <TableCell className="font-medium text-foreground">
+                                {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                               </TableCell>
-                              <TableCell>
-                                {row.order_qty.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {formatMoney(row.sales_amount)}
-                              </TableCell>
-                              <TableCell>
-                                {row.impressions.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {row.clicks.toLocaleString('zh-CN')}
-                              </TableCell>
+                              <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{formatMoney(row.sales_amount)}</TableCell>
+                              <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
                               <TableCell>{formatMoney(row.cpc)}</TableCell>
                               <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                              <TableCell>
-                                {row.ad_orders.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {row.available_qty.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {row.in_transit_qty > 0 ? (
-                                  <span className="font-medium text-blue-600 dark:text-blue-400">
-                                    {row.in_transit_qty.toLocaleString('zh-CN')}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">--</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {row.page_views.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {row.units_ordered.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {row.sessions.toLocaleString('zh-CN')}
-                              </TableCell>
-                              <TableCell>
-                                {(row.conversion_rate * 100).toFixed(2)}%
-                              </TableCell>
+                              <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{row.page_views.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{row.sessions.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
                             </TableRow>
-                          ),
-                        )
-                      ) : (
-                        <EmptyTableState
-                          colSpan={15}
-                          message='当前筛选范围内还没有可展示的 SKU 销售数据明细。'
-                        />
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
-            </DirectionalTabTransition>
-          </DataTableCardBody>
-        </DataTableCard>
-      </div>
+                          ))
+                        ) : (
+                          <EmptyTableState
+                            colSpan={13}
+                            message="当前筛选范围内还没有可展示的销售数据汇总。"
+                          />
+                        )}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/96 dark:bg-[hsl(var(--surface-panel))]/98 max-h-[calc(100vh-16rem)] overflow-auto">
+                      <TableHeader className={STICKY_TOP_ROW}>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="min-w-[120px] bg-[hsl(var(--surface-soft))]/9 dark:bg-[hsl(var(--surface-strong))]">
+                            日期
+                          </TableHead>
+                          <TableHead className="min-w-[200px]">SKU</TableHead>
+                          <TableHead className="min-w-[200px]">品名</TableHead>
+                          <TableHead>订单量</TableHead>
+                          <TableHead>销售额</TableHead>
+                          <TableHead>曝光量</TableHead>
+                          <TableHead>点击量</TableHead>
+                          <TableHead>CPC</TableHead>
+                          <TableHead>广告花费</TableHead>
+                          <TableHead>广告订单</TableHead>
+                          <TableHead>可售库存</TableHead>
+                          <TableHead>在途数量</TableHead>
+                          <TableHead>页面浏览量</TableHead>
+                          <TableHead>销量</TableHead>
+                          <TableHead>访问量</TableHead>
+                          <TableHead>转化率</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loading ? (
+                          <TableSkeletonRows
+                            columns={15}
+                            rows={8}
+                            widths={Array(15).fill('w-full max-w-[90px]')}
+                          />
+                        ) : detailDisplayRows.length ? (
+                          detailDisplayRows.map(
+                            ({ row, rowKey, showDate, rowSpan, isTintedGroup, productName }) => (
+                              <TableRow
+                                key={rowKey}
+                                className={cn(
+                                  'transition-colors',
+                                  isTintedGroup
+                                    ? 'bg-[hsl(var(--primary))]/[0.045] hover:bg-[hsl(var(--primary))]/[0.075]'
+                                    : 'bg-background hover:bg-[hsl(var(--surface-subtle))]/40'
+                                )}
+                              >
+                                {showDate ? (
+                                  <TableCell
+                                    rowSpan={rowSpan}
+                                    className={cn(
+                                      'align-middle text-center font-semibold text-foreground',
+                                      isTintedGroup
+                                        ? 'bg-[hsl(var(--primary))]/[0.1]'
+                                        : 'bg-[hsl(var(--surface-soft))]/0'
+                                    )}
+                                  >
+                                    {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
+                                  </TableCell>
+                                ) : null}
+                                <TableCell>{row.sku}</TableCell>
+                                <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                                  {productName || '--'}
+                                </TableCell>
+                                <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{formatMoney(row.sales_amount)}</TableCell>
+                                <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{formatMoney(row.cpc)}</TableCell>
+                                <TableCell>{formatMoney(row.ad_spend)}</TableCell>
+                                <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>
+                                  {row.in_transit_qty > 0 ? (
+                                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                                      {row.in_transit_qty.toLocaleString('zh-CN')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">--</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>{row.page_views.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{row.sessions.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                              </TableRow>
+                            )
+                          )
+                        ) : (
+                          <EmptyTableState
+                            colSpan={15}
+                            message="当前筛选范围内还没有可展示的 SKU 销售数据明细。"
+                          />
+                        )}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+              </DirectionalTabTransition>
+            </DataTableCardBody>
+          </DataTableCard>
+        </div>
       </Tabs>
     </div>
   )

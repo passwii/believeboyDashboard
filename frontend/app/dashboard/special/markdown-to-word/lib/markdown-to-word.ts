@@ -8,7 +8,10 @@ export function formatMarkdownFileSize(bytes: number): string {
 
 export function createWordFilename(sourceName?: string): string {
   const baseName = sourceName
-    ? sourceName.replace(/\.md$/i, '').replace(/\.[^.]+$/, '').trim()
+    ? sourceName
+        .replace(/\.md$/i, '')
+        .replace(/\.[^.]+$/, '')
+        .trim()
     : 'markdown-document'
 
   const safeBaseName = baseName
@@ -17,7 +20,12 @@ export function createWordFilename(sourceName?: string): string {
     .replace(/\s+/g, '-')
     .slice(0, 80)
 
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/-/g, '').replace(/T/g, '').replace(/:/g, '')
+  const timestamp = new Date()
+    .toISOString()
+    .slice(0, 19)
+    .replace(/-/g, '')
+    .replace(/T/g, '')
+    .replace(/:/g, '')
   return `${safeBaseName || 'markdown-document'}-${timestamp}.docx`
 }
 

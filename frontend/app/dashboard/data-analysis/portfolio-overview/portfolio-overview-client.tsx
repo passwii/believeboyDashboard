@@ -20,39 +20,37 @@ type Tab = 'comparison' | 'trend' | 'contribution'
 const LazyPortfolioTrendChart = dynamic(
   () =>
     import('@/components/dashboard/portfolio/portfolio-trend-chart').then(
-      (m) => m.PortfolioTrendChart,
+      (m) => m.PortfolioTrendChart
     ),
   {
     ssr: false,
     loading: () => (
-      <div className='dashboard-surface rounded-xl p-4'>
-        <div className='mb-4 flex items-center justify-between'>
-          <Skeleton className='h-4 w-32' />
-          <Skeleton className='h-8 w-32' />
+      <div className="dashboard-surface rounded-xl p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-8 w-32" />
         </div>
-        <Skeleton className='h-[320px] w-full rounded-lg' />
+        <Skeleton className="h-[320px] w-full rounded-lg" />
       </div>
     ),
-  },
+  }
 )
 
 const LazyPortfolioPieChart = dynamic(
   () =>
-    import('@/components/dashboard/portfolio/portfolio-pie-chart').then(
-      (m) => m.PortfolioPieChart,
-    ),
+    import('@/components/dashboard/portfolio/portfolio-pie-chart').then((m) => m.PortfolioPieChart),
   {
     ssr: false,
     loading: () => (
-      <div className='dashboard-surface rounded-xl p-4'>
-        <div className='mb-4 flex items-center justify-between'>
-          <Skeleton className='h-4 w-32' />
-          <Skeleton className='h-8 w-32' />
+      <div className="dashboard-surface rounded-xl p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-8 w-32" />
         </div>
-        <Skeleton className='h-[320px] w-full rounded-lg' />
+        <Skeleton className="h-[320px] w-full rounded-lg" />
       </div>
     ),
-  },
+  }
 )
 
 export default function PortfolioOverviewClient() {
@@ -72,15 +70,15 @@ export default function PortfolioOverviewClient() {
   })
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='dashboard-toolbar'>
-        <div className='flex items-center gap-3'>
-          <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-[linear-gradient(180deg,#0f527a,#1675ae)] text-white'>
-            <BarChart3 className='h-5 w-5' />
+    <div className="flex flex-col gap-4">
+      <div className="dashboard-toolbar">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[linear-gradient(180deg,#0f527a,#1675ae)] text-white">
+            <BarChart3 className="h-5 w-5" />
           </div>
           <div>
-            <h1 className='text-lg font-semibold'>组合分析</h1>
-            <p className='text-xs text-muted-foreground'>跨项目 KPI 对比、趋势分析和贡献占比</p>
+            <h1 className="text-lg font-semibold">组合分析</h1>
+            <p className="text-xs text-muted-foreground">跨项目 KPI 对比、趋势分析和贡献占比</p>
           </div>
         </div>
       </div>
@@ -100,7 +98,7 @@ export default function PortfolioOverviewClient() {
       </FilterToolbar>
 
       {error && (
-        <div className='rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -110,27 +108,24 @@ export default function PortfolioOverviewClient() {
           <PortfolioKPICards data={data} country={country} />
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
             <TabsList>
-              <TabsTrigger value='comparison'>项目对比</TabsTrigger>
-              <TabsTrigger value='trend'>趋势对比</TabsTrigger>
-              <TabsTrigger value='contribution'>贡献占比</TabsTrigger>
+              <TabsTrigger value="comparison">项目对比</TabsTrigger>
+              <TabsTrigger value="trend">趋势对比</TabsTrigger>
+              <TabsTrigger value="contribution">贡献占比</TabsTrigger>
             </TabsList>
-            <TabsContent value='comparison'>
-              <PortfolioComparisonTable
-                projects={data.projects}
-                country={country}
-              />
+            <TabsContent value="comparison">
+              <PortfolioComparisonTable projects={data.projects} country={country} />
             </TabsContent>
-            <TabsContent value='trend'>
+            <TabsContent value="trend">
               <LazyPortfolioTrendChart projects={data.projects} country={country} />
             </TabsContent>
-            <TabsContent value='contribution'>
+            <TabsContent value="contribution">
               <LazyPortfolioPieChart projects={data.projects} country={country} />
             </TabsContent>
           </Tabs>
         </>
       ) : !loading && projectIds.length > 0 ? (
-        <div className='flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground'>
-          <BarChart3 className='mb-3 h-10 w-10 opacity-40' />
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground">
+          <BarChart3 className="mb-3 h-10 w-10 opacity-40" />
           <p>暂无数据，请检查日期范围或项目选择</p>
         </div>
       ) : null}

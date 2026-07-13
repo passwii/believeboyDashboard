@@ -36,7 +36,7 @@ const check = args.includes('--check')
 if (!existsSync(INPUT)) {
   console.error(
     `[gen:api-types] Missing input: ${INPUT}\n` +
-      'Run `make openapi-export` from the backend directory (or `python -m scripts.openapi_export --out <path>`) to generate the OpenAPI JSON first.',
+      'Run `make openapi-export` from the backend directory (or `python -m scripts.openapi_export --out <path>`) to generate the OpenAPI JSON first.'
   )
   process.exit(2)
 }
@@ -44,11 +44,10 @@ if (!existsSync(INPUT)) {
 const cliArgs = [INPUT, '--output', OUTPUT]
 if (check) cliArgs.push('--check')
 
-const result = spawnSync(
-  resolve(FRONTEND_ROOT, 'node_modules/.bin/openapi-typescript'),
-  cliArgs,
-  { stdio: 'inherit', cwd: FRONTEND_ROOT },
-)
+const result = spawnSync(resolve(FRONTEND_ROOT, 'node_modules/.bin/openapi-typescript'), cliArgs, {
+  stdio: 'inherit',
+  cwd: FRONTEND_ROOT,
+})
 
 if (result.error) {
   console.error(`[gen:api-types] Failed to invoke openapi-typescript: ${result.error.message}`)
@@ -59,7 +58,7 @@ if (result.status !== 0) {
   if (check) {
     console.error(
       '[gen:api-types] Drift detected: api.d.ts does not match the current openapi.json.\n' +
-        'Run `pnpm gen:api-types` to regenerate, then commit the result.',
+        'Run `pnpm gen:api-types` to regenerate, then commit the result.'
     )
   }
   process.exit(result.status ?? 1)

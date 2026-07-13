@@ -1,4 +1,10 @@
-export type CommissionBasis = 'sales_amount' | 'cash_received' | 'profit_margin' | string | null | undefined
+export type CommissionBasis =
+  | 'sales_amount'
+  | 'cash_received'
+  | 'profit_margin'
+  | string
+  | null
+  | undefined
 
 export const PROJECT_CASH_RECEIVED_COMMISSION_TIERS = [
   { minInclusive: 0.4, maxExclusive: 0.5, rate: 0.07 },
@@ -21,7 +27,9 @@ function normalizeRate(value: number): number {
 export function getProjectCashReceivedCommissionRate(paybackRatio: number): number {
   const ratio = toFiniteNumber(paybackRatio)
   if (ratio < 0.4) return 0
-  const tier = PROJECT_CASH_RECEIVED_COMMISSION_TIERS.find((item) => ratio >= item.minInclusive && ratio < item.maxExclusive)
+  const tier = PROJECT_CASH_RECEIVED_COMMISSION_TIERS.find(
+    (item) => ratio >= item.minInclusive && ratio < item.maxExclusive
+  )
   return tier?.rate ?? 0
 }
 

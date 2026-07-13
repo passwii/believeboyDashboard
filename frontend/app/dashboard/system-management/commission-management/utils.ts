@@ -26,7 +26,7 @@ export function convertToUsd(
 ): number {
   if (country === 'US') return amount
 
-  const rateMap = new Map(exchangeRates.map(r => [r.currency, r.rate]))
+  const rateMap = new Map(exchangeRates.map((r) => [r.currency, r.rate]))
   const getRate = (currency: string): number => rateMap.get(currency) ?? 0
 
   const localCurrency = COUNTRY_TO_CURRENCY[country]
@@ -41,9 +41,7 @@ export function convertToUsd(
   return cnyAmount / usdRate
 }
 
-export function groupProjectsBySites(
-  rows: CommissionProjectMonth[]
-): ProjectRow[] {
+export function groupProjectsBySites(rows: CommissionProjectMonth[]): ProjectRow[] {
   const groupsMap = new Map<number, CommissionProjectMonth[]>()
   const nameMap = new Map<number, string>()
 

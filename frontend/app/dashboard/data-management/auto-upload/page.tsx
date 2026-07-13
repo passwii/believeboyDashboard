@@ -13,13 +13,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   formatDateInputValue,
   parseDateInputValue,
@@ -35,7 +29,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -148,17 +148,27 @@ const TABLE_ROW_HEIGHT_CLASS = 'h-[clamp(2.8rem,3.2vh,3.5rem)] min-h-[2.8rem] ma
 
 // ── Upload progress summary ──────────────────────────────────────────────────
 
-function ProgressRow({ label, done, total, pct }: { label: string; done: number; total: number; pct: number }) {
+function ProgressRow({
+  label,
+  done,
+  total,
+  pct,
+}: {
+  label: string
+  done: number
+  total: number
+  pct: number
+}) {
   return (
-    <div className='flex items-center gap-2'>
-      <span className='w-8 text-[11px] text-muted-foreground'>{label}</span>
-      <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]'>
+    <div className="flex items-center gap-2">
+      <span className="w-8 text-[11px] text-muted-foreground">{label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[hsl(var(--surface-subtle))]">
         <div
-          className='h-full rounded-full bg-sky-500 transition-all duration-300 ease-out'
+          className="h-full rounded-full bg-sky-500 transition-all duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className='w-14 text-right text-[11px] tabular-nums text-muted-foreground'>
+      <span className="w-14 text-right text-[11px] tabular-nums text-muted-foreground">
         {done}/{total}
       </span>
     </div>
@@ -180,16 +190,22 @@ function UploadProgressSummary({
   const recPct = recognitionTotal === 0 ? 0 : Math.round((recognitionDone / recognitionTotal) * 100)
   const upPct = uploadTotal === 0 ? 0 : Math.round((uploadDone / uploadTotal) * 100)
   return (
-    <div className='space-y-1.5 pt-1.5'>
-      <ProgressRow label='识别' done={recognitionDone} total={recognitionTotal} pct={recPct} />
-      <ProgressRow label='上传' done={uploadDone} total={uploadTotal} pct={upPct} />
+    <div className="space-y-1.5 pt-1.5">
+      <ProgressRow label="识别" done={recognitionDone} total={recognitionTotal} pct={recPct} />
+      <ProgressRow label="上传" done={uploadDone} total={uploadTotal} pct={upPct} />
     </div>
   )
 }
 
 // ── RPA Status Grid ──────────────────────────────────────────────────────────
 
-function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountryChange: (v: string) => void }) {
+function RpaStatusGrid({
+  country,
+  onCountryChange,
+}: {
+  country: string
+  onCountryChange: (v: string) => void
+}) {
   const { data: session } = useSession()
   const [projects, setProjects] = useState<string[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -198,7 +214,10 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
   const [statusRows, setStatusRows] = useState<ProjectRow[]>([])
   const [statusLoading, setStatusLoading] = useState(true)
   const [statusError, setStatusError] = useState<string | null>(null)
-  const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading: statusLoading, hasData: statusRows.length > 0 })
+  const { showSkeleton, isRefreshing } = useSmoothRefresh({
+    loading: statusLoading,
+    hasData: statusRows.length > 0,
+  })
 
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
 
@@ -222,10 +241,9 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
     setStatusError(null)
     try {
       const query = new URLSearchParams({ report_date: statusDate, country })
-      const response = await fetch(
-        `${API_BASE}/api/v1/rpa-reports/status?${query.toString()}`,
-        { cache: 'no-store' },
-      )
+      const response = await fetch(`${API_BASE}/api/v1/rpa-reports/status?${query.toString()}`, {
+        cache: 'no-store',
+      })
       if (!response.ok) {
         const text = await response.text()
         throw new Error(text || `HTTP ${response.status}`)
@@ -255,37 +273,37 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
   }, [selectedProjects])
 
   return (
-    <Card className='flex flex-1 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-      <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:px-6 sm:py-4 shrink-0'>
-        <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
-          <div className='flex items-center gap-3'>
-            <div className='flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground sm:h-10 sm:w-10'>
-              <LayoutDashboard className='h-4 w-4 sm:h-5 sm:w-5' />
+    <Card className="flex flex-1 flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm">
+      <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:px-6 sm:py-4 shrink-0">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-[hsl(var(--surface-soft))] text-muted-foreground sm:h-10 sm:w-10">
+              <LayoutDashboard className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <CardTitle className='self-center text-base sm:text-lg'>RPA 报表状态</CardTitle>
+            <CardTitle className="self-center text-base sm:text-lg">RPA 报表状态</CardTitle>
           </div>
 
           {/* Mobile: 2-column grid; lg+: horizontal row */}
-          <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:gap-2'>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
             {/* Row 1: 项目 + 站点 */}
-            <div className='contents lg:flex lg:items-center lg:gap-2'>
+            <div className="contents lg:flex lg:items-center lg:gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    className='h-9 w-full justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))] sm:h-10'
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full justify-start border-border/70 bg-background text-left font-normal dark:bg-[hsl(var(--surface-soft))] sm:h-10"
                   >
                     {projectFilterLabel}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align='end' className='w-[280px]'>
+                <DropdownMenuContent align="end" className="w-[280px]">
                   <DropdownMenuLabel>项目筛选</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <button
-                    type='button'
-                    className='w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                    type="button"
+                    className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
                     onClick={() => setSelectedProjects([])}
                   >
                     全部项目
@@ -312,8 +330,8 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
               </DropdownMenu>
 
               <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className='h-9 w-full rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))] sm:h-10 sm:w-[140px]'>
-                  <SelectValue placeholder='选择站点' />
+                <SelectTrigger className="h-9 w-full rounded-md border-border/70 bg-background dark:bg-[hsl(var(--surface-soft))] sm:h-10 sm:w-[140px]">
+                  <SelectValue placeholder="选择站点" />
                 </SelectTrigger>
                 <SelectContent>
                   {COUNTRY_OPTIONS.map((opt) => (
@@ -326,52 +344,52 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
             </div>
 
             {/* Row 2: 日期导航 */}
-            <div className='contents lg:flex lg:items-center lg:gap-1'>
+            <div className="contents lg:flex lg:items-center lg:gap-1">
               <Button
-                type='button'
-                variant='outline'
-                size='icon'
-                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
                 onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
               >
-                <ChevronLeft className='h-4 w-4' />
+                <ChevronLeft className="h-4 w-4" />
               </Button>
               <SimpleDatePicker
                 value={parseDateInputValue(statusDate)}
                 onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                className='h-9 w-full sm:h-10 sm:w-[170px] bg-background dark:bg-[hsl(var(--surface-soft))]'
+                className="h-9 w-full sm:h-10 sm:w-[170px] bg-background dark:bg-[hsl(var(--surface-soft))]"
               />
               <Button
-                type='button'
-                variant='outline'
-                size='icon'
-                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
                 onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
               >
-                <ChevronRight className='h-4 w-4' />
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
             {/* Row 3: 今天 + 刷新 */}
-            <div className='contents lg:flex lg:items-center lg:gap-1'>
+            <div className="contents lg:flex lg:items-center lg:gap-1">
               <Button
-                type='button'
-                variant='secondary'
-                size='sm'
-                className='h-9 sm:h-10'
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-9 sm:h-10"
                 onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
               >
                 今天
               </Button>
 
               <Button
-                type='button'
-                variant='outline'
-                size='icon'
-                className='h-9 w-9 shrink-0 sm:h-10 sm:w-10'
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
                 onClick={() => void loadStatus()}
                 disabled={statusLoading}
-                title='刷新状态'
+                title="刷新状态"
               >
                 <Loader2 className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
               </Button>
@@ -380,56 +398,61 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
         </div>
       </CardHeader>
 
-      <div className='flex min-h-0 flex-1 flex-col p-0 relative'>
-        {statusError ? (
-          <p className='py-4 pl-6 text-sm text-rose-600'>{statusError}</p>
-        ) : null}
+      <div className="flex min-h-0 flex-1 flex-col p-0 relative">
+        {statusError ? <p className="py-4 pl-6 text-sm text-rose-600">{statusError}</p> : null}
 
         {showSkeleton ? (
-          <div className='flex min-h-0 flex-1 flex-col space-y-3'>
-            <Skeleton className='h-10 w-full rounded-none shrink-0' />
-            <Skeleton className='flex-1 w-full rounded-none min-h-0' />
+          <div className="flex min-h-0 flex-1 flex-col space-y-3">
+            <Skeleton className="h-10 w-full rounded-none shrink-0" />
+            <Skeleton className="flex-1 w-full rounded-none min-h-0" />
           </div>
         ) : (
-          <RefreshProgressBar refreshing={isRefreshing} className='flex min-h-0 flex-1 flex-col overflow-auto'>
+          <RefreshProgressBar
+            refreshing={isRefreshing}
+            className="flex min-h-0 flex-1 flex-col overflow-auto"
+          >
             <div
-              className='grid min-w-max shrink-0'
+              className="grid min-w-max shrink-0"
               style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
             >
               <div
                 className={`flex items-center border border-b-0 border-border/50 bg-[hsl(var(--surface-subtle))] px-3 ${TABLE_HEADER_HEIGHT_CLASS}`}
               >
-                <span className='text-xs font-semibold uppercase tracking-widest text-muted-foreground'>项目</span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  项目
+                </span>
               </div>
               {REPORT_TYPES.map((rt, colIdx) => (
                 <div
                   key={rt.key}
                   className={`flex items-center justify-center border-b border-t border-border/50 px-1 ${TABLE_HEADER_HEIGHT_CLASS}${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}`}
                 >
-                  <span className={`text-xs font-semibold uppercase tracking-wider${rt.active ? ' text-muted-foreground' : ' text-muted-foreground/40'}`}>{rt.label}</span>
+                  <span
+                    className={`text-xs font-semibold uppercase tracking-wider${rt.active ? ' text-muted-foreground' : ' text-muted-foreground/40'}`}
+                  >
+                    {rt.label}
+                  </span>
                 </div>
               ))}
             </div>
 
             {filteredRows.length === 0 ? (
-              <div className='flex flex-1 flex-col items-center justify-center py-16'>
-                <p className='text-base font-medium'>
-                  {statusDate} 暂时没有可展示的报表状态
-                </p>
-                <p className='mt-2 text-sm text-muted-foreground'>
+              <div className="flex flex-1 flex-col items-center justify-center py-16">
+                <p className="text-base font-medium">{statusDate} 暂时没有可展示的报表状态</p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   切换左右日期，或检查 RPA 是否已接入该日期的数据
                 </p>
               </div>
             ) : (
-              <div className='flex min-h-0 flex-1 flex-col min-w-max'>
+              <div className="flex min-h-0 flex-1 flex-col min-w-max">
                 {filteredRows.map((row) => (
                   <div
                     key={row.project_id}
                     className={`grid border border-t-0 border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))] ${TABLE_ROW_HEIGHT_CLASS}`}
                     style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
                   >
-                    <div className='flex items-center border-r border-border/50 bg-[hsl(var(--surface-panel))] px-3'>
-                      <span className='truncate text-sm font-medium'>{row.project_name}</span>
+                    <div className="flex items-center border-r border-border/50 bg-[hsl(var(--surface-panel))] px-3">
+                      <span className="truncate text-sm font-medium">{row.project_name}</span>
                     </div>
                     {REPORT_TYPES.map((rt, colIdx) => {
                       const cell = row.statuses.find((s) => s.report_type === rt.key)
@@ -438,17 +461,13 @@ function RpaStatusGrid({ country, onCountryChange }: { country: string; onCountr
                         <div
                           key={rt.key}
                           className={`flex items-center justify-center border-border/50 px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
-                            !rt.active
-                              ? ''
-                              : isUploaded
-                                ? ' bg-emerald-600'
-                                : ' bg-rose-500'
+                            !rt.active ? '' : isUploaded ? ' bg-emerald-600' : ' bg-rose-500'
                           }`}
                         >
                           {isUploaded ? (
-                            <CheckCircle2 className='h-4 w-4 text-white' />
+                            <CheckCircle2 className="h-4 w-4 text-white" />
                           ) : (
-                            <CircleX className='h-4 w-4 text-white' />
+                            <CircleX className="h-4 w-4 text-white" />
                           )}
                         </div>
                       )
@@ -508,11 +527,11 @@ function AutoUploadContent({
 
   const uploadStats = useMemo(() => {
     const eligible = queueItems.filter(
-      (it) => it.recognitionStatus === 'recognized' && it.reportType && it.reportType !== 'unknown',
+      (it) => it.recognitionStatus === 'recognized' && it.reportType && it.reportType !== 'unknown'
     )
     const total = eligible.length
     const done = eligible.filter(
-      (it) => it.fileCommitStatus === 'success' || it.fileCommitStatus === 'error',
+      (it) => it.fileCommitStatus === 'success' || it.fileCommitStatus === 'error'
     ).length
     return { total, done }
   }, [queueItems])
@@ -561,7 +580,7 @@ function AutoUploadContent({
         }
         const recognition: RecognitionResponse = await res.json()
 
-         setQueueItems((prev) =>
+        setQueueItems((prev) =>
           prev.map((it) =>
             it.localId === item.localId
               ? {
@@ -571,26 +590,20 @@ function AutoUploadContent({
                   recognitionStatus: recognition.status,
                   recognizedProject:
                     recognition.project_match.status === 'matched'
-                      ? recognition.project_match.project_name ?? null
+                      ? (recognition.project_match.project_name ?? null)
                       : recognition.project_match.status === 'conflict'
                         ? `候选 ${recognition.project_match.candidate_projects.length} 个`
                         : '未匹配',
-                  detectedDate:
-                    recognition.detected_date ??
-                    recognition.detected_end_date ??
-                    null,
+                  detectedDate: recognition.detected_date ?? recognition.detected_end_date ?? null,
                   detectedStartDate: recognition.detected_start_date ?? null,
                   detectedEndDate: recognition.detected_end_date ?? null,
                   detectedCountry: recognition.country,
                   detectedCountries: recognition.detected_countries ?? [],
                   isMultiCountry: (recognition.detected_countries?.length ?? 0) > 1,
-                  error:
-                    recognition.status === 'recognized'
-                      ? null
-                      : recognition.reason,
+                  error: recognition.status === 'recognized' ? null : recognition.reason,
                 }
-              : it,
-          ),
+              : it
+          )
         )
         setRecognitionMap((prev) => ({ ...prev, [item.localId]: recognition }))
       } catch (err) {
@@ -607,8 +620,8 @@ function AutoUploadContent({
                   fileCommitStatus: 'error',
                   error: msg,
                 }
-              : it,
-          ),
+              : it
+          )
         )
       }
     }
@@ -649,16 +662,17 @@ function AutoUploadContent({
                   fileCommitStatus: 'error',
                   commitError: `文件站点（${recognition.country}）与所选站点（${country}）不一致，请上传到对应站点`,
                 }
-              : it,
-          ),
+              : it
+          )
         )
         continue
       }
 
       // 检查项目匹配状态
-      const autoMatchedProject = recognition.project_match.status === 'matched'
-        ? recognition.project_match.project_name ?? null
-        : null
+      const autoMatchedProject =
+        recognition.project_match.status === 'matched'
+          ? (recognition.project_match.project_name ?? null)
+          : null
       const finalProjectName = item.userSelectedProject ?? autoMatchedProject
 
       // 如果项目未匹配且用户未手动选择，报错
@@ -671,14 +685,15 @@ function AutoUploadContent({
                   fileCommitStatus: 'error',
                   commitError: '请先选择项目',
                 }
-              : it,
-          ),
+              : it
+          )
         )
         continue
       }
 
-       // Check if date is required but missing
-      const resolvedDate = item.userReportDate ?? recognition.detected_date ?? recognition.detected_end_date ?? null
+      // Check if date is required but missing
+      const resolvedDate =
+        item.userReportDate ?? recognition.detected_date ?? recognition.detected_end_date ?? null
       const resolvedStartDate = item.userReportStartDate ?? recognition.detected_start_date ?? null
       const resolvedEndDate = item.userReportEndDate ?? recognition.detected_end_date ?? null
       if (isDateRequired(item.reportType)) {
@@ -692,8 +707,8 @@ function AutoUploadContent({
                       fileCommitStatus: 'error',
                       commitError: '请填写完整的日期范围',
                     }
-                  : it,
-              ),
+                  : it
+              )
             )
             continue
           }
@@ -706,8 +721,8 @@ function AutoUploadContent({
                     fileCommitStatus: 'error',
                     commitError: '请填写报表日期',
                   }
-                : it,
-            ),
+                : it
+            )
           )
           continue
         }
@@ -717,12 +732,13 @@ function AutoUploadContent({
         prev.map((it) =>
           it.localId === item.localId
             ? { ...it, fileCommitStatus: 'saving', commitError: null }
-            : it,
-        ),
+            : it
+        )
       )
 
-       try {
-        const resolvedStartDate = item.userReportStartDate ?? recognition.detected_start_date ?? null
+      try {
+        const resolvedStartDate =
+          item.userReportStartDate ?? recognition.detected_start_date ?? null
         const resolvedEndDate = item.userReportEndDate ?? recognition.detected_end_date ?? null
 
         // 多站点文件：传入 primary_country 供后端参考（后端会按检测到的所有国家拆分）
@@ -753,8 +769,8 @@ function AutoUploadContent({
           prev.map((it) =>
             it.localId === item.localId
               ? { ...it, fileCommitStatus: 'success', commitError: null }
-              : it,
-          ),
+              : it
+          )
         )
       } catch (err) {
         const msg = err instanceof Error ? err.message : '上传失败'
@@ -762,8 +778,8 @@ function AutoUploadContent({
           prev.map((it) =>
             it.localId === item.localId
               ? { ...it, fileCommitStatus: 'error', commitError: msg }
-              : it,
-          ),
+              : it
+          )
         )
       }
     }
@@ -789,16 +805,16 @@ function AutoUploadContent({
     (it) =>
       it.recognitionStatus === 'recognized' &&
       it.fileCommitStatus !== 'success' &&
-      it.fileCommitStatus !== 'saving',
+      it.fileCommitStatus !== 'saving'
   ).length
 
   return (
-    <div className='flex flex-1 flex-col gap-4'>
+    <div className="flex flex-1 flex-col gap-4">
       {/* Top controls */}
-      <div className='flex shrink-0 items-center gap-3'>
+      <div className="flex shrink-0 items-center gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className='h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]'>
-            <SelectValue placeholder='选择站点' />
+          <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]">
+            <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>
             {REPORT_UPLOAD_COUNTRY_OPTIONS.map((opt) => (
@@ -812,19 +828,19 @@ function AutoUploadContent({
         <Button onClick={handleUploadAll} disabled={pendingCount === 0 || uploading}>
           {uploading ? (
             <>
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               上传中...
             </>
           ) : (
             <>
-              <Upload className='mr-2 h-4 w-4' />
+              <Upload className="mr-2 h-4 w-4" />
               上传全部 ({pendingCount})
             </>
           )}
         </Button>
 
         <Button
-          variant='outline'
+          variant="outline"
           onClick={clearAll}
           disabled={queueItems.length === 0 || recognizing || uploading}
         >
@@ -833,16 +849,16 @@ function AutoUploadContent({
       </div>
 
       {/* Dropzone + File list */}
-      <div className='grid gap-4 lg:grid-cols-[1fr_2fr] flex-1 overflow-hidden'>
+      <div className="grid gap-4 lg:grid-cols-[1fr_2fr] flex-1 overflow-hidden">
         {/* Dropzone */}
-        <Card className='overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm'>
-          <CardContent className='!px-3 !py-3 sm:!px-4 sm:!py-4 flex h-full'>
+        <Card className="overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm">
+          <CardContent className="!px-3 !py-3 sm:!px-4 sm:!py-4 flex h-full">
             <div
               className={cn(
                 'relative flex w-full flex-col items-center justify-center rounded-2xl border border-dashed px-5 transition-[border-color,background-color] duration-200',
                 dragActive
                   ? 'border-sky-500/70 bg-sky-500/8'
-                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]',
+                  : 'border-border/70 bg-[hsl(var(--surface-subtle))]'
               )}
               style={{ flex: 1 }}
               onDrop={(e) => {
@@ -857,35 +873,35 @@ function AutoUploadContent({
               onDragLeave={() => setDragActive(false)}
             >
               <input
-                id='auto-upload-input'
-                type='file'
+                id="auto-upload-input"
+                type="file"
                 multiple
-                className='hidden'
-                accept='.txt,.csv,.xlsx'
+                className="hidden"
+                accept=".txt,.csv,.xlsx"
                 onChange={(e) => {
                   void recognizeFiles(Array.from(e.target.files ?? []))
                   e.target.value = ''
                 }}
               />
               <label
-                htmlFor='auto-upload-input'
-                className='flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center'
+                htmlFor="auto-upload-input"
+                className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm sm:h-14 sm:w-14'>
-                  <Upload className='h-5 w-5 sm:h-6 sm:w-6 text-sky-600 dark:text-sky-300' />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-[hsl(var(--surface-soft))] shadow-sm sm:h-14 sm:w-14">
+                  <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-sky-600 dark:text-sky-300" />
                 </div>
-                <div className='space-y-1'>
-                  <p className='text-sm font-semibold text-foreground sm:text-base'>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground sm:text-base">
                     拖拽文件到这里，或点击选择
                   </p>
-                  <p className='text-xs text-muted-foreground sm:text-sm'>
+                  <p className="text-xs text-muted-foreground sm:text-sm">
                     支持 `txt`、`csv`、`xlsx`
                   </p>
                 </div>
               </label>
               {recognizing ? (
-                <div className='absolute inset-x-0 bottom-4 flex items-center justify-center gap-2 text-sm text-muted-foreground'>
-                  <Loader2 className='h-4 w-4 animate-spin' />
+                <div className="absolute inset-x-0 bottom-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   正在识别...
                 </div>
               ) : null}
@@ -894,18 +910,14 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className='flex flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm lg:h-[calc(100vh-22rem)]'>
-          <CardHeader className='border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 pb-3 pt-4'>
-            <div className='flex items-center justify-between'>
+        <Card className="flex flex-col overflow-hidden border-border/70 bg-[hsl(var(--surface-panel))] shadow-sm lg:h-[calc(100vh-22rem)]">
+          <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 pb-3 pt-4">
+            <div className="flex items-center justify-between">
               <div>
-                <CardTitle className='text-base'>本次识别文件</CardTitle>
-                <CardDescription className='text-xs'>
-                  {queueItems.length} 个文件
-                </CardDescription>
+                <CardTitle className="text-base">本次识别文件</CardTitle>
+                <CardDescription className="text-xs">{queueItems.length} 个文件</CardDescription>
               </div>
-              {uploading ? (
-                <Loader2 className='h-4 w-4 animate-spin text-sky-500' />
-              ) : null}
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-sky-500" /> : null}
             </div>
             <UploadProgressSummary
               recognitionDone={recognitionStats.done}
@@ -914,11 +926,11 @@ function AutoUploadContent({
               uploadTotal={uploadStats.total}
             />
           </CardHeader>
-          <CardContent className='flex flex-1 flex-col overflow-hidden px-0 pt-0'>
-            <ScrollArea className='flex-1'>
-              <div className='space-y-2 p-3'>
+          <CardContent className="flex flex-1 flex-col overflow-hidden px-0 pt-0">
+            <ScrollArea className="flex-1">
+              <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
-                  <div className='rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground'>
+                  <div className="rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]/45 px-4 py-8 text-center text-sm text-muted-foreground">
                     暂无文件
                   </div>
                 ) : null}
@@ -928,35 +940,44 @@ function AutoUploadContent({
                     className={cn(
                       'relative flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-[hsl(var(--surface-subtle))]/85 px-3 py-3 transition-colors duration-300',
                       // 上传成功：整条绿色覆盖
-                      item.fileCommitStatus === 'success' && 'border-emerald-400/50 bg-emerald-500/15 dark:bg-emerald-500/20',
+                      item.fileCommitStatus === 'success' &&
+                        'border-emerald-400/50 bg-emerald-500/15 dark:bg-emerald-500/20',
                       // 保存中：淡蓝色
-                      item.fileCommitStatus === 'saving' && 'border-sky-400/40 bg-sky-500/10 dark:bg-sky-500/15',
+                      item.fileCommitStatus === 'saving' &&
+                        'border-sky-400/40 bg-sky-500/10 dark:bg-sky-500/15',
                       // 识别错误：淡红色
-                      item.recognitionStatus === 'error' && 'border-rose-400/40 bg-rose-500/10',
+                      item.recognitionStatus === 'error' && 'border-rose-400/40 bg-rose-500/10'
                     )}
                   >
-                    <div className='min-w-0 flex-1 space-y-1'>
-                      <p className='truncate text-sm font-medium text-foreground'>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {item.originalFileName}
                       </p>
-                      <p className='text-xs text-muted-foreground'>
+                      <p className="text-xs text-muted-foreground">
                         {item.recognitionStatus === 'pending'
                           ? '识别中'
                           : `类型：${getUploadReportTypeLabel(item.reportType)}`}
                       </p>
                       {item.recognitionStatus !== 'pending' ? (
                         <>
-                          <p className='text-xs text-muted-foreground'>
-                            国家：{item.isMultiCountry
-                              ? <span className='text-blue-600 dark:text-blue-400 font-medium'>
-                                  {getMultiCountryDisplay(item.detectedCountries)} (自动拆分)
-                                </span>
-                              : (item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别')
-                            }
+                          <p className="text-xs text-muted-foreground">
+                            国家：
+                            {item.isMultiCountry ? (
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {getMultiCountryDisplay(item.detectedCountries)} (自动拆分)
+                              </span>
+                            ) : item.detectedCountry ? (
+                              getReportUploadCountryLabel(item.detectedCountry, true)
+                            ) : (
+                              '未识别'
+                            )}
                           </p>
-                          {item.recognizedProject === '未匹配' || item.recognizedProject === null ? (
-                            <div className='flex items-center gap-1.5'>
-                              <span className='text-xs text-amber-600 dark:text-amber-400'>项目：</span>
+                          {item.recognizedProject === '未匹配' ||
+                          item.recognizedProject === null ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                项目：
+                              </span>
                               <Select
                                 value={item.userSelectedProject ?? ''}
                                 onValueChange={(value) => {
@@ -964,13 +985,13 @@ function AutoUploadContent({
                                     prev.map((it) =>
                                       it.localId === item.localId
                                         ? { ...it, userSelectedProject: value || null }
-                                        : it,
-                                    ),
+                                        : it
+                                    )
                                   )
                                 }}
                               >
-                                <SelectTrigger className='h-6 w-[140px] rounded border-border/60 bg-background px-1.5 py-0.5 text-xs'>
-                                  <SelectValue placeholder='选择项目' />
+                                <SelectTrigger className="h-6 w-[140px] rounded border-border/60 bg-background px-1.5 py-0.5 text-xs">
+                                  <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {availableProjects.map((project) => (
@@ -982,196 +1003,218 @@ function AutoUploadContent({
                               </Select>
                             </div>
                           ) : (
-                            <p className='text-xs text-muted-foreground'>
+                            <p className="text-xs text-muted-foreground">
                               项目：{item.userSelectedProject ?? item.recognizedProject}
                             </p>
                           )}
-                           {item.detectedDate || item.detectedStartDate || item.detectedEndDate ? (
-                             <div className='flex flex-col gap-0.5'>
-                               <p className='text-xs text-muted-foreground'>
-                                 {item.reportType === 'payment_report' ? (
-                                   <>
-                                     日期范围：
-                                     <span className='font-mono'>
-                                       {item.userReportStartDate || item.detectedStartDate || '—'} →{' '}
-                                       {item.userReportEndDate || item.detectedEndDate || '—'}
-                                     </span>
-                                     <button
-                                       type='button'
-                                       onClick={() => {
-                                         const start = item.userReportStartDate || item.detectedStartDate || ''
-                                         const end = item.userReportEndDate || item.detectedEndDate || ''
-                                         setQueueItems((prev) =>
-                                           prev.map((it) =>
-                                             it.localId === item.localId
-                                               ? {
-                                                   ...it,
-                                                   userReportStartDate: it.userReportStartDate === null ? start : null,
-                                                   userReportEndDate: it.userReportEndDate === null ? end : null,
-                                                 }
-                                               : it,
-                                           ),
-                                         )
-                                       }}
-                                       className='ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400'
-                                     >
-                                       {item.userReportStartDate ? '取消' : '编辑'}
-                                     </button>
-                                   </>
-                                 ) : (
-                                   <>
-                                     日期：{item.userReportDate || item.detectedDate}
-                                     <button
-                                       type='button'
-                                       onClick={() => {
-                                         setQueueItems((prev) =>
-                                           prev.map((it) =>
-                                             it.localId === item.localId
-                                               ? { ...it, userReportDate: it.userReportDate === null ? item.detectedDate || '' : null }
-                                               : it,
-                                           ),
-                                         )
-                                       }}
-                                       className='ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400'
-                                     >
-                                       {item.userReportDate ? '取消' : '编辑'}
-                                     </button>
-                                   </>
-                                 )}
-                               </p>
-                               {item.reportType === 'payment_report' && item.userReportStartDate !== null ? (
-                                 <div className='flex items-center gap-1.5 pt-0.5'>
-                                   <span className='text-[10px] text-amber-600'>起：</span>
-                                   <SimpleDatePicker
-                                     value={parseDateInputValue(item.userReportStartDate || '')}
-                                     onChange={(date) => {
-                                       setQueueItems((prev) =>
-                                         prev.map((it) =>
-                                           it.localId === item.localId
-                                             ? { ...it, userReportStartDate: formatDateInputValue(date) }
-                                             : it,
-                                         ),
-                                       )
-                                     }}
-                                     className='h-6 w-[130px] text-xs'
-                                   />
-                                   <span className='text-[10px] text-amber-600'>止：</span>
-                                   <SimpleDatePicker
-                                     value={parseDateInputValue(item.userReportEndDate || '')}
-                                     onChange={(date) => {
-                                       setQueueItems((prev) =>
-                                         prev.map((it) =>
-                                           it.localId === item.localId
-                                             ? { ...it, userReportEndDate: formatDateInputValue(date) }
-                                             : it,
-                                         ),
-                                       )
-                                     }}
-                                     className='h-6 w-[130px] text-xs'
-                                   />
-                                 </div>
-                               ) : item.userReportDate !== null && item.reportType !== 'payment_report' ? (
-                                 <div className='flex items-center gap-1.5 pt-0.5'>
-                                   <span className='text-[10px] text-amber-600'>日期：</span>
-                                   <SimpleDatePicker
-                                     value={parseDateInputValue(item.userReportDate || '')}
-                                     onChange={(date) => {
-                                       setQueueItems((prev) =>
-                                         prev.map((it) =>
-                                           it.localId === item.localId
-                                             ? { ...it, userReportDate: formatDateInputValue(date) }
-                                             : it,
-                                         ),
-                                       )
-                                     }}
-                                     className='h-6 w-[130px] text-xs'
-                                   />
-                                 </div>
-                               ) : null}
-                             </div>
-                           ) : isDateRequired(item.reportType) ? (
-                             <div className='flex items-center gap-1.5'>
-                               <span className='text-xs text-amber-600 dark:text-amber-400'>
-                                 {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
-                               </span>
-                               {item.reportType === 'payment_report' ? (
-                                 <div className='flex items-center gap-1.5'>
-                                   <SimpleDatePicker
-                                     value={parseDateInputValue(item.userReportStartDate || '')}
-                                     onChange={(date) => {
-                                       setQueueItems((prev) =>
-                                         prev.map((it) =>
-                                           it.localId === item.localId
-                                             ? { ...it, userReportStartDate: formatDateInputValue(date) }
-                                             : it,
-                                         ),
-                                       )
-                                     }}
-                                     className='h-6 w-[130px] text-xs'
-                                   />
-                                   <span className='text-xs text-muted-foreground'>→</span>
-                                   <SimpleDatePicker
-                                     value={parseDateInputValue(item.userReportEndDate || '')}
-                                     onChange={(date) => {
-                                       setQueueItems((prev) =>
-                                         prev.map((it) =>
-                                           it.localId === item.localId
-                                             ? { ...it, userReportEndDate: formatDateInputValue(date) }
-                                             : it,
-                                         ),
-                                       )
-                                     }}
-                                     className='h-6 w-[130px] text-xs'
-                                   />
-                                 </div>
-                               ) : (
-                                 <SimpleDatePicker
-                                   value={parseDateInputValue(item.userReportDate || '')}
-                                   onChange={(date) => {
-                                     setQueueItems((prev) =>
-                                       prev.map((it) =>
-                                         it.localId === item.localId
-                                           ? { ...it, userReportDate: formatDateInputValue(date) }
-                                           : it,
-                                       ),
-                                     )
-                                   }}
-                                   className='h-6 w-[130px] text-xs'
-                                 />
-                               )}
-                             </div>
-                           ) : null}
+                          {item.detectedDate || item.detectedStartDate || item.detectedEndDate ? (
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-xs text-muted-foreground">
+                                {item.reportType === 'payment_report' ? (
+                                  <>
+                                    日期范围：
+                                    <span className="font-mono">
+                                      {item.userReportStartDate || item.detectedStartDate || '—'} →{' '}
+                                      {item.userReportEndDate || item.detectedEndDate || '—'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const start =
+                                          item.userReportStartDate || item.detectedStartDate || ''
+                                        const end =
+                                          item.userReportEndDate || item.detectedEndDate || ''
+                                        setQueueItems((prev) =>
+                                          prev.map((it) =>
+                                            it.localId === item.localId
+                                              ? {
+                                                  ...it,
+                                                  userReportStartDate:
+                                                    it.userReportStartDate === null ? start : null,
+                                                  userReportEndDate:
+                                                    it.userReportEndDate === null ? end : null,
+                                                }
+                                              : it
+                                          )
+                                        )
+                                      }}
+                                      className="ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                                    >
+                                      {item.userReportStartDate ? '取消' : '编辑'}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    日期：{item.userReportDate || item.detectedDate}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setQueueItems((prev) =>
+                                          prev.map((it) =>
+                                            it.localId === item.localId
+                                              ? {
+                                                  ...it,
+                                                  userReportDate:
+                                                    it.userReportDate === null
+                                                      ? item.detectedDate || ''
+                                                      : null,
+                                                }
+                                              : it
+                                          )
+                                        )
+                                      }}
+                                      className="ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                                    >
+                                      {item.userReportDate ? '取消' : '编辑'}
+                                    </button>
+                                  </>
+                                )}
+                              </p>
+                              {item.reportType === 'payment_report' &&
+                              item.userReportStartDate !== null ? (
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] text-amber-600">起：</span>
+                                  <SimpleDatePicker
+                                    value={parseDateInputValue(item.userReportStartDate || '')}
+                                    onChange={(date) => {
+                                      setQueueItems((prev) =>
+                                        prev.map((it) =>
+                                          it.localId === item.localId
+                                            ? {
+                                                ...it,
+                                                userReportStartDate: formatDateInputValue(date),
+                                              }
+                                            : it
+                                        )
+                                      )
+                                    }}
+                                    className="h-6 w-[130px] text-xs"
+                                  />
+                                  <span className="text-[10px] text-amber-600">止：</span>
+                                  <SimpleDatePicker
+                                    value={parseDateInputValue(item.userReportEndDate || '')}
+                                    onChange={(date) => {
+                                      setQueueItems((prev) =>
+                                        prev.map((it) =>
+                                          it.localId === item.localId
+                                            ? {
+                                                ...it,
+                                                userReportEndDate: formatDateInputValue(date),
+                                              }
+                                            : it
+                                        )
+                                      )
+                                    }}
+                                    className="h-6 w-[130px] text-xs"
+                                  />
+                                </div>
+                              ) : item.userReportDate !== null &&
+                                item.reportType !== 'payment_report' ? (
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] text-amber-600">日期：</span>
+                                  <SimpleDatePicker
+                                    value={parseDateInputValue(item.userReportDate || '')}
+                                    onChange={(date) => {
+                                      setQueueItems((prev) =>
+                                        prev.map((it) =>
+                                          it.localId === item.localId
+                                            ? { ...it, userReportDate: formatDateInputValue(date) }
+                                            : it
+                                        )
+                                      )
+                                    }}
+                                    className="h-6 w-[130px] text-xs"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : isDateRequired(item.reportType) ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
+                              </span>
+                              {item.reportType === 'payment_report' ? (
+                                <div className="flex items-center gap-1.5">
+                                  <SimpleDatePicker
+                                    value={parseDateInputValue(item.userReportStartDate || '')}
+                                    onChange={(date) => {
+                                      setQueueItems((prev) =>
+                                        prev.map((it) =>
+                                          it.localId === item.localId
+                                            ? {
+                                                ...it,
+                                                userReportStartDate: formatDateInputValue(date),
+                                              }
+                                            : it
+                                        )
+                                      )
+                                    }}
+                                    className="h-6 w-[130px] text-xs"
+                                  />
+                                  <span className="text-xs text-muted-foreground">→</span>
+                                  <SimpleDatePicker
+                                    value={parseDateInputValue(item.userReportEndDate || '')}
+                                    onChange={(date) => {
+                                      setQueueItems((prev) =>
+                                        prev.map((it) =>
+                                          it.localId === item.localId
+                                            ? {
+                                                ...it,
+                                                userReportEndDate: formatDateInputValue(date),
+                                              }
+                                            : it
+                                        )
+                                      )
+                                    }}
+                                    className="h-6 w-[130px] text-xs"
+                                  />
+                                </div>
+                              ) : (
+                                <SimpleDatePicker
+                                  value={parseDateInputValue(item.userReportDate || '')}
+                                  onChange={(date) => {
+                                    setQueueItems((prev) =>
+                                      prev.map((it) =>
+                                        it.localId === item.localId
+                                          ? { ...it, userReportDate: formatDateInputValue(date) }
+                                          : it
+                                      )
+                                    )
+                                  }}
+                                  className="h-6 w-[130px] text-xs"
+                                />
+                              )}
+                            </div>
+                          ) : null}
                           {item.error ? (
-                            <p className='text-xs text-rose-600 dark:text-rose-300'>
-                              {item.error}
-                            </p>
+                            <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p>
                           ) : null}
                           {item.commitError ? (
-                            <p className='text-xs text-rose-600 dark:text-rose-300'>
+                            <p className="text-xs text-rose-600 dark:text-rose-300">
                               {item.commitError}
                             </p>
                           ) : null}
                         </>
                       ) : null}
                     </div>
-                    <div className='flex items-center gap-1.5'>
+                    <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (
-                        <Loader2 className='h-4 w-4 animate-spin text-sky-600 dark:text-sky-300' />
+                        <Loader2 className="h-4 w-4 animate-spin text-sky-600 dark:text-sky-300" />
                       ) : null}
                       {item.fileCommitStatus === 'success' ? (
-                        <CheckCircle2 className='h-4 w-4 text-emerald-600 dark:text-emerald-300' />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
-                        <CircleX className='h-4 w-4 text-rose-600 dark:text-rose-300' />
+                        <CircleX className="h-4 w-4 text-rose-600 dark:text-rose-300" />
                       ) : null}
                       <Button
-                        variant='ghost'
-                        size='icon'
+                        variant="ghost"
+                        size="icon"
                         onClick={() => removeItem(item.localId)}
-                        className='h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300'
+                        className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 dark:hover:bg-rose-400/10 dark:hover:text-rose-300"
                       >
-                        <CircleX className='h-4 w-4' />
-                        <span className='sr-only'>移除</span>
+                        <CircleX className="h-4 w-4" />
+                        <span className="sr-only">移除</span>
                       </Button>
                     </div>
                   </div>
@@ -1193,38 +1236,38 @@ export default function AutoUploadPage() {
   const [country, setCountry] = useState('US')
 
   return (
-    <div className='flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden'>
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden">
       {/* Tab switcher */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}>
         <TabsList>
-          <TabsTrigger value='upload'>文件上传</TabsTrigger>
-          <TabsTrigger value='status'>RPA 状态</TabsTrigger>
+          <TabsTrigger value="upload">文件上传</TabsTrigger>
+          <TabsTrigger value="status">RPA 状态</TabsTrigger>
         </TabsList>
 
         {/* Tab content */}
-        <TabsContent value='upload' className='mt-4'>
+        <TabsContent value="upload" className="mt-4">
           <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)}>
             <TabsList>
-              <TabsTrigger value='report-upload'>通用报表</TabsTrigger>
-              <TabsTrigger value='ad-upload'>广告报表</TabsTrigger>
+              <TabsTrigger value="report-upload">通用报表</TabsTrigger>
+              <TabsTrigger value="ad-upload">广告报表</TabsTrigger>
             </TabsList>
-            <TabsContent value='report-upload' className='mt-4'>
+            <TabsContent value="report-upload" className="mt-4">
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
-                endpoint='report-upload'
+                endpoint="report-upload"
               />
             </TabsContent>
-            <TabsContent value='ad-upload' className='mt-4'>
+            <TabsContent value="ad-upload" className="mt-4">
               <AutoUploadContent
                 country={country as ReportUploadCountry}
                 onCountryChange={setCountry}
-                endpoint='ad-upload'
+                endpoint="ad-upload"
               />
             </TabsContent>
           </Tabs>
         </TabsContent>
-        <TabsContent value='status' className='mt-4'>
+        <TabsContent value="status" className="mt-4">
           <RpaStatusGrid country={country} onCountryChange={setCountry} />
         </TabsContent>
       </Tabs>

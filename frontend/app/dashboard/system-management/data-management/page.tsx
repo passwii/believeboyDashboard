@@ -7,9 +7,21 @@ import { useSession } from 'next-auth/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader, DataTableCardStatBar } from '@/components/ui/data-card'
+import {
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+  DataTableCardStatBar,
+} from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
@@ -109,14 +121,22 @@ function statusLabel(status: DataLifecycleStatus): string {
 }
 
 function tableStatusTone(status: TableHealthStatus): string {
-  if (status === 'healthy') return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-  if (status === 'empty') return 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
-  if (status === 'stale') return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+  if (status === 'healthy')
+    return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+  if (status === 'empty')
+    return 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
+  if (status === 'stale')
+    return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
   return 'bg-destructive/10 text-destructive border-destructive/30'
 }
 
 function hasSummary(value: unknown): value is { summary: DataManagementOverview['summary'] } {
-  return !!value && typeof value === 'object' && 'summary' in value && !!(value as { summary?: unknown }).summary
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'summary' in value &&
+    !!(value as { summary?: unknown }).summary
+  )
 }
 
 export default function SystemDataManagementPage() {
@@ -160,10 +180,13 @@ export default function SystemDataManagementPage() {
     setDetailsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/system-management/data-management/overview`, {
-        headers: buildBackendClientHeaders(session),
-        cache: 'no-store',
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/data-management/overview`,
+        {
+          headers: buildBackendClientHeaders(session),
+          cache: 'no-store',
+        }
+      )
       if (!response.ok) {
         throw new Error(await parseError(response))
       }
@@ -200,7 +223,7 @@ export default function SystemDataManagementPage() {
   }, [loadOverview, loadStatus])
 
   const onClearCache = useCallback(async () => {
-    if (!await confirm({ title: '确定要清理所有 Redis 缓存吗？', variant: 'destructive' })) return
+    if (!(await confirm({ title: '确定要清理所有 Redis 缓存吗？', variant: 'destructive' }))) return
 
     setClearingCache(true)
 
@@ -216,7 +239,10 @@ export default function SystemDataManagementPage() {
       notify({ type: 'success', title: payload.message })
       await refreshAll()
     } catch (clearErr) {
-      notify({ type: 'error', title: clearErr instanceof Error ? clearErr.message : '缓存清理失败' })
+      notify({
+        type: 'error',
+        title: clearErr instanceof Error ? clearErr.message : '缓存清理失败',
+      })
     } finally {
       setClearingCache(false)
     }
@@ -267,19 +293,40 @@ export default function SystemDataManagementPage() {
       <DataCard>
         <DataCardHeader
           badge={
-            <Badge variant="outline" className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+            <Badge
+              variant="outline"
+              className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+            >
               系统管理
             </Badge>
           }
           description="实时查看数据库状态、表状态、数据状态与最近系统状态。"
           action={
             <>
-              <Button type="button" variant="outline" onClick={() => void refreshAll()} disabled={loading || detailsLoading || clearingCache}>
-                {loading || detailsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void refreshAll()}
+                disabled={loading || detailsLoading || clearingCache}
+              >
+                {loading || detailsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
                 {loading || detailsLoading ? '刷新中...' : '刷新状态'}
               </Button>
-              <Button type="button" variant="outline" onClick={() => void onClearCache()} disabled={loading || detailsLoading || clearingCache}>
-                {clearingCache ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onClearCache()}
+                disabled={loading || detailsLoading || clearingCache}
+              >
+                {clearingCache ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
                 {clearingCache ? '清理中...' : '清理缓存'}
               </Button>
             </>
@@ -289,12 +336,11 @@ export default function SystemDataManagementPage() {
           items={summaryCards.map((card) => ({
             label: card.title,
             value: card.value,
-            highlight: card.key === 'status' || (card.key === 'db' && (overview ?? statusOverview)?.database.healthy),
+            highlight:
+              card.key === 'status' ||
+              (card.key === 'db' && (overview ?? statusOverview)?.database.healthy),
           }))}
-          className={cn(
-            "border-t border-border/70",
-            detailsLoading && "opacity-60"
-          )}
+          className={cn('border-t border-border/70', detailsLoading && 'opacity-60')}
         />
       </DataCard>
 
@@ -302,7 +348,9 @@ export default function SystemDataManagementPage() {
         <DataTableCardHeader>
           <div className="flex flex-col gap-1">
             <h2 className="text-base font-semibold text-foreground">数据表状态</h2>
-            <p className="text-sm text-muted-foreground">检查各表数据规模、最近更新时间和健康状态。</p>
+            <p className="text-sm text-muted-foreground">
+              检查各表数据规模、最近更新时间和健康状态。
+            </p>
           </div>
         </DataTableCardHeader>
         <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
@@ -320,7 +368,9 @@ export default function SystemDataManagementPage() {
               {!overview || overview.tables.length === 0 ? (
                 detailsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      加载中...
+                    </TableCell>
                   </TableRow>
                 ) : (
                   <EmptyTableState colSpan={5} message="暂无表状态数据" />
@@ -330,10 +380,17 @@ export default function SystemDataManagementPage() {
                   <TableRow key={item.table_name}>
                     <TableCell className="font-medium">{item.table_name}</TableCell>
                     <TableCell>{item.table_name_cn ?? '-'}</TableCell>
-                    <TableCell>{item.row_count == null ? '-' : formatNumber(item.row_count)}</TableCell>
+                    <TableCell>
+                      {item.row_count == null ? '-' : formatNumber(item.row_count)}
+                    </TableCell>
                     <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
                     <TableCell>
-                      <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs', tableStatusTone(item.status))}>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2 py-0.5 text-xs',
+                          tableStatusTone(item.status)
+                        )}
+                      >
                         {item.status}
                       </span>
                     </TableCell>
@@ -346,7 +403,8 @@ export default function SystemDataManagementPage() {
       </DataTableCard>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：{formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
+        数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：
+        {formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
       </p>
     </div>
   )

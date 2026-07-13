@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         }),
         body: JSON.stringify(body),
         cache: 'no-store',
-      },
+      }
     )
     if (!upstream.ok) {
       const text = await upstream.text()
@@ -42,7 +42,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
     return NextResponse.json(await upstream.json())
   } catch (err) {
-    return NextResponse.json({ message: normalizeErrorMessage(err, '编辑消息失败') }, { status: 500 })
+    return NextResponse.json(
+      { message: normalizeErrorMessage(err, '编辑消息失败') },
+      { status: 500 }
+    )
   }
 }
 
@@ -63,7 +66,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
         method: 'DELETE',
         headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
         cache: 'no-store',
-      },
+      }
     )
     if (!upstream.ok) {
       const text = await upstream.text()
@@ -71,6 +74,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     }
     return new NextResponse(null, { status: 204 })
   } catch (err) {
-    return NextResponse.json({ message: normalizeErrorMessage(err, '删除消息失败') }, { status: 500 })
+    return NextResponse.json(
+      { message: normalizeErrorMessage(err, '删除消息失败') },
+      { status: 500 }
+    )
   }
 }

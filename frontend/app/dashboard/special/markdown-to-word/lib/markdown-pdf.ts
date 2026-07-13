@@ -54,7 +54,7 @@ function drawInline(
   x: number,
   y: number,
   maxWidth: number,
-  fontSize: number,
+  fontSize: number
 ): number {
   let cursorX = x
   let cursorY = y
@@ -119,7 +119,9 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
   pdf.setTitle('Markdown 转 PDF')
   pdf.setCreator('BelieveBoy Dashboard')
 
-  const fontBytes = await fetch('/fonts/NotoSansSC-Regular.otf').then((response) => response.arrayBuffer())
+  const fontBytes = await fetch('/fonts/NotoSansSC-Regular.otf').then((response) =>
+    response.arrayBuffer()
+  )
   const font = await pdf.embedFont(fontBytes, { subset: false })
 
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT_REFERENCE])
@@ -156,7 +158,7 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
           MARGIN_X + prefixWidth + 4,
           ctx.y,
           CONTENT_WIDTH - prefixWidth - 4,
-          12,
+          12
         )
         ctx.y -= 2
       })
@@ -165,7 +167,9 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
       const padding = 8
       const codeLines = block.text.split('\n')
       // 代码块也使用主字体渲染以支持中文（中文代码/注释是常见场景）
-      const maxLineWidth = Math.max(...codeLines.map((line) => ctx.font.widthOfTextAtSize(line, 11)))
+      const maxLineWidth = Math.max(
+        ...codeLines.map((line) => ctx.font.widthOfTextAtSize(line, 11))
+      )
       const boxWidth = Math.min(CONTENT_WIDTH, maxLineWidth + padding * 2)
       const boxHeight = codeLines.length * 11 * LINE_HEIGHT_RATIO + padding * 2
 
@@ -201,7 +205,7 @@ export async function markdownToPdfBytes(markdown: string): Promise<Uint8Array> 
         MARGIN_X + barWidth + padding,
         ctx.y,
         CONTENT_WIDTH - barWidth - padding,
-        12,
+        12
       )
       ctx.page.drawRectangle({
         x: MARGIN_X,

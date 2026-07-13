@@ -10,15 +10,27 @@ import type { DateRange } from 'react-day-picker'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, STICKY_LEFT_HEAD_CELL, STICKY_LEFT_CELL_HOVER, STICKY_TOP_ROW } from '@/components/ui/table'
 import {
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-} from '@/components/ui/data-card'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  STICKY_LEFT_HEAD_CELL,
+  STICKY_LEFT_CELL_HOVER,
+  STICKY_TOP_ROW,
+} from '@/components/ui/table'
+import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
@@ -189,7 +201,7 @@ export default function SeasonalReplenishmentPage() {
   }, [country])
   const defaultFromDate = useMemo(() => {
     const d = new Date(todayInTz)
-    d.setDate(d.getDate() - 89)  // 90 天窗口，左端 = today - 89
+    d.setDate(d.getDate() - 89) // 90 天窗口，左端 = today - 89
     return d
   }, [todayInTz])
 
@@ -262,9 +274,9 @@ export default function SeasonalReplenishmentPage() {
           base_dms: 0,
           weighted_dms: 0,
           estimated_replenishment_quantity: 0,
-        },
+        }
       ),
-    [rows],
+    [rows]
   )
 
   useEffect(() => {
@@ -286,7 +298,11 @@ export default function SeasonalReplenishmentPage() {
         }
       } catch (loadError) {
         if (!active) return
-        notify({ type: 'error', title: '项目列表加载失败', message: loadError instanceof Error ? loadError.message : '项目列表加载失败' })
+        notify({
+          type: 'error',
+          title: '项目列表加载失败',
+          message: loadError instanceof Error ? loadError.message : '项目列表加载失败',
+        })
       } finally {
         if (active) setProjectsLoading(false)
       }
@@ -332,7 +348,11 @@ export default function SeasonalReplenishmentPage() {
         if (!active) return
         setRows([])
         setSummary(EMPTY_SUMMARY)
-        notify({ type: 'error', title: '分析数据加载失败', message: loadError instanceof Error ? loadError.message : '分析数据加载失败' })
+        notify({
+          type: 'error',
+          title: '分析数据加载失败',
+          message: loadError instanceof Error ? loadError.message : '分析数据加载失败',
+        })
       } finally {
         if (active) setLoading(false)
       }
@@ -341,7 +361,16 @@ export default function SeasonalReplenishmentPage() {
     return () => {
       active = false
     }
-  }, [notify, country, currentProjectId, fromDate, toDate, compareYearOffset, deferredKeyword, refreshNonce])
+  }, [
+    notify,
+    country,
+    currentProjectId,
+    fromDate,
+    toDate,
+    compareYearOffset,
+    deferredKeyword,
+    refreshNonce,
+  ])
   async function exportToExcel() {
     if (rows.length === 0) {
       notify({ type: 'error', title: '当前没有可导出的季节性补货数据' })
@@ -385,7 +414,8 @@ export default function SeasonalReplenishmentPage() {
       ]
       const columns = [...baseColumns, ...(compareYear ? yoyColumns : []), ...tailColumns]
 
-      const selectedProjectName = projects.find((p) => String(p.id) === projectId)?.name ?? '全部项目'
+      const selectedProjectName =
+        projects.find((p) => String(p.id) === projectId)?.name ?? '全部项目'
 
       worksheet.columns = columns.map((c) => ({ key: c.key, width: c.width }))
       const headerRow = worksheet.getRow(1)
@@ -426,30 +456,36 @@ export default function SeasonalReplenishmentPage() {
           row.sellable_days,
           row.sellout_date || '-',
           row.sellout_date_with_transit || '-',
-          row.estimated_replenishment_quantity,
+          row.estimated_replenishment_quantity
         )
         sheetRow.values = values
 
         for (let col = 1; col <= columns.length; col++) {
           const cell = sheetRow.getCell(col)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-          const isNumeric = (
-            col === 3 || col === 4
-            || (col >= 5 && col <= 8)
-            || (compareYear && col >= yoyStart && col <= yoyEnd)
-            || col === baseDmsCol || col === wDmsCol || col === sDaysCol
-            || col === estQtyCol
-          )
+          const isNumeric =
+            col === 3 ||
+            col === 4 ||
+            (col >= 5 && col <= 8) ||
+            (compareYear && col >= yoyStart && col <= yoyEnd) ||
+            col === baseDmsCol ||
+            col === wDmsCol ||
+            col === sDaysCol ||
+            col === estQtyCol
           cell.alignment = {
             vertical: 'middle',
-            horizontal: col === 2 ? 'left' : (isNumeric ? 'right' : 'left'),
+            horizontal: col === 2 ? 'left' : isNumeric ? 'right' : 'left',
             wrapText: col !== 2,
           }
           if (col === 2 && row.product_name && row.product_name !== '-') {
             cell.note = row.product_name
           }
           if (col === 3 || col === 4) cell.numFmt = '#,##0'
-          if ((col >= 5 && col <= 8) || (compareYear && col >= yoyStart && col <= yoyEnd) || col === baseDmsCol) {
+          if (
+            (col >= 5 && col <= 8) ||
+            (compareYear && col >= yoyStart && col <= yoyEnd) ||
+            col === baseDmsCol
+          ) {
             cell.numFmt = '0.0000'
           }
           if (col === wDmsCol || col === sDaysCol) cell.numFmt = '0.00'
@@ -526,7 +562,11 @@ export default function SeasonalReplenishmentPage() {
         },
       })
     } catch (exportError) {
-      notify({ type: 'error', title: '导出 Excel 失败', message: exportError instanceof Error ? exportError.message : '导出 Excel 失败' })
+      notify({
+        type: 'error',
+        title: '导出 Excel 失败',
+        message: exportError instanceof Error ? exportError.message : '导出 Excel 失败',
+      })
     } finally {
       setExporting(false)
     }
@@ -537,20 +577,30 @@ export default function SeasonalReplenishmentPage() {
     { label: '总店铺库存', value: formatInt(summary.total_available_inventory), highlight: false },
     { label: '总在途库存', value: formatInt(summary.total_in_transit_quantity), highlight: false },
     { label: '有销量 SKU', value: formatInt(summary.healthy_count), highlight: false },
-    { label: '待补数据', value: formatInt(summary.pending_data_count), highlight: summary.pending_data_count > 0 },
+    {
+      label: '待补数据',
+      value: formatInt(summary.pending_data_count),
+      highlight: summary.pending_data_count > 0,
+    },
   ]
 
-  const dateRangeValid = Boolean(fromDate && toDate && (toDate.getTime() >= fromDate.getTime()))
-  const daysSpan = fromDate && toDate ? Math.floor((toDate.getTime() - fromDate.getTime()) / 86400000) + 1 : 0
+  const dateRangeValid = Boolean(fromDate && toDate && toDate.getTime() >= fromDate.getTime())
+  const daysSpan =
+    fromDate && toDate ? Math.floor((toDate.getTime() - fromDate.getTime()) / 86400000) + 1 : 0
 
   return (
     <div className="w-full space-y-6">
       <div className="dashboard-surface">
         <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">季节性补货控制台</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              季节性补货控制台
+            </p>
             <h2 className="text-base font-semibold text-foreground leading-none">季节性补货分析</h2>
-            <Badge variant="outline" className="ml-2 border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300">
+            <Badge
+              variant="outline"
+              className="ml-2 border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300"
+            >
               权重 90D×40% + 30D×30% + 14D×20% + 7D×10%
             </Badge>
           </div>
@@ -581,7 +631,9 @@ export default function SeasonalReplenishmentPage() {
         <div className="px-4 py-3">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-3">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">项目</label>
+              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                项目
+              </label>
               <div className="mt-1">
                 {projectsLoading ? (
                   <Skeleton className="h-9 w-full rounded-lg" />
@@ -602,21 +654,29 @@ export default function SeasonalReplenishmentPage() {
               </div>
             </div>
             <div className="lg:col-span-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">国家</label>
+              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                国家
+              </label>
               <div className="mt-1">
                 <CountrySelect
                   value={country}
-                  onChange={(c) => { setCountry(c as 'US' | 'DE' | 'UK' | 'ALL') }}
+                  onChange={(c) => {
+                    setCountry(c as 'US' | 'DE' | 'UK' | 'ALL')
+                  }}
                   triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
                 />
               </div>
             </div>
             <div className="lg:col-span-4">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">历史窗口 [from, to]</label>
+              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                历史窗口 [from, to]
+              </label>
               <div className="mt-1">
                 <DateRangePicker
                   value={dateRange}
-                  onChange={(range) => { setDateRange(range) }}
+                  onChange={(range) => {
+                    setDateRange(range)
+                  }}
                   className="h-9 w-full"
                   timezone={COUNTRY_TIMEZONE_MAP[country]}
                 />
@@ -628,7 +688,9 @@ export default function SeasonalReplenishmentPage() {
               </div>
             </div>
             <div className="lg:col-span-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">搜索 SKU / ASIN</label>
+              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                搜索 SKU / ASIN
+              </label>
               <div className="mt-1">
                 <Input
                   value={keyword}
@@ -639,14 +701,15 @@ export default function SeasonalReplenishmentPage() {
               </div>
             </div>
             <div className="lg:col-span-1">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">同比开关</label>
+              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                同比开关
+              </label>
               <div className="mt-2 flex items-center gap-2 h-9">
-                <Switch
-                  checked={compareYear}
-                  onCheckedChange={setCompareYear}
-                  id="compare-yoy"
-                />
-                <label htmlFor="compare-yoy" className="text-xs text-muted-foreground cursor-pointer">
+                <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
+                <label
+                  htmlFor="compare-yoy"
+                  className="text-xs text-muted-foreground cursor-pointer"
+                >
                   去年
                 </label>
               </div>
@@ -669,14 +732,18 @@ export default function SeasonalReplenishmentPage() {
                   className={cn(
                     'flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 lg:flex-1 lg:rounded-none lg:border-0',
                     i === 0 && 'lg:pl-4',
-                    i === statBarItems.length - 1 && 'lg:pr-4',
+                    i === statBarItems.length - 1 && 'lg:pr-4'
                   )}
                 >
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">{item.label}</div>
-                  <div className={cn(
-                    'mt-0.5 text-xl font-semibold leading-tight',
-                    item.highlight ? 'text-rose-600 dark:text-rose-300' : 'text-foreground',
-                  )}>
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                    {item.label}
+                  </div>
+                  <div
+                    className={cn(
+                      'mt-0.5 text-xl font-semibold leading-tight',
+                      item.highlight ? 'text-rose-600 dark:text-rose-300' : 'text-foreground'
+                    )}
+                  >
                     {item.value}
                   </div>
                 </div>
@@ -695,9 +762,13 @@ export default function SeasonalReplenishmentPage() {
         </div>
 
         {!currentProjectId && !projectsLoading ? (
-          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">请先选择项目。</div>
+          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            请先选择项目。
+          </div>
         ) : !fromDate || !toDate ? (
-          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">请选择历史日期范围。</div>
+          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            请选择历史日期范围。
+          </div>
         ) : loading && rows.length === 0 ? (
           <div className="dashboard-surface space-y-3 p-6">
             <Skeleton className="h-10 w-full" />
@@ -705,7 +776,9 @@ export default function SeasonalReplenishmentPage() {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">当前筛选条件下没有可分析的 SKU。</div>
+          <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+            当前筛选条件下没有可分析的 SKU。
+          </div>
         ) : (
           <>
             <div className="hidden md:block">
@@ -713,7 +786,8 @@ export default function SeasonalReplenishmentPage() {
                 <DataTableCardHeader className="px-4 py-3">
                   <div className="space-y-1">
                     <h3 className="text-base font-semibold text-foreground">
-                      {fromDate ? formatIsoDate(fromDate) : ''} ~ {toDate ? formatIsoDate(toDate) : ''} · {rows.length} 个 SKU
+                      {fromDate ? formatIsoDate(fromDate) : ''} ~{' '}
+                      {toDate ? formatIsoDate(toDate) : ''} · {rows.length} 个 SKU
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       主窗口右端 = to_date，4 个窗口向左回溯；权重 90D×40 + 30D×30 + 14D×20 + 7D×10
@@ -731,93 +805,252 @@ export default function SeasonalReplenishmentPage() {
                       containerClassName="max-h-[72vh] overflow-auto border-t border-border/70 bg-transparent dark:border-border/85 rounded-none"
                       className={cn(
                         'min-w-[1600px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]',
-                        compareYear && 'min-w-[2100px]',
+                        compareYear && 'min-w-[2100px]'
                       )}
                     >
                       <TableHeader>
                         <TableRow className="bg-transparent">
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}>SKU</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[200px]`}>产品名称</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>店铺库存</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>在途</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>90D</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>30D</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>14D</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}>7D</TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}
+                          >
+                            SKU
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[200px]`}
+                          >
+                            产品名称
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                          >
+                            店铺库存
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                          >
+                            在途
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                          >
+                            90D
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                          >
+                            30D
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                          >
+                            14D
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                          >
+                            7D
+                          </TableHead>
                           {compareYear && (
                             <>
-                              <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>90D 同比</TableHead>
-                              <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>30D 同比</TableHead>
-                              <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>14D 同比</TableHead>
-                              <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}>7D 同比</TableHead>
+                              <TableHead
+                                className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              >
+                                90D 同比
+                              </TableHead>
+                              <TableHead
+                                className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              >
+                                30D 同比
+                              </TableHead>
+                              <TableHead
+                                className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              >
+                                14D 同比
+                              </TableHead>
+                              <TableHead
+                                className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              >
+                                7D 同比
+                              </TableHead>
                             </>
                           )}
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}>DMS</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>加权DMS</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}>可售天数</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>售卖截止</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}>含在途截止</TableHead>
-                          <TableHead className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px] text-right`}>预计数量</TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                          >
+                            DMS
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                          >
+                            加权DMS
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                          >
+                            可售天数
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                          >
+                            售卖截止
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                          >
+                            含在途截止
+                          </TableHead>
+                          <TableHead
+                            className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px] text-right`}
+                          >
+                            预计数量
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rows.map((row) => (
-                          <TableRow key={rowKey(row)} className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20">
-                            <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}>{row.sku}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 font-medium text-foreground">{row.product_name || '--'}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.available_inventory)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(row.in_transit_quantity)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_90)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_30)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_14)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.dms_7)}</TableCell>
+                          <TableRow
+                            key={rowKey(row)}
+                            className="group align-top odd:bg-[hsl(var(--surface-panel))] even:bg-[hsl(var(--surface-overlay))] hover:bg-sky-50/80 dark:odd:bg-[hsl(var(--surface-panel))] dark:even:bg-[hsl(var(--surface-overlay))] dark:hover:bg-sky-950/20"
+                          >
+                            <TableCell
+                              className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
+                            >
+                              {row.sku}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 font-medium text-foreground">
+                              {row.product_name || '--'}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatInt(row.available_inventory)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatInt(row.in_transit_quantity)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatNumber(row.dms_90)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatNumber(row.dms_30)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatNumber(row.dms_14)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatNumber(row.dms_7)}
+                            </TableCell>
                             {compareYear && (
                               <>
-                                <TableCell className={cn('whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right', yoyDeltaClass(row.dms_90, row.dms_90_yoy))}>
-                                  {formatNumber(row.dms_90_yoy)}<YoySymbol current={row.dms_90} yoy={row.dms_90_yoy} />
+                                <TableCell
+                                  className={cn(
+                                    'whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right',
+                                    yoyDeltaClass(row.dms_90, row.dms_90_yoy)
+                                  )}
+                                >
+                                  {formatNumber(row.dms_90_yoy)}
+                                  <YoySymbol current={row.dms_90} yoy={row.dms_90_yoy} />
                                 </TableCell>
-                                <TableCell className={cn('whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right', yoyDeltaClass(row.dms_30, row.dms_30_yoy))}>
-                                  {formatNumber(row.dms_30_yoy)}<YoySymbol current={row.dms_30} yoy={row.dms_30_yoy} />
+                                <TableCell
+                                  className={cn(
+                                    'whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right',
+                                    yoyDeltaClass(row.dms_30, row.dms_30_yoy)
+                                  )}
+                                >
+                                  {formatNumber(row.dms_30_yoy)}
+                                  <YoySymbol current={row.dms_30} yoy={row.dms_30_yoy} />
                                 </TableCell>
-                                <TableCell className={cn('whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right', yoyDeltaClass(row.dms_14, row.dms_14_yoy))}>
-                                  {formatNumber(row.dms_14_yoy)}<YoySymbol current={row.dms_14} yoy={row.dms_14_yoy} />
+                                <TableCell
+                                  className={cn(
+                                    'whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right',
+                                    yoyDeltaClass(row.dms_14, row.dms_14_yoy)
+                                  )}
+                                >
+                                  {formatNumber(row.dms_14_yoy)}
+                                  <YoySymbol current={row.dms_14} yoy={row.dms_14_yoy} />
                                 </TableCell>
-                                <TableCell className={cn('whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right', yoyDeltaClass(row.dms_7, row.dms_7_yoy))}>
-                                  {formatNumber(row.dms_7_yoy)}<YoySymbol current={row.dms_7} yoy={row.dms_7_yoy} />
+                                <TableCell
+                                  className={cn(
+                                    'whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] last:border-r-0 dark:border-border/80 text-right',
+                                    yoyDeltaClass(row.dms_7, row.dms_7_yoy)
+                                  )}
+                                >
+                                  {formatNumber(row.dms_7_yoy)}
+                                  <YoySymbol current={row.dms_7} yoy={row.dms_7_yoy} />
                                 </TableCell>
                               </>
                             )}
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">{formatNumber(row.base_dms)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">{formatNumber(row.weighted_dms)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(row.sellable_days)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.sellout_date)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{formatDate(row.sellout_date_with_transit)}</TableCell>
-                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">{formatInt(row.estimated_replenishment_quantity)}</TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                              {formatNumber(row.base_dms)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                              {formatNumber(row.weighted_dms)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                              {formatNumber(row.sellable_days)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                              {formatDate(row.sellout_date)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                              {formatDate(row.sellout_date_with_transit)}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right font-medium text-foreground">
+                              {formatInt(row.estimated_replenishment_quantity)}
+                            </TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-muted/40 font-semibold">
-                          <TableCell className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}>合计</TableCell>
+                          <TableCell
+                            className={`whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 ${STICKY_LEFT_CELL_HOVER}`}
+                          >
+                            合计
+                          </TableCell>
                           <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.available_inventory)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.in_transit_quantity)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_90, 4)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_30, 4)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_14, 4)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_7, 4)}</TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatInt(tableTotals.available_inventory)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatInt(tableTotals.in_transit_quantity)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.dms_90, 4)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.dms_30, 4)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.dms_14, 4)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.dms_7, 4)}
+                          </TableCell>
                           {compareYear && (
                             <>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_90_yoy, 4)}</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_30_yoy, 4)}</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_14_yoy, 4)}</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.dms_7_yoy, 4)}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                {formatNumber(tableTotals.dms_90_yoy, 4)}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                {formatNumber(tableTotals.dms_30_yoy, 4)}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                {formatNumber(tableTotals.dms_14_yoy, 4)}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                                {formatNumber(tableTotals.dms_7_yoy, 4)}
+                              </TableCell>
                             </>
                           )}
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.base_dms, 4)}</TableCell>
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatNumber(tableTotals.weighted_dms)}</TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.base_dms, 4)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatNumber(tableTotals.weighted_dms)}
+                          </TableCell>
                           <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
                           <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
                           <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
-                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">{formatInt(tableTotals.estimated_replenishment_quantity)}</TableCell>
+                          <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
+                            {formatInt(tableTotals.estimated_replenishment_quantity)}
+                          </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -829,32 +1062,46 @@ export default function SeasonalReplenishmentPage() {
             {/* 手机端：卡片列表 */}
             <div className="md:hidden space-y-3">
               {loading && rows.length > 0 ? (
-                <div className="text-center text-xs text-muted-foreground py-2">季节性补货主表更新中...</div>
+                <div className="text-center text-xs text-muted-foreground py-2">
+                  季节性补货主表更新中...
+                </div>
               ) : null}
               {rows.map((row) => (
                 <div key={rowKey(row)} className="dashboard-surface p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-sm text-foreground truncate">{row.sku}</span>
+                    <span className="font-semibold text-sm text-foreground truncate">
+                      {row.sku}
+                    </span>
                   </div>
                   {row.product_name && (
-                    <div className="text-xs text-muted-foreground">产品名称: {row.product_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      产品名称: {row.product_name}
+                    </div>
                   )}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
                       <span className="text-xs text-muted-foreground">店铺库存</span>
-                      <div className="font-medium text-foreground">{formatInt(row.available_inventory)}</div>
+                      <div className="font-medium text-foreground">
+                        {formatInt(row.available_inventory)}
+                      </div>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">在途</span>
-                      <div className="font-medium text-foreground">{formatInt(row.in_transit_quantity)}</div>
+                      <div className="font-medium text-foreground">
+                        {formatInt(row.in_transit_quantity)}
+                      </div>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">加权 DMS</span>
-                      <div className="font-medium text-foreground">{formatNumber(row.weighted_dms)}</div>
+                      <div className="font-medium text-foreground">
+                        {formatNumber(row.weighted_dms)}
+                      </div>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">可售天数</span>
-                      <div className="font-medium text-foreground">{formatNumber(row.sellable_days)}</div>
+                      <div className="font-medium text-foreground">
+                        {formatNumber(row.sellable_days)}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -863,7 +1110,9 @@ export default function SeasonalReplenishmentPage() {
                   </div>
                   <div className="text-sm">
                     <span className="text-xs text-muted-foreground">预计补货数量: </span>
-                    <span className="font-medium text-foreground">{formatInt(row.estimated_replenishment_quantity)}</span>
+                    <span className="font-medium text-foreground">
+                      {formatInt(row.estimated_replenishment_quantity)}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -877,24 +1126,33 @@ export default function SeasonalReplenishmentPage() {
           <div className="text-sm font-semibold text-foreground">口径说明</div>
           <div className="grid gap-2">
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">日期范围</span>
-              选定的 <code>[from, to]</code> 是历史回看窗口。主窗口右端 = <code>to_date</code>，
-              4 个 DMS 分别向前回溯 90/30/14/7 天（双闭区间）。默认 <code>[today-89, today]</code>。
+              <span className="mr-2 inline-flex rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+                日期范围
+              </span>
+              选定的 <code>[from, to]</code> 是历史回看窗口。主窗口右端 = <code>to_date</code>， 4
+              个 DMS 分别向前回溯 90/30/14/7 天（双闭区间）。默认 <code>[today-89, today]</code>。
             </div>
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">权重</span>
+              <span className="mr-2 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                权重
+              </span>
               加权 DMS = <code>90D×40% + 30D×30% + 14D×20% + 7D×10%</code>，长周期高权重
               （季节性商品应看 90D 趋势而非近期噪音）。任一窗口缺失则按「可用窗口」重新归一化权重。
             </div>
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">同比口径</span>
-              开启「去年」开关后，额外算去年同期窗口（右端 = <code>to_date - 365</code>，长度同上）。
-              单元格颜色：当前 &lt; 去年 → 红（下滑预警），当前 &gt; 去年 → 绿（爬坡预警）。
+              <span className="mr-2 inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                同比口径
+              </span>
+              开启「去年」开关后，额外算去年同期窗口（右端 = <code>to_date - 365</code>
+              ，长度同上）。 单元格颜色：当前 &lt; 去年 → 红（下滑预警），当前 &gt; 去年 →
+              绿（爬坡预警）。
             </div>
             <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-panel))]/90 px-3 py-2.5 leading-6 dark:border-border/80 dark:bg-[hsl(var(--surface-overlay))]/90">
-              <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">风险状态</span>
-              季节性页面<b>不判定</b>风险状态（<code>健康/断货/滞销</code> 等标签不显示），
-              因为 today 之外的 to_date 会让「可售天数 - today」判定失效。请基于
+              <span className="mr-2 inline-flex rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                风险状态
+              </span>
+              季节性页面<b>不判定</b>风险状态（<code>健康/断货/滞销</code> 等标签不显示）， 因为
+              today 之外的 to_date 会让「可售天数 - today」判定失效。请基于
               <code>售卖截止 / 含在途截止 / 预计补货数量</code> 自行决策。
             </div>
           </div>

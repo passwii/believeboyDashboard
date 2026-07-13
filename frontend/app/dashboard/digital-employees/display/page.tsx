@@ -50,12 +50,7 @@ export default function DisplayPage() {
             <Activity className="h-4 w-4" />
             {showFeed ? '隐藏动态' : '显示动态'}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void mutate()}
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={() => void mutate()} className="gap-1.5">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
@@ -133,9 +128,7 @@ function DarkStatBox({
     <div
       className={cn(
         'rounded-xl border p-4 text-center',
-        highlight
-          ? 'border-blue-500/20 bg-blue-500/10'
-          : 'border-slate-800 bg-slate-900/30',
+        highlight ? 'border-blue-500/20 bg-blue-500/10' : 'border-slate-800 bg-slate-900/30'
       )}
     >
       <div className="flex items-center justify-center gap-2">

@@ -113,8 +113,7 @@ const RELEASES: ReleaseVersion[] = [
     status: 'archived',
     startDate: '2026-03-01',
     endDate: '2026-03-07',
-    summary:
-      '围绕经营核算与数据治理升级，逐步补齐汇率、佣金、类目研究、周度分析与系统管理主链路。',
+    summary: '围绕经营核算与数据治理升级，逐步补齐汇率、佣金、类目研究、周度分析与系统管理主链路。',
     focus: ['汇率管理', '佣金管理', '类目研究', '周度产品分析', '系统管理增强'],
     highlights: [
       {
@@ -155,14 +154,14 @@ const RELEASES: ReleaseVersion[] = [
     status: 'stable',
     startDate: '2026-03-10',
     endDate: '2026-03-18',
-    summary:
-      '发货、库存、定价、权限和导出能力集中落地，系统进入面向运营执行的协同工作台阶段。',
+    summary: '发货、库存、定价、权限和导出能力集中落地，系统进入面向运营执行的协同工作台阶段。',
     focus: ['发货管理', '库存补货', '定价核算', '权限控制', 'Excel 导出'],
     highlights: [
       {
         area: 'Logistics',
         title: '发货管理与船期维护能力成熟',
-        detail: '发货计划支持国家字段、批次编辑、SKU 明细维护、货件编号搜索与状态简化，执行链路明显完善。',
+        detail:
+          '发货计划支持国家字段、批次编辑、SKU 明细维护、货件编号搜索与状态简化，执行链路明显完善。',
       },
       {
         area: 'Inventory',
@@ -172,7 +171,8 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'Pricing',
         title: '定价核算进入深水区',
-        detail: '支持批量导入、运行类型切换、快照存档、佣金率配置、矩阵对比加粗和多轮 Excel 导出优化。',
+        detail:
+          '支持批量导入、运行类型切换、快照存档、佣金率配置、矩阵对比加粗和多轮 Excel 导出优化。',
       },
       {
         area: 'Security',
@@ -221,7 +221,8 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'History',
         title: '补齐历史广告与补货日期数据',
-        detail: '针对广告报表、补库存报告等历史数据做 ReportDate 回填与补全，降低旧数据缺失对分析的影响。',
+        detail:
+          '针对广告报表、补库存报告等历史数据做 ReportDate 回填与补全，降低旧数据缺失对分析的影响。',
       },
       {
         area: 'Cleanup',
@@ -293,12 +294,14 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'AI',
         title: 'AI 聊天能力全面升级',
-        detail: '新增消息重生成、置顶、搜索、实时流式响应功能，支持文件上传与搜索来源展示，适配暗色模式与语义化主题色。',
+        detail:
+          '新增消息重生成、置顶、搜索、实时流式响应功能，支持文件上传与搜索来源展示，适配暗色模式与语义化主题色。',
       },
       {
         area: 'Logistics',
         title: '物流同步与发货管理增强',
-        detail: '新增头程成本同步功能，优化发货状态筛选逻辑，增强 Redis 缓存策略与物流单价同步，完善发货 SKU 汇总筛选。',
+        detail:
+          '新增头程成本同步功能，优化发货状态筛选逻辑，增强 Redis 缓存策略与物流单价同步，完善发货 SKU 汇总筛选。',
       },
       {
         area: 'SKU',
@@ -308,12 +311,14 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'Analysis',
         title: '分析能力持续扩展',
-        detail: '周度分析新增库存列，财务数据新增净利率展示，优化日报分析日期范围计算，增强分析报表的完整性。',
+        detail:
+          '周度分析新增库存列，财务数据新增净利率展示，优化日报分析日期范围计算，增强分析报表的完整性。',
       },
       {
         area: 'System',
         title: '系统管理与安全增强',
-        detail: '统一错误提示为通知系统，增强审计日志序列同步与月报解析鲁棒性，新增用户在线状态与产品更新功能。',
+        detail:
+          '统一错误提示为通知系统，增强审计日志序列同步与月报解析鲁棒性，新增用户在线状态与产品更新功能。',
       },
       {
         area: 'Security',
@@ -323,7 +328,8 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'Report',
         title: '报告上传与月报服务增强',
-        detail: '优化报告上传前端交互，增强月报服务及财务数据分析能力，修复时区计算问题，确保数据按目标市场时区准确呈现。',
+        detail:
+          '优化报告上传前端交互，增强月报服务及财务数据分析能力，修复时区计算问题，确保数据按目标市场时区准确呈现。',
       },
     ],
     sourceLogs: [
@@ -356,8 +362,17 @@ const RELEASES: ReleaseVersion[] = [
     status: 'stable',
     startDate: '2026-04-11',
     endDate: '2026-05-20',
-    summary: 'V7 版本正式开启 AI 驱动的智能洞察阶段，通过深度整合 AI 能力，让数据转化为可执行的运营洞见。本版本持续完善洞察重试机制、实时生成流式预览、图片导出与国家级时区感知，并修复 SKU 成本汇总与店铺核算导出的边界问题。',
-    focus: ['AI 洞察增强', '实时流式预览', '洞察重试', 'PNG 导出', '国家时区感知', 'SKU 汇总修复', '侧边栏布局'],
+    summary:
+      'V7 版本正式开启 AI 驱动的智能洞察阶段，通过深度整合 AI 能力，让数据转化为可执行的运营洞见。本版本持续完善洞察重试机制、实时生成流式预览、图片导出与国家级时区感知，并修复 SKU 成本汇总与店铺核算导出的边界问题。',
+    focus: [
+      'AI 洞察增强',
+      '实时流式预览',
+      '洞察重试',
+      'PNG 导出',
+      '国家时区感知',
+      'SKU 汇总修复',
+      '侧边栏布局',
+    ],
     highlights: [
       {
         area: 'AI',
@@ -367,7 +382,8 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'AI',
         title: '实时流式预览',
-        detail: '在洞察详情弹窗内通过 SSE 实时展示生成进度与流式内容，无需刷新页面即可追踪生成状态。',
+        detail:
+          '在洞察详情弹窗内通过 SSE 实时展示生成进度与流式内容，无需刷新页面即可追踪生成状态。',
       },
       {
         area: 'AI',
@@ -377,22 +393,26 @@ const RELEASES: ReleaseVersion[] = [
       {
         area: 'AI',
         title: '国家级别时区感知',
-        detail: '日期范围计算改为根据国家时区格式化（US/EU），确保 AI 洞察分析的数据边界与目标市场一致。',
+        detail:
+          '日期范围计算改为根据国家时区格式化（US/EU），确保 AI 洞察分析的数据边界与目标市场一致。',
       },
       {
         area: 'Data',
         title: 'SKU 成本按国家汇总修复',
-        detail: '修复 SKU 成本页面在切换国家时 summaryBySku 仍混合多国数据的 Bug，同步头程成本接口也改为按国家过滤。',
+        detail:
+          '修复 SKU 成本页面在切换国家时 summaryBySku 仍混合多国数据的 Bug，同步头程成本接口也改为按国家过滤。',
       },
       {
         area: 'Export',
         title: '店铺核算整数格式优化',
-        detail: '修复店铺核算 Excel 导出中整数被错误显示为小数的格式问题，整数使用 #,##0，保留小数使用 #,##0.####。',
+        detail:
+          '修复店铺核算 Excel 导出中整数被错误显示为小数的格式问题，整数使用 #,##0，保留小数使用 #,##0.####。',
       },
       {
         area: 'UI',
         title: '侧边栏布局重构',
-        detail: '重构侧边栏组件结构与间距，Quick Access Bar 区域独立，快捷入口与导航组视觉节奏更清晰。',
+        detail:
+          '重构侧边栏组件结构与间距，Quick Access Bar 区域独立，快捷入口与导航组视觉节奏更清晰。',
       },
     ],
     sourceLogs: [
@@ -409,7 +429,8 @@ const RELEASES: ReleaseVersion[] = [
 ]
 
 export function getChangelogSnapshot(): ChangelogSnapshot {
-  const currentRelease = RELEASES.find((release) => release.status === 'current') ?? RELEASES[RELEASES.length - 1]
+  const currentRelease =
+    RELEASES.find((release) => release.status === 'current') ?? RELEASES[RELEASES.length - 1]
   const highlightCount = RELEASES.reduce((count, release) => count + release.highlights.length, 0)
   const logCount = RELEASES.reduce((count, release) => count + release.sourceLogs.length, 0)
   const moduleCount = new Set(RELEASES.flatMap((release) => release.focus)).size
@@ -426,7 +447,10 @@ export function getChangelogSnapshot(): ChangelogSnapshot {
     source: {
       mode: 'processed-history-logs',
       label: '',
-      updatedAt: currentRelease.endDate || currentRelease.startDate || new Date().toISOString().split('T')[0],
+      updatedAt:
+        currentRelease.endDate ||
+        currentRelease.startDate ||
+        new Date().toISOString().split('T')[0],
     },
   }
 }

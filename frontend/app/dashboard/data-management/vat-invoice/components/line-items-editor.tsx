@@ -1,23 +1,23 @@
-"use client"
+'use client'
 
 // 动态商品明细行编辑器 + 运费输入
 // 字段：Description / Qty / Unit Price (incl. VAT) / VAT% / Line Total (自动算)
 // 操作：每行删除 / 底部 + Add row / 运费行跟随第一行 VAT 率
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Plus, Trash2, Truck } from "lucide-react"
-import { lineSubtotal } from "../lib/vat-calc"
-import { VAT_RATE_OPTIONS, type InvoiceForm, type InvoiceLineItem } from "../types"
+} from '@/components/ui/select'
+import { Plus, Trash2, Truck } from 'lucide-react'
+import { lineSubtotal } from '../lib/vat-calc'
+import { VAT_RATE_OPTIONS, type InvoiceForm, type InvoiceLineItem } from '../types'
 
 interface LineItemsEditorProps {
   form: InvoiceForm
@@ -27,8 +27,8 @@ interface LineItemsEditorProps {
 
 function makeBlankItem(): InvoiceLineItem {
   return {
-    description: "",
-    asin: "",
+    description: '',
+    asin: '',
     qty: 1,
     unit_price_incl_vat: 0,
     vat_rate: 20,
@@ -50,16 +50,18 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
   // 避免 "1 → 删成 '' → 跳 1" 这种无法输入两位数的问题。
   const handleNumberInput = (
     idx: number,
-    key: "qty" | "unit_price_incl_vat",
+    key: 'qty' | 'unit_price_incl_vat',
     raw: string,
-    min: number,
+    min: number
   ) => {
-    if (raw === "") {
+    if (raw === '') {
       updateRow(idx, { [key]: min } as Partial<InvoiceLineItem>)
       return
     }
     const n = Number(raw)
-    updateRow(idx, { [key]: Number.isFinite(n) ? Math.max(min, n) : min } as Partial<InvoiceLineItem>)
+    updateRow(idx, {
+      [key]: Number.isFinite(n) ? Math.max(min, n) : min,
+    } as Partial<InvoiceLineItem>)
   }
 
   const addRow = () => {
@@ -127,7 +129,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       min={1}
                       step={1}
                       value={it.qty}
-                      onChange={(e) => handleNumberInput(idx, "qty", e.target.value, 1)}
+                      onChange={(e) => handleNumberInput(idx, 'qty', e.target.value, 1)}
                       className="text-right"
                     />
                   </div>
@@ -139,7 +141,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       step={0.01}
                       value={it.unit_price_incl_vat}
                       onChange={(e) =>
-                        handleNumberInput(idx, "unit_price_incl_vat", e.target.value, 0)
+                        handleNumberInput(idx, 'unit_price_incl_vat', e.target.value, 0)
                       }
                       className="text-right"
                       placeholder="0.00"
@@ -199,7 +201,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                   value={form.shipping_incl_vat}
                   onChange={(e) => {
                     const raw = e.target.value
-                    if (raw === "") {
+                    if (raw === '') {
                       onChange({ ...form, shipping_incl_vat: 0 })
                       return
                     }

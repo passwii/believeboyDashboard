@@ -2,11 +2,7 @@ export const metadata = {
   title: '公开页面 | believeboy Dashboard',
 }
 
-export default function PublicPageLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function PublicPageLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[hsl(var(--surface-low))]">
       <header className="border-b border-border/60 bg-background px-6 py-3">

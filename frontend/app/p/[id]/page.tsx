@@ -22,9 +22,7 @@ type PublicPayload = {
 
 async function fetchPublic(id: string): Promise<PublicPayload | null> {
   const base =
-    process.env.NEXTAUTH_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    'http://localhost:3200'
+    process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3200'
   try {
     const res = await fetch(`${base}/api/public/page-render/${id}`, {
       next: { revalidate: 3600 },
@@ -55,11 +53,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function PublicPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default async function PublicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const payload = await fetchPublic(id)
   if (!payload) notFound()
@@ -78,9 +72,7 @@ export default async function PublicPage({
     return <ErrorPanel message="页面内容加载失败" />
   }
 
-  return (
-    <PageRenderer content={content} format={payload.source_format} title={payload.title} />
-  )
+  return <PageRenderer content={content} format={payload.source_format} title={payload.title} />
 }
 
 function ErrorPanel({ message }: { message: string }) {

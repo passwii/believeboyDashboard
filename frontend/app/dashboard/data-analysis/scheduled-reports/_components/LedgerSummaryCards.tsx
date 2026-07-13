@@ -20,7 +20,7 @@ export function LedgerSummaryCards({ summary, loading }: Props) {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-      {cards.map(card => (
+      {cards.map((card) => (
         <Card key={card.label} className="border-border/70 bg-[hsl(var(--surface-panel))]">
           <CardContent className="p-3 text-center">
             <div className="text-xs text-muted-foreground mb-1">{card.label}</div>

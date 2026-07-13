@@ -21,7 +21,12 @@
  */
 import { unstable_cache } from 'next/cache'
 
-import { buildBackendUrl, buildBackendProxyHeaders, getProxyRequestBody, toProxyResponse } from '@/lib/server/backend-proxy'
+import {
+  buildBackendUrl,
+  buildBackendProxyHeaders,
+  getProxyRequestBody,
+  toProxyResponse,
+} from '@/lib/server/backend-proxy'
 import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 import type { Session } from 'next-auth'
@@ -66,7 +71,11 @@ export const CACHEABLE_ENDPOINTS: ReadonlyArray<CacheEndpointRule> = [
   { label: 'projects-manage', pathPattern: /\/projects\/manage$/, revalidateSeconds: 60 },
   { label: 'daily-analysis-all', pathPattern: /\/daily-analysis\/all$/, revalidateSeconds: 60 },
   { label: 'exchange-rates', pathPattern: /\/exchange-rates$/, revalidateSeconds: 60 },
-  { label: 'inventory-replenishment-snapshots', pathPattern: /\/inventory-replenishment-snapshots$/, revalidateSeconds: 60 },
+  {
+    label: 'inventory-replenishment-snapshots',
+    pathPattern: /\/inventory-replenishment-snapshots$/,
+    revalidateSeconds: 60,
+  },
 
   // ── BEL-133-step2: extended allowlist (Phase 1 — 4 high-traffic groups) ──
   //
@@ -81,15 +90,39 @@ export const CACHEABLE_ENDPOINTS: ReadonlyArray<CacheEndpointRule> = [
   //    operational team (single-digit-second navigation matters; one minute
   //    of staleness on ad rollups is acceptable).
   { label: 'ad-analysis-overview', pathPattern: /\/ad-analysis\/overview$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-campaigns', pathPattern: /\/ad-analysis\/campaigns$/, revalidateSeconds: 30 },
+  {
+    label: 'ad-analysis-campaigns',
+    pathPattern: /\/ad-analysis\/campaigns$/,
+    revalidateSeconds: 30,
+  },
   { label: 'ad-analysis-products', pathPattern: /\/ad-analysis\/products$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-time-trend', pathPattern: /\/ad-analysis\/time-trend$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-purchased-products', pathPattern: /\/ad-analysis\/purchased-products$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-search-terms', pathPattern: /\/ad-analysis\/search-terms$/, revalidateSeconds: 30 },
+  {
+    label: 'ad-analysis-time-trend',
+    pathPattern: /\/ad-analysis\/time-trend$/,
+    revalidateSeconds: 30,
+  },
+  {
+    label: 'ad-analysis-purchased-products',
+    pathPattern: /\/ad-analysis\/purchased-products$/,
+    revalidateSeconds: 30,
+  },
+  {
+    label: 'ad-analysis-search-terms',
+    pathPattern: /\/ad-analysis\/search-terms$/,
+    revalidateSeconds: 30,
+  },
   { label: 'ad-analysis-targets', pathPattern: /\/ad-analysis\/targets$/, revalidateSeconds: 30 },
   { label: 'ad-analysis-budget', pathPattern: /\/ad-analysis\/budget$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-placements', pathPattern: /\/ad-analysis\/placements$/, revalidateSeconds: 30 },
-  { label: 'ad-analysis-traffic-quality', pathPattern: /\/ad-analysis\/traffic-quality$/, revalidateSeconds: 30 },
+  {
+    label: 'ad-analysis-placements',
+    pathPattern: /\/ad-analysis\/placements$/,
+    revalidateSeconds: 30,
+  },
+  {
+    label: 'ad-analysis-traffic-quality',
+    pathPattern: /\/ad-analysis\/traffic-quality$/,
+    revalidateSeconds: 30,
+  },
 
   // 2) monthly-reports: ONLY the list endpoint (no `/{id}/...` matches).
   //    Monthly financials are low-frequency edits (manual reconciliation),
@@ -98,13 +131,25 @@ export const CACHEABLE_ENDPOINTS: ReadonlyArray<CacheEndpointRule> = [
 
   // 3) product-analysis: list/aggregate reads (sources, pt1, weekly).
   //    60s; users re-open these pages frequently.
-  { label: 'product-analysis-sources', pathPattern: /\/product-analysis\/sources$/, revalidateSeconds: 60 },
+  {
+    label: 'product-analysis-sources',
+    pathPattern: /\/product-analysis\/sources$/,
+    revalidateSeconds: 60,
+  },
   { label: 'product-analysis-pt1', pathPattern: /\/product-analysis\/pt1$/, revalidateSeconds: 60 },
-  { label: 'product-analysis-weekly', pathPattern: /\/product-analysis\/weekly$/, revalidateSeconds: 60 },
+  {
+    label: 'product-analysis-weekly',
+    pathPattern: /\/product-analysis\/weekly$/,
+    revalidateSeconds: 60,
+  },
 
   // 4) daily-analysis: the dashboard's all-countries cross-country view
   //    (separate from `/all` which was already cached). 30s.
-  { label: 'daily-analysis-all-countries', pathPattern: /\/daily-analysis\/all-countries$/, revalidateSeconds: 30 },
+  {
+    label: 'daily-analysis-all-countries',
+    pathPattern: /\/daily-analysis\/all-countries$/,
+    revalidateSeconds: 30,
+  },
 ]
 
 /**
@@ -127,7 +172,12 @@ export function findCacheRule(backendPath: string, query: string): CacheEndpoint
  * with different `X-User-Id` headers get different keys, even if they
  * hit the same path — this is what stops cross-user data leaks.
  */
-export function buildCacheKey(rule: CacheEndpointRule, backendPath: string, query: string, userId: string | null): string {
+export function buildCacheKey(
+  rule: CacheEndpointRule,
+  backendPath: string,
+  query: string,
+  userId: string | null
+): string {
   const scope = rule.skipUserScoping ? 'global' : `user:${userId ?? 'anonymous'}`
   // Sort query params so equivalent queries hash to the same key
   // regardless of param order. The cache itself is path-scoped, so
@@ -184,7 +234,9 @@ export async function tryCachedBackendGet(input: {
       const response = await fetch(url, {
         method: input.method,
         headers: buildBackendProxyHeaders(input.session, input.requestHeaders),
-        body: await getProxyRequestBody(new Request(url, { method: input.method, headers: input.requestHeaders })),
+        body: await getProxyRequestBody(
+          new Request(url, { method: input.method, headers: input.requestHeaders })
+        ),
         cache: 'no-store',
       })
       const headers: Record<string, string> = {}
@@ -201,7 +253,10 @@ export async function tryCachedBackendGet(input: {
       }
     },
     [cacheKey],
-    { revalidate, tags: [`proxy:${rule.label}`, `proxy:${rule.label}:user:${userId ?? 'anonymous'}`] },
+    {
+      revalidate,
+      tags: [`proxy:${rule.label}`, `proxy:${rule.label}:user:${userId ?? 'anonymous'}`],
+    }
   )
 
   const cached = await cachedFetch()

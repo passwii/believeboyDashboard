@@ -1,14 +1,14 @@
 // VAT 发票 — 共享类型定义
 // 关键约束：所有金额以"含税价"为单一事实源，反算不含税价 + VAT。
 
-export type Currency = "EUR" | "GBP" | "PLN" | "CZK" | "USD"
+export type Currency = 'EUR' | 'GBP' | 'PLN' | 'CZK' | 'USD'
 
 export const CURRENCY_OPTIONS: ReadonlyArray<{ value: Currency; label: string; symbol: string }> = [
-  { value: "EUR", label: "EUR - 欧元", symbol: "€" },
-  { value: "GBP", label: "GBP - 英镑", symbol: "£" },
-  { value: "PLN", label: "PLN - 波兰兹罗提", symbol: "zł" },
-  { value: "CZK", label: "CZK - 捷克克朗", symbol: "Kč" },
-  { value: "USD", label: "USD - 美元", symbol: "$" },
+  { value: 'EUR', label: 'EUR - 欧元', symbol: '€' },
+  { value: 'GBP', label: 'GBP - 英镑', symbol: '£' },
+  { value: 'PLN', label: 'PLN - 波兰兹罗提', symbol: 'zł' },
+  { value: 'CZK', label: 'CZK - 捷克克朗', symbol: 'Kč' },
+  { value: 'USD', label: 'USD - 美元', symbol: '$' },
 ] as const
 
 // 欧洲常见 VAT 率（百分比）。允许 0 表示免税。

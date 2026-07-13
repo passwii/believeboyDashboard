@@ -84,7 +84,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
             children: renderInlineToRuns(block.children),
             heading,
             spacing: { after: 160 },
-          }),
+          })
         )
         break
       }
@@ -93,7 +93,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
           new Paragraph({
             children: renderInlineToRuns(block.children),
             spacing: { after: 80 },
-          }),
+          })
         )
         break
       case 'bulletList':
@@ -103,7 +103,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
               children: renderInlineToRuns(item),
               bullet: { level: 0 },
               spacing: { after: 80 },
-            }),
+            })
           )
         }
         break
@@ -114,7 +114,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
               children: renderInlineToRuns(item),
               numbering: { reference: 'default-numbering', level: 0 },
               spacing: { after: 80 },
-            }),
+            })
           )
         }
         break
@@ -124,7 +124,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
             children: [new TextRun({ text: block.text, font: 'Courier New' })],
             spacing: { after: 120 },
             shading: { fill: 'F8FAFC', type: ShadingType.CLEAR },
-          }),
+          })
         )
         break
       case 'quote':
@@ -136,7 +136,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
             },
             shading: { fill: 'F8FAFC', type: ShadingType.CLEAR },
             spacing: { after: 120 },
-          }),
+          })
         )
         break
       case 'hr':
@@ -147,7 +147,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
               bottom: { style: BorderStyle.SINGLE, color: 'CBD5E1', size: 8 },
             },
             spacing: { after: 160 },
-          }),
+          })
         )
         break
       case 'table': {
@@ -160,8 +160,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
                   spacing: { after: 0 },
                 }),
               ],
-              shading:
-                rowIndex === 0 ? { fill: 'F3F4F6', type: ShadingType.CLEAR } : undefined,
+              shading: rowIndex === 0 ? { fill: 'F3F4F6', type: ShadingType.CLEAR } : undefined,
               margins: CELL_MARGIN,
             })
           })
@@ -174,7 +173,7 @@ function renderBlocks(blocks: BlockNode[]): (Paragraph | Table)[] {
             layout: TableLayoutType.AUTOFIT,
             borders: TABLE_BORDER,
             margins: CELL_MARGIN,
-          }),
+          })
         )
         break
       }

@@ -107,7 +107,11 @@ export async function fetchAIChatConfig(signal?: AbortSignal): Promise<AIChatCon
 // ── Conversations ─────────────────────────────────────────────────────────
 
 export async function listConversations(signal?: AbortSignal): Promise<ServerConversation[]> {
-  const res = await fetch('/api/ai-chat/conversations', { method: 'GET', signal, cache: 'no-store' })
+  const res = await fetch('/api/ai-chat/conversations', {
+    method: 'GET',
+    signal,
+    cache: 'no-store',
+  })
   return handleJson<ServerConversation[]>(res, '加载会话失败')
 }
 
@@ -151,7 +155,10 @@ export async function regenerateConversationTitle(id: number): Promise<Regenerat
 
 // ── Messages (history) ────────────────────────────────────────────────────
 
-export async function getMessages(conversationId: number, signal?: AbortSignal): Promise<ServerChatMessage[]> {
+export async function getMessages(
+  conversationId: number,
+  signal?: AbortSignal
+): Promise<ServerChatMessage[]> {
   const res = await fetch(`/api/ai-chat/conversations/${conversationId}/messages`, {
     method: 'GET',
     signal,

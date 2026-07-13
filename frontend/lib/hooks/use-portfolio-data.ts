@@ -137,10 +137,7 @@ function buildPortfolioSummary(data: DailyAnalysisAllProjectsResponse): Portfoli
     total_sales_amount: totalSalesAmount,
     total_order_qty: totalOrderQty,
     total_ad_spend: totalAdSpend,
-    avg_conversion_rate:
-      totalSessions > 0
-        ? (totalOrderQty / totalSessions) * 100
-        : 0,
+    avg_conversion_rate: totalSessions > 0 ? (totalOrderQty / totalSessions) * 100 : 0,
     total_impressions: totalImpressions,
     total_clicks: totalClicks,
     total_sessions: totalSessions,
@@ -195,10 +192,9 @@ export function usePortfolioData({
           start_date: startDate,
           end_date: endDate,
         })
-        const response = await fetch(
-          `${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`,
-          { cache: 'no-store' }
-        )
+        const response = await fetch(`${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`, {
+          cache: 'no-store',
+        })
         if (!response.ok) {
           throw new Error(`加载失败 (${response.status})`)
         }

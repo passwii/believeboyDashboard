@@ -32,7 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useNotifications } from '@/components/notifications'
 
 type UserRoleType = 'admin' | 'operator' | 'businessdev'
@@ -126,7 +133,11 @@ export default function AccountManagementPage() {
       }
       setItems(data.items || [])
     } catch (err) {
-      notify({ type: 'error', title: '加载失败', message: err instanceof Error ? err.message : '加载失败' })
+      notify({
+        type: 'error',
+        title: '加载失败',
+        message: err instanceof Error ? err.message : '加载失败',
+      })
     } finally {
       setLoading(false)
     }
@@ -136,16 +147,9 @@ export default function AccountManagementPage() {
     void load()
   }, [load])
 
-  const updateOne = async (
-    id: string,
-    patch: Partial<Pick<UserItem, 'isActive' | 'roleType'>>,
-  ) => {
+  const updateOne = async (id: string, patch: Partial<Pick<UserItem, 'isActive' | 'roleType'>>) => {
     const target = items.find((item) => item.id === id)
-    if (
-      target &&
-      isYaweiAccount(target) &&
-      patch.isActive === false
-    ) {
+    if (target && isYaweiAccount(target) && patch.isActive === false) {
       notify({ type: 'error', title: 'Yawei 账号不允许停用' })
       return
     }
@@ -164,7 +168,11 @@ export default function AccountManagementPage() {
       setItems((prev) => prev.map((item) => (item.id === id ? data.item! : item)))
       notify({ type: 'success', title: '更新成功' })
     } catch (err) {
-      notify({ type: 'error', title: '更新失败', message: err instanceof Error ? err.message : '更新失败' })
+      notify({
+        type: 'error',
+        title: '更新失败',
+        message: err instanceof Error ? err.message : '更新失败',
+      })
     } finally {
       setBusyId(null)
     }
@@ -198,7 +206,11 @@ export default function AccountManagementPage() {
       setCreateRoleType('operator')
       notify({ type: 'success', title: '用户创建成功' })
     } catch (err) {
-      notify({ type: 'error', title: '创建失败', message: err instanceof Error ? err.message : '创建失败' })
+      notify({
+        type: 'error',
+        title: '创建失败',
+        message: err instanceof Error ? err.message : '创建失败',
+      })
     } finally {
       setCreating(false)
     }
@@ -224,7 +236,11 @@ export default function AccountManagementPage() {
       setResetUser(null)
       notify({ type: 'success', title: '密码已重置' })
     } catch (err) {
-      notify({ type: 'error', title: '重置失败', message: err instanceof Error ? err.message : '重置失败' })
+      notify({
+        type: 'error',
+        title: '重置失败',
+        message: err instanceof Error ? err.message : '重置失败',
+      })
     } finally {
       setResetting(false)
     }
@@ -258,7 +274,11 @@ export default function AccountManagementPage() {
       setEditOpen(false)
       notify({ type: 'success', title: '账号已更新' })
     } catch (err) {
-      notify({ type: 'error', title: '更新失败', message: err instanceof Error ? err.message : '更新失败' })
+      notify({
+        type: 'error',
+        title: '更新失败',
+        message: err instanceof Error ? err.message : '更新失败',
+      })
     } finally {
       setEditBusy(false)
     }
@@ -282,7 +302,11 @@ export default function AccountManagementPage() {
       setDeleteOpen(false)
       notify({ type: 'success', title: '账号已删除' })
     } catch (err) {
-      notify({ type: 'error', title: '删除失败', message: err instanceof Error ? err.message : '删除失败' })
+      notify({
+        type: 'error',
+        title: '删除失败',
+        message: err instanceof Error ? err.message : '删除失败',
+      })
     } finally {
       setDeleting(false)
     }
@@ -304,7 +328,11 @@ export default function AccountManagementPage() {
           action={
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => void load()} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
                 刷新
               </Button>
               <Button onClick={() => setCreateOpen(true)}>新增账号</Button>
@@ -365,7 +393,9 @@ export default function AccountManagementPage() {
                                 variant={item.isActive ? 'outline' : 'default'}
                                 size="sm"
                                 disabled={busyId === item.id || (isProtected && item.isActive)}
-                                onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
+                                onClick={() =>
+                                  void updateOne(item.id, { isActive: !item.isActive })
+                                }
                               >
                                 {item.isActive ? '停用' : '启用'}
                               </Button>
@@ -422,7 +452,9 @@ export default function AccountManagementPage() {
                       <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
                         <div>
                           <div className="font-semibold">{getAccountDisplayName(item)}</div>
-                          <div className="text-xs text-muted-foreground">{item.fullName || item.operatorNameZh || '-'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.fullName || item.operatorNameZh || '-'}
+                          </div>
                         </div>
                         <RoleTypeBadge roleType={item.roleType} />
                       </div>
@@ -435,10 +467,14 @@ export default function AccountManagementPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">状态</span>
-                          <span className={cn(
-                            "text-sm font-medium",
-                            item.isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
-                          )}>
+                          <span
+                            className={cn(
+                              'text-sm font-medium',
+                              item.isActive
+                                ? 'text-emerald-700 dark:text-emerald-300'
+                                : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
                             {item.isActive ? '启用' : '停用'}
                           </span>
                         </div>
@@ -478,8 +514,13 @@ export default function AccountManagementPage() {
       </DataCard>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent aria-describedby="create-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="create-account-dialog-description" className="sr-only">创建新用户并指定角色属性和权限级别</span>
+        <DialogContent
+          aria-describedby="create-account-dialog-description"
+          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+        >
+          <span id="create-account-dialog-description" className="sr-only">
+            创建新用户并指定角色属性和权限级别
+          </span>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
             <DialogDescription>创建新用户并指定角色属性和权限级别。</DialogDescription>
@@ -487,7 +528,12 @@ export default function AccountManagementPage() {
           <form className="space-y-4" onSubmit={onCreate}>
             <div className="space-y-2">
               <Label htmlFor="create-name">名称</Label>
-              <Input id="create-name" value={createName} onChange={(e) => setCreateName(e.target.value)} required />
+              <Input
+                id="create-name"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="create-full-name">姓名</Label>
@@ -546,7 +592,12 @@ export default function AccountManagementPage() {
               </p>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+                disabled={creating}
+              >
                 取消
               </Button>
               <Button type="submit" disabled={creating}>
@@ -559,8 +610,13 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent aria-describedby="reset-password-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="reset-password-dialog-description" className="sr-only">为账号设置新密码</span>
+        <DialogContent
+          aria-describedby="reset-password-dialog-description"
+          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+        >
+          <span id="reset-password-dialog-description" className="sr-only">
+            为账号设置新密码
+          </span>
           <DialogHeader>
             <DialogTitle>重置密码</DialogTitle>
             <DialogDescription>
@@ -580,7 +636,12 @@ export default function AccountManagementPage() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setResetOpen(false)} disabled={resetting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResetOpen(false)}
+                disabled={resetting}
+              >
                 取消
               </Button>
               <Button type="submit" disabled={resetting}>
@@ -593,8 +654,13 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent aria-describedby="edit-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="edit-account-dialog-description" className="sr-only">修改运营姓名和角色属性</span>
+        <DialogContent
+          aria-describedby="edit-account-dialog-description"
+          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+        >
+          <span id="edit-account-dialog-description" className="sr-only">
+            修改运营姓名和角色属性
+          </span>
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>
             <DialogDescription>修改运营姓名和角色属性。</DialogDescription>
@@ -634,7 +700,12 @@ export default function AccountManagementPage() {
               </Select>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editBusy}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditOpen(false)}
+                disabled={editBusy}
+              >
                 取消
               </Button>
               <Button type="submit" disabled={editBusy}>
@@ -647,8 +718,13 @@ export default function AccountManagementPage() {
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent aria-describedby="delete-account-dialog-description" className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-          <span id="delete-account-dialog-description" className="sr-only">确认删除账号操作</span>
+        <DialogContent
+          aria-describedby="delete-account-dialog-description"
+          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+        >
+          <span id="delete-account-dialog-description" className="sr-only">
+            确认删除账号操作
+          </span>
           <DialogHeader>
             <DialogTitle>删除账号</DialogTitle>
             <DialogDescription>
@@ -656,10 +732,20 @@ export default function AccountManagementPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
               取消
             </Button>
-            <Button type="button" variant="destructive" onClick={() => void onDelete()} disabled={deleting}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void onDelete()}
+              disabled={deleting}
+            >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {deleting ? '删除中...' : '确认删除'}
             </Button>

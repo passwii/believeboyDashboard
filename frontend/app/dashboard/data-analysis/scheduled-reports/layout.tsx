@@ -4,7 +4,11 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { DirectionalTabTransition, SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
+import {
+  DirectionalTabTransition,
+  SlidingTabsTrigger,
+  TabsMotionGroup,
+} from '@/components/ui/tab-motion'
 
 import SubscriptionsView from './_components/SubscriptionsView'
 import LedgerView from './_components/LedgerView'
@@ -21,7 +25,7 @@ function resolveInitialTab(pathname: string): ScheduledReportTabKey {
 export default function ScheduledReportsLayout() {
   const pathname = usePathname()
   const [activeTab, setActiveTab] = useState<ScheduledReportTabKey>(() =>
-    resolveInitialTab(pathname),
+    resolveInitialTab(pathname)
   )
 
   const handleTabChange = (next: string) => {

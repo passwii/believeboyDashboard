@@ -31,7 +31,7 @@ export async function GET() {
         maxConversationTurns: 10,
         webSearchMaxResults: 5,
         ...promptPresets,
-      ...getScenarioPresetSummaries(),
+        ...getScenarioPresetSummaries(),
       },
       { status: 500 }
     )
@@ -72,23 +72,21 @@ export async function GET() {
       ...getScenarioPresetSummaries(),
     })
   } catch (err) {
-    return NextResponse.json(
-      {
-        message: normalizeErrorMessage(err, '加载 AI 配置失败'),
-        providerConfigured: false,
-        webSearchConfigured: false,
-        models: [],
-        defaultModel: '',
-        premiumModels: [],
-        basicModels: [],
-        reasoningModels: [],
-        defaultReasoningEffort: 'medium',
-        timeoutSeconds: 90,
-        maxConversationTurns: 10,
-        webSearchMaxResults: 5,
-        ...promptPresets,
+    return NextResponse.json({
+      message: normalizeErrorMessage(err, '加载 AI 配置失败'),
+      providerConfigured: false,
+      webSearchConfigured: false,
+      models: [],
+      defaultModel: '',
+      premiumModels: [],
+      basicModels: [],
+      reasoningModels: [],
+      defaultReasoningEffort: 'medium',
+      timeoutSeconds: 90,
+      maxConversationTurns: 10,
+      webSearchMaxResults: 5,
+      ...promptPresets,
       ...getScenarioPresetSummaries(),
-      }
-    )
+    })
   }
 }

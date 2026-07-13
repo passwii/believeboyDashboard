@@ -31,6 +31,6 @@ export interface ProjectMeta {
 export interface ProjectRow {
   projectId: number
   projectName: string
-  rowSpan: number  // 项目名列需要合并的行数，0 表示不显示项目名
-  record: CommissionProjectMonth  // 该行的完整数据
+  rowSpan: number // 项目名列需要合并的行数，0 表示不显示项目名
+  record: CommissionProjectMonth // 该行的完整数据
 }

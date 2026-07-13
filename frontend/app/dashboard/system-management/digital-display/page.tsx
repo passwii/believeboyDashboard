@@ -151,13 +151,7 @@ function BigKpiCard({
   )
 }
 
-function ChartCard({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-[hsl(var(--sidebar-foreground)/0.12)] bg-[hsl(var(--sidebar-foreground)/0.04)] p-5">
       <h3 className="mb-4 text-xl font-semibold text-muted-foreground">{title}</h3>
@@ -294,7 +288,7 @@ export default function DigitalDisplayPage() {
                     key={p.id}
                     className={cn(
                       'flex w-full items-center rounded-lg px-3 py-2 text-sm hover:bg-accent',
-                      p.id === selectedProjectId && 'bg-accent',
+                      p.id === selectedProjectId && 'bg-accent'
                     )}
                     onClick={() => {
                       setSelectedProjectId(p.id)
@@ -325,12 +319,7 @@ export default function DigitalDisplayPage() {
             刷新
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exitFullscreen}
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={exitFullscreen} className="gap-1.5">
             <X className="h-4 w-4" />
             退出全屏
           </Button>
@@ -354,20 +343,36 @@ export default function DigitalDisplayPage() {
             <KpiCard
               label="今日订单量"
               value={fmtNum(displayData.sales.today_order_qty)}
-              change={changePct(displayData.sales.today_order_qty, displayData.sales.prev_order_qty)}
-              accent={changeColor(displayData.sales.today_order_qty, displayData.sales.prev_order_qty)}
+              change={changePct(
+                displayData.sales.today_order_qty,
+                displayData.sales.prev_order_qty
+              )}
+              accent={changeColor(
+                displayData.sales.today_order_qty,
+                displayData.sales.prev_order_qty
+              )}
             />
             <BigKpiCard
               label="今日销售额"
               value={fmtMoney(displayData.sales.today_sales_amount)}
-              sub={changeArrow(displayData.sales.today_sales_amount, displayData.sales.prev_sales_amount) + ' ' + changePct(displayData.sales.today_sales_amount, displayData.sales.prev_sales_amount)}
+              sub={
+                changeArrow(
+                  displayData.sales.today_sales_amount,
+                  displayData.sales.prev_sales_amount
+                ) +
+                ' ' +
+                changePct(displayData.sales.today_sales_amount, displayData.sales.prev_sales_amount)
+              }
               accent="text-emerald-400"
             />
             <KpiCard
               label="今日会话"
               value={fmtNum(displayData.sales.today_sessions)}
               change={changePct(displayData.sales.today_sessions, displayData.sales.prev_sessions)}
-              accent={changeColor(displayData.sales.today_sessions, displayData.sales.prev_sessions)}
+              accent={changeColor(
+                displayData.sales.today_sessions,
+                displayData.sales.prev_sessions
+              )}
             />
             <KpiCard
               label="7日退货率"
@@ -480,10 +485,12 @@ export default function DigitalDisplayPage() {
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">退货概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
-                  <p className={cn(
-                    'text-5xl font-bold tabular-nums',
-                    displayData.returns.return_rate > 5 ? 'text-amber-400' : 'text-emerald-400',
-                  )}>
+                  <p
+                    className={cn(
+                      'text-5xl font-bold tabular-nums',
+                      displayData.returns.return_rate > 5 ? 'text-amber-400' : 'text-emerald-400'
+                    )}
+                  >
                     {fmtRate(displayData.returns.return_rate)}
                   </p>
                   <p className="mt-1 text-base text-muted-foreground">退货率</p>
@@ -528,10 +535,12 @@ export default function DigitalDisplayPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">ROAS</p>
                   </div>
                   <div className="rounded-xl border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.06)] p-2 text-center">
-                    <p className={cn(
-                      'text-2xl font-bold tabular-nums',
-                      displayData.ads.period_acos > 30 ? 'text-amber-400' : 'text-foreground',
-                    )}>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold tabular-nums',
+                        displayData.ads.period_acos > 30 ? 'text-amber-400' : 'text-foreground'
+                      )}
+                    >
                       {displayData.ads.period_acos}%
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">ACOS</p>

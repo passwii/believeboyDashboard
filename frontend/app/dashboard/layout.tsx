@@ -9,17 +9,16 @@ import { SidebarShell } from '@/components/dashboard/sidebar-shell'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const { status } = useSession()
   const wasAuthenticatedRef = useRef(false)
 
-  const getCurrentPath = useCallback(() => `${window.location.pathname}${window.location.search}`, [])
+  const getCurrentPath = useCallback(
+    () => `${window.location.pathname}${window.location.search}`,
+    []
+  )
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -47,19 +46,17 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className='flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))]'>
+      <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))]">
         <SidebarShell />
 
         {/* Main content area — pushed right when sidebar panel is open via parent flex layout */}
-        <SidebarInset className='flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--surface-low))]'>
+        <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--surface-low))]">
           <main
-            id='main-content'
-            className='dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-3 md:px-2 md:pb-8 lg:px-3 xl:px-4'
+            id="main-content"
+            className="dashboard-full-width relative min-w-0 flex-1 overflow-x-clip overflow-y-auto px-1 pb-6 pt-3 md:px-2 md:pb-8 lg:px-3 xl:px-4"
           >
-            <div className='dashboard-page-shell min-h-0 md:min-h-[calc(100vh-4rem)] px-0 py-1'>
-              <PageTransition>
-                {children}
-              </PageTransition>
+            <div className="dashboard-page-shell min-h-0 md:min-h-[calc(100vh-4rem)] px-0 py-1">
+              <PageTransition>{children}</PageTransition>
             </div>
           </main>
         </SidebarInset>

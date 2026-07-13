@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { formatMonthInputValue, parseMonthInputValue } from '@/components/ui/date-picker'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { useNotifications } from '@/components/notifications'
 import { DetailTab } from './detail-tab'
@@ -18,7 +24,14 @@ import { ProjectSummaryTab } from './project-summary-tab'
 import { MonthlyCollectionTab } from './monthly-collection-tab'
 import { CommissionRulesCard } from './commission-rules-card'
 import { groupProjectsBySites, formatRmb, formatUsd, SITE_INFO } from './utils'
-import type { CommissionProjectMonth, ExchangeRate, ProjectMeta, PaymentStatus, SiteCode, ProjectRow } from './types'
+import type {
+  CommissionProjectMonth,
+  ExchangeRate,
+  ProjectMeta,
+  PaymentStatus,
+  SiteCode,
+  ProjectRow,
+} from './types'
 import { SITE_ORDER } from './types'
 
 type CommissionProjectMonthsResponse = {
@@ -76,7 +89,10 @@ function lastMonthString(): string {
 function parseErrorBody(text: string, status: number): string {
   if (!text) return `请求失败 (${status})`
   try {
-    const payload = JSON.parse(text) as { detail?: string | unknown[] | Record<string, unknown>; error?: string }
+    const payload = JSON.parse(text) as {
+      detail?: string | unknown[] | Record<string, unknown>
+      error?: string
+    }
     if (typeof payload.detail === 'string') return payload.detail
     if (typeof payload.error === 'string') return payload.error
     if (Array.isArray(payload.detail)) {
@@ -145,10 +161,13 @@ export default function CommissionManagementPage() {
       if (countryFilter !== 'all') {
         params.set('country', countryFilter)
       }
-      const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months?${params.toString()}`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      })
+      const response = await fetch(
+        `${API_BASE}/api/v1/system-management/commission-management/project-months?${params.toString()}`,
+        {
+          cache: 'no-store',
+          headers: buildBackendClientHeaders(session),
+        }
+      )
       if (!response.ok) {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
@@ -162,7 +181,11 @@ export default function CommissionManagementPage() {
         }, {})
       )
     } catch (loadError) {
-      notify({ type: 'error', title: '佣金数据加载失败', message: loadError instanceof Error ? loadError.message : '佣金数据加载失败' })
+      notify({
+        type: 'error',
+        title: '佣金数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+      })
       setRows([])
       setReceivedDraftById({})
     } finally {
@@ -180,15 +203,18 @@ export default function CommissionManagementPage() {
         throw new Error(parseErrorBody(await response.text(), response.status))
       }
       const payload = (await response.json()) as ProjectMeta[]
-      const nextMap = (Array.isArray(payload) ? payload : []).reduce<Record<number, ProjectMeta>>((acc, item) => {
-        if (!item || typeof item.id !== 'number') return acc
-        acc[item.id] = {
-          id: item.id,
-          commission_basis: item.commission_basis ?? null,
-          commission_rate: item.commission_rate ?? null,
-        }
-        return acc
-      }, {})
+      const nextMap = (Array.isArray(payload) ? payload : []).reduce<Record<number, ProjectMeta>>(
+        (acc, item) => {
+          if (!item || typeof item.id !== 'number') return acc
+          acc[item.id] = {
+            id: item.id,
+            commission_basis: item.commission_basis ?? null,
+            commission_rate: item.commission_rate ?? null,
+          }
+          return acc
+        },
+        {}
+      )
       setProjectMetaById(nextMap)
     } catch {
       setProjectMetaById({})
@@ -205,14 +231,20 @@ export default function CommissionManagementPage() {
         projectParams.set('country', countryFilter)
       }
       const [monthlyResp, projectResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/monthly?${monthlyParams.toString()}`, {
-          cache: 'no-store',
-          headers: buildBackendClientHeaders(session),
-        }),
-        fetch(`${API_BASE}/api/v1/system-management/commission-management/summary/project?${projectParams.toString()}`, {
-          cache: 'no-store',
-          headers: buildBackendClientHeaders(session),
-        }),
+        fetch(
+          `${API_BASE}/api/v1/system-management/commission-management/summary/monthly?${monthlyParams.toString()}`,
+          {
+            cache: 'no-store',
+            headers: buildBackendClientHeaders(session),
+          }
+        ),
+        fetch(
+          `${API_BASE}/api/v1/system-management/commission-management/summary/project?${projectParams.toString()}`,
+          {
+            cache: 'no-store',
+            headers: buildBackendClientHeaders(session),
+          }
+        ),
       ])
 
       if (!monthlyResp.ok) {
@@ -227,7 +259,11 @@ export default function CommissionManagementPage() {
       setMonthlySummary(Array.isArray(monthlyPayload.items) ? monthlyPayload.items : [])
       setProjectSummary(Array.isArray(projectPayload.items) ? projectPayload.items : [])
     } catch (loadError) {
-      notify({ type: 'error', title: '汇总数据加载失败', message: loadError instanceof Error ? loadError.message : '佣金数据加载失败' })
+      notify({
+        type: 'error',
+        title: '汇总数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+      })
       setMonthlySummary([])
       setProjectSummary([])
     } finally {
@@ -267,7 +303,11 @@ export default function CommissionManagementPage() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'monthly' || activeTab === 'projectSummary' || activeTab === 'monthlyCollection') {
+    if (
+      activeTab === 'monthly' ||
+      activeTab === 'projectSummary' ||
+      activeTab === 'monthlyCollection'
+    ) {
       void loadYearlySummary()
     }
   }, [activeTab, loadYearlySummary])
@@ -276,7 +316,10 @@ export default function CommissionManagementPage() {
     return sortedRows.reduce((sum, row) => sum + getOverviewCommissionRmb(row), 0)
   }, [getOverviewCommissionRmb, sortedRows])
 
-  const totalReceivedRmb = useMemo(() => rows.reduce((sum, row) => sum + row.received_rmb, 0), [rows])
+  const totalReceivedRmb = useMemo(
+    () => rows.reduce((sum, row) => sum + row.received_rmb, 0),
+    [rows]
+  )
 
   const yearlyTotals = useMemo(() => {
     return monthlySummary.reduce(
@@ -289,16 +332,23 @@ export default function CommissionManagementPage() {
     )
   }, [monthlySummary])
 
-  const patchProjectMonthPayment = async (row: CommissionProjectMonth, paymentStatus: PaymentStatus, receivedRmb: number) => {
-    const response = await fetch(`${API_BASE}/api/v1/system-management/commission-management/project-months/${row.id}/payment`, {
-      method: 'PATCH',
-      headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
-      body: JSON.stringify({
-        payment_status: paymentStatus,
-        received_rmb: receivedRmb,
-        note: row.note,
-      }),
-    })
+  const patchProjectMonthPayment = async (
+    row: CommissionProjectMonth,
+    paymentStatus: PaymentStatus,
+    receivedRmb: number
+  ) => {
+    const response = await fetch(
+      `${API_BASE}/api/v1/system-management/commission-management/project-months/${row.id}/payment`,
+      {
+        method: 'PATCH',
+        headers: buildBackendClientHeaders(session, { contentType: 'application/json' }),
+        body: JSON.stringify({
+          payment_status: paymentStatus,
+          received_rmb: receivedRmb,
+          note: row.note,
+        }),
+      }
+    )
     if (!response.ok) {
       throw new Error(parseErrorBody(await response.text(), response.status))
     }
@@ -316,11 +366,22 @@ export default function CommissionManagementPage() {
     setUpdatingId(row.id)
     try {
       const draftValue = Number(receivedDraftById[row.id] ?? row.received_rmb)
-      const normalizedDraft = Number.isFinite(draftValue) ? Math.max(0, draftValue) : row.received_rmb
-      const receivedRmb = status === 'paid' ? getOverviewCommissionRmb(row) : status === 'unpaid' ? 0 : normalizedDraft
+      const normalizedDraft = Number.isFinite(draftValue)
+        ? Math.max(0, draftValue)
+        : row.received_rmb
+      const receivedRmb =
+        status === 'paid'
+          ? getOverviewCommissionRmb(row)
+          : status === 'unpaid'
+            ? 0
+            : normalizedDraft
       await patchProjectMonthPayment(row, status, receivedRmb)
     } catch (updateError) {
-      notify({ type: 'error', title: '回款状态更新失败', message: updateError instanceof Error ? updateError.message : '回款状态更新失败' })
+      notify({
+        type: 'error',
+        title: '回款状态更新失败',
+        message: updateError instanceof Error ? updateError.message : '回款状态更新失败',
+      })
     } finally {
       setUpdatingId(null)
     }
@@ -335,7 +396,11 @@ export default function CommissionManagementPage() {
       }
       await patchProjectMonthPayment(row, row.payment_status, parsed)
     } catch (updateError) {
-      notify({ type: 'error', title: '已回款金额更新失败', message: updateError instanceof Error ? updateError.message : '已回款金额更新失败' })
+      notify({
+        type: 'error',
+        title: '已回款金额更新失败',
+        message: updateError instanceof Error ? updateError.message : '已回款金额更新失败',
+      })
     } finally {
       setUpdatingId(null)
     }
@@ -370,11 +435,17 @@ export default function CommissionManagementPage() {
       await Promise.all([
         loadData(),
         loadProjectMeta(),
-        activeTab === 'monthly' || activeTab === 'projectSummary' ? loadYearlySummary() : Promise.resolve(),
+        activeTab === 'monthly' || activeTab === 'projectSummary'
+          ? loadYearlySummary()
+          : Promise.resolve(),
       ])
       notify({ type: 'success', title: '佣金重新核算完成' })
     } catch (recomputeError) {
-      notify({ type: 'error', title: '佣金核算失败', message: recomputeError instanceof Error ? recomputeError.message : '佣金核算失败' })
+      notify({
+        type: 'error',
+        title: '佣金核算失败',
+        message: recomputeError instanceof Error ? recomputeError.message : '佣金核算失败',
+      })
     } finally {
       setRecomputing(false)
     }
@@ -383,7 +454,11 @@ export default function CommissionManagementPage() {
   return (
     <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-4 pb-6">
       <div className="flex">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CommissionViewTab)} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as CommissionViewTab)}
+          className="w-full"
+        >
           <TabsList className="min-h-12 rounded-2xl p-1.5">
             <TabsTrigger value="detail" className="min-h-10 px-5 py-2 text-sm">
               总览
@@ -426,7 +501,10 @@ export default function CommissionManagementPage() {
                 disabled={recomputing}
               />
 
-              {activeTab === 'detail' || activeTab === 'monthly' || activeTab === 'projectSummary' || activeTab === 'monthlyCollection' ? (
+              {activeTab === 'detail' ||
+              activeTab === 'monthly' ||
+              activeTab === 'projectSummary' ||
+              activeTab === 'monthlyCollection' ? (
                 <Select
                   value={countryFilter}
                   onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
@@ -439,7 +517,9 @@ export default function CommissionManagementPage() {
                     {SITE_ORDER.map((code) => (
                       <SelectItem key={code} value={code}>
                         <span className="flex items-center gap-2">
-                          <span className={`h-1.5 w-1.5 rounded-full ${SITE_INFO[code].dotClass}`} />
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${SITE_INFO[code].dotClass}`}
+                          />
                           {SITE_INFO[code].label}
                         </span>
                       </SelectItem>
@@ -449,11 +529,12 @@ export default function CommissionManagementPage() {
               ) : null}
 
               {activeTab === 'detail' ? (
-                <Button
-                  onClick={() => void handleRecompute()}
-                  disabled={recomputing || loading}
-                >
-                  {recomputing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <Button onClick={() => void handleRecompute()} disabled={recomputing || loading}>
+                  {recomputing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
                   核算
                 </Button>
               ) : null}
@@ -462,27 +543,40 @@ export default function CommissionManagementPage() {
             <div className="grid min-w-[280px] grid-cols-[112px_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
               {activeTab === 'detail' ? (
                 <>
-                  <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">本月统计</div>
+                  <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">
+                    本月统计
+                  </div>
                   <div className="text-muted-foreground">工厂佣金合计</div>
-                  <div className="font-semibold tabular-nums text-foreground">{formatRmb(totalFactoryCommissionRmb)}</div>
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {formatRmb(totalFactoryCommissionRmb)}
+                  </div>
                   <div className="text-muted-foreground">已回款</div>
-                  <div className="font-semibold tabular-nums text-foreground">{formatRmb(totalReceivedRmb)}</div>
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {formatRmb(totalReceivedRmb)}
+                  </div>
                 </>
               ) : null}
-              {(activeTab === 'monthly' || activeTab === 'projectSummary') ? (
+              {activeTab === 'monthly' || activeTab === 'projectSummary' ? (
                 <>
-                  <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">年度统计</div>
+                  <div className="col-span-2 text-xs font-medium tracking-[0.18em] text-muted-foreground/70">
+                    年度统计
+                  </div>
                   <div className="text-muted-foreground">年度销售</div>
-                  <div className="font-semibold tabular-nums text-foreground">{formatUsd(yearlyTotals.income)}</div>
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {formatUsd(yearlyTotals.income)}
+                  </div>
                   <div className="text-muted-foreground">年度工厂佣金</div>
-                  <div className="font-semibold tabular-nums text-foreground">{formatRmb(yearlyTotals.commission)}</div>
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {formatRmb(yearlyTotals.commission)}
+                  </div>
                   <div className="text-muted-foreground">年度回款</div>
-                  <div className="font-semibold tabular-nums text-foreground">{formatRmb(yearlyTotals.received)}</div>
+                  <div className="font-semibold tabular-nums text-foreground">
+                    {formatRmb(yearlyTotals.received)}
+                  </div>
                 </>
               ) : null}
             </div>
           </div>
-
         </CardContent>
       </Card>
 
@@ -496,22 +590,16 @@ export default function CommissionManagementPage() {
               loading={loading}
               updatingId={updatingId}
               receivedDraftById={receivedDraftById}
-              onUpdateDraft={(id, value) => setReceivedDraftById((prev) => ({ ...prev, [id]: value }))}
+              onUpdateDraft={(id, value) =>
+                setReceivedDraftById((prev) => ({ ...prev, [id]: value }))
+              }
               onUpdatePaymentStatus={updatePaymentStatus}
               onUpdateReceivedAmount={updateReceivedAmount}
             />
           ) : activeTab === 'monthly' ? (
-            <MonthlySummaryTab
-              items={monthlySummary}
-              year={summaryYear}
-              loading={summaryLoading}
-            />
+            <MonthlySummaryTab items={monthlySummary} year={summaryYear} loading={summaryLoading} />
           ) : activeTab === 'projectSummary' ? (
-            <ProjectSummaryTab
-              items={projectSummary}
-              year={summaryYear}
-              loading={summaryLoading}
-            />
+            <ProjectSummaryTab items={projectSummary} year={summaryYear} loading={summaryLoading} />
           ) : activeTab === 'monthlyCollection' ? (
             <MonthlyCollectionTab
               items={projectSummary}

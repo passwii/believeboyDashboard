@@ -1,5 +1,12 @@
 export type DigitalEmployeeStatus = 'IDLE' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'SUSPENDED'
-export type EmployeeType = 'AUTO_REPORT_UPLOAD' | 'SCHEDULED_JOB' | 'RPA_BOT' | 'AI_AGENT' | 'MONITORING' | 'DATABASE' | 'CUSTOM'
+export type EmployeeType =
+  | 'AUTO_REPORT_UPLOAD'
+  | 'SCHEDULED_JOB'
+  | 'RPA_BOT'
+  | 'AI_AGENT'
+  | 'MONITORING'
+  | 'DATABASE'
+  | 'CUSTOM'
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
 

@@ -50,7 +50,9 @@ function resolveApiUrl(path: string) {
 export async function fetchInspectionTemplate(): Promise<InspectionTemplate> {
   const res = await fetch(resolveApiUrl('/api/v1/inspections/template'))
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取巡检模板失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取巡检模板失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取巡检模板失败')
   }
   return res.json() as Promise<InspectionTemplate>
@@ -62,7 +64,9 @@ export async function fetchInspectionTemplate(): Promise<InspectionTemplate> {
 export async function fetchCurrentPeriod(): Promise<InspectionPeriod> {
   const res = await fetch(resolveApiUrl('/api/v1/inspections/periods/current'))
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取当前巡检周期失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取当前巡检周期失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取当前巡检周期失败')
   }
   return res.json() as Promise<InspectionPeriod>
@@ -71,7 +75,10 @@ export async function fetchCurrentPeriod(): Promise<InspectionPeriod> {
 /**
  * Fetch inspection periods with pagination
  */
-export async function fetchPeriods(limit?: number, offset?: number): Promise<{ items: InspectionPeriod[]; total: number }> {
+export async function fetchPeriods(
+  limit?: number,
+  offset?: number
+): Promise<{ items: InspectionPeriod[]; total: number }> {
   const params = new URLSearchParams()
   if (limit !== undefined) params.set('limit', String(limit))
   if (offset !== undefined) params.set('offset', String(offset))
@@ -81,7 +88,9 @@ export async function fetchPeriods(limit?: number, offset?: number): Promise<{ i
 
   const res = await fetch(url)
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取巡检周期列表失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取巡检周期列表失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取巡检周期列表失败')
   }
   return res.json() as Promise<{ items: InspectionPeriod[]; total: number }>
@@ -93,7 +102,9 @@ export async function fetchPeriods(limit?: number, offset?: number): Promise<{ i
 export async function fetchPeriodOverview(periodId: number): Promise<InspectionOverview> {
   const res = await fetch(resolveApiUrl(`/api/v1/inspections/periods/${periodId}/overview`))
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取巡检概览失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取巡检概览失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取巡检概览失败')
   }
   return res.json() as Promise<InspectionOverview>
@@ -102,10 +113,17 @@ export async function fetchPeriodOverview(periodId: number): Promise<InspectionO
 /**
  * Fetch inspection report for a specific period and project
  */
-export async function fetchReport(periodId: number, projectId: number): Promise<InspectionReport | null> {
-  const res = await fetch(resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}`))
+export async function fetchReport(
+  periodId: number,
+  projectId: number
+): Promise<InspectionReport | null> {
+  const res = await fetch(
+    resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}`)
+  )
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取巡检报告失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取巡检报告失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取巡检报告失败')
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
@@ -129,13 +147,18 @@ export async function saveReport(
   projectId: number,
   data: SaveReportPayload
 ): Promise<InspectionReport> {
-  const res = await fetch(resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
+  const res = await fetch(
+    resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}`),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }
+  )
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '保存巡检报告失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '保存巡检报告失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '保存巡检报告失败')
   }
   return res.json() as Promise<InspectionReport>
@@ -145,12 +168,17 @@ export async function saveReport(
  * Submit inspection report for a specific period and project
  */
 export async function submitReport(periodId: number, projectId: number): Promise<InspectionReport> {
-  const res = await fetch(resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}/submit`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  })
+  const res = await fetch(
+    resolveApiUrl(`/api/v1/inspections/periods/${periodId}/projects/${projectId}/submit`),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }
+  )
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '提交巡检报告失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '提交巡检报告失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '提交巡检报告失败')
   }
   return res.json() as Promise<InspectionReport>
@@ -160,7 +188,10 @@ export async function submitReport(periodId: number, projectId: number): Promise
  * Upload inspection screenshot — via /api/inspections/screenshot-upload proxy route
  * which forwards FormData as ArrayBuffer (preserving multipart boundary).
  */
-export async function uploadScreenshot(file: File, reportId: number): Promise<InspectionScreenshot> {
+export async function uploadScreenshot(
+  file: File,
+  reportId: number
+): Promise<InspectionScreenshot> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('report_id', String(reportId))
@@ -170,7 +201,7 @@ export async function uploadScreenshot(file: File, reportId: number): Promise<In
     body: formData,
   })
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: '上传截图失败' })) as { error?: string }
+    const error = (await res.json().catch(() => ({ error: '上传截图失败' }))) as { error?: string }
     throw new Error(error?.error || '上传截图失败')
   }
   return res.json() as Promise<InspectionScreenshot>
@@ -184,7 +215,9 @@ export async function deleteScreenshot(screenshotId: number): Promise<void> {
     method: 'DELETE',
   })
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '删除截图失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '删除截图失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '删除截图失败')
   }
 }
@@ -192,14 +225,12 @@ export async function deleteScreenshot(screenshotId: number): Promise<void> {
 /**
  * Fetch inspection history with optional filters
  */
-export async function fetchInspectionHistory(
-  params?: {
-    periodId?: number
-    projectId?: number
-    limit?: number
-    offset?: number
-  }
-): Promise<InspectionHistoryResponse> {
+export async function fetchInspectionHistory(params?: {
+  periodId?: number
+  projectId?: number
+  limit?: number
+  offset?: number
+}): Promise<InspectionHistoryResponse> {
   const searchParams = new URLSearchParams()
   if (params?.periodId !== undefined) searchParams.set('period_id', String(params.periodId))
   if (params?.projectId !== undefined) searchParams.set('project_id', String(params.projectId))
@@ -211,7 +242,9 @@ export async function fetchInspectionHistory(
 
   const res = await fetch(url)
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: '获取巡检历史失败' })) as { detail?: string }
+    const error = (await res.json().catch(() => ({ detail: '获取巡检历史失败' }))) as {
+      detail?: string
+    }
     throw new Error(error.detail || '获取巡检历史失败')
   }
   return res.json() as Promise<InspectionHistoryResponse>

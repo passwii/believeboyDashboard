@@ -17,7 +17,11 @@ import React from 'react'
 // ============================================================================
 
 export function fmtMoney(v: number): string {
-  return v >= 10000 ? `$${(v / 1000).toFixed(0)}k` : v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(2)}`
+  return v >= 10000
+    ? `$${(v / 1000).toFixed(0)}k`
+    : v >= 1000
+      ? `$${(v / 1000).toFixed(1)}k`
+      : `$${v.toFixed(2)}`
 }
 
 export function fmtNum(v: number): string {

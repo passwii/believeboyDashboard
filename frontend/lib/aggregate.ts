@@ -89,7 +89,7 @@ function finalizeBucket<T extends BucketInput>(
   sumPageViews: number,
   sumUnitsOrdered: number,
   sumSessions: number,
-  sumOrderedSalesAmount: number,
+  sumOrderedSalesAmount: number
 ): T {
   return {
     date: bucketKey,
@@ -104,8 +104,7 @@ function finalizeBucket<T extends BucketInput>(
     page_views: sumPageViews,
     units_ordered: sumUnitsOrdered,
     sessions: sumSessions,
-    conversion_rate:
-      sumPageViews > 0 ? sumUnitsOrdered / sumPageViews : 0,
+    conversion_rate: sumPageViews > 0 ? sumUnitsOrdered / sumPageViews : 0,
     ordered_sales_amount: sumOrderedSalesAmount,
   } as T
 }
@@ -162,8 +161,7 @@ export function bucketSummaryByMonth<T extends BucketInput>(rows: T[]): T[] {
     current.page_views += Number(row.page_views) || 0
     current.units_ordered += Number(row.units_ordered) || 0
     current.sessions += Number(row.sessions) || 0
-    current.ordered_sales_amount +=
-      Number(row.ordered_sales_amount) || 0
+    current.ordered_sales_amount += Number(row.ordered_sales_amount) || 0
     // available_qty 是当日快照 —— 后写入的覆盖前值（即「月末」快照）。
     current.lastAvailableQty = Number(row.available_qty) || 0
 
@@ -185,8 +183,8 @@ export function bucketSummaryByMonth<T extends BucketInput>(rows: T[]): T[] {
         b.page_views,
         b.units_ordered,
         b.sessions,
-        b.ordered_sales_amount,
-      ),
+        b.ordered_sales_amount
+      )
     )
 }
 
@@ -248,8 +246,7 @@ export function bucketDetailByMonth<T extends BucketDetailInput>(rows: T[]): T[]
     current.sumPageViews += Number(row.page_views) || 0
     current.sumUnitsOrdered += Number(row.units_ordered) || 0
     current.sumSessions += Number(row.sessions) || 0
-    current.sumOrderedSalesAmount +=
-      Number(row.ordered_sales_amount) || 0
+    current.sumOrderedSalesAmount += Number(row.ordered_sales_amount) || 0
     current.sumInTransitQty += Number(row.in_transit_qty) || 0
     current.lastAvailableQty = Number(row.available_qty) || 0
     // 同月内同一 SKU 的 asin 应当一致；保留最后一次写入。
@@ -275,7 +272,7 @@ export function bucketDetailByMonth<T extends BucketDetailInput>(rows: T[]): T[]
         b.sumPageViews,
         b.sumUnitsOrdered,
         b.sumSessions,
-        b.sumOrderedSalesAmount,
+        b.sumOrderedSalesAmount
       )
       return {
         ...summary,
@@ -298,9 +295,7 @@ export function generateMonthKeys(from: Date, to: Date): string[] {
   const endM = to.getMonth()
   const months: string[] = []
   for (let y = startY, m = startM; y < endY || (y === endY && m <= endM); ) {
-    months.push(
-      `${y}-${String(m + 1).padStart(2, '0')}-01`,
-    )
+    months.push(`${y}-${String(m + 1).padStart(2, '0')}-01`)
     m += 1
     if (m > 11) {
       m = 0

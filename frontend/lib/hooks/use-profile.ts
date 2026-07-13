@@ -61,7 +61,7 @@ export function useProfile(): UseProfileResult {
       })
       return next
     },
-    [updateSession],
+    [updateSession]
   )
 
   return { profile, loading, error, refetch, update }

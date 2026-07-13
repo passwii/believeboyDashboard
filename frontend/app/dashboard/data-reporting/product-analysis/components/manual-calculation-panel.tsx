@@ -2,14 +2,35 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, ChangeEvent } from 'react'
-import { AlertCircle, ArrowDown, ArrowUp, CalendarRange, CheckCircle2, DatabaseZap, Download, Loader2, Upload, XCircle } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CalendarRange,
+  CheckCircle2,
+  DatabaseZap,
+  Download,
+  Loader2,
+  Upload,
+  XCircle,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import React from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DateRangePicker,
+  formatDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SimpleDropzone } from '@/components/report-upload/simple-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import type {
@@ -49,11 +70,25 @@ type DataAvailability = {
   business_report_missing: string[]
   ad_report_missing: string[]
   inventory_missing: string[]
-  business_period_info: { period_start_date: string; period_end_date: string; source_id: number; covered_dates: string[] }[]
-  ad_period_info: { period_start_date: string; period_end_date: string; source_id: number; covered_dates: string[] }[]
+  business_period_info: {
+    period_start_date: string
+    period_end_date: string
+    source_id: number
+    covered_dates: string[]
+  }[]
+  ad_period_info: {
+    period_start_date: string
+    period_end_date: string
+    source_id: number
+    covered_dates: string[]
+  }[]
   business_periodic_only_missing: string[]
   ad_periodic_only_missing: string[]
-  payment_periods_overlapping: { period_start_date: string; period_end_date: string; source_id: number }[]
+  payment_periods_overlapping: {
+    period_start_date: string
+    period_end_date: string
+    source_id: number
+  }[]
   payment_full_period_covered: boolean
   payment_daily_covered_dates: string[]
   has_minimum_data: boolean
@@ -127,12 +162,34 @@ const COUNTRY_OPTIONS: Array<{ value: CountryOption; label: string }> = [
  *  走 `/api/v1/ad-upload/recognize`，后端返回的实际 `report_type` 即此处列出的
  *  C 表枚举值（`ad_promoted_product_report` 等）。
  */
-const PRODUCT_ANALYSIS_TYPES: ReportType[] = ['business_report', 'ad_promoted_product_report', 'payment_report']
+const PRODUCT_ANALYSIS_TYPES: ReportType[] = [
+  'business_report',
+  'ad_promoted_product_report',
+  'payment_report',
+]
 
 const PRODUCT_ANALYSIS_CARD_CONFIGS: ReportCardConfig[] = [
-  { type: 'business_report', title: '业务报告', subtitle: '流量、销量、会话数据', dateHint: '单日', projectHint: 'ASIN 匹配项目' },
-  { type: 'ad_promoted_product_report', title: '广告报告', subtitle: '广告曝光、点击、花费', dateHint: '单日', projectHint: 'SKU 匹配项目' },
-  { type: 'payment_report', title: '付款报告', subtitle: '佣金、FBA 费用、退款', dateHint: '周期', projectHint: 'SKU 匹配项目' },
+  {
+    type: 'business_report',
+    title: '业务报告',
+    subtitle: '流量、销量、会话数据',
+    dateHint: '单日',
+    projectHint: 'ASIN 匹配项目',
+  },
+  {
+    type: 'ad_promoted_product_report',
+    title: '广告报告',
+    subtitle: '广告曝光、点击、花费',
+    dateHint: '单日',
+    projectHint: 'SKU 匹配项目',
+  },
+  {
+    type: 'payment_report',
+    title: '付款报告',
+    subtitle: '佣金、FBA 费用、退款',
+    dateHint: '周期',
+    projectHint: 'SKU 匹配项目',
+  },
 ]
 
 const DETAIL_DISPLAY_COLUMNS = [
@@ -237,7 +294,13 @@ interface ManualCalculationPanelProps {
 export default function ManualCalculationPanel(_props: ManualCalculationPanelProps) {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const currentOperator = (session?.user?.operatorNameZh || session?.user?.name || session?.user?.email || session?.user?.id || '').trim()
+  const currentOperator = (
+    session?.user?.operatorNameZh ||
+    session?.user?.name ||
+    session?.user?.email ||
+    session?.user?.id ||
+    ''
+  ).trim()
   const initialDateRange = getLastWeekRange()
 
   // ── Parameter state ──
@@ -275,7 +338,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // Track project id for API calls
   const selectedProject = useMemo(
     () => projects.find((p) => p.name === projectName),
-    [projects, projectName],
+    [projects, projectName]
   )
 
   const dateRangeValid = !!startDate && !!endDate && startDate <= endDate
@@ -284,18 +347,22 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // ── Committed type tracking ──
   const committedTypes = useMemo(
     () => PRODUCT_ANALYSIS_TYPES.filter((t) => cards[t]?.commitStatus === 'success'),
-    [cards],
+    [cards]
   )
   const allRequiredCommitted = committedTypes.length >= 3
 
   const canCheck = useMemo(
-    () => Boolean(selectedProject?.id) && dateRangeValid && allRequiredCommitted && checkState !== 'checking',
-    [selectedProject, dateRangeValid, allRequiredCommitted, checkState],
+    () =>
+      Boolean(selectedProject?.id) &&
+      dateRangeValid &&
+      allRequiredCommitted &&
+      checkState !== 'checking',
+    [selectedProject, dateRangeValid, allRequiredCommitted, checkState]
   )
 
   const canRun = useMemo(
     () => checkState === 'done' && availability?.has_minimum_data && runState !== 'running',
-    [checkState, availability, runState],
+    [checkState, availability, runState]
   )
 
   // ── Load projects ──
@@ -329,83 +396,109 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // 链路（业务/付款/库存/销售/退货 报表）。后端 `recognize_file` 对 .xlsx 显式返回
   // None（见 `backend/app/utils/recognition/recognizers/__init__.py:309-311`），必须
   // 在前端按扩展名预判分流，否则广告报表会被识别为 `report_type: 'unknown'`。
-  const recognizeFile = useCallback(async (file: File): Promise<RecognitionResponse | null> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('country', country)
+  const recognizeFile = useCallback(
+    async (file: File): Promise<RecognitionResponse | null> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('country', country)
 
-    const lowerName = file.name.toLowerCase()
-    const isAdExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
-    const endpoint = isAdExcel
-      ? '/api/v1/ad-upload/recognize'
-      : '/api/v1/report-upload/recognize'
+      const lowerName = file.name.toLowerCase()
+      const isAdExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
+      const endpoint = isAdExcel ? '/api/v1/ad-upload/recognize' : '/api/v1/report-upload/recognize'
 
-    try {
-      const res = await fetch(resolveApiUrl(endpoint), {
-        method: 'POST',
-        body: formData,
-      })
-      if (!res.ok) {
-        const msg = await parseApiError(res, '识别失败')
-        console.warn(`识别失败 (${file.name}): ${msg}`)
+      try {
+        const res = await fetch(resolveApiUrl(endpoint), {
+          method: 'POST',
+          body: formData,
+        })
+        if (!res.ok) {
+          const msg = await parseApiError(res, '识别失败')
+          console.warn(`识别失败 (${file.name}): ${msg}`)
+          return null
+        }
+        return (await res.json()) as RecognitionResponse
+      } catch (err) {
+        console.warn(`识别异常 (${file.name}):`, err)
         return null
       }
-      return (await res.json()) as RecognitionResponse
-    } catch (err) {
-      console.warn(`识别异常 (${file.name}):`, err)
-      return null
-    }
-  }, [country])
+    },
+    [country]
+  )
 
   // ── Handle file drop/pick ──
-  const addFiles = useCallback(async (files: File[]) => {
-    if (!files.length) return
-    setRecognizing(true)
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return
+      setRecognizing(true)
 
-    const results = await Promise.all(
-      files.map(async (file) => ({
-        file,
-        recognition: await recognizeFile(file),
-      })),
-    )
+      const results = await Promise.all(
+        files.map(async (file) => ({
+          file,
+          recognition: await recognizeFile(file),
+        }))
+      )
 
-    setItems((prev) => {
-      const next = [...prev]
-      for (const { file, recognition } of results) {
-        if (!recognition) {
-          // Unrecognized file — add as unknown
-          next.push({
-            localId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            originalFileName: file.name,
-            reportType: 'unknown',
-            recognitionStatus: 'error',
-            recognizedProject: null,
-            userSelectedProject: null,
-            detectedDate: null,
-            detectedStartDate: null,
-            detectedEndDate: null,
-            detectedCountry: null,
-            detectedCountries: [],
-            isMultiCountry: false,
-            userReportDate: null,
-            userReportStartDate: null,
-            userReportEndDate: null,
-            fileCommitStatus: 'idle',
-            commitError: null,
-            error: '识别失败',
-          })
-          continue
-        }
+      setItems((prev) => {
+        const next = [...prev]
+        for (const { file, recognition } of results) {
+          if (!recognition) {
+            // Unrecognized file — add as unknown
+            next.push({
+              localId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              originalFileName: file.name,
+              reportType: 'unknown',
+              recognitionStatus: 'error',
+              recognizedProject: null,
+              userSelectedProject: null,
+              detectedDate: null,
+              detectedStartDate: null,
+              detectedEndDate: null,
+              detectedCountry: null,
+              detectedCountries: [],
+              isMultiCountry: false,
+              userReportDate: null,
+              userReportStartDate: null,
+              userReportEndDate: null,
+              fileCommitStatus: 'idle',
+              commitError: null,
+              error: '识别失败',
+            })
+            continue
+          }
 
-        // Check if this type is relevant for product analysis
-        const rType = recognition.report_type as ReportType
-        if (!PRODUCT_ANALYSIS_TYPES.includes(rType)) {
-          next.push({
+          // Check if this type is relevant for product analysis
+          const rType = recognition.report_type as ReportType
+          if (!PRODUCT_ANALYSIS_TYPES.includes(rType)) {
+            next.push({
+              localId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              originalFileName: file.name,
+              tempFileId: recognition.temp_file_id,
+              reportType: rType,
+              recognitionStatus: 'recognized',
+              recognizedProject: recognition.project_match?.project_name ?? null,
+              userSelectedProject: null,
+              detectedDate: recognition.detected_date,
+              detectedStartDate: recognition.detected_start_date,
+              detectedEndDate: recognition.detected_end_date,
+              detectedCountry: recognition.country,
+              detectedCountries: recognition.detected_countries ?? [],
+              isMultiCountry: (recognition.detected_countries?.length ?? 0) > 1,
+              userReportDate: null,
+              userReportStartDate: null,
+              userReportEndDate: null,
+              fileCommitStatus: 'idle',
+              commitError: null,
+              error: `产品分析不需要此类型 (${rType})，已忽略`,
+            })
+            continue
+          }
+
+          const item: UploadQueueItem = {
             localId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             originalFileName: file.name,
             tempFileId: recognition.temp_file_id,
             reportType: rType,
-            recognitionStatus: 'recognized',
+            recognitionStatus: recognition.status === 'recognized' ? 'recognized' : 'error',
             recognizedProject: recognition.project_match?.project_name ?? null,
             userSelectedProject: null,
             detectedDate: recognition.detected_date,
@@ -419,70 +512,54 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
             userReportEndDate: null,
             fileCommitStatus: 'idle',
             commitError: null,
-            error: `产品分析不需要此类型 (${rType})，已忽略`,
-          })
-          continue
+            error: recognition.status !== 'recognized' ? recognition.reason : null,
+          }
+          next.push(item)
+
+          // Update card state
+          if (recognition.status === 'recognized' && PRODUCT_ANALYSIS_TYPES.includes(rType)) {
+            setCards((prev) => ({
+              ...prev,
+              [rType]: {
+                ...prev[rType],
+                recognition,
+                candidates: [...(prev[rType]?.candidates ?? []), recognition],
+                activeTempFileId: recognition.temp_file_id,
+                selectedProject: projectName || recognition.project_match?.project_name || '',
+                reportDate: recognition.detected_date || '',
+                reportStartDate: recognition.detected_start_date || '',
+                reportEndDate: recognition.detected_end_date || '',
+                commitStatus: 'idle',
+                commitMessage: null,
+              },
+            }))
+          }
         }
+        return next
+      })
 
-        const item: UploadQueueItem = {
-          localId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          originalFileName: file.name,
-          tempFileId: recognition.temp_file_id,
-          reportType: rType,
-          recognitionStatus: recognition.status === 'recognized' ? 'recognized' : 'error',
-          recognizedProject: recognition.project_match?.project_name ?? null,
-          userSelectedProject: null,
-          detectedDate: recognition.detected_date,
-          detectedStartDate: recognition.detected_start_date,
-          detectedEndDate: recognition.detected_end_date,
-          detectedCountry: recognition.country,
-          detectedCountries: recognition.detected_countries ?? [],
-          isMultiCountry: (recognition.detected_countries?.length ?? 0) > 1,
-          userReportDate: null,
-          userReportStartDate: null,
-          userReportEndDate: null,
-          fileCommitStatus: 'idle',
-          commitError: null,
-          error: recognition.status !== 'recognized' ? recognition.reason : null,
-        }
-        next.push(item)
+      setRecognizing(false)
+    },
+    [recognizeFile, projectName]
+  )
 
-        // Update card state
-        if (recognition.status === 'recognized' && PRODUCT_ANALYSIS_TYPES.includes(rType)) {
-          setCards((prev) => ({
-            ...prev,
-            [rType]: {
-              ...prev[rType],
-              recognition,
-              candidates: [...(prev[rType]?.candidates ?? []), recognition],
-              activeTempFileId: recognition.temp_file_id,
-              selectedProject: projectName || recognition.project_match?.project_name || '',
-              reportDate: recognition.detected_date || '',
-              reportStartDate: recognition.detected_start_date || '',
-              reportEndDate: recognition.detected_end_date || '',
-              commitStatus: 'idle',
-              commitMessage: null,
-            },
-          }))
-        }
-      }
-      return next
-    })
+  const onDrop = useCallback(
+    async (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      setDragActive(false)
+      await addFiles(Array.from(event.dataTransfer.files ?? []))
+    },
+    [addFiles]
+  )
 
-    setRecognizing(false)
-  }, [recognizeFile, projectName])
-
-  const onDrop = useCallback(async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setDragActive(false)
-    await addFiles(Array.from(event.dataTransfer.files ?? []))
-  }, [addFiles])
-
-  const onPickFiles = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    void addFiles(Array.from(event.target.files ?? []))
-    // Reset input so same file can be re-picked
-    event.target.value = ''
-  }, [addFiles])
+  const onPickFiles = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      void addFiles(Array.from(event.target.files ?? []))
+      // Reset input so same file can be re-picked
+      event.target.value = ''
+    },
+    [addFiles]
+  )
 
   const removeItem = useCallback((localId: string) => {
     setItems((prev) => prev.filter((item) => item.localId !== localId))
@@ -499,9 +576,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
 
   const onDateChange = useCallback((localId: string, date: string | null) => {
     setItems((prev) =>
-      prev.map((item) =>
-        item.localId === localId ? { ...item, userReportDate: date } : item
-      )
+      prev.map((item) => (item.localId === localId ? { ...item, userReportDate: date } : item))
     )
   }, [])
 
@@ -512,84 +587,85 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // 产品分析手动核算场景：ad 报表只用于本周期的"识别 + 计算"快照，不写 C 表。
   // 通过 `dry_run: true` 让后端跳过 ad_upload_files 落库与版本号占用，识别仍然完整。
   // 真正的入库仍走 /dashboard/data-management/ad-upload 页面。
-  const commitCard = useCallback(async (reportType: ReportType) => {
-    const card = cards[reportType]
-    if (!card?.activeTempFileId) return
-
-    setCards((prev) => ({
-      ...prev,
-      [reportType]: { ...prev[reportType], commitStatus: 'saving', commitMessage: null },
-    }))
-
-    try {
-      const isAdReport = String(reportType).startsWith('ad_')
-      const body: Record<string, unknown> = isAdReport
-        ? {
-            temp_file_id: card.activeTempFileId,
-            report_type: reportType,
-            project_name: projectName,
-            country,
-            report_start_date: startDate,
-            report_end_date: endDate,
-            dry_run: true,
-          }
-        : {
-            temp_file_id: card.activeTempFileId,
-            report_type: reportType,
-            project_name: projectName,
-            country,
-            report_start_date: startDate,
-            report_end_date: endDate,
-            use_period_dates: true,
-          }
-
-      const endpoint = isAdReport
-        ? '/api/v1/ad-upload/commit'
-        : '/api/v1/report-upload/commit'
-
-      const res = await fetch(resolveApiUrl(endpoint), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        const msg = await parseApiError(res, '提交失败')
-        throw new Error(msg)
-      }
+  const commitCard = useCallback(
+    async (reportType: ReportType) => {
+      const card = cards[reportType]
+      if (!card?.activeTempFileId) return
 
       setCards((prev) => ({
         ...prev,
-        [reportType]: {
-          ...prev[reportType],
-          commitStatus: 'success',
-          commitMessage: null,
-        },
+        [reportType]: { ...prev[reportType], commitStatus: 'saving', commitMessage: null },
       }))
 
-      // Mark items as committed
-      setItems((prev) =>
-        prev.map((item) =>
-          item.tempFileId === card.activeTempFileId
-            ? { ...item, fileCommitStatus: 'success' as const }
-            : item
+      try {
+        const isAdReport = String(reportType).startsWith('ad_')
+        const body: Record<string, unknown> = isAdReport
+          ? {
+              temp_file_id: card.activeTempFileId,
+              report_type: reportType,
+              project_name: projectName,
+              country,
+              report_start_date: startDate,
+              report_end_date: endDate,
+              dry_run: true,
+            }
+          : {
+              temp_file_id: card.activeTempFileId,
+              report_type: reportType,
+              project_name: projectName,
+              country,
+              report_start_date: startDate,
+              report_end_date: endDate,
+              use_period_dates: true,
+            }
+
+        const endpoint = isAdReport ? '/api/v1/ad-upload/commit' : '/api/v1/report-upload/commit'
+
+        const res = await fetch(resolveApiUrl(endpoint), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+
+        if (!res.ok) {
+          const msg = await parseApiError(res, '提交失败')
+          throw new Error(msg)
+        }
+
+        setCards((prev) => ({
+          ...prev,
+          [reportType]: {
+            ...prev[reportType],
+            commitStatus: 'success',
+            commitMessage: null,
+          },
+        }))
+
+        // Mark items as committed
+        setItems((prev) =>
+          prev.map((item) =>
+            item.tempFileId === card.activeTempFileId
+              ? { ...item, fileCommitStatus: 'success' as const }
+              : item
+          )
         )
-      )
 
-      // Reset downstream state
-      resetDownstream()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '提交失败'
-      setCards((prev) => ({
-        ...prev,
-        [reportType]: {
-          ...prev[reportType],
-          commitStatus: 'error',
-          commitMessage: msg,
-        },
-      }))
-    }
-  }, [cards, projectName, country, startDate, endDate, resetDownstream])
+        // Reset downstream state
+        resetDownstream()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '提交失败'
+        setCards((prev) => ({
+          ...prev,
+          [reportType]: {
+            ...prev[reportType],
+            commitStatus: 'error',
+            commitMessage: msg,
+          },
+        }))
+      }
+    },
+    [cards, projectName, country, startDate, endDate, resetDownstream]
+  )
 
   // ── Upload all ready cards ──
   const uploadAllReady = useCallback(async () => {
@@ -605,8 +681,11 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   }, [cards, commitCard])
 
   const readyCount = useMemo(
-    () => PRODUCT_ANALYSIS_TYPES.filter((t) => cards[t]?.activeTempFileId && cards[t]?.commitStatus !== 'success').length,
-    [cards],
+    () =>
+      PRODUCT_ANALYSIS_TYPES.filter(
+        (t) => cards[t]?.activeTempFileId && cards[t]?.commitStatus !== 'success'
+      ).length,
+    [cards]
   )
 
   // ── Auto-check after all types committed ──
@@ -709,16 +788,28 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
     const filename = `${safeProjectName}_${safeCountryLabel}-产品核算-${startDateCompact}~${endDateCompact}.xlsx`
 
-    summarySheet.getCell(1, 1).value = `产品核算汇总 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
+    summarySheet.getCell(1, 1).value =
+      `产品核算汇总 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
     summarySheet.getCell(1, 1).font = { size: 14, bold: true }
     summarySheet.getCell(2, 1).value = `生成时间: ${new Date().toLocaleString('zh-CN')}`
     summarySheet.getCell(2, 1).font = { size: 10 }
     summarySheet.getCell(3, 1).value = `共 ${periods.length} 个周期`
 
-    detailSheet.getCell(1, 1).value = `产品核算明细 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
+    detailSheet.getCell(1, 1).value =
+      `产品核算明细 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
     detailSheet.getCell(1, 1).font = { size: 14, bold: true }
 
-    const headers = ['周期', 'SKU', 'ASIN', '总销量', '总销售额', '广告花费', 'ACOS', '利润', '利润率']
+    const headers = [
+      '周期',
+      'SKU',
+      'ASIN',
+      '总销量',
+      '总销售额',
+      '广告花费',
+      'ACOS',
+      '利润',
+      '利润率',
+    ]
     headers.forEach((header, idx) => {
       const cell = detailSheet.getCell(3, idx + 1)
       cell.value = header
@@ -729,7 +820,8 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     let rowIdx = 4
     periods.forEach((period) => {
       period.details.forEach((detail) => {
-        detailSheet.getCell(rowIdx, 1).value = `${period.report_start_date} ~ ${period.report_end_date}`
+        detailSheet.getCell(rowIdx, 1).value =
+          `${period.report_start_date} ~ ${period.report_end_date}`
         detailSheet.getCell(rowIdx, 2).value = String(detail['SKU'] ?? '')
         detailSheet.getCell(rowIdx, 3).value = String(detail['ASIN'] ?? '')
         detailSheet.getCell(rowIdx, 4).value = Number(detail['总销量'] ?? 0)
@@ -743,7 +835,9 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     })
 
     const buffer = await wb.xlsx.writeBuffer()
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -754,11 +848,17 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
 
   // ── Render helpers ──
   function renderCell(value: unknown, fmt?: 'percent' | 'currency') {
-    if (value === null || value === undefined) return <span className="text-muted-foreground">-</span>
+    if (value === null || value === undefined)
+      return <span className="text-muted-foreground">-</span>
     if (fmt === 'percent') return <span>{formatPercent(value)}</span>
     if (fmt === 'currency') {
       const sym = CURRENCY_CONFIG[country].symbol
-      return <span>{sym}{formatNumber(value)}</span>
+      return (
+        <span>
+          {sym}
+          {formatNumber(value)}
+        </span>
+      )
     }
     return <span>{formatNumber(value)}</span>
   }
@@ -801,7 +901,13 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
               >
                 <SelectTrigger className="h-10 max-w-full">
                   <SelectValue
-                    placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                    placeholder={
+                      projectsLoading
+                        ? '项目加载中...'
+                        : projects.length
+                          ? '请选择项目名称'
+                          : '暂无可选项目'
+                    }
                   />
                 </SelectTrigger>
                 <SelectContent className="max-h-64 overflow-y-auto">
@@ -825,7 +931,9 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                 </SelectTrigger>
                 <SelectContent>
                   {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -878,16 +986,30 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
               const card = cards[config.type]
               const status = card?.commitStatus ?? 'idle'
               return (
-                <div key={config.type} className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
+                <div
+                  key={config.type}
+                  className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2"
+                >
                   <p className="text-xs text-muted-foreground">{config.title}</p>
-                  <p className={cn(
-                    'mt-1 text-sm font-semibold',
-                    status === 'success' ? 'text-emerald-600' :
-                    status === 'saving' ? 'text-blue-600' :
-                    status === 'error' ? 'text-rose-600' :
-                    'text-muted-foreground',
-                  )}>
-                    {status === 'success' ? '已提交' : status === 'saving' ? '提交中' : status === 'error' ? '提交失败' : '未提交'}
+                  <p
+                    className={cn(
+                      'mt-1 text-sm font-semibold',
+                      status === 'success'
+                        ? 'text-emerald-600'
+                        : status === 'saving'
+                          ? 'text-blue-600'
+                          : status === 'error'
+                            ? 'text-rose-600'
+                            : 'text-muted-foreground'
+                    )}
+                  >
+                    {status === 'success'
+                      ? '已提交'
+                      : status === 'saving'
+                        ? '提交中'
+                        : status === 'error'
+                          ? '提交失败'
+                          : '未提交'}
                   </p>
                 </div>
               )
@@ -916,8 +1038,14 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
             dragActive={dragActive}
             recognizing={recognizing}
             onDrop={onDrop}
-            onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-            onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragActive(true)
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              setDragActive(false)
+            }}
             onPickFiles={onPickFiles}
           />
 
@@ -937,7 +1065,10 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                       [config.type]: {
                         ...prev[config.type],
                         activeTempFileId: tempFileId,
-                        recognition: prev[config.type]?.candidates.find((c) => c.temp_file_id === tempFileId) ?? null,
+                        recognition:
+                          prev[config.type]?.candidates.find(
+                            (c) => c.temp_file_id === tempFileId
+                          ) ?? null,
                         commitStatus: 'idle',
                         commitMessage: null,
                       },
@@ -946,7 +1077,12 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                   onProjectChange={() => {}}
                   onDateChange={() => {}}
                   onCommit={() => void commitCard(config.type)}
-                  canCommit={Boolean(cardState.activeTempFileId && projectName && cardState.commitStatus !== 'saving' && cardState.commitStatus !== 'success')}
+                  canCommit={Boolean(
+                    cardState.activeTempFileId &&
+                      projectName &&
+                      cardState.commitStatus !== 'saving' &&
+                      cardState.commitStatus !== 'success'
+                  )}
                   projectLocked={true}
                   datesLocked={true}
                   periodLabel={periodLabel}
@@ -971,14 +1107,8 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
               检查数据
             </Button>
 
-            <Button
-              type="button"
-              onClick={() => void handleRun()}
-              disabled={!canRun}
-            >
-              {runState === 'running' ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : null}
+            <Button type="button" onClick={() => void handleRun()} disabled={!canRun}>
+              {runState === 'running' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
               执行核算
             </Button>
           </div>
@@ -1033,9 +1163,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base">核算结果</CardTitle>
-                <CardDescription className="text-xs">
-                  共 {periods.length} 个周期
-                </CardDescription>
+                <CardDescription className="text-xs">共 {periods.length} 个周期</CardDescription>
               </div>
               <Button
                 size="sm"
@@ -1050,9 +1178,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
           </CardHeader>
           <CardContent>
             {periods.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                无核算数据
-              </div>
+              <div className="py-8 text-center text-sm text-muted-foreground">无核算数据</div>
             ) : (
               <div className="space-y-3">
                 {periods.map((period, idx) => {
@@ -1061,7 +1187,9 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                     <div key={idx} className="space-y-1">
                       <div
                         className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
-                          isExpanded ? 'border-blue-300 bg-blue-50 dark:bg-blue-950/30' : 'hover:bg-muted/30'
+                          isExpanded
+                            ? 'border-blue-300 bg-blue-50 dark:bg-blue-950/30'
+                            : 'hover:bg-muted/30'
                         }`}
                         onClick={() => setExpandedIndex(isExpanded ? null : idx)}
                       >
@@ -1072,7 +1200,11 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                             setExpandedIndex(isExpanded ? null : idx)
                           }}
                         >
-                          {isExpanded ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                          {isExpanded ? (
+                            <ArrowUp className="h-4 w-4" />
+                          ) : (
+                            <ArrowDown className="h-4 w-4" />
+                          )}
                         </button>
 
                         <span className="shrink-0 font-medium text-sm">
@@ -1111,15 +1243,24 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                             <tbody>
                               {period.details.length === 0 ? (
                                 <tr>
-                                  <td colSpan={detailColCount} className="px-3 py-4 text-center text-muted-foreground">
+                                  <td
+                                    colSpan={detailColCount}
+                                    className="px-3 py-4 text-center text-muted-foreground"
+                                  >
                                     无 SKU 明细
                                   </td>
                                 </tr>
                               ) : (
                                 period.details.map((detail, dIdx) => (
-                                  <tr key={dIdx} className="border-b border-[hsl(var(--border))] hover:bg-muted/20">
+                                  <tr
+                                    key={dIdx}
+                                    className="border-b border-[hsl(var(--border))] hover:bg-muted/20"
+                                  >
                                     {DETAIL_DISPLAY_COLUMNS.map((col) => (
-                                      <td key={col.key} className="px-3 py-1.5 text-right whitespace-nowrap">
+                                      <td
+                                        key={col.key}
+                                        className="px-3 py-1.5 text-right whitespace-nowrap"
+                                      >
                                         {renderCell(detail[col.key], col.fmt)}
                                       </td>
                                     ))}

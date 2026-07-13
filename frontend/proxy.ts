@@ -5,14 +5,14 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.NEXTAUTH_SECRET) {
     throw new Error(
       '[auth] NEXTAUTH_SECRET is not set in production. ' +
-      'Generate one with: openssl rand -base64 48'
+        'Generate one with: openssl rand -base64 48'
     )
   }
   if (Buffer.byteLength(process.env.NEXTAUTH_SECRET, 'utf8') < 32) {
     const actual = Buffer.byteLength(process.env.NEXTAUTH_SECRET, 'utf8')
     throw new Error(
       `[auth] NEXTAUTH_SECRET is too short (${actual} bytes). ` +
-      'Minimum is 32 bytes. Generate a new secret with: openssl rand -base64 48'
+        'Minimum is 32 bytes. Generate a new secret with: openssl rand -base64 48'
     )
   }
 }
@@ -69,9 +69,7 @@ const BACKEND_FAILURE_THRESHOLD = 2
 const BACKEND_FAILURE_COOLDOWN_MS = 30_000
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  process.env.BACKEND_API_BASE_URL ||
-  'http://localhost:8100'
+  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_API_BASE_URL || 'http://localhost:8100'
 
 const API_KEY = process.env.BACKEND_API_KEY || ''
 
@@ -115,7 +113,7 @@ async function checkSessionNotInvalidated(
   email: string,
   sessionId: string | undefined,
   backendUrl: string,
-  apiKey: string,
+  apiKey: string
 ): Promise<boolean> {
   const cacheKey = `${userId}:${sessionId || 'none'}`
 
@@ -137,7 +135,7 @@ async function checkSessionNotInvalidated(
       'X-API-Key': apiKey,
       'X-User-Id': userId,
       'X-User-Email': encodeURIComponent(email),
-      'cache': 'no-store',
+      cache: 'no-store',
     }
     if (sessionId) {
       headers['X-Session-Id'] = sessionId
@@ -209,17 +207,23 @@ export const proxy = auth(async (request) => {
       user.email || '',
       user.sessionId,
       BACKEND_URL,
-      API_KEY,
+      API_KEY
     )
     if (!sessionValid) {
       _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)
       const loginCallbackUrl = `/login?reason=session_invalidated&callbackUrl=${encodeURIComponent(callbackUrl)}`
       return NextResponse.redirect(
-        new URL(`/api/auth/signout?callbackUrl=${encodeURIComponent(loginCallbackUrl)}`, request.url)
+        new URL(
+          `/api/auth/signout?callbackUrl=${encodeURIComponent(loginCallbackUrl)}`,
+          request.url
+        )
       )
     }
 
-    if (pathname.startsWith('/dashboard/system-management') && !(user.isAdmin || user.roleType === 'admin')) {
+    if (
+      pathname.startsWith('/dashboard/system-management') &&
+      !(user.isAdmin || user.roleType === 'admin')
+    ) {
       return NextResponse.redirect(new URL('/dashboard?forbidden=1', request.url))
     }
 

@@ -7,8 +7,18 @@ import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DateRangePicker, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DateRangePicker,
+  formatDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SimpleDropzone } from '@/components/report-upload/simple-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import type {
@@ -21,7 +31,10 @@ import type {
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
-import { exportProductAnalysisToExcel, type ExportCountryOption } from '@/lib/product-analysis-export'
+import {
+  exportProductAnalysisToExcel,
+  type ExportCountryOption,
+} from '@/lib/product-analysis-export'
 
 // =============================================================================
 // Types
@@ -69,9 +82,27 @@ const PRODUCT_ANALYSIS_TYPES: ReportType[] = [
 ]
 
 const PRODUCT_ANALYSIS_CARD_CONFIGS: ReportCardConfig[] = [
-  { type: 'business_report', title: '业务报告', subtitle: '流量、销量、会话数据', dateHint: '单日', projectHint: 'ASIN 匹配项目' },
-  { type: 'ad_promoted_product_report', title: '广告报告', subtitle: '广告曝光、点击、花费', dateHint: '单日', projectHint: 'SKU 匹配项目' },
-  { type: 'payment_report', title: '付款报告', subtitle: '佣金、FBA 费用、退款', dateHint: '周期', projectHint: 'SKU 匹配项目' },
+  {
+    type: 'business_report',
+    title: '业务报告',
+    subtitle: '流量、销量、会话数据',
+    dateHint: '单日',
+    projectHint: 'ASIN 匹配项目',
+  },
+  {
+    type: 'ad_promoted_product_report',
+    title: '广告报告',
+    subtitle: '广告曝光、点击、花费',
+    dateHint: '单日',
+    projectHint: 'SKU 匹配项目',
+  },
+  {
+    type: 'payment_report',
+    title: '付款报告',
+    subtitle: '佣金、FBA 费用、退款',
+    dateHint: '周期',
+    projectHint: 'SKU 匹配项目',
+  },
 ]
 
 // =============================================================================
@@ -167,14 +198,14 @@ export default function MonthlySkuAnalysisPanel() {
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.name === projectName),
-    [projects, projectName],
+    [projects, projectName]
   )
 
   const dateRangeValid = !!startDate && !!endDate && startDate <= endDate
   const periodLabel = startDate && endDate ? `${startDate} ~ ${endDate}` : ''
   const committedTypes = useMemo(
     () => PRODUCT_ANALYSIS_TYPES.filter((t) => cards[t]?.commitStatus === 'success'),
-    [cards],
+    [cards]
   )
   const allRequiredCommitted = committedTypes.length >= 3
   const canCalculate = useMemo(
@@ -183,7 +214,7 @@ export default function MonthlySkuAnalysisPanel() {
       dateRangeValid &&
       allRequiredCommitted &&
       runState !== 'running',
-    [selectedProject, dateRangeValid, allRequiredCommitted, runState],
+    [selectedProject, dateRangeValid, allRequiredCommitted, runState]
   )
 
   // ── Load projects ──
@@ -195,9 +226,7 @@ export default function MonthlySkuAnalysisPanel() {
         const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
         setProjects(data)
       } catch (error) {
-        setProjectLoadError(
-          error instanceof Error ? error.message : '项目列表加载失败',
-        )
+        setProjectLoadError(error instanceof Error ? error.message : '项目列表加载失败')
       } finally {
         setProjectsLoading(false)
       }
@@ -216,9 +245,7 @@ export default function MonthlySkuAnalysisPanel() {
 
       const lowerName = file.name.toLowerCase()
       const isAdExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
-      const endpoint = isAdExcel
-        ? '/api/v1/ad-upload/recognize'
-        : '/api/v1/report-upload/recognize'
+      const endpoint = isAdExcel ? '/api/v1/ad-upload/recognize' : '/api/v1/report-upload/recognize'
 
       try {
         const res = await fetch(resolveApiUrl(endpoint), {
@@ -236,7 +263,7 @@ export default function MonthlySkuAnalysisPanel() {
         return null
       }
     },
-    [country],
+    [country]
   )
 
   // ── Handle file drop/pick ──
@@ -249,7 +276,7 @@ export default function MonthlySkuAnalysisPanel() {
         files.map(async (file) => ({
           file,
           recognition: await recognizeFile(file),
-        })),
+        }))
       )
 
       setItems((prev) => {
@@ -351,7 +378,7 @@ export default function MonthlySkuAnalysisPanel() {
 
       setRecognizing(false)
     },
-    [recognizeFile, projectName],
+    [recognizeFile, projectName]
   )
 
   const onDrop = useCallback(
@@ -360,7 +387,7 @@ export default function MonthlySkuAnalysisPanel() {
       setDragActive(false)
       await addFiles(Array.from(event.dataTransfer.files ?? []))
     },
-    [addFiles],
+    [addFiles]
   )
 
   const onPickFiles = useCallback(
@@ -368,7 +395,7 @@ export default function MonthlySkuAnalysisPanel() {
       void addFiles(Array.from(event.target.files ?? []))
       event.target.value = ''
     },
-    [addFiles],
+    [addFiles]
   )
 
   // ── Commit a card with dry_run=true (NO DB write) ──
@@ -397,9 +424,7 @@ export default function MonthlySkuAnalysisPanel() {
           report_end_date: endDate,
           dry_run: true,
         }
-        const endpoint = isAdReport
-          ? '/api/v1/ad-upload/commit'
-          : '/api/v1/report-upload/commit'
+        const endpoint = isAdReport ? '/api/v1/ad-upload/commit' : '/api/v1/report-upload/commit'
 
         const res = await fetch(resolveApiUrl(endpoint), {
           method: 'POST',
@@ -425,8 +450,8 @@ export default function MonthlySkuAnalysisPanel() {
           prev.map((item) =>
             item.tempFileId === card.activeTempFileId
               ? { ...item, fileCommitStatus: 'success' as const }
-              : item,
-          ),
+              : item
+          )
         )
       } catch (err) {
         const msg = err instanceof Error ? err.message : '提交失败'
@@ -440,7 +465,7 @@ export default function MonthlySkuAnalysisPanel() {
         }))
       }
     },
-    [cards, projectName, country, startDate, endDate],
+    [cards, projectName, country, startDate, endDate]
   )
 
   const uploadAllReady = useCallback(async () => {
@@ -498,7 +523,11 @@ export default function MonthlySkuAnalysisPanel() {
       const data: CalculationRunResponse = await res.json()
       const periods = data.periods ?? []
       if (periods.length === 0) {
-        notify({ type: 'warning', title: '核算结果为空', message: '当前日期范围没有可用的核算数据' })
+        notify({
+          type: 'warning',
+          title: '核算结果为空',
+          message: '当前日期范围没有可用的核算数据',
+        })
         setRunState('done')
         return
       }
@@ -555,12 +584,20 @@ export default function MonthlySkuAnalysisPanel() {
               >
                 <SelectTrigger className="h-10 max-w-full">
                   <SelectValue
-                    placeholder={projectsLoading ? '项目加载中...' : projects.length ? '请选择项目名称' : '暂无可选项目'}
+                    placeholder={
+                      projectsLoading
+                        ? '项目加载中...'
+                        : projects.length
+                          ? '请选择项目名称'
+                          : '暂无可选项目'
+                    }
                   />
                 </SelectTrigger>
                 <SelectContent className="max-h-64 overflow-y-auto">
                   {projects.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -580,7 +617,9 @@ export default function MonthlySkuAnalysisPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -636,14 +675,25 @@ export default function MonthlySkuAnalysisPanel() {
                   className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2"
                 >
                   <p className="text-xs text-muted-foreground">{config.title}</p>
-                  <p className={cn(
-                    'mt-1 text-sm font-semibold',
-                    status === 'success' ? 'text-emerald-600' :
-                    status === 'saving' ? 'text-blue-600' :
-                    status === 'error' ? 'text-rose-600' :
-                    'text-muted-foreground',
-                  )}>
-                    {status === 'success' ? '已识别（不入库）' : status === 'saving' ? '提交中' : status === 'error' ? '提交失败' : '未提交'}
+                  <p
+                    className={cn(
+                      'mt-1 text-sm font-semibold',
+                      status === 'success'
+                        ? 'text-emerald-600'
+                        : status === 'saving'
+                          ? 'text-blue-600'
+                          : status === 'error'
+                            ? 'text-rose-600'
+                            : 'text-muted-foreground'
+                    )}
+                  >
+                    {status === 'success'
+                      ? '已识别（不入库）'
+                      : status === 'saving'
+                        ? '提交中'
+                        : status === 'error'
+                          ? '提交失败'
+                          : '未提交'}
                   </p>
                 </div>
               )
@@ -672,8 +722,14 @@ export default function MonthlySkuAnalysisPanel() {
             dragActive={dragActive}
             recognizing={recognizing}
             onDrop={onDrop}
-            onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-            onDragLeave={(e) => { e.preventDefault(); setDragActive(false) }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragActive(true)
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              setDragActive(false)
+            }}
             onPickFiles={onPickFiles}
           />
 
@@ -695,7 +751,7 @@ export default function MonthlySkuAnalysisPanel() {
                         activeTempFileId: tempFileId,
                         recognition:
                           prev[config.type]?.candidates.find(
-                            (c) => c.temp_file_id === tempFileId,
+                            (c) => c.temp_file_id === tempFileId
                           ) ?? null,
                         commitStatus: 'idle',
                         commitMessage: null,
@@ -709,7 +765,7 @@ export default function MonthlySkuAnalysisPanel() {
                     cardState.activeTempFileId &&
                       projectName &&
                       cardState.commitStatus !== 'saving' &&
-                      cardState.commitStatus !== 'success',
+                      cardState.commitStatus !== 'success'
                   )}
                   projectLocked
                   datesLocked
@@ -730,7 +786,7 @@ export default function MonthlySkuAnalysisPanel() {
                 !selectedProject?.id ||
                 !dateRangeValid ||
                 PRODUCT_ANALYSIS_TYPES.every(
-                  (t) => cards[t]?.commitStatus === 'success' || !cards[t]?.activeTempFileId,
+                  (t) => cards[t]?.commitStatus === 'success' || !cards[t]?.activeTempFileId
                 )
               }
             >

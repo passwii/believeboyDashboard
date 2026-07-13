@@ -14,7 +14,7 @@ export default function AiLandingPage() {
         announcementText="BelieveBoy AI 助手"
         showInput={false}
       />
-      
+
       {/* 底部跳转入口 - 当动画播放完后显示 */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50">
         <Link

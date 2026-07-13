@@ -52,7 +52,10 @@ type BuildBackendAuthHeadersOptions = {
 
 const ROLE_HEADER_VALUE_ADMIN = 'true'
 
-function pickTrimmed(session: Session | null, key: keyof NonNullable<Session['user']>): string | null {
+function pickTrimmed(
+  session: Session | null,
+  key: keyof NonNullable<Session['user']>
+): string | null {
   if (!session) return null
   const raw = session.user?.[key]
   if (typeof raw !== 'string') return null
@@ -89,10 +92,7 @@ function isAdmin(session: Session | null): boolean {
   return pickRoleType(session) === 'admin'
 }
 
-function applySessionContextHeaders(
-  session: Session | null,
-  headers: Headers
-): Headers {
+function applySessionContextHeaders(session: Session | null, headers: Headers): Headers {
   const userId = pickUserId(session)
   if (userId) headers.set('X-User-Id', userId)
 
