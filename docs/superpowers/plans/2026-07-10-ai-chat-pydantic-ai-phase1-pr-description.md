@@ -101,46 +101,71 @@ feat(ai): AI Chat 流式端点 Pydantic AI Native · Phase 1
 - **回退 endpoint 内部路由**：旧 `_legacy_stream_response` 函数完整保留在 `ai_chat.py`（未删），如需紧急回退可将 `stream_message` 的 `if payload.enable_web_search:` 分支改为恒走 `_legacy_stream_response`
 - **回退 mapper / agent**：删除 `app/services/ai/{agent.py,stream_mapper.py}` 即可，端点会因 ImportError 启动失败（需同时 revert endpoint commit）
 
-## 任务 7：真 LLM 烟雾测试（需人工跑）
+## 任务 7：真 LLM 烟雾测试（agent 已自动化，Damon 只需 review 结果）
 
-agent 帮不上忙，必须用真实 LLM endpoint + Damon 账号 curl 验证。**合并前由 Damon 跑一遍**：
-
-### 步骤 1：本地启动后端
+**自动化脚本**：`backend/scripts/verify_ai_chat_phase1.py` 启动后端 → 跑 3 个真 LLM 端到端测试 → 输出 ndjson + PASS/FAIL。
 
 ```bash
-cd backend && ./.venv/bin/uvicorn app.main:app --reload --port 8000
+cd backend && ./.venv/bin/python scripts/verify_ai_chat_phase1.py
 ```
 
-### 步骤 2：创建会话 + 真流式请求
+**实测结果**（2026-07-13，model=MiniMax-M3）：
 
-```bash
-curl -N -X POST "http://localhost:8000/api/v1/ai/conversations/<id>/messages/stream" \
-  -H "Content-Type: application/json" \
-  -H "X-User-Id: 1" \
-  -H "X-API-Key: $(grep '^API_KEY=' backend/.env | cut -d= -f2)" \
-  -d '{"content":"你好，介绍下 Pydantic AI","enable_web_search":false}'
+| 测试 | 路径 | 事件数 | 时长 | 状态 |
+|---|---|---|---|---|
+| 1 | enable_web_search=False (Pydantic AI) | 11 chunks + usage + done | 3.6s | ✓ PASS |
+| 2 | regenerate=True + web_search=False | HTTP 400「重新生成仅在启用联网搜索时支持」| <1s | ✓ PASS |
+| 3 | enable_web_search=True (legacy 冻结) | 47 chunks + tool_calls/sources/tool_searching/tool_done + done | 25.0s | ✓ PASS |
+
+**Pydantic AI 路径实际 ndjson 片段**（测试 1）：
+
+```json
+{"type": "start"}
+{"type": "chunk", "delta": "sentence, in Chinese."}
+{"type": "chunk", "delta": "</think>\n\nPydantic AI 是一个基于 Pydantic 的 Python 智能体（Agent）框架，用于以类型安全、结构化的"}
+{"type": "chunk", "delta": "方式构建生产级的大语言模型应用。"}
+{"type": "usage", "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 259}}
+{"type": "done", "user_message": {...}, "assistant_message": {"content": "...Pydantic AI 是一个基于 Pydantic 的 Python 智能体框架...", "is_complete": true, ...}, ...}
 ```
 
-**预期 ndjson 序列**：
+**Legacy 路径实际 ndjson 片段**（测试 3）：
+
+```json
+{"type": "start"}
+{"type": "chunk", "delta": "<think>用户问今天北京的天气...</think>"}
+{"type": "tool_calls", "tool_calls": [{"function": {"name": "web_search", "arguments": "{\"query\":\"北京今天天气\",\"time_range\":\"day\"}"}}]}
+{"type": "tool_searching"}
+{"type": "tool_done"}
+{"type": "sources", "sources": [{"title": "北京天气预报", "url": "https://www.weather.com.cn/weather/101010100.shtml", "score": 0.9}, ...], "time_range": "day", "query": "今天北京天气"}
+{"type": "chunk", "delta": "..."}  // 后续 chunks
+{"type": "done", "assistant_message": {"search_sources": [...10 条], "search_time_range": "day", "is_complete": true, ...}}
 ```
-start → thinking_chunk × N（可选）→ chunk × N → usage → done
-```
 
-### 步骤 3：取消按钮
+**自动化测试发现的 3 个 bug（已修复）**：
 
-前端页面发一条流式请求，期间点击「停止」。预期：流立即中断 + 服务端 cancel_registry 标记该 conv_id + DB 回滚未提交写入。
+1. Pydantic AI 2.9 输入格式错：原实现直接传 `[ModelMessage]`，实际必须拆为 `user_prompt + message_history`（commit `1903bd4d`）
+2. `payload.model` 字段被忽略：`build_chat_agent` 现在支持 `model_name` 参数（commit `1903bd4d`）
+3. e2e 测试 fixture 需接受新参数（commit `1903bd4d`）
 
-### 步骤 4：前端冒烟
+**Damon 需要做的**（仅 UI 部分）：
+
+### 步骤 1：取消按钮（UI 测试，必须人工）
+
+启动前端 dev server + 启 backend dev server + 在 UI 发消息 + 中途点取消。
+
+### 步骤 2：前端 build/test 冒烟
 
 ```bash
 cd frontend && pnpm lint && pnpm build && pnpm test
 ```
 
-预期：`consumeStream` 对 `start / chunk / thinking_chunk / usage / done` 解析逻辑零回归。
+预期：`consumeStream` 对 `start / chunk / thinking_chunk / usage / done` 解析逻辑零回归（前端代码未改动，仅端点协议兼容）。
 
-### 步骤 5：填写烟雾测试结果
+### 步骤 3：填写 PR 评论
 
-在本 PR 评论里追加实际 ndjson 片段 + cancel button 响应时间 + 前端 test 结果。
+把上面 2 步的结果贴到 PR 评论里。
+
+> **额外发现**：`.env` 的 `AI_CHAT_DEFAULT_MODEL=MiniMax-M2.7-highspeed` 是过期配置（provider 返回 502 "unknown provider"）。验证脚本用 `model: "MiniMax-M3"` 覆盖。这不是本 PR 的问题（`agent.py` 现在支持 `payload.model` 覆盖默认值，但 .env 默认值仍需 Damon 单独修）。
 
 ## 部署注意事项
 
