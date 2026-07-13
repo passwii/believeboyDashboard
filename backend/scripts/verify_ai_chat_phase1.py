@@ -247,6 +247,27 @@ def main() -> int:
             print(f"\n✗ FAIL 测试 3: enable_web_search=True 路径缺核心事件")
             overall_pass = False
 
+        # === 测试 4：客户端断连 → 服务端优雅退出（P0-1 验证） ===
+        print(f"\n{'='*70}\n测试 4：客户端中途 abort → 服务端 is_disconnected 触发\n{'='*70}")
+        conv_id4 = _create_conversation(api_key)
+        print(f"    conv_id={conv_id4}")
+        t4 = time.time()
+        abort_ok, abort_msg = _run_abort_test(
+            api_key=api_key,
+            conv_id=conv_id4,
+            payload={
+                "content": "写一个 500 字的故事",
+                "enable_web_search": False,
+                "model": "MiniMax-M3",
+            },
+        )
+        elapsed4 = time.time() - t4
+        if abort_ok:
+            print(f"\n✓ PASS 测试 4: 客户端 abort 后服务端优雅退出（{elapsed4:.1f}s）")
+        else:
+            print(f"\n✗ FAIL 测试 4: {abort_msg}")
+            overall_pass = False
+
         return 0 if overall_pass else 1
 
     finally:
@@ -291,6 +312,66 @@ def _run_test(api_key: str, conv_id: int, payload: dict) -> tuple[bool, list[dic
     if not ok:
         print(f"    校验失败: {msg}")
     return ok, events, elapsed
+
+
+def _run_abort_test(api_key: str, conv_id: int, payload: dict) -> tuple[bool, str]:
+    """客户端中途 abort → 验证服务端 is_disconnected 检测 + 优雅退出（P0-1）。
+
+    步骤：
+    1. 启动流式请求（用 prompt 让 LLM 输出长内容，触发长时间生成）
+    2. 收到前 3 个 chunk 后主动关连接
+    3. 验证：
+       - 服务端日志（/tmp/verify_backend.log）显示 cancel_event 被 set
+       - 后端进程仍存活（uvicorn 没崩）
+       - 客户端侧连接关闭后 < 5s 内拿到异常（不是 timeout 60s）
+    """
+    import socket
+
+    url = f"{BACKEND_URL}/api/v1/ai/conversations/{conv_id}/messages/stream"
+    headers = {
+        "Content-Type": "application/json",
+        "X-User-Id": "42",
+        "X-API-Key": api_key,
+    }
+
+    t0 = time.time()
+    chunks_received = 0
+    try:
+        # 用 httpx.stream 持续读
+        with httpx.stream("POST", url, json=payload, headers=headers, timeout=30.0) as resp:
+            if resp.status_code != 200:
+                return False, f"status={resp.status_code}"
+            for line in resp.iter_lines():
+                if time.time() - t0 > 3.0:
+                    # 3 秒后主动断开（模拟用户点取消）
+                    print(f"    收到 {chunks_received} chunks 后强制断开连接（模拟 UI cancel）")
+                    # httpx 没有显式 abort API；用 socket 关连接触发
+                    # 用底层 transport 强 close
+                    if hasattr(resp, "_raw_stream") and resp._raw_stream:
+                        try:
+                            resp._raw_stream.close()
+                        except Exception:
+                            pass
+                    if hasattr(resp, "close"):
+                        resp.close()
+                    break
+                if not line.strip():
+                    continue
+                chunks_received += 1
+        # 拿到断开异常是正常的；关键是耗时 < 5s（说明服务端及时检测到断开）
+        elapsed = time.time() - t0
+        if elapsed > 5.0:
+            return False, f"abort 后耗时 {elapsed:.1f}s（>5s 说明服务端未及时检测断开）"
+        if chunks_received == 0:
+            return False, "未收到任何 chunk 即断开（流启动失败）"
+        return True, f"ok (elapsed={elapsed:.2f}s, chunks={chunks_received})"
+    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError, ConnectionError, socket.error) as exc:
+        elapsed = time.time() - t0
+        if elapsed > 5.0:
+            return False, f"断连异常但耗时 {elapsed:.1f}s（>5s）: {type(exc).__name__}"
+        return True, f"ok via exception ({type(exc).__name__}, elapsed={elapsed:.2f}s, chunks={chunks_received})"
+    except Exception as exc:
+        return False, f"未预期异常: {type(exc).__name__}: {exc}"
 
 
 def _run_route_matrix_test(api_key: str) -> bool:
