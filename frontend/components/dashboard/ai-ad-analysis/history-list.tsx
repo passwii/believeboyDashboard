@@ -58,7 +58,14 @@ interface HistoryListProps {
   refreshTrigger?: number
 }
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle2 }> = {
+const STATUS_CONFIG: Record<
+  string,
+  {
+    label: string
+    variant: 'default' | 'secondary' | 'destructive' | 'outline'
+    icon: typeof CheckCircle2
+  }
+> = {
   completed: { label: '已完成', variant: 'default', icon: CheckCircle2 },
   generating: { label: '生成中', variant: 'secondary', icon: Loader2 },
   pending: { label: '等待中', variant: 'outline', icon: Clock },
@@ -228,7 +235,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                   key={item.id}
                   className={cn(
                     'cursor-pointer hover:bg-muted/30',
-                    item.status === 'failed' && 'opacity-70',
+                    item.status === 'failed' && 'opacity-70'
                   )}
                   onClick={() => {
                     if (item.status === 'completed') setViewInsightId(item.id)
@@ -241,14 +248,18 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                   </TableCell>
                   <TableCell className="text-sm">{item.project_name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs">{item.country}</Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {item.country}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {item.date_range_start} ~ {item.date_range_end}
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant={cfg.variant} className="text-xs gap-1">
-                      <StatusIcon className={cn('h-3 w-3', item.status === 'generating' && 'animate-spin')} />
+                      <StatusIcon
+                        className={cn('h-3 w-3', item.status === 'generating' && 'animate-spin')}
+                      />
                       {cfg.label}
                     </Badge>
                   </TableCell>
@@ -267,14 +278,22 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-[140px]">
                         {item.status === 'completed' && (
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setViewInsightId(item.id) }}>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViewInsightId(item.id)
+                            }}
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             查看
                           </DropdownMenuItem>
                         )}
                         {item.status === 'failed' && (
                           <DropdownMenuItem
-                            onClick={(e) => { e.stopPropagation(); handleRetry(item.id) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRetry(item.id)
+                            }}
                             disabled={actionLoading === item.id}
                           >
                             <RefreshCw className="mr-2 h-4 w-4" />
@@ -283,7 +302,10 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={(e) => { e.stopPropagation(); handleDelete(item) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(item)
+                          }}
                           disabled={actionLoading === item.id}
                           className="text-red-600 focus:text-red-600"
                         >
@@ -331,7 +353,9 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
       {/* View Dialog */}
       <ViewDialog
         open={viewInsightId !== null}
-        onOpenChange={(open) => { if (!open) setViewInsightId(null) }}
+        onOpenChange={(open) => {
+          if (!open) setViewInsightId(null)
+        }}
         insightId={viewInsightId}
         onUpdated={loadInsights}
       />

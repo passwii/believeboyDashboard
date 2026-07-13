@@ -2,10 +2,7 @@
 
 import type { DateRange } from 'react-day-picker'
 
-import {
-  DateRangePicker,
-  type DateRangePickerChangeMeta,
-} from '@/components/ui/date-picker'
+import { DateRangePicker, type DateRangePickerChangeMeta } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 
 interface DateRangeFieldProps {
@@ -31,7 +28,7 @@ export function DateRangeField({
       onChange={onChange}
       className={cn(
         'h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
-        triggerClassName,
+        triggerClassName
       )}
       timezone={timezone}
     />

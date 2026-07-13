@@ -38,7 +38,7 @@ export interface SidebarPanelActions {
 
 export function useSidebarPanel(
   pathname: string,
-  findGroupByPathname: (pathname: string) => string | undefined,
+  findGroupByPathname: (pathname: string) => string | undefined
 ): SidebarPanelState & SidebarPanelActions {
   const [hoveredGroupId, setHoveredGroupId] = React.useState<string | null>(null)
   const [pinnedGroupId, setPinnedGroupId] = React.useState<string | null>(null)

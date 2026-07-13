@@ -1,20 +1,20 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = Array.from({ length: 60 }, (_, i) => i)
 
 function pad(n: number): string {
-  return String(n).padStart(2, "0")
+  return String(n).padStart(2, '0')
 }
 
 export interface TimePickerProps {
@@ -45,11 +45,11 @@ function TimePicker({
 }: TimePickerProps) {
   const allowedSet = React.useMemo(
     () => (allowedHours ? new Set(allowedHours) : null),
-    [allowedHours],
+    [allowedHours]
   )
 
   return (
-    <div className={cn("flex gap-1.5 items-center", className)}>
+    <div className={cn('flex gap-1.5 items-center', className)}>
       <Select
         value={String(hour)}
         onValueChange={(v) => onHourChange(Number(v))}

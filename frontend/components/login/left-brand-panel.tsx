@@ -1,17 +1,16 @@
-"use client";
+'use client'
 
-import React from "react";
-import { ArrowRight } from "lucide-react";
-import DotMapCanvas from "./dot-map-canvas";
+import React from 'react'
+import { ArrowRight } from 'lucide-react'
+import DotMapCanvas from './dot-map-canvas'
 
 interface LeftBrandPanelProps {
-  theme: "light" | "dark";
+  theme: 'light' | 'dark'
 }
 
 const LeftBrandPanel = ({ theme }: LeftBrandPanelProps) => {
-  const leftPanelGradient = theme === "dark"
-    ? "from-[hsl(220_25%_8%)] to-[hsl(233_30%_12%)]"
-    : "from-blue-50 to-indigo-100";
+  const leftPanelGradient =
+    theme === 'dark' ? 'from-[hsl(220_25%_8%)] to-[hsl(233_30%_12%)]' : 'from-blue-50 to-indigo-100'
 
   return (
     <div className="relative hidden h-[clamp(400px,70vh,600px)] w-1/2 overflow-hidden border-r border-gray-100 dark:border-[hsl(var(--border))] lg:block">
@@ -32,7 +31,7 @@ const LeftBrandPanel = ({ theme }: LeftBrandPanelProps) => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default LeftBrandPanel;
+export default LeftBrandPanel

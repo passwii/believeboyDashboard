@@ -59,7 +59,7 @@ export function EditPricingSnapshotDialog({
             name: name.trim() || null,
             description: description.trim() || null,
           }),
-        },
+        }
       )
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: '保存失败' }))

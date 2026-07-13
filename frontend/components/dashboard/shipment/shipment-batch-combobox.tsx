@@ -1,21 +1,21 @@
-"use client";
+'use client'
 
-import * as React from "react";
+import * as React from 'react'
 
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { useNotifications } from "@/components/notifications";
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
+import { useNotifications } from '@/components/notifications'
 
-const API_BASE = "/api/backend";
+const API_BASE = '/api/backend'
 
 interface ShipmentBatchComboboxProps {
-  value: string;
-  onChange: (value: string) => void;
-  projectId: string;
-  country: string;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-  testId?: string;
+  value: string
+  onChange: (value: string) => void
+  projectId: string
+  country: string
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  testId?: string
 }
 
 export function ShipmentBatchCombobox({
@@ -23,89 +23,86 @@ export function ShipmentBatchCombobox({
   onChange,
   projectId,
   country,
-  placeholder = "选择或输入发货批次",
+  placeholder = '选择或输入发货批次',
   disabled = false,
   className,
   testId,
 }: ShipmentBatchComboboxProps) {
-  const { notify } = useNotifications();
-  const [batches, setBatches] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const { notify } = useNotifications()
+  const [batches, setBatches] = React.useState<string[]>([])
+  const [loading, setLoading] = React.useState(false)
 
-  const fetchKey = `${projectId}::${country}`;
+  const fetchKey = `${projectId}::${country}`
 
   const refetch = React.useCallback(async () => {
     if (!projectId || !country) {
-      setBatches([]);
-      return;
+      setBatches([])
+      return
     }
-    setLoading(true);
-    const params = new URLSearchParams({ project_id: projectId, country });
+    setLoading(true)
+    const params = new URLSearchParams({ project_id: projectId, country })
     try {
       const res = await fetch(
         `${API_BASE}/api/v1/shipment-schedules/batches?${params.toString()}`,
-        { credentials: "include" },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { batches?: string[] };
-      setBatches(Array.isArray(data.batches) ? data.batches : []);
+        { credentials: 'include' }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { batches?: string[] }
+      setBatches(Array.isArray(data.batches) ? data.batches : [])
     } catch {
-      setBatches([]);
+      setBatches([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [projectId, country]);
+  }, [projectId, country])
 
   React.useEffect(() => {
-    void refetch();
-  }, [refetch, fetchKey]);
+    void refetch()
+  }, [refetch, fetchKey])
 
   const handleHide = React.useCallback(
     async (batch: string) => {
-      setBatches((current) => current.filter((b) => b !== batch));
+      setBatches((current) => current.filter((b) => b !== batch))
       try {
-        const res = await fetch(
-          `${API_BASE}/api/v1/shipment-schedules/batches/hidden`,
-          {
-            method: "DELETE",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              project_id: Number(projectId),
-              country,
-              shipment_batch: batch,
-            }),
-          },
-        );
+        const res = await fetch(`${API_BASE}/api/v1/shipment-schedules/batches/hidden`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: Number(projectId),
+            country,
+            shipment_batch: batch,
+          }),
+        })
         if (!res.ok) {
-          await refetch();
+          await refetch()
           notify({
-            type: "error",
-            title: "隐藏失败",
+            type: 'error',
+            title: '隐藏失败',
             message: `HTTP ${res.status}`,
-          });
+          })
         }
       } catch (err) {
-        await refetch();
+        await refetch()
         notify({
-          type: "error",
-          title: "隐藏失败",
+          type: 'error',
+          title: '隐藏失败',
           message: err instanceof Error ? err.message : String(err),
-        });
+        })
       }
     },
-    [projectId, country, refetch, notify],
-  );
+    [projectId, country, refetch, notify]
+  )
 
   const handleChange = React.useCallback(
     (next: string) => {
-      onChange(next);
+      onChange(next)
       if (next && !batches.includes(next)) {
-        setBatches((current) => [next, ...current.filter((b) => b !== next)]);
+        setBatches((current) => [next, ...current.filter((b) => b !== next)])
       }
     },
-    [batches, onChange],
-  );
+    [batches, onChange]
+  )
 
   const options = React.useMemo<ComboboxOption[]>(
     () =>
@@ -114,10 +111,10 @@ export function ShipmentBatchCombobox({
         label: batch,
         onHide: () => void handleHide(batch),
       })),
-    [batches, handleHide],
-  );
+    [batches, handleHide]
+  )
 
-  const isDisabled = disabled || !projectId || !country;
+  const isDisabled = disabled || !projectId || !country
 
   return (
     <Combobox
@@ -127,12 +124,12 @@ export function ShipmentBatchCombobox({
       placeholder={placeholder}
       emptyText={
         loading
-          ? "加载中…"
+          ? '加载中…'
           : !projectId
-            ? "请先选择项目"
+            ? '请先选择项目'
             : !country
-              ? "请先选择国家"
-              : "暂无历史批次，可直接输入新批次"
+              ? '请先选择国家'
+              : '暂无历史批次，可直接输入新批次'
       }
       searchPlaceholder="搜索或输入新批次…"
       allowFreeInput
@@ -141,5 +138,5 @@ export function ShipmentBatchCombobox({
       triggerClassName={className}
       testId={testId}
     />
-  );
+  )
 }

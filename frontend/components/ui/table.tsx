@@ -1,6 +1,6 @@
-import * as React from "react"
+import * as React from 'react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 // TableProps：默认无圆角（与 DataCard 配合使用时自然对齐）。
 // 如需恢复圆角，请显式传入 wrapperRounded={true}。
@@ -14,44 +14,46 @@ interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   borderCollapse?: boolean
 }
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  TableProps
->(({ className, containerClassName, wrapperRounded, tableLayout, borderCollapse, ...props }, ref) => (
-  <div className={cn("relative w-full overflow-x-auto overflow-y-visible", wrapperRounded ? "rounded-lg" : "", containerClassName)}>
-    <table
-      ref={ref}
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  (
+    { className, containerClassName, wrapperRounded, tableLayout, borderCollapse, ...props },
+    ref
+  ) => (
+    <div
       className={cn(
-        "w-full caption-bottom text-sm",
-        borderCollapse ? "border-collapse" : "border-separate border-spacing-0",
-        tableLayout === 'fixed' && "[table-layout:fixed]",
-        className
+        'relative w-full overflow-x-auto overflow-y-visible',
+        wrapperRounded ? 'rounded-lg' : '',
+        containerClassName
       )}
-      {...props}
-    />
-  </div>
-))
-Table.displayName = "Table"
+    >
+      <table
+        ref={ref}
+        className={cn(
+          'w-full caption-bottom text-sm',
+          borderCollapse ? 'border-collapse' : 'border-separate border-spacing-0',
+          tableLayout === 'fixed' && '[table-layout:fixed]',
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+)
+Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn(className)} {...props} />
-))
-TableHeader.displayName = "TableHeader"
+>(({ className, ...props }, ref) => <thead ref={ref} className={cn(className)} {...props} />)
+TableHeader.displayName = 'TableHeader'
 
 const TableBody = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <tbody
-    ref={ref}
-    className={cn("[&_tr:last-child]:border-b-0", className)}
-    {...props}
-  />
+  <tbody ref={ref} className={cn('[&_tr:last-child]:border-b-0', className)} {...props} />
 ))
-TableBody.displayName = "TableBody"
+TableBody.displayName = 'TableBody'
 
 const TableFooter = React.forwardRef<
   HTMLTableSectionElement,
@@ -59,29 +61,25 @@ const TableFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={cn(
-      "bg-muted/35 font-medium [&>tr]:last:border-b-0",
-      className
-    )}
+    className={cn('bg-muted/35 font-medium [&>tr]:last:border-b-0', className)}
     {...props}
   />
 ))
-TableFooter.displayName = "TableFooter"
+TableFooter.displayName = 'TableFooter'
 
-const TableRow = React.forwardRef<
-  HTMLTableRowElement,
-  React.HTMLAttributes<HTMLTableRowElement>
->(({ className, ...props }, ref) => (
-  <tr
-    ref={ref}
-    className={cn(
-      "transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-border/80 [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-border/80 [&>td:last-child]:border-r-0 hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8 data-[state=selected]:hover:bg-primary/12",
-      className
-    )}
-    {...props}
-  />
-))
-TableRow.displayName = "TableRow"
+const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
+  ({ className, ...props }, ref) => (
+    <tr
+      ref={ref}
+      className={cn(
+        'transition-colors [&>th]:border-b [&>th]:border-r [&>th]:border-border/80 [&>th:last-child]:border-r-0 [&>td]:border-b [&>td]:border-r [&>td]:border-border/80 [&>td:last-child]:border-r-0 hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8 data-[state=selected]:hover:bg-primary/12',
+        className
+      )}
+      {...props}
+    />
+  )
+)
+TableRow.displayName = 'TableRow'
 
 const TableHead = React.forwardRef<
   HTMLTableCellElement,
@@ -90,13 +88,13 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-11 bg-[hsl(var(--surface-subtle))] px-4 text-left align-middle text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/92 [&:has([role=checkbox])]:pr-0",
+      'h-11 bg-[hsl(var(--surface-subtle))] px-4 text-left align-middle text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground/92 [&:has([role=checkbox])]:pr-0',
       className
     )}
     {...props}
   />
 ))
-TableHead.displayName = "TableHead"
+TableHead.displayName = 'TableHead'
 
 const TableCell = React.forwardRef<
   HTMLTableCellElement,
@@ -104,23 +102,22 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("p-4 align-middle text-sm text-foreground/92 [&:has([role=checkbox])]:pr-0", className)}
+    className={cn(
+      'p-4 align-middle text-sm text-foreground/92 [&:has([role=checkbox])]:pr-0',
+      className
+    )}
     {...props}
   />
 ))
-TableCell.displayName = "TableCell"
+TableCell.displayName = 'TableCell'
 
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
-  <caption
-    ref={ref}
-    className={cn("mt-4 text-sm text-muted-foreground", className)}
-    {...props}
-  />
+  <caption ref={ref} className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />
 ))
-TableCaption.displayName = "TableCaption"
+TableCaption.displayName = 'TableCaption'
 
 // ========================
 // ColGroup — 配合 table-fixed 使用，定义固定列宽
@@ -137,7 +134,11 @@ export function ColGroup({ columns, className }: ColGroupProps) {
       {columns.map((col, i) => (
         <col
           key={i}
-          style={col.width ? { width: typeof col.width === 'number' ? `${col.width}px` : col.width } : undefined}
+          style={
+            col.width
+              ? { width: typeof col.width === 'number' ? `${col.width}px` : col.width }
+              : undefined
+          }
         />
       ))}
     </colgroup>
@@ -150,16 +151,7 @@ export function ColGroup({ columns, className }: ColGroupProps) {
 // 原则：实体不透明背景（无 opacity），z-index 分层，shadow 模拟边框
 // ========================
 
-export {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableCaption,
-}
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption }
 
 /** 第一列表头单元格：固定左侧 + 顶部（配合 STICKY_TOP_ROW 使用） */
 export const STICKY_LEFT_HEAD_CELL =
@@ -170,12 +162,10 @@ export const STICKY_TOP_ROW =
   'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.6)]'
 
 /** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
-export const STICKY_TOP_GROUP_ROW =
-  'sticky top-0 z-50'
+export const STICKY_TOP_GROUP_ROW = 'sticky top-0 z-50'
 
 /** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-11 + border = 45px） */
-export const STICKY_TOP_SUB_ROW =
-  'sticky top-[45px] z-40'
+export const STICKY_TOP_SUB_ROW = 'sticky top-[45px] z-40'
 
 /** 第一列数据单元格：固定左侧，实体不透明背景 */
 export const STICKY_LEFT_CELL =

@@ -52,7 +52,7 @@ export function GlobalErrorBridge() {
           message: BACKEND_UNAVAILABLE_MESSAGE,
           skipHistory: true,
         },
-        6000,
+        6000
       )
       return true
     }

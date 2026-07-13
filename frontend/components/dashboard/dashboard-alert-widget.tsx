@@ -5,11 +5,7 @@ import { AlertTriangle, Bell, Boxes, CheckCircle, RefreshCw, XCircle } from 'luc
 
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { fmtNumPrecise } from '@/lib/dashboard-format'
@@ -95,7 +91,7 @@ export function DashboardAlertWidget({
         <DataCardContent>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
-              {[1, 2, 3].map(i => (
+              {[1, 2, 3].map((i) => (
                 <div key={i} className="space-y-1.5">
                   <Skeleton className="h-3 w-12" />
                   <Skeleton className="h-7 w-8" />
@@ -103,7 +99,7 @@ export function DashboardAlertWidget({
               ))}
             </div>
             <div className="space-y-2 pt-1">
-              {[1, 2, 3].map(i => (
+              {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
@@ -160,23 +156,29 @@ export function DashboardAlertWidget({
         {/* Recent events */}
         {recentEvents.length > 0 ? (
           <div className="space-y-2">
-            {recentEvents.map(event => (
+            {recentEvents.map((event) => (
               <div
                 key={event.id}
                 className="flex items-start gap-2.5 rounded-md border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))]"
               >
-                <div className={cn(
-                  'mt-0.5 h-2 w-2 shrink-0 rounded-full',
-                  event.severity === 'critical' ? 'bg-destructive' :
-                  event.severity === 'warning' ? 'bg-amber-500' : 'bg-primary'
-                )} />
+                <div
+                  className={cn(
+                    'mt-0.5 h-2 w-2 shrink-0 rounded-full',
+                    event.severity === 'critical'
+                      ? 'bg-destructive'
+                      : event.severity === 'warning'
+                        ? 'bg-amber-500'
+                        : 'bg-primary'
+                  )}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium leading-tight text-foreground line-clamp-1">
                     {event.message}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <span className="text-[10px] text-muted-foreground">
-                      {event.deviation_pct >= 0 ? '+' : ''}{event.deviation_pct.toFixed(1)}%
+                      {event.deviation_pct >= 0 ? '+' : ''}
+                      {event.deviation_pct.toFixed(1)}%
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       {formatRelativeTime(event.triggered_at)}
@@ -192,9 +194,7 @@ export function DashboardAlertWidget({
             <div className="mb-3 rounded-xl bg-secondary/10 p-3 text-secondary">
               <CheckCircle className="h-6 w-6" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">
-              暂无活跃告警
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">暂无活跃告警</h3>
             <p className="mt-1 max-w-[200px] text-xs leading-relaxed text-muted-foreground">
               系统运行正常，所有指标在正常范围内。
             </p>
@@ -223,26 +223,23 @@ export function DashboardAlertWidget({
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const map: Record<string, { className: string, label: string }> = {
-    critical: { className: 'bg-destructive/10 text-destructive border-destructive/20', label: '严重' },
+  const map: Record<string, { className: string; label: string }> = {
+    critical: {
+      className: 'bg-destructive/10 text-destructive border-destructive/20',
+      label: '严重',
+    },
     warning: { className: 'bg-amber-500/10 text-amber-600 border-amber-500/20', label: '警告' },
     info: { className: 'bg-primary/10 text-primary border-primary/20', label: '提示' },
   }
   const cfg = map[severity] ?? map.info
-  return <Badge className={cn(cfg.className, "text-[10px] px-1.5 border")}>{cfg.label}</Badge>
+  return <Badge className={cn(cfg.className, 'text-[10px] px-1.5 border')}>{cfg.label}</Badge>
 }
 
 /**
  * 库存健康度子区块 —— 位于告警中心卡片底部
  * 视觉与 HealthKpiRow 对齐:左侧 icon+标签+数值,右侧 AreaSparkline 7 日趋势
  */
-function StockHealthBlock({
-  snapshot,
-  loading,
-}: {
-  snapshot?: StockSnapshot
-  loading: boolean
-}) {
+function StockHealthBlock({ snapshot, loading }: { snapshot?: StockSnapshot; loading: boolean }) {
   const hasData = !!snapshot && snapshot.trend.length > 0
   return (
     <div className="border-t border-border/60 pt-3">
@@ -250,9 +247,7 @@ function StockHealthBlock({
         <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
           库存健康度
         </span>
-        {hasData && (
-          <span className="text-[10px] text-muted-foreground">区间末日快照</span>
-        )}
+        {hasData && <span className="text-[10px] text-muted-foreground">区间末日快照</span>}
       </div>
       <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] px-3 py-3.5">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

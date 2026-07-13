@@ -43,10 +43,7 @@ function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`
 }
 
-export function PortfolioComparisonTable({
-  projects,
-  country,
-}: PortfolioComparisonTableProps) {
+export function PortfolioComparisonTable({ projects, country }: PortfolioComparisonTableProps) {
   const router = useRouter()
   const [sorting, setSorting] = useState<Array<{ id: string; desc: boolean }>>([
     { id: 'sales_amount', desc: true },
@@ -58,8 +55,8 @@ export function PortfolioComparisonTable({
         accessorKey: 'project_name',
         header: '项目',
         cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <span className='font-medium'>{row.original.project_name}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.original.project_name}</span>
           </div>
         ),
         size: 160,
@@ -68,7 +65,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'sales_amount',
         header: '销售额',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{formatMoney(getValue() as number, country)}</span>
+          <span className="tabular-nums">{formatMoney(getValue() as number, country)}</span>
         ),
         size: 120,
       },
@@ -76,7 +73,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'sales_contribution',
         header: '占比',
         cell: ({ getValue }) => (
-          <span className='tabular-nums text-muted-foreground'>
+          <span className="tabular-nums text-muted-foreground">
             {formatPercent(getValue() as number)}
           </span>
         ),
@@ -86,7 +83,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'order_qty',
         header: '订单量',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{(getValue() as number).toLocaleString()}</span>
+          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
         ),
         size: 80,
       },
@@ -94,7 +91,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'ad_spend',
         header: '广告费',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{formatMoney(getValue() as number, country)}</span>
+          <span className="tabular-nums">{formatMoney(getValue() as number, country)}</span>
         ),
         size: 100,
       },
@@ -105,9 +102,9 @@ export function PortfolioComparisonTable({
           const val = getValue() as number
           const adSpend = row.original.ad_spend
           const clicks = row.original.clicks
-          if (clicks === 0) return <span className='text-muted-foreground'>--</span>
+          if (clicks === 0) return <span className="text-muted-foreground">--</span>
           return (
-            <span className='tabular-nums'>
+            <span className="tabular-nums">
               {CURRENCY_SYMBOL[country] ?? '$'}
               {val.toFixed(2)}
             </span>
@@ -119,7 +116,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'conversion_rate',
         header: '转化率',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{formatPercent(getValue() as number)}</span>
+          <span className="tabular-nums">{formatPercent(getValue() as number)}</span>
         ),
         size: 80,
       },
@@ -127,7 +124,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'clicks',
         header: '点击量',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{(getValue() as number).toLocaleString()}</span>
+          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
         ),
         size: 80,
       },
@@ -135,7 +132,7 @@ export function PortfolioComparisonTable({
         accessorKey: 'sessions',
         header: '访问量',
         cell: ({ getValue }) => (
-          <span className='tabular-nums'>{(getValue() as number).toLocaleString()}</span>
+          <span className="tabular-nums">{(getValue() as number).toLocaleString()}</span>
         ),
         size: 80,
       },
@@ -144,9 +141,9 @@ export function PortfolioComparisonTable({
         header: '',
         cell: ({ row }) => (
           <Button
-            variant='ghost'
-            size='sm'
-            className='h-7 gap-1 text-xs'
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-xs"
             onClick={(e) => {
               e.stopPropagation()
               router.push(
@@ -155,7 +152,7 @@ export function PortfolioComparisonTable({
             }}
           >
             详情
-            <ExternalLink className='h-3 w-3' />
+            <ExternalLink className="h-3 w-3" />
           </Button>
         ),
         size: 70,
@@ -174,8 +171,8 @@ export function PortfolioComparisonTable({
   })
 
   return (
-    <div className='dashboard-surface rounded-xl'>
-      <div className='overflow-auto'>
+    <div className="dashboard-surface rounded-xl">
+      <div className="overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -184,19 +181,16 @@ export function PortfolioComparisonTable({
                   <TableHead
                     key={header.id}
                     style={{ width: header.getSize() }}
-                    className='cursor-pointer select-none'
+                    className="cursor-pointer select-none"
                     onClick={header.column.getToggleSortingHandler()}
                   >
-                    <div className='flex items-center gap-1'>
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                    <div className="flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
                       {{
-                        asc: <ArrowUp className='h-3 w-3' />,
-                        desc: <ArrowDown className='h-3 w-3' />,
+                        asc: <ArrowUp className="h-3 w-3" />,
+                        desc: <ArrowDown className="h-3 w-3" />,
                       }[header.column.getIsSorted() as string] ?? (
-                        <ArrowUpDown className='h-3 w-3 opacity-30' />
+                        <ArrowUpDown className="h-3 w-3 opacity-30" />
                       )}
                     </div>
                   </TableHead>
@@ -206,7 +200,7 @@ export function PortfolioComparisonTable({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className='group'>
+              <TableRow key={row.id} className="group">
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

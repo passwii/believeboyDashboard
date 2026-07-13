@@ -9,8 +9,7 @@ import { useSidebar } from '@/components/ui/sidebar'
 const NAVIGATION_LOADING_WATCHDOG_MS = 10_000
 const IDLE_PREFETCH_DELAY_MS = 120
 
-type RouteLoadingLinkProps = LinkProps &
-  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>
+type RouteLoadingLinkProps = LinkProps & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>
 
 type RequestIdleCallbackHandle = ReturnType<typeof setTimeout> | number
 

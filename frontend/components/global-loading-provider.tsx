@@ -18,11 +18,7 @@ type GlobalLoadingContextValue = {
 
 const GlobalLoadingContext = createContext<GlobalLoadingContextValue | null>(null)
 
-export function GlobalLoadingProvider({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export function GlobalLoadingProvider({ children }: { children: React.ReactNode }) {
   const [blockingPendingCount, setBlockingPendingCount] = useState(0)
   const [navigationPendingCount, setNavigationPendingCount] = useState(0)
   const [navigationTargetPath, setNavigationTargetPath] = useState<string | null>(null)
@@ -51,17 +47,17 @@ export function GlobalLoadingProvider({
     }
   }, [blockingPendingCount])
 
-  const startGlobalLoading = useCallback((
-    kind: GlobalLoadingKind = 'blocking',
-    options?: { targetPath?: string | null }
-  ) => {
-    if (kind === 'navigation') {
-      setNavigationTargetPath(options?.targetPath?.trim() || null)
-      setNavigationPendingCount((count) => count + 1)
-      return
-    }
-    setBlockingPendingCount((count) => count + 1)
-  }, [])
+  const startGlobalLoading = useCallback(
+    (kind: GlobalLoadingKind = 'blocking', options?: { targetPath?: string | null }) => {
+      if (kind === 'navigation') {
+        setNavigationTargetPath(options?.targetPath?.trim() || null)
+        setNavigationPendingCount((count) => count + 1)
+        return
+      }
+      setBlockingPendingCount((count) => count + 1)
+    },
+    []
+  )
 
   const endGlobalLoading = useCallback((kind: GlobalLoadingKind = 'blocking') => {
     if (kind === 'navigation') {
@@ -77,14 +73,17 @@ export function GlobalLoadingProvider({
     setBlockingPendingCount((count) => Math.max(0, count - 1))
   }, [])
 
-  const withGlobalLoading = useCallback(async <T,>(task: () => Promise<T>) => {
-    startGlobalLoading('blocking')
-    try {
-      return await task()
-    } finally {
-      endGlobalLoading('blocking')
-    }
-  }, [endGlobalLoading, startGlobalLoading])
+  const withGlobalLoading = useCallback(
+    async <T,>(task: () => Promise<T>) => {
+      startGlobalLoading('blocking')
+      try {
+        return await task()
+      } finally {
+        endGlobalLoading('blocking')
+      }
+    },
+    [endGlobalLoading, startGlobalLoading]
+  )
 
   const value = useMemo<GlobalLoadingContextValue>(
     () => ({
@@ -96,14 +95,17 @@ export function GlobalLoadingProvider({
       endGlobalLoading,
       withGlobalLoading,
     }),
-    [blockingPendingCount, endGlobalLoading, navigationPendingCount, navigationTargetPath, startGlobalLoading, withGlobalLoading]
+    [
+      blockingPendingCount,
+      endGlobalLoading,
+      navigationPendingCount,
+      navigationTargetPath,
+      startGlobalLoading,
+      withGlobalLoading,
+    ]
   )
 
-  return (
-    <GlobalLoadingContext.Provider value={value}>
-      {children}
-    </GlobalLoadingContext.Provider>
-  )
+  return <GlobalLoadingContext.Provider value={value}>{children}</GlobalLoadingContext.Provider>
 }
 
 export function useGlobalLoading() {

@@ -6,9 +6,21 @@ import { CheckCircle2, FileUp, Loader2, Trash2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { REPORT_UPLOAD_COUNTRY_OPTIONS, getReportUploadCountryLabel, isDateRequired, type ReportUploadCountry, type UploadQueueItem } from '@/components/report-upload/types'
+import {
+  REPORT_UPLOAD_COUNTRY_OPTIONS,
+  getReportUploadCountryLabel,
+  isDateRequired,
+  type ReportUploadCountry,
+  type UploadQueueItem,
+} from '@/components/report-upload/types'
 
 function getReportTypeLabel(type: UploadQueueItem['reportType']): string {
   switch (type) {
@@ -85,7 +97,11 @@ export function ReportUploadDropzone({
               <Button onClick={onUploadReady} disabled={readyCount === 0 || uploadingAny}>
                 {uploadingAny ? '上传中...' : `上传全部 (${readyCount})`}
               </Button>
-              <Button variant="outline" onClick={onClear} disabled={items.length === 0 || recognizing || uploadingAny}>
+              <Button
+                variant="outline"
+                onClick={onClear}
+                disabled={items.length === 0 || recognizing || uploadingAny}
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
                 清空列表
               </Button>
@@ -118,8 +134,12 @@ export function ReportUploadDropzone({
                   <FileUp className="h-6 w-6 text-slate-500 dark:text-slate-400" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground sm:text-base">拖拽文件到这里，或点击选择</p>
-                  <p className="text-xs text-muted-foreground sm:text-sm">支持 `txt`、`csv`、`xlsx`</p>
+                  <p className="text-sm font-semibold text-foreground sm:text-base">
+                    拖拽文件到这里，或点击选择
+                  </p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">
+                    支持 `txt`、`csv`、`xlsx`
+                  </p>
                 </div>
               </label>
               {recognizing ? (
@@ -149,7 +169,9 @@ export function ReportUploadDropzone({
                     className="flex items-start justify-between gap-3 rounded-lg border border-border/50 bg-[hsl(var(--surface-subtle))]/75 px-3 py-3"
                   >
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-medium text-foreground">{item.originalFileName}</p>
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {item.originalFileName}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {item.recognitionStatus === 'pending'
                           ? '识别中'
@@ -158,7 +180,10 @@ export function ReportUploadDropzone({
                       {item.recognitionStatus !== 'pending' ? (
                         <>
                           <p className="text-xs text-muted-foreground">
-                            国家：{item.detectedCountry ? getReportUploadCountryLabel(item.detectedCountry, true) : '未识别'}
+                            国家：
+                            {item.detectedCountry
+                              ? getReportUploadCountryLabel(item.detectedCountry, true)
+                              : '未识别'}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             项目：{item.recognizedProject || '未识别'}
@@ -168,11 +193,13 @@ export function ReportUploadDropzone({
                               日期：{item.detectedDate}
                             </p>
                           ) : isDateRequired(item.reportType) ? (
-                            <div className='flex items-center gap-1.5'>
-                              <span className="text-xs text-amber-600 dark:text-amber-400">日期：</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-amber-600 dark:text-amber-400">
+                                日期：
+                              </span>
                               <input
-                                type='date'
-                                className='h-5 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[11px]'
+                                type="date"
+                                className="h-5 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[11px]"
                                 value={item.userReportDate ?? ''}
                                 onChange={(e) => onDateChange(item.localId, e.target.value || null)}
                               />
@@ -180,8 +207,14 @@ export function ReportUploadDropzone({
                           ) : null}
                         </>
                       ) : null}
-                      {item.error ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p> : null}
-                      {item.commitError ? <p className="text-xs text-rose-600 dark:text-rose-300">{item.commitError}</p> : null}
+                      {item.error ? (
+                        <p className="text-xs text-rose-600 dark:text-rose-300">{item.error}</p>
+                      ) : null}
+                      {item.commitError ? (
+                        <p className="text-xs text-rose-600 dark:text-rose-300">
+                          {item.commitError}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (

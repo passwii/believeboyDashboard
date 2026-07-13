@@ -34,7 +34,7 @@ export function FilterToolbar({
       <div
         className={cn(
           'dashboard-toolbar grid gap-3 md:grid-cols-2 xl:flex xl:flex-wrap xl:items-end xl:gap-3',
-          className,
+          className
         )}
       >
         {children}
@@ -58,7 +58,12 @@ export function FilterToolbar({
         </div>
       </CardHeader>
 
-      <CardContent className={cn('dashboard-toolbar grid gap-3 pt-0 md:grid-cols-2 xl:grid-cols-4', contentClassName)}>
+      <CardContent
+        className={cn(
+          'dashboard-toolbar grid gap-3 pt-0 md:grid-cols-2 xl:grid-cols-4',
+          contentClassName
+        )}
+      >
         {children}
       </CardContent>
     </Card>

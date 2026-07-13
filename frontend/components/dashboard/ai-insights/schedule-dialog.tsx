@@ -44,7 +44,13 @@ const EMPTY_FORM = {
   country: 'US' as 'US' | 'DE' | 'UK',
   insight_type: 'daily' as 'daily' | 'weekly' | 'monthly' | 'custom',
   cron_expression: '0 7 * * *',
-  date_range_strategy: 'yesterday' as 'yesterday' | 'last_7d' | 'last_30d' | 'prev_month' | 'current_month' | 'last_week',
+  date_range_strategy: 'yesterday' as
+    | 'yesterday'
+    | 'last_7d'
+    | 'last_30d'
+    | 'prev_month'
+    | 'current_month'
+    | 'last_week',
   model: null as string | null,
 }
 
@@ -67,7 +73,7 @@ export function ScheduleDialog({
   useEffect(() => {
     async function loadProjects() {
       try {
-        const data = await fetchManagedProjectsCached<Array<{id: number, name: string}>>()
+        const data = await fetchManagedProjectsCached<Array<{ id: number; name: string }>>()
         setProjects(data.map((p) => ({ id: p.id, name: p.name })))
       } catch (e) {
         console.error('Failed to load projects', e)
@@ -87,7 +93,8 @@ export function ScheduleDialog({
         setForm({
           project_id: schedule.project_id,
           country: schedule.country as 'US' | 'DE' | 'UK',
-          insight_type: (fixedInsightType || schedule.insight_type) as typeof EMPTY_FORM.insight_type,
+          insight_type: (fixedInsightType ||
+            schedule.insight_type) as typeof EMPTY_FORM.insight_type,
           cron_expression: schedule.cron_expression,
           date_range_strategy: schedule.date_range_strategy as any,
           model: schedule.model,
@@ -95,7 +102,8 @@ export function ScheduleDialog({
       } else {
         setForm({
           ...EMPTY_FORM,
-          insight_type: (fixedInsightType || EMPTY_FORM.insight_type) as typeof EMPTY_FORM.insight_type,
+          insight_type: (fixedInsightType ||
+            EMPTY_FORM.insight_type) as typeof EMPTY_FORM.insight_type,
         })
       }
       setError(null)
@@ -157,9 +165,7 @@ export function ScheduleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? '编辑定时任务' : '新建定时任务'}
-          </DialogTitle>
+          <DialogTitle>{isEdit ? '编辑定时任务' : '新建定时任务'}</DialogTitle>
           <DialogDescription>
             {isEdit
               ? '修改定时生成 AI Insight 的配置'
@@ -312,9 +318,7 @@ export function ScheduleDialog({
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              定义生成洞察时所分析的数据时间范围
-            </p>
+            <p className="text-xs text-muted-foreground">定义生成洞察时所分析的数据时间范围</p>
           </div>
 
           {/* Model (optional) */}
@@ -326,9 +330,7 @@ export function ScheduleDialog({
               onChange={(e) => setForm({ ...form, model: e.target.value || null })}
               placeholder="留空使用默认模型"
             />
-            <p className="text-xs text-muted-foreground">
-              可指定不同的 AI 模型覆盖默认配置
-            </p>
+            <p className="text-xs text-muted-foreground">可指定不同的 AI 模型覆盖默认配置</p>
           </div>
 
           <DialogFooter>

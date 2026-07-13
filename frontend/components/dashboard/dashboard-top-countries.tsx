@@ -7,11 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { DataTableCard, DataTableCardHeader } from '@/components/ui/data-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import {
-  fmtMoneyPrecise,
-  fmtNumPrecise,
-  renderChangeIndicator,
-} from '@/lib/dashboard-format'
+import { fmtMoneyPrecise, fmtNumPrecise, renderChangeIndicator } from '@/lib/dashboard-format'
 import { getCountryLabel } from '@/lib/country'
 
 export interface TopCountrySummaryRow {
@@ -58,7 +54,7 @@ const COUNTRY_FLAG: Record<string, string> = {
 
 function aggregate(
   countryRowsByCode: Record<string, TopCountrySummaryRow[]>,
-  countryCompareRowsByCode: Record<string, TopCountrySummaryRow[]>,
+  countryCompareRowsByCode: Record<string, TopCountrySummaryRow[]>
 ): CountryAggRow[] {
   const rows: CountryAggRow[] = []
   for (const code of Object.keys(countryRowsByCode)) {
@@ -101,7 +97,7 @@ export function DashboardTopCountries({
 }: DashboardTopCountriesProps) {
   const rows = useMemo(
     () => aggregate(countryRowsByCode, countryCompareRowsByCode),
-    [countryRowsByCode, countryCompareRowsByCode],
+    [countryRowsByCode, countryCompareRowsByCode]
   )
 
   const grandTotal = useMemo(() => rows.reduce((s, r) => s + r.totalSales, 0), [rows])
@@ -114,8 +110,8 @@ export function DashboardTopCountries({
           representativeProjectName
             ? `基于代表项目:${representativeProjectName}`
             : rows.length > 0
-            ? `${rows.length} 个站点`
-            : 'US / DE / UK 跨站点对比'
+              ? `${rows.length} 个站点`
+              : 'US / DE / UK 跨站点对比'
         }
         action={
           <div className="flex items-center gap-2">
@@ -137,68 +133,72 @@ export function DashboardTopCountries({
             <div className="hidden sm:block">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[420px] text-sm">
-                <thead>
-                  <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                    <th className="w-10 pb-2 font-medium">#</th>
-                    <th className="pb-2 font-medium">国家</th>
-                    <th className="pb-2 text-right font-medium">销售额</th>
-                    <th className="hidden pb-2 text-right font-medium sm:table-cell">广告花费</th>
-                    <th className="w-28 pb-2 font-medium">占比</th>
-                    <th className="w-20 pb-2 text-right font-medium">环比</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, idx) => {
-                    const pct = grandTotal > 0 ? (row.totalSales / grandTotal) * 100 : 0
-                    return (
-                      <tr
-                        key={row.code}
-                        className="border-b border-border/40 last:border-b-0 transition-colors hover:bg-muted/30"
-                      >
-                        <td className="py-2.5 align-middle text-xs text-muted-foreground tabular-nums">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2.5 align-middle">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base leading-none"
-                              aria-hidden
-                            >
-                              {row.flag}
-                            </span>
-                            <span className="truncate font-medium text-foreground">{row.label}</span>
-                            <span className="shrink-0 text-[10px] font-mono text-muted-foreground/70">{row.code}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 align-middle text-right tabular-nums font-medium">
-                          {fmtMoneyPrecise(row.totalSales)}
-                        </td>
-                        <td className="hidden py-2.5 align-middle text-right tabular-nums text-muted-foreground sm:table-cell">
-                          {fmtMoneyPrecise(row.totalAdSpend)}
-                        </td>
-                        <td className="py-2.5 align-middle">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className={cn(
-                                  'h-full rounded-full transition-[width] duration-500',
-                                  idx === 0 ? 'bg-primary' : 'bg-primary/60',
-                                )}
-                                style={{ width: `${Math.max(2, pct)}%` }}
-                              />
+                  <thead>
+                    <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                      <th className="w-10 pb-2 font-medium">#</th>
+                      <th className="pb-2 font-medium">国家</th>
+                      <th className="pb-2 text-right font-medium">销售额</th>
+                      <th className="hidden pb-2 text-right font-medium sm:table-cell">广告花费</th>
+                      <th className="w-28 pb-2 font-medium">占比</th>
+                      <th className="w-20 pb-2 text-right font-medium">环比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, idx) => {
+                      const pct = grandTotal > 0 ? (row.totalSales / grandTotal) * 100 : 0
+                      return (
+                        <tr
+                          key={row.code}
+                          className="border-b border-border/40 last:border-b-0 transition-colors hover:bg-muted/30"
+                        >
+                          <td className="py-2.5 align-middle text-xs text-muted-foreground tabular-nums">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2.5 align-middle">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base leading-none"
+                                aria-hidden
+                              >
+                                {row.flag}
+                              </span>
+                              <span className="truncate font-medium text-foreground">
+                                {row.label}
+                              </span>
+                              <span className="shrink-0 text-[10px] font-mono text-muted-foreground/70">
+                                {row.code}
+                              </span>
                             </div>
-                            <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
-                              {pct.toFixed(0)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 align-middle text-right tabular-nums">
-                          {renderChangeIndicator(row.change)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                          </td>
+                          <td className="py-2.5 align-middle text-right tabular-nums font-medium">
+                            {fmtMoneyPrecise(row.totalSales)}
+                          </td>
+                          <td className="hidden py-2.5 align-middle text-right tabular-nums text-muted-foreground sm:table-cell">
+                            {fmtMoneyPrecise(row.totalAdSpend)}
+                          </td>
+                          <td className="py-2.5 align-middle">
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full transition-[width] duration-500',
+                                    idx === 0 ? 'bg-primary' : 'bg-primary/60'
+                                  )}
+                                  style={{ width: `${Math.max(2, pct)}%` }}
+                                />
+                              </div>
+                              <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
+                                {pct.toFixed(0)}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 align-middle text-right tabular-nums">
+                            {renderChangeIndicator(row.change)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -216,7 +216,11 @@ export function DashboardTopCountries({
               </p>
             )}
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground/60">
-              订单量合计 <span className="font-medium text-muted-foreground">{fmtNumPrecise(rows.reduce((s, r) => s + r.totalOrders, 0))}</span> 单
+              订单量合计{' '}
+              <span className="font-medium text-muted-foreground">
+                {fmtNumPrecise(rows.reduce((s, r) => s + r.totalOrders, 0))}
+              </span>{' '}
+              单
             </p>
           </>
         )}
@@ -287,7 +291,7 @@ function CountryMobileCard({
             <div
               className={cn(
                 'h-full rounded-full transition-[width] duration-500',
-                index === 0 ? 'bg-primary' : 'bg-primary/60',
+                index === 0 ? 'bg-primary' : 'bg-primary/60'
               )}
               style={{ width: `${Math.max(2, pct)}%` }}
             />

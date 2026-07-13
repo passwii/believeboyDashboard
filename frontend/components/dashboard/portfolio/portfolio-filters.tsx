@@ -15,11 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { CountrySelect } from '@/components/dashboard/console'
 import { RefreshButton } from '@/components/dashboard/console'
@@ -71,7 +67,9 @@ export function PortfolioFilters({
         if (active) setLoadingProjects(false)
       }
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [session])
 
   function toggleProject(id: number) {
@@ -96,17 +94,17 @@ export function PortfolioFilters({
   const selectedProjects = projects.filter((p) => projectIds.includes(p.id))
 
   return (
-    <div className='flex flex-wrap items-center gap-3'>
+    <div className="flex flex-wrap items-center gap-3">
       {/* Multi-project selector */}
-      <div className='w-72'>
+      <div className="w-72">
         {loadingProjects ? (
-          <Skeleton className='h-10 w-full rounded-lg' />
+          <Skeleton className="h-10 w-full rounded-lg" />
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
-                variant='outline'
-                role='combobox'
+                variant="outline"
+                role="combobox"
                 className={cn(
                   'h-10 w-full justify-between font-normal',
                   projectIds.length === 0 && 'text-muted-foreground'
@@ -115,26 +113,26 @@ export function PortfolioFilters({
                 {projectIds.length === 0 ? (
                   '选择项目（多选）'
                 ) : (
-                  <span className='flex flex-wrap gap-1 overflow-hidden'>
+                  <span className="flex flex-wrap gap-1 overflow-hidden">
                     {selectedProjects.length <= 3 ? (
                       selectedProjects.map((p) => (
-                        <Badge key={p.id} variant='secondary' className='h-5 text-xs'>
+                        <Badge key={p.id} variant="secondary" className="h-5 text-xs">
                           {p.name}
                         </Badge>
                       ))
                     ) : (
-                      <Badge variant='secondary' className='h-5 text-xs'>
+                      <Badge variant="secondary" className="h-5 text-xs">
                         已选 {selectedProjects.length} 个项目
                       </Badge>
                     )}
                   </span>
                 )}
-                <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className='w-72 p-0' align='start'>
+            <PopoverContent className="w-72 p-0" align="start">
               <Command>
-                <CommandInput placeholder='搜索项目...' />
+                <CommandInput placeholder="搜索项目..." />
                 <CommandList>
                   <CommandEmpty>未找到项目</CommandEmpty>
                   <CommandGroup>
@@ -143,7 +141,7 @@ export function PortfolioFilters({
                         key={p.id}
                         value={String(p.id)}
                         onSelect={() => toggleProject(p.id)}
-                        className='cursor-pointer'
+                        className="cursor-pointer"
                       >
                         <Check
                           className={cn(
@@ -166,13 +164,11 @@ export function PortfolioFilters({
 
       <DateRangePicker
         value={
-          startDate || endDate
-            ? { from: parseDate(startDate), to: parseDate(endDate) }
-            : undefined
+          startDate || endDate ? { from: parseDate(startDate), to: parseDate(endDate) } : undefined
         }
         onChange={handleDateRangeChange}
-        className='w-64'
-        placeholder='日期范围'
+        className="w-64"
+        placeholder="日期范围"
       />
 
       <RefreshButton onClick={onRefresh} loading={loading} />

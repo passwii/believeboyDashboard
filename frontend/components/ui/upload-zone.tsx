@@ -133,7 +133,9 @@ export function UploadZone({
 
       for (const item of items) {
         const acceptTypes = accept.split(',').map((t) => t.trim().toLowerCase())
-        const matchImage = acceptTypes.some((t) => t === 'image/*' || item.type.startsWith('image/'))
+        const matchImage = acceptTypes.some(
+          (t) => t === 'image/*' || item.type.startsWith('image/')
+        )
         const matchFile = acceptTypes.includes(item.type.toLowerCase())
 
         if (matchImage || matchFile) {
@@ -205,17 +207,13 @@ export function UploadZone({
               <span className="ml-2 text-muted-foreground">— 按 Ctrl+V 粘贴图片或文件</span>
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              点击此处激活粘贴上传，或拖拽文件到这里
-            </p>
+            <p className="text-sm text-muted-foreground">点击此处激活粘贴上传，或拖拽文件到这里</p>
           )}
         </div>
       </div>
 
       {/* 错误提示 */}
-      {errorMsg ? (
-        <p className="text-sm text-rose-600 dark:text-rose-400">{errorMsg}</p>
-      ) : null}
+      {errorMsg ? <p className="text-sm text-rose-600 dark:text-rose-400">{errorMsg}</p> : null}
 
       {/* 预览区域 */}
       {showPreview && preview ? (
@@ -230,11 +228,7 @@ export function UploadZone({
 
           {previewType === 'image' ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="预览"
-              className="max-h-48 w-auto rounded-md object-contain"
-            />
+            <img src={preview} alt="预览" className="max-h-48 w-auto rounded-md object-contain" />
           ) : (
             <div className="flex items-center gap-3 py-2">
               {previewType === 'pdf' ? (

@@ -3,23 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  AlertTriangle,
-  Bot,
-  Check,
-  Copy,
-  Loader2,
-  Sparkles,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, Bot, Check, Copy, Loader2, Sparkles, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 type InsightStatus =
@@ -107,7 +94,13 @@ export function GenerationDialog({
   const startDate = formatYMD(dateRange.from)
   const endDate = formatYMD(dateRange.to)
 
-  const isRunning = ['pending', 'data_aggregating', 'generating', 'ai_generating', 'title_generating'].includes(status)
+  const isRunning = [
+    'pending',
+    'data_aggregating',
+    'generating',
+    'ai_generating',
+    'title_generating',
+  ].includes(status)
 
   const startGeneration = useCallback(async () => {
     if (!projectId || !startDate || !endDate) return
@@ -141,10 +134,9 @@ export function GenerationDialog({
       setStatus('data_aggregating')
       setSubStatus('data_aggregating')
 
-      const es = new EventSource(
-        `/api/backend/v1/ai-insights/${insightId}/stream`,
-        { withCredentials: true } as any,
-      )
+      const es = new EventSource(`/api/backend/v1/ai-insights/${insightId}/stream`, {
+        withCredentials: true,
+      } as any)
       esRef.current = es
 
       es.addEventListener('message', (e: MessageEvent) => {
@@ -265,7 +257,12 @@ export function GenerationDialog({
                 </Button>
               )}
               {canClose && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => onOpenChange(false)}
+                >
                   <X className="h-4 w-4" />
                 </Button>
               )}
@@ -283,7 +280,9 @@ export function GenerationDialog({
               <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-sm text-primary">
-                  {subStatus && SUB_STATUS_LABEL[subStatus] ? SUB_STATUS_LABEL[subStatus] : '处理中...'}
+                  {subStatus && SUB_STATUS_LABEL[subStatus]
+                    ? SUB_STATUS_LABEL[subStatus]
+                    : '处理中...'}
                 </span>
               </div>
               {/* Agent stage indicator */}
@@ -293,12 +292,16 @@ export function GenerationDialog({
                   {agentStage === 'profile' && 'Layer 0: 数据探针完成'}
                   {agentStage === 'strategy' && 'Layer 1: 策略规划完成'}
                   {agentStage === 'declaration' && 'Layer 2: Prompt 组装完成 → AI 生成中'}
-                  {agentStage === 'pass_mode' && `分析模式: ${passMode === '多轮分析' ? 'Scout → Deep-dive → Synthesis' : '单轮分析'}`}
+                  {agentStage === 'pass_mode' &&
+                    `分析模式: ${passMode === '多轮分析' ? 'Scout → Deep-dive → Synthesis' : '单轮分析'}`}
                   {agentStage === 'pass_1' && '🔍 Pass 1: 侦察扫描 — 识别热点问题...'}
-                  {agentStage === 'pass_2' && `🎯 Pass 2: 深度分析 — 正在深挖第 ${currentPass} 个热点...`}
+                  {agentStage === 'pass_2' &&
+                    `🎯 Pass 2: 深度分析 — 正在深挖第 ${currentPass} 个热点...`}
                   {agentStage === 'pass_3' && '📋 Pass 3: 综合报告 — 整合交叉分析...'}
                   {agentStage === 'hotspots' && hotspots && (
-                    <span>发现 {hotspots.length} 个热点: {hotspots.map(h => h.finding).join('、')}</span>
+                    <span>
+                      发现 {hotspots.length} 个热点: {hotspots.map((h) => h.finding).join('、')}
+                    </span>
                   )}
                 </div>
               )}
@@ -310,23 +313,36 @@ export function GenerationDialog({
             <div className="mb-3 rounded-md border bg-muted/30 px-3 py-2">
               <p className="text-xs font-medium text-muted-foreground mb-1.5">
                 分析策略：覆盖 {agentStageData.primary_dimensions?.length ?? 0} 个单维度
-                {agentStageData.cross_analyses?.length ? `、${agentStageData.cross_analyses.length} 个交叉分析` : ''}
-                {agentStageData.temporal_analyses?.length ? `、${agentStageData.temporal_analyses.length} 个跨周期分析` : ''}
+                {agentStageData.cross_analyses?.length
+                  ? `、${agentStageData.cross_analyses.length} 个交叉分析`
+                  : ''}
+                {agentStageData.temporal_analyses?.length
+                  ? `、${agentStageData.temporal_analyses.length} 个跨周期分析`
+                  : ''}
                 {agentStageData.skipped?.length ? `，跳过 ${agentStageData.skipped.length} 个` : ''}
               </p>
               <div className="flex flex-wrap gap-1">
                 {agentStageData.primary_dimensions?.map((d: any) => (
-                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <span
+                    key={d.dimension_id}
+                    className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  >
                     L1 {d.name}
                   </span>
                 ))}
                 {agentStageData.cross_analyses?.map((d: any) => (
-                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                  <span
+                    key={d.dimension_id}
+                    className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  >
                     L2 {d.name}
                   </span>
                 ))}
                 {agentStageData.temporal_analyses?.map((d: any) => (
-                  <span key={d.dimension_id} className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                  <span
+                    key={d.dimension_id}
+                    className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                  >
                     L3 {d.name}
                   </span>
                 ))}
@@ -343,12 +359,14 @@ export function GenerationDialog({
               <div className="space-y-1">
                 {hotspots.map((h: any, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={cn(
-                      'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      h.severity === 'high'
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-                    )}>
+                    <span
+                      className={cn(
+                        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                        h.severity === 'high'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      )}
+                    >
                       {h.severity === 'high' ? '高' : '中'}
                     </span>
                     <span className="font-medium">{h.finding}</span>
@@ -386,7 +404,7 @@ export function GenerationDialog({
                   '[&_h3]:mt-4 [&_h3]:text-base [&_h3]:font-semibold',
                   '[&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted/40 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm',
                   '[&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:bg-primary/5 [&_blockquote]:py-2 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:my-3 [&_blockquote]:italic',
-                  '[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:font-mono',
+                  '[&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1.5 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:text-xs [&_code:not(pre_code)]:font-mono'
                 )}
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedContent}</ReactMarkdown>

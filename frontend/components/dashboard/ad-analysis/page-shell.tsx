@@ -40,7 +40,10 @@ export function AdAnalysisPageShell({ tab }: Props) {
               </div>
             </div>
 
-            <Badge variant="outline" className="w-fit border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]">
+            <Badge
+              variant="outline"
+              className="w-fit border-border/70 bg-[hsl(var(--surface-subtle))] text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))]"
+            >
               广告分析 · {tab.label}
             </Badge>
 

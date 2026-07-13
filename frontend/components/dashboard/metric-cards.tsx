@@ -1,11 +1,4 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  DollarSign,
-  Users,
-  Activity,
-  TrendingUp,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, DollarSign, Users, Activity, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -19,14 +12,7 @@ interface MetricCardProps {
   icon: React.ReactNode
 }
 
-function MetricCard({
-  title,
-  value,
-  change,
-  changeType,
-  trend,
-  icon,
-}: MetricCardProps) {
+function MetricCard({ title, value, change, changeType, trend, icon }: MetricCardProps) {
   const gradientId = title.toLowerCase().replace(/\s+/g, '-')
   const max = Math.max(...trend, 1)
   const min = Math.min(...trend)
@@ -44,7 +30,9 @@ function MetricCard({
       <CardHeader className="relative z-10 flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
         <div className="flex flex-col gap-2">
           <p className="dashboard-kicker">{title}</p>
-          <CardTitle className="dashboard-display text-[clamp(1.6rem,1.8vw,2rem)]">{value}</CardTitle>
+          <CardTitle className="dashboard-display text-[clamp(1.6rem,1.8vw,2rem)]">
+            {value}
+          </CardTitle>
           <div className="flex items-center gap-1">
             <span
               className={cn(
@@ -52,8 +40,8 @@ function MetricCard({
                 changeType === 'up'
                   ? 'text-secondary'
                   : changeType === 'down'
-                  ? 'text-destructive'
-                  : 'text-muted-foreground'
+                    ? 'text-destructive'
+                    : 'text-muted-foreground'
               )}
             >
               {changeType === 'up' && <ArrowUp className="mr-0.5 h-3 w-3" />}
@@ -74,7 +62,13 @@ function MetricCard({
               </linearGradient>
             </defs>
             <path d={`${path} L 100 30 L 0 30 Z`} fill={`url(#spark-${gradientId})`} />
-            <path d={path} fill="none" stroke="hsl(var(--secondary))" strokeWidth="2.25" strokeLinecap="round" />
+            <path
+              d={path}
+              fill="none"
+              stroke="hsl(var(--secondary))"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
       </CardContent>

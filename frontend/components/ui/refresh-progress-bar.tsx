@@ -14,19 +14,24 @@ interface RefreshProgressBarProps {
   as?: React.ElementType
 }
 
-export function RefreshProgressBar({ refreshing, className, children, as: Component = 'div' }: RefreshProgressBarProps) {
+export function RefreshProgressBar({
+  refreshing,
+  className,
+  children,
+  as: Component = 'div',
+}: RefreshProgressBarProps) {
   return (
     <>
       {refreshing && (
-        <div className='absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-blue-100 dark:bg-blue-900/30'>
-          <div className='h-full w-1/3 bg-blue-500 animate-shimmer' />
+        <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-blue-100 dark:bg-blue-900/30">
+          <div className="h-full w-1/3 bg-blue-500 animate-shimmer" />
         </div>
       )}
       <Component
         className={cn(
           'transition-opacity duration-200',
           refreshing && 'opacity-50 pointer-events-none',
-          className,
+          className
         )}
       >
         {children}

@@ -15,26 +15,22 @@ const typeConfig: Record<
 > = {
   success: {
     icon: CheckCircle2,
-    className:
-      'border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/40',
+    className: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/40',
     iconClassName: 'text-emerald-500',
   },
   error: {
     icon: XCircle,
-    className:
-      'border-rose-200 bg-rose-50 dark:border-rose-900/70 dark:bg-rose-950/40',
+    className: 'border-rose-200 bg-rose-50 dark:border-rose-900/70 dark:bg-rose-950/40',
     iconClassName: 'text-rose-500',
   },
   warning: {
     icon: AlertTriangle,
-    className:
-      'border-amber-200 bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/40',
+    className: 'border-amber-200 bg-amber-50 dark:border-amber-900/70 dark:bg-amber-950/40',
     iconClassName: 'text-amber-500',
   },
   info: {
     icon: Info,
-    className:
-      'border-blue-200 bg-blue-50 dark:border-blue-900/70 dark:bg-blue-950/40',
+    className: 'border-blue-200 bg-blue-50 dark:border-blue-900/70 dark:bg-blue-950/40',
     iconClassName: 'text-blue-500',
   },
 }
@@ -69,7 +65,9 @@ function ToastItem({ notification }: ToastItemProps) {
     >
       <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', config.iconClassName)} />
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm font-semibold leading-snug', typeTextClassName[notification.type])}>
+        <p
+          className={cn('text-sm font-semibold leading-snug', typeTextClassName[notification.type])}
+        >
           {notification.title}
         </p>
         {notification.message ? (
@@ -117,6 +115,6 @@ export function NotificationToastContainer() {
         ))}
       </AnimatePresence>
     </div>,
-    document.body,
+    document.body
   )
 }

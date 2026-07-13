@@ -18,7 +18,9 @@ export function AdAnalysisTabNav() {
         <div className="flex min-w-max gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-overlay)/0.94)] p-2 shadow-[var(--shadow-soft)] dark:border-border/85 dark:bg-[hsl(var(--surface-panel)/0.96)]">
           {AD_ANALYSIS_TABS.map((tab) => {
             const isActive = pathname === tab.href
-            const href = searchParams.toString() ? `${tab.href}?${searchParams.toString()}` : tab.href
+            const href = searchParams.toString()
+              ? `${tab.href}?${searchParams.toString()}`
+              : tab.href
             return (
               <RouteLoadingLink
                 key={tab.key}

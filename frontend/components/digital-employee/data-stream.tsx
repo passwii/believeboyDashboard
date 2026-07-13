@@ -26,7 +26,10 @@ interface DataStreamProps {
   className?: string
 }
 
-function buildMessages(employee: DigitalEmployee, currentTask?: DataStreamProps['currentTask']): StreamMessage[] {
+function buildMessages(
+  employee: DigitalEmployee,
+  currentTask?: DataStreamProps['currentTask']
+): StreamMessage[] {
   const messages: StreamMessage[] = []
 
   if (currentTask && currentTask.status === 'RUNNING') {
@@ -86,7 +89,12 @@ const VARIANT_STYLES: Record<string, { border: string; bg: string; text: string 
   },
 }
 
-export function DataStream({ employee, currentTask, variant = 'default', className }: DataStreamProps) {
+export function DataStream({
+  employee,
+  currentTask,
+  variant = 'default',
+  className,
+}: DataStreamProps) {
   const messages = buildMessages(employee, currentTask)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [fadeState, setFadeState] = useState<'in' | 'out'>('in')
@@ -124,12 +132,10 @@ export function DataStream({ employee, currentTask, variant = 'default', classNa
           'rounded-lg border px-3 py-2.5 min-h-[72px] transition-all duration-300',
           variantStyle.border,
           variantStyle.bg,
-          fadeState === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1',
+          fadeState === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
         )}
       >
-        <p className={cn('text-sm leading-relaxed', variantStyle.text)}>
-          {current.text}
-        </p>
+        <p className={cn('text-sm leading-relaxed', variantStyle.text)}>{current.text}</p>
         {current.showProgress && current.progress !== undefined && (
           <div className="mt-2">
             <div className="h-1 w-full overflow-hidden rounded-full bg-background/50">
@@ -153,7 +159,7 @@ export function DataStream({ employee, currentTask, variant = 'default', classNa
               key={msg.id}
               className={cn(
                 'h-1 w-1 rounded-full transition-colors duration-300',
-                i === currentIndex ? 'bg-foreground' : 'bg-muted-foreground/30',
+                i === currentIndex ? 'bg-foreground' : 'bg-muted-foreground/30'
               )}
             />
           ))}

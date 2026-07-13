@@ -1,44 +1,44 @@
-"use client";
+'use client'
 
-import React, { useRef, useState, useEffect } from "react";
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
+import React, { useRef, useState, useEffect } from 'react'
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
 
 interface AnimatedErrorProps {
-  message: string | null;
+  message: string | null
 }
 
 const AnimatedError = ({ message }: AnimatedErrorProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [renderContent, setRenderContent] = useState<string | null>(null);
-  const animatingOut = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [renderContent, setRenderContent] = useState<string | null>(null)
+  const animatingOut = useRef(false)
 
   useEffect(() => {
     if (message) {
       // New error — show immediately, then animate in
-      animatingOut.current = false;
-      setRenderContent(message);
+      animatingOut.current = false
+      setRenderContent(message)
     } else if (renderContent && !animatingOut.current) {
       // Error cleared — animate out, then remove from DOM
-      animatingOut.current = true;
-      const el = containerRef.current;
+      animatingOut.current = true
+      const el = containerRef.current
       if (el) {
         gsap.to(el, {
           autoAlpha: 0,
           y: -6,
           scale: 0.97,
           duration: 0.25,
-          ease: "power2.in",
+          ease: 'power2.in',
           onComplete: () => {
-            setRenderContent(null);
-            animatingOut.current = false;
+            setRenderContent(null)
+            animatingOut.current = false
           },
-        });
+        })
       } else {
-        setRenderContent(null);
+        setRenderContent(null)
       }
     }
-  }, [message]);
+  }, [message])
 
   // Animate in when renderContent is set and message is truthy
   useGSAP(
@@ -47,14 +47,14 @@ const AnimatedError = ({ message }: AnimatedErrorProps) => {
         gsap.fromTo(
           containerRef.current,
           { autoAlpha: 0, y: 8, scale: 0.97 },
-          { autoAlpha: 1, y: 0, scale: 1, duration: 0.3, ease: "power2.out" }
-        );
+          { autoAlpha: 1, y: 0, scale: 1, duration: 0.3, ease: 'power2.out' }
+        )
       }
     },
     { dependencies: [renderContent, message] }
-  );
+  )
 
-  if (!renderContent) return null;
+  if (!renderContent) return null
 
   return (
     <div
@@ -63,7 +63,7 @@ const AnimatedError = ({ message }: AnimatedErrorProps) => {
     >
       {renderContent}
     </div>
-  );
-};
+  )
+}
 
-export default AnimatedError;
+export default AnimatedError

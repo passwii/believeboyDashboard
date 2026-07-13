@@ -153,8 +153,7 @@ export const columns: ColumnDef<Document>[] = [
     header: ({ table }) => (
       <Checkbox
         checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
+          table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && 'indeterminate')
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
@@ -259,18 +258,14 @@ export const columns: ColumnDef<Document>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(document.id)}
-            >
+            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(document.id)}>
               复制任务 ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>查看详情</DropdownMenuItem>
             <DropdownMenuItem>编辑条目</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">
-              删除
-            </DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600">删除</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )
@@ -309,14 +304,15 @@ export function DataTable() {
         <Input
           placeholder="筛选任务、报表或条目..."
           value={(table.getColumn('header')?.getFilterValue() as string) ?? ''}
-          onChange={(event) =>
-            table.getColumn('header')?.setFilterValue(event.target.value)
-          }
+          onChange={(event) => table.getColumn('header')?.setFilterValue(event.target.value)}
           className="h-11 min-h-touch max-w-sm border-white/40 bg-background/88 text-sm shadow-none"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 min-h-touch min-w-touch border-white/40 bg-background/88 shadow-none">
+            <Button
+              variant="outline"
+              className="h-11 min-h-touch min-w-touch border-white/40 bg-background/88 shadow-none"
+            >
               视图列 <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -330,9 +326,7 @@ export function DataTable() {
                     key={column.id}
                     className="capitalize"
                     checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
+                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
                   >
                     {column.id}
                   </DropdownMenuCheckboxItem>
@@ -351,10 +345,7 @@ export function DataTable() {
                     <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                        : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   )
                 })}
@@ -371,20 +362,14 @@ export function DataTable() {
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="px-3 py-3">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   暂无结果。
                 </TableCell>
               </TableRow>
@@ -394,7 +379,8 @@ export function DataTable() {
       </div>
       <div className="flex items-center justify-end space-x-2 py-2">
         <div className="flex-1 text-sm text-muted-foreground">
-          已选择 {table.getFilteredSelectedRowModel().rows.length} / {table.getFilteredRowModel().rows.length} 条。
+          已选择 {table.getFilteredSelectedRowModel().rows.length} /{' '}
+          {table.getFilteredRowModel().rows.length} 条。
         </div>
         <div className="space-x-2">
           <Button

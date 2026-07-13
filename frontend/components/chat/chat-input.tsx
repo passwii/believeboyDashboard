@@ -14,7 +14,11 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { ModelSelector } from './model-selector'
-import { ensureConfigLoaded, getConfig, subscribe as subscribeConfig } from '@/lib/api/ai-chat-config-store'
+import {
+  ensureConfigLoaded,
+  getConfig,
+  subscribe as subscribeConfig,
+} from '@/lib/api/ai-chat-config-store'
 
 export function ChatInput({
   onSend,
@@ -28,11 +32,14 @@ export function ChatInput({
   selectedModel,
   onModelChange,
 }: {
-  onSend?: (message: string, options?: {
-    reasoningEffort?: string | null
-    enableWebSearch?: boolean
-    model?: string
-  }) => void
+  onSend?: (
+    message: string,
+    options?: {
+      reasoningEffort?: string | null
+      enableWebSearch?: boolean
+      model?: string
+    }
+  ) => void
   placeholder?: string
   compact?: boolean
   disabled?: boolean
@@ -71,10 +78,7 @@ export function ChatInput({
     const textarea = textareaRef.current
     if (textarea) {
       textarea.style.height = 'auto'
-      textarea.style.height = `${Math.min(
-        textarea.scrollHeight,
-        compact ? 120 : 200
-      )}px`
+      textarea.style.height = `${Math.min(textarea.scrollHeight, compact ? 120 : 200)}px`
     }
   }, [message, compact])
 
@@ -158,7 +162,8 @@ export function ChatInput({
         style={{
           opacity: focused ? 1 : 0,
           transform: focused ? 'scale(1)' : 'scale(0.95)',
-          boxShadow: '0 0 40px rgba(20,136,252,0.35), 0 0 80px rgba(20,136,252,0.15), 0 0 120px rgba(99,102,241,0.1)',
+          boxShadow:
+            '0 0 40px rgba(20,136,252,0.35), 0 0 80px rgba(20,136,252,0.15), 0 0 120px rgba(99,102,241,0.1)',
         }}
       />
 
@@ -241,14 +246,16 @@ export function ChatInput({
                 </button>
                 {showAttachMenu && (
                   <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowAttachMenu(false)}
-                    />
+                    <div className="fixed inset-0 z-40" onClick={() => setShowAttachMenu(false)} />
                     <div
                       className="absolute bottom-full left-0 mb-2 z-50 bg-[#1a1a1e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
                       ref={(el) => {
-                        if (el) gsap.fromTo(el, { opacity: 0, scale: 0.92, y: 8 }, { opacity: 1, scale: 1, y: 0, duration: 0.25, ease: 'back.out(1.7)' })
+                        if (el)
+                          gsap.fromTo(
+                            el,
+                            { opacity: 0, scale: 0.92, y: 8 },
+                            { opacity: 1, scale: 1, y: 0, duration: 0.25, ease: 'back.out(1.7)' }
+                          )
                       }}
                     >
                       <div className="p-1.5 min-w-[160px] sm:min-w-[180px]">
@@ -315,11 +322,7 @@ export function ChatInput({
                   <AlertCircle aria-hidden="true" className="size-4 sm:size-3.5" />
                 )}
                 <span className="hidden sm:inline">
-                  {!cfg?.webSearchConfigured
-                    ? '联网未配置'
-                    : enableWebSearch
-                      ? '联网中'
-                      : '联网'}
+                  {!cfg?.webSearchConfigured ? '联网未配置' : enableWebSearch ? '联网中' : '联网'}
                 </span>
                 {enableWebSearch && cfg?.webSearchConfigured && (
                   <span className="size-1 rounded-full bg-blue-400 animate-pulse" />

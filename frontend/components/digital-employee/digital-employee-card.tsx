@@ -25,7 +25,9 @@ const AVATAR_RING: Record<DigitalEmployeeStatus, string> = {
   SUSPENDED: '',
 }
 
-function getDataVariant(status: DigitalEmployeeStatus): 'default' | 'success' | 'error' | 'warning' {
+function getDataVariant(
+  status: DigitalEmployeeStatus
+): 'default' | 'success' | 'error' | 'warning' {
   if (status === 'SUCCEEDED') return 'success'
   if (status === 'FAILED') return 'error'
   if (status === 'SUSPENDED') return 'warning'
@@ -59,15 +61,13 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
     <div
       className={cn(
         'group relative rounded-2xl border bg-card transition-all duration-300 cursor-pointer',
-        'hover:shadow-md hover:-translate-y-0.5 hover:border-primary/20',
+        'hover:shadow-md hover:-translate-y-0.5 hover:border-primary/20'
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onClick?.(employee.id)}
     >
-      {accent && (
-        <div className={cn('absolute inset-x-0 top-0 h-0.5 rounded-t-2xl', accent)} />
-      )}
+      {accent && <div className={cn('absolute inset-x-0 top-0 h-0.5 rounded-t-2xl', accent)} />}
 
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between">
@@ -82,7 +82,7 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
             className={cn(
               'ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors',
               'text-muted-foreground hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950',
-              isHovered ? 'border-blue-200' : 'border-border',
+              isHovered ? 'border-blue-200' : 'border-border'
             )}
             title="查看详情"
           >

@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils'
 type StatusTone = 'error' | 'warning'
 
 const toneClasses: Record<StatusTone, string> = {
-  error: 'border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))]',
-  warning: 'border-[hsl(var(--warning)/0.2)] bg-[hsl(var(--warning)/0.09)] text-[hsl(var(--warning))]',
+  error:
+    'border-[hsl(var(--destructive)/0.2)] bg-[hsl(var(--destructive)/0.08)] text-[hsl(var(--destructive))]',
+  warning:
+    'border-[hsl(var(--warning)/0.2)] bg-[hsl(var(--warning)/0.09)] text-[hsl(var(--warning))]',
 }
 
 const toneIcons = {
@@ -46,7 +48,12 @@ export function StatusPageShell({
       )}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_26%),radial-gradient(circle_at_82%_18%,hsl(var(--warning)/0.12),transparent_22%)]" />
-      <div className={cn('relative mx-auto flex max-w-4xl flex-col justify-center', compact ? 'min-h-[24rem]' : 'min-h-[calc(100vh-5rem)]')}>
+      <div
+        className={cn(
+          'relative mx-auto flex max-w-4xl flex-col justify-center',
+          compact ? 'min-h-[24rem]' : 'min-h-[calc(100vh-5rem)]'
+        )}
+      >
         <div className="max-w-2xl space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             {code ? (
@@ -54,7 +61,12 @@ export function StatusPageShell({
                 {code}
               </span>
             ) : null}
-            <span className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold', toneClasses[tone])}>
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold',
+                toneClasses[tone]
+              )}
+            >
               <Icon className="h-4 w-4" />
               系统状态提示
             </span>

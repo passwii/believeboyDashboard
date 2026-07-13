@@ -14,7 +14,7 @@ type UseSpotlightOptions<E extends HTMLElement = HTMLElement> = {
  * 减透明 / 粗指针下不挂监听（CSS 通过 --spotlight-strength 关闭视觉）。
  */
 export function useSpotlight<E extends HTMLElement = HTMLDivElement>(
-  options: UseSpotlightOptions<E> = {},
+  options: UseSpotlightOptions<E> = {}
 ) {
   const internalRef = useRef<E | null>(null)
   const ref = options.ref ?? internalRef
@@ -25,10 +25,7 @@ export function useSpotlight<E extends HTMLElement = HTMLDivElement>(
     if (!el || !enabled) return
 
     // 减透明 / 粗指针 → 不挂监听（CSS 仍可读 --spot-x/y 默认 50%）
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function'
-    ) {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       const reduce = window.matchMedia('(prefers-reduced-transparency: reduce)')
       if (reduce.matches) return
     }

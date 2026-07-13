@@ -14,12 +14,13 @@ import { FloatingParticles } from './floating-particles'
 import { ChatMessageList } from './chat-message-list'
 import { ConversationSidebar } from './conversation-sidebar'
 import { SuggestionChips } from './suggestion-chips'
-import { useChatStream, type UseChatStreamCallbacks, type ChatStreamOptions } from './hooks/use-chat-stream'
-
 import {
-  ensureConfigLoaded,
-  getConfig,
-} from '@/lib/api/ai-chat-config-store'
+  useChatStream,
+  type UseChatStreamCallbacks,
+  type ChatStreamOptions,
+} from './hooks/use-chat-stream'
+
+import { ensureConfigLoaded, getConfig } from '@/lib/api/ai-chat-config-store'
 import {
   createConversation,
   deleteConversation,
@@ -31,13 +32,7 @@ import {
 } from '@/lib/api/ai-chat'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import type {
-  TextSegment,
-  ChatMessage,
-  Phase,
-  AIChatWindowProps,
-  Conversation,
-} from './types'
+import type { TextSegment, ChatMessage, Phase, AIChatWindowProps, Conversation } from './types'
 
 // ── Mappers ───────────────────────────────────────────────────────────────
 
@@ -75,7 +70,7 @@ function toClientMessage(server: ServerChatMessage): ChatMessage {
           total: server.total_tokens,
         }
       : undefined,
-    durationMs: isAssistant ? server.duration_ms ?? undefined : undefined,
+    durationMs: isAssistant ? (server.duration_ms ?? undefined) : undefined,
     createdAt: server.created_at,
   }
 }
@@ -196,9 +191,10 @@ export function AIChatWindow({
         if (cancelled) return
         const mapped = rows.map(toClientMessage)
         // Filter out messages the user deleted in a previous session.
-        const visible = hiddenForConv.size > 0
-          ? mapped.filter((m) => m.serverId == null || !hiddenForConv.has(m.serverId))
-          : mapped
+        const visible =
+          hiddenForConv.size > 0
+            ? mapped.filter((m) => m.serverId == null || !hiddenForConv.has(m.serverId))
+            : mapped
         setMessages(visible)
       })
       .catch((err) => {
@@ -389,7 +385,10 @@ export function AIChatWindow({
             const persistedUser = toClientMessage(payload.userMessage)
             const next = prev.slice()
             if (userIdx !== -1) {
-              next[userIdx] = { ...persistedUser, content: prev[userIdx].content || persistedUser.content }
+              next[userIdx] = {
+                ...persistedUser,
+                content: prev[userIdx].content || persistedUser.content,
+              }
             }
             if (aiIdx !== -1) {
               next[aiIdx] = {
@@ -429,7 +428,7 @@ export function AIChatWindow({
         },
       }
     },
-    [activeServerId, refreshConversations],
+    [activeServerId, refreshConversations]
   )
 
   // ── Stop generation ────────────────────────────────────────────────
@@ -474,15 +473,18 @@ export function AIChatWindow({
     }
   }, [])
 
-  const handleSelectConversation = useCallback((id: string) => {
-    const conv = conversations.find((c) => c.id === id)
-    if (!conv) return
-    setActiveConvId(conv.id)
-    setActiveServerId(conv.serverId ?? null)
-    setMessages([])
-    setPhase('chat')
-    setShowSidebar(false)
-  }, [conversations])
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      const conv = conversations.find((c) => c.id === id)
+      if (!conv) return
+      setActiveConvId(conv.id)
+      setActiveServerId(conv.serverId ?? null)
+      setMessages([])
+      setPhase('chat')
+      setShowSidebar(false)
+    },
+    [conversations]
+  )
 
   const handleRenameConversation = useCallback(
     async (id: string, title: string) => {
@@ -560,11 +562,7 @@ export function AIChatWindow({
           content: '',
           streaming: true,
         }
-        return [
-          ...prev.slice(0, idx),
-          placeholder,
-          ...prev.slice(idx + 1),
-        ]
+        return [...prev.slice(0, idx), placeholder, ...prev.slice(idx + 1)]
       })
       setIsStreaming(true)
       setStreamError(null)
@@ -605,29 +603,32 @@ export function AIChatWindow({
     // TODO: wire to a real PATCH /messages/{id} once the backend ships it.
   }, [])
 
-  const handleDeleteMessage = useCallback((messageId: string) => {
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === messageId)
-      if (idx === -1) return prev
-      const deleted = prev.slice(idx, idx + 2)
-      const idsToHide: number[] = []
-      for (const m of deleted) {
-        if (m.serverId != null) idsToHide.push(m.serverId)
-      }
-      if (idsToHide.length > 0 && activeServerId != null) {
-        setLocallyDeletedIds((prevDeleted) => {
-          const existing = prevDeleted[activeServerId] ?? new Set<number>()
-          const next = new Set(existing)
-          for (const id of idsToHide) next.add(id)
-          return { ...prevDeleted, [activeServerId]: next }
-        })
-      }
-      if (deleted[1] && deleted[1].role === 'assistant') {
-        return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
-      }
-      return prev.filter((m) => m.id !== messageId)
-    })
-  }, [activeServerId])
+  const handleDeleteMessage = useCallback(
+    (messageId: string) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === messageId)
+        if (idx === -1) return prev
+        const deleted = prev.slice(idx, idx + 2)
+        const idsToHide: number[] = []
+        for (const m of deleted) {
+          if (m.serverId != null) idsToHide.push(m.serverId)
+        }
+        if (idsToHide.length > 0 && activeServerId != null) {
+          setLocallyDeletedIds((prevDeleted) => {
+            const existing = prevDeleted[activeServerId] ?? new Set<number>()
+            const next = new Set(existing)
+            for (const id of idsToHide) next.add(id)
+            return { ...prevDeleted, [activeServerId]: next }
+          })
+        }
+        if (deleted[1] && deleted[1].role === 'assistant') {
+          return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
+        }
+        return prev.filter((m) => m.id !== messageId)
+      })
+    },
+    [activeServerId]
+  )
 
   // ── Send ──────────────────────────────────────────────────────────
   const handleSend = useCallback(
@@ -671,13 +672,17 @@ export function AIChatWindow({
           const cfg = getConfig()
           const model = selectedModel ?? cfg?.defaultModel
           const reasoningSupported = model
-            ? (cfg?.reasoningModels ?? []).some((item) => item.toLowerCase() === model.toLowerCase())
+            ? (cfg?.reasoningModels ?? []).some(
+                (item) => item.toLowerCase() === model.toLowerCase()
+              )
             : false
           sendStream(message, {
             enableWebSearch: streamOptions.enableWebSearch ?? false,
             ...streamOptions,
             model,
-            reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
+            reasoningEffort: reasoningSupported
+              ? (streamOptions.reasoningEffort ?? reasoningEffort)
+              : null,
           }).catch((err) => {
             if (!(err instanceof DOMException && err.name === 'AbortError')) {
               console.error('[ai-chat] send failed', err)
@@ -699,21 +704,33 @@ export function AIChatWindow({
         enableWebSearch: streamOptions.enableWebSearch ?? false,
         ...streamOptions,
         model,
-        reasoningEffort: reasoningSupported ? (streamOptions.reasoningEffort ?? reasoningEffort) : null,
+        reasoningEffort: reasoningSupported
+          ? (streamOptions.reasoningEffort ?? reasoningEffort)
+          : null,
       }).catch((err) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('[ai-chat] send failed', err)
         }
       })
     },
-    [showInput, onSend, phase, ensureServerConversation, sendStream, wireStreamCallbacks, reasoningEffort, selectedModel],
+    [
+      showInput,
+      onSend,
+      phase,
+      ensureServerConversation,
+      sendStream,
+      wireStreamCallbacks,
+      reasoningEffort,
+      selectedModel,
+    ]
   )
 
   // ── Handle suggestion chip clicks ────────────────────────────────
   const handleSuggestionClick = useCallback(
     (prompt: string) => {
       handleSend(prompt, {
-        enableWebSearch: prompt.toLowerCase().includes('数据') || prompt.toLowerCase().includes('趋势'),
+        enableWebSearch:
+          prompt.toLowerCase().includes('数据') || prompt.toLowerCase().includes('趋势'),
       })
     },
     [handleSend]
@@ -759,7 +776,11 @@ export function AIChatWindow({
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <div>
               <p className="font-medium">后端 AI Provider 未配置</p>
-              <p className="mt-0.5 text-amber-200/70">请在 <code className="rounded bg-amber-500/10 px-1">backend/.env</code> 配置 <code className="rounded bg-amber-500/10 px-1">AI_CHAT_PROVIDER_API_KEY</code> 后重启后端服务。</p>
+              <p className="mt-0.5 text-amber-200/70">
+                请在 <code className="rounded bg-amber-500/10 px-1">backend/.env</code> 配置{' '}
+                <code className="rounded bg-amber-500/10 px-1">AI_CHAT_PROVIDER_API_KEY</code>{' '}
+                后重启后端服务。
+              </p>
             </div>
           </div>
         </div>
@@ -789,10 +810,7 @@ export function AIChatWindow({
         }}
       >
         <div className="absolute top-[60px] sm:top-[70px]">
-          <AnnouncementBadge
-            text={announcementText}
-            href={announcementHref}
-          />
+          <AnnouncementBadge text={announcementText} href={announcementHref} />
         </div>
 
         {/* Greeting + suggestion chips — positioned between top badge and input */}
@@ -909,20 +927,14 @@ export function AIChatWindow({
         >
           <div className="relative w-full max-w-[680px] mx-auto pointer-events-auto">
             {/* Stop button */}
-            <div
-              className="absolute -top-14 left-1/2 -translate-x-1/2"
-              style={{ opacity: 0 }}
-            >
+            <div className="absolute -top-14 left-1/2 -translate-x-1/2" style={{ opacity: 0 }}>
               <button
                 ref={stopBtnRef}
                 type="button"
                 onClick={handleStopGeneration}
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
                 style={{
-                  animation:
-                    isStreaming
-                      ? 'bb-stop-pulse 1.5s ease-in-out infinite'
-                      : 'none',
+                  animation: isStreaming ? 'bb-stop-pulse 1.5s ease-in-out infinite' : 'none',
                 }}
                 aria-label="停止生成"
               >
@@ -933,11 +945,13 @@ export function AIChatWindow({
 
             <ChatInput
               placeholder={isLanding ? placeholder : '继续对话...'}
-              onSend={(msg, opts) => handleSend(msg, {
-                ...opts,
-                enableWebSearch,
-                model: selectedModel,
-              })}
+              onSend={(msg, opts) =>
+                handleSend(msg, {
+                  ...opts,
+                  enableWebSearch,
+                  model: selectedModel,
+                })
+              }
               compact={!isLanding}
               disabled={isStreaming}
               enableWebSearch={enableWebSearch}

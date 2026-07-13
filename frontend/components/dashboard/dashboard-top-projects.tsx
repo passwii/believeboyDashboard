@@ -55,7 +55,7 @@ const TABLE_MAX_HEIGHT = 'max-h-[420px]'
 
 function aggregate(
   projectBreakdown: Record<number, ProjectBreakdownEntry>,
-  projects: ProjectOption[],
+  projects: ProjectOption[]
 ): AggregatedRow[] {
   const rows: AggregatedRow[] = []
   for (const project of projects) {
@@ -99,37 +99,30 @@ export function DashboardTopProjects({
 
   const aggregated = useMemo(
     () => aggregate(projectBreakdown, projects),
-    [projectBreakdown, projects],
+    [projectBreakdown, projects]
   )
 
-  const totalSales = useMemo(
-    () => aggregated.reduce((s, r) => s + r.totalSales, 0),
-    [aggregated],
-  )
+  const totalSales = useMemo(() => aggregated.reduce((s, r) => s + r.totalSales, 0), [aggregated])
   const totalAdSpend = useMemo(
     () => aggregated.reduce((s, r) => s + r.totalAdSpend, 0),
-    [aggregated],
+    [aggregated]
   )
 
   const topRows = useMemo(() => {
     const total = sortKey === 'sales' ? totalSales : totalAdSpend
     const sorted = [...aggregated].sort(
-      (a, b) => getSortValue(b, sortKey) - getSortValue(a, sortKey),
+      (a, b) => getSortValue(b, sortKey) - getSortValue(a, sortKey)
     )
     return sorted.slice(0, MAX_ROWS).map((row) => {
       // 从上一周期 project_breakdown 计算同比
       const prevEntry = compareProjectBreakdown?.[row.projectId]
       const prevSummaryRows = prevEntry?.summary_rows ?? []
       const prevMainValue = prevSummaryRows.reduce(
-        (s, r) =>
-          s + (sortKey === 'sales' ? (r.sales_amount ?? 0) : (r.ad_spend ?? 0)),
-        0,
+        (s, r) => s + (sortKey === 'sales' ? (r.sales_amount ?? 0) : (r.ad_spend ?? 0)),
+        0
       )
       const mainValue = getSortValue(row, sortKey)
-      const change =
-        prevMainValue > 0
-          ? ((mainValue - prevMainValue) / prevMainValue) * 100
-          : null
+      const change = prevMainValue > 0 ? ((mainValue - prevMainValue) / prevMainValue) * 100 : null
       return {
         ...row,
         mainValue,
@@ -166,56 +159,60 @@ export function DashboardTopProjects({
             <div className="hidden sm:block">
               <div className={`${TABLE_MAX_HEIGHT} overflow-y-auto overflow-x-auto`}>
                 <table className="w-full min-w-[420px] text-sm">
-              <thead>
-                <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                  <th className="w-10 pb-2 font-medium">#</th>
-                  <th className="pb-2 font-medium">店铺</th>
-                  <th className="pb-2 text-right font-medium">{getMainLabel(sortKey)}</th>
-                  <th className="hidden pb-2 text-right font-medium sm:table-cell">订单量</th>
-                  <th className="w-28 pb-2 font-medium">占比</th>
-                  <th className="w-20 pb-2 text-right font-medium">环比</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topRows.map((row, idx) => (
-                  <tr
-                    key={row.projectId}
-                    className="border-b border-border/40 last:border-b-0 transition-colors hover:bg-muted/30"
-                  >
-                    <td className="py-2.5 align-middle text-xs text-muted-foreground tabular-nums">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2.5 align-middle">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                          <Store className="h-3.5 w-3.5" />
-                        </span>
-                        <span className="truncate font-medium text-foreground">{row.projectName}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 align-middle text-right tabular-nums">
-                      {fmtMoneyPrecise(row.mainValue)}
-                    </td>
-                    <td className="hidden py-2.5 align-middle text-right tabular-nums text-muted-foreground sm:table-cell">
-                      {fmtNumPrecise(row.totalOrders)}
-                    </td>
-                    <td className="py-2.5 align-middle">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-primary transition-[width] duration-500"
-                            style={{ width: `${Math.max(2, row.pct)}%` }}
-                          />
-                        </div>
-                        <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
-                          {row.pct.toFixed(0)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 align-middle text-right tabular-nums">{renderChangeIndicator(row.change)}</td>
-                  </tr>
-                ))}
-              </tbody>
+                  <thead>
+                    <tr className="border-b border-border/60 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                      <th className="w-10 pb-2 font-medium">#</th>
+                      <th className="pb-2 font-medium">店铺</th>
+                      <th className="pb-2 text-right font-medium">{getMainLabel(sortKey)}</th>
+                      <th className="hidden pb-2 text-right font-medium sm:table-cell">订单量</th>
+                      <th className="w-28 pb-2 font-medium">占比</th>
+                      <th className="w-20 pb-2 text-right font-medium">环比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topRows.map((row, idx) => (
+                      <tr
+                        key={row.projectId}
+                        className="border-b border-border/40 last:border-b-0 transition-colors hover:bg-muted/30"
+                      >
+                        <td className="py-2.5 align-middle text-xs text-muted-foreground tabular-nums">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 align-middle">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                              <Store className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="truncate font-medium text-foreground">
+                              {row.projectName}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 align-middle text-right tabular-nums">
+                          {fmtMoneyPrecise(row.mainValue)}
+                        </td>
+                        <td className="hidden py-2.5 align-middle text-right tabular-nums text-muted-foreground sm:table-cell">
+                          {fmtNumPrecise(row.totalOrders)}
+                        </td>
+                        <td className="py-2.5 align-middle">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full rounded-full bg-primary transition-[width] duration-500"
+                                style={{ width: `${Math.max(2, row.pct)}%` }}
+                              />
+                            </div>
+                            <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">
+                              {row.pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 align-middle text-right tabular-nums">
+                          {renderChangeIndicator(row.change)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -256,7 +253,7 @@ function TabButton({
         'inline-flex items-center justify-center rounded px-2.5 py-1 text-xs font-medium transition-colors',
         active
           ? 'bg-primary text-primary-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
+          : 'text-muted-foreground hover:text-foreground'
       )}
     >
       {children}
@@ -307,7 +304,9 @@ function ProjectMobileCard({
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Store className="h-3.5 w-3.5" />
         </span>
-        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{row.projectName}</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          {row.projectName}
+        </span>
         {renderChangeIndicator(row.change)}
       </div>
       <div className="mt-2 flex items-center gap-3">

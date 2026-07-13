@@ -2,15 +2,36 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronRight, Download, Search } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  ChevronRight,
+  Download,
+  Search,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import {
   AD_DATA_REPORT_TYPES,
@@ -103,12 +124,9 @@ export function AdDataExplorer() {
   const displayColumns: AdDataColumn[] = useMemo(
     () =>
       isAggregate && config
-        ? [
-            { key: '__agg_count', label: '合并份数', format: 'int' },
-            ...getAggregateColumns(config),
-          ]
-        : config?.columns ?? [],
-    [isAggregate, config],
+        ? [{ key: '__agg_count', label: '合并份数', format: 'int' }, ...getAggregateColumns(config)]
+        : (config?.columns ?? []),
+    [isAggregate, config]
   )
 
   // ---- 拉取"有哪些报表类型有成功入库的数据" ----
@@ -127,7 +145,9 @@ export function AdDataExplorer() {
       .then((items) => {
         if (!active) return
         const types = Array.from(
-          new Set(items.filter((it) => it.ingestion_status === 'success').map((it) => it.report_type)),
+          new Set(
+            items.filter((it) => it.ingestion_status === 'success').map((it) => it.report_type)
+          )
         )
         setAvailableTypes(types)
         // 默认选中第一个有数据的类型（若当前未选或所选无数据）
@@ -165,7 +185,7 @@ export function AdDataExplorer() {
     })
     fetch(
       `${API_BASE}/api/v1/external/projects/${projectId}/ad-${config.endpoint}-raw?${query.toString()}`,
-      { cache: 'no-store' },
+      { cache: 'no-store' }
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await parseError(res))
@@ -197,8 +217,8 @@ export function AdDataExplorer() {
     const q = search.trim().toLowerCase()
     return baseRows.filter((row) =>
       displayColumns.some((col) =>
-        formatAdDataValue(row[col.key], col.format).toLowerCase().includes(q),
-      ),
+        formatAdDataValue(row[col.key], col.format).toLowerCase().includes(q)
+      )
     )
   }, [baseRows, search, displayColumns])
 
@@ -263,7 +283,10 @@ export function AdDataExplorer() {
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 报表类型
               </div>
-              <Select value={selectedReportType} onValueChange={(value) => setSelectedReportType(value)}>
+              <Select
+                value={selectedReportType}
+                onValueChange={(value) => setSelectedReportType(value)}
+              >
                 <SelectTrigger className="h-10 w-[15rem] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择报表类型" />
                 </SelectTrigger>
@@ -307,37 +330,41 @@ export function AdDataExplorer() {
                 />
               </div>
             </div>
-            </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                视图
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={mode === 'raw' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setMode('raw')
-                    setPage(1)
-                  }}
-                >
-                  原始明细
-                </Button>
-                <Button
-                  variant={mode === 'aggregate' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setMode('aggregate')
-                    setPage(1)
-                  }}
-                >
-                  聚合
-                </Button>
-              </div>
+          <div className="space-y-1.5">
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              视图
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={mode === 'raw' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setMode('raw')
+                  setPage(1)
+                }}
+              >
+                原始明细
+              </Button>
+              <Button
+                variant={mode === 'aggregate' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setMode('aggregate')
+                  setPage(1)
+                }}
+              >
+                聚合
+              </Button>
+            </div>
+          </div>
 
-          <Button variant="outline" onClick={handleExport} disabled={!config || sorted.length === 0}>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={!config || sorted.length === 0}
+          >
             <Download className="mr-1.5 h-4 w-4" />
             导出 CSV
           </Button>
@@ -346,7 +373,9 @@ export function AdDataExplorer() {
 
       {/* 状态 / 错误 / 空态 */}
       {error ? (
-        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
       ) : null}
       {loading ? (
         <EmptyState rowHeight="lg" message="正在加载原始数据..." />
@@ -366,7 +395,8 @@ export function AdDataExplorer() {
             <Badge variant="outline">报表：{config.label}</Badge>
             {isAggregate ? (
               <Badge variant="outline">
-                聚合后 {baseRows.length.toLocaleString()} 行（合并自 {rows.length.toLocaleString()} 份明细）
+                聚合后 {baseRows.length.toLocaleString()} 行（合并自 {rows.length.toLocaleString()}{' '}
+                份明细）
               </Badge>
             ) : (
               <Badge variant="outline">服务端总行数：{totalRows.toLocaleString()}</Badge>
@@ -510,9 +540,20 @@ function FragmentRow({
 }) {
   return (
     <>
-      <TableRow className={cn('hover:bg-[hsl(var(--surface-soft))]', isOpen && 'bg-[hsl(var(--surface-soft))]')}>
+      <TableRow
+        className={cn(
+          'hover:bg-[hsl(var(--surface-soft))]',
+          isOpen && 'bg-[hsl(var(--surface-soft))]'
+        )}
+      >
         <TableCell className="p-2">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} aria-label="展开原始数据">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onToggle}
+            aria-label="展开原始数据"
+          >
             <ChevronRight className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-90')} />
           </Button>
         </TableCell>

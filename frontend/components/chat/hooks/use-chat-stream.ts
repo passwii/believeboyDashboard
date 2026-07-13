@@ -25,7 +25,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { consumeStream, type StreamCallbacks, type StreamDonePayload, type StreamUsage } from '@/lib/api/ai-chat-stream'
+import {
+  consumeStream,
+  type StreamCallbacks,
+  type StreamDonePayload,
+  type StreamUsage,
+} from '@/lib/api/ai-chat-stream'
 import type { SearchSource } from '@/lib/api/ai-chat'
 
 export type ChatStreamOptions = {
@@ -68,7 +73,7 @@ export type UseChatStreamResult = {
 
 export function useChatStream(
   conversationIdRef: React.RefObject<number | null>,
-  callbacksRef: React.MutableRefObject<UseChatStreamCallbacks>,
+  callbacksRef: React.MutableRefObject<UseChatStreamCallbacks>
 ): UseChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -108,10 +113,12 @@ export function useChatStream(
       setError(null)
       resetTurnState()
 
-      const cb = (name: keyof UseChatStreamCallbacks) => (...args: unknown[]) => {
-        const fn = callbacksRef.current[name] as ((...a: unknown[]) => void) | undefined
-        fn?.(...args)
-      }
+      const cb =
+        (name: keyof UseChatStreamCallbacks) =>
+        (...args: unknown[]) => {
+          const fn = callbacksRef.current[name] as ((...a: unknown[]) => void) | undefined
+          fn?.(...args)
+        }
 
       const streamCallbacks: StreamCallbacks = {
         onStart: cb('onStart') as () => void,
@@ -147,32 +154,29 @@ export function useChatStream(
       }
 
       try {
-        const res = await fetch(
-          `/api/ai-chat/conversations/${cid}/messages/stream`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
-            body: JSON.stringify({
-              content,
-              model: options.model,
-              reasoningEffort: options.reasoningEffort ?? null,
-              regenerate: options.regenerate ?? false,
-              // Route handler reads snake_case; this is the contract.
-              target_message_id: options.targetMessageId,
-              overviewPromptId: options.overviewPromptId ?? null,
-              detailPromptId: options.detailPromptId ?? null,
-              scenarioId: options.scenarioId ?? null,
-              toneId: options.toneId ?? null,
-              language: options.language ?? null,
-              length: options.length ?? null,
-              enableWebSearch: options.enableWebSearch ?? false,
-              attachedFileContent: options.attachedFileContent ?? null,
-              attachedFileName: options.attachedFileName ?? null,
-            }),
-            signal: controller.signal,
-            cache: 'no-store',
-          },
-        )
+        const res = await fetch(`/api/ai-chat/conversations/${cid}/messages/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+          body: JSON.stringify({
+            content,
+            model: options.model,
+            reasoningEffort: options.reasoningEffort ?? null,
+            regenerate: options.regenerate ?? false,
+            // Route handler reads snake_case; this is the contract.
+            target_message_id: options.targetMessageId,
+            overviewPromptId: options.overviewPromptId ?? null,
+            detailPromptId: options.detailPromptId ?? null,
+            scenarioId: options.scenarioId ?? null,
+            toneId: options.toneId ?? null,
+            language: options.language ?? null,
+            length: options.length ?? null,
+            enableWebSearch: options.enableWebSearch ?? false,
+            attachedFileContent: options.attachedFileContent ?? null,
+            attachedFileName: options.attachedFileName ?? null,
+          }),
+          signal: controller.signal,
+          cache: 'no-store',
+        })
 
         const payload = await consumeStream(res, streamCallbacks, controller.signal)
         setIsStreaming(false)
@@ -190,7 +194,7 @@ export function useChatStream(
         throw err
       }
     },
-    [conversationIdRef, callbacksRef, resetTurnState],
+    [conversationIdRef, callbacksRef, resetTurnState]
   )
 
   // Make sure to abort on unmount — otherwise React will warn about state

@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
 import {
   Sheet,
@@ -8,9 +8,9 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
+} from '@/components/ui/sheet'
 
-import { SIDEBAR_WIDTH_MOBILE } from "./sidebar-constants"
+import { SIDEBAR_WIDTH_MOBILE } from './sidebar-constants'
 
 /**
  * Mobile-only sidebar drawer. Lives in its own module so that
@@ -21,14 +21,14 @@ import { SIDEBAR_WIDTH_MOBILE } from "./sidebar-constants"
 export interface SidebarMobileSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  side?: "left" | "right"
+  side?: 'left' | 'right'
   children: React.ReactNode
 }
 
 export function SidebarMobileSheet({
   open,
   onOpenChange,
-  side = "left",
+  side = 'left',
   children,
 }: SidebarMobileSheetProps) {
   return (
@@ -39,7 +39,7 @@ export function SidebarMobileSheet({
         className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
         style={
           {
-            "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+            '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
           } as React.CSSProperties
         }
         side={side}

@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon } from "lucide-react"
-import type { DateRange } from "react-day-picker"
-import { useRef, useEffect, useState } from "react"
+import * as React from 'react'
+import { format } from 'date-fns'
+import { Calendar as CalendarIcon } from 'lucide-react'
+import type { DateRange } from 'react-day-picker'
+import { useRef, useEffect, useState } from 'react'
 import {
   subDays,
   subWeeks,
@@ -16,20 +16,26 @@ import {
   endOfYear,
   startOfWeek,
   endOfWeek,
-} from "date-fns"
+} from 'date-fns'
 
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar-with-presets"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { cn } from "@/lib/utils"
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar-with-presets'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 // Country → IANA timezone mapping (matches backend interpretation)
 export const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
-  US: "America/Los_Angeles",
-  DE: "Europe/Berlin",
-  UK: "Europe/London",
+  US: 'America/Los_Angeles',
+  DE: 'Europe/Berlin',
+  UK: 'Europe/London',
 }
 
 /**
@@ -38,13 +44,13 @@ export const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
  * not the user's browser local time.
  */
 export function getTodayInTimezone(tz: string): Date {
-  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz }) // YYYY-MM-DD in target TZ
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz }) // YYYY-MM-DD in target TZ
   const now = new Date()
-  const [y, m, d] = formatter.format(now).split("-").map(Number)
+  const [y, m, d] = formatter.format(now).split('-').map(Number)
   return new Date(y!, m! - 1, d!)
 }
 
-export type DatePickerMode = "single" | "range" | "month"
+export type DatePickerMode = 'single' | 'range' | 'month'
 
 type SharedDatePickerProps = {
   placeholder?: string
@@ -59,7 +65,7 @@ type SharedDatePickerProps = {
 }
 
 type SingleDatePickerProps = SharedDatePickerProps & {
-  mode?: "single"
+  mode?: 'single'
   value?: Date
   onChange?: (date?: Date) => void
 }
@@ -71,13 +77,13 @@ type SingleDatePickerProps = SharedDatePickerProps & {
 export type DateRangePickerChangeMeta = { presetKey?: string }
 
 type RangeDatePickerProps = SharedDatePickerProps & {
-  mode: "range"
+  mode: 'range'
   value?: DateRange
   onChange?: (range?: DateRange, meta?: DateRangePickerChangeMeta) => void
 }
 
 type MonthPickerProps = SharedDatePickerProps & {
-  mode: "month"
+  mode: 'month'
   value?: Date
   onChange?: (date?: Date) => void
 }
@@ -99,24 +105,24 @@ function safeDate(year: number, month: number, day: number) {
 
 export function parseDateInputValue(value?: string | null) {
   if (!value) return undefined
-  const [year, month, day] = value.split("-").map(Number)
+  const [year, month, day] = value.split('-').map(Number)
   if (!year || !month || !day) return undefined
   return safeDate(year, month, day)
 }
 
 export function formatDateInputValue(value?: Date | null) {
-  return value ? format(value, "yyyy-MM-dd") : ""
+  return value ? format(value, 'yyyy-MM-dd') : ''
 }
 
 export function parseMonthInputValue(value?: string | null) {
   if (!value) return undefined
-  const [year, month] = value.split("-").map(Number)
+  const [year, month] = value.split('-').map(Number)
   if (!year || !month) return undefined
   return safeDate(year, month, 1)
 }
 
 export function formatMonthInputValue(value?: Date | null) {
-  return value ? format(value, "yyyy-MM") : ""
+  return value ? format(value, 'yyyy-MM') : ''
 }
 
 export function parseDateRangeInputValue(from?: string | null, to?: string | null) {
@@ -159,7 +165,7 @@ function buildPresets(today: Date) {
 }
 
 function usePresets(timezone?: string) {
-  const tz = timezone ?? "UTC"
+  const tz = timezone ?? 'UTC'
   return React.useMemo(() => {
     const today = getTodayInTimezone(tz)
     return buildPresets(today)
@@ -168,26 +174,26 @@ function usePresets(timezone?: string) {
 }
 
 function formatTriggerValue(mode: DatePickerMode, value?: Date | DateRange, placeholder?: string) {
-  if (mode === "range") {
+  if (mode === 'range') {
     const range = value as DateRange | undefined
     if (range?.from && range?.to) {
-      return `${format(range.from, "yyyy-MM-dd")} ~ ${format(range.to, "yyyy-MM-dd")}`
+      return `${format(range.from, 'yyyy-MM-dd')} ~ ${format(range.to, 'yyyy-MM-dd')}`
     }
     if (range?.from) {
-      return format(range.from, "yyyy-MM-dd")
+      return format(range.from, 'yyyy-MM-dd')
     }
-    return placeholder ?? "选择日期范围"
+    return placeholder ?? '选择日期范围'
   }
 
   const date = value as Date | undefined
-  if (mode === "month") {
-    return date ? format(date, "yyyy-MM") : (placeholder ?? "选择月份")
+  if (mode === 'month') {
+    return date ? format(date, 'yyyy-MM') : (placeholder ?? '选择月份')
   }
-  return date ? format(date, "yyyy-MM-dd") : (placeholder ?? "选择日期")
+  return date ? format(date, 'yyyy-MM-dd') : (placeholder ?? '选择日期')
 }
 
 function resolveAnchorDate(mode: DatePickerMode, value?: Date | DateRange) {
-  if (mode === "range") {
+  if (mode === 'range') {
     const range = value as DateRange | undefined
     return range?.from ?? range?.to
   }
@@ -195,24 +201,24 @@ function resolveAnchorDate(mode: DatePickerMode, value?: Date | DateRange) {
 }
 
 const calendarClassNames = {
-  months: "flex w-full flex-col",
-  month: "w-full min-w-0",
-  month_grid: "w-full border-collapse",
-  month_caption: "relative mx-10 mb-2 flex h-9 items-center justify-center",
-  caption_label: "text-sm font-semibold tracking-[0.02em]",
-  nav: "absolute top-0 flex w-full justify-between",
-  weekdays: "grid w-full grid-cols-7 gap-1",
-  weeks: "w-full",
-  weekday: "h-9 w-full p-0 text-xs font-medium text-muted-foreground/80",
-  week: "mt-1 grid w-full grid-cols-7 gap-1",
-  day: "h-10 w-full px-0 text-sm",
+  months: 'flex w-full flex-col',
+  month: 'w-full min-w-0',
+  month_grid: 'w-full border-collapse',
+  month_caption: 'relative mx-10 mb-2 flex h-9 items-center justify-center',
+  caption_label: 'text-sm font-semibold tracking-[0.02em]',
+  nav: 'absolute top-0 flex w-full justify-between',
+  weekdays: 'grid w-full grid-cols-7 gap-1',
+  weeks: 'w-full',
+  weekday: 'h-9 w-full p-0 text-xs font-medium text-muted-foreground/80',
+  week: 'mt-1 grid w-full grid-cols-7 gap-1',
+  day: 'h-10 w-full px-0 text-sm',
   day_button:
-    "relative flex h-10 w-full items-center justify-center rounded-xl p-0 text-foreground outline-offset-2 transition-[color,background-color,box-shadow,border-radius] duration-150 focus:outline-none hover:bg-accent group-data-[selected]:bg-primary group-data-[selected]:text-primary-foreground group-data-[selected]:shadow-sm group-data-[disabled]:pointer-events-none group-data-[disabled]:text-foreground/30 group-data-[disabled]:line-through group-data-[outside]:text-foreground/30 group-data-[outside]:group-data-[selected]:text-primary-foreground group-[.range-start:not(.range-end)]:rounded-r-md group-[.range-end:not(.range-start)]:rounded-l-md group-[.range-middle]:rounded-md group-data-[selected]:group-[.range-middle]:bg-accent group-data-[selected]:group-[.range-middle]:text-foreground",
+    'relative flex h-10 w-full items-center justify-center rounded-xl p-0 text-foreground outline-offset-2 transition-[color,background-color,box-shadow,border-radius] duration-150 focus:outline-none hover:bg-accent group-data-[selected]:bg-primary group-data-[selected]:text-primary-foreground group-data-[selected]:shadow-sm group-data-[disabled]:pointer-events-none group-data-[disabled]:text-foreground/30 group-data-[disabled]:line-through group-data-[outside]:text-foreground/30 group-data-[outside]:group-data-[selected]:text-primary-foreground group-[.range-start:not(.range-end)]:rounded-r-md group-[.range-end:not(.range-start)]:rounded-l-md group-[.range-middle]:rounded-md group-data-[selected]:group-[.range-middle]:bg-accent group-data-[selected]:group-[.range-middle]:text-foreground',
 }
 
 export function DatePicker(props: DatePickerProps) {
   const {
-    mode = "single",
+    mode = 'single',
     value,
     onChange,
     onApply,
@@ -248,9 +254,13 @@ export function DatePicker(props: DatePickerProps) {
 
   const displayMonth = new Date(year, month, 1)
   const triggerLabel = formatTriggerValue(mode, currentValue, placeholder)
-  const hasValue = mode === "range"
-    ? Boolean((currentValue as DateRange | undefined)?.from || (currentValue as DateRange | undefined)?.to)
-    : Boolean(currentValue)
+  const hasValue =
+    mode === 'range'
+      ? Boolean(
+          (currentValue as DateRange | undefined)?.from ||
+            (currentValue as DateRange | undefined)?.to
+        )
+      : Boolean(currentValue)
 
   const handleSingleSelect = (selected?: Date) => {
     setInternalValue(selected)
@@ -263,8 +273,10 @@ export function DatePicker(props: DatePickerProps) {
   }
 
   const handleApply = () => {
-    if (mode === "range") {
-      ;(onChange as ((range?: DateRange) => void) | undefined)?.(internalValue as DateRange | undefined)
+    if (mode === 'range') {
+      ;(onChange as ((range?: DateRange) => void) | undefined)?.(
+        internalValue as DateRange | undefined
+      )
     } else {
       ;(onChange as ((date?: Date) => void) | undefined)?.(internalValue as Date | undefined)
     }
@@ -274,7 +286,7 @@ export function DatePicker(props: DatePickerProps) {
 
   const handleClear = () => {
     setInternalValue(undefined)
-    if (mode === "range") {
+    if (mode === 'range') {
       ;(onChange as ((range?: DateRange) => void) | undefined)?.(undefined)
       return
     }
@@ -282,11 +294,13 @@ export function DatePicker(props: DatePickerProps) {
   }
 
   // For range mode, render the preset calendar
-  if (mode === "range") {
+  if (mode === 'range') {
     return (
       <RangeDatePickerWithPresets
         value={value as DateRange | undefined}
-        onChange={onChange as ((range?: DateRange, meta?: DateRangePickerChangeMeta) => void) | undefined}
+        onChange={
+          onChange as ((range?: DateRange, meta?: DateRangePickerChangeMeta) => void) | undefined
+        }
         onApply={onApply}
         className={className}
         disabled={disabled}
@@ -301,7 +315,7 @@ export function DatePicker(props: DatePickerProps) {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("h-10 w-full justify-start text-left font-normal", className)}
+          className={cn('h-10 w-full justify-start text-left font-normal', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
@@ -314,7 +328,10 @@ export function DatePicker(props: DatePickerProps) {
       >
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <Select value={year.toString()} onValueChange={(nextValue) => setYear(Number(nextValue))}>
+            <Select
+              value={year.toString()}
+              onValueChange={(nextValue) => setYear(Number(nextValue))}
+            >
               <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
@@ -327,21 +344,24 @@ export function DatePicker(props: DatePickerProps) {
               </SelectContent>
             </Select>
 
-            <Select value={month.toString()} onValueChange={(nextValue) => setMonth(Number(nextValue))}>
+            <Select
+              value={month.toString()}
+              onValueChange={(nextValue) => setMonth(Number(nextValue))}
+            >
               <SelectTrigger className="h-10 w-full rounded-lg border-border/70 bg-muted/20">
                 <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 12 }, (_, index) => (
                   <SelectItem key={index} value={index.toString()}>
-                    {`${String(index + 1).padStart(2, "0")}月`}
+                    {`${String(index + 1).padStart(2, '0')}月`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {mode === "month" ? (
+          {mode === 'month' ? (
             <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/10 p-3">
               {Array.from({ length: 12 }, (_, index) => {
                 const candidate = new Date(year, index, 1)
@@ -349,18 +369,23 @@ export function DatePicker(props: DatePickerProps) {
                   currentValue instanceof Date &&
                   currentValue.getFullYear() === year &&
                   currentValue.getMonth() === index
-                const minMonth = fromDate ? new Date(fromDate.getFullYear(), fromDate.getMonth(), 1) : undefined
-                const maxMonth = toDate ? new Date(toDate.getFullYear(), toDate.getMonth(), 1) : undefined
-                const isDisabled = (minMonth && candidate < minMonth) || (maxMonth && candidate > maxMonth)
+                const minMonth = fromDate
+                  ? new Date(fromDate.getFullYear(), fromDate.getMonth(), 1)
+                  : undefined
+                const maxMonth = toDate
+                  ? new Date(toDate.getFullYear(), toDate.getMonth(), 1)
+                  : undefined
+                const isDisabled =
+                  (minMonth && candidate < minMonth) || (maxMonth && candidate > maxMonth)
 
                 return (
                   <Button
                     key={index}
                     type="button"
-                    variant={isSelected ? "default" : "outline"}
+                    variant={isSelected ? 'default' : 'outline'}
                     className={cn(
-                      "h-11 rounded-lg border-border/70 px-0",
-                      !isSelected && "bg-background/80 hover:bg-accent",
+                      'h-11 rounded-lg border-border/70 px-0',
+                      !isSelected && 'bg-background/80 hover:bg-accent'
                     )}
                     disabled={Boolean(isDisabled)}
                     onClick={() => {
@@ -368,7 +393,7 @@ export function DatePicker(props: DatePickerProps) {
                       handleSingleSelect(candidate)
                     }}
                   >
-                    {`${String(index + 1).padStart(2, "0")}月`}
+                    {`${String(index + 1).padStart(2, '0')}月`}
                   </Button>
                 )
               })}
@@ -435,10 +460,10 @@ function RangeDatePickerWithPresets({
   presets,
   timezone,
 }: RangeDatePickerWithPresetsProps) {
-  const tz = timezone ?? "UTC"
+  const tz = timezone ?? 'UTC'
   const todayInTz = getTodayInTimezone(tz)
   const [open, setOpen] = useState(false)
-  const [date, setDate] = useState<DateRange | undefined>(value || presets["近7天"])
+  const [date, setDate] = useState<DateRange | undefined>(value || presets['近7天'])
   const [month, setMonth] = useState<Date>(value?.to ?? todayInTz)
 
   // Sync with external value
@@ -459,10 +484,7 @@ function RangeDatePickerWithPresets({
     }
   }, [month])
 
-  const handlePresetClick = (
-    preset: { from: Date; to: Date },
-    presetKey: string,
-  ) => {
+  const handlePresetClick = (preset: { from: Date; to: Date }, presetKey: string) => {
     setDate(preset)
     setMonth(preset.to)
     onChange?.(preset, { presetKey })
@@ -473,18 +495,19 @@ function RangeDatePickerWithPresets({
     onChange?.(selected, undefined)
   }
 
-  const triggerLabel = date?.from && date?.to
-    ? `${format(date.from, "yyyy-MM-dd")} ~ ${format(date.to, "yyyy-MM-dd")}`
-    : date?.from
-    ? format(date.from, "yyyy-MM-dd")
-    : "选择日期范围"
+  const triggerLabel =
+    date?.from && date?.to
+      ? `${format(date.from, 'yyyy-MM-dd')} ~ ${format(date.to, 'yyyy-MM-dd')}`
+      : date?.from
+        ? format(date.from, 'yyyy-MM-dd')
+        : '选择日期范围'
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("h-10 w-full justify-start text-left font-normal", className)}
+          className={cn('h-10 w-full justify-start text-left font-normal', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
@@ -512,8 +535,8 @@ function RangeDatePickerWithPresets({
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "justify-start w-full text-xs",
-                      isActive && "bg-primary/10 text-primary font-medium"
+                      'justify-start w-full text-xs',
+                      isActive && 'bg-primary/10 text-primary font-medium'
                     )}
                     onClick={() => handlePresetClick(range, label)}
                   >
@@ -566,7 +589,7 @@ function SingleDatePickerWithPresets({
   toDate,
   timezone,
 }: SingleDatePickerWithPresetsProps) {
-  const tz = timezone ?? "UTC"
+  const tz = timezone ?? 'UTC'
   const todayInTz = getTodayInTimezone(tz)
   const [open, setOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(value)
@@ -604,16 +627,14 @@ function SingleDatePickerWithPresets({
     setOpen(false)
   }
 
-  const triggerLabel = selectedDate
-    ? format(selectedDate, "yyyy-MM-dd")
-    : "选择日期"
+  const triggerLabel = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '选择日期'
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("h-10 w-full justify-start text-left font-normal", className)}
+          className={cn('h-10 w-full justify-start text-left font-normal', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
@@ -632,16 +653,15 @@ function SingleDatePickerWithPresets({
           >
             <div className="flex flex-col gap-1 py-2">
               {Object.entries(presets).map(([label, range]) => {
-                const isActive =
-                  selectedDate?.toDateString() === range.from.toDateString()
+                const isActive = selectedDate?.toDateString() === range.from.toDateString()
                 return (
                   <Button
                     key={label}
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "justify-start w-full text-xs",
-                      isActive && "bg-primary/10 text-primary font-medium"
+                      'justify-start w-full text-xs',
+                      isActive && 'bg-primary/10 text-primary font-medium'
                     )}
                     onClick={() => handlePresetClick(range)}
                   >
@@ -708,20 +728,20 @@ function SimpleDatePickerInternal({
     setOpen(false)
   }
 
-  const triggerLabel = selectedDate
-    ? format(selectedDate, "yyyy-MM-dd")
-    : "选择日期"
+  const triggerLabel = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '选择日期'
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("h-9 px-2 justify-start text-left font-normal", className)}
+          className={cn('h-9 px-2 justify-start text-left font-normal', className)}
           disabled={disabled}
         >
           <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className={cn("text-xs", selectedDate ? "text-foreground" : "text-muted-foreground")}>
+          <span
+            className={cn('text-xs', selectedDate ? 'text-foreground' : 'text-muted-foreground')}
+          >
             {triggerLabel}
           </span>
         </Button>
@@ -750,14 +770,14 @@ function SimpleDatePickerInternal({
 
 export { SimpleDatePickerInternal as SimpleDatePicker }
 
-export function SingleDatePicker(props: Omit<SingleDatePickerProps, "mode">) {
+export function SingleDatePicker(props: Omit<SingleDatePickerProps, 'mode'>) {
   return <SingleDatePickerWithPresets {...props} timezone={props.timezone} />
 }
 
-export function DateRangePicker(props: Omit<RangeDatePickerProps, "mode">) {
+export function DateRangePicker(props: Omit<RangeDatePickerProps, 'mode'>) {
   return <DatePicker {...props} mode="range" />
 }
 
-export function MonthPicker(props: Omit<MonthPickerProps, "mode">) {
+export function MonthPicker(props: Omit<MonthPickerProps, 'mode'>) {
   return <DatePicker {...props} mode="month" />
 }

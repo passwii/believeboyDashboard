@@ -5,7 +5,14 @@ import { X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 
 export type Option = {
@@ -21,7 +28,13 @@ interface MultiSelectProps {
   className?: string
 }
 
-export function MultiSelect({ options, selected, onChange, placeholder = 'Select...', className }: MultiSelectProps) {
+export function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = 'Select...',
+  className,
+}: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
 
   const selectedOptions = options.filter((opt) => selected.includes(opt.value))
@@ -117,7 +130,10 @@ export function MultiSelect({ options, selected, onChange, placeholder = 'Select
                 variant="ghost"
                 size="sm"
                 className="w-full h-7 text-xs"
-                onClick={() => { clearAll(); setOpen(false) }}
+                onClick={() => {
+                  clearAll()
+                  setOpen(false)
+                }}
               >
                 清除全部
               </Button>

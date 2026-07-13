@@ -1,14 +1,24 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useGlobalLoading } from '@/components/global-loading-provider'
-import { fetchProjectContext, updateProjectContext, type ProjectContextResponse } from '@/lib/project-context'
+import {
+  fetchProjectContext,
+  updateProjectContext,
+  type ProjectContextResponse,
+} from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
 import { Loader2, Check } from 'lucide-react'
@@ -113,7 +123,10 @@ export function ProjectContextDrawer({
 
   const handleOpenChange = async (newOpen: boolean) => {
     if (!newOpen && hasChanges) {
-      const confirmed = await confirm({ title: '有未保存的更改，确定要关闭吗？', variant: 'destructive' })
+      const confirmed = await confirm({
+        title: '有未保存的更改，确定要关闭吗？',
+        variant: 'destructive',
+      })
       if (!confirmed) return
     }
     setHasChanges(false)
@@ -126,7 +139,7 @@ export function ProjectContextDrawer({
 
   const handleAiParsed = (parsed: Record<string, string>) => {
     // 合并解析结果到现有 context
-    setDraftContext(prev => ({ ...prev, ...parsed }))
+    setDraftContext((prev) => ({ ...prev, ...parsed }))
     notify({
       type: 'success',
       title: '已填充到表单',
@@ -174,11 +187,7 @@ export function ProjectContextDrawer({
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={submitting}
-            >
+            <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
               取消
             </Button>
             <Button

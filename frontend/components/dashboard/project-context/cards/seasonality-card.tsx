@@ -36,9 +36,7 @@ export function SeasonalityCard({ value, onChange }: SeasonalityCardProps) {
         </div>
         <div className="flex items-center gap-2">
           {!collapsed && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-              {preview}
-            </span>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{preview}</span>
           )}
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform ${collapsed ? '-rotate-90' : ''}`}
@@ -49,9 +47,7 @@ export function SeasonalityCard({ value, onChange }: SeasonalityCardProps) {
       {!collapsed && (
         <CardContent className="space-y-3 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              高峰期
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">高峰期</label>
             <textarea
               value={value?.peakSeason || ''}
               onChange={(e) => onChange({ ...value, peakSeason: e.target.value })}
@@ -61,9 +57,7 @@ export function SeasonalityCard({ value, onChange }: SeasonalityCardProps) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              淡季
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">淡季</label>
             <textarea
               value={value?.offSeason || ''}
               onChange={(e) => onChange({ ...value, offSeason: e.target.value })}
@@ -73,9 +67,7 @@ export function SeasonalityCard({ value, onChange }: SeasonalityCardProps) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">
-              备货策略
-            </label>
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">备货策略</label>
             <textarea
               value={value?.restockStrategy || ''}
               onChange={(e) => onChange({ ...value, restockStrategy: e.target.value })}

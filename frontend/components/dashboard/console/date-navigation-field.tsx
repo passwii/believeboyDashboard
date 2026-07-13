@@ -60,7 +60,10 @@ export function DateNavigationField({
           <SingleDatePicker
             value={value}
             onChange={onChange}
-            className={cn('h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]', triggerClassName)}
+            className={cn(
+              'h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+              triggerClassName
+            )}
           />
           <Button
             type="button"
@@ -77,7 +80,10 @@ export function DateNavigationField({
         <SingleDatePicker
           value={value}
           onChange={onChange}
-          className={cn('h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]', triggerClassName)}
+          className={cn(
+            'h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
+            triggerClassName
+          )}
         />
       )}
       {showToday && (

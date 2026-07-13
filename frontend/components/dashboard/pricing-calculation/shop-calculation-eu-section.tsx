@@ -73,7 +73,10 @@ async function requestEUPricingCalculation(payload: {
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    const errorPayload = (await response.json().catch(() => ({ detail: '测算请求失败' }))) as { detail?: string; message?: string }
+    const errorPayload = (await response.json().catch(() => ({ detail: '测算请求失败' }))) as {
+      detail?: string
+      message?: string
+    }
     throw new Error(errorPayload.detail || errorPayload.message || '定价测算失败')
   }
   return response.json() as Promise<PricingCalculationRunItem>
@@ -86,7 +89,10 @@ async function requestSaveSnapshot(payload: Record<string, unknown>): Promise<un
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    const errorPayload = (await response.json().catch(() => ({ detail: '保存快照失败' }))) as { detail?: string; message?: string }
+    const errorPayload = (await response.json().catch(() => ({ detail: '保存快照失败' }))) as {
+      detail?: string
+      message?: string
+    }
     throw new Error(errorPayload.detail || errorPayload.message || '保存快照失败')
   }
   return response.json()
@@ -95,7 +101,7 @@ async function requestSaveSnapshot(payload: Record<string, unknown>): Promise<un
 /** Convert a ShopCalculationItem (from DB) to a PricingCalculationRunItem */
 function snapshotToResult(
   snapshot: ShopCalculationItem,
-  projectName: string,
+  projectName: string
 ): PricingCalculationRunItem {
   return {
     id: snapshot.id,
@@ -220,7 +226,7 @@ export function ShopCalculationEuSection({
         if (selectedSnapshotId !== null) {
           const snapshotResponse = await fetch(
             `${API_BASE}/api/v1/pricing-calculation-snapshots/${selectedSnapshotId}/items`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           )
           if (!snapshotResponse.ok) {
             const body = await snapshotResponse.text().catch(() => '')
@@ -298,13 +304,16 @@ export function ShopCalculationEuSection({
         const [skuSearch, exchangeSearch, snapshotSearch] = await Promise.all([
           fetch(
             `${API_BASE}/api/v1/sku-info?project_name=${encodeURIComponent(selectedProjectName)}&country=${selectedCountry}&is_active=true&page=1&page_size=200&include_total=true`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           ),
-          fetch(`/api/exchange-rates?currency=${selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'}&page=1&pageSize=1`, { cache: 'no-store' }),
+          fetch(
+            `/api/exchange-rates?currency=${selectedCountry === 'DE' ? 'EUR' : selectedCountry === 'UK' ? 'GBP' : 'USD'}&page=1&pageSize=1`,
+            { cache: 'no-store' }
+          ),
           // Load existing EU snapshots
           fetch(
             `${API_BASE}/api/v1/shop-calculation?project_id=${selectedProjectId}&country=${selectedCountry}&page=1&page_size=200`,
-            { cache: 'no-store' },
+            { cache: 'no-store' }
           ),
         ])
         if (!skuSearch.ok) throw new Error('SKU 列表加载失败')
@@ -317,18 +326,23 @@ export function ShopCalculationEuSection({
         setSystemExchangeRate(rate)
 
         const euSkus = skuPayload.items.filter(
-          (item) => item.country === selectedCountry && item.is_active,
+          (item) => item.country === selectedCountry && item.is_active
         )
         setStoreSkus(euSkus)
 
         // Parse existing snapshots
         let snapshotPayload: { items?: ShopCalculationItem[]; total?: number } = { items: [] }
         if (snapshotSearch.ok) {
-          snapshotPayload = await snapshotSearch.json() as { items?: ShopCalculationItem[]; total?: number }
+          snapshotPayload = (await snapshotSearch.json()) as {
+            items?: ShopCalculationItem[]
+            total?: number
+          }
         } else {
           const body = await snapshotSearch.text().catch(() => '')
           console.error('[eu-shop-calculation] 快照加载失败:', snapshotSearch.status, body)
-          setSnapshotError(`店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`)
+          setSnapshotError(
+            `店铺历史加载失败（HTTP ${snapshotSearch.status}），价格信息可能无法显示`
+          )
         }
         const snapshotMap = new Map<string, ShopCalculationItem>()
         for (const s of snapshotPayload.items ?? []) {
@@ -376,8 +390,8 @@ export function ShopCalculationEuSection({
                         ? String(item.first_leg_cost_rmb)
                         : '5',
                   sale_price_usd: String(snapshot.sale_price_usd),
-                  advertising_rate: String((snapshot.advertising_rate) * 100),
-                  return_loss_rate: String((snapshot.return_loss_rate) * 100),
+                  advertising_rate: String(snapshot.advertising_rate * 100),
+                  return_loss_rate: String(snapshot.return_loss_rate * 100),
                   delivery_fee_usd: String(snapshot.fees?.delivery_fee_usd ?? 0),
                   inbound_config_fee_usd: String(snapshot.fees?.inbound_config_fee_manual_usd ?? 0),
                   storage_fee_usd: String(snapshot.fees?.storage_fee_manual_usd ?? 0),
@@ -394,8 +408,7 @@ export function ShopCalculationEuSection({
                 draft: {
                   package_length_cm:
                     item.package_length_cm > 0 ? String(item.package_length_cm) : '',
-                  package_width_cm:
-                    item.package_width_cm > 0 ? String(item.package_width_cm) : '',
+                  package_width_cm: item.package_width_cm > 0 ? String(item.package_width_cm) : '',
                   package_height_cm:
                     item.package_height_cm > 0 ? String(item.package_height_cm) : '',
                   weight_kg: item.weight_kg > 0 ? String(item.weight_kg) : '',
@@ -433,9 +446,7 @@ export function ShopCalculationEuSection({
     if (!skuKeyword.trim()) return storeSkus
     const kw = skuKeyword.trim().toLowerCase()
     return storeSkus.filter(
-      (item) =>
-        item.sku.toLowerCase().includes(kw) ||
-        item.asin.toLowerCase().includes(kw),
+      (item) => item.sku.toLowerCase().includes(kw) || item.asin.toLowerCase().includes(kw)
     )
   }, [skuKeyword, storeSkus])
 
@@ -577,11 +588,13 @@ export function ShopCalculationEuSection({
   const vatLabel = euOption?.vatLabel ?? ''
 
   return (
-    <div className='space-y-3'>
+    <div className="space-y-3">
       {/* Snapshot loading error banner */}
       {snapshotError && (
-        <div className='flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300'>
-          <span className='flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-amber-900 font-bold'>!</span>
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-amber-900 font-bold">
+            !
+          </span>
           <span>{snapshotError}</span>
         </div>
       )}
@@ -589,53 +602,55 @@ export function ShopCalculationEuSection({
       {/* Table Body */}
       <div>
         {storeSkusLoading ? (
-            <div className='flex h-48 flex-col items-center justify-center gap-3 p-4'>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className='h-10 w-full' />
-              ))}
+          <div className="flex h-48 flex-col items-center justify-center gap-3 p-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : storeSkusError ? (
+          <div className="m-4 flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold">
+              !
+            </span>
+            {storeSkusError}
+          </div>
+        ) : !selectedProjectName ? (
+          <div className="flex h-48 flex-col items-center justify-center gap-2 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
+              <Package className="h-5 w-5 text-muted-foreground/40" />
             </div>
-          ) : storeSkusError ? (
-            <div className='m-4 flex items-center gap-2.5 rounded-lg border border-destructive/40 bg-destructive/8 px-4 py-3 text-sm text-destructive'>
-              <span className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[10px] font-bold'>!</span>
-              {storeSkusError}
+            <p className="text-sm text-muted-foreground">请选择项目和站点以加载 SKU 数据</p>
+          </div>
+        ) : filteredSkus.length === 0 ? (
+          <div className="flex h-48 flex-col items-center justify-center gap-2 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]">
+              <Search className="h-5 w-5 text-muted-foreground/40" />
             </div>
-          ) : !selectedProjectName ? (
-            <div className='flex h-48 flex-col items-center justify-center gap-2 text-center'>
-              <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
-                <Package className='h-5 w-5 text-muted-foreground/40' />
-              </div>
-              <p className='text-sm text-muted-foreground'>请选择项目和站点以加载 SKU 数据</p>
-            </div>
-          ) : filteredSkus.length === 0 ? (
-            <div className='flex h-48 flex-col items-center justify-center gap-2 text-center'>
-              <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-subtle))]'>
-                <Search className='h-5 w-5 text-muted-foreground/40' />
-              </div>
-              <p className='text-sm text-muted-foreground'>
-                {skuKeyword
-                  ? `没有找到匹配的 SKU（${skuKeyword}）`
-                  : `该项目在 ${euCountryLabel} 下没有活跃 SKU`}
-              </p>
-              {skuKeyword && (
-                <button
-                  onClick={() => onSkuKeywordChange('')}
-                  className='text-xs text-[hsl(var(--chart-3))] underline-offset-2 hover:underline'
-                >
-                  清除搜索
-                </button>
-              )}
-            </div>
-          ) : (
-            <ShopCalculationEuTable
-              items={filteredSkus}
-              rowStates={storeRows}
-              onDraftChange={updateDraft}
-              onCalculate={handleCalculate}
-              systemExchangeRate={systemExchangeRate}
-              selectedCountry={selectedCountry}
-              isSnapshotMode={selectedSnapshotId !== null}
-            />
-          )}
+            <p className="text-sm text-muted-foreground">
+              {skuKeyword
+                ? `没有找到匹配的 SKU（${skuKeyword}）`
+                : `该项目在 ${euCountryLabel} 下没有活跃 SKU`}
+            </p>
+            {skuKeyword && (
+              <button
+                onClick={() => onSkuKeywordChange('')}
+                className="text-xs text-[hsl(var(--chart-3))] underline-offset-2 hover:underline"
+              >
+                清除搜索
+              </button>
+            )}
+          </div>
+        ) : (
+          <ShopCalculationEuTable
+            items={filteredSkus}
+            rowStates={storeRows}
+            onDraftChange={updateDraft}
+            onCalculate={handleCalculate}
+            systemExchangeRate={systemExchangeRate}
+            selectedCountry={selectedCountry}
+            isSnapshotMode={selectedSnapshotId !== null}
+          />
+        )}
       </div>
     </div>
   )

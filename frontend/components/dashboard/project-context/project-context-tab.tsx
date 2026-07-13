@@ -29,29 +29,37 @@ const TIER_LABEL: Record<string, string> = {
   T4: 'T4',
 }
 
-const TIER_SECTION_STYLE: Record<string, { headerBg: string; headerText: string; cardAccent: string }> = {
+const TIER_SECTION_STYLE: Record<
+  string,
+  { headerBg: string; headerText: string; cardAccent: string }
+> = {
   T1: {
-    headerBg: 'bg-gradient-to-r from-red-50 to-transparent dark:from-red-950/20 dark:to-transparent',
+    headerBg:
+      'bg-gradient-to-r from-red-50 to-transparent dark:from-red-950/20 dark:to-transparent',
     headerText: 'text-red-700 dark:text-red-400',
     cardAccent: 'border-l-4 border-l-red-500/60',
   },
   T2: {
-    headerBg: 'bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20 dark:to-transparent',
+    headerBg:
+      'bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20 dark:to-transparent',
     headerText: 'text-blue-700 dark:text-blue-400',
     cardAccent: 'border-l-4 border-l-blue-500/60',
   },
   T3: {
-    headerBg: 'bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 dark:to-transparent',
+    headerBg:
+      'bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 dark:to-transparent',
     headerText: 'text-amber-700 dark:text-amber-400',
     cardAccent: 'border-l-4 border-l-amber-500/60',
   },
   T4: {
-    headerBg: 'bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-800/20 dark:to-transparent',
+    headerBg:
+      'bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-800/20 dark:to-transparent',
     headerText: 'text-slate-700 dark:text-slate-400',
     cardAccent: 'border-l-4 border-l-slate-500/60',
   },
   UNTIERED: {
-    headerBg: 'bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-800/20 dark:to-transparent',
+    headerBg:
+      'bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-800/20 dark:to-transparent',
     headerText: 'text-gray-500 dark:text-gray-400',
     cardAccent: 'border-l-4 border-l-gray-400/40',
   },
@@ -102,7 +110,13 @@ async function fetchAllProjectContexts(): Promise<ProjectWithContext[]> {
   if (!projectsRes.ok) {
     throw new Error('获取项目列表失败')
   }
-  const projects: { id: number; name: string; brand_name: string | null; project_tier: string | null; sort_order: number }[] = await projectsRes.json()
+  const projects: {
+    id: number
+    name: string
+    brand_name: string | null
+    project_tier: string | null
+    sort_order: number
+  }[] = await projectsRes.json()
 
   // 批量获取每个项目的背景信息
   const results = await Promise.allSettled(
@@ -248,7 +262,8 @@ export function ProjectContextTab() {
 
   // 过滤逻辑
   const filteredProjects = projects.filter((project) => {
-    const matchSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchSearch =
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (project.brand_name && project.brand_name.toLowerCase().includes(searchQuery.toLowerCase()))
 
     const hasContext = project.project_context && Object.keys(project.project_context).length > 0
@@ -294,7 +309,9 @@ export function ProjectContextTab() {
               const style = TIER_SECTION_STYLE[group.tier] || TIER_SECTION_STYLE.UNTIERED
               return (
                 <div key={group.tier} className="space-y-3">
-                  <div className={cn('flex items-center gap-3 rounded-lg px-4 py-2.5', style.headerBg)}>
+                  <div
+                    className={cn('flex items-center gap-3 rounded-lg px-4 py-2.5', style.headerBg)}
+                  >
                     <span className={cn('text-sm font-bold', style.headerText)}>{group.label}</span>
                     <span className="text-sm text-muted-foreground">
                       {group.projects.length} 个项目

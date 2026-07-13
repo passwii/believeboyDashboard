@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useReducer,
-  useRef,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useReducer, useRef } from 'react'
 import {
   Notification,
   NotifyOptions,
@@ -50,9 +43,7 @@ function reducer(state: State, action: Action): State {
     case 'MARK_READ':
       return {
         ...state,
-        history: state.history.map((n) =>
-          n.id === action.payload ? { ...n, read: true } : n
-        ),
+        history: state.history.map((n) => (n.id === action.payload ? { ...n, read: true } : n)),
       }
     case 'CLEAR_ALL':
       return { ...state, history: [] }
@@ -107,28 +98,25 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     window.dispatchEvent(new CustomEvent(NOTIFICATION_CHANGE_EVENT))
   }, [state.history])
 
-  const notify = useCallback(
-    (opts: NotifyOptions, duration = DEFAULT_NOTIFY_DURATION): string => {
-      const notification: Notification = {
-        ...opts,
-        id: genId(),
-        createdAt: Date.now(),
-        read: false,
-      }
+  const notify = useCallback((opts: NotifyOptions, duration = DEFAULT_NOTIFY_DURATION): string => {
+    const notification: Notification = {
+      ...opts,
+      id: genId(),
+      createdAt: Date.now(),
+      read: false,
+    }
 
-      dispatch({ type: 'ADD_NOTIFICATION', payload: notification })
+    dispatch({ type: 'ADD_NOTIFICATION', payload: notification })
 
-      // Auto-dismiss
-      const timer = setTimeout(() => {
-        dispatch({ type: 'DISMISS_TOAST', payload: notification.id })
-        timerRefs.current.delete(notification.id)
-      }, duration)
-      timerRefs.current.set(notification.id, timer)
+    // Auto-dismiss
+    const timer = setTimeout(() => {
+      dispatch({ type: 'DISMISS_TOAST', payload: notification.id })
+      timerRefs.current.delete(notification.id)
+    }, duration)
+    timerRefs.current.set(notification.id, timer)
 
-      return notification.id
-    },
-    []
-  )
+    return notification.id
+  }, [])
 
   const dismissToast = useCallback((id: string) => {
     const timer = timerRefs.current.get(id)
@@ -151,7 +139,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   return (
     <NotificationsContext.Provider
-      value={{ notify, dismissToast, markRead, clearAll, unreadCount, history: state.history, toasts: state.toasts }}
+      value={{
+        notify,
+        dismissToast,
+        markRead,
+        clearAll,
+        unreadCount,
+        history: state.history,
+        toasts: state.toasts,
+      }}
     >
       {children}
     </NotificationsContext.Provider>

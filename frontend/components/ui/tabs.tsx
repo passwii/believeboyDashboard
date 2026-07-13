@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
+import * as React from 'react'
+import * as TabsPrimitive from '@radix-ui/react-tabs'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 const Tabs = TabsPrimitive.Root
 
@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex min-h-11 items-center justify-center gap-1 rounded-2xl border border-[hsl(var(--surface-high))/0.9] bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.94,hsl(var(--surface-subtle))/0.98)] p-1.5 text-muted-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/0.72),inset_0_-1px_0_hsl(214_18%_82%/0.38),0_10px_24px_-20px_rgba(15,23,42,0.12)] dark:border-[hsl(var(--surface-outline))/0.22] dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.88,hsl(var(--surface-low))/0.98)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.03),inset_0_-1px_0_rgba(0,0,0,0.28),0_20px_44px_-34px_rgba(0,0,0,0.82)]",
+      'inline-flex min-h-11 items-center justify-center gap-1 rounded-2xl border border-[hsl(var(--surface-high))/0.9] bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.94,hsl(var(--surface-subtle))/0.98)] p-1.5 text-muted-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/0.72),inset_0_-1px_0_hsl(214_18%_82%/0.38),0_10px_24px_-20px_rgba(15,23,42,0.12)] dark:border-[hsl(var(--surface-outline))/0.22] dark:bg-[linear-gradient(180deg,hsl(var(--surface-soft))/0.88,hsl(var(--surface-low))/0.98)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.03),inset_0_-1px_0_rgba(0,0,0,0.28),0_20px_44px_-34px_rgba(0,0,0,0.82)]',
       className
     )}
     {...props}
@@ -44,7 +44,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-0 w-full ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:animate-enter motion-reduce:data-[state=active]:animate-none",
+      'mt-0 w-full ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-[state=active]:animate-enter motion-reduce:data-[state=active]:animate-none',
       className
     )}
     {...props}

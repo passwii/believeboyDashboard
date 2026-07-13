@@ -10,8 +10,19 @@ import { AD_ANALYSIS_TABS } from '@/components/dashboard/ad-analysis/config'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DateRangePicker, COUNTRY_TIMEZONE_MAP, formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  DateRangePicker,
+  COUNTRY_TIMEZONE_MAP,
+  formatDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
@@ -57,25 +68,22 @@ export function AdAnalysisTopFilters() {
   const dateTo = searchParams.get('dateTo') || ''
   const activeTabLabel = useMemo(
     () => AD_ANALYSIS_TABS.find((item) => item.href === pathname)?.label || '广告分析',
-    [pathname],
+    [pathname]
   )
-  const drillTokens = useMemo(
-    () => {
-      const items: Array<{ key: string; label: string; value: string }> = []
-      Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
-        const value = searchParams.get(key)
-        if (value) {
-          items.push({ key, label, value })
-        }
-      })
-      return items
-    },
-    [searchParams],
-  )
+  const drillTokens = useMemo(() => {
+    const items: Array<{ key: string; label: string; value: string }> = []
+    Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
+      const value = searchParams.get(key)
+      if (value) {
+        items.push({ key, label, value })
+      }
+    })
+    return items
+  }, [searchParams])
 
   const selectedProjectName = useMemo(
     () => projects.find((item) => String(item.id) === projectId)?.name || '',
-    [projectId, projects],
+    [projectId, projects]
   )
 
   useEffect(() => {
@@ -121,7 +129,7 @@ export function AdAnalysisTopFilters() {
 
   const updateSearchParam = (
     key: 'projectId' | 'country' | 'dateFrom' | 'dateTo',
-    value: string,
+    value: string
   ) => {
     const nextSearchParams = new URLSearchParams(searchParams.toString())
 
@@ -218,11 +226,16 @@ export function AdAnalysisTopFilters() {
       <CardContent className="space-y-3 pt-0">
         <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">项目</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              项目
+            </div>
             {projectsLoading ? (
               <Skeleton className="h-10 w-full rounded-lg" />
             ) : (
-              <Select value={projectId} onValueChange={(value) => updateSearchParam('projectId', value)}>
+              <Select
+                value={projectId}
+                onValueChange={(value) => updateSearchParam('projectId', value)}
+              >
                 <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
@@ -238,7 +251,9 @@ export function AdAnalysisTopFilters() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">国家站点</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              国家站点
+            </div>
             <Select value={country} onValueChange={(value) => updateSearchParam('country', value)}>
               <SelectTrigger className="h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                 <SelectValue placeholder="请选择国家站点" />
@@ -254,7 +269,9 @@ export function AdAnalysisTopFilters() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">日期范围</div>
+            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              日期范围
+            </div>
             <DateRangePicker
               value={parseDateRangeInputValue(dateFrom, dateTo)}
               onChange={updateDateRange}
@@ -265,7 +282,9 @@ export function AdAnalysisTopFilters() {
         </div>
 
         {projectsError ? (
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{projectsError}</div>
+          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {projectsError}
+          </div>
         ) : null}
 
         {projectsLoading ? (

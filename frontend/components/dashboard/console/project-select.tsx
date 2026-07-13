@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
@@ -55,7 +61,7 @@ export function ProjectSelect({
   // 外部 props 优先(externalProjects 已注入时内部 fetch 直接跳过)
   const projects = externalProjects ?? internalProjects
   const loading = externalProjects !== undefined ? Boolean(externalLoading) : internalLoading
-  const error = externalProjects !== undefined ? externalError ?? null : internalError
+  const error = externalProjects !== undefined ? (externalError ?? null) : internalError
 
   useEffect(() => {
     // 外部已注入,不需要内部 fetch
@@ -116,7 +122,7 @@ export function ProjectSelect({
       <SelectTrigger
         className={cn(
           'h-10 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]',
-          triggerClassName,
+          triggerClassName
         )}
       >
         <SelectValue placeholder={placeholder} />

@@ -3,11 +3,7 @@
 import { CalendarDays } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-} from '@/components/ui/data-card'
+import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 
 const ghostRows = [
   { width: 'w-32', time: '09:00' },
@@ -32,9 +28,7 @@ export function DashboardPlanPlaceholder() {
           <div className="mb-4 rounded-xl bg-[hsl(var(--surface-subtle))] p-3.5 text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">
             <CalendarDays className="h-6 w-6" />
           </div>
-          <h3 className="text-sm font-semibold text-foreground">
-            暂无计划事项
-          </h3>
+          <h3 className="text-sm font-semibold text-foreground">暂无计划事项</h3>
           <p className="mt-1.5 max-w-[200px] text-xs leading-relaxed text-muted-foreground">
             计划管理功能即将推出，届时可在此查看待办事项和日程安排。
           </p>
