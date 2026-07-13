@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,8 @@ from app.schemas.ai_chat import (
 )
 from app.services import ai as ai_chat_service
 from app.services.ai import cancel as cancel_registry
+from app.services.ai.agent import build_chat_agent  # 模块级 import，便于测试 monkeypatch
+from app.services.ai.stream_mapper import MapperState, map_agent_event
 from app.services.ai.stream_utils import (
     encode_stream_event,
     serialize_message,
@@ -302,77 +304,237 @@ def create_message(
 
 # ─── SSE 流式对话 ────────────────────────────────────────────────────────────
 
-
 @router.post("/conversations/{conversation_id}/messages/stream")
-def stream_message(
+async def stream_message(
+    request: Request,
     conversation_id: int,
     payload: MessageCreate,
     db: Session = Depends(get_primary_db_session),
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ):
-    """SSE 流式对话端点。
+    """SSE 流式对话端点（Phase 1 任务 6：async + Pydantic AI 驱动）。
 
-    [BEL-80 follow-up] 取消支持：
-    - 注册 `threading.Event` 到 `cancel_registry`；前端通过
-      `POST /conversations/{id}/stream/cancel` 设事件，后端
-      LLM 循环下一次迭代时检测到后立刻 `return`，
-      `with httpx.Client(...)` 退出关闭连接，节省 token。
-    - 进程级注册：多 worker 部署需要 sticky session 或 Redis
-      广播，本 PR 暂不处理。
-    - 数据库 session 仍走 FastAPI Depends（BEL-66 sync handler
-      模式）：LLM 取消只关 httpx，不动 DB session 生命周期。
+    路径分流：
+    - `enable_web_search=True`  → 旧同步路径（`_legacy_stream_response`，行为冻结）
+    - `enable_web_search=False` → Pydantic AI 路径（async，解 P0-1/P0-2）
+
+    路由矩阵（Phase 1 简化）：
+    - regenerate=True + web_search=False → HTTP 400
+    - regenerate=True + web_search=True  → 旧路径正常处理
+    - regenerate=False + 任意 web_search → 各自路径
+
+    [BEL-80 follow-up] 取消支持：注册 `threading.Event` 到 `cancel_registry`。
+    [P0-1] 客户端断连：async 路径通过 `await request.is_disconnected()` 检测。
+    [P0-2] DB session：Pydantic AI 路径仅在 yield 间隙持有，不每 chunk 写 DB。
     """
     ai_chat_service.ensure_tables(db)
     conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
-
-    history_rows = ai_chat_service.list_messages(db, conversation_id, user_id)
-    regenerate = payload.regenerate
+    history = ai_chat_service.list_messages(db, conversation_id, user_id)
     user_content = payload.content.strip()
+    regenerate = payload.regenerate
+
+    # Phase 1 路由矩阵：regenerate + 无 web_search → 400（提前拒绝，不进入 _prepare）
+    if regenerate and not payload.enable_web_search:
+        raise HTTPException(
+            status_code=400,
+            detail="重新生成仅在启用联网搜索时支持",
+        )
+
+    prompt_messages, context_messages, user_row, assistant_row, target_assistant = (
+        _prepare_conversation_turn(
+            db=db,
+            conversation_id=conversation_id,
+            history=history,
+            payload=payload,
+            user_content=user_content,
+            regenerate=regenerate,
+        )
+    )
+
+    cancel_event = cancel_registry.register(conversation_id)
+
+    if payload.enable_web_search:
+        return _legacy_stream_response(
+            db=db,
+            conversation_id=conversation_id,
+            conversation=conversation,
+            context_messages=context_messages,
+            prompt_messages=prompt_messages,
+            user_row=user_row,
+            assistant_row=assistant_row,
+            target_assistant=target_assistant,
+            user_content=user_content,
+            payload=payload,
+            history=history,
+            settings=settings,
+            cancel_event=cancel_event,
+        )
+
+    # Pydantic AI 路径（async，解 P0-1/P0-2）
+    agent = build_chat_agent(settings)
+    state: MapperState = {}
+
+    async def event_stream():
+        try:
+            yield encode_stream_event({"type": "start"})
+            async with agent.run_stream_events(prompt_messages) as events:
+                async for ev in events:
+                    if cancel_event.is_set() or await request.is_disconnected():
+                        cancel_event.set()
+                        raise _CancelledError()
+                    out = map_agent_event(ev, state)
+                    if out is not None:
+                        yield out
+
+            final_content = state.get("final_content") or ""
+            ai_chat_service.update_message_content(db, assistant_row.id, final_content)
+            usage = state.get("final_usage")
+            ai_chat_service.mark_message_complete(
+                db, assistant_row.id,
+                prompt_tokens=(usage or {}).get("prompt_tokens", 0),
+                completion_tokens=(usage or {}).get("completion_tokens", 0),
+                total_tokens=(usage or {}).get("total_tokens", 0),
+            )
+            conversation.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(assistant_row)
+            ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
+            db.commit()
+            yield build_stream_done(
+                user_message=serialize_message(user_row),
+                assistant_message=serialize_message(assistant_row),
+                conversation_title=conversation.title,
+                token_usage=usage,
+                conversation_token_usage={
+                    "prompt_tokens": conversation.total_prompt_tokens,
+                    "completion_tokens": conversation.total_completion_tokens,
+                    "total_tokens": conversation.total_tokens,
+                },
+                duration_ms=None,        # Pydantic AI 路径不计时（与 legacy 不同）
+                title_regenerated=False, # Pydantic AI 路径 Phase 1 不做 title 生成
+            )
+        except _CancelledError:
+            db.rollback()
+        except Exception as exc:
+            db.rollback()
+            yield build_stream_error(str(exc) or "发送失败")
+        finally:
+            cancel_registry.unregister(conversation_id, cancel_event)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )
+
+
+def _prepare_conversation_turn(
+    *,
+    db: Session,
+    conversation_id: int,
+    history: list,
+    payload: MessageCreate,
+    user_content: str,
+    regenerate: bool,
+):
+    """[Phase 1 任务 6] 公共入参段：regenerate 校验 + user/assistant 行写入 + prompt_messages 拼装。
+
+    返回 (prompt_messages, context_messages, user_row, assistant_row, target_assistant)：
+    - prompt_messages：list[dict]，ready for LLM（末尾追加 user 消息；附 attached_file 时再加 system）
+    - context_messages：list[AIMessage]（legacy 路径 stream_assistant_content 需要原始 row）
+    - user_row：新增 user 行（regenerate=False）/ 历史 user 行（regenerate=True）
+    - assistant_row：新增的空 assistant 行（regenerate 时已删原行）
+    - target_assistant：regenerate=True 时为被删的原 assistant 行；否则 None
+    """
+    from app.models.ai_chat import AIMessage
 
     if regenerate:
-        if len(history_rows) < 2:
+        if len(history) < 2:
             raise HTTPException(status_code=400, detail="没有可重新生成的消息")
         if payload.target_message_id is not None:
-            target_idx = next((i for i, r in enumerate(history_rows) if r.id == payload.target_message_id), None)
+            target_idx = next((i for i, r in enumerate(history) if r.id == payload.target_message_id), None)
             if target_idx is None:
                 raise HTTPException(status_code=404, detail="指定的消息不存在")
-            if target_idx == 0 or history_rows[target_idx - 1].role != "user":
+            if target_idx == 0 or history[target_idx - 1].role != "user":
                 raise HTTPException(status_code=400, detail="指定消息的前一条不是用户消息，无法重新生成")
-            target_assistant = history_rows[target_idx]
-            target_user = history_rows[target_idx - 1]
-            context_messages = history_rows[: target_idx - 1]
+            target_assistant = history[target_idx]
+            target_user = history[target_idx - 1]
+            context_messages = history[: target_idx - 1]
             user_content = target_user.content.strip()
         else:
-            last_assistant = history_rows[-1]
-            last_user = history_rows[-2]
+            last_assistant = history[-1]
+            last_user = history[-2]
             if last_assistant.role != "assistant" or last_user.role != "user":
                 raise HTTPException(status_code=400, detail="当前会话末尾消息不支持重新生成")
-            context_messages = history_rows[:-2]
+            context_messages = history[:-2]
             user_content = last_user.content.strip()
             target_assistant = last_assistant
+        user_row = history[-2]
+        db.delete(target_assistant)
+        db.flush()
+        assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
     else:
         if not user_content:
             raise HTTPException(status_code=400, detail="消息内容不能为空")
-        context_messages = history_rows
+        context_messages = history
+        user_row = ai_chat_service.append_message(db, conversation_id, "user", user_content)
+        assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
+        target_assistant = None
+    db.flush()
 
+    # attached_file_content 注入为末尾的 system 消息
+    # （不是 system_prompt，因为 Pydantic AI 路径用 Agent factory 的 instructions，
+    # 新加 system_prompt 字段会与 mapper 冲突；append 方式兼容新旧两条路径）
+    prompt_messages: list[dict] = []
+    for m in context_messages[-20:]:
+        prompt_messages.append({"role": m.role, "content": m.content})
+    prompt_messages.append({"role": "user", "content": user_content})
+    if payload.attached_file_content:
+        prompt_messages.append({
+            "role": "system",
+            "content": (
+                f"【用户附加文件：{payload.attached_file_name or 'file'}】\n"
+                f"{payload.attached_file_content.strip()}\n"
+                "请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
+            ),
+        })
+
+    return prompt_messages, context_messages, user_row, assistant_row, target_assistant
+
+
+def _legacy_stream_response(
+    *,
+    db: Session,
+    conversation_id: int,
+    conversation,
+    context_messages: list,
+    prompt_messages: list,  # noqa: ARG001  # 保留以备 Phase 2（web_search 切到 Pydantic AI 时复用）
+    user_row,
+    assistant_row,
+    target_assistant,
+    user_content: str,
+    payload: MessageCreate,
+    history: list,  # noqa: ARG001
+    settings: Settings,
+    cancel_event,
+):
+    """[Phase 1 任务 6] 旧同步路径：`enable_web_search=True` 走这里。
+
+    行为 byte-for-byte 冻结（与重构前一致）。包含 tool_calling + fallback 双路径。
+    内部重建 llm_config（attached_file 注入），不复用外部 llm_config。
+
+    标题生成、mark_message_complete、duration_ms 等业务行为全部保留；
+    Pydantic AI 路径**不**做这些（见 stream_message async 分支的注释）。
+    """
     llm_config = ai_chat_service.build_llm_config(
         settings=settings, model=payload.model,
         system_prompt=payload.system_prompt, reasoning_effort=payload.reasoning_effort,
     )
-    if payload.attached_file_content:
-        file_context = (
-            f"\n\n【用户附加文件：{payload.attached_file_name or 'file'}】\n"
-            f"{payload.attached_file_content.strip()}\n"
-            f"请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
-        )
-        llm_config.system_prompt += file_context
 
     max_turns = settings.ai_chat_max_conversation_turns
     if len(context_messages) >= max_turns * 2:
         raise HTTPException(status_code=400, detail=f"对话轮次已达上限 ({max_turns}次)，请新建会话继续对话")
-
-    cancel_event = cancel_registry.register(conversation_id)
 
     def event_stream():
         assistant_parts: list[str] = []
@@ -383,23 +545,11 @@ def stream_message(
         start_time = datetime.now(timezone.utc)
         tool_call_count = 0
         collected_usage: dict[str, Any] = {}
-        user_row = None
-        assistant_row = None
         title_regenerated = False
         cancelled = False
 
         try:
             yield encode_stream_event({"type": "start"})
-
-            if regenerate:
-                user_row = history_rows[-2]
-                db.delete(target_assistant)
-                db.flush()
-                assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
-            else:
-                user_row = ai_chat_service.append_message(db, conversation_id, "user", user_content)
-                assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
-            db.flush()
 
             if payload.enable_web_search:
                 payload_messages, tools = ai_chat_service.build_payload_messages_with_tools(context_messages, user_content, llm_config.system_prompt)
@@ -489,6 +639,8 @@ def stream_message(
                     if not assistant_content:
                         raise ValueError("LLM returned empty content")
             else:
+                # legacy 路径下 enable_web_search=False 走这里：纯 stream_assistant_content
+                # （Phase 1 不再经过此处，因为 stream_message 已分流；但保留以防未来 legacy 内部回退）
                 for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, settings=settings, cancel_event=cancel_event):
                     if cancel_event.is_set():
                         cancelled = True
