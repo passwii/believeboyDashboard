@@ -6,11 +6,18 @@ and caches AI summaries by (project_ids, country, date) to avoid duplicate
 requests when multiple users subscribe to the same project.
 
 Design notes on AI timeout:
-- Per-call AI timeout (30s) is enforced INSIDE the report builders using
-  ThreadPoolExecutor + .result(timeout=30). This works in any thread context.
-- The old SIGALRM-based pipeline timeout (AI_SUMMARY_TIMEOUT_SEC = 120s) is
-  kept as a safety net on the main thread only. Worker threads cannot use
-  signals, so they rely on the per-call timeout.
+- Per-call AI timeout is enforced INSIDE the report builders using
+  ThreadPoolExecutor + .result(timeout=secs), where secs comes from
+  `get_ai_timeout_sec(freq)` (env-configurable: AI_SUMMARY_TIMEOUT_SEC_DAILY /
+  WEEKLY / MONTHLY, fallback 30s). This works in any thread context and returns
+  a fallback summary on timeout instead of killing the task.
+- A SIGALRM-based whole-pipeline timeout (AI_SUMMARY_TIMEOUT_SEC = 180s) is
+  kept as a hard safety net on the main thread only: it bounds the entire
+  _build_report_data call (data-fetch + AI + post-processing). It is set above
+  the per-call ceiling (monthly 90s) + typical data-build time so the graceful
+  per-call fallback fires first; only if build+AI exceeds 180s does this cut
+  the task. Worker threads cannot use signals, so they rely on the per-call
+  timeout.
 - Cache is cleared per dispatch run to keep memory bounded.
 """
 
@@ -52,13 +59,16 @@ logger = logging.getLogger(__name__)
 
 # ── AI concurrency & timeout control ─────────────────────────────────────────
 AI_CONCURRENCY_LIMIT = 4  # 每轮最多 4 个 AI 调用并发（15 项目分 2 轮，每轮 8+7=15）
-# Overall pipeline timeout per AI call (seconds).
-# NOTE: The per-call AI timeout is now enforced inside report_builder_daily /
-# report_builder_weekly via ThreadPoolExecutor + .result(timeout=30).  This
-# global timeout acts as a safety net for the entire _build_report_data call
-# (data-fetching + AI + post-processing).  It only takes effect on the main
-# thread where SIGALRM is available; worker threads rely on the per-call timeout.
-AI_SUMMARY_TIMEOUT_SEC = 120
+# Whole-pipeline SIGALRM safety-net timeout (seconds), main-thread only.
+# NOTE: The per-call AI timeout is now env-configurable via get_ai_timeout_sec
+# (default 30s; AI_SUMMARY_TIMEOUT_SEC_DAILY/WEEKLY/MONTHLY override per freq,
+# e.g. monthly=90s). This SIGALRM constant bounds the ENTIRE _build_report_data
+# call (data-fetch + AI + post-processing) as a hard last-resort cutoff. It is
+# raised to 180s so it stays safely above the monthly per-call ceiling (90s)
+# plus typical data-build time -- the graceful per-call fallback should fire
+# first. Only effective on the main thread (Celery prefork worker); worker
+# threads rely on the per-call timeout.
+AI_SUMMARY_TIMEOUT_SEC = 180
 
 _ai_semaphore = threading.Semaphore(AI_CONCURRENCY_LIMIT)
 
