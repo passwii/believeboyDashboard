@@ -168,23 +168,32 @@ def dispatch_one(
     # 3. Fast-path idempotency check (§4.2 P0-2 + §4.9 P0-3). If a previous
     #    run already completed, return immediately — broker redelivery, an
     #    API restart mid-flight, etc. should NEVER re-send the email.
-    existing_id = _return_if_already_sent(
-        subscription_id=subscription_id,
-        frequency=frequency,
-        report_date=report_date,
-        triggered_by=triggered_by,
-    )
-    if existing_id is not None:
-        logger.info(
-            "dispatch_one short-circuit: sub=%d freq=%s date=%s triggered_by=%s "
-            "already sent (log_id=%d)",
-            subscription_id, frequency, report_date, triggered_by, existing_id,
+    #
+    #    EXCEPTION (resend path / BEL-补发卡死): `pre_existing_log_id` means the
+    #    caller already created a fresh `delivery_log` (stage=PREPARING) and wants
+    #    this task to advance *that* log. If we short-circuit here on a *previous*
+    #    successful manual log, the new log is orphaned at PREPARING forever and
+    #    the frontend polls "准备中" indefinitely. A resend explicitly re-runs
+    #    (see `resend_ledger_entry_async` + `ignore_status`), so skip the guard and
+    #    always let the shared body advance the new log to a terminal stage.
+    if pre_existing_log_id is None:
+        existing_id = _return_if_already_sent(
+            subscription_id=subscription_id,
+            frequency=frequency,
+            report_date=report_date,
+            triggered_by=triggered_by,
         )
-        return {
-            "status": "skipped_already_sent",
-            "subscription_id": subscription_id,
-            "log_id": existing_id,
-        }
+        if existing_id is not None:
+            logger.info(
+                "dispatch_one short-circuit: sub=%d freq=%s date=%s triggered_by=%s "
+                "already sent (log_id=%d)",
+                subscription_id, frequency, report_date, triggered_by, existing_id,
+            )
+            return {
+                "status": "skipped_already_sent",
+                "subscription_id": subscription_id,
+                "log_id": existing_id,
+            }
 
     # 4. Delegate to the shared body (manual_log check + business main + ai spawn).
     from app.services.scheduled_report.dispatcher import _dispatch_one_task_body
