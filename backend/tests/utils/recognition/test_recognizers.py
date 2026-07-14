@@ -15,6 +15,8 @@ def _write_csv(content: str) -> Path:
     return Path(tmp.name)
 
 
+@pytest.mark.recognition
+@pytest.mark.payment_report
 class TestPaymentRecognitionSignals:
     """Verify payment report is recognized via different signals."""
 
@@ -101,6 +103,8 @@ class TestPaymentRecognitionSignals:
             path.unlink()
 
 
+@pytest.mark.recognition
+@pytest.mark.business_report
 class TestBusinessReportRecognition:
     """Verify business report CSV recognition across Chinese and English headers.
 

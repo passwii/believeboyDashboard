@@ -7,6 +7,7 @@ from app.services.data.upload.dedup import find_sha256_duplicates, DuplicateInfo
 from app.utils.models import AnalysisSourceFile
 
 
+@pytest.mark.upload
 class TestFindSha256Duplicates:
     """Verify SHA-256 duplicate detection returns correct info."""
 

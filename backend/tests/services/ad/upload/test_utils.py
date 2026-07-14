@@ -10,6 +10,9 @@ import pandas as pd
 import pytest
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
+@pytest.mark.upload
 class TestSafeName:
     def test_basic(self):
         from app.services.ad.upload.utils import _safe_name

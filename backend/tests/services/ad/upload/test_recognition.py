@@ -8,6 +8,8 @@ import pytest
 from fastapi import HTTPException
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
 class TestDetectReportSpec:
     def test_detect_campaign_csv(self):
         from app.services.ad.upload.recognition import _detect_report_spec
@@ -83,6 +85,8 @@ class TestDetectReportSpec:
         assert spec.report_type == 'ad_promoted_product_report'
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
 class TestDetectReportSpecCaseInsensitive:
     """业务库现状：raw_row 列名都是大写，spec/ingest 函数也用大写。
     但 autoReportUpload 走的是 _normalize_columns (strip-only)，
@@ -131,6 +135,9 @@ class TestDetectReportSpecCaseInsensitive:
 
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
+@pytest.mark.upload
 class TestSaveAdUploadTempFile:
     def test_no_filename_raises(self):
         from app.services.ad.upload.recognition import save_ad_upload_temp_file
@@ -151,6 +158,9 @@ class TestSaveAdUploadTempFile:
         assert 'Unsupported extension' in str(exc.value.detail)
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
+@pytest.mark.upload
 class TestResolveAdUploadTempFilePath:
     def test_file_not_found(self):
         from app.services.ad.upload.recognition import resolve_ad_upload_temp_file_path
@@ -160,6 +170,9 @@ class TestResolveAdUploadTempFilePath:
             resolve_ad_upload_temp_file_path(mock_settings, 'nonexistent_file_id')
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
+@pytest.mark.upload
 class TestRecognizeSavedAdUpload:
     def test_calls_internal_functions(self):
         from app.services.ad.upload.recognition import recognize_saved_ad_upload
@@ -193,6 +206,9 @@ class TestRecognizeSavedAdUpload:
                         assert result.report_type == 'ad_campaign_report'
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
+@pytest.mark.upload
 class TestFinalizeAdUploadTempFile:
     def test_unsupported_extension_raises(self):
         from app.services.ad.upload.recognition import finalize_ad_upload_temp_file

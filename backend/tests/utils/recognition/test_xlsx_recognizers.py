@@ -4,10 +4,13 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from app.utils.recognition.recognizers import recognize_file
 
 
+@pytest.mark.recognition
+@pytest.mark.ad_report
 class TestXlsxRecognitionSignals:
     """xlsx 报表不再走 A 表 ad_product_report / ad_search_term_report。
     这些报表改由 app.services.ad.upload.specs 处理 (B 表 ad_upload_*)。

@@ -1,3 +1,21 @@
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 pythonpath = ["backend"]
+# 按功能领域打标，支持 `pytest -m <功能>` 跑子集而非全盘。
+# 打标规范见 TESTING.md「按功能运行」一节。
+markers = [
+    # ── 第一波（已应用到测试）── 报表识别与上传链路
+    "recognition: 报表类型识别（A 表 business/payment + B 表 ad），跨 tests/utils/recognition 与 tests/services/ad/upload",
+    "business_report: 业务报告（Business Report）识别与解析",
+    "payment_report: 付款报告识别",
+    "ad_report: 广告报表（B 表）识别 / 上传 / 解析",
+    "upload: 报表入库、commit、dedup 等上传链路",
+    # ── 后续按需补（已声明，暂无测试打标）──
+    "inventory: 库存与补货",
+    "scheduled_report: 定时报告生成与投递",
+    "external_api: 对外 API（ai_chat / external endpoints 等）",
+    "ad_agent: 广告 Agent（config/profiler/zoom/evolution/multi-pass/planner）",
+    "analysis: 分析持久化",
+    "data: 订单信息等数据服务",
+    "api: 后端 API 端点集成测试（tests/api/*）",
+]
