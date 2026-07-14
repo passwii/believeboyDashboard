@@ -30,3 +30,7 @@ celery[redis]==5.4.0
 # 现在 fastapi 0.139 / starlette 1.x 是默认栈，sse-starlette 正常安装即可，
 # 无需再手动 uninstall + repin starlette。
 pydantic-ai==2.9.0
+# AI Chat Phase 2 — Pydantic AI Tavily 工具运行时依赖
+# 注：tavily-python 0.7.x 参数名是 api_base_url（spike 实测）；与 pydantic-ai
+# tavily_search_tool 文档示例的 base_url= 不一致。
+tavily-python

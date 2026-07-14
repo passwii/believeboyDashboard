@@ -151,33 +151,89 @@ def test_regenerate_with_web_search_false_returns_400(patched_build_chat_agent, 
     )
 
 
-# ─── 测试 3：legacy 路径 byte-for-byte 冻结 ──────────────────────────────────
+# ─── 测试 3：enable_web_search=True → Pydantic AI native Tavily tool 路径 ─────
 
 
-def test_legacy_path_preserved_when_enable_web_search_true(
+def test_web_search_true_uses_pydantic_ai_tavily_tool(
     patched_build_chat_agent, client, db_session, api_key, monkeypatch
 ):
-    """enable_web_search=True 必须走旧同步路径（旧路径内部 stream_with_tool_calling 被调用）。
+    """[Phase 2 任务 5] enable_web_search=True 必须走 Pydantic AI 路径 + Tavily tool。
 
-    注意：monkeypatch 必须打在 `app.services.ai.stream_with_tool_calling`（re-export），
-    不能打 `app.services.ai.tools.stream_with_tool_calling`（源）——
-    因为 `ai_chat_service.stream_with_tool_calling` 走的是 import 时的 re-export 名字绑定。
+    与 Phase 1 不同：旧 `_legacy_stream_response` 已删除，所有 web_search 用户
+    也走 Pydantic AI driver，由 agent 自动调用 tavily_search 工具。
+
+    校验：必须出现 tool_calls / tool_searching / sources / tool_done 事件序列。
     """
+    from pydantic_ai import Agent
+    from pydantic_ai.capabilities import Thinking
+    from pydantic_ai.models.test import TestModel
+
+    def fake_build(settings, *, model_name=None, web_search=False, **_):
+        # 注册一个 mock tavily_search 工具（TestModel 需要工具真的存在才能调用）
+        # 返回 list[dict] 而非 JSON 字符串（与 Pydantic AI tavily_search_tool 实际返回一致）
+        async def tavily_search(ctx, query: str) -> list[dict]:
+            return [
+                {"title": "Mock result", "url": "https://mock.com", "content": "Mock content", "score": 0.9}
+            ]
+
+        return Agent(
+            model=TestModel(call_tools=["tavily_search"], custom_output_text="已搜索。"),
+            capabilities=[Thinking()],
+            tools=[tavily_search],
+        )
+
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.ai_chat.build_chat_agent", fake_build
+    )
+
+    conv_id = _create_conversation(db_session)
+    with client.stream(
+        "POST",
+        f"/api/v1/ai/conversations/{conv_id}/messages/stream",
+        json={"content": "今天北京天气", "enable_web_search": True},
+        headers={"X-User-Id": "42", "X-API-Key": api_key},
+    ) as resp:
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}"
+        body = b"".join(resp.iter_bytes()).decode("utf-8")
+
+    types = _types_from_body(body)
+    # Phase 2 强制：web_search=True 走 Pydantic AI Tavily tool，必须触发完整事件序列
+    assert "start" in types, f"缺 start 事件: {types}"
+    assert "tool_calls" in types, f"缺 tool_calls 事件（Tavily tool 未触发）: {types}"
+    assert "tool_searching" in types, f"缺 tool_searching 事件（端点层未 yield）: {types}"
+    assert "sources" in types, f"缺 sources 事件: {types}"
+    assert "tool_done" in types, f"缺 tool_done 事件: {types}"
+    assert "chunk" in types, f"缺 chunk 事件: {types}"
+    assert "done" in types, f"缺 done 事件: {types}"
+
+
+def test_web_search_true_does_not_call_legacy_stream_with_tool_calling(
+    patched_build_chat_agent, client, db_session, api_key, monkeypatch
+):
+    """[Phase 2 任务 5] enable_web_search=True 不再调用 `stream_with_tool_calling`（legacy 已删）。"""
     from app.services import ai as ai_module
 
     captured = {"called": False}
+    real_func = ai_module.stream_with_tool_calling
 
     def fake_stream_with_tool_calling(**kwargs):
         captured["called"] = True
-        yield {"type": "tool_searching"}
-        yield {"type": "sources", "sources": [], "time_range": "day", "query": "x"}
-        yield {"type": "tool_done"}
-        yield {"type": "chunk", "delta": "你好"}
-        yield {"type": "usage", "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}}
+        return real_func(**kwargs)
 
-    monkeypatch.setattr(
-        ai_module, "stream_with_tool_calling", fake_stream_with_tool_calling
-    )
+    monkeypatch.setattr(ai_module, "stream_with_tool_calling", fake_stream_with_tool_calling)
+
+    from pydantic_ai import Agent
+    from pydantic_ai.capabilities import Thinking
+    from pydantic_ai.models.test import TestModel
+
+    def fake_build(settings, *, model_name=None, web_search=False, **_):
+        return Agent(
+            model=TestModel(call_tools=["tavily_search"], custom_output_text="ok"),
+            capabilities=[Thinking()],
+            tools=[],
+        )
+
+    monkeypatch.setattr("app.api.v1.endpoints.ai_chat.build_chat_agent", fake_build)
 
     conv_id = _create_conversation(db_session)
     with client.stream(
@@ -186,13 +242,11 @@ def test_legacy_path_preserved_when_enable_web_search_true(
         json={"content": "今天天气", "enable_web_search": True},
         headers={"X-User-Id": "42", "X-API-Key": api_key},
     ) as resp:
-        body = b"".join(resp.iter_bytes()).decode("utf-8")
+        resp.read()
 
-    assert captured["called"], "enable_web_search=True 必须走旧路径（stream_with_tool_calling 被调用）"
-    assert '"tool_searching"' in body
-    assert '"sources"' in body
-    assert '"chunk"' in body
-    assert '"done"' in body
+    assert not captured["called"], (
+        "Phase 2 已删 legacy 路径，stream_with_tool_calling 不应再被调用"
+    )
 
 
 # ─── 测试 4：attached_file_content 注入 ─────────────────────────────────────
@@ -362,50 +416,3 @@ def test_prompt_messages_to_pydantic_ai_args_attached_file_with_history():
     assert user_prompt.index("数据 X=42") < user_prompt.index("现在呢")
 
 
-def test_legacy_stream_response_injects_attached_file_into_system_prompt(
-    patched_build_chat_agent, client, db_session, api_key, monkeypatch
-):
-    """[Kilo WARNING] legacy 路径（enable_web_search=True）必须把 attached_file 注入 llm_config.system_prompt。
-
-    之前 `_legacy_stream_response` 完全没注入；现在 monkeypatch `build_llm_config` 捕获
-    返回的 config 并断言 system_prompt 含文件内容。
-    """
-    from app.services import ai as ai_module
-
-    captured = {"llm_config": None}
-
-    real_build_llm_config = ai_chat_service.build_llm_config
-
-    def capturing_build_llm_config(**kwargs):
-        cfg = real_build_llm_config(**kwargs)
-        captured["llm_config"] = cfg
-        return cfg
-
-    monkeypatch.setattr(ai_chat_service, "build_llm_config", capturing_build_llm_config)
-
-    def fake_stream_with_tool_calling(**kwargs):
-        yield {"type": "chunk", "delta": "已读取附件"}
-        yield {"type": "usage", "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}}
-
-    monkeypatch.setattr(ai_module, "stream_with_tool_calling", fake_stream_with_tool_calling)
-
-    conv_id = _create_conversation(db_session)
-    with client.stream(
-        "POST",
-        f"/api/v1/ai/conversations/{conv_id}/messages/stream",
-        json={
-            "content": "总结附件",
-            "enable_web_search": True,
-            "attached_file_name": "Q3.txt",
-            "attached_file_content": "Q3 营收 ¥1.2M",
-        },
-        headers={"X-User-Id": "42", "X-API-Key": api_key},
-    ) as resp:
-        assert resp.status_code == 200, f"expected 200, got {resp.status_code}"
-        body = b"".join(resp.iter_bytes()).decode("utf-8")
-
-    assert captured["llm_config"] is not None, "build_llm_config 必须被调用"
-    sys_prompt = captured["llm_config"].system_prompt
-    assert "Q3 营收 ¥1.2M" in sys_prompt, f"attached_file 未注入 system_prompt，实际: {sys_prompt[:300]}"
-    assert "用户附加文件" in sys_prompt
-    assert "已读取附件" in body

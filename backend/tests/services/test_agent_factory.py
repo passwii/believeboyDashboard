@@ -24,11 +24,15 @@ def _fake_settings(
     model: str = "gpt-4",
     api_key: str = "test-key",
     base_url: str = "https://api.openai.com/v1",
+    web_search_base_url: str = "https://search.believeboy.com",
+    web_search_api_key: str = "test-search-key",
 ):
     s = type("S", (), {})()
     s.ai_chat_default_model = model
     s.ai_chat_provider_api_key = api_key
     s.ai_chat_provider_base_url = base_url
+    s.ai_chat_web_search_base_url = web_search_base_url
+    s.ai_chat_web_search_api_key = web_search_api_key
     return s
 
 
@@ -83,3 +87,67 @@ def test_build_chat_agent_with_extra_instructions_merges_them():
     assert "你是 domain 专家。" in instr
     # 动态 current_date 指令也应被包含（保持原行为）
     assert current_date_instruction in instr
+
+
+# ─── Phase 2 任务 4：web_search=True 注册 tavily_search_tool ──────────────────
+
+
+def _agent_tool_names(agent: Agent) -> set[str]:
+    """收集 agent 全部 toolset 里的 tool 名字。
+
+    Pydantic AI 2.9：`agent.tools` 不存在；工具在 `agent.toolsets[].tools` dict 里。
+    """
+    names: set[str] = set()
+    for ts in agent.toolsets:
+        tools = getattr(ts, "tools", {}) or {}
+        names.update(tools.keys())
+    return names
+
+
+def test_build_chat_agent_without_web_search_has_no_tavily_tool():
+    """[Phase 2] 默认 web_search=False → factory 不注册 tavily_search。"""
+    agent = build_chat_agent(_fake_settings(), web_search=False)
+    tool_names = _agent_tool_names(agent)
+    assert "tavily_search" not in tool_names, (
+        f"web_search=False 时不应有 tavily_search，实际: {tool_names}"
+    )
+
+
+def test_build_chat_agent_with_web_search_registers_tavily_tool():
+    """[Phase 2] web_search=True → factory 注册 tavily_search 工具。"""
+    agent = build_chat_agent(_fake_settings(web_search_base_url="https://search.believeboy.com"), web_search=True)
+    tool_names = _agent_tool_names(agent)
+    assert "tavily_search" in tool_names, f"web_search=True 应有 tavily_search，实际: {tool_names}"
+
+
+def test_build_chat_agent_with_web_search_uses_searxng_base_url():
+    """[Phase 2] factory 用 settings.ai_chat_web_search_base_url（不是 hardcode api.tavily.com）。
+
+    通过 spy AsyncTavilyClient 构造验证：传给 client 的参数必须等于 settings。
+    """
+    from unittest.mock import patch
+
+    settings = _fake_settings()
+    settings.ai_chat_web_search_base_url = "https://custom-searxng.example.com"
+    settings.ai_chat_web_search_api_key = "custom-key"
+
+    captured_kwargs: dict = {}
+
+    def fake_async_tavily_client(**kwargs):
+        captured_kwargs.update(kwargs)
+        return MagicMock_noop()
+
+    class MagicMock_noop:
+        """占位 client，避免 tavily_search_tool 内部访问 client 属性时炸。"""
+
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+
+    with patch("app.services.ai.agent.AsyncTavilyClient", side_effect=fake_async_tavily_client):
+        build_chat_agent(settings, web_search=True)
+
+    # 验证传给 AsyncTavilyClient 的参数（spike 揭示：参数名是 api_base_url 不是 base_url）
+    assert captured_kwargs.get("api_base_url") == "https://custom-searxng.example.com", (
+        f"AsyncTavilyClient.api_base_url 应是 settings.ai_chat_web_search_base_url，实际: {captured_kwargs}"
+    )
+    assert captured_kwargs.get("api_key") == "custom-key"

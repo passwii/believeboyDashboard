@@ -26,6 +26,7 @@ from app.services import ai as ai_chat_service
 from app.services.ai import cancel as cancel_registry
 from app.services.ai.agent import build_chat_agent  # 模块级 import，便于测试 monkeypatch
 from app.services.ai.stream_mapper import MapperState, map_agent_event
+from pydantic_ai.messages import FunctionToolCallEvent  # Phase 2: 端点层紧接 tool_calls 后 yield tool_searching
 from app.services.ai.stream_utils import (
     encode_stream_event,
     serialize_message,
@@ -313,16 +314,12 @@ async def stream_message(
     settings: Settings = Depends(get_settings),
     user_id: int | None = Depends(_get_request_user_id),
 ):
-    """SSE 流式对话端点（Phase 1 任务 6：async + Pydantic AI 驱动）。
+    """SSE 流式对话端点（Phase 2：所有用户走 Pydantic AI driver）。
 
-    路径分流：
-    - `enable_web_search=True`  → 旧同步路径（`_legacy_stream_response`，行为冻结）
-    - `enable_web_search=False` → Pydantic AI 路径（async，解 P0-1/P0-2）
-
-    路由矩阵（Phase 1 简化）：
-    - regenerate=True + web_search=False → HTTP 400
-    - regenerate=True + web_search=True  → 旧路径正常处理
-    - regenerate=False + 任意 web_search → 各自路径
+    路由矩阵（Phase 2 简化）：
+    - enable_web_search=False / True 均走 Pydantic AI
+    - regenerate=True + enable_web_search=False → HTTP 400（保守保留：Tavily tool 行为对 regenerate 友好性未验证）
+    - regenerate=True + enable_web_search=True  → Pydantic AI with tavily tool
 
     [BEL-80 follow-up] 取消支持：注册 `threading.Event` 到 `cancel_registry`。
     [P0-1] 客户端断连：async 路径通过 `await request.is_disconnected()` 检测。
@@ -334,7 +331,7 @@ async def stream_message(
     user_content = payload.content.strip()
     regenerate = payload.regenerate
 
-    # Phase 1 路由矩阵：regenerate + 无 web_search → 400（提前拒绝，不进入 _prepare）
+    # Phase 2 路由矩阵：regenerate + 无 web_search → 400（保守保留，避免 Tavily tool 对 regenerate 行为未验证）
     if regenerate and not payload.enable_web_search:
         raise HTTPException(
             status_code=400,
@@ -354,28 +351,17 @@ async def stream_message(
 
     cancel_event = cancel_registry.register(conversation_id)
 
-    if payload.enable_web_search:
-        return _legacy_stream_response(
-            db=db,
-            conversation_id=conversation_id,
-            conversation=conversation,
-            context_messages=context_messages,
-            prompt_messages=prompt_messages,
-            user_row=user_row,
-            assistant_row=assistant_row,
-            target_assistant=target_assistant,
-            user_content=user_content,
-            payload=payload,
-            history=history,
-            settings=settings,
-            cancel_event=cancel_event,
-        )
-
-    # Pydantic AI 路径（async，解 P0-1/P0-2）
-    agent = build_chat_agent(settings, model_name=payload.model)
-    state: MapperState = {}
-    # prompt_messages 是 list[dict]，需要按 Pydantic AI 2.9 API 转成 (user_prompt, message_history)
-    # （详见 _prompt_messages_to_pydantic_ai_args 注释）
+    # 统一走 Pydantic AI 路径（Phase 2 任务 5 收口）
+    # web_search=True 时 factory 注册 tavily_search_tool；False 时空工具列表
+    agent = build_chat_agent(
+        settings,
+        model_name=payload.model,
+        web_search=payload.enable_web_search,
+    )
+    state: MapperState = {
+        "search_time_range": ai_chat_service.detect_time_range_from_query(user_content),
+        "last_search_query": user_content if payload.enable_web_search else None,
+    }
     user_prompt, message_history = _prompt_messages_to_pydantic_ai_args(prompt_messages)
 
     async def event_stream():
@@ -389,12 +375,26 @@ async def stream_message(
                     if cancel_event.is_set() or await request.is_disconnected():
                         cancel_event.set()
                         raise _CancelledError()
-                    out = map_agent_event(ev, state)
-                    if out is not None:
-                        yield out
+                    payload_bytes = map_agent_event(ev, state)
+                    if payload_bytes is None:
+                        continue
+                    # tool_calls 后立即 yield tool_searching（与既有 ndjson 协议兼容）
+                    if isinstance(ev, FunctionToolCallEvent):
+                        if state.get("last_tool_part", {}).get("tool_name") in ("tavily_search", "web_search"):
+                            yield encode_stream_event({"type": "tool_searching"})
+                    for line in payload_bytes.split(b"\n"):
+                        if line:
+                            yield line + b"\n"
 
+            # commit final state
             final_content = state.get("final_content") or ""
             ai_chat_service.update_message_content(db, assistant_row.id, final_content)
+            if state.get("search_source_cards"):
+                assistant_row.search_sources = json.dumps(
+                    state["search_source_cards"], ensure_ascii=False
+                )
+            if state.get("search_time_range"):
+                assistant_row.search_time_range = state["search_time_range"]
             usage = state.get("final_usage")
             ai_chat_service.mark_message_complete(
                 db, assistant_row.id,
@@ -408,7 +408,7 @@ async def stream_message(
             ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
             db.commit()
             yield build_stream_done(
-                user_message=serialize_message(user_row),
+                user_message=serialize_message(user_row) if not regenerate else serialize_message(target_assistant),
                 assistant_message=serialize_message(assistant_row),
                 conversation_title=conversation.title,
                 token_usage=usage,
@@ -417,8 +417,8 @@ async def stream_message(
                     "completion_tokens": conversation.total_completion_tokens,
                     "total_tokens": conversation.total_tokens,
                 },
-                duration_ms=None,        # Pydantic AI 路径不计时（与 legacy 不同）
-                title_regenerated=False, # Pydantic AI 路径 Phase 1 不做 title 生成
+                duration_ms=None,
+                title_regenerated=False,
             )
         except _CancelledError:
             db.rollback()
@@ -570,246 +570,6 @@ def _prompt_messages_to_pydantic_ai_args(prompt_messages: list[dict]) -> tuple:
     return user_prompt, message_history
 
 
-def _legacy_stream_response(
-    *,
-    db: Session,
-    conversation_id: int,
-    conversation,
-    context_messages: list,
-    prompt_messages: list,  # noqa: ARG001  # 保留以备 Phase 2（web_search 切到 Pydantic AI 时复用）
-    user_row,
-    assistant_row,
-    target_assistant,
-    user_content: str,
-    payload: MessageCreate,
-    history: list,  # noqa: ARG001
-    settings: Settings,
-    cancel_event,
-):
-    """[Phase 1 任务 6] 旧同步路径：`enable_web_search=True` 走这里。
-
-    行为 byte-for-byte 冻结（与重构前一致）。包含 tool_calling + fallback 双路径。
-    内部重建 llm_config（attached_file 注入），不复用外部 llm_config。
-
-    标题生成、mark_message_complete、duration_ms 等业务行为全部保留；
-    Pydantic AI 路径**不**做这些（见 stream_message async 分支的注释）。
-    """
-    llm_config = ai_chat_service.build_llm_config(
-        settings=settings, model=payload.model,
-        system_prompt=payload.system_prompt, reasoning_effort=payload.reasoning_effort,
-    )
-    # [Phase 1 PR review fix] attached_file 注入：被 Phase 1 拆分时误删，与 main 行为不一致。
-    # main 同步 / 流式端点都做 `llm_config.system_prompt += file_context`；legacy 路径必须保持。
-    if payload.attached_file_content:
-        file_context = (
-            f"\n\n【用户附加文件：{payload.attached_file_name or 'file'}】\n"
-            f"{payload.attached_file_content.strip()}\n"
-            "请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
-        )
-        llm_config.system_prompt += file_context
-
-    max_turns = settings.ai_chat_max_conversation_turns
-    if len(context_messages) >= max_turns * 2:
-        raise HTTPException(status_code=400, detail=f"对话轮次已达上限 ({max_turns}次)，请新建会话继续对话")
-
-    def event_stream():
-        assistant_parts: list[str] = []
-        search_source_cards: list[dict[str, Any]] = []
-        # [BEL-81.B] tool 调用 / fallback 路径透传下来的时间范围标签。
-        # 持久化到 `AIMessage.search_time_range` 以支持历史回放。
-        search_time_range: str | None = None
-        start_time = datetime.now(timezone.utc)
-        tool_call_count = 0
-        collected_usage: dict[str, Any] = {}
-        title_regenerated = False
-        cancelled = False
-
-        try:
-            yield encode_stream_event({"type": "start"})
-
-            if payload.enable_web_search:
-                payload_messages, tools = ai_chat_service.build_payload_messages_with_tools(context_messages, user_content, llm_config.system_prompt)
-                try:
-                    for event in ai_chat_service.stream_with_tool_calling(llm_config=llm_config, messages=payload_messages, settings=settings, temperature=0.7, cancel_event=cancel_event):
-                        if cancel_event.is_set():
-                            cancelled = True
-                            break
-                        if event.get("type") == "chunk":
-                            delta = event.get("delta", "")
-                            if delta:
-                                assistant_parts.append(delta)
-                                if assistant_row:
-                                    ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
-                                yield build_stream_chunk(delta)
-                        elif event.get("type") == "tool_calls":
-                            tool_call_count += 1
-                            yield build_stream_tool_calls(event.get("tool_calls", []))
-                        elif event.get("type") == "tool_searching":
-                            yield build_stream_tool_searching()
-                        elif event.get("type") == "tool_done":
-                            yield build_stream_tool_done()
-                        elif event.get("type") == "sources":
-                            search_source_cards = event.get("sources") or []
-                            event_time_range = event.get("time_range")
-                            if event_time_range:
-                                search_time_range = event_time_range
-                            yield build_stream_sources(
-                                search_source_cards,
-                                time_range=event.get("time_range"),
-                                query=event.get("query"),
-                            )
-                        elif event.get("type") == "usage":
-                            collected_usage = event.get("usage", {})
-                            yield build_stream_usage(collected_usage)
-                        elif event.get("type") == "error":
-                            raise Exception(event.get("message", "Tool calling failed"))
-
-                    if cancelled:
-                        raise _CancelledError()
-
-                    assistant_content = "".join(assistant_parts).strip()
-                    if not assistant_content:
-                        raise ValueError("LLM returned empty content")
-
-                except _CancelledError:
-                    raise
-                except Exception:
-                    if cancel_event.is_set():
-                        raise _CancelledError()
-                    assistant_parts = []
-                    search_source_cards = []
-                    web_search_payload = ai_chat_service.request_web_search(settings, user_content)
-                    web_search_context = ai_chat_service.format_web_search_context(web_search_payload, user_content)
-                    search_source_cards = ai_chat_service.build_search_source_cards(web_search_payload, settings.ai_chat_web_search_max_results)
-
-                    if search_source_cards:
-                        fallback_time_range = (
-                            web_search_payload.get("time_range")
-                            or ai_chat_service.detect_time_range_from_query(user_content)
-                        )
-                        search_time_range = fallback_time_range
-                        yield build_stream_sources(
-                            search_source_cards,
-                            time_range=fallback_time_range,
-                            query=user_content,
-                        )
-
-                    for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, web_search_context=web_search_context, settings=settings, cancel_event=cancel_event):
-                        if cancel_event.is_set():
-                            cancelled = True
-                            break
-                        if isinstance(item, dict) and item.get("type") == "thinking":
-                            thinking_chunk = str(item.get("content", ""))
-                            if thinking_chunk:
-                                yield build_stream_thinking_chunk(thinking_chunk)
-                        elif isinstance(item, str) and item:
-                            assistant_parts.append(item)
-                            if assistant_row:
-                                ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
-                            yield build_stream_chunk(item)
-
-                    if cancelled:
-                        raise _CancelledError()
-
-                    assistant_content = "".join(assistant_parts).strip()
-                    if not assistant_content:
-                        raise ValueError("LLM returned empty content")
-            else:
-                # legacy 路径下 enable_web_search=False 走这里：纯 stream_assistant_content
-                # （Phase 1 不再经过此处，因为 stream_message 已分流；但保留以防未来 legacy 内部回退）
-                for item in ai_chat_service.stream_assistant_content(llm_config=llm_config, messages=context_messages, user_content=user_content, settings=settings, cancel_event=cancel_event):
-                    if cancel_event.is_set():
-                        cancelled = True
-                        break
-                    if isinstance(item, dict) and item.get("type") == "thinking":
-                        thinking_chunk = str(item.get("content", ""))
-                        if thinking_chunk:
-                            yield build_stream_thinking_chunk(thinking_chunk)
-                    elif isinstance(item, str) and item:
-                        assistant_parts.append(item)
-                        if assistant_row:
-                            ai_chat_service.update_message_content(db, assistant_row.id, "".join(assistant_parts))
-                        yield build_stream_chunk(item)
-
-                if cancelled:
-                    raise _CancelledError()
-
-                assistant_content = "".join(assistant_parts).strip()
-                if not assistant_content:
-                    raise ValueError("LLM returned empty content")
-
-            if not context_messages:
-                generated_title = ai_chat_service.generate_conversation_title(settings, user_content, assistant_content)
-                if generated_title:
-                    conversation.title = generated_title
-                    title_regenerated = True
-
-            if assistant_row:
-                ai_chat_service.update_message_content(db, assistant_row.id, assistant_content)
-                if search_source_cards:
-                    assistant_row.search_sources = json.dumps(search_source_cards, ensure_ascii=False)
-                # [BEL-81.B] 历史回放用：把 time_range 一并持久化
-                if search_time_range:
-                    assistant_row.search_time_range = search_time_range
-
-            conversation.updated_at = datetime.now(timezone.utc)
-            end_time = datetime.now(timezone.utc)
-            duration_ms = int((end_time - start_time).total_seconds() * 1000)
-
-            token_usage = None
-            if collected_usage:
-                token_usage = {
-                    "prompt_tokens": collected_usage.get("prompt_tokens", 0),
-                    "completion_tokens": collected_usage.get("completion_tokens", 0),
-                    "total_tokens": collected_usage.get("total_tokens", 0),
-                }
-
-            if assistant_row:
-                ai_chat_service.mark_message_complete(
-                    db, assistant_row.id,
-                    prompt_tokens=token_usage.get("prompt_tokens", 0) if token_usage else 0,
-                    completion_tokens=token_usage.get("completion_tokens", 0) if token_usage else 0,
-                    total_tokens=token_usage.get("total_tokens", 0) if token_usage else 0,
-                    duration_ms=duration_ms,
-                )
-
-            db.commit()
-            if assistant_row:
-                db.refresh(assistant_row)
-
-            ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
-            db.commit()
-            db.refresh(conversation)
-
-            yield build_stream_done(
-                user_message=serialize_message(user_row),
-                assistant_message=serialize_message(assistant_row),
-                conversation_title=conversation.title if title_regenerated else None,
-                token_usage=token_usage,
-                conversation_token_usage={
-                    "prompt_tokens": conversation.total_prompt_tokens,
-                    "completion_tokens": conversation.total_completion_tokens,
-                    "total_tokens": conversation.total_tokens,
-                },
-                duration_ms=duration_ms,
-                title_regenerated=title_regenerated,
-            )
-        except _CancelledError:
-            # 用户主动停止：回滚未提交的 DB 写入（user/assistant 空的行），
-            # 不写 done 也不写 error — 前端 useChatStream 已把"已停止"
-            # 作为正常 UX 处理。
-            db.rollback()
-        except Exception as exc:
-            db.rollback()
-            yield build_stream_error(str(exc) or "发送失败")
-        finally:
-            cancel_registry.unregister(conversation_id, cancel_event)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
-    )
 
 
 class _CancelledError(Exception):

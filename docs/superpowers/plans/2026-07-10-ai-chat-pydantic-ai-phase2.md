@@ -895,6 +895,8 @@ git commit -m "docs(ai): Phase 2 完成同步（架构文档 + tracker）"
 |---|---|---|
 | 2026-07-13 | Phase 2 必须先做 SearXNG Tavily adapter spike | 决定 mapper `_handle_tool_result` content 解析路径，避免一开始猜测 |
 | 2026-07-13 | Phase 2 仍保留 `regenerate + web_search=False → 400` 行为 | Tavily tool 行为对 regenerate 友好性未验证；先保守保留 Phase 1 行为 |
+| 2026-07-13 | **SearXNG adapter 完全兼容 Tavily API 协议**（spike 实测） | POST `https://search.believeboy.com/search` 返回标准 Tavily dict：`results` 是 list，每项含 `url/title/content/score/raw_content`（≥ TavilySearchResult 要求）；决策走 Pydantic AI 自带 `tavily_search_tool`，不走自定义 tool 备选路径 |
+| 2026-07-13 | **tavily-python 0.7.x 参数名是 `api_base_url`**（不是 `base_url`） | Pydantic AI `tavily_search_tool` 文档示例用 `base_url` 是错的（实际调用 `AsyncTavilyClient(api_key=, api_base_url=)`），Phase 2 任务 4 实现时务必正确 |
 
 ---
 
