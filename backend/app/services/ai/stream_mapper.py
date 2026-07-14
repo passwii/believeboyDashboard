@@ -22,16 +22,20 @@ from typing import Any
 from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
+    FunctionToolResultEvent,
     PartDeltaEvent,
     TextPartDelta,
     ThinkingPartDelta,
     ToolCallPart,
 )
 
+from app.services.ai.search import build_search_source_cards
 from app.services.ai.stream_utils import (
     build_stream_chunk,
+    build_stream_sources,
     build_stream_thinking_chunk,
     build_stream_tool_calls,
+    build_stream_tool_done,
     build_stream_usage,
 )
 
@@ -69,6 +73,45 @@ def _tool_part_to_dict(part: ToolCallPart) -> dict:
     }
 
 
+def _normalize_tool_content(content: Any) -> list[dict]:
+    """把 Tavily tool 返回的 content 标准化为 list[dict]。
+
+    Phase 2 spike 揭示 SearXNG adapter 走 Pydantic AI 自带 `tavily_search_tool` 时
+    返回 list[TavilySearchResult]（每项含 title/url/content/score/raw_content）。
+    但允许以下两种格式以便未来扩展：
+    - list[dict]（标准）
+    - dict 含 'results' 键（adapter 直返回）
+    """
+    if isinstance(content, list):
+        return [dict(r) for r in content]
+    if isinstance(content, dict):
+        return list(content.get("results") or [])
+    return []
+
+
+def _handle_tool_result(event: FunctionToolResultEvent, state: MapperState) -> bytes | None:
+    """tool_result → sources + tool_done。
+
+    关键设计：只有当 last_tool_part 是 search 类工具时才处理（避免被其他工具污染）。
+    一次性 yield sources + tool_done 两行 ndjson。
+    """
+    last_tool = state.get("last_tool_part") or {}
+    if last_tool.get("tool_name") not in _SEARCH_TOOL_NAMES:
+        return None
+
+    part = event.part
+    content = getattr(part, "content", part)
+    results = _normalize_tool_content(content)
+    cards = build_search_source_cards({"results": results})
+    state["search_source_cards"] = cards
+    sources = build_stream_sources(
+        cards,
+        time_range=state.get("search_time_range"),
+        query=state.get("last_search_query"),
+    )
+    return sources + build_stream_tool_done()
+
+
 def map_agent_event(event: Any, state: MapperState) -> bytes | None:
     """Pydantic AI 事件 → ndjson 字节。返回 None 表示不产数据。"""
     if isinstance(event, PartDeltaEvent):
@@ -84,6 +127,8 @@ def map_agent_event(event: Any, state: MapperState) -> bytes | None:
             state["last_tool_part"] = _tool_part_to_dict(event.part)
             return build_stream_tool_calls([state["last_tool_part"]])
         return None
+    if isinstance(event, FunctionToolResultEvent):
+        return _handle_tool_result(event, state)
     if isinstance(event, AgentRunResultEvent):
         usage_dict = _build_usage_dict(event.result.usage)
         state["final_usage"] = usage_dict
