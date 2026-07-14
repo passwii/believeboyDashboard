@@ -19,10 +19,10 @@
 
 | 阶段 | 范围 | 状态 | 已落地 commits |
 |---|---|---|---|
-| **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **8/8 任务完成**（2026-07-13） | 详见下方「Phase 1 已落 commits」表 |
-| **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | 🚧 **计划起草完成（2026-07-13），实施待启动** | — |
+| **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **9/9 任务完成**（2026-07-13，PR #133 已合）| 详见下方「Phase 1 已落 commits」表 |
+| **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14）| 详见下方「Phase 2 已落 commits」表 |
 
-**总进度：** Phase 1 100%，Phase 2 计划已起草，待 Phase 1 PR #133 合并后启动实施。
+**总进度：** Phase 1 100%，Phase 2 100%（待 PR 合并）。
 
 ---
 
@@ -77,32 +77,44 @@
 
 ---
 
-## Phase 2 详细规划（计划已起草，实施待启动）
+## Phase 2 详细规划（已落地，待 PR 合并）
 
-承接文档：[`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md`](./2026-07-10-ai-chat-pydantic-ai-phase2.md)（2026-07-13 起草完成）
+承接文档：[`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md`](./2026-07-10-ai-chat-pydantic-ai-phase2.md)
 
 | 任务 | 原 plan 编号 | 状态 | 备注 |
 |---|---|---|---|
-| 任务 1：SearXNG Tavily adapter 返回格式 spike | — | ✅ 完成（2026-07-13） | **决策：完全兼容 Tavily API** — spike 实测 POST `/search` 返回标准 Tavily dict；走 Pydantic AI 自带 `tavily_search_tool`，不走自定义 tool 备选。3/3 spike 单测 PASS。注：tavily-python 0.7.x 参数名是 `api_base_url`（不是 `base_url`）。 |
-| 任务 2：stream_mapper tool_calls 分支 | T4 | 📋 未启动 | 跟着 web_search 走 |
-| 任务 3：stream_mapper tool_result 分支（sources + tool_done） | T5 | 📋 未启动 | — |
-| 任务 4：Agent Factory 注册 `tavily_search_tool` | T7 增量 | 📋 未启动 | 同步追加依赖 `tavily-python` |
-| 任务 5：端点 `enable_web_search=True` 切到 Pydantic AI native tool；删除 `_legacy_stream_response` | T8 增量 | 📋 未启动 | 旧同步路径退役 |
-| 任务 6：真 LLM 烟雾测试（自动化 + Damon review）| T9 增量 | 📋 未启动 | 覆盖 web_search 路径 + attached_file 端到端 |
-| 任务 7：Merge 前最终检查与文档同步 | T10 增量 | 📋 未启动 | 架构文档 § 9.2 标 Phase 2 完成 |
+| 任务 1：SearXNG Tavily adapter 返回格式 spike | — | ✅ 完成（2026-07-14） | **决策：完全兼容 Tavily API** — spike 实测 POST `/search` 返回标准 Tavily dict；走 Pydantic AI 自带 `tavily_search_tool`，不走自定义 tool 备选。3/3 spike 单测 PASS。注：tavily-python 0.7.x 参数名是 `api_base_url`（不是 `base_url`）。 |
+| 任务 2：stream_mapper tool_calls 分支 | T4 | ✅ 完成（2026-07-14） | FunctionToolCallEvent → tool_calls（一次只产一条 ndjson；tool_searching 由端点层紧接 yield）。3/3 单测 PASS。 |
+| 任务 3：stream_mapper tool_result 分支（sources + tool_done） | T5 | ✅ 完成（2026-07-14） | FunctionToolResultEvent → sources + tool_done（一次性 yield 两行 ndjson）；_normalize_tool_content 兼容 list[dict] / dict 含 'results' 键。4/4 单测 PASS。 |
+| 任务 4：Agent Factory 注册 `tavily_search_tool` | T7 增量 | ✅ 完成（2026-07-14） | build_chat_agent 加 web_search: bool = False 参数；client 用 api_base_url=settings.ai_chat_web_search_base_url。3/3 单测 PASS。requirements.txt 追加 tavily-python。 |
+| 任务 5：端点 `enable_web_search=True` 切到 Pydantic AI native tool；删除 `_legacy_stream_response` | T8 增量 | ✅ 完成（2026-07-14） | 所有 AI chat 用户统一走 Pydantic AI；旧同步路径退役（约 240 行删除）。e2e 测试 mock tool + TestModel call_tools 触发完整事件序列。 |
+| 任务 6：真 LLM 烟雾测试（自动化 + Damon review）| T9 增量 | ✅ 完成（2026-07-14） | `scripts/verify_ai_chat_phase2.py` 4/4 PASS：Pydantic AI 路径 3.9s / 路由 400 / web_search 路径 18.4s（6 条 sources 持久化）/ 客户端 abort 3.0s 优雅退出。 |
+| 任务 7：Merge 前最终检查与文档同步 | T10 增量 | 🚧 进行中 | 架构文档 § 9.3 + § 10 同步（已完成）；tracker 同步（已完成）；开 PR 待用户授权 |
 
 **Phase 2 验收：**
-- `enable_web_search=True` 用户 ndjson 事件序列与 Phase 1 旧路径完全一致
-- `search_source_cards` / `search_time_range` 持久化字段不变
-- `cancel_registry` 行为不变
-- `tavily-python` 依赖已加入 requirements
+- ✅ `enable_web_search=True` 用户 ndjson 事件序列与 Phase 1 旧路径完全一致
+- ✅ `search_source_cards` / `search_time_range` 持久化字段不变（assistant_message.search_sources 6 条 / search_time_range "day" 实际写入）
+- ✅ `cancel_registry` 行为不变（端点层仍走 `cancel_registry.register / unregister`）
+- ✅ `tavily-python` 依赖已加入 requirements
 
 ---
 
 ## 已落地 commits（按时间倒序）
 
 ```
-97dfbb31 docs(ai): 同步架构文档至 Phase 1 实际完成情况             ← Phase 1 收尾（任务 8）
+ac3ec110 test(ai): 烟雾脚本 phase2 版（覆盖 web_search 路径 + sources 持久化）← Phase 2 任务 6
+1a73bbc8 feat(ai): 端点统一走 Pydantic AI + 删除 _legacy_stream_response   ← Phase 2 任务 5
+3f085a47 feat(ai): Agent 工厂支持 web_search 注册 tavily_search_tool        ← Phase 2 任务 4
+999f1d82 feat(ai): stream_mapper 加 FunctionToolResultEvent → sources+tool_done ← Phase 2 任务 3
+39cc67da feat(ai): stream_mapper 加 FunctionToolCallEvent → tool_calls      ← Phase 2 任务 2
+22d357e3 docs(superpowers): 记录 Phase 2 spike 决策到 plan + tracker         ← Phase 2 收尾
+0d627063 chore(ai): SearXNG Tavily adapter spike（Phase 2 任务 1）
+30682e18 fix(ai): PR review 修 attached_file 在新/旧两条路径都被静默丢弃     ← Phase 1 PR review
+94344201 docs(superpowers): PR 描述更新 — 任务 7 agent 自动化真 LLM 验证 + 3 bug fix
+1903bd4d fix(ai): Phase 1 端到端真 LLM 烟雾测试发现的 3 个 bug
+df4740ed docs(superpowers): Phase 1 PR 描述（含烟雾测试脚本 + 回滚策略）
+f3071e44 docs(superpowers): Phase 1 tracker 标完成（7/8 任务，仅剩任务 7 手测）
+97dfbb31 docs(ai): 同步架构文档至 Phase 1 实际完成情况
 dc01323f feat(ai): 端点 async 改造 + 双路径分流（任务 6）
 dd89b11c feat(ai): Agent 工厂 Phase 1（任务 5）
 1f29f103 feat(ai): stream_mapper 加 AgentRunResultEvent → usage（任务 4）
@@ -110,8 +122,8 @@ dd89b11c feat(ai): Agent 工厂 Phase 1（任务 5）
 9cedc5e3 feat(ai): stream_mapper 初版 text delta → chunk（任务 2）
 aa3ad92c test(ai): 同步依赖测试断言至 pydantic-ai 2.9（任务 1 step 6）
 c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · Phase 1）★ 主分支前置
-49a89653 docs(superpowers): 起草 Phase 1 切分与原 plan 附录        ★ 主分支前置
-8d550065 Merge branch 'feat/crm-customer-table'                  ← Phase 1 起点
+49a89653 docs(superpowers): 起草 Phase 1 切分与原 plan 附录                ★ 主分支前置
+8d550065 Merge branch 'feat/crm-customer-table'                          ← Phase 1 起点
 ```
 
 ---

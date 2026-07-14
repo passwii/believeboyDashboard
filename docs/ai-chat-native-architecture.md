@@ -199,15 +199,27 @@ C1 wiring 一律用这个**变量**，不写死 localhost:8000。
 - 引入 Pydantic AI 2.9 编排 LLM 流，替代手搓 httpx 循环
 - 前端 `consumeStream` 与 ndjson 协议零改动
 
-### 9.3 待办（Phase 2）
+### 9.3 已落地（Phase 2，2026-07-14）
 
-1. SearXNG Tavily adapter 返回格式 spike（必须先做；决定 mapper `_handle_tool_result` 的 content 解析路径：dict vs list[dict]）
-2. stream_mapper 加 `FunctionToolCallEvent` → `tool_calls` 分支
-3. stream_mapper 加 `FunctionToolResultEvent` → `sources` + `tool_done` 分支
-4. Agent Factory 注册 `tavily_search_tool(client=AsyncTavilyClient(base_url=settings.ai_chat_web_search_base_url))`
-5. 端点 `enable_web_search=True` 切到 Pydantic AI driver；旧 `_legacy_stream_response` 退役
-6. 端点层 `tool_searching` 事件与 mapper 解耦（mapper 每次只产一个 bytes，`tool_searching` 由端点层 yield）
-7. 跑端到端：`pnpm test`（前端）→ `cd backend && pytest`（后端）→ 人工验收（手测 streaming、工具触发、sources 卡片、取消、断连）
+- **新增模块**：
+  - `backend/scripts/spike_searxng_tavily_adapter.py` — spike 脚本（task 1）
+  - `backend/tests/services/test_searxng_adapter_spike.py` — spike 断言固化
+  - `backend/scripts/verify_ai_chat_phase2.py` — 烟雾脚本（web_search 路径 + sources 持久化）
+- **新增 mapper 能力**：
+  - `FunctionToolCallEvent` + tavily_search/web_search → `tool_calls`（一次只产一条 ndjson；`tool_searching` 由端点层紧接 yield）
+  - `FunctionToolResultEvent` → `sources` + `tool_done`（一次性 yield 两行 ndjson；`_normalize_tool_content` 兼容 list[dict] / dict 含 'results' 键）
+- **Agent Factory 增量**：
+  - `build_chat_agent(..., web_search=False)`：True 时注册 `tavily_search_tool(client=AsyncTavilyClient(api_key=, api_base_url=settings.ai_chat_web_search_base_url))`（**注意 tavily-python 0.7.x 参数名是 `api_base_url`，与 Pydantic AI 文档示例的 `base_url` 不一致**）
+  - 同步追加 web_search 行为指令（提示模型何时调用工具）
+- **端点收口**：
+  - `stream_message` 路由矩阵简化：`enable_web_search=False / True` 均走 Pydantic AI
+  - 删除 `_legacy_stream_response`（约 240 行旧 httpx 同步流）
+  - 端点层在 `FunctionToolCallEvent` 后立即 yield `tool_searching`（与既有 ndjson 协议兼容）
+  - 保留 `regenerate + web_search=False → 400` 行为（保守防 Tavily tool 对 regenerate 未验证）
+- **决策记录**：
+  - SearXNG adapter 完全兼容 Tavily API（spike 实测 POST /search 返回标准 Tavily dict），决策走 Pydantic AI 自带 `tavily_search_tool`，不走自定义 tool 备选路径
+  - `tavily-python` 0.7.x 参数名是 `api_base_url`（不是 `base_url`）—— 与 Pydantic AI `tavily_search_tool` 文档示例不一致
+  - mapper `_handle_tool_result` content 解析路径：`list[dict]`（Pydantic AI Tavily tool 标准返回）+ 兼容 `dict` 含 'results' 键
 
 ### 9.3 落地约束
 - **替换路径**：建议独立分支 / PR，避免一次性 big-bang；
@@ -221,7 +233,7 @@ C1 wiring 一律用这个**变量**，不写死 localhost:8000。
 - Python 3.14.5（仓库当前）
 - **pydantic-ai==2.9.0**（Phase 1 落地；spike 验证时为 2.8.0，PR 阶段仓库已升 2.9.0）
 - pydantic-ai-slim[tavily]（原生 Tavily 工具可选依赖，**生产装 `pydantic-ai` 主包即可**）
-- **Phase 1 不引 `tavily-python`**（factory 不注册 Tavily tool；requirements.txt 不加此行）
+- **tavily-python 0.7.26**（Phase 2 落地：Pydantic AI Tavily tool 运行时依赖；参数名 `api_base_url=`，详见 § 9.3 决策）
 - **不引入** litellm（挂起项中明确）
 
 > **间接依赖冲突（已踩）**：pydantic-ai 拉入 `sse-starlette>=3` 要求 `starlette>=1.0`，与 fastapi 0.115.5 要求的 `starlette<0.42` 冲突。
