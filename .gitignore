@@ -114,6 +114,10 @@ autoReportUpload/.env
 /backend/coverage/
 /backend/.venv/
 /backend/.env
+/backend/.env.test
+/backend/scripts/agent_testing/.auth/
+# 本地手动 `redis-cli save` / `BGSAVE` 落盘的 redis dump；不要入库
+/backend/*.rdb
 /backend/**/__pycache__/
 /backend/**/*.pyc
 

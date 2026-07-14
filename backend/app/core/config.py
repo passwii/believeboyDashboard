@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -17,12 +17,34 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8100
 
-    database_url: str = Field(min_length=1)
+    database_url: str = Field(default="")
     # BEL-55-P5 / BEL-73: optional read-replica URL. When empty, all
     # sessions use `database_url` (backward compatible). When set, the
     # `get_read_db()` dependency opens sessions against this engine and
     # routes SELECTs to it; INSERT/UPDATE/DELETE still go to primary.
     database_read_url: str = Field(default="", max_length=1000)
+
+    # ------------------------------------------------------------------
+    # Dedicated test database (BEL: test isolation).
+    # When TEST_DATABASE_URL is set, the app, alembic migrations, and the
+    # whole test suite transparently use this DB instead of `database_url`,
+    # so tests never touch the dev/prod database. The test DB is a separate
+    # persistent Postgres database, created + migrated + seeded once via
+    # `python scripts/setup_test_db.py` (see AGENTS.md / .env.example).
+    # ------------------------------------------------------------------
+    test_database_url: str = Field(default="", max_length=1000)
+    test_database_read_url: str = Field(default="", max_length=1000)
+
+    # Test accounts seeded into the test DB by `scripts/seed_test_accounts.py`.
+    # Emails have safe defaults; passwords must come from env (never committed)
+    # — see TEST_*_PASSWORD below. These mirror the accounts the agent/E2E
+    # test suites authenticate as.
+    test_admin_email: str = Field(default="test_admin@believeboy.com", max_length=320)
+    test_operator_email: str = Field(default="test_operator@believeboy.com", max_length=320)
+    test_businessdev_email: str = Field(default="test_businessdev@believeboy.com", max_length=320)
+    test_admin_password: str = Field(default="", max_length=256)
+    test_operator_password: str = Field(default="", max_length=256)
+    test_businessdev_password: str = Field(default="", max_length=256)
     db_read_pool_size: int = Field(default=20, ge=1, le=200)
     db_read_max_overflow: int = Field(default=20, ge=0, le=200)
     replica_failure_threshold: int = Field(default=5, ge=1, le=100)
@@ -93,7 +115,7 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", max_length=200)
     redis_port: int = Field(default=6379, ge=1, le=65535)
     redis_password: str = Field(default="", max_length=200)
-    frontend_url: str = Field(default="", max_length=500)
+    frontend_url: str = Field(default="http://localhost:3200", max_length=500)
 
     resend_api_key: str = Field(default="", max_length=200)
     alert_from_email: str = Field(default="alerts@believeboy.com", max_length=256)
@@ -186,6 +208,25 @@ class Settings(BaseSettings):
         whether the read-routing path is live.
         """
         return bool(self.database_read_url)
+
+    @model_validator(mode="after")
+    def _apply_test_database_override(self) -> "Settings":
+        """Point the app at the dedicated test DB when TEST_DATABASE_URL is set.
+
+        This makes `database_url` / `database_read_url` (and thus the SQLAlchemy
+        engine in `app.db.session`, alembic migrations, and every test) resolve
+        to the test database without any code changes at the call sites.
+        """
+        if self.test_database_url:
+            self.database_url = self.test_database_url
+        if self.test_database_read_url:
+            self.database_read_url = self.test_database_read_url
+        if not self.database_url:
+            raise ValueError(
+                "database_url is required: set DATABASE_URL, or TEST_DATABASE_URL "
+                "to route the app/tests at a separate test database."
+            )
+        return self
 
 
 @lru_cache
