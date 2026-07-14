@@ -40,7 +40,7 @@ import {
 /**
  * Sidebar 两层结构的唯一数据权威。
  *
- * 外层分组由 SIDEBAR_TOP_GROUPS 定义（7 个顶级分类）。
+ * 外层分组由 SIDEBAR_TOP_GROUPS 定义（8 个顶级分类）。
  * 二级菜单项硬编码在每组的 items 中。
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  */
@@ -128,42 +128,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  //2. CRM 业务（所有角色，D1/D2/D19/D20）
-  {
-    id: 'crm',
-    label: 'CRM 业务',
-    icon: IconMap.Handshake,
-    accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
-    activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0b0]',
-    items: [
-      {
-        title: '客户',
-        url: '/dashboard/crm/customers',
-        icon: IconMap.Users,
-        matchPrefixes: ['/dashboard/crm/customers', '/dashboard/crm/sea'],
-      },
-      {
-        title: '线索',
-        url: '/dashboard/crm/leads',
-        icon: IconMap.Sparkles,
-        matchPrefixes: ['/dashboard/crm/leads'],
-      },
-      {
-        title: '商机',
-        url: '/dashboard/crm/opportunities',
-        icon: IconMap.Target,
-        matchPrefixes: ['/dashboard/crm/opportunities'],
-      },
-      {
-        title: 'CRM 设置',
-        url: '/dashboard/crm/settings',
-        icon: IconMap.SettingsIcon,
-        roles: ['admin'],
-      },
-    ],
-  },
-
-  //3. AI面板（所有角色）
+  //2. AI面板（所有角色）
   {
     id: 'ai',
     label: 'AI面板',
@@ -394,7 +359,42 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  //7. 系统管理（admin only —整组过滤）
+  //7. CRM 业务（所有角色，D1/D2/D19/D20）
+  {
+    id: 'crm',
+    label: 'CRM 业务',
+    icon: IconMap.Handshake,
+    accent: 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]',
+    activeAccent: 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0b0]',
+    items: [
+      {
+        title: '客户',
+        url: '/dashboard/crm/customers',
+        icon: IconMap.Users,
+        matchPrefixes: ['/dashboard/crm/customers', '/dashboard/crm/sea'],
+      },
+      {
+        title: '线索',
+        url: '/dashboard/crm/leads',
+        icon: IconMap.Sparkles,
+        matchPrefixes: ['/dashboard/crm/leads'],
+      },
+      {
+        title: '商机',
+        url: '/dashboard/crm/opportunities',
+        icon: IconMap.Target,
+        matchPrefixes: ['/dashboard/crm/opportunities'],
+      },
+      {
+        title: 'CRM 设置',
+        url: '/dashboard/crm/settings',
+        icon: IconMap.SettingsIcon,
+        roles: ['admin'],
+      },
+    ],
+  },
+
+  //8. 系统管理（admin only —整组过滤）
   {
     id: 'system',
     label: '系统管理',
