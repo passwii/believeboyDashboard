@@ -14,7 +14,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'overview',
     label: '总览',
-    href: '/dashboard/data-analysis/ad-analysis/overview',
+    href: '/dashboard/advertising/ad-analysis/overview',
     summary: '先看账户或项目在当前日期范围内的投放健康度，再决定往哪个维度继续下钻。',
     goals: [
       '判断整体花费、销售额、订单、点击、曝光是否处于合理区间。',
@@ -43,7 +43,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'time-trend',
     label: '趋势',
-    href: '/dashboard/data-analysis/ad-analysis/time-trend',
+    href: '/dashboard/advertising/ad-analysis/time-trend',
     summary: '趋势页用于把每天的广告消耗变化拉成时间线，识别异常波动和节奏问题。',
     goals: [
       '按日报累计查看点击和花费变化。',
@@ -62,7 +62,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'campaigns',
     label: '活动',
-    href: '/dashboard/data-analysis/ad-analysis/campaigns',
+    href: '/dashboard/advertising/ad-analysis/campaigns',
     summary: '活动页负责做日常调控分级，是广告经理最常操作的一层。',
     goals: [
       '按活动看目标完成度和预算效率。',
@@ -82,7 +82,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'products',
     label: 'SKU',
-    href: '/dashboard/data-analysis/ad-analysis/products',
+    href: '/dashboard/advertising/ad-analysis/products',
     summary: 'SKU 页解决“哪些商品值得推、哪些 SKU 正在浪费预算”的问题。',
     goals: [
       '按广告 SKU / ASIN 评估投放产出。',
@@ -110,7 +110,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'purchased-products',
     label: '已购买商品',
-    href: '/dashboard/data-analysis/ad-analysis/purchased-products',
+    href: '/dashboard/advertising/ad-analysis/purchased-products',
     summary: '已购买商品页用于识别广告带来的关联购买，判断广告是否在放大连带销售。',
     goals: [
       '查看广告 SKU 带来的其他商品购买结果。',
@@ -135,7 +135,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'search-terms',
     label: '搜索词',
-    href: '/dashboard/data-analysis/ad-analysis/search-terms',
+    href: '/dashboard/advertising/ad-analysis/search-terms',
     summary: '搜索词页是“扩量、否词、控 ACOS”的核心页面。',
     goals: [
       '识别优质转化词、浪费词、潜力词和高份额词。',
@@ -163,7 +163,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'targets',
     label: '投放',
-    href: '/dashboard/data-analysis/ad-analysis/targets',
+    href: '/dashboard/advertising/ad-analysis/targets',
     summary: '投放页主要分析自动投放、手动词、商品投放这些“入口本身”的效率。',
     goals: [
       '区分 close match、loose match、substitutes、complements 或商品投放的质量。',
@@ -191,7 +191,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'placements',
     label: '广告位',
-    href: '/dashboard/data-analysis/ad-analysis/placements',
+    href: '/dashboard/advertising/ad-analysis/placements',
     summary: '广告位页用于判断首页顶部、其余搜索位、商品页等流量位置是否值得出更高价格。',
     goals: [
       '比较不同广告位的点击率、转化率和 ACOS。',
@@ -220,7 +220,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'budget',
     label: '预算',
-    href: '/dashboard/data-analysis/ad-analysis/budget',
+    href: '/dashboard/advertising/ad-analysis/budget',
     summary: '预算页回答“哪些活动该加预算、哪些活动不该继续烧”的问题。',
     goals: [
       '识别预算受限活动和潜在错失销售额。',
@@ -246,7 +246,7 @@ export const AD_ANALYSIS_TABS: AdAnalysisTabConfig[] = [
   {
     key: 'traffic-quality',
     label: '流量质量',
-    href: '/dashboard/data-analysis/ad-analysis/traffic-quality',
+    href: '/dashboard/advertising/ad-analysis/traffic-quality',
     summary: '流量质量页用于排查无效点击和异常流量，防止把问题误判成转化问题。',
     goals: [
       '发现异常点击、异常曝光和低质流量活动。',

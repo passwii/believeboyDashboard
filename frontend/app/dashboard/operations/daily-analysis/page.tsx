@@ -1819,7 +1819,7 @@ export default function DailyAnalysisPage() {
                 })}
               </span>
               <Link
-                href={`/dashboard/data-analysis/project-goals?project=${projectId}&country=${country}`}
+                href={`/dashboard/operations/project-goals?project=${projectId}&country=${country}`}
                 className="shrink-0 text-xs text-blue-500 hover:text-blue-600 hover:underline"
               >
                 目标详情 →

@@ -1,12 +1,12 @@
 export const AD_ANALYSIS_DRILL_PATHS: Record<string, string> = {
-  budget: '/dashboard/data-analysis/ad-analysis/budget',
-  campaigns: '/dashboard/data-analysis/ad-analysis/campaigns',
-  placements: '/dashboard/data-analysis/ad-analysis/placements',
-  products: '/dashboard/data-analysis/ad-analysis/products',
-  'purchased-products': '/dashboard/data-analysis/ad-analysis/purchased-products',
-  'search-terms': '/dashboard/data-analysis/ad-analysis/search-terms',
-  'time-trend': '/dashboard/data-analysis/ad-analysis/time-trend',
-  'traffic-quality': '/dashboard/data-analysis/ad-analysis/traffic-quality',
+  budget: '/dashboard/advertising/ad-analysis/budget',
+  campaigns: '/dashboard/advertising/ad-analysis/campaigns',
+  placements: '/dashboard/advertising/ad-analysis/placements',
+  products: '/dashboard/advertising/ad-analysis/products',
+  'purchased-products': '/dashboard/advertising/ad-analysis/purchased-products',
+  'search-terms': '/dashboard/advertising/ad-analysis/search-terms',
+  'time-trend': '/dashboard/advertising/ad-analysis/time-trend',
+  'traffic-quality': '/dashboard/advertising/ad-analysis/traffic-quality',
 }
 
 export const AD_ANALYSIS_DRILL_LABELS: Record<string, string> = {

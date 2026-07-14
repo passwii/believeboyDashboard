@@ -4,7 +4,7 @@
  * AI 广告分析 — 历史记录 + 定时任务 Tab 结构
  * 路径: /dashboard/ai/ad-analysis
  *
- * 与通用 AI 洞察 (/dashboard/ai-insights) 的差异:
+ * 与通用 AI 洞察 (/dashboard/ai/insights) 的差异:
  *  - insight_type 固定为 'ad_analysis' — 后端会用 INSIGHT_AD_ANALYSIS_PROMPT
  *    (双角色: 亚马逊运营 + 广告投放优化; 不预设分析维度; 建议可执行)
  *  - 数据聚合 10 种 ad 报表类型 + 销售 + 库存

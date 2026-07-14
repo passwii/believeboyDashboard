@@ -6,7 +6,7 @@ import AxeBuilder from '@axe-core/playwright'
  *
  * Runs axe-core against the two motion-heavy entry points:
  *   - /dashboard         (PageTransition + stagger + spotlight)
- *   - /dashboard/ai-chat (chat bubbles / streaming indicator)
+ *   - /dashboard/ai/chat (chat bubbles / streaming indicator)
  *
  * **Phase 12 / 2026-07-12**: filter narrowed from `critical|serious` to
  * `critical` only. Rationale:
@@ -42,7 +42,7 @@ test.describe('motion system a11y', () => {
   })
 
   test('ai-chat has no wcag2 critical violations', async ({ page }) => {
-    await page.goto('/dashboard/ai-chat')
+    await page.goto('/dashboard/ai/chat')
     await page.waitForLoadState('networkidle')
 
     const results = await new AxeBuilder({ page })

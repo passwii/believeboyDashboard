@@ -34,7 +34,7 @@ test.describe('reduced-motion fallback', () => {
     await page.waitForLoadState('networkidle')
 
     // Drive a route switch so AnimatePresence actually runs an enter
-    await page.goto('/dashboard/data-analysis/ad-analysis/overview')
+    await page.goto('/dashboard/advertising/ad-analysis/overview')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(800)
 

@@ -2472,7 +2472,7 @@ export default function AIInsightsPage() {
                         size="sm"
                         className="h-10 px-3 text-muted-foreground hover:text-foreground"
                         onClick={() => {
-                          window.location.href = `/dashboard/system-management/project-info?configure=${selectedProjectId}`
+                          window.location.href = `/dashboard/system/project-info?configure=${selectedProjectId}`
                         }}
                         title="配置项目背景"
                       >

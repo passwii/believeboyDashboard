@@ -10,7 +10,7 @@ type Props = {
 }
 
 /**
- * Full-bleed absolute 路由的过渡 wrapper（当前覆盖 /dashboard/ai-chat）。
+ * Full-bleed absolute 路由的过渡 wrapper（当前覆盖 /dashboard/ai/chat）。
  * - wrapper: !absolute inset-0 直接填充 .dashboard-page-shell 的 containing block，
  *   绕开 h-full 百分比链路在只有 min-height 父级下解析为 0 的问题
  * - motion.div: h-full w-full，极致轻量（opacity + 极短 translateY）

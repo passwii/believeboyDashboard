@@ -9,7 +9,7 @@ import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/compone
 import { useNotifications } from '@/components/notifications/notifications-context'
 import { ImageUploadSheet } from './image-upload-sheet'
 import { ImageLightbox } from './image-lightbox'
-import type { ProductCostItem } from '@/app/dashboard/data-management/sku-info/page'
+import type { ProductCostItem } from '@/app/dashboard/supply-chain/sku-info/page'
 
 const API_BASE = '/api/backend'
 

@@ -1,6 +1,6 @@
 'use client'
 
-import FinancialDataClient from '@/app/dashboard/data-analysis/financial-data/financial-data-client'
+import FinancialDataClient from '@/app/dashboard/reports/financial-data/financial-data-client'
 
 export default function FinancialDataPage() {
   return (

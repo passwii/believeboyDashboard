@@ -54,7 +54,7 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
 
   function handleInfoClick(e: React.MouseEvent) {
     e.stopPropagation()
-    router.push(`/dashboard/digital-employees/${employee.id}`)
+    router.push(`/dashboard/ai/digital-employees/${employee.id}`)
   }
 
   return (

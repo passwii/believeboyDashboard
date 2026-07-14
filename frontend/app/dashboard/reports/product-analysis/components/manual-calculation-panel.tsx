@@ -586,7 +586,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   //
   // 产品分析手动核算场景：ad 报表只用于本周期的"识别 + 计算"快照，不写 C 表。
   // 通过 `dry_run: true` 让后端跳过 ad_upload_files 落库与版本号占用，识别仍然完整。
-  // 真正的入库仍走 /dashboard/data-management/ad-upload 页面。
+  // 真正的入库仍走 /dashboard/reports/auto-upload 页面。
   const commitCard = useCallback(
     async (reportType: ReportType) => {
       const card = cards[reportType]

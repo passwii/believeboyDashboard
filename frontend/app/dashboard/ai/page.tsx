@@ -18,7 +18,7 @@ export default function AiLandingPage() {
       {/* 底部跳转入口 - 当动画播放完后显示 */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50">
         <Link
-          href="/dashboard/ai-chat"
+          href="/dashboard/ai/chat"
           className="flex items-center gap-2 px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-sm font-medium hover:bg-white/20 transition-all duration-300 hover:scale-105"
         >
           <MessageSquare className="size-4" />

@@ -185,7 +185,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
                         </TableCell>
                         <TableCell className="text-right">
                           <Link
-                            href={`/dashboard/system-management/project-info?projectId=${item.id}`}
+                            href={`/dashboard/system/project-info?projectId=${item.id}`}
                             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                           >
                             查看

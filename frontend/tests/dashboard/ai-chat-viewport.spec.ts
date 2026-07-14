@@ -33,7 +33,7 @@ const aiChatConfig = {
   detailOptions: [],
 }
 
-test.describe('/dashboard/ai-chat viewport regression', () => {
+test.describe('/dashboard/ai/chat viewport regression', () => {
   test.beforeEach(async ({ page }) => {
     // mock 后端 config，避免真实 LLM 网关被触发；同时保证页面有最小可观测的渲染
     await page.route('**/api/ai-chat/config', async (route) => {
@@ -43,7 +43,7 @@ test.describe('/dashboard/ai-chat viewport regression', () => {
 
   test('AIChatWindow fills viewport (no height collapse)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('/dashboard/ai-chat')
+    await page.goto('/dashboard/ai/chat')
 
     // 等待 AIChatWindow 渲染（chat 流 / 模型加载可能耗时）
     const chatWindow = page.locator('[data-testid="ai-chat-window"]').first()

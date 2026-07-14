@@ -58,11 +58,11 @@ describe('DashboardLayout — 拆整页 loading swap', () => {
     expect(screen.queryByTestId('page-loading')).not.toBeInTheDocument()
   })
 
-  it('renders children without throwing when pathname is full-bleed (/dashboard/ai-chat)', () => {
+  it('renders children without throwing when pathname is full-bleed (/dashboard/ai/chat)', () => {
     // 端到端验证：layout + PageTransition dispatcher 一起在 ai-chat 路由下不抛错
     // 因为路由判断在 PageTransition 内部（用 usePathname），layout 只负责 render children
     // 此 test 守护的是：dispatcher 改造后，外部 layout 调用栈不破坏
-    mockPathname = '/dashboard/ai-chat'
+    mockPathname = '/dashboard/ai/chat'
     expect(() =>
       render(
         <DashboardLayout>

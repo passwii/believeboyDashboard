@@ -67,10 +67,10 @@ test.describe('motion system performance', () => {
     // Drive a representative route tour through the dashboard.
     const routes = [
       '/dashboard',
-      '/dashboard/data-analysis/ad-analysis/overview',
-      '/dashboard/data-analysis/ad-analysis/campaigns',
+      '/dashboard/advertising/ad-analysis/overview',
+      '/dashboard/advertising/ad-analysis/campaigns',
       '/dashboard',
-      '/dashboard/data-analysis/ad-analysis/inventory',
+      '/dashboard/advertising/ad-analysis/inventory',
     ]
 
     for (const route of routes) {

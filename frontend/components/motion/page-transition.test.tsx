@@ -34,8 +34,8 @@ describe('PageTransition', () => {
     expect(screen.getByText('x')).toBeInTheDocument()
   })
 
-  it('renders full-bleed wrapper for /dashboard/ai-chat', () => {
-    mockPathname = '/dashboard/ai-chat'
+  it('renders full-bleed wrapper for /dashboard/ai/chat', () => {
+    mockPathname = '/dashboard/ai/chat'
     const { container } = render(
       <PageTransition>
         <div data-testid="content">x</div>

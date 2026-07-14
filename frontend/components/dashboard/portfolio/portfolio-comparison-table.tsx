@@ -147,7 +147,7 @@ export function PortfolioComparisonTable({ projects, country }: PortfolioCompari
             onClick={(e) => {
               e.stopPropagation()
               router.push(
-                `/dashboard/data-analysis/daily-analysis?projectId=${row.original.project_id}`
+                `/dashboard/operations/daily-analysis?projectId=${row.original.project_id}`
               )
             }}
           >

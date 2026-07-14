@@ -77,7 +77,7 @@ export default function DigitalEmployeesPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open('/dashboard/digital-employees/display', '_blank')}
+            onClick={() => window.open('/dashboard/ai/digital-employees/display', '_blank')}
             className="gap-1.5"
           >
             <Monitor className="h-4 w-4" />
@@ -161,7 +161,7 @@ export default function DigitalEmployeesPage() {
                 ) : (
                   <DigitalEmployeeGrid
                     employees={filtered}
-                    onCardClick={(id) => router.push(`/dashboard/digital-employees/${id}`)}
+                    onCardClick={(id) => router.push(`/dashboard/ai/digital-employees/${id}`)}
                   />
                 )}
               </div>

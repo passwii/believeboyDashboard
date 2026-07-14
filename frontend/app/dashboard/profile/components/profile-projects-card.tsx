@@ -26,7 +26,7 @@ export function ProfileProjectsCard({ items, isAdmin, roleFor }: ProfileProjects
     <div className="space-y-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
       {items.map((item) => {
         const role = isAdmin ? '管理员' : roleFor(item)
-        const href = `/dashboard/system-management/project-info?projectId=${item.id}`
+        const href = `/dashboard/system/project-info?projectId=${item.id}`
         return (
           <Link
             key={item.id}

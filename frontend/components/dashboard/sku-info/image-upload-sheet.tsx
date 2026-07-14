@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications/notifications-context'
-import type { ProductCostItem } from '@/app/dashboard/data-management/sku-info/page'
+import type { ProductCostItem } from '@/app/dashboard/supply-chain/sku-info/page'
 
 interface ImageUploadSheetProps {
   open: boolean

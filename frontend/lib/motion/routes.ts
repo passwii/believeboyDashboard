@@ -5,13 +5,13 @@
  *
  * 新增 full-bleed 页面时只需在此数组追加，不需改组件代码。
  */
-const FULL_BLEED_DASHBOARD_ROUTES = ['/dashboard/ai-chat'] as const
+const FULL_BLEED_DASHBOARD_ROUTES = ['/dashboard/ai/chat'] as const
 
 export type FullBleedDashboardRoute = (typeof FULL_BLEED_DASHBOARD_ROUTES)[number]
 
 /**
  * 判断给定 pathname 是否属于 full-bleed dashboard 路由。
- * 严格相等匹配，不 startsWith，避免误伤未来 /dashboard/ai-chat-v2 这类。
+ * 严格相等匹配，不 startsWith，避免误伤未来 /dashboard/ai/chat-v2 这类。
  */
 export function isFullBleedDashboardRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false

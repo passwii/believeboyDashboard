@@ -858,7 +858,7 @@ export default function OrderInfoPage() {
                                 if (item.project_name) params.set('project_name', item.project_name)
                                 params.set('sku', item.sku)
                                 if (item.asin) params.set('asin', item.asin)
-                                return `/dashboard/data-management/sku-info?${params.toString()}`
+                                return `/dashboard/supply-chain/sku-info?${params.toString()}`
                               })()}
                               className="font-mono text-xs text-foreground hover:text-primary hover:underline"
                               title="跳转到 SKU 信息页面（带入项目 + SKU + ASIN）"
@@ -875,7 +875,7 @@ export default function OrderInfoPage() {
                                 if (item.project_name) params.set('project_name', item.project_name)
                                 if (item.sku) params.set('sku', item.sku)
                                 params.set('asin', item.asin)
-                                return `/dashboard/data-management/sku-info?${params.toString()}`
+                                return `/dashboard/supply-chain/sku-info?${params.toString()}`
                               })()}
                               className="text-xs text-muted-foreground hover:text-primary hover:underline"
                               title="跳转到 SKU 信息页面（按 ASIN 查询）"
@@ -923,7 +923,7 @@ export default function OrderInfoPage() {
                       </TableCell>
                       <TableCell className={DENSE_CELL}>
                         <Link
-                          href={`/dashboard/system-management/project-info?configure=${item.project_id}`}
+                          href={`/dashboard/system/project-info?configure=${item.project_id}`}
                           className="flex flex-col leading-tight hover:opacity-80"
                           title={`跳转到「${item.project_name}」的项目设置`}
                         >

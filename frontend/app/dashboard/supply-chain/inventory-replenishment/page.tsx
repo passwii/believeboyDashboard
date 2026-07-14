@@ -1720,7 +1720,7 @@ export default function InventoryReplenishmentPage() {
                                   tab: 'fba-box-detail',
                                 })
                                 window.open(
-                                  `/dashboard/data-management/shipment-management?${params.toString()}`,
+                                  `/dashboard/supply-chain/shipment-management?${params.toString()}`,
                                   '_blank',
                                   'noopener,noreferrer'
                                 )
