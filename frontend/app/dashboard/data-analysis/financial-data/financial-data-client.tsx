@@ -1437,43 +1437,16 @@ export default function FinancialDataClient({
         (column) => isAdmin || !ADMIN_ONLY_EXPORT_KEYS.has(column.key)
       )
 
-      const summarySheet = workbook.addWorksheet('汇总', {
-        views: [{ state: 'frozen', ySplit: 4, xSplit: 1, activeCell: 'A5' }],
+      const detailSheet = workbook.addWorksheet('月度财务总览', {
+        views: [{ state: 'frozen', ySplit: 2, xSplit: 1, activeCell: 'A3' }],
       })
-      const detailSheet = workbook.addWorksheet('月度财务', {
-        views: [{ state: 'frozen', ySplit: 5, xSplit: 1, activeCell: 'A6' }],
+      const summarySheet = workbook.addWorksheet('年度财务总览', {
+        views: [{ state: 'frozen', ySplit: 1, xSplit: 1, activeCell: 'A2' }],
       })
 
       const summaryLastColumn = 4
-      summarySheet.mergeCells(1, 1, 1, summaryLastColumn)
-      summarySheet.getCell(1, 1).value = `月度财务汇总分析-${formatMonth(data.end_month)}`
-      summarySheet.getCell(1, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 16,
-        bold: true,
-        color: { argb: 'FF0F172A' },
-      }
-      summarySheet.getCell(1, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE2E8F0' },
-      }
 
-      summarySheet.mergeCells(2, 1, 2, summaryLastColumn)
-      summarySheet.getCell(2, 1).value =
-        `店铺：${data.project_name}    区间：${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
-      summarySheet.getCell(2, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 10,
-        color: { argb: 'FF475569' },
-      }
-      summarySheet.getCell(2, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF8FAFC' },
-      }
-
-      const kpiHeader = summarySheet.getRow(4)
+      const kpiHeader = summarySheet.getRow(1)
       kpiHeader.values = ['指标', '数值', '说明', '趋势']
       kpiHeader.height = 28
       kpiHeader.eachCell((cell) => {
@@ -1516,7 +1489,7 @@ export default function FinancialDataClient({
       ]
 
       summaryKpis.forEach((item, index) => {
-        const row = summarySheet.getRow(index + 5)
+        const row = summarySheet.getRow(index + 2)
         row.height = 24
         const isEvenRow = index % 2 === 0
         const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
@@ -1541,7 +1514,7 @@ export default function FinancialDataClient({
         })
       })
 
-      const trendStartRow = 11
+      const trendStartRow = 8
       summarySheet.mergeCells(trendStartRow, 1, trendStartRow, summaryLastColumn)
       summarySheet.getCell(trendStartRow, 1).value = '月度趋势'
       summarySheet.getCell(trendStartRow, 1).font = {
@@ -1609,35 +1582,6 @@ export default function FinancialDataClient({
 
       summarySheet.columns = [{ width: 16 }, { width: 16 }, { width: 28 }, { width: 12 }]
 
-      const detailLastColumn = activeExportColumns.length
-      detailSheet.mergeCells(1, 1, 1, detailLastColumn)
-      detailSheet.getCell(1, 1).value = `月度财务核算明细-${formatMonth(data.end_month)}`
-      detailSheet.getCell(1, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 16,
-        bold: true,
-        color: { argb: 'FF0F172A' },
-      }
-      detailSheet.getCell(1, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE2E8F0' },
-      }
-
-      detailSheet.mergeCells(2, 1, 2, detailLastColumn)
-      detailSheet.getCell(2, 1).value =
-        `店铺：${data.project_name}    区间：${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
-      detailSheet.getCell(2, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 10,
-        color: { argb: 'FF475569' },
-      }
-      detailSheet.getCell(2, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF8FAFC' },
-      }
-
       const groupColors: Record<string, string> = {
         基础信息: 'FFF1F5F9',
         平台收入: 'FFDDF7EA',
@@ -1648,8 +1592,8 @@ export default function FinancialDataClient({
         费用占比: 'FFEADFEE',
       }
 
-      const groupRow = detailSheet.getRow(4)
-      const headRow = detailSheet.getRow(5)
+      const groupRow = detailSheet.getRow(1)
+      const headRow = detailSheet.getRow(2)
       groupRow.height = 24
       headRow.height = 28
       let currentColumn = 1
@@ -1660,7 +1604,7 @@ export default function FinancialDataClient({
           headRow.getCell(currentColumn).value = column.title
           currentColumn += 1
         })
-        detailSheet.mergeCells(4, startColumn, 4, currentColumn - 1)
+        detailSheet.mergeCells(1, startColumn, 1, currentColumn - 1)
         const groupCell = groupRow.getCell(startColumn)
         groupCell.value = group
         groupCell.font = {
@@ -1714,7 +1658,7 @@ export default function FinancialDataClient({
       const CONTENT_ROW_HEIGHT = 24
 
       exportDetailRows.forEach((rowData, index) => {
-        const row = detailSheet.getRow(index + 6)
+        const row = detailSheet.getRow(index + 3)
         row.height = CONTENT_ROW_HEIGHT
         const isEvenRow = index % 2 === 0
         const rowBgColor = isEvenRow ? 'FFFFFFFF' : 'FFF8FAFC'
@@ -1746,7 +1690,7 @@ export default function FinancialDataClient({
         })
       })
 
-      const totalRow = detailSheet.getRow(exportDetailRows.length + 6)
+      const totalRow = detailSheet.getRow(exportDetailRows.length + 3)
       totalRow.height = CONTENT_ROW_HEIGHT
       activeExportColumns.forEach((column, columnIndex) => {
         const cell = totalRow.getCell(columnIndex + 1)
