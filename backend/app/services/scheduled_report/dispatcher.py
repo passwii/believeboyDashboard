@@ -651,6 +651,7 @@ def _dispatch_one_task_body(
     triggered_by: str = "auto",
     report_date: str | None = None,
     pre_existing_log_id: int | None = None,
+    old_log_id: int | None = None,
 ) -> dict[str, Any]:
     """派发的**业务主体**：手动触发按钮补发/manual_log 跳过/P0-3 幂等护栏/数据/渲染/发送/AI 摘要派发。
 
@@ -801,6 +802,16 @@ def _dispatch_one_task_body(
                     )
                 except Exception as update_err:
                     logger.warning("更新 delivery log 截图信息失败: %s", update_err)
+
+            # 重发 / 手动重触发：新 log 截图已落库后，清理旧 delivery_log 的 R2 截图，
+            # 释放存储，避免同一报告日的重复截图无限累积。
+            # （旧路径 _dispatch_one_async 里曾做这件事，但新 Celery 路径漏接了，
+            #  导致旧截图一直留在 R2 且仍被旧 log 引用。）
+            if old_log_id:
+                try:
+                    _cleanup_old_log_screenshot(db, old_log_id)
+                except Exception as cleanup_err:
+                    logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
 
             # AI 摘要改为后台异步生成（Celery ai_summary 队列，方案 §4.6）。
             try:
@@ -1008,6 +1019,22 @@ def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "
     db = SessionLocal()
     try:
         sub = get_subscription_by_id(db, subscription_id)
+        # 手动重触发同一天报告时，找出已存在的同 (订阅,日期,频率) 最新 log，
+        # 作为 old_log_id 传给 task body，发送成功后清理其旧截图，
+        # 避免重复截图在 R2 无限累积。
+        old_log_id = None
+        if sub is not None:
+            today_str = date.today().isoformat()
+            existing = db.execute(
+                sa_select(ScheduledReportDeliveryLog.id)
+                .where(
+                    ScheduledReportDeliveryLog.subscription_id == sub.id,
+                    ScheduledReportDeliveryLog.report_date == today_str,
+                    ScheduledReportDeliveryLog.frequency == sub.frequency,
+                )
+                .order_by(ScheduledReportDeliveryLog.id.desc())
+            ).first()
+            old_log_id = existing[0] if existing else None
     finally:
         db.close()
 
@@ -1031,6 +1058,7 @@ def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "
             ai_model=getattr(sub, "ai_model", None),
             triggered_by=triggered_by,
             report_date=date.today().isoformat(),
+            old_log_id=old_log_id,
         )
         return {
             "subscription_id": sub.id,

@@ -67,6 +67,7 @@ def collect_referenced_keys(db: Session, project_slug: str | None = None) -> set
         MonthlyReport,
         PlatformRevenue,
         AnalysisSourceFile,
+        ScheduledReportDeliveryLog,
     )
 
     referenced = set()
@@ -87,7 +88,18 @@ def collect_referenced_keys(db: Session, project_slug: str | None = None) -> set
         if row:
             referenced.add(row)
 
-    # 3. ExchangeRate thumbnail (通过前端生成路径)
+    # 3. ScheduledReportDeliveryLog 的 screenshot_r2_key / screenshot_r2_thumb_key
+    #    （定时报告截图，full + thumb 都反向引用，否则会被误判为孤儿而删除）
+    srdl_query = select(
+        ScheduledReportDeliveryLog.screenshot_r2_key,
+        ScheduledReportDeliveryLog.screenshot_r2_thumb_key,
+    )
+    for k_main, k_thumb in db.execute(srdl_query).all():
+        for row in (k_main, k_thumb):
+            if row:
+                referenced.add(row)
+
+    # 4. ExchangeRate thumbnail (通过前端生成路径)
     # thumbnail 路径格式: {project}/exchange-rate-thumb/{filename}
     # 这部分由 exchange_rates 端点动态生成，需要单独处理
 

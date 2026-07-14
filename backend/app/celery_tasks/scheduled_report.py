@@ -136,6 +136,7 @@ def dispatch_one(
     triggered_by: str = AUTO_TRIGGERED,
     report_date: str | None = None,
     pre_existing_log_id: int | None = None,
+    old_log_id: int | None = None,
 ) -> dict[str, Any]:  # noqa: F821 — local dict ok
     """Celery entry for the report dispatch body.
 
@@ -199,4 +200,5 @@ def dispatch_one(
         triggered_by=triggered_by,
         report_date=report_date,
         pre_existing_log_id=pre_existing_log_id,
+        old_log_id=old_log_id,
     )

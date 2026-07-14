@@ -608,6 +608,7 @@ def resend_ledger_entry_async(
         triggered_by="manual",
         report_date=entry.expected_date,
         pre_existing_log_id=log.id,
+        old_log_id=old_log_id,
     )
 
     # 用 _async_result 与旧 log 截图清理（仅用于 observability；旧截图清理
