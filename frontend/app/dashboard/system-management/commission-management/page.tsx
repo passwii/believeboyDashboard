@@ -509,7 +509,7 @@ export default function CommissionManagementPage() {
                   value={countryFilter}
                   onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
                 >
-                  <SelectTrigger className="w-[100px]">
+                  <SelectTrigger className="w-[120px] shrink-0">
                     <SelectValue placeholder="站点" />
                   </SelectTrigger>
                   <SelectContent>
