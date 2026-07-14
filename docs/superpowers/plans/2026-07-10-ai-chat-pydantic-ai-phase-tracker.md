@@ -83,7 +83,7 @@
 
 | 任务 | 原 plan 编号 | 状态 | 备注 |
 |---|---|---|---|
-| 任务 1：SearXNG Tavily adapter 返回格式 spike | — | 📋 未启动 | **必须先做**，决定 `_handle_tool_result` 怎么解析 content（dict vs list[dict]） |
+| 任务 1：SearXNG Tavily adapter 返回格式 spike | — | ✅ 完成（2026-07-13） | **决策：完全兼容 Tavily API** — spike 实测 POST `/search` 返回标准 Tavily dict；走 Pydantic AI 自带 `tavily_search_tool`，不走自定义 tool 备选。3/3 spike 单测 PASS。注：tavily-python 0.7.x 参数名是 `api_base_url`（不是 `base_url`）。 |
 | 任务 2：stream_mapper tool_calls 分支 | T4 | 📋 未启动 | 跟着 web_search 走 |
 | 任务 3：stream_mapper tool_result 分支（sources + tool_done） | T5 | 📋 未启动 | — |
 | 任务 4：Agent Factory 注册 `tavily_search_tool` | T7 增量 | 📋 未启动 | 同步追加依赖 `tavily-python` |
