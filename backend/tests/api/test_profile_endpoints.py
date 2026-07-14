@@ -9,14 +9,12 @@ Run with: ``cd backend && .venv/bin/pytest tests/api/test_profile_endpoints.py -
 from __future__ import annotations
 
 import io
-from typing import Iterator
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from app.main import app
 from app.core.config import get_settings
@@ -25,6 +23,11 @@ from app.db.session import SessionLocal
 
 # ---------- fixtures ----------
 
+# `db_session`, `test_operator`, and `operator_headers` come from the root
+# conftest (backend/tests/conftest.py), which binds the suite to the dedicated
+# test database and the seeded test accounts — so this test never touches a
+# real user row on the dev/prod DB.
+
 
 @pytest.fixture
 def client() -> TestClient:
@@ -32,65 +35,15 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def db_session() -> Iterator[Session]:
-    """Yield a transactional session and roll back at the end."""
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
+def existing_user(test_operator: dict) -> dict:
+    """Use the seeded test operator account from the test DB (no real users)."""
+    return {"row": test_operator, "created": False}
 
 
 @pytest.fixture
-def existing_user(db_session: Session) -> dict:
-    """Re-use the first user from user_accounts; if none, insert a stub.
-
-    Returns a dict with the row mapping and a ``created`` flag for
-    teardown decisions.
-    """
-    row = db_session.execute(
-        text(
-            """
-            select id::text as id, email, name, full_name, operator_name_zh,
-                   is_admin, is_active, role_type, avatar_url
-            from public.user_accounts
-            order by created_at asc
-            limit 1
-            """
-        )
-    ).mappings().first()
-
-    if row is None:
-        inserted = db_session.execute(
-            text(
-                """
-                insert into public.user_accounts (name, email, password_hash)
-                values ('__profile_test_user__', 'profile-test@example.com', 'x' || repeat('a', 30))
-                returning id::text as id, email, name, full_name, operator_name_zh,
-                          is_admin, is_active, role_type, avatar_url
-                """
-            )
-        ).mappings().first()
-        db_session.commit()
-        return {"row": inserted, "created": True}
-
-    return {"row": row, "created": False}
-
-
-@pytest.fixture
-def auth_headers(existing_user: dict) -> dict:
-    user = existing_user["row"]
-    settings = get_settings()
-    return {
-        "X-API-Key": settings.api_key,
-        "X-User-Id": str(user["id"]),
-        "X-User-Email": user["email"],
-        "X-User-Name": user["name"],
-        "X-Operator": user["name"],
-        "X-Is-Admin": "false",
-        "X-Role-Type": "operator",
-    }
+def auth_headers(operator_headers: dict) -> dict:
+    """Auth headers for the seeded test operator account."""
+    return operator_headers
 
 
 def _make_png_bytes(size: int = 1024) -> bytes:

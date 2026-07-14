@@ -1,0 +1,168 @@
+"""Root pytest fixtures for the dedicated test database.
+
+This conftest makes the whole ``backend/tests`` suite run against the
+dedicated test Postgres database (BEL: test isolation) instead of the dev/prod
+DB. It:
+
+  * loads ``backend/.env.test`` (gitignored) so ``TEST_DATABASE_URL`` and the
+    test-account passwords are available without exporting them each run;
+  * skips DB-touching tests when ``TEST_DATABASE_URL`` is not set, so we never
+    silently run against the dev/prod database;
+  * exposes `db_session` (rolled back per test) and fixtures for the seeded
+    test accounts (admin / operator / businessdev) plus ready-made auth headers.
+
+The target DB is configured once via ``scripts/setup_test_db.py`` and is
+persistent — it is NOT dropped/recreated per run.
+"""
+from __future__ import annotations
+
+import os
+import base64
+import sys
+from pathlib import Path
+from typing import Iterator
+
+import pytest
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+ROOT = Path(__file__).resolve().parents[1]  # backend/
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def _load_env_test() -> None:
+    """Load ``backend/.env.test`` so the test DB URL is available.
+
+    ``.env.test`` is gitignored; it holds ``TEST_DATABASE_URL`` and the
+    ``TEST_*_PASSWORD`` values. Loading it here (before importing ``app``)
+    means the SQLAlchemy engine built in ``app.db.session`` resolves to the
+    test database with no shell exports required.
+    """
+    env_path = ROOT / ".env.test"
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+_load_env_test()
+
+# Known before importing app (engine is built from get_settings() at import).
+HAS_TEST_DATABASE = bool(os.environ.get("TEST_DATABASE_URL"))
+
+
+def _require_test_database() -> None:
+    """Skip DB-touching tests when no dedicated test DB is configured."""
+    if not HAS_TEST_DATABASE:
+        pytest.skip(
+            "TEST_DATABASE_URL is not set — tests would hit the dev/prod DB. "
+            "Run `python scripts/setup_test_db.py` (creates + migrates + seeds "
+            "the test DB) and set TEST_DATABASE_URL in backend/.env.test."
+        )
+
+
+@pytest.fixture(scope="session")
+def settings():
+    """App settings — reflects TEST_DATABASE_URL override."""
+    from app.core.config import get_settings
+
+    return get_settings()
+
+
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    """Yield a transactional session bound to the test DB; roll back at end."""
+    _require_test_database()
+    from app.db.session import SessionLocal
+
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+
+
+def _fetch_account(db: Session, email: str) -> dict:
+    """Fetch a seeded test account by email, failing clearly if missing."""
+    row = (
+        db.execute(
+            text(
+                """
+                select id::text as id, email, name, full_name, operator_name_zh,
+                       is_admin, is_active, role_type, avatar_url
+                from public.user_accounts
+                where lower(email) = lower(:email)
+                limit 1
+                """
+            ),
+            {"email": email},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        pytest.fail(
+            f"Test account {email!r} not found in the test DB. "
+            f"Seed it with `python scripts/seed_test_accounts.py`."
+        )
+    return dict(row)
+
+
+def _auth_headers(settings, account: dict) -> dict:
+    """Build the backend auth headers for a test account (header-based auth).
+
+    Non-ASCII header values (the Chinese name) are base64-encoded, matching
+    what the frontend proxy sends — `app.api.deps._decode_header_value` decodes
+    it back. This keeps the httpx TestClient happy (header values must be
+    latin-1) and mirrors production.
+    """
+    is_admin = bool(account["is_admin"])
+    encoded_name = base64.b64encode(str(account["name"]).encode("utf-8")).decode("ascii")
+    return {
+        "X-API-Key": settings.api_key,
+        "X-User-Id": str(account["id"]),
+        "X-User-Email": account["email"],
+        "X-User-Name": encoded_name,
+        "X-Operator": encoded_name,
+        "X-Is-Admin": "true" if is_admin else "false",
+        "X-Role-Type": account.get("role_type") or ("admin" if is_admin else "operator"),
+    }
+
+
+@pytest.fixture
+def test_admin(db_session, settings) -> dict:
+    """The seeded test admin account (is_admin=true)."""
+    return _fetch_account(db_session, settings.test_admin_email)
+
+
+@pytest.fixture
+def test_operator(db_session, settings) -> dict:
+    """The seeded test operator account (role_type=operator)."""
+    return _fetch_account(db_session, settings.test_operator_email)
+
+
+@pytest.fixture
+def test_businessdev(db_session, settings) -> dict:
+    """The seeded test businessdev account (role_type=businessdev)."""
+    return _fetch_account(db_session, settings.test_businessdev_email)
+
+
+@pytest.fixture
+def admin_headers(test_admin, settings) -> dict:
+    return _auth_headers(settings, test_admin)
+
+
+@pytest.fixture
+def operator_headers(test_operator, settings) -> dict:
+    return _auth_headers(settings, test_operator)
+
+
+@pytest.fixture
+def businessdev_headers(test_businessdev, settings) -> dict:
+    return _auth_headers(settings, test_businessdev)
