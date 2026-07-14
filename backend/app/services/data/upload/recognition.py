@@ -129,7 +129,17 @@ def recognize_saved_report_upload(
             df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
             match_by = "asin"
             asin_col = next(
-                (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
+                (
+                    c for c in [
+                        "（子）asin",
+                        "(子)asin",
+                        "子asin",
+                        "asin",
+                        "(child) asin",
+                        "(parent) asin",
+                    ]
+                    if c in df.columns
+                ),
                 None,
             )
             if asin_col:

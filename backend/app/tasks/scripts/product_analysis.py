@@ -78,7 +78,7 @@ def _read_business_report(path: Path) -> pd.DataFrame:
     df.columns = [str(col).strip() for col in df.columns]
 
     aliases = {
-        'ASIN': ['（子）ASIN', '(子)ASIN', '子ASIN', 'ASIN'],
+        'ASIN': ['（子）ASIN', '(子)ASIN', '子ASIN', 'ASIN', '(Child) ASIN', '(Parent) ASIN'],
         '页面浏览量': ['页面浏览量 - 总计', '页面浏览量-总计', 'Page Views - Total'],
         '总销量': ['已订购商品数量', 'Ordered Product Sales Units', 'Units Ordered'],
         '总访客': ['会话数 - 总计', '会话数-总计', 'Sessions - Total'],

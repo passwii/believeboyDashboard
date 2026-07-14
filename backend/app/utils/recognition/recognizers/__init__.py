@@ -108,7 +108,14 @@ def recognize_business_report(path: Path, country: str = "US", original_filename
     asin_column = next(
         (
             column
-            for column in ["（子）asin", "(子)asin", "子asin", "asin"]
+            for column in [
+                "（子）asin",  # 中文界面: （子）ASIN
+                "(子)asin",    # 半角全角混用
+                "子asin",      # 无括号
+                "asin",        # 退化匹配（无子项标记）
+                "(child) asin",   # EN 界面: (Child) ASIN
+                "(parent) asin",  # EN 界面: (Parent) ASIN,叶子 ASIN 缺失时的退化
+            ]
             if column in df.columns
         ),
         None,
@@ -295,7 +302,17 @@ def recognize_file(
             try:
                 df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
                 asin_col = next(
-                    (c for c in ["（子）asin", "(子)asin", "子asin", "asin"] if c in df.columns),
+                    (
+                        c for c in [
+                            "（子）asin",
+                            "(子)asin",
+                            "子asin",
+                            "asin",
+                            "(child) asin",
+                            "(parent) asin",
+                        ]
+                        if c in df.columns
+                    ),
                     None,
                 )
                 if asin_col:

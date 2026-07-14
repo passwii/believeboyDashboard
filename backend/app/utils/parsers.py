@@ -197,7 +197,14 @@ def parse_business_rows(
     df.columns = [str(col).strip() for col in df.columns]
 
     aliases = {
-        "asin": ["（子）ASIN", "(子)ASIN", "子ASIN", "ASIN"],
+        "asin": [
+            "（子）ASIN",
+            "(子)ASIN",
+            "子ASIN",
+            "ASIN",
+            "(Child) ASIN",    # EN 界面
+            "(Parent) ASIN",   # EN 界面 fallback
+        ],
         "page_views": ["页面浏览量 - 总计", "页面浏览量-总计", "Page Views - Total"],
         "units_ordered": ["已订购商品数量", "Ordered Product Sales Units", "Units Ordered"],
         "sessions": ["会话数 - 总计", "会话数-总计", "Sessions - Total"],
