@@ -16,9 +16,9 @@ VPS 部署 Agent - BelieveBoy Dashboard
 2. git pull 拉取最新代码
 3. 激活后端虚拟环境
 4. 运行 alembic 数据库迁移
-5. 重启 believeboy-api 服务
-6. 验证服务运行状态
-7. 获取并分析部署失败的日志
+ 5. 重启 believeboy-api 服务与两个 Celery worker（believeboy-worker / believeboy-worker-scheduled）
+ 6. 验证服务运行状态
+ 7. 获取并分析部署失败的日志
 """
 
 import subprocess
@@ -42,12 +42,20 @@ DEPLOY_COMMANDS = [
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
     "systemctl restart believeboy-api",
+    # BEL-补发修复：Celery worker 必须随代码部署一起重启，否则旧进程内存里
+    # 的 task 签名不更新（如 dispatch_one 的 old_log_id 参数），补发任务会
+    # 抛 TypeError 并永久卡在 preparing。两个 worker 均用 acks_late +
+    # task_reject_on_worker_lost，重启时 in-flight 任务会被 broker 重投，安全。
+    "systemctl restart believeboy-worker.service",
+    "systemctl restart believeboy-worker-scheduled.service",
     "systemctl status believeboy-api --no-pager",
 ]
 
 # 检查命令（部署后验证）
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
+    "systemctl is-active believeboy-worker.service",
+    "systemctl is-active believeboy-worker-scheduled.service",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"import app.main\"",
 ]
 
@@ -330,6 +338,12 @@ def deploy(dry_run=False, auto_confirm=False):
         try:
             subprocess.run(
                 f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-api --no-pager -n 20'",
+                shell=True,
+                timeout=30,
+            )
+            # 一并显示 scheduled worker 启动日志，确认新代码已加载、dispatch_one 已注册
+            subprocess.run(
+                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-worker-scheduled --no-pager -n 12'",
                 shell=True,
                 timeout=30,
             )
