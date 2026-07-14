@@ -437,6 +437,7 @@ def _classify_monthly_rows(
         "FBA Inventory Reimbursement - General Adjustment",
         "Non-subscription Fee Adjustment",
         "Other",
+        "Buyer Recharge",
     }
     ad_excluded_descriptions = {"Cost of Advertising", "Refund for Advertiser"}
 

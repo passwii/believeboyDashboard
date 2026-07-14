@@ -57,6 +57,7 @@ def classify_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]
         "FBA Inventory Reimbursement - General Adjustment",
         "Non-subscription Fee Adjustment",
         "Other",
+        "Buyer Recharge",
     }
     ad_excluded_descriptions = {
         "Cost of Advertising",

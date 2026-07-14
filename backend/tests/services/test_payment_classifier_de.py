@@ -132,3 +132,35 @@ class TestAdjustmentOtherDescription:
         # Only the lost-in-warehouse line should reach the FBA inventory
         # credit bucket; the negative "Other" must not cancel it.
         assert float(result["pt3"]["income_fba_inventory_credit"]) == 8.50
+
+
+class TestAdjustmentBuyerRechargeDescription:
+    """BEL-?: ``Buyer Recharge`` Adjustment description must hit
+    adjustment_expense, not adjustment_income. Like "Other", Amazon's
+    "Buyer Recharge" adjustments are not FBA inventory credits and must
+    not inflate ``income_fba_inventory_credit`` on PT3's income side."""
+
+    def test_english_buyer_recharge_routes_to_expense(self):
+        rows = [_de_row("Adjustment", "Buyer Recharge", total=-4.00)]
+        classified = classify_rows(rows)
+        assert len(classified["adjustment"]) == 1
+        assert len(classified["adjustment_expense"]) == 1
+        assert len(classified["adjustment_income"]) == 0
+
+    def test_buyer_recharge_amount_excluded_from_fba_inventory_credit(self):
+        from app.services.payment.financial import compute_metrics
+        rows = [
+            _de_row("Adjustment", "Buyer Recharge", total=-4.00),
+            # Keep a positive lost-in-warehouse row to confirm the
+            # carve-out only affects the "Buyer Recharge" line.
+            _de_row(
+                "Anpassung",
+                "Versand durch Amazon Erstattung für Lagerbestand - Im Lager verloren",
+                total=8.50,
+            ),
+        ]
+        classified = classify_rows(rows)
+        result = compute_metrics(classified, country="DE")
+        # Only the lost-in-warehouse line should reach the FBA inventory
+        # credit bucket; the "Buyer Recharge" must not cancel it.
+        assert float(result["pt3"]["income_fba_inventory_credit"]) == 8.50
