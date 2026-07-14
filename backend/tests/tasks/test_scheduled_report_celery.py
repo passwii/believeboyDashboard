@@ -542,6 +542,53 @@ class TestDispatchOneDelegatesToBody:
         assert result["status"] == "skipped_already_sent"
         assert result["log_id"] == 999
 
+    def test_dispatch_one_resend_preexisting_log_not_short_circuited(self):
+        """BEL-补发回归：补发路径下，即便已存在成功的 manual log，
+        dispatch_one 也绝不能被 _return_if_already_sent 短链路拦截，
+        否则新创建的 preparing log（pre_existing_log_id）会永远停在
+        PREPARING，前端轮询一直显示「准备中」。
+
+        校验：pre_existing_log_id 非空时，body 必须被调用且透传该 id。
+        """
+        from app.celery_tasks import scheduled_report as sr_mod
+
+        captured_kwargs = {}
+
+        def _fake_task_body(**kwargs):
+            captured_kwargs.update(kwargs)
+            return {"status": "ok", "received": kwargs}
+
+        with patch.object(
+            sr_mod,
+            "_return_if_already_sent",
+            return_value=999,  # 假装已存在成功的 manual log
+        ) as short, \
+                patch.object(sr_mod, "_sync_module_global_report_date"), \
+                patch(
+                    "app.services.scheduled_report.dispatcher._dispatch_one_task_body",
+                    side_effect=_fake_task_body,
+                ) as body:
+            result = sr_mod.dispatch_one.run(
+                subscription_id=22,
+                email=None,
+                project_ids=None,
+                country="US",
+                frequency="daily",
+                report_date="2026-07-14",
+                triggered_by="manual",
+                pre_existing_log_id=894,  # 补发：调用方已建好的 preparing log
+                old_log_id=893,
+            )
+
+        # 关键：补发路径必须「完全跳过」幂等短链路（不调用
+        # _return_if_already_sent），且 body 一定要跑，绝不能直接返回
+        # skipped_already_sent 把新 log 丢在 PREPARING。
+        short.assert_not_called()
+        body.assert_called_once()
+        assert result["status"] == "ok"
+        assert captured_kwargs["pre_existing_log_id"] == 894
+        assert captured_kwargs["old_log_id"] == 893
+
 
 # ---------------------------------------------------------------------------
 # Migration files sanity (P0-3 expected SQL symbols present)
