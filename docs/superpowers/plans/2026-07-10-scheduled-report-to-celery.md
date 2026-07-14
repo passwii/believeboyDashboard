@@ -10,14 +10,16 @@
 ## 1. 背景与动机
 
 ### 1.1 现状
+
 后台任务有**两套完全脱钩的系统**：
 
 | 系统 | 运行位置 | 职责 | 触发方式 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Celery Worker**（`belieboy-worker.service`） | 独立 systemd 进程 | 手动报表 `run_job`、AI 洞察 `generate_insight` | 业务代码 `.delay()` |
 | **APScheduler** | **API 进程内**（`app/main.py:108` startup 调 `init_scheduler()`） | 定时报告（数据→HTML→截图→邮件） | 每分钟 cron 扫描订阅 → `ThreadPoolExecutor`（≤8 线程）同步跑 |
 
 代码证据：
+
 - `scheduler.py:155` 在 API 进程内 `BackgroundScheduler().start()`，每分钟 `_run_minutely_scan` 匹配订阅；
 - `dispatcher._dispatch_one`（`dispatcher.py:588`）在 API 进程内 `ThreadPoolExecutor` 里**同步**跑完"拉数据→渲染→截图→发邮件"全流程；
 - `enqueue_ai_summary_generation`（`ledger_service.py:406`）**也不是 Celery**，只是 `threading.Thread(daemon=True).start()`；
@@ -25,11 +27,13 @@
 - **补发链路（`resend_ledger_entry_async`）走的是 `dispatcher.py:_dispatch_one_async`（973 行起）**：resend 接口（前端台账补发按钮触发）收到后用 `threading.Thread` 把任务甩到后台线程，跑完"数据→渲染→截图→发邮件"全流程，调 `enqueue_ai_summary_generation` 启 AI 摘要后台线程。它已经在内存形态上"后台化"，但同样不在 Celery 进程内、与本方案同根问题。本方案把 `_dispatch_one_async` 与 `_dispatch_one` 视为同一类主体，**§7 改动清单 + Phase 1 实现路径都要覆盖**：resend 入口必须迁到 Celery（函数体可保留作回滚形态或兜底）。
 
 ### 1.2 VPS 生产数据（2026-07-09 拉取）
+
 - **定时报告**（`scheduled_report_*` 表）：启用订阅 **25 个**（daily 11 / weekly 10 / monthly 4）；发送记录 **650 条**，**最近 30 天 437 条**。
 - **Celery Worker**（jobs + ai_insights 表）：最近 30 天仅 **22 条**。
 - **结论**：定时报告使用量 ≈ Celery Worker 的 **20 倍**，是事实上的"最高频后台功能"——但它跑在 API 进程，不在 Worker。
 
 ### 1.3 为什么该迁
+
 1. **重活在 API 进程内跑**：报告生成含 DB 大查询、HTML 渲染、**Playwright headless 截图**、SMTP 发送，与 API 请求共享内存 / DB 连接池。
 2. **无 broker 持久化 / 重试**：API 重启即丢失在途报告；Celery 有 `acks_late=True` + `max_retries=3` 天然容错。
 3. **未来多副本重复触发风险**：`deployment-runbook.md` 已规划 API `--workers 4`，多副本各自跑 APScheduler 会重复触发。
@@ -38,12 +42,14 @@
 ---
 
 ## 2. 目标
+
 - APScheduler 退化为**纯轻量定时器**：到点只负责把消息 `delay()` 进 broker，立即返回，不执行报告主体。
 - 报告生成主体（数据→HTML→截图→邮件）迁为 Celery task，由 Worker 的 **`scheduled` 队列**执行。
 - AI 摘要作为独立 Celery 子 task 进 **`ai_summary` 队列**（与主报告解耦，与定时洞察隔离限流）。
 - 不破坏 `scheduled_report_delivery_logs` 状态机与前端轮询。
 
 ## 3. 非目标
+
 - 不改变订阅模型 / 发送频率 / 邮件模板 / AI 摘要文案逻辑（纯执行位置迁移）。
 - 不重构 `run_job` / `generate_insight`（已正确在 Worker）。
 - 不处理 `jobs` 表里 `daily_report` 的 4 条历史记录来源（独立遗留）。
@@ -57,6 +63,7 @@
 > 以下 9 条均已和用户逐条对齐，无歧义。详见 §6 各 Phase 的落地映射。
 
 ### 4.1 P0-1 报告日期固化（防跨天错乱）
+
 - APScheduler 在 15:00 触发的那一刻算 `report_date = date.today().isoformat()`，作为 `dispatch_one_task.apply_async(report_date=report_date, ...)` 参数传进去。
 - **task 内禁用 `date.today()`**，所有日期推导仅用传入 `report_date`。
 - `_summary_cache` / `_dispatch_date_str` 的缓存失效判断也基于**传入 `report_date`**，不再调用 `date.today()`。
@@ -67,6 +74,7 @@
 - 模块全局策略写在 Phase 1「抽 `_dispatch_one` 主体到 `dispatch_one_task`」步骤里：用 `_dispatch_one_core(subscription_id, ..., report_date, ...)` 暴露可独立调用函数，`dispatch_one_task` 与旧 `_dispatch_one` 共享该 core；core 首段按上面 1、3 处理模块全局。
 
 ### 4.2 P0-2 邮件幂等护栏（防重试重复发邮件）⭐ 承重墙
+
 - task 进入时先查 `scheduled_report_delivery_logs`：是否已存在 `(subscription_id, frequency, report_date)` 的 log 且 `sent_at` 非空（邮件已发）→ **直接 `return`**，不重跑、不重发。
 - `send_*_report_email` 成功后**立刻** `mark_delivery_success`（持久化 `sent_at`）并 `db.commit()`，再继续截图 / AI 摘要。
 - 复用现有 delivery_log 而非每次新建：先按 `(sub, freq, report_date, triggered_by="auto")` 查，无则创建，有则复用该 log 继续 stage 推进。
@@ -78,15 +86,19 @@
 - **回滚影响**：唯一约束 + 新代码一并回滚（Phase 6 改 env 即可）；旧路径不感知这层护栏（用普通 `INSERT`）。
 
 ### 4.3 P1-3 缓存复用丧失 → 接受（DB 观察）
+
 - 不引入 Redis 缓存层、不拆独立进程来恢复缓存共享。
 - 接受"prefork 子进程内跨任务仍复用，跨子进程退化"——最坏退化到 ~子进程数（2）次。
 - 上线后用 `pg_stat_statements` / 慢查询日志观察报表类查询，**确认实际退化幅度再决定要不要进一步优化**。
 
 ### 4.4 P1-4 独立 `scheduled` worker 进程（内存隔离 + 顺带减缓存退化）
+
 - 新增轻量 systemd unit：`believeboy-worker-scheduled.service`，ExecStart 为：
+
   ```
   celery -A app.tasks.celery_app worker -Q scheduled -c 2 --loglevel=info
   ```
+
 - scheduled 进程**不消费** `ai_summary` / `insights` / `reports` / `default`。
 - 现有 `reports/insights` worker 进程 `-Q` 改成 `default,reports,insights,ai_summary`（当前是 `default,reports,insights`，本方案在 Phase 4 改造）。
 - 收益：
@@ -95,19 +107,24 @@
   3. 并发 `-c 2` 削峰。
 
 ### 4.5 P1-5 触发侧 `countdown` 错峰（不挤同一瞬间）
+
 - `_dispatch_subscriptions` 对同一分钟匹配到的 N 个订阅，按 `sub.id` 排序，第 `i` 个用：
+
   ```python
   dispatch_one_task.apply_async(
       kwargs={...},
       countdown=i * SCHEDULED_DISPATCH_SPREAD_SECONDS,  # 默认 60s；i 从 0 起（即 0 / 60 / 120 … 秒）
   )
   ```
+
 - 默认间隔 60s，间隔常量配置化（`SCHEDULED_DISPATCH_SPREAD_SECONDS`）。
 - 11 个 daily 订阅 15:00 齐发 → broker 错峰 15:00 / 15:01 / ... / 15:10。
 - 与 P1-4 独立 `-c 2` 进程**两层防护**：触发侧错峰 + 执行侧限并发。
 
 ### 4.6 P2-5 AI 摘要独立 `ai_summary` 队列（B2）
+
 - 新增 `backend/app/celery_tasks/ai_summary.py`：
+
   ```python
   @shared_task(
       name="generate_delivery_summary",
@@ -127,6 +144,7 @@
               log_id=log_id, ledger_key=ledger_key, override_ai_model=override_ai_model,
           )
   ```
+
 - 路由：`task_routes` 加 `"generate_delivery_summary": {"queue": "ai_summary"}`（Phase 1 与 `dispatch_one` 路由块一起写）。
 - 独立信号量 key `"ai_summary"`，**上限 `MAX_CONCURRENT_AI_SUMMARY=5`**。
   - 取 5 的依据：现有 `generate_insight` 占 3 路（`max_concurrent_insights=3`），ai_summary 额外允许 5 路 LLM 调用；
@@ -137,20 +155,23 @@
 - `dispatch_one_task` 末尾改为：`ai_summary_task.delay(log_id=log_id, ledger_key=ledger_key, override_ai_model=ai_model)`。
 
 ### 4.7 P2-6 开关语义（双开关）
+
 - `ENABLE_SCHEDULER`（默认 `true`）：API 进程是否启动 APScheduler。**多副本时仅一个副本设 `true`**，防重复触发。
 - `SCHEDULED_REPORT_VIA_CELERY`（默认 `true`）：APScheduler 触发后走 `delay()`（Worker）还是 `ThreadPoolExecutor`（原地同步）。
 - 组合矩阵如下，必须文档化（见 §11）：
 
 | `ENABLE_SCHEDULER` | `SCHEDULED_REPORT_VIA_CELERY` | 结果 |
-|---|---|---|
+| --- | --- | --- |
 | `true`（默认） | `true`（默认） | 正常：APScheduler 启动 + `delay()` 走 Worker |
 | `true` | `false` | APScheduler 启动但**仍同步跑**（回滚形态，不动代码） |
 | `false` | 任意 | APScheduler 不启动，两条路径都不会跑 |
 
 ### 4.8 P2-7 `time_limit` 取值验证
+
 - 报告主体 task：`soft_time_limit=600, time_limit=900` **占位**。
 - AI 摘要 task：`soft_time_limit=300, time_limit=420` **占位**。
 - **实现前必须**跑一次 `scheduled_report_delivery_logs` 的真实耗时（按 `frequency` 分组的 `sent_at - created_at` 的 P50 / P90 / P99）：
+
   ```sql
   SELECT frequency,
          COUNT(*) AS runs,
@@ -161,9 +182,11 @@
    WHERE status = 'sent'
    GROUP BY frequency;
   ```
+
 - 跑出来再调上下限；月度超 15min 是 bug 而非常态。
 
 ### 4.9 P2-8 旧路径必须保留（回滚不出代码）
+
 - APScheduler 的 `_dispatch_subscriptions`（`scheduler.py:107`）用 `if SCHEDULED_REPORT_VIA_CELERY:` **分支**：
   - `true` → `dispatch_one_task.apply_async(countdown=i*SPREAD_SECONDS, kwargs=...)`（P1-5 错峰 + P0-1 report_date + P0-2 通过 task 自身护栏）
   - `false` → 原 `ThreadPoolExecutor(... submit(_dispatch_one, ...))` **一行不动**（保留原 `_dispatch_one` 函数原封不动，不重构删除）
@@ -174,7 +197,7 @@
 ## 5. 红线 & 边界
 
 | 绝对红线 | 不能重复发邮件（P0-2 护栏） |
-|---|---|
+| --- | --- |
 | 容忍区 | LLM 重试浪费配额 / `ai_summary_status` 重复推进 / 缓存不同子进程间不共享 / `_dispatch_one` 期间 API 重启丢该任务 |
 | 已决不做的 | Redis 跨进程缓存（除非 P1-3 观察显示 DB 压力明显）、迁移 `scheduled_report_*` 数据表、改造 `DeliveryStage` / `DeliveryStatus` 枚举、改前端轮询路径、把 reports worker -Q 加 scheduled |
 
@@ -183,6 +206,7 @@
 ## 6. 落地 Phase
 
 ### Phase 1 — 新增 Celery task + 路由 + 队列
+
 - 新建 `backend/app/celery_tasks/scheduled_report.py`：`dispatch_one_task`，主体搬自现有 `_dispatch_one`：
   - `report_date` 作为硬必传参数，task 内禁 `date.today()`；
   - 进入先按 `(sub, freq, report_date, triggered_by)` 行级锁查 `sent_at` 已发则 return（P0-2 / P0-3）；
@@ -194,32 +218,39 @@
 - 修改 `backend/app/tasks/celery_app.py`：
   - `include` 加 `app.celery_tasks.scheduled_report` + `app.celery_tasks.ai_summary`；
   - `task_routes` 加：
+
     ```python
     "dispatch_one": {"queue": "scheduled"},
     "generate_delivery_summary": {"queue": "ai_summary"},
     ```
 
 ### Phase 2 — APScheduler 触发改造
+
 - `scheduler.py:_dispatch_subscriptions`（107-138）按 4.7 矩阵用 `if SCHEDULED_REPORT_VIA_CELERY:` 分支：
   - `true`：`apply_async(countdown=i*SPREAD_SECONDS, kwargs={..., "report_date": date.today().isoformat()})`；
   - `false`：原 `ThreadPoolExecutor(... submit(_dispatch_one, ...))` **原样保留**。
 - `dispatcher.py:dispatch_report_for_subscription`（913-946，手动触发）改为同样走 task（`true` 分支）。
 
 ### Phase 3 — P2-7 `time_limit` 数据验证（实现前阻塞）
+
 - 在 VPS 跑 §4.8 的 SQL；
 - 根据 P50/P90/P99 数据**调上下限**（实践再确认），不能盲调。
 
 ### Phase 4 — systemd 新增 `belieboy-worker-scheduled.service`
+
 - 新增 `backend/deploy/systemd/believeboy-worker-scheduled.service`（参考现有 worker unit 改）：
+
   ```
   ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
             -A app.tasks.celery_app worker \
             -Q scheduled -c 2 --loglevel=info
   ```
+
 - VPS 上 `systemctl daemon-reload && systemctl enable --now believeboy-worker-scheduled`。
 - 现有 `belieboy-worker.service` ExecStart 的 `-Q` 改为 `default,reports,insights,ai_summary`（**保持不变即可**——原本就是 `default,reports,insights`，现在加 `ai_summary`）。
 
 ### Phase 5 — 配置项
+
 - `backend/app/core/config.py` 新增字段（带 docstring 写清 §4.7 矩阵）：
   - `enable_scheduler: bool = True`
   - `scheduled_report_via_celery: bool = True`
@@ -228,6 +259,7 @@
 - `backend/.env.example` 补这 4 项及说明（P2-6 / P2-7）。
 
 ### Phase 6 — 灰度与回滚（不依赖代码改动）
+
 - **生产灰度建议顺序**：
   1. 部署代码，但 `SCHEDULED_REPORT_VIA_CELERY=false`（旧路径跑，新代码空载）。
   2. 手动验证：API 进程的 `python` 脚本调 `dispatch_one_task.delay(sub_id, report_date)`，查 delivery_logs 正常演进 + 邮件收到 + 截图正常。
@@ -244,7 +276,7 @@
 ## 7. 改动文件清单
 
 | 文件 | 改动 |
-|---|---|
+| --- | --- |
 | `backend/app/celery_tasks/scheduled_report.py` | **新建**：`dispatch_one_task`（主体搬自 `_dispatch_one`，加 P0-1/P0-2 护栏，P1-5 由外部传入 countdown） |
 | `backend/app/celery_tasks/ai_summary.py` | **新建**：`generate_delivery_summary`（P2-5） |
 | `backend/app/tasks/celery_app.py` | `include` +2（追加 `app.celery_tasks.scheduled_report` / `app.celery_tasks.ai_summary`）；`task_routes` +2（`dispatch_one` → `scheduled`、`generate_delivery_summary` → `ai_summary`，统一短名对齐现有 `generate_insight` 风格） |
@@ -263,7 +295,7 @@
 ## 8. 风险与缓解
 
 | 风险 | 缓解 |
-|---|---|
+| --- | --- |
 | Worker 环境 chromium 缺失 → 截图全失败 | Playwright 已在生产配好（用户确认）；实现后跑一次手动 `dispatch_one_task.delay(sub_id)` 冒烟验证截图产出 |
 | AI 摘要 `time_limit=420s` 偏紧 | Phase 3 实现前跑 `delivery_logs` 真实耗时按需调 |
 | `scheduled` 进程 `-c 2` 处理 11 个 daily 积压耗时过长 | P1-5 countdown 错峰把高峰拉成 10 分钟，均衡负载 |
@@ -276,6 +308,7 @@
 ---
 
 ## 9. 测试策略
+
 1. **单测**：抽离 `_dispatch_one` 的核心为可单测函数 `dispatch_one_core(...)`（避免对模块全局状态的硬依赖），复用现有 `tests/services/scheduled_report/*` 测试用例。
 2. **集成**（手动）：
    - `dispatch_one_task.delay(sub_id, report_date='2026-07-10')` → 查 `delivery_logs.stage` 演进 + 邮件 + R2 截图；
@@ -287,6 +320,7 @@
 ---
 
 ## 10. 验收标准
+
 - [ ] 定时报告经 `scheduled` 队列执行（`journalctl -u believeboy-worker-scheduled` 可见 `dispatch_one` 日志）。
 - [ ] 11 个 daily 订阅 15:00 触发时，broker 消息带 `countdown=i*60` 错峰（验证 worker 日志 / broker 工具）。
 - [ ] `scheduled_report_delivery_logs.stage` / `status` 演进与迁移前一致，前端轮询无感。
@@ -323,6 +357,7 @@
 ---
 
 ## 12. 后续文档更新
+
 - `backend/docs/multi-worker-ops.md`：新增 `scheduled` 与 `ai_summary` 队列说明、堆积阈值、OOM 处置。
 - `docs/REFERENCE.md`：Background Jobs 段更新——`scheduled_report` 现走 Celery `scheduled` 队列，APScheduler 仅做定时器。
 - `docs/deployment-runbook.md`：补充 APScheduler 多实例去重（`ENABLE_SCHEDULER`）说明。
