@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pytest
 from playwright.sync_api import Page, APIRequestContext
 
+from scripts.agent_testing.auth import login_as
 from scripts.agent_testing.conftest import TEST_ACCOUNTS, FRONTEND_URL
 
 
@@ -25,14 +26,6 @@ from scripts.agent_testing.conftest import TEST_ACCOUNTS, FRONTEND_URL
 def new_api_context(page: Page) -> APIRequestContext:
     """Create an APIRequestContext that shares the browser's cookie state."""
     return page.context.request
-
-
-def login_as(page: Page, email: str, password: str):
-    page.goto(f"{FRONTEND_URL}/login", wait_until="networkidle")
-    page.locator("#email").fill(email)
-    page.locator("#password").fill(password)
-    page.get_by_role("button", name="立即登录").click()
-    page.wait_for_url(lambda u: "/login" not in u, timeout=15_000)
 
 
 # ---------------------------------------------------------------------------

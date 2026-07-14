@@ -6,20 +6,8 @@ from playwright.sync_api import Page, expect
 # Import shared config
 import sys
 sys.path.insert(0, str(__file__).rsplit("/", 3)[0])
+from scripts.agent_testing.auth import login_as
 from scripts.agent_testing.conftest import TEST_ACCOUNTS, FRONTEND_URL
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def login_as(page: Page, email: str, password: str):
-    """Log in via NextAuth credentials provider and wait for redirect."""
-    page.goto(f"{FRONTEND_URL}/login", wait_until="networkidle")
-    page.locator("#email").fill(email)
-    page.locator("#password").fill(password)
-    page.get_by_role("button", name="立即登录").click()
-    page.wait_for_url(lambda u: "/login" not in u, timeout=15_000)
 
 
 def assert_contains_text(page: Page, text: str, timeout: int = 5000):

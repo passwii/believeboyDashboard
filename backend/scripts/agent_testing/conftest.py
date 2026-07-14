@@ -1,8 +1,24 @@
-"""Shared fixtures for agent testing.
+"""Shared fixtures for agent testing (Playwright E2E against the test DB).
 
-This conftest sets up Playwright browser automation for the test suite.
-It creates the `page` fixture by launching a Chromium browser.
+End-to-end flow (all defined in this repo, so AI agents can self-serve):
+
+  1. One-time: build the dedicated test database + seed the test accounts
+     (admin / operator / businessdev). See ``scripts/setup_test_db.py``
+     (it clones the dev schema via pg_dump and seeds the accounts). The
+     accounts and their passwords come from ``backend/.env.test``
+     (TEST_ADMIN_EMAIL / TEST_*_PASSWORD, etc.).
+  2. Start the backend with ``TEST_DATABASE_URL`` pointing at that DB, and
+     the frontend (FRONTEND_URL) proxying to it.
+  3. Write tests that call ``login_as(page, "admin" | "operator" |
+     "businessdev")`` (from ``scripts.agent_testing.auth``). That helper
+     performs a selector-free NextAuth credentials sign-in over the REST
+     API and reuses a cached Playwright session per role — no brittle UI
+     login. See ``auth.py`` / README.md for details.
+
+``TEST_ACCOUNTS`` below holds the test-account credentials; passwords are
+required from env (never hardcoded).
 """
+
 import os
 import sys
 from pathlib import Path
@@ -31,9 +47,13 @@ def _require(name: str) -> str:
 
 
 # Test accounts — credentials MUST come from env, never hardcoded.
+# Defaults point at the dedicated test-database accounts seeded by
+# `scripts/seed_test_accounts.py` (run `scripts/setup_test_db.py` once). To
+# exercise these E2E tests against the test DB, start the backend with
+# TEST_DATABASE_URL set to that DB and seed the accounts there.
 TEST_ACCOUNTS = {
     "admin": {
-        "email": os.getenv("TEST_ADMIN_EMAIL", "yawei@believeboy.com"),
+        "email": os.getenv("TEST_ADMIN_EMAIL", "test_admin@believeboy.com"),
         "password": _require("TEST_ADMIN_PASSWORD"),
     },
     "operator": {
