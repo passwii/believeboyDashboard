@@ -11,6 +11,7 @@
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-native.md` | 原 10 任务完整路线图（架构 § 9.2 / § 9.3 落地路径） | 📚 路线图（已存档） |
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase1.md` | Phase 1 详细实施计划（async + Pydantic AI 垂直切片） | ✅ 完成（2026-07-13） |
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md` | Phase 2 详细实施计划（web_search via Pydantic AI native Tavily tool） | ✅ 起草完成（2026-07-13）|
+| `docs/superpowers/plans/2026-07-15-ai-chat-pydantic-ai-phase3.md` | Phase 3 详细实施计划（自动生成会话标题） | 🚧 起草完成（2026-07-15）|
 | `docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase-tracker.md` | **本文档**：跨阶段跟踪与索引 | 🚧 持续维护 |
 
 ---
@@ -21,8 +22,9 @@
 |---|---|---|---|
 | **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **9/9 任务完成**（2026-07-13，PR #133 已合）| 详见下方「Phase 1 已落 commits」表 |
 | **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14）| 详见下方「Phase 2 已落 commits」表 |
+| **Phase 3** | 自动生成会话标题（首轮默认标题时调 `generate_conversation_title`，`done` 事件 `title_regenerated=True`，前端零改动） | 🚧 **计划中**（plan 起草 2026-07-15）| 详见 `2026-07-15-ai-chat-pydantic-ai-phase3.md` |
 
-**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）。
+**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）；Phase 3 计划中（plan 起草 2026-07-15）。
 
 ---
 
