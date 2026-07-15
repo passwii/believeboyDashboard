@@ -217,6 +217,7 @@ git commit -m "feat(vat-invoice): 后端 VAT 计算纯函数 + 测试"
 **文件：**
 - 创建：`backend/alembic/versions/<ts>_add_vat_enabled_and_vat_tables.py`
 - 修改：`backend/app/models/__init__.py`
+- 修改：`backend/app/models/project.py`（给 `Project` 类加 `vat_enabled` ORM 属性，否则迁移只建了 DB 列、ORM 取 `row.vat_enabled` 会 AttributeError）
 
 - [ ] **步骤 1：写 model stub（仅结构，不含业务）让 metadata 可生成迁移**
 
@@ -325,6 +326,16 @@ class VatInvoiceLine(Base):
     invoice: Mapped[VatInvoice] = relationship(back_populates='lines')
 ```
 
+给 `backend/app/models/project.py` 的 `Project` 类补 ORM 属性（与 alembic `op.add_column` 的 `vat_enabled` 列对应）：
+```python
+# backend/app/models/project.py — 在 Project 类现有列之后追加
+    vat_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default='0'
+    )
+```
+
+> 注：`project_factory` 测试夹具需支持 `vat_enabled=` 入参（新建 Project 行时带上该列），否则 phase1-3/phase1-4 的依赖用例建不出启用 VAT 的店铺。若夹具签名不支持，扩展它接受 `vat_enabled` 并写入列。
+
 在 `backend/app/models/__init__.py` 加入导入并扩充 `__all__`（参照 `MonthlyReportTransaction` 已有的导入位置就近插入）。
 
 - [ ] **步骤 2：生成 alembic 迁移**
@@ -379,6 +390,7 @@ git commit -m "feat(vat-invoice): 新增 vat_entities / vat_invoices / vat_invoi
 ```python
 import pytest
 from decimal import Decimal
+from fastapi import HTTPException
 from app.services import vat_invoice as svc
 from app.models.vat_entity import VatEntity
 
@@ -415,8 +427,9 @@ def test_delete_entity_removes_row(db_session, project_factory):
 
 def test_ensure_vat_enabled_raises_when_disabled(db_session, project_factory):
     p = project_factory(project_name='OtherShop', vat_enabled=False)
-    with pytest.raises(PermissionError):
+    with pytest.raises(HTTPException) as exc:
         svc.ensure_vat_enabled(db_session, p.id)
+    assert exc.value.status_code == 403
 ```
 
 `backend/tests/api/test_vat_invoice_endpoints.py`（实体部分 — 用仓库现有 conftest）：
@@ -595,7 +608,6 @@ def list_vat_entities(
 ):
     project_service.ensure_project_access(db, project_id, operator=operator, is_admin=bool(is_admin))
     rows = svc.list_entities(db, project_id)
-    append_operation_view_log_if_available(...)
     db.commit()
     return rows
 
@@ -626,8 +638,6 @@ def update_vat_entity(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias='X-Is-Admin'),
 ):
-    existing = db.get(VatEntity, entity_id) if False else None  # placeholder; real lookup below
-    # real:
     from app.models.vat_entity import VatEntity
     existing = db.get(VatEntity, entity_id)
     if existing is None:
@@ -764,7 +774,7 @@ import argparse
 from sqlalchemy import select
 from app.models.project import Project
 from app.models.vat_entity import VatEntity
-from app.db import SessionLocal  # 与仓库现有迁移脚本同源 import
+from app.db.session import SessionLocal  # 与 migrate_pdfs_to_r2.py 同源
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1145,6 +1155,11 @@ class VatInvoiceResponse(BaseModel):
     lines: list[VatInvoiceLineResponse]
 
 
+class VatInvoicePdfUploadRequest(BaseModel):
+    pdf_base64: str = Field(min_length=1, description='PDF 字节 base64 编码，避免 multipart 经 /api/backend catch-all 代理转发出问题')
+    filename: str = Field(min_length=1, max_length=128)
+
+
 class VatInvoicePdfUploadResponse(BaseModel):
     id: int
     invoice_no: str
@@ -1363,13 +1378,12 @@ def test_invoice_create_blocks_when_vat_disabled(auth_client, project_factory, d
 ```python
 from datetime import date as _date
 from decimal import Decimal
-from fastapi import UploadFile, File, Form
 from sqlalchemy import select
 from app.models.project import Project
 from app.services.r2_service import upload_file_to_r2
 from app.schemas.vat_invoice import (
     VatInvoiceCreate, VatInvoiceResponse, VatInvoiceListItem,
-    VatInvoicePdfUploadResponse, VatInvoiceVoidRequest,
+    VatInvoicePdfUploadRequest, VatInvoicePdfUploadResponse, VatInvoiceVoidRequest,
 )
 
 
@@ -1451,10 +1465,10 @@ def get_vat_invoice(invoice_id: int, request: Request, db: Session = Depends(get
 
 
 @router.post('/vat-invoices/{invoice_id}/pdf', response_model=VatInvoicePdfUploadResponse)
-async def upload_vat_invoice_pdf(
+def upload_vat_invoice_pdf(
     invoice_id: int,
+    payload: VatInvoicePdfUploadRequest,
     request: Request,
-    file: UploadFile = File(...),
     settings = Depends(get_settings),
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -1464,13 +1478,14 @@ async def upload_vat_invoice_pdf(
     project_service.ensure_project_access(db, inv.project_id, operator=operator, is_admin=bool(is_admin))
     svc.ensure_vat_enabled(db, inv.project_id)
 
+    import base64
+    raw = base64.b64decode(payload.pdf_base64)
     project = db.get(Project, inv.project_id)
     project_slug = project.project_name if project else f'project-{inv.project_id}'
-    raw = await file.read()
     info = upload_file_to_r2(
         settings,
         file_data=io.BytesIO(raw),
-        filename=f"{inv.invoice_no}.pdf",
+        filename=payload.filename,
         project_slug=project_slug,
         file_type='vat-invoice',
         content_type='application/pdf',
@@ -1515,7 +1530,7 @@ def void_vat_invoice(invoice_id: int, payload: VatInvoiceVoidRequest, request: R
     return svc.get_invoice_or_404(db, invoice_id)
 ```
 
-把 `io` 加到端点文件顶部 `import io`。
+把 `io` 与 `import base64` 加到端点文件顶部 `import io`。
 
 - [ ] **步骤 4：跑测试 + commit**
 
@@ -1552,12 +1567,13 @@ describe('vat-invoice-api', () => {
     expect(body.status).toBe('draft')
   })
 
-  it('issueInvoice uploads PDF blob as multipart', async () => {
+  it('issueInvoice uploads PDF as base64 JSON', async () => {
     const spy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'))
-    const blob = new Blob([new Uint8Array([1,2,3])], { type: 'application/pdf' })
-    await issueInvoice(7, blob)
+    await issueInvoice(7, 'AQID', 'invoice-7.pdf')
     expect(spy.mock.calls[0][1]?.method).toBe('POST')
     expect(spy.mock.calls[0][0]).toContain('/vat-invoices/7/pdf')
+    const body = JSON.parse(spy.mock.calls[0][1]!.body as string)
+    expect(body.pdf_base64).toBe('AQID')
   })
 
   it('fetchInvoiceDetail hits GET /vat-invoices/:id', async () => {
@@ -1602,10 +1618,11 @@ export async function createInvoiceDraft(input: CreateInvoiceInput): Promise<Vat
   return r.json()
 }
 
-export async function issueInvoice(invoiceId: number, pdfBlob: Blob): Promise<VatInvoiceRecord> {
-  const fd = new FormData()
-  fd.append('file', pdfBlob, `invoice-${invoiceId}.pdf`)
-  const r = await fetch(`${BASE}/vat-invoices/${invoiceId}/pdf`, { method: 'POST', body: fd })
+export async function issueInvoice(invoiceId: number, pdfBase64: string, filename: string): Promise<VatInvoiceRecord> {
+  const r = await fetch(`${BASE}/vat-invoices/${invoiceId}/pdf`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pdf_base64: pdfBase64, filename }),
+  })
   if (!r.ok) throw new Error(`${r.status}`)
   return r.json()
 }
@@ -1651,7 +1668,7 @@ async function saveDraft() {
   if (!seller) return
   try {
     const rec = await createInvoiceDraft({
-      project_id: form.project_id!, seller_entity_id: sellerEntityIdFor(form, seller),
+      project_id: form.project_id!, seller_entity_id: sellerEntityId(),
       currency: form.currency, order_id: form.order_id, invoice_date: form.invoice_date,
       buyer: form.buyer, shipping_incl_vat: form.shipping_incl_vat,
       lines: form.line_items.map(li => ({
@@ -1674,6 +1691,8 @@ async function saveDraft() {
 
 `canPreview` 现有逻辑已包含最小校验，草稿同样要求店铺/订单/买方/明细齐全。
 
+`sellerEntityId()` 取当前选中国家对应实体 id：`sellers.find(s => s.country === selectedCountry)?.id ?? null`（`sellers` 已是 `VatEntity[]`，来自 vat-entity-api `fetchEntities`）。
+
 - [ ] **步骤 6：invoice-preview-dialog.tsx — 加「签发归档」按钮**
 
 在预览 Dialog 底部按钮区加：
@@ -1686,11 +1705,11 @@ async function saveDraft() {
 
 `onIssue` 行为：
 1. `createInvoiceDraft({...payload, status: 'draft'})` → 得 `invoiceId`。
-2. `drawInvoice(seller, form).output('blob')` → `pdfBlob`。
-3. `issueInvoice(invoiceId, pdfBlob)` → 把状态推为 `issued`。
+2. `drawInvoice(seller, form).output('blob')` → `pdfBlob`；用 `FileReader.readAsDataURL` 取 base64（去掉 `data:...;base64,` 前缀）。
+3. `issueInvoice(invoiceId, b64, `invoice-${invoiceId}.pdf`)` → 后端解码写 R2、状态推为 `issued`。
 4. `notify` 成功；`router.push('/dashboard/finance/vat-invoices')`。
 
-父组件 vat-invoice-client.tsx 把 `sellerEntityId` 通过 prop 传入（seller-card 选中时记录其对应 entity id）。
+父组件 vat-invoice-client.tsx 的 `sellers` 来自 `vat-entity-api`，`selectedCountry` 选中时 `sellerEntityId()` 直接由上面 helper 得出，无需额外 prop。
 
 - [ ] **步骤 7：跑 lint/build/test + commit**
 
@@ -1736,8 +1755,8 @@ it('voidInvoice posts with reason', async () => {
   expect(JSON.parse(spy.mock.calls[0][1]!.body as string).reason).toBe('test reason')
 })
 
-it('downloadInvoicePdf returns /pdf endpoint', async () => {
-  const spy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 302, headers: { location: 'https://r2/x.pdf' } }))
+it('downloadInvoicePdf opens /pdf endpoint', async () => {
+  const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
   await downloadInvoicePdf(9)
   expect(spy.mock.calls[0][0]).toContain('/vat-invoices/9/pdf')
 })
@@ -1820,14 +1839,8 @@ export function buildInvoicePdfUrl(id: number): string {
 }
 
 export async function downloadInvoicePdf(id: number): Promise<void> {
-  const r = await fetch(buildInvoicePdfUrl(id))
-  if (!r.ok) throw new Error(`${r.status}`)
-  // 简单做法：浏览器直接跳转 R2 URL（后端已 302）
-  if (r.redirected) { window.location.href = r.url; return }
-  const blob = await r.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a'); a.href = url; a.download = `invoice-${id}.pdf`; a.click()
-  URL.revokeObjectURL(url)
+  // 后端 /vat-invoices/{id}/pdf 会 302 到 R2 公共 URL，直接开新标签即可
+  window.open(buildInvoicePdfUrl(id), '_blank')
 }
 
 export function exportInvoicesCsv(rows: VatInvoiceListItem[]): string {
