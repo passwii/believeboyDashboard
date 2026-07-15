@@ -108,3 +108,112 @@ def test_projects_manage_includes_vat_enabled(client, db_session, admin_headers)
     assert on_name in by_name, f'{on_name} not in {[i["name"] for i in r.json()][:5]}...'
     assert by_name[on_name]['vat_enabled'] is True
     assert by_name[off_name]['vat_enabled'] is False
+
+
+# ---- phase2-2: invoice endpoints ----
+
+def _seed_invoice_setup(db_session, *, vat_id='DE999'):
+    """Create an enabled Project + VatEntity, return (project_id, entity_id)."""
+    import uuid
+    p = Project(
+        project_name=f'InvShop-{uuid.uuid4().hex[:6]}',
+        sort_order=1, vat_enabled=True,
+    )
+    db_session.add(p)
+    db_session.flush()
+    # insert VatEntity directly (avoids coupling to svc.upsert_entity for setup)
+    from app.models.vat_entity import VatEntity
+    e = VatEntity(project_id=p.id, country='DE', company_name='ACME', vat_id=vat_id)
+    db_session.add(e)
+    db_session.flush()
+    return p.id, e.id
+
+
+def test_create_list_detail_void_invoice(client, db_session, admin_headers):
+    pid, eid = _seed_invoice_setup(db_session)
+
+    r = client.post(
+        '/api/v1/vat-invoices',
+        headers=admin_headers,
+        json={
+            'project_id': pid, 'seller_entity_id': eid,
+            'currency': 'EUR', 'order_id': 'O1',
+            'invoice_date': '2026-07-15',
+            'buyer': {'name': 'Buyer', 'address_line': 'A',
+                      'postal_code': '00000', 'city': 'C', 'country': 'DE'},
+            'shipping_incl_vat': '10.00',
+            'lines': [{'description': 'A', 'asin': 'A1', 'qty': 2,
+                       'unit_price_incl_vat': '119.00', 'vat_rate': '19'}],
+        },
+    )
+    assert r.status_code == 201, r.text
+    inv = r.json()
+    inv_id = inv['id']
+    assert inv['invoice_no'].startswith('INV-DE999-2026-')
+    assert inv['total_incl'] == '248.00'
+
+    r = client.get(
+        f'/api/v1/vat-invoices?project_id={pid}&status=draft',
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert any(it['id'] == inv_id for it in r.json())
+
+    r = client.get(f'/api/v1/vat-invoices/{inv_id}', headers=admin_headers)
+    assert r.status_code == 200
+    assert r.json()['total_incl'] == '248.00'
+    assert len(r.json()['lines']) == 1
+
+    r = client.post(
+        f'/api/v1/vat-invoices/{inv_id}/void',
+        headers=admin_headers,
+        json={'reason': 'test'},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()['status'] == 'voided'
+    assert r.json()['void_reason'] == 'test'
+
+
+def test_invoice_create_blocks_when_vat_disabled(client, db_session, admin_headers):
+    import uuid
+    p = Project(
+        project_name=f'DisabledInv-{uuid.uuid4().hex[:6]}',
+        sort_order=1, vat_enabled=False,
+    )
+    db_session.add(p)
+    db_session.flush()
+    r = client.post(
+        '/api/v1/vat-invoices',
+        headers=admin_headers,
+        json={
+            'project_id': p.id, 'currency': 'EUR', 'invoice_date': '2026-07-15',
+            'buyer': {'name': 'B', 'address_line': '', 'postal_code': '',
+                      'city': '', 'country': 'DE'},
+            'shipping_incl_vat': '0',
+            'lines': [{'description': 'A', 'qty': 1,
+                       'unit_price_incl_vat': '10', 'vat_rate': '19'}],
+        },
+    )
+    assert r.status_code == 403
+
+
+def test_invoice_pdf_without_upload_returns_409(client, db_session, admin_headers):
+    pid, eid = _seed_invoice_setup(db_session)
+    r = client.post(
+        '/api/v1/vat-invoices',
+        headers=admin_headers,
+        json={
+            'project_id': pid, 'seller_entity_id': eid,
+            'currency': 'EUR', 'order_id': 'O-NOPDF',
+            'invoice_date': '2026-07-15',
+            'buyer': {'name': 'B', 'address_line': '', 'postal_code': '',
+                      'city': '', 'country': 'DE'},
+            'shipping_incl_vat': '0',
+            'lines': [{'description': 'A', 'qty': 1,
+                       'unit_price_incl_vat': '10', 'vat_rate': '19'}],
+        },
+    )
+    assert r.status_code == 201, r.text
+    inv_id = r.json()['id']
+    r = client.get(f'/api/v1/vat-invoices/{inv_id}/pdf', headers=admin_headers)
+    assert r.status_code == 409
