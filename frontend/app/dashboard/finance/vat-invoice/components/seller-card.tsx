@@ -1,16 +1,14 @@
 'use client'
 
-// Seller 卡片：店铺下拉（白名单过滤） + 国家下拉 + 加载/编辑/新增/删除 Seller
-// - 店铺下拉只显示白名单店铺（目前只允许弥森）
-// - 选店铺后加载 invoice_sellers 列表，自动执行旧数据迁移
-// - 国家下拉选择当前 Seller
-// - 编辑 Dialog 支持编辑、新增、删除国家 Seller
+// Seller 卡片：店铺下拉（按 vat_enabled 过滤）+ 国家下拉 + VAT 主体 CRUD
+// 数据来自 /api/v1/vat-entities（vat-entity-api）；不再回退到 project_context JSON。
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -29,42 +27,33 @@ import {
 import { Loader2, Pencil, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { fetchProjectsManage } from '../lib/invoice-api'
 import {
-  VAT_ENABLED_PROJECT_NAMES,
-  fetchProjectsManage,
-  fetchProjectContext,
-  patchInvoiceSellers,
-  migrateSellersIfNeeded,
-} from '../lib/invoice-api'
-import type { InvoiceSellerEntry, ProjectOption } from '../types'
+  fetchEntities,
+  upsertEntity,
+  updateEntity,
+  deleteEntity,
+} from '../lib/vat-entity-api'
+import type { ProjectOption, VatEntity } from '../types'
 
 interface SellerCardProps {
   selectedProjectId: number | null
-  sellers: InvoiceSellerEntry[]
+  sellers: VatEntity[]
   selectedCountry: string
-  onSellersChange: (sellers: InvoiceSellerEntry[]) => void
+  onSellersChange: (sellers: VatEntity[]) => void
   onCountryChange: (country: string) => void
   onSelectProject: (id: number) => void
 }
 
-const emptyEntry: InvoiceSellerEntry = {
+const emptyEntry: Omit<VatEntity, 'id' | 'project_id' | 'created_at' | 'updated_at'> = {
+  country: '',
   company_name: '',
   vat_id: '',
   address_line: '',
   postal_code: '',
   city: '',
-  country: '',
-}
-
-function buildFallbackSeller(p: ProjectOption): InvoiceSellerEntry {
-  return {
-    company_name: p.brand_name ?? p.name,
-    vat_id: '',
-    address_line: p.store_address ?? '',
-    postal_code: '',
-    city: '',
-    country: '',
-  }
+  email: '',
+  is_default: false,
 }
 
 export function SellerCard({
@@ -79,23 +68,23 @@ export function SellerCard({
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
-  const [loadingContext, setLoadingContext] = useState(false)
+  const [loadingEntities, setLoadingEntities] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [isFallback, setIsFallback] = useState(false)
 
   // 编辑 Dialog 状态
   const [editOpen, setEditOpen] = useState(false)
-  const [editDraft, setEditDraft] = useState<InvoiceSellerEntry>(emptyEntry)
+  const [editDraft, setEditDraft] =
+    useState<typeof emptyEntry>(emptyEntry)
   const [editMode, setEditMode] = useState<'edit' | 'add'>('edit')
+  const [editingEntityId, setEditingEntityId] = useState<number | null>(null)
 
-  // 删除确认 Dialog
+  // 删除确认
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  // 当前选中的 Seller
   const currentSeller = sellers.find((s) => s.country === selectedCountry) ?? null
 
-  // 加载店铺列表
+  // 加载店铺列表（仅一次）
   useEffect(() => {
     let alive = true
     setLoadingProjects(true)
@@ -117,87 +106,67 @@ export function SellerCard({
     }
   }, [notify])
 
-  // 加载店铺 Seller 列表 + 旧数据迁移
+  // 选中店铺时加载其 VAT 主体
   useEffect(() => {
     if (selectedProjectId == null) {
       onSellersChange([])
       onCountryChange('')
-      setIsFallback(false)
       return
     }
-    const p = projects.find((x) => x.id === selectedProjectId)
-    if (!p) return
-
     let alive = true
-    setLoadingContext(true)
-    fetchProjectContext(selectedProjectId)
-      .then(async (ctx) => {
-        if (!alive) return
-        let list: InvoiceSellerEntry[] = []
-        try {
-          // 惰性迁移
-          const migrated = await migrateSellersIfNeeded(ctx)
-          const raw = migrated.project_context?.invoice_sellers
-          // 防御性校验：确保是数组且每个元素包含非空 country 字段
-          if (
-            Array.isArray(raw) &&
-            raw.every((s) => s && typeof s.country === 'string' && s.country.trim())
-          ) {
-            list = raw as InvoiceSellerEntry[]
-          }
-        } catch {
-          // 迁移失败时回退
-        }
+    setLoadingEntities(true)
+    fetchEntities(selectedProjectId)
+      .then((list) => {
         if (!alive) return
         onSellersChange(list)
         if (list.length > 0) {
-          // 选中第一个（或保持已选中的）
           if (!selectedCountry || !list.find((s) => s.country === selectedCountry)) {
             onCountryChange(list[0].country)
           }
-          setIsFallback(false)
         } else {
-          // 回退到项目表推断
-          const fallback = buildFallbackSeller(p)
-          onSellersChange([fallback])
           onCountryChange('')
-          setIsFallback(true)
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!alive) return
-        const fallback = buildFallbackSeller(p)
-        onSellersChange([fallback])
+        notify({ type: 'error', title: '加载 VAT 主体失败', message: normalizeErrorMessage(err) })
+        onSellersChange([])
         onCountryChange('')
-        setIsFallback(true)
       })
       .finally(() => {
         if (!alive) return
-        setLoadingContext(false)
+        setLoadingEntities(false)
       })
     return () => {
       alive = false
     }
-    // selectedProjectId / projects 变化才重拉；onSellersChange/onCountryChange 来自父 useState（稳定）；
-    // selectedCountry 不能加（否则切换国家会重拉，形成循环）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, projects])
+  }, [selectedProjectId])
 
-  // 编辑当前国家
   const openEdit = () => {
+    if (!currentSeller) return
     setEditMode('edit')
-    setEditDraft(currentSeller ?? emptyEntry)
+    setEditingEntityId(currentSeller.id)
+    setEditDraft({
+      country: currentSeller.country,
+      company_name: currentSeller.company_name,
+      vat_id: currentSeller.vat_id,
+      address_line: currentSeller.address_line,
+      postal_code: currentSeller.postal_code,
+      city: currentSeller.city,
+      email: currentSeller.email,
+      is_default: currentSeller.is_default,
+    })
     setEditOpen(true)
   }
 
-  // 新增国家
   const openAddNew = () => {
     setEditMode('add')
-    setEditDraft(emptyEntry)
+    setEditingEntityId(null)
+    setEditDraft({ ...emptyEntry })
     setEditOpen(true)
   }
 
-  // 保存（编辑或新增）
   const saveEdit = async () => {
     if (selectedProjectId == null) return
     if (!editDraft.company_name.trim()) {
@@ -210,15 +179,26 @@ export function SellerCard({
     }
     setSaving(true)
     try {
-      // 合并：如果已存在该 country 则替换，否则追加
-      const existing = sellers.filter((s) => s.country !== editDraft.country)
-      const next = [...existing, editDraft]
-      await patchInvoiceSellers(selectedProjectId, next)
+      const saved = await upsertEntity({
+        project_id: selectedProjectId,
+        country: editDraft.country,
+        company_name: editDraft.company_name,
+        vat_id: editDraft.vat_id,
+        address_line: editDraft.address_line,
+        postal_code: editDraft.postal_code,
+        city: editDraft.city,
+        email: editDraft.email,
+        is_default: editDraft.is_default,
+      })
+      // 合并到本地 sellers
+      const next = [
+        ...sellers.filter((s) => s.id !== saved.id && s.country !== saved.country),
+        saved,
+      ]
       onSellersChange(next)
-      onCountryChange(editDraft.country)
+      onCountryChange(saved.country)
       setEditOpen(false)
-      setIsFallback(false)
-      notify({ type: 'success', title: '保存成功', message: `${editDraft.country} Seller 已保存` })
+      notify({ type: 'success', title: '保存成功', message: `${saved.country} Seller 已保存` })
     } catch (err) {
       notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(err) })
     } finally {
@@ -226,7 +206,6 @@ export function SellerCard({
     }
   }
 
-  // 确认删除
   const confirmDelete = (country: string) => {
     setDeleteTarget(country)
     setDeleteConfirmOpen(true)
@@ -234,10 +213,16 @@ export function SellerCard({
 
   const executeDelete = async () => {
     if (selectedProjectId == null || !deleteTarget) return
+    const target = sellers.find((s) => s.country === deleteTarget)
+    if (!target) {
+      setDeleteConfirmOpen(false)
+      setDeleteTarget(null)
+      return
+    }
     setSaving(true)
     try {
-      const next = sellers.filter((s) => s.country !== deleteTarget)
-      await patchInvoiceSellers(selectedProjectId, next)
+      await deleteEntity(target.id)
+      const next = sellers.filter((s) => s.id !== target.id)
       onSellersChange(next)
       if (selectedCountry === deleteTarget) {
         onCountryChange(next.length > 0 ? next[0].country : '')
@@ -258,12 +243,12 @@ export function SellerCard({
         <CardTitle className="text-base">1. 店铺与 Seller 信息</CardTitle>
         {selectedProjectId != null && (
           <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="sm" onClick={openAddNew} disabled={loadingContext}>
+            <Button variant="outline" size="sm" onClick={openAddNew} disabled={loadingEntities}>
               <Plus className="mr-1 h-3.5 w-3.5" />
               新增国家
             </Button>
             {selectedCountry && (
-              <Button variant="outline" size="sm" onClick={openEdit} disabled={loadingContext}>
+              <Button variant="outline" size="sm" onClick={openEdit} disabled={loadingEntities}>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
                 编辑
               </Button>
@@ -272,7 +257,7 @@ export function SellerCard({
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 店铺下拉（白名单过滤） */}
+        {/* 店铺下拉（vat_enabled 过滤） */}
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           <Label htmlFor="project-select" className="self-center">
             店铺
@@ -289,8 +274,7 @@ export function SellerCard({
               </SelectTrigger>
               <SelectContent>
                 {projects
-                  .filter((p) => p.is_active)
-                  .filter((p) => (VAT_ENABLED_PROJECT_NAMES as readonly string[]).includes(p.name))
+                  .filter((p) => p.is_active && p.vat_enabled)
                   .map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.brand_name ? `${p.brand_name} — ${p.name}` : p.name}
@@ -302,7 +286,7 @@ export function SellerCard({
         </div>
 
         {/* 国家选择 */}
-        {selectedProjectId != null && sellers.length > 0 && !isFallback ? (
+        {selectedProjectId != null && sellers.length > 0 ? (
           <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
             <Label className="self-center">开票国家</Label>
             <div className="flex gap-2 md:col-span-2">
@@ -315,7 +299,7 @@ export function SellerCard({
                     {sellers
                       .filter((s) => s.country)
                       .map((s) => (
-                        <SelectItem key={s.country} value={s.country}>
+                        <SelectItem key={s.id} value={s.country}>
                           {s.country} — {s.company_name || '未填写'}
                         </SelectItem>
                       ))}
@@ -336,16 +320,16 @@ export function SellerCard({
               )}
             </div>
           </div>
-        ) : selectedProjectId != null && !loadingContext && isFallback ? (
+        ) : selectedProjectId != null && !loadingEntities ? (
           <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。</div>
           </div>
         ) : null}
 
-        {/* Seller 预览块 */}
+        {/* Seller 预览 */}
         {selectedProjectId != null ? (
-          loadingContext ? (
+          loadingEntities ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               加载 Seller…
@@ -370,17 +354,20 @@ export function SellerCard({
                 {currentSeller.country && (
                   <div className="text-muted-foreground">{currentSeller.country}</div>
                 )}
+                {currentSeller.email && (
+                  <div className="text-muted-foreground">{currentSeller.email}</div>
+                )}
               </div>
             </div>
-          ) : sellers.length === 0 && !isFallback ? (
+          ) : (
             <p className="text-sm text-muted-foreground">尚未配置任何国家的 Seller。请新增。</p>
-          ) : null
+          )
         ) : (
           <p className="text-sm text-muted-foreground">请先选择店铺以加载 Seller。</p>
         )}
       </CardContent>
 
-      {/* 编辑 / 新增 Seller Dialog */}
+      {/* 编辑 / 新增 Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -388,7 +375,7 @@ export function SellerCard({
               {editMode === 'add' ? '新增 Seller' : `编辑 ${selectedCountry} Seller`}
             </DialogTitle>
             <DialogDescription>
-              将保存到当前店铺的 context（仅对 VAT 发票功能可见）。
+              将保存到当前店铺的 vat_entities 表（仅 VAT 启用店铺可见）。
             </DialogDescription>
           </DialogHeader>
 
@@ -454,6 +441,25 @@ export function SellerCard({
                 placeholder="Luxembourg"
               />
             </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label htmlFor="edit-email">邮箱</Label>
+              <Input
+                id="edit-email"
+                value={editDraft.email}
+                onChange={(e) => setEditDraft({ ...editDraft, email: e.target.value })}
+                placeholder="ar@acme.example"
+              />
+            </div>
+            <div className="flex items-center gap-2 md:col-span-2">
+              <Checkbox
+                id="edit-default"
+                checked={editDraft.is_default}
+                onCheckedChange={(v) =>
+                  setEditDraft({ ...editDraft, is_default: Boolean(v) })
+                }
+              />
+              <Label htmlFor="edit-default">设为该国家默认 Seller</Label>
+            </div>
           </div>
 
           <DialogFooter>
@@ -468,7 +474,7 @@ export function SellerCard({
         </DialogContent>
       </Dialog>
 
-      {/* 删除确认 Dialog */}
+      {/* 删除确认 */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

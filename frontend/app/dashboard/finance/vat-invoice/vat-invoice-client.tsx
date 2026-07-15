@@ -12,7 +12,7 @@ import { LineItemsEditor } from './components/line-items-editor'
 import { InvoiceSummary } from './components/invoice-summary'
 import { InvoicePreviewDialog } from './components/invoice-preview-dialog'
 import { computeInvoiceTotal } from './lib/vat-calc'
-import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry } from './types'
+import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry, type VatEntity } from './types'
 
 const emptyBuyer = {
   name: '',
@@ -45,9 +45,20 @@ function getSymbol(currency: InvoiceForm['currency']): string {
   return CURRENCY_OPTIONS.find((c) => c.value === currency)?.symbol ?? currency
 }
 
+function toInvoiceSellerEntry(e: VatEntity): InvoiceSellerEntry {
+  return {
+    country: e.country,
+    company_name: e.company_name,
+    vat_id: e.vat_id,
+    address_line: e.address_line,
+    postal_code: e.postal_code,
+    city: e.city,
+  }
+}
+
 export default function VatInvoiceClient() {
   const [form, setForm] = useState<InvoiceForm>(initialForm)
-  const [sellers, setSellers] = useState<InvoiceSellerEntry[]>([])
+  const [sellers, setSellers] = useState<VatEntity[]>([])
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [previewOpen, setPreviewOpen] = useState(false)
 
@@ -131,7 +142,7 @@ export default function VatInvoiceClient() {
       <InvoicePreviewDialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
-        seller={seller ?? emptySellerEntry}
+        seller={seller ? toInvoiceSellerEntry(seller) : emptySellerEntry}
         form={form}
       />
     </div>

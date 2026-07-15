@@ -24,6 +24,22 @@ export interface InvoiceSellerEntry {
   city: string
 }
 
+/** VAT 主体（来自后端 vat_entities 表） */
+export interface VatEntity {
+  id: number
+  project_id: number
+  country: string
+  company_name: string
+  vat_id: string
+  address_line: string
+  postal_code: string
+  city: string
+  email: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
 /** 商品明细行 */
 export interface InvoiceLineItem {
   description: string
@@ -80,6 +96,7 @@ export interface ProjectOption {
   has_context: boolean
   is_active: boolean
   project_tier: string | null
+  vat_enabled: boolean
 }
 
 /** 店铺 context */
