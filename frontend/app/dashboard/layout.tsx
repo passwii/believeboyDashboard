@@ -44,20 +44,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('believeboy:logout', handler)
   }, [getCurrentPath])
 
-  // 主内容区在自定义滚动容器 #main-content 内（非 window），Next.js 自带的
-  // 刷新/导航回到顶部对它不生效；硬刷新时浏览器会恢复该容器的旧位置。
-  // 这里在路由变化与页面加载后手动滚回顶部，保证落地页面始终从顶部开始。
+  // 主内容区在自定义滚动容器 #main-content 内（非 window），document 不滚动，
+  // 浏览器默认“刷新回到顶部”只作用于 document，对该容器不生效；Chrome 还会在
+  // 刷新后恢复该容器的旧位置。这里在路由变化与 load 事件后强制滚回顶部。
+  // behavior 用 instant：全局 html 设了 scroll-behavior:smooth，避免复位变成动画。
   useEffect(() => {
-    if ('scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual'
-    }
-    const scrollTop = () =>
-      document.getElementById('main-content')?.scrollTo({ top: 0 })
-    // 路由切换时立即滚回顶部
-    scrollTop()
-    // 兜底：硬刷新时浏览器可能在 load 后才恢复旧滚动位置，再滚一次
-    window.addEventListener('load', scrollTop)
-    return () => window.removeEventListener('load', scrollTop)
+    const reset = () =>
+      document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' })
+    reset()
+    window.addEventListener('load', reset)
+    return () => window.removeEventListener('load', reset)
   }, [pathname])
 
   return (
