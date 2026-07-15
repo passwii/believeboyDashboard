@@ -1,4 +1,5 @@
 from __future__ import annotations
+import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Iterable
 
@@ -177,3 +178,169 @@ def delete_entity(db: Session, entity_id: int) -> None:
         raise HTTPException(status_code=404, detail='vat entity not found')
     db.delete(row)
     db.flush()
+
+
+# ---------------------------------------------------------------------------
+# VAT invoice service
+# ---------------------------------------------------------------------------
+
+from typing import Any  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from app.models.vat_invoice import VatInvoice, VatInvoiceLine  # noqa: E402
+
+
+def _snapshot_entity(e: VatEntity | None) -> dict[str, Any]:
+    if e is None:
+        return {}
+    return {
+        'country': e.country,
+        'company_name': e.company_name,
+        'vat_id': e.vat_id,
+        'address_line': e.address_line,
+        'postal_code': e.postal_code,
+        'city': e.city,
+        'email': e.email,
+    }
+
+
+def _assign_invoice_no(inv: VatInvoice) -> str:
+    """格式: INV-{VAT号}-{year}-{id:06d}。无主体时用 NA 兜底，VAT 号去空格。"""
+    year = inv.invoice_date.year
+    vat = (inv.seller_snapshot or {}).get('vat_id') or 'NA'
+    vat = str(vat).replace(' ', '')
+    seq = inv.id
+    return f"INV-{vat}-{year}-{seq:06d}"
+
+
+def create_invoice(
+    db: Session,
+    *,
+    project_id: int,
+    seller_entity_id: int | None,
+    currency: str,
+    order_id: str,
+    invoice_date,
+    buyer: dict,
+    shipping_incl_vat,
+    lines: list[dict],
+    status: str = 'draft',
+) -> VatInvoice:
+    if not lines:
+        raise ValueError('lines must not be empty')
+
+    seller = db.get(VatEntity, seller_entity_id) if seller_entity_id is not None else None
+
+    shipping_dec = Decimal(shipping_incl_vat)
+    totals = compute_invoice_totals(lines, shipping_incl_vat=shipping_dec)
+
+    inv = VatInvoice(
+        project_id=project_id,
+        seller_entity_id=seller_entity_id,
+        seller_snapshot=_snapshot_entity(seller),
+        buyer=dict(buyer),
+        currency=currency,
+        order_id=order_id,
+        invoice_date=invoice_date,
+        shipping_incl_vat=shipping_dec,
+        subtotal_excl=totals['subtotal_excl'],
+        total_vat=totals['total_vat'],
+        total_incl=totals['total_incl'],
+        summary_by_rate=[
+            {k: (str(v) if isinstance(v, Decimal) else v) for k, v in row.items()}
+            for row in totals['summary_by_rate']
+        ],
+        status=status,
+        # placeholder: must satisfy NOT NULL + uq(project, invoice_no) at INSERT;
+        # replaced with real invoice_no after flush (id known).
+        invoice_no=f"DRAFT-{uuid.uuid4().hex}",
+    )
+    db.add(inv)
+    db.flush()
+    inv.invoice_no = _assign_invoice_no(inv)
+    db.flush()
+
+    for idx, ln in enumerate(lines, start=1):
+        unit = Decimal(ln['unit_price_incl_vat'])
+        qty = int(ln['qty'])
+        rate = Decimal(ln['vat_rate'])
+        sub = split_vat(unit * qty, rate)
+        db.add(VatInvoiceLine(
+            invoice_id=inv.id,
+            line_no=idx,
+            description=str(ln.get('description', ''))[:512],
+            asin=str(ln.get('asin', ''))[:32],
+            qty=qty,
+            unit_price_incl_vat=unit,
+            vat_rate=rate,
+            line_excl=sub['excl'],
+            line_vat=sub['vat'],
+            line_incl=sub['incl'],
+        ))
+    db.flush()
+    return inv
+
+
+def get_invoice_or_404(db: Session, invoice_id: int) -> VatInvoice:
+    from fastapi import HTTPException
+    row = db.get(VatInvoice, invoice_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail='vat invoice not found')
+    return row
+
+
+def list_invoices(
+    db: Session,
+    *,
+    project_id: int | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    date_from=None,
+    date_to=None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[VatInvoice]:
+    from sqlalchemy import select  # local to avoid lint warnings
+    stmt = select(VatInvoice)
+    if project_id is not None:
+        stmt = stmt.where(VatInvoice.project_id == project_id)
+    if status:
+        stmt = stmt.where(VatInvoice.status == status)
+    if date_from:
+        stmt = stmt.where(VatInvoice.invoice_date >= date_from)
+    if date_to:
+        stmt = stmt.where(VatInvoice.invoice_date <= date_to)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(VatInvoice.invoice_no.like(like) | VatInvoice.order_id.like(like))
+    stmt = (
+        stmt.order_by(VatInvoice.invoice_date.desc(), VatInvoice.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(db.scalars(stmt).all())
+
+
+def attach_invoice_pdf(db: Session, invoice_id: int, *, r2_key: str, r2_url: str) -> VatInvoice:
+    inv = get_invoice_or_404(db, invoice_id)
+    inv.r2_key = r2_key
+    inv.r2_url = r2_url
+    if inv.status == 'draft':
+        inv.status = 'issued'
+    db.flush()
+    return inv
+
+
+def void_invoice(db: Session, invoice_id: int, *, reason: str = '') -> VatInvoice:
+    inv = get_invoice_or_404(db, invoice_id)
+    if inv.status != 'voided':
+        inv.status = 'voided'
+        inv.void_reason = reason
+    db.flush()
+    return inv
+
+
+# Decimal used at top of file; imported here for the service signature/cast.

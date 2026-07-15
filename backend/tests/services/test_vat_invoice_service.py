@@ -79,3 +79,101 @@ def test_ensure_vat_enabled_raises_404_when_missing(db_session):
     with pytest.raises(HTTPException) as exc:
         svc.ensure_vat_enabled(db_session, 999_999_999)
     assert exc.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Invoice service (phase2-1)
+# ---------------------------------------------------------------------------
+
+from app.models.vat_invoice import VatInvoice, VatInvoiceLine  # noqa: E402
+
+
+def _seed_project_and_seller(db_session, *, vat_id='DE123456789'):
+    p = Project(project_name='VATshop', sort_order=1, vat_enabled=True)
+    db_session.add(p)
+    db_session.flush()
+    seller = svc.upsert_entity(
+        db_session, project_id=p.id, country='DE',
+        company_name='ACME', vat_id=vat_id,
+    )
+    db_session.flush()
+    return p, seller
+
+
+def _draft_payload(project_id, seller_entity_id):
+    return {
+        'project_id': project_id,
+        'seller_entity_id': seller_entity_id,
+        'currency': 'EUR',
+        'order_id': 'ORDER-1',
+        'invoice_date': __import__('datetime').date(2026, 7, 15),
+        'buyer': {'name': 'Buyer', 'address_line': 'X', 'postal_code': '00000', 'city': 'C', 'country': 'DE'},
+        'shipping_incl_vat': '10.00',
+        'lines': [
+            {'description': 'A', 'asin': 'A1', 'qty': 2,
+             'unit_price_incl_vat': '119.00', 'vat_rate': '19'},
+        ],
+    }
+
+
+def test_create_invoice_assigns_invoice_no_and_totals(db_session):
+    from decimal import Decimal as D
+    p, seller = _seed_project_and_seller(db_session)
+    inv = svc.create_invoice(db_session, **_draft_payload(p.id, seller.id))
+    db_session.commit()
+    assert inv.invoice_no.startswith('INV-DE123456789-2026-')
+    assert inv.invoice_no.endswith(f"{inv.id:06d}")
+    assert inv.total_incl == D('248.00')  # 119*2 + 10
+    assert inv.status == 'draft'
+    assert len(inv.lines) == 1
+    assert inv.lines[0].line_no == 1
+    assert inv.seller_snapshot['vat_id'] == 'DE123456789'
+
+
+def test_create_invoice_rejects_empty_lines(db_session):
+    p, seller = _seed_project_and_seller(db_session)
+    payload = _draft_payload(p.id, seller.id)
+    payload['lines'] = []
+    with pytest.raises(ValueError):
+        svc.create_invoice(db_session, **payload)
+
+
+def test_list_invoices_filters_by_project_and_status(db_session):
+    from app.models.vat_invoice import VatInvoice as VI
+    p, seller = _seed_project_and_seller(db_session)
+    a = svc.create_invoice(db_session, **_draft_payload(p.id, seller.id))
+    b = svc.create_invoice(db_session, **_draft_payload(p.id, seller.id))
+    db_session.commit()
+    svc.void_invoice(db_session, b.id, reason='test')
+    db_session.commit()
+    rows = svc.list_invoices(db_session, project_id=p.id, status='draft')
+    assert {r.id for r in rows} == {a.id}
+    assert db_session.get(VI, b.id).status == 'voided'
+
+
+def test_void_invoice_sets_status(db_session):
+    p, seller = _seed_project_and_seller(db_session)
+    inv = svc.create_invoice(db_session, **_draft_payload(p.id, seller.id))
+    db_session.commit()
+    svc.void_invoice(db_session, inv.id, reason='oops')
+    db_session.commit()
+    reloaded = db_session.get(VatInvoice, inv.id)
+    assert reloaded.status == 'voided'
+    assert reloaded.void_reason == 'oops'
+
+
+def test_attach_invoice_pdf_promotes_draft_to_issued(db_session):
+    p, seller = _seed_project_and_seller(db_session)
+    inv = svc.create_invoice(db_session, **_draft_payload(p.id, seller.id))
+    db_session.commit()
+    svc.attach_invoice_pdf(db_session, inv.id, r2_key='k', r2_url='https://r2/x.pdf')
+    db_session.commit()
+    reloaded = db_session.get(VatInvoice, inv.id)
+    assert reloaded.r2_key == 'k'
+    assert reloaded.status == 'issued'
+
+
+def test_get_invoice_or_404_raises(db_session):
+    with pytest.raises(HTTPException) as exc:
+        svc.get_invoice_or_404(db_session, 999_999_999)
+    assert exc.value.status_code == 404
