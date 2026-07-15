@@ -523,13 +523,32 @@ def refresh_ledger(
         project_id=project_id,
         email=email,
     )
-    total = db.execute(select(func.count()).select_from(query.subquery())).scalar() or 0
+    query_sub = query.subquery()
+    total = db.execute(select(func.count()).select_from(query_sub)).scalar() or 0
     summary = _summary_for(db, query)
-    rows = db.execute(
-        query.order_by(ScheduledReportLedgerEntry.expected_at.desc(), ScheduledReportLedgerEntry.id.desc())
-        .limit(limit)
-        .offset(offset)
-    ).scalars().all()
+
+    # ── 按天分页：limit / offset 解释为「最近多少天 / 跳过多少天」。
+    #    先取范围内去重后的日期（倒序），再拉取这些日期的全部记录，
+    #    保证返回的每一天都是完整的——不会再因单行上限把某一天整段截断，
+    #    避免出现「选了近14天却只显示不到10天」的问题。 ──
+    day_query = (
+        select(query_sub.c.expected_date).distinct().order_by(query_sub.c.expected_date.desc())
+    )
+    if offset:
+        day_query = day_query.offset(offset)
+    day_query = day_query.limit(limit)
+    selected_days = list(db.execute(day_query).scalars().all())
+
+    if selected_days:
+        rows = db.execute(
+            query.where(ScheduledReportLedgerEntry.expected_date.in_(selected_days)).order_by(
+                ScheduledReportLedgerEntry.expected_at.desc(),
+                ScheduledReportLedgerEntry.id.desc(),
+            )
+        ).scalars().all()
+    else:
+        rows = []
+
     return LedgerListResponse(items=[_to_item(db, row) for row in rows], total=total, summary=summary)
 
 

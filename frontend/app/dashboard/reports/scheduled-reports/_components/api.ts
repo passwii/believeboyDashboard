@@ -221,7 +221,7 @@ export async function fetchLedger(
     email: string
     limit?: number
   },
-  onData: (items: LedgerItem[], summary: LedgerSummary | null) => void,
+  onData: (items: LedgerItem[], summary: LedgerSummary | null, total?: number) => void,
   onError: (error: string) => void
 ) {
   const q = new URLSearchParams({
@@ -237,8 +237,8 @@ export async function fetchLedger(
       headers: authHeaders(),
     })
     if (!res.ok) throw new Error(await res.text())
-    const data = (await res.json()) as { items: LedgerItem[]; summary: LedgerSummary }
-    onData(data.items || [], data.summary || null)
+    const data = (await res.json()) as { items: LedgerItem[]; summary: LedgerSummary; total?: number }
+    onData(data.items || [], data.summary || null, data.total ?? (data.items?.length ?? 0))
   } catch (e) {
     onError(normalizeErrorMessage(e, '加载台账失败'))
   }

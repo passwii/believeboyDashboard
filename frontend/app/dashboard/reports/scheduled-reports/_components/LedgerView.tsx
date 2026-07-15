@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DateRangePicker, parseDateRangeInputValue } from '@/components/ui/date-picker'
+import { DateRangePicker, parseDateRangeInputValue, parseDateInputValue } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import type { DateRange } from 'react-day-picker'
@@ -48,6 +48,8 @@ export default function LedgerView() {
   // 初始为 true：tab 切换重新挂载时立即显示骨架屏，避免先闪「暂无台账记录」空状态。
   const [ledgerLoading, setLedgerLoading] = useState(true)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
+  // 后端按 expected_at DESC 截断到 limit 条；记录总数（可能 > 已加载条数）。
+  const [ledgerTotal, setLedgerTotal] = useState(0)
   const [resendingStates, setResendingStates] = useState<Record<string, ResendStage>>({})
   const [regeneratingSummaryKeys, setRegeneratingSummaryKeys] = useState<Set<string>>(new Set())
   const [selectedItem, setSelectedItem] = useState<LedgerItem | null>(null)
@@ -113,6 +115,15 @@ export default function LedgerView() {
   const loadLedger = useCallback(async () => {
     setLedgerLoading(true)
     setLedgerError(null)
+    // 后端 ledger 接口已改为「按天分页」：limit 解释为「最近多少天」，
+    // 保证范围内每一天都完整返回（不会因行数上限把某一天整段截断）。
+    // 这里按时间范围的天数传 limit 即可（后端上限 500 天，UI 预设最多 90 天）。
+    const start = parseDateInputValue(ledgerStartDate)
+    const end = parseDateInputValue(ledgerEndDate)
+    const daysInRange = start && end
+      ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
+      : 14
+    const ledgerLimit = Math.min(500, Math.max(1, daysInRange))
     await fetchLedger(
       {
         startDate: ledgerStartDate,
@@ -120,9 +131,11 @@ export default function LedgerView() {
         frequency: ledgerFrequency,
         statusFilter: ledgerStatus,
         email: ledgerEmail,
+        limit: ledgerLimit,
       },
-      (items) => {
+      (items, _summary, total) => {
         setLedgerItems(items)
+        setLedgerTotal(total ?? items.length)
       },
       (error) => setLedgerError(error)
     )
@@ -377,6 +390,11 @@ export default function LedgerView() {
           </div>
 
           {ledgerError && <p className="text-sm text-destructive">{ledgerError}</p>}
+          {!ledgerError && ledgerTotal > ledgerItems.length && (
+            <p className="text-xs text-amber-600">
+              当前范围数据量较大，仅显示最新 {ledgerItems.length} 条（共 {ledgerTotal} 条）。请缩小时间范围或增加筛选条件以查看更早的记录。
+            </p>
+          )}
         </CardContent>
       </Card>
 
