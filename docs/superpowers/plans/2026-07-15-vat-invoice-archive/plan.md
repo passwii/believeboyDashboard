@@ -279,7 +279,7 @@ class VatInvoice(Base):
         CheckConstraint("status IN ('draft','issued','voided')", name='ck_vat_invoices_status'),
     )
     id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, autoincrement=True)
-    invoice_no: Mapped[str] = mapped_column(String(40), nullable=False)
+    invoice_no: Mapped[str] = mapped_column(String(64), nullable=False)
     project_id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, 'sqlite'), ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     seller_entity_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, 'sqlite'), ForeignKey('vat_entities.id', ondelete='SET NULL'), nullable=True)
     seller_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
@@ -1018,9 +1018,14 @@ def _draft_payload(project_id, seller_entity_id=None):
 
 def test_create_invoice_assigns_invoice_no_and_totals(db_session, project_factory):
     p = project_factory(project_name='弥森', vat_enabled=True)
-    inv = create_invoice(db_session, **_draft_payload(p.id))
+    seller = svc.upsert_entity(db_session, project_id=p.id, country='DE',
+                             company_name='ACME', vat_id='DE123456789',
+                             address_line='', postal_code='', city='', email='')
     db_session.commit()
-    assert inv.invoice_no.startswith('INV-2026-')
+    inv = create_invoice(db_session, **_draft_payload(p.id, seller_entity_id=seller.id))
+    db_session.commit()
+    assert inv.invoice_no.startswith('INV-DE123456789-2026-')
+    assert inv.invoice_no.endswith(f"{inv.id:06d}")
     assert inv.total_incl == Decimal('248.00')  # 119*2 + 10
     assert inv.status == 'draft'
     assert len(inv.lines) == 1
@@ -1192,8 +1197,12 @@ def _snapshot_entity(e: VatEntity | None) -> dict[str, Any]:
 
 def _assign_invoice_no(db: Session, project_id: int, inv: VatInvoice) -> str:
     year = inv.invoice_date.year
-    seq = inv.id  # autoincrement 已落库
-    return f"INV-{year}-{seq:06d}"
+    # VAT 号取本票所用主体的 vat_id（去空格，避免 URL/文件名问题）；
+    # 无主体时用 NA 兜底。格式：INV-{vat号}-{year}-{id:06d}
+    vat = (inv.seller_snapshot or {}).get('vat_id') or 'NA'
+    vat = vat.replace(' ', '')
+    seq = inv.id
+    return f"INV-{vat}-{year}-{seq:06d}"
 
 
 def create_invoice(db: Session, *,
@@ -1918,7 +1927,7 @@ git commit -m "feat(vat-invoice): VAT 发票历史列表 + 详情 + CSV 导出"
 **3. 类型一致性**
 - 后端 `VatEntity` 字段 ↔ 前端 `VatEntity` ↔ `VatEntityCreate/Update/Response` schema 全字段对齐（id/country/company_name/vat_id/address_line/postal_code/city/email/is_default/created_at/updated_at）。
 - 后端 `VatInvoice.status ∈ {draft,issued,voided}` 与前端 `VatInvoiceRecord.status` 类型字面量一致。
-- `invoice_no = "INV-{year}-{id:06d}"` 在后端服务里生成；前端不参与计算，只展示。
+- `invoice_no = "INV-{VAT号}-{year}-{id:06d}"` 在后端服务里生成，嵌入本票主体 vat_id（去空格），无主体用 NA 兜底；前端不参与计算，只展示。
 - `vat_enabled` 在 ProjectItem / ProjectOption / 前端下拉过滤 三处口径一致。
 
 **4. 一致性 / 范围**
