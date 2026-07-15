@@ -1,8 +1,9 @@
 'use client'
 
-// 预览 Dialog：左侧 HTML iframe 渲染 PDF 缩略，右侧下载按钮。
+// 预览 Dialog：左侧 HTML iframe 渲染 PDF 缩略，右侧下载/签发归档按钮。
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Download, FileText, Loader2 } from 'lucide-react'
+import { Download, FileText, Loader2, Save } from 'lucide-react'
+import { useNotifications } from '@/components/notifications'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { drawInvoice, downloadInvoice } from '../lib/invoice-pdf'
+import { createInvoiceDraft, issueInvoice } from '../lib/vat-invoice-api'
 import type { InvoiceForm, InvoiceSellerEntry } from '../types'
 
 interface InvoicePreviewDialogProps {
@@ -21,6 +25,8 @@ interface InvoicePreviewDialogProps {
   onOpenChange: (open: boolean) => void
   seller: InvoiceSellerEntry
   form: InvoiceForm
+  /** 选中 Seller 对应 vat_entity.id；无主体时 null（invoice_no 走 NA 兜底） */
+  sellerEntityId: number | null
 }
 
 export function InvoicePreviewDialog({
@@ -28,11 +34,16 @@ export function InvoicePreviewDialog({
   onOpenChange,
   seller,
   form,
+  sellerEntityId,
 }: InvoicePreviewDialogProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const [building, setBuilding] = useState(false)
+  const [issuing, setIssuing] = useState(false)
+  const { notify } = useNotifications()
+  const router = useRouter()
 
-  // 每次 Dialog 打开时（或 seller/form 变化时）重新生成 PDF blob URL；
+  // 每次 Dialog 打开（或 seller/form 变化）重新生成 PDF blob URL；
   // 关闭时释放旧 URL，避免内存泄漏。
   useEffect(() => {
     if (!open) return
@@ -47,6 +58,7 @@ export function InvoicePreviewDialog({
           if (prev) URL.revokeObjectURL(prev) // 释放上一次
           return url
         })
+        setPdfBlob(blob)
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('PDF render failed', err)
@@ -77,6 +89,59 @@ export function InvoicePreviewDialog({
     }
   }
 
+  // Blob → base64（去掉 data:...;base64, 前缀）
+  const blobToBase64 = (b: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => {
+        const result = String(r.result ?? '')
+        const idx = result.indexOf('base64,')
+        resolve(idx >= 0 ? result.slice(idx + 'base64,'.length) : result)
+      }
+      r.onerror = () => reject(r.error)
+      r.readAsDataURL(b)
+    })
+
+  const handleIssue = async () => {
+    if (!pdfBlob) {
+      notify({ type: 'error', title: '签发失败', message: 'PDF 尚未渲染完成' })
+      return
+    }
+    if (form.project_id == null) {
+      notify({ type: 'error', title: '签发失败', message: '未选择店铺' })
+      return
+    }
+    setIssuing(true)
+    try {
+      const draft = await createInvoiceDraft({
+        project_id: form.project_id,
+        seller_entity_id: sellerEntityId,
+        currency: form.currency,
+        order_id: form.order_id,
+        invoice_date: form.invoice_date,
+        buyer: form.buyer,
+        shipping_incl_vat: form.shipping_incl_vat,
+        lines: form.line_items.map((li) => ({
+          description: li.description,
+          asin: li.asin,
+          qty: li.qty,
+          unit_price_incl_vat: li.unit_price_incl_vat,
+          vat_rate: li.vat_rate,
+        })),
+        status: 'draft',
+      })
+      const b64 = await blobToBase64(pdfBlob)
+      await issueInvoice(draft.id, b64, `${draft.invoice_no}.pdf`)
+      notify({ type: 'success', title: '签发并归档成功', message: draft.invoice_no })
+      onOpenChange(false)
+      router.push('/dashboard/finance/vat-invoices')
+    } catch (err) {
+      notify({ type: 'error', title: '签发失败', message: normalizeErrorMessage(err) })
+    } finally {
+      setIssuing(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl">
@@ -86,7 +151,8 @@ export function InvoicePreviewDialog({
             发票预览
           </DialogTitle>
           <DialogDescription>
-            确认无误后点击右侧「下载 PDF」。每次重新打开会基于当前表单重新渲染。
+            确认无误后点击「签发并归档」保存到服务器（R2 存 PDF）。
+            「下载 PDF」仅本地导出，不留底。
           </DialogDescription>
         </DialogHeader>
 
@@ -111,11 +177,19 @@ export function InvoicePreviewDialog({
           </div>
 
           <div className="flex flex-col gap-2 md:w-48">
-            <Button onClick={handleDownload} disabled={!pdfUrl}>
-              <Download className="mr-1.5 h-4 w-4" />
-              下载 PDF
+            <Button onClick={handleIssue} disabled={!pdfBlob || issuing}>
+              {issuing ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 h-4 w-4" />
+              )}
+              {issuing ? '签发中…' : '签发并归档'}
             </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={handleDownload} disabled={!pdfUrl}>
+              <Download className="mr-1.5 h-4 w-4" />
+              下载 PDF（本地）
+            </Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
               关闭
             </Button>
           </div>

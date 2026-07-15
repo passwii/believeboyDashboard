@@ -5,13 +5,16 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { FileText } from 'lucide-react'
+import { FileText, Save } from 'lucide-react'
+import { useNotifications } from '@/components/notifications'
+import { normalizeErrorMessage } from '@/lib/error-utils'
 import { SellerCard } from './components/seller-card'
 import { InvoiceFormSection } from './components/invoice-form'
 import { LineItemsEditor } from './components/line-items-editor'
 import { InvoiceSummary } from './components/invoice-summary'
 import { InvoicePreviewDialog } from './components/invoice-preview-dialog'
 import { computeInvoiceTotal } from './lib/vat-calc'
+import { createInvoiceDraft } from './lib/vat-invoice-api'
 import { CURRENCY_OPTIONS, type InvoiceForm, type InvoiceSellerEntry, type VatEntity } from './types'
 
 const emptyBuyer = {
@@ -61,6 +64,8 @@ export default function VatInvoiceClient() {
   const [sellers, setSellers] = useState<VatEntity[]>([])
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const { notify } = useNotifications()
 
   const symbol = getSymbol(form.currency)
 
@@ -69,6 +74,36 @@ export default function VatInvoiceClient() {
     () => sellers.find((s) => s.country === selectedCountry) ?? null,
     [sellers, selectedCountry]
   )
+  // 选中 Seller 对应的 vat_entity.id（用于签发时填 seller_entity_id）
+  const sellerEntityId = seller?.id ?? null
+
+  async function saveDraft() {
+    if (form.project_id == null) return
+    setSavingDraft(true)
+    try {
+      const rec = await createInvoiceDraft({
+        project_id: form.project_id,
+        seller_entity_id: sellerEntityId,
+        currency: form.currency,
+        order_id: form.order_id,
+        invoice_date: form.invoice_date,
+        buyer: form.buyer,
+        shipping_incl_vat: form.shipping_incl_vat,
+        lines: form.line_items.map((li) => ({
+          description: li.description,
+          asin: li.asin,
+          qty: li.qty,
+          unit_price_incl_vat: li.unit_price_incl_vat,
+          vat_rate: li.vat_rate,
+        })),
+      })
+      notify({ type: 'success', title: '草稿已保存', message: rec.invoice_no })
+    } catch (err) {
+      notify({ type: 'error', title: '保存失败', message: normalizeErrorMessage(err) })
+    } finally {
+      setSavingDraft(false)
+    }
+  }
 
   // 校验：发票可预览的最小条件
   const canPreview = useMemo(() => {
@@ -124,6 +159,16 @@ export default function VatInvoiceClient() {
               <FileText className="mr-2 h-4 w-4" />
               预览并导出 PDF
             </Button>
+            <Button
+              className="w-full"
+              variant="secondary"
+              size="lg"
+              disabled={!canPreview || savingDraft}
+              onClick={saveDraft}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {savingDraft ? '保存中…' : '保存草稿'}
+            </Button>
             {!canPreview && (
               <p className="text-xs text-muted-foreground">
                 请先选择店铺、选择国家、填写订单、买方和至少一行商品。
@@ -144,6 +189,7 @@ export default function VatInvoiceClient() {
         onOpenChange={setPreviewOpen}
         seller={seller ? toInvoiceSellerEntry(seller) : emptySellerEntry}
         form={form}
+        sellerEntityId={sellerEntityId}
       />
     </div>
   )

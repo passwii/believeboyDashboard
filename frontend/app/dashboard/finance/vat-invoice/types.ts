@@ -40,6 +40,52 @@ export interface VatEntity {
   updated_at: string
 }
 
+/** 发票行（来自后端 vat_invoice_lines） */
+export interface VatInvoiceLineRecord {
+  id: number
+  line_no: number
+  description: string
+  asin: string
+  qty: number
+  unit_price_incl_vat: string
+  vat_rate: string
+  line_excl: string
+  line_vat: string
+  line_incl: string
+}
+
+/** 发票记录（来自后端 vat_invoices + lines） */
+export interface VatInvoiceRecord {
+  id: number
+  invoice_no: string
+  project_id: number
+  seller_entity_id: number | null
+  seller_snapshot: Record<string, string>
+  buyer: {
+    name: string
+    address_line: string
+    postal_code: string
+    city: string
+    country: string
+  }
+  currency: string
+  order_id: string
+  invoice_date: string
+  shipping_incl_vat: string
+  subtotal_excl: string
+  total_vat: string
+  total_incl: string
+  summary_by_rate: Array<Record<string, string | number>>
+  r2_key: string | null
+  r2_url: string | null
+  status: 'draft' | 'issued' | 'voided'
+  void_reason: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  lines: VatInvoiceLineRecord[]
+}
+
 /** 商品明细行 */
 export interface InvoiceLineItem {
   description: string
