@@ -542,9 +542,11 @@ function CSVUploadPanel({
 function RawFilesGroup({
   report,
   onShowUpload,
+  onUploadSuccess,
 }: {
   report: AvailableReport
   onShowUpload: (target: 'pdf' | 'csv') => void
+  onUploadSuccess: () => void
 }) {
   const { notify } = useNotifications()
 
@@ -629,6 +631,49 @@ function RawFilesGroup({
           <FileUp className="mr-2 h-4 w-4" />
           重新上传 CSV
         </Button>
+      </div>
+
+      {/* Paste / drag / click upload area (common UploadZone design) */}
+      <div className="border-t px-4 py-3">
+        <p className="mb-2 text-xs font-medium text-muted-foreground">
+          粘贴 / 拖拽 / 选择文件上传（支持 PDF 与 CSV）
+        </p>
+        <UploadZone
+          accept=".pdf,.csv,application/pdf,text/csv"
+          maxSize={50}
+          uploadingText="上传中..."
+          showPreview={false}
+          onUpload={async (file: File) => {
+            const isPdf =
+              file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
+            const endpoint = isPdf ? 'pdf-upload' : 'csv-upload'
+            const field = isPdf ? 'pdf_file' : 'csv_file'
+            const formData = new FormData()
+            formData.append(field, file)
+            try {
+              const res = await fetch(
+                `/api/backend/api/v1/report-reconciliation/reports/${report.report_id}/${endpoint}`,
+                { method: 'POST', body: formData }
+              )
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                throw new Error((err as { detail?: string }).detail || '上传失败')
+              }
+              notify({
+                type: 'success',
+                title: '上传成功',
+                message: isPdf ? 'PDF 已更新' : 'CSV 已更新',
+              })
+              setTimeout(() => onUploadSuccess(), 1000)
+            } catch (e) {
+              notify({
+                type: 'error',
+                title: '上传失败',
+                message: e instanceof Error ? e.message : '未知错误',
+              })
+            }
+          }}
+        />
       </div>
     </div>
   )
@@ -966,7 +1011,7 @@ function DetailPanel({
             </div>
           )}
 
-          {!showUploadPanel && <RawFilesGroup report={report} onShowUpload={onShowUpload} />}
+          {!showUploadPanel && <RawFilesGroup report={report} onShowUpload={onShowUpload} onUploadSuccess={onUploadSuccess} />}
         </div>
       </DialogContent>
     </Dialog>
@@ -1289,13 +1334,6 @@ export default function AutoReconcileTab() {
     [notify]
   )
 
-  // Row-level fallback: open dialog directly in CSV re-upload mode
-  const handleRowReuploadCSV = useCallback((report: AvailableReport) => {
-    setSelectedReport(report)
-    setUploadTarget('csv')
-    setReconcileError(null)
-  }, [])
-
   // Handle clear error
   const handleClearError = useCallback(() => {
     if (selectedReport) {
@@ -1320,7 +1358,6 @@ export default function AutoReconcileTab() {
                 value={projectId}
                 onChange={setProjectId}
                 placeholder="选择项目"
-                autoSelectFirst={false}
               />
             </div>
             <div className="w-36">
@@ -1444,13 +1481,14 @@ export default function AutoReconcileTab() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                title="补传源 CSV"
+                                title="下载 PDF"
+                                disabled={!report.has_summary_pdf || !!report.pdf_file_missing}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleRowReuploadCSV(report)
+                                  handleDownloadPDF(report.report_id, notify)
                                 }}
                               >
-                                <FileUp className="h-4 w-4" />
+                                <FileText className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
