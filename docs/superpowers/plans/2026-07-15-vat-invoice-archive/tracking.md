@@ -5,8 +5,8 @@
 
 | 任务 | Phase | 骨架文件 | 状态 |
 |---|---|---|---|
-| phase1-1 纯函数 VAT 计算 + 测试 | 1 | [phase1/phase1-1.md](phase1/phase1-1.md) | [ ] |
-| phase1-2 Alembic 迁移 + 模型 | 1 | [phase1/phase1-2.md](phase1/phase1-2.md) | [ ] |
+| phase1-1 纯函数 VAT 计算 + 测试 | 1 | [phase1/phase1-1.md](phase1/phase1-1.md) | [x] |
+| phase1-2 Alembic 迁移 + 模型 | 1 | [phase1/phase1-2.md](phase1/phase1-2.md) | [x] |
 | phase1-3 主体服务 + 端点 + 守卫 | 1 | [phase1/phase1-3.md](phase1/phase1-3.md) | [ ] |
 | phase1-4 projects.vat_enabled 接入 manage | 1 | [phase1/phase1-4.md](phase1/phase1-4.md) | [ ] |
 | phase1-5 迁移脚本 invoice_sellers→entities | 1 | [phase1/phase1-5.md](phase1/phase1-5.md) | [ ] |
