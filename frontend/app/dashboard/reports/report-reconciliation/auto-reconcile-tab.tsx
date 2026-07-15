@@ -1463,10 +1463,10 @@ export default function AutoReconcileTab() {
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-2">
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
                                 title="下载源 CSV"
                                 disabled={
                                   !report.has_transaction_csv || !!report.transaction_csv_missing
@@ -1475,20 +1475,24 @@ export default function AutoReconcileTab() {
                                   e.stopPropagation()
                                   handleRowDownloadCSV(report)
                                 }}
+                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
                               >
-                                <Download className="h-4 w-4" />
+                                <Table className="mr-1 h-4 w-4" />
+                                CSV
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="icon"
+                                size="sm"
                                 title="下载 PDF"
                                 disabled={!report.has_summary_pdf || !!report.pdf_file_missing}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleDownloadPDF(report.report_id, notify)
                                 }}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
                               >
-                                <FileText className="h-4 w-4" />
+                                <FileText className="mr-1 h-4 w-4" />
+                                PDF
                               </Button>
                             </div>
                           </td>
