@@ -22,7 +22,7 @@
 | **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **9/9 任务完成**（2026-07-13，PR #133 已合）| 详见下方「Phase 1 已落 commits」表 |
 | **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14）| 详见下方「Phase 2 已落 commits」表 |
 
-**总进度：** Phase 1 100%，Phase 2 100%（待 PR 合并）。
+**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）。
 
 ---
 
@@ -77,7 +77,7 @@
 
 ---
 
-## Phase 2 详细规划（已落地，待 PR 合并）
+## Phase 2 详细规划（已落地，已合并 #134）
 
 承接文档：[`docs/superpowers/plans/2026-07-10-ai-chat-pydantic-ai-phase2.md`](./2026-07-10-ai-chat-pydantic-ai-phase2.md)
 
@@ -89,7 +89,7 @@
 | 任务 4：Agent Factory 注册 `tavily_search_tool` | T7 增量 | ✅ 完成（2026-07-14） | build_chat_agent 加 web_search: bool = False 参数；client 用 api_base_url=settings.ai_chat_web_search_base_url。3/3 单测 PASS。requirements.txt 追加 tavily-python。 |
 | 任务 5：端点 `enable_web_search=True` 切到 Pydantic AI native tool；删除 `_legacy_stream_response` | T8 增量 | ✅ 完成（2026-07-14） | 所有 AI chat 用户统一走 Pydantic AI；旧同步路径退役（约 240 行删除）。e2e 测试 mock tool + TestModel call_tools 触发完整事件序列。 |
 | 任务 6：真 LLM 烟雾测试（自动化 + Damon review）| T9 增量 | ✅ 完成（2026-07-14） | `scripts/verify_ai_chat_phase2.py` 4/4 PASS：Pydantic AI 路径 3.9s / 路由 400 / web_search 路径 18.4s（6 条 sources 持久化）/ 客户端 abort 3.0s 优雅退出。 |
-| 任务 7：Merge 前最终检查与文档同步 | T10 增量 | 🚧 进行中 | 架构文档 § 9.3 + § 10 同步（已完成）；tracker 同步（已完成）；开 PR 待用户授权 |
+| 任务 7：Merge 前最终检查与文档同步 | T10 增量 | ✅ 完成 | 架构文档 § 9.3 + § 10 同步；tracker 同步；PR #134 已合并（ec71d04b） |
 
 **Phase 2 验收：**
 - ✅ `enable_web_search=True` 用户 ndjson 事件序列与 Phase 1 旧路径完全一致
@@ -136,6 +136,7 @@ c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · 
 | 2026-07-10 | 端点 `enable_web_search=True` 路径行为冻结 | 减少变量，Phase 1 风险最小化 |
 | 2026-07-10 | 新 Pydantic AI 路径不自动生成会话标题 | 标题生成与 Thinking 指令可能交互复杂；推到 Phase 2 一起处理 |
 | 2026-07-10 | Phase 2 必须先做 SearXNG Tavily adapter 返回格式 spike | 决定 mapper `_handle_tool_result` 的 content 解析路径，避免 Phase 2 一开始就猜测 |
+| 2026-07-15 | 自动生成会话标题 推迟到独立 Phase 3 | Phase 1/2 均未实现；新 Pydantic AI 路径当前不生成标题（与旧路径行为不一致），由 Phase 3 补齐 |
 | 2026-07-10 | pin `starlette<0.42,>=0.40` 显式约束 | 解决 pydantic-ai 间接拉入 sse-starlette 与 fastapi 0.115.5 starlette 要求的冲突 |
 
 ---
