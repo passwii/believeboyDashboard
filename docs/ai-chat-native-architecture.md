@@ -224,7 +224,17 @@ C1 wiring 一律用这个**变量**，不写死 localhost:8000。
 ### 9.3 落地约束
 - **替换路径**：建议独立分支 / PR，避免一次性 big-bang；
 - **`base_url` 零写死**：任何新增代码引用搜索地址都走 `settings.ai_chat_web_search_base_url`；
-- **前端零改动**：ndjson 协议保持兼容现有 `consumeStream`。
+- **前端零改动**：ndjson 协议保持兼容现有 `consumeStream`；Phase 3 亦前端零改动。
+
+### 9.3 Phase 3（2026-07-15）：自动生成会话标题
+
+- **触发**：流式 `done` 事件提交终态后，若 `not regenerate` 且 `conversation.title == DEFAULT_CONVERSATION_TITLE`（"新对话"）且助手有实际回复，则调用 `generate_conversation_title(settings, user_content, final_content)`。
+- **落库**：生成成功 → `conversation.title = generated; db.commit()`，`done` 事件携带更新后的 `conversation_title` 与 `title_regenerated=True`。
+- **非阻塞**：`generate_conversation_title` 为同步 HTTP 调用，端点以 `asyncio.to_thread` 包裹，避免阻塞事件循环。
+- **安全**：provider 未配置 / 空内容 / API 失败 → 函数返回 `None` → `title_regenerated=False`，保留默认标题，流式不报错（外层 try/except 双保险）。
+- **不覆盖**：用户自定义标题（非默认）绝不改写；`regenerate=True` 路径显式排除。
+- **前端零改动**：`frontend/components/chat/hooks/use-chat-stream.ts:145` 已消费 `title_regenerated → onTitleUpdate`，侧边栏自动刷新。
+- **常量**：`app/services/ai/chat.py` 抽 `DEFAULT_CONVERSATION_TITLE = "新对话"`，端点与 `create_conversation` 共用，避免字面量散落。
 
 ---
 

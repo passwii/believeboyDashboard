@@ -22,9 +22,9 @@
 |---|---|---|---|
 | **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **9/9 任务完成**（2026-07-13，PR #133 已合）| 详见下方「Phase 1 已落 commits」表 |
 | **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14）| 详见下方「Phase 2 已落 commits」表 |
-| **Phase 3** | 自动生成会话标题（首轮默认标题时调 `generate_conversation_title`，`done` 事件 `title_regenerated=True`，前端零改动） | 🚧 **计划中**（plan 起草 2026-07-15）| 详见 `2026-07-15-ai-chat-pydantic-ai-phase3.md` |
+| **Phase 3** | 自动生成会话标题（首轮默认标题时调 `generate_conversation_title`，`done` 事件 `title_regenerated=True`，前端零改动） | ✅ **6/6 任务完成**（2026-07-15，待 PR 合并）| 详见下方「Phase 3 已落 commits」表 / `2026-07-15-ai-chat-pydantic-ai-phase3.md` |
 
-**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）；Phase 3 计划中（plan 起草 2026-07-15）。
+**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）；Phase 3 100%（待 PR 合并）。
 
 ---
 
@@ -92,6 +92,31 @@
 | 任务 5：端点 `enable_web_search=True` 切到 Pydantic AI native tool；删除 `_legacy_stream_response` | T8 增量 | ✅ 完成（2026-07-14） | 所有 AI chat 用户统一走 Pydantic AI；旧同步路径退役（约 240 行删除）。e2e 测试 mock tool + TestModel call_tools 触发完整事件序列。 |
 | 任务 6：真 LLM 烟雾测试（自动化 + Damon review）| T9 增量 | ✅ 完成（2026-07-14） | `scripts/verify_ai_chat_phase2.py` 4/4 PASS：Pydantic AI 路径 3.9s / 路由 400 / web_search 路径 18.4s（6 条 sources 持久化）/ 客户端 abort 3.0s 优雅退出。 |
 | 任务 7：Merge 前最终检查与文档同步 | T10 增量 | ✅ 完成 | 架构文档 § 9.3 + § 10 同步；tracker 同步；PR #134 已合并（ec71d04b） |
+
+## Phase 3 详细规划（已落地，待 PR 合并）
+
+承接文档：[`2026-07-15-ai-chat-pydantic-ai-phase3.md`](./2026-07-15-ai-chat-pydantic-ai-phase3.md)
+
+| 任务 | 原 plan 编号 | 状态 | 备注 |
+|---|---|---|---|
+| 任务 1：闭包变量确认 + `import asyncio` | — | ✅ 完成 | `settings`/`user_content`/`regenerate`/`final_content` 均在 `event_stream` 闭包内；`chat.py` 抽 `DEFAULT_CONVERSATION_TITLE` |
+| 任务 2：端点流式路径接入自动标题（核心） | — | ✅ 完成 | `ai_chat.py` `event_stream` 提交终态后插入触发判断 + `asyncio.to_thread` 调用 + 提交 + `title_regenerated` 变量 |
+| 任务 3：单测（mock `generate_conversation_title`） | — | ✅ 完成 | `backend/tests/api/test_ai_chat_autotitle.py` 4 用例全 PASS（首轮触发 / 自定义标题不触发 / 返回 None 不崩 / regenerate 不触发） |
+| 任务 4：真 LLM 烟雾测试脚本 phase3 | — | ✅ 完成（待手测） | `backend/scripts/verify_ai_chat_phase3.py`：首轮生成 / 自定义不覆盖 / 仅首轮不重算 |
+| 任务 5：文档同步 | — | ✅ 完成 | 架构文档 § 9.3 补 Phase 3；tracker 标完成；plan 起草完成 |
+
+**Phase 3 验收：**
+- ✅ 新会话首条消息后侧边栏标题自动变为 LLM 生成短标题（≤18 字）
+- ✅ `done` 事件 `title_regenerated=True` 且仅首轮为 True
+- ✅ 用户自定义标题不被覆盖；`regenerate=True` 不改写标题
+- ✅ provider 未配置 / 标题 LLM 失败 / 助手空回复：不报错，保留默认标题
+- ✅ 前端零改动（`use-chat-stream.ts` `onTitleUpdate` 直接生效）
+
+**Phase 3 已落 commits（按时间倒序）：**
+```
+bc610e93 test(ai): Phase 3 自动标题单测 + 真 LLM 烟雾脚本          ← Phase 3 任务 3 + 4
+1bfa20ab feat(ai): 流式路径首轮自动生成会话标题（Phase 3）         ← Phase 3 任务 1 + 2
+```
 
 **Phase 2 验收：**
 - ✅ `enable_web_search=True` 用户 ndjson 事件序列与 Phase 1 旧路径完全一致
