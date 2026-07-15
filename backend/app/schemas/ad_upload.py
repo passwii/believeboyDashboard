@@ -17,7 +17,7 @@ AdUploadType = Literal[
     'unknown',
 ]
 AdUploadRecognitionStatus = Literal['recognized', 'unsupported', 'error']
-AdUploadIngestionStatus = Literal['pending', 'saved', 'failed', 'skipped']
+AdUploadIngestionStatus = Literal['pending', 'saved', 'failed', 'success', 'skipped']
 
 
 class AdUploadProjectMatchSummary(BaseModel):
