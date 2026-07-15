@@ -726,7 +726,7 @@ def commit_ad_upload(
             report_type=saved_row.report_type,
             upload_date=saved_row.report_date,
             source_file_id=None,
-            has_real_data=saved_row.ingestion_status == "success",
+            has_real_data=(saved_row.row_count_preview or 0) > 0,
             row_count=saved_row.row_count_preview or 0,
             original_filename=saved_row.original_filename,
         )
@@ -751,11 +751,20 @@ def commit_ad_upload(
             report_type=saved_row.report_type,
             upload_date=_today,
             source_file_id=None,
-            has_real_data=saved_row.ingestion_status == "success",
+            has_real_data=(saved_row.row_count_preview or 0) > 0,
             row_count=saved_row.row_count_preview or 0,
             original_filename=saved_row.original_filename,
         )
         _seen_today_keys.add(key)
+
+    # Flip ingestion_status to 'success' so this web-frontend commit matches
+    # the RPA autoReportUpload path and is selected by queries that filter
+    # ad_upload_files on ingestion_status == 'success' (e.g. promoted-product
+    # aggregation). save_ad_upload_scope() only sets the default 'saved'
+    # (and ingests the detail rows synchronously), which previously left
+    # these rows' detail data silently excluded from those views.
+    for saved_row in saved_rows:
+        saved_row.ingestion_status = 'success'
 
     db.commit()
     for saved_row in saved_rows:
