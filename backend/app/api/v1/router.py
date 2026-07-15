@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.jobs import router as jobs_router
 from app.api.v1.endpoints.monthly_reports import router as monthly_reports_router
+from app.api.v1.endpoints.vat_invoices import router as vat_invoices_router
 from app.api.v1.endpoints.daily_analysis import router as daily_analysis_router
 from app.api.v1.endpoints.product_analysis import router as product_analysis_router
 from app.api.v1.endpoints.product_analysis_reports import router as product_analysis_reports_router
@@ -88,3 +89,4 @@ api_router.include_router(backups_router)
 api_router.include_router(inspections_router)
 api_router.include_router(page_render_router)
 api_router.include_router(external_router)
+api_router.include_router(vat_invoices_router)

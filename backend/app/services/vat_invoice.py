@@ -83,3 +83,97 @@ def compute_invoice_totals(
         'total_incl': total_incl,
         'summary_by_rate': summary,
     }
+
+
+# ---------------------------------------------------------------------------
+# VAT entity service
+# ---------------------------------------------------------------------------
+
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.vat_entity import VatEntity
+from app.models.project import Project
+
+
+def ensure_vat_enabled(db: Session, project_id: int) -> Project:
+    """Raise 403 if the project's VAT feature is not enabled.
+
+    Returns the Project row on success. Used as a guard on every
+    VAT-scoped endpoint.
+    """
+    p = db.get(Project, project_id)
+    if p is None:
+        raise HTTPException(status_code=404, detail='project not found')
+    if not p.vat_enabled:
+        raise HTTPException(
+            status_code=403, detail='VAT feature is not enabled for this project'
+        )
+    return p
+
+
+def list_entities(db: Session, project_id: int) -> list[VatEntity]:
+    return list(
+        db.scalars(
+            select(VatEntity)
+            .where(VatEntity.project_id == project_id)
+            .order_by(VatEntity.country)
+        ).all()
+    )
+
+
+def upsert_entity(
+    db: Session,
+    *,
+    project_id: int,
+    country: str,
+    company_name: str,
+    vat_id: str = '',
+    address_line: str = '',
+    postal_code: str = '',
+    city: str = '',
+    email: str = '',
+    is_default: bool = False,
+) -> VatEntity:
+    """Create or update the (project_id, country) entity.
+
+    The unique constraint ``uq_vat_entities_project_country`` means there is at
+    most one entity per (project, country). An upsert overwrites the fields.
+    """
+    row = db.scalar(
+        select(VatEntity).where(
+            VatEntity.project_id == project_id, VatEntity.country == country
+        )
+    )
+    if row is None:
+        row = VatEntity(
+            project_id=project_id,
+            country=country,
+            company_name=company_name,
+            vat_id=vat_id,
+            address_line=address_line,
+            postal_code=postal_code,
+            city=city,
+            email=email,
+            is_default=is_default,
+        )
+        db.add(row)
+    else:
+        row.company_name = company_name
+        row.vat_id = vat_id
+        row.address_line = address_line
+        row.postal_code = postal_code
+        row.city = city
+        row.email = email
+        row.is_default = is_default
+    db.flush()
+    return row
+
+
+def delete_entity(db: Session, entity_id: int) -> None:
+    row = db.get(VatEntity, entity_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail='vat entity not found')
+    db.delete(row)
+    db.flush()
