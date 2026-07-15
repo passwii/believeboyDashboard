@@ -13,8 +13,8 @@
     "source": "lhci autorun 3 routes × 3 runs on commit 2571b9f (post BEL-33..BEL-38 merge). See frontend/docs/perf-baseline-2026-06.md.",
     "per_route_medians_ms_or_units": {
       "/dashboard":                         { "fcp": 291,  "lcp": 1554, "tbt": 0,    "cls": 0.1576, "tti": 1555, "tbw_kb": 1246, "perf": 0.90 },
-      "/dashboard/data-analysis/ad-analysis/overview": { "fcp": 297,  "lcp": 1056, "tbt": 0,    "cls": 0.0165, "tti": 1056, "tbw_kb":  799, "perf": 0.98 },
-      "/dashboard/data-reporting/monthly-report":      { "fcp": 289,  "lcp":  818, "tbt": 0,    "cls": 0.0000, "tti":  818, "tbw_kb":  649, "perf": 1.00 }
+      "/dashboard/advertising/ad-analysis/overview": { "fcp": 297,  "lcp": 1056, "tbt": 0,    "cls": 0.0165, "tti": 1056, "tbw_kb":  799, "perf": 0.98 },
+      "/dashboard/reports/monthly-report":      { "fcp": 289,  "lcp":  818, "tbt": 0,    "cls": 0.0000, "tti":  818, "tbw_kb":  649, "perf": 1.00 }
     },
     "aggregated_for_threshold": {
       "lcp_ms_baseline_max": 1554,
@@ -39,8 +39,8 @@
       },
       "url": [
         "http://localhost:3200/dashboard",
-        "http://localhost:3200/dashboard/data-analysis/ad-analysis/overview",
-        "http://localhost:3200/dashboard/data-reporting/monthly-report"
+        "http://localhost:3200/dashboard/advertising/ad-analysis/overview",
+        "http://localhost:3200/dashboard/reports/monthly-report"
       ]
     },
     "assert": {

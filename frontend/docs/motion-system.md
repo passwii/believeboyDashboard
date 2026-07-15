@@ -105,7 +105,7 @@ pnpm test && pnpm build
 ```
 
 - ✅ **普通 dashboard 路由**：`<PageTransition>` 自动选 `<NormalPageTransition>`
-- ✅ **full-bleed absolute 路由**（如 `/dashboard/ai-chat`）：同上，自动选 `<FullBleedPageTransition>`
+- ✅ **full-bleed absolute 路由**（如 `/dashboard/ai/chat`）：同上，自动选 `<FullBleedPageTransition>`
 - ❌ **不推荐**：手动导入 `<NormalPageTransition>` / `<FullBleedPageTransition>`（除非 dispatcher 决策不适合；当前没有此场景）
 
 ### 3.2 元素淡入
@@ -178,7 +178,7 @@ return <div ref={ref} className="...">...</div>
 
 ### 4.1 当前覆盖
 
-`/dashboard/ai-chat` 是 full-bleed absolute 路由（页面用 `!absolute inset-0` 撑满父级）。
+`/dashboard/ai/chat` 是 full-bleed absolute 路由（页面用 `!absolute inset-0` 撑满父级）。
 
 ### 4.2 如何新增
 
@@ -186,7 +186,7 @@ return <div ref={ref} className="...">...</div>
 
 ```ts
 const FULL_BLEED_DASHBOARD_ROUTES = [
-  '/dashboard/ai-chat',
+  '/dashboard/ai/chat',
   '/dashboard/new-full-bleed-page',  // 新增
 ] as const
 ```
@@ -200,7 +200,7 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 | wrapper className | `h-full w-full` | `!absolute inset-0` |
 | motion.div | `will-change-transform h-full w-full` | 同 |
 | 触发条件 | pathname 不在 FULL_BLEED_DASHBOARD_ROUTES | pathname 严格匹配 |
-| 典型场景 | `/dashboard/profile`、`/dashboard/system-management/...` | `/dashboard/ai-chat` |
+| 典型场景 | `/dashboard/profile`、`/dashboard/system/...` | `/dashboard/ai/chat` |
 
 ### 4.4 为什么需要 full-bleed 变体
 

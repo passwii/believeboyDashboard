@@ -25,8 +25,8 @@
 | 路由 | 业务场景 | 备注 |
 |------|---------|------|
 | `/dashboard` | dashboard 主页 | sidebar + 图表首屏 |
-| `/dashboard/data-analysis/ad-analysis/overview` | 业务高频页 | recharts 改造目标 |
-| `/dashboard/data-reporting/monthly-report` | 业务高频页 | 已被选为 server/client 拆分样板 (BEL-33) |
+| `/dashboard/advertising/ad-analysis/overview` | 业务高频页 | recharts 改造目标 |
+| `/dashboard/reports/monthly-report` | 业务高频页 | 已被选为 server/client 拆分样板 (BEL-33) |
 
 > Step A 草稿里有 `/`，该路由 307 → `/dashboard`，实际算同一页面，已从断言 URL 列表移除（避免重复审计）。
 
