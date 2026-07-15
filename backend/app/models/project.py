@@ -44,6 +44,7 @@ class Project(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     project_tier: Mapped[str | None] = mapped_column(String(8), nullable=True)
     source_file: Mapped[str | None] = mapped_column(String, nullable=True)
+    vat_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
     project_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     sku_context: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

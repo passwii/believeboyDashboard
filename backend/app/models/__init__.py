@@ -110,6 +110,8 @@ from app.models.ad_agent_run import AdAgentRun
 from app.models.ad_agent_dimension_health import AdAgentDimensionHealth
 from app.models.r2_delete_failure import R2DeleteFailure
 from app.models.uploaded_page import UploadedPage
+from app.models.vat_entity import VatEntity
+from app.models.vat_invoice import VatInvoice, VatInvoiceLine
 
 __all__ = [
     'SkuRecord',
@@ -216,4 +218,7 @@ __all__ = [
     'AdAgentRun',
     'AdAgentDimensionHealth',
     'UploadedPage',
+    'VatEntity',
+    'VatInvoice',
+    'VatInvoiceLine',
 ]
