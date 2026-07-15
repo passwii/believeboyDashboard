@@ -90,3 +90,21 @@ def test_patch_missing_returns_404(client, admin_headers):
         json={'company_name': 'nope'},
     )
     assert r.status_code == 404
+
+
+# ---- phase1-4: projects.vat_enabled wiring ----
+
+def test_projects_manage_includes_vat_enabled(client, db_session, admin_headers):
+    import uuid
+    on_name = f'VATonShop-{uuid.uuid4().hex[:6]}'
+    off_name = f'VAToffShop-{uuid.uuid4().hex[:6]}'
+    db_session.add(Project(project_name=on_name, sort_order=1, vat_enabled=True))
+    db_session.add(Project(project_name=off_name, sort_order=2, vat_enabled=False))
+    db_session.flush()
+
+    r = client.get('/api/v1/projects/manage', headers=admin_headers)
+    assert r.status_code == 200, r.text
+    by_name = {it['name']: it for it in r.json()}
+    assert on_name in by_name, f'{on_name} not in {[i["name"] for i in r.json()][:5]}...'
+    assert by_name[on_name]['vat_enabled'] is True
+    assert by_name[off_name]['vat_enabled'] is False

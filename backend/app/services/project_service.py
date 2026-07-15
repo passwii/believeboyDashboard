@@ -467,6 +467,7 @@ def create_single_project(
     commission_rate: float | Decimal | None = None,
     source_file: str | None = None,
     project_tier: str | None = None,
+    vat_enabled: bool | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -511,6 +512,7 @@ def create_single_project(
             sort_order=int(max_sort_order) + 1,
             source_file=normalized_source_file,
             project_tier=normalized_project_tier,
+            vat_enabled=bool(vat_enabled) if vat_enabled is not None else False,
         )
 
     row = _build_row()
@@ -555,6 +557,7 @@ def update_project(
     commission_rate: float | Decimal | None = None,
     is_active: bool | None = True,
     project_tier: str | None = None,
+    vat_enabled: bool | None = None,
 ) -> Project:
     project_name = name.strip()
     if not project_name:
@@ -589,6 +592,8 @@ def update_project(
     row.commission_rate = _normalize_commission_rate(commission_rate)
     row.is_active = is_active if is_active is not None else True
     row.project_tier = _normalize_project_tier(project_tier)
+    if vat_enabled is not None:
+        row.vat_enabled = vat_enabled
     db.flush()
     db.refresh(row)
     invalidate_projects_cache()
