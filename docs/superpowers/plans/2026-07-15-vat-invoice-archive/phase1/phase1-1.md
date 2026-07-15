@@ -15,7 +15,7 @@
 - [ ] 步骤 5：Commit（含 plan 里指定的 message）
 
 ## 实施记录
-<!-- 执行者在此填写：commit SHA、偏离 plan 的取舍、遇到的坑 -->
+- 2026-07-15 ed6c6630 完成。纯函数 `split_vat` / `compute_invoice_totals` 落地 `backend/app/services/vat_invoice.py`，2 测试通过（19% 拆分 + 双率含运费分桶合计 368.00）。无偏离。
 - 
 
 ## 审查

@@ -16,6 +16,7 @@
 
 ## 实施记录
 <!-- 执行者在此填写：commit SHA、偏离 plan 的取舍、遇到的坑 -->
+- 2026-07-15 2cb51ebb 完成。`scripts/migrate_invoice_sellers_to_entities.py`：dry-run 默认 + `--commit` 写入 + 跳过空/无 context + 按 (project_id, country) 去重 + 已存在检测。本地 sqlite 验证 `extract_seller_plan`：弥森 DE+FR、Other DE、Dup 两个 DE（只留 first）、Empty（空列表跳过）、NoCtx（None 跳过）全部正确。去程。坑：`from app.db.session import SessionLocal` 路径修正（plan 原写 `app.db`，仓库实际 `app.db.session`）。
 - 
 
 ## 审查
