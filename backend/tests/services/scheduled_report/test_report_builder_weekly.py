@@ -32,12 +32,18 @@ from app.services.scheduled_report import report_builder_weekly
 def db():
     """In-memory SQLite session with the schema needed for the test rows.
 
-    We import the relevant models so ``Base.metadata.create_all`` builds
-    only the tables this test file touches; we keep the fixture isolated
-    to avoid pulling the whole model graph into a sqlite-only schema.
+    只建本测试文件实际用到的表，避免 ``Base.metadata.create_all`` 在 SQLite
+    上编译无关的 ``r2_delete_failures``（JSONB，仅 Postgres）等表而报错。
     """
     engine = create_engine("sqlite:///:memory:", future=True)
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            Project.__table__,
+            AnalysisSourceFile.__table__,
+            InventorySnapshotRow.__table__,
+        ],
+    )
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     session = SessionLocal()
     try:
@@ -371,6 +377,7 @@ def test_inventory_summary_basic_counts(db) -> None:
         "total_available": 105,
         "low_stock_count": 1,
         "oos_count": 1,
+        "in_transit": 0,
     }
 
 
@@ -553,6 +560,7 @@ def test_inventory_summary_no_data_returns_zeros(db) -> None:
         "total_available": 0,
         "low_stock_count": 0,
         "oos_count": 0,
+        "in_transit": 0,
     }
 
 
