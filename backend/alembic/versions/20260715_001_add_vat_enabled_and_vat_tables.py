@@ -23,7 +23,7 @@ def upgrade() -> None:
     # 1) projects: 增 vat_enabled 列（默认 False，避免影响历史店铺）
     op.add_column(
         'projects',
-        sa.Column('vat_enabled', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+        sa.Column('vat_enabled', sa.Boolean(), nullable=False, server_default=sa.text('false')),
     )
 
     # 2) vat_entities
@@ -39,7 +39,7 @@ def upgrade() -> None:
         sa.Column('postal_code', sa.String(length=32), nullable=False, server_default=''),
         sa.Column('city', sa.String(length=128), nullable=False, server_default=''),
         sa.Column('email', sa.String(length=255), nullable=False, server_default=''),
-        sa.Column('is_default', sa.Boolean(), nullable=False, server_default='0'),
+        sa.Column('is_default', sa.Boolean(), nullable=False, server_default=sa.text('false')),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint('project_id', 'country', name='uq_vat_entities_project_country'),
@@ -98,7 +98,7 @@ def upgrade() -> None:
     op.create_index('idx_vat_invoice_lines_inv', 'vat_invoice_lines', ['invoice_id'])
 
     # 5) seed: 给历史 VAT 主体店铺（弥森）默认开启 VAT
-    op.execute("UPDATE projects SET vat_enabled = 1 WHERE project_name = '弥森'")
+    op.execute("UPDATE projects SET vat_enabled = true WHERE project_name = '弥森'")
 
 
 def downgrade() -> None:
