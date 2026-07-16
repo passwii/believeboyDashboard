@@ -475,7 +475,6 @@ async function exportDailyAnalysisToExcel(
   workbook.creator = 'Codex'
   workbook.created = new Date()
 
-  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
   const now = new Date()
   const safeDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
 
@@ -488,7 +487,7 @@ async function exportDailyAnalysisToExcel(
 
   // Sheet 1: 汇总
   const summarySheet = workbook.addWorksheet(summarySheetName, {
-    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+    views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
   })
 
   const summaryCols = [
@@ -509,42 +508,7 @@ async function exportDailyAnalysisToExcel(
 
   summarySheet.columns = summaryCols
 
-  summarySheet.mergeCells(1, 1, 1, summaryCols.length)
-  summarySheet.getCell(1, 1).value = `销售数据汇总 - ${projectName} - ${country}`
-  summarySheet.getCell(1, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  summarySheet.getCell(1, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
-  summarySheet.getCell(1, 1).alignment = {
-    vertical: 'middle',
-    horizontal: 'left',
-  }
-
-  summarySheet.mergeCells(2, 1, 2, summaryCols.length)
-  summarySheet.getCell(2, 1).value = `导出时间：${exportedAt}    日期范围：${dateRange}`
-  summarySheet.getCell(2, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  summarySheet.getCell(2, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-  summarySheet.getCell(2, 1).alignment = {
-    vertical: 'middle',
-    horizontal: 'left',
-  }
-
-  const summaryHeaderRow = summarySheet.getRow(3)
+  const summaryHeaderRow = summarySheet.getRow(1)
   summaryHeaderRow.values = summaryCols.map((c) => c.header)
   summaryHeaderRow.height = 22
   summaryHeaderRow.eachCell((cell) => {
@@ -567,7 +531,7 @@ async function exportDailyAnalysisToExcel(
   })
 
   summaryRows.forEach((row, rowIndex) => {
-    const excelRow = summarySheet.getRow(rowIndex + 4)
+    const excelRow = summarySheet.getRow(rowIndex + 2)
     excelRow.getCell(1).value = formatDateForExport(row.date)
     excelRow.getCell(2).value = row.order_qty
     excelRow.getCell(3).value = row.sales_amount
@@ -598,7 +562,7 @@ async function exportDailyAnalysisToExcel(
 
   // Sheet 2: SKU明细
   const detailSheet = workbook.addWorksheet(detailSheetName, {
-    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+    views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
   })
 
   const detailCols = [
@@ -622,43 +586,7 @@ async function exportDailyAnalysisToExcel(
 
   detailSheet.columns = detailCols
 
-  detailSheet.mergeCells(1, 1, 1, detailCols.length)
-  detailSheet.getCell(1, 1).value = `销售数据SKU明细 - ${projectName} - ${country}`
-  detailSheet.getCell(1, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  detailSheet.getCell(1, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
-  detailSheet.getCell(1, 1).alignment = {
-    vertical: 'middle',
-    horizontal: 'left',
-  }
-
-  detailSheet.mergeCells(2, 1, 2, detailCols.length)
-  detailSheet.getCell(2, 1).value =
-    `导出时间：${exportedAt}    日期范围：${dateRange}    共 ${detailRows.length} 条`
-  detailSheet.getCell(2, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  detailSheet.getCell(2, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-  detailSheet.getCell(2, 1).alignment = {
-    vertical: 'middle',
-    horizontal: 'left',
-  }
-
-  const detailHeaderRow = detailSheet.getRow(3)
+  const detailHeaderRow = detailSheet.getRow(1)
   detailHeaderRow.values = detailCols.map((c) => c.header)
   detailHeaderRow.height = 22
   detailHeaderRow.eachCell((cell) => {
@@ -684,7 +612,7 @@ async function exportDailyAnalysisToExcel(
 
   detailRows.forEach((row, rowIndex) => {
     const productName = skuProductNameMap.get(row.sku) ?? ''
-    const excelRow = detailSheet.getRow(rowIndex + 4)
+    const excelRow = detailSheet.getRow(rowIndex + 2)
     excelRow.getCell(1).value = formatDateForExport(row.date)
     excelRow.getCell(2).value = row.sku
     excelRow.getCell(3).value = productName
@@ -716,7 +644,7 @@ async function exportDailyAnalysisToExcel(
     })
   })
 
-  let mergeStartRow = 4
+  let mergeStartRow = 2
   let groupIndex = 0
   for (let rowIndex = 1; rowIndex <= detailRows.length; rowIndex += 1) {
     const currentDate = detailRows[rowIndex]?.date
@@ -725,7 +653,7 @@ async function exportDailyAnalysisToExcel(
 
     if (!isGroupBoundary) continue
 
-    const mergeEndRow = rowIndex + 3
+    const mergeEndRow = rowIndex + 1
     const groupStartRow = mergeStartRow
     const groupRowCount = mergeEndRow - groupStartRow + 1
     const isEvenGroup = groupIndex % 2 === 0
@@ -787,7 +715,7 @@ async function exportDailyAnalysisToExcel(
       right: { style: 'medium', color: { argb: groupBorder } },
     }
 
-    mergeStartRow = rowIndex + 4
+    mergeStartRow = rowIndex + 2
     groupIndex += 1
   }
 
