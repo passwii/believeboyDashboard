@@ -1,11 +1,16 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import VatInvoiceClient from './vat-invoice-client'
 
 export const metadata: Metadata = {
-  title: 'VAT 发票生成器',
-  description: '为欧洲订单快速生成 VAT 发票，支持店铺级 Seller 预填、多商品行、多 VAT 率汇总。',
+  title: 'VAT 发票',
+  description: '为欧洲订单快速生成 VAT 发票，并查看已签发/草稿/作废的发票历史。',
 }
 
 export default function VatInvoicePage() {
-  return <VatInvoiceClient />
+  return (
+    <Suspense fallback={null}>
+      <VatInvoiceClient />
+    </Suspense>
+  )
 }

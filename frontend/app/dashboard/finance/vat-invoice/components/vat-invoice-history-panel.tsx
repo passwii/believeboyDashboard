@@ -15,20 +15,20 @@ import {
 import { Download, Loader2 } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { fetchProjectsManage } from '../vat-invoice/lib/invoice-api'
+import { fetchProjectsManage } from '../lib/invoice-api'
 import {
   listInvoices,
   voidInvoice,
   downloadInvoicePdf,
   exportInvoicesCsv,
   type VatInvoiceListItem,
-} from './lib/vat-history-api'
-import { InvoiceHistoryTable } from './components/invoice-history-table'
-import { InvoiceDetailDialog } from './components/invoice-detail-dialog'
+} from '../lib/vat-history-api'
+import { InvoiceHistoryTable } from './invoice-history-table'
+import { InvoiceDetailDialog } from './invoice-detail-dialog'
 
 type StatusFilter = '' | 'draft' | 'issued' | 'voided'
 
-export default function VatInvoicesClient() {
+export function VatInvoiceHistoryPanel() {
   const { notify } = useNotifications()
   const [projects, setProjects] = useState<Array<{ id: number; name: string; vat_enabled: boolean }>>([])
   const [projectId, setProjectId] = useState<string>('')

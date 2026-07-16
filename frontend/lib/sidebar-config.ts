@@ -182,7 +182,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '平台回款', url: '/dashboard/finance/platform-revenue', icon: IconMap.Banknote },
       { title: '汇率信息', url: '/dashboard/finance/exchange-rate', icon: IconMap.DollarSign },
       { title: 'VAT 发票', url: '/dashboard/finance/vat-invoice', icon: IconMap.Receipt },
-      { title: 'VAT 发票历史', url: '/dashboard/finance/vat-invoices', icon: IconMap.Receipt },
       { title: '佣金管理', url: '/dashboard/finance/commission-management', icon: IconMap.Coins },
     ],
   },

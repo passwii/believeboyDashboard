@@ -134,7 +134,7 @@ export function InvoicePreviewDialog({
       await issueInvoice(draft.id, b64, `${draft.invoice_no}.pdf`)
       notify({ type: 'success', title: '签发并归档成功', message: draft.invoice_no })
       onOpenChange(false)
-      router.push('/dashboard/finance/vat-invoices')
+      router.push('/dashboard/finance/vat-invoice?tab=history')
     } catch (err) {
       notify({ type: 'error', title: '签发失败', message: normalizeErrorMessage(err) })
     } finally {
