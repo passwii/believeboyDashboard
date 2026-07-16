@@ -1420,11 +1420,8 @@ async function exportStoreSkuTableToExcel(
   workbook.created = new Date()
 
   const worksheet = workbook.addWorksheet('店铺SKU核算表', {
-    views: [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }],
+    views: [{ state: 'frozen', xSplit: 2, ySplit: 2, showGridLines: false }],
   })
-
-  const title = `店铺SKU核算表 - ${projectName}`
-  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
 
   // 只导出有结果的SKU
   const itemsWithResults = items.filter((item) => {
@@ -1432,38 +1429,8 @@ async function exportStoreSkuTableToExcel(
     return rowState?.result != null
   })
 
-  worksheet.mergeCells(1, 1, 1, 29)
-  worksheet.getCell(1, 1).value = title
-  worksheet.getCell(1, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  worksheet.getCell(1, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
-  worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'left' }
-
-  worksheet.mergeCells(2, 1, 2, 29)
-  worksheet.getCell(2, 1).value =
-    `导出时间：${exportedAt} 核算模式：${calculationMode === 'profit-calc' ? '利润核算' : '利润倒算'} 导出数量：${itemsWithResults.length} 条`
-  worksheet.getCell(2, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  worksheet.getCell(2, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-  worksheet.getCell(2, 1).alignment = { vertical: 'middle', horizontal: 'left' }
-
-  // 大分组表头（第3行）- 类似前端的分组效果
-  const groupHeaderRow = worksheet.getRow(3)
+  // 大分组表头（第1行）- 类似前端的分组效果
+  const groupHeaderRow = worksheet.getRow(1)
   groupHeaderRow.height = 28
 
   // 定义分组配置：名称、起始列、跨列数、颜色
@@ -1515,7 +1482,7 @@ async function exportStoreSkuTableToExcel(
   // 设置分组表头（合并单元格）
   groupConfigs.forEach((group) => {
     const endCol = group.startCol + group.span - 1
-    worksheet.mergeCells(3, group.startCol, 3, endCol)
+    worksheet.mergeCells(1, group.startCol, 1, endCol)
     const cell = worksheet.getCell(3, group.startCol)
     cell.value = group.name
     cell.font = {
@@ -1537,8 +1504,8 @@ async function exportStoreSkuTableToExcel(
     applyHeaderBorder(cell)
   })
 
-  // 细分表头（第4行）
-  const headerRow = worksheet.getRow(4)
+  // 细分表头（第2行）
+  const headerRow = worksheet.getRow(2)
   headerRow.values = [
     'SKU',
     '项目',
@@ -1659,7 +1626,7 @@ async function exportStoreSkuTableToExcel(
     applyHeaderBorder(cell)
   })
 
-  let currentRowIndex = 5
+  let currentRowIndex = 3
   itemsWithResults.forEach((item) => {
     const rowState = rowStates[item.id]
     const result = rowState?.result

@@ -788,16 +788,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
     const safeCountryLabel = getCountryLabel(country).replace(/[\\/:*?"<>|]/g, '-')
     const filename = `${safeProjectName}_${safeCountryLabel}-产品核算-${startDateCompact}~${endDateCompact}.xlsx`
 
-    summarySheet.getCell(1, 1).value =
-      `产品核算汇总 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
-    summarySheet.getCell(1, 1).font = { size: 14, bold: true }
-    summarySheet.getCell(2, 1).value = `生成时间: ${new Date().toLocaleString('zh-CN')}`
-    summarySheet.getCell(2, 1).font = { size: 10 }
-    summarySheet.getCell(3, 1).value = `共 ${periods.length} 个周期`
-
-    detailSheet.getCell(1, 1).value =
-      `产品核算明细 - ${projectLabel} ${country} ${startDate} 至 ${endDate}`
-    detailSheet.getCell(1, 1).font = { size: 14, bold: true }
+    summarySheet.getCell(1, 1).value = `共 ${periods.length} 个周期`
 
     const headers = [
       '周期',
@@ -811,13 +802,13 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
       '利润率',
     ]
     headers.forEach((header, idx) => {
-      const cell = detailSheet.getCell(3, idx + 1)
+      const cell = detailSheet.getCell(1, idx + 1)
       cell.value = header
       cell.font = { bold: true }
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
     })
 
-    let rowIdx = 4
+    let rowIdx = 2
     periods.forEach((period) => {
       period.details.forEach((detail) => {
         detailSheet.getCell(rowIdx, 1).value =

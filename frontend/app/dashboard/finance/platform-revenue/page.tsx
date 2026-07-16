@@ -694,36 +694,9 @@ export default function PlatformRevenuePage() {
         { key: 'note', width: 30 },
       ]
 
-      // 标题行
-      worksheet.mergeCells(1, 1, 1, 7)
-      const titleCell = worksheet.getCell(1, 1)
-      titleCell.value = '平台回款记录'
-      titleCell.font = { name: 'Microsoft YaHei', size: 16, bold: true }
-      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
-
-      // 筛选信息行
-      const filterInfo = [
-        filters.project_id
-          ? `项目: ${projects.find((p) => p.id.toString() === filters.project_id)?.name || filters.project_id}`
-          : '',
-        filters.year ? `年份: ${filters.year}` : '',
-        filters.month ? `月份: ${filters.month}` : '',
-        filters.currency ? `币种: ${filters.currency}` : '',
-        filters.revenue_type ? `回款类型: ${filters.revenue_type}` : '',
-      ]
-        .filter(Boolean)
-        .join(' | ')
-      let currentRow = 2
-      if (filterInfo) {
-        worksheet.mergeCells(currentRow, 1, currentRow, 7)
-        const filterCell = worksheet.getCell(currentRow, 1)
-        filterCell.value = filterInfo
-        filterCell.font = { name: 'Microsoft YaHei', size: 11, color: { argb: 'FF64748B' } }
-        currentRow++
-      }
-
-      // 表头行
+      // 表头行（首行即列头，去掉原标题行与筛选信息行）
       const headerLabels = ['回款日期', '项目', '站点', '金额', '币种', '回款类型', '备注']
+      let currentRow = 1
       const headerRow = worksheet.getRow(currentRow)
       headerLabels.forEach((label, i) => {
         const cell = headerRow.getCell(i + 1)

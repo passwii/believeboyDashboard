@@ -351,7 +351,6 @@ export default function InventoryAnalysisPage() {
       })
 
       const selectedProject = projects.find((project) => String(project.id) === projectId)
-      const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
       const baseColumns = [
         { header: 'SKU', key: 'sku', width: 22 },
         { header: 'ASIN', key: 'asin', width: 18 },
@@ -374,55 +373,13 @@ export default function InventoryAnalysisPage() {
       const columns = [...baseColumns, ...shipmentExportColumns]
 
       const lastColumn = columns.length
-      worksheet.mergeCells(1, 1, 1, lastColumn)
-      worksheet.getCell(1, 1).value = '库存分析导出'
-      worksheet.getCell(1, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 16,
-        bold: true,
-        color: { argb: 'FF0F172A' },
-      }
-      worksheet.getCell(1, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE2E8F0' },
-      }
-
-      worksheet.mergeCells(2, 1, 2, lastColumn)
-      worksheet.getCell(2, 1).value =
-        `导出时间：${exportedAt}    说明：导出当前项目与国家站点下的库存分析明细`
-      worksheet.getCell(2, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 10,
-        color: { argb: 'FF475569' },
-      }
-      worksheet.getCell(2, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF8FAFC' },
-      }
-
-      worksheet.mergeCells(3, 1, 3, lastColumn)
-      worksheet.getCell(3, 1).value =
-        `项目：${selectedProject?.name || '--'}    国家站点：${COUNTRY_OPTIONS.find((option) => option.value === country)?.label || country}    业务日期：${formatBusinessDate(reportDate)}`
-      worksheet.getCell(3, 1).font = {
-        name: 'Microsoft YaHei',
-        size: 10,
-        color: { argb: 'FF64748B' },
-      }
-      worksheet.getCell(3, 1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFFFFF' },
-      }
-
       worksheet.columns = columns.map((column) => ({
         header: column.header,
         key: column.key,
         width: column.width,
       }))
 
-      const headerRow = worksheet.getRow(4)
+      const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
       headerRow.height = 24
       headerRow.eachCell((cell) => {
@@ -435,7 +392,7 @@ export default function InventoryAnalysisPage() {
       rows.forEach((row, index) => {
         const stock = stockMeta(row.stock_status)
         const aging = agingMeta(row.aging_status)
-        const excelRow = worksheet.getRow(index + 5)
+        const excelRow = worksheet.getRow(index + 2)
         excelRow.values = [
           row.sku,
           row.asin || '--',
@@ -480,7 +437,7 @@ export default function InventoryAnalysisPage() {
         })
       })
 
-      const totalRow = worksheet.getRow(rows.length + 5)
+      const totalRow = worksheet.getRow(rows.length + 2)
       totalRow.values = [
         '合计',
         '--',

@@ -683,41 +683,14 @@ function fillSummaryWorksheet(
   }
 ) {
   const lastColumn = SUMMARY_COLUMNS.length + 2
-  worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
-  worksheet.mergeCells(1, 1, 1, lastColumn)
-  worksheet.getCell(1, 1).value = '按周产品分析 - 汇总'
-  worksheet.getCell(1, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  worksheet.getCell(1, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
 
-  worksheet.mergeCells(2, 1, 2, lastColumn)
-  worksheet.getCell(2, 1).value =
-    `店铺：${meta.projectName}    站点：${meta.country}    日期：${meta.startDate} 至 ${meta.endDate}`
-  worksheet.getCell(2, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  worksheet.getCell(2, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-
-  const groupRow = worksheet.getRow(4)
-  const headRow = worksheet.getRow(5)
+  const groupRow = worksheet.getRow(1)
+  const headRow = worksheet.getRow(2)
   groupRow.getCell(1).value = '周次'
   groupRow.getCell(2).value = '日期范围'
-  worksheet.mergeCells(4, 1, 5, 1)
-  worksheet.mergeCells(4, 2, 5, 2)
+  worksheet.mergeCells(1, 1, 2, 1)
+  worksheet.mergeCells(1, 2, 2, 2)
 
   let currentColumn = 3
   SUMMARY_COLUMN_GROUPS.forEach((group) => {
@@ -726,7 +699,7 @@ function fillSummaryWorksheet(
       headRow.getCell(currentColumn).value = column
       currentColumn += 1
     })
-    worksheet.mergeCells(4, start, 4, currentColumn - 1)
+    worksheet.mergeCells(1, start, 1, currentColumn - 1)
     const groupCell = groupRow.getCell(start)
     groupCell.value = group.title
     groupCell.alignment = { vertical: 'middle', horizontal: 'center' }
@@ -775,7 +748,7 @@ function fillSummaryWorksheet(
     })
   })
 
-  let rowIndex = 6
+  let rowIndex = 3
   summaryRows.forEach((item, index) => {
     const row = worksheet.getRow(rowIndex)
     const { isPartial } = extractCompleteness(item.row)
@@ -898,39 +871,12 @@ function fillDetailWorksheet(
   }
 ) {
   const lastColumn = detailColumns.length
-  worksheet.views = [{ state: 'frozen', ySplit: 4, xSplit: 2 }]
-  worksheet.mergeCells(1, 1, 1, lastColumn)
-  worksheet.getCell(1, 1).value = '按周产品分析 - SKU明细'
-  worksheet.getCell(1, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 16,
-    bold: true,
-    color: { argb: 'FF0F172A' },
-  }
-  worksheet.getCell(1, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE2E8F0' },
-  }
+  worksheet.views = [{ state: 'frozen', ySplit: 2, xSplit: 2 }]
 
-  worksheet.mergeCells(2, 1, 2, lastColumn)
-  worksheet.getCell(2, 1).value =
-    `店铺：${meta.projectName}    站点：${meta.country}    周次：${meta.weekLabel}    日期：${meta.weekRange}`
-  worksheet.getCell(2, 1).font = {
-    name: 'Microsoft YaHei',
-    size: 10,
-    color: { argb: 'FF475569' },
-  }
-  worksheet.getCell(2, 1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFF8FAFC' },
-  }
-
-  const groupRow = worksheet.getRow(4)
-  const headRow = worksheet.getRow(5)
-  worksheet.mergeCells(4, 1, 5, 1)
-  worksheet.mergeCells(4, 2, 5, 2)
+  const groupRow = worksheet.getRow(1)
+  const headRow = worksheet.getRow(2)
+  worksheet.mergeCells(1, 1, 2, 1)
+  worksheet.mergeCells(1, 2, 2, 2)
   groupRow.getCell(1).value = '日期'
   groupRow.getCell(2).value = 'SKU'
 
@@ -941,7 +887,7 @@ function fillDetailWorksheet(
       headRow.getCell(currentColumn).value = column
       currentColumn += 1
     })
-    worksheet.mergeCells(4, start, 4, currentColumn - 1)
+    worksheet.mergeCells(1, start, 1, currentColumn - 1)
     const groupCell = groupRow.getCell(start)
     groupCell.value = group.title
     groupCell.alignment = { vertical: 'middle', horizontal: 'center' }
@@ -969,7 +915,7 @@ function fillDetailWorksheet(
   })
 
   detailGroupMeta.extras.forEach((column) => {
-    worksheet.mergeCells(4, currentColumn, 5, currentColumn)
+    worksheet.mergeCells(1, currentColumn, 2, currentColumn)
     const cell = groupRow.getCell(currentColumn)
     cell.value = column
     cell.alignment = {
@@ -1013,7 +959,7 @@ function fillDetailWorksheet(
     })
   })
 
-  let rowIndex = 6
+  let rowIndex = 3
   detailRows.forEach((rowData) => {
     const row = worksheet.getRow(rowIndex)
     detailColumns.forEach((column, idx) => {
@@ -1699,7 +1645,7 @@ export default function WeeklyProductAnalysisPage() {
       workbook.created = new Date()
 
       const summarySheet = workbook.addWorksheet('汇总', {
-        views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
+        views: [{ state: 'frozen', ySplit: 2, showGridLines: false }],
       })
       fillSummaryWorksheet(summarySheet, summaryRows, summaryTotals, {
         projectName,
@@ -1709,7 +1655,7 @@ export default function WeeklyProductAnalysisPage() {
       })
 
       const detailSheet = workbook.addWorksheet('SKU明细', {
-        views: [{ state: 'frozen', ySplit: 4, showGridLines: false }],
+        views: [{ state: 'frozen', ySplit: 2, showGridLines: false }],
       })
       fillDetailWorksheet(
         detailSheet,
