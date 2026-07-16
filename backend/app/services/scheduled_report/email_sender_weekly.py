@@ -173,6 +173,7 @@ def _render_ads_comparison_cards(ads: dict, country: str = "US") -> str:
     roas = ads.get("roas", {})
     acos = ads.get("acos", {})
     ctr = ads.get("ctr", {})
+    ad_ratio_all = ads.get("ad_ratio_all", {})
 
     def _render_ad_card(label: str, current: Any, prev: Any, change: float, unit: str = "", good_high: bool = True) -> str:
         curr_val = current if isinstance(current, (int, float)) else 0
@@ -196,9 +197,10 @@ def _render_ads_comparison_cards(ads: dict, country: str = "US") -> str:
     roas_card = _render_ad_card("ROAS", roas.get("current", 0), roas.get("prev", 0), roas.get("change", 0), "广告回报率", True)
     acos_card = _render_ad_card("ACOS", acos.get("current", 0), acos.get("prev", 0), acos.get("change", 0), "%", False)
     ctr_card = _render_ad_card("CTR", ctr.get("current", 0), ctr.get("prev", 0), ctr.get("change", 0), "%", True)
+    ratio_card = _render_ad_card("广告占比", ad_ratio_all.get("current", 0), ad_ratio_all.get("prev", 0), ad_ratio_all.get("change", 0), "%", False)
 
     return f"""<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-      <tr>{spend_card}{roas_card}{acos_card}{ctr_card}</tr>
+      <tr>{spend_card}{roas_card}{acos_card}{ctr_card}{ratio_card}</tr>
     </table>"""
 
 
@@ -392,6 +394,7 @@ def _render_weekly_content_sections(
     inv_sku_cnt = inv_summary.get("sku_count", 0)
     inv_low_cnt = inv_summary.get("low_stock_count", 0)
     inv_oos_cnt = inv_summary.get("oos_count", 0)
+    inv_in_transit = inv_summary.get("in_transit", 0)
 
     # SKU 销售明细
     sku_sales_detail = report_data.get("sku_sales_detail", [])
@@ -435,6 +438,7 @@ def _render_weekly_content_sections(
         for label, val, val_clr in [
             ("在售 SKU 数", inv_sku_cnt, "#111827"),
             ("可用库存总量", f"{inv_total:,}", "#111827"),
+            ("在途库存", f"{inv_in_transit:,}", "#111827"),
             ("低库存告急", inv_low_cnt, "#D97706"),
             ("缺货", inv_oos_cnt, "#DC2626"),
         ]:
@@ -719,6 +723,7 @@ def _section_week_returns(report_data: dict[str, Any], country: str) -> str:
     inv_sku_cnt = inv_summary.get("sku_count", 0)
     inv_low_cnt = inv_summary.get("low_stock_count", 0)
     inv_oos_cnt = inv_summary.get("oos_count", 0)
+    inv_in_transit = inv_summary.get("in_transit", 0)
     if ret_qty <= 0 and ret_rate <= 0 and inv_total <= 0:
         return ""
 
@@ -727,6 +732,7 @@ def _section_week_returns(report_data: dict[str, Any], country: str) -> str:
     for label, val, val_clr in [
         ("在售 SKU 数", inv_sku_cnt, "#111827"),
         ("可用库存总量", f"{inv_total:,}", "#111827"),
+        ("在途库存", f"{inv_in_transit:,}", "#111827"),
         ("低库存告急", inv_low_cnt, "#D97706"),
         ("缺货", inv_oos_cnt, "#DC2626"),
     ]:

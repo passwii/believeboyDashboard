@@ -381,8 +381,18 @@ def build_report_email_data(
     # - 周报/月报：使用本地近 7 天聚合数据
     if frequency == "daily":
         ads = _query_ads_single_day(db, project_ids, country, today)
+        # 广告占比分母 = 单日全站总销售额（与单日广告花费口径一致）
+        ad_ratio_denominator = float(sales_snapshot.get("today_sales_amount", 0) or 0)
     else:
         ads = _query_ads_period(db, project_ids, country, period_start, today)
+        # 广告占比分母 = 近 7 天全站总销售额（与 _query_ads_period 周期一致）
+        ad_ratio_denominator = float(week_sales.get("week_amount", 0) or 0)
+
+    # 广告占比 = 广告花费 / 总销售额（全站销售额，不仅广告销售额）
+    ad_spend = float(ads.get("spend", 0) or 0)
+    ads["ad_ratio_all"] = (
+        round(ad_spend / ad_ratio_denominator * 100, 2) if ad_ratio_denominator > 0 else 0.0
+    )
 
     # 9. Returns（从 AnalysisReturnRow 直接查询近7天数据）
     # 注意：退货报表是累积的，同一退货事件可能出现在多个 source_file 中

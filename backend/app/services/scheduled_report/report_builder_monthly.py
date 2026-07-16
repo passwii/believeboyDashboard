@@ -23,6 +23,8 @@ from app.models import (
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
+    ShipmentSchedule,
+    ShipmentScheduleItem,
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
@@ -30,7 +32,7 @@ from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
 )
-from app.utils.country import get_today_for_country
+from app.utils.country import get_today_for_country, normalize_country
 
 from .ai_enhancer_monthly import (
     detect_monthly_anomalies,
@@ -498,8 +500,15 @@ def _get_ads_monthly_comparison(
     curr_start: date, curr_end: date,
     prev_start: date, prev_end: date,
     yoy_start: date, yoy_end: date,
+    curr_sales_total: float = 0.0,
+    prev_sales_total: float = 0.0,
+    yoy_sales_total: float = 0.0,
 ) -> dict[str, Any]:
-    """获取月度广告效果对比（本月/上月/去年同月）。"""
+    """获取月度广告效果对比（本月/上月/去年同月）。
+
+    curr/prev/yoy_sales_total 为对应周期的全站总销售额，
+    用于计算广告占比（ad_ratio_all = 广告花费 / 全站总销售额）。
+    """
     def _aggregate_ads(start: date, end: date) -> dict[str, float]:
         try:
             query = (
@@ -542,6 +551,11 @@ def _get_ads_monthly_comparison(
     prev = _aggregate_ads(prev_start, prev_end)
     yoy = _aggregate_ads(yoy_start, yoy_end)
 
+    # 广告占比 = 广告花费 / 全站总销售额（非仅广告销售额）
+    curr_ratio = round(curr["spend"] / curr_sales_total * 100, 2) if curr_sales_total > 0 else 0.0
+    prev_ratio = round(prev["spend"] / prev_sales_total * 100, 2) if prev_sales_total > 0 else 0.0
+    yoy_ratio = round(yoy["spend"] / yoy_sales_total * 100, 2) if yoy_sales_total > 0 else 0.0
+
     return {
         "spend": {
             "current": curr["spend"], "prev": prev["spend"], "yoy": yoy["spend"],
@@ -562,6 +576,11 @@ def _get_ads_monthly_comparison(
             "current": curr["ctr"], "prev": prev["ctr"], "yoy": yoy["ctr"],
             "mom_change": _calc_change_pct(curr["ctr"], prev["ctr"]),
             "yoy_change": _calc_change_pct(curr["ctr"], yoy["ctr"]),
+        },
+        "ad_ratio_all": {
+            "current": curr_ratio, "prev": prev_ratio, "yoy": yoy_ratio,
+            "mom_change": _calc_change_pct(curr_ratio, prev_ratio),
+            "yoy_change": _calc_change_pct(curr_ratio, yoy_ratio),
         },
     }
 
@@ -675,6 +694,36 @@ def _get_inventory_alerts(
         return []
 
 
+def _query_in_transit_qty(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+) -> int:
+    """统计所有在途（shipment_status='in_transit'）的明细数量合计。"""
+    try:
+        normalized_country = normalize_country(country)
+        row = (
+            db.query(
+                func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label("in_transit_qty"),
+            )
+            .join(
+                ShipmentSchedule,
+                ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+            )
+            .filter(
+                ShipmentSchedule.country == normalized_country,
+                ShipmentSchedule.shipment_status == "in_transit",
+            )
+        )
+        if project_ids:
+            row = row.filter(ShipmentSchedule.project_id.in_(project_ids))
+        result = row.first()
+        return int(result.in_transit_qty or 0) if result else 0
+    except Exception as e:
+        logger.warning("Failed to query in-transit qty for %s: %s", country, e)
+        return 0
+
+
 def _get_inventory_summary(db: Session, project_ids: list[int] | None, country: str) -> dict[str, Any]:
     """库存摘要（SKU 数、可用总量、低库存、缺货）。"""
     try:
@@ -698,15 +747,20 @@ def _get_inventory_summary(db: Session, project_ids: list[int] | None, country: 
         total_available = sum(int(r.available_qty or 0) for r in rows)
         low_count = sum(1 for r in rows if 0 < (r.available_qty or 0) <= 20)
         oos_count = sum(1 for r in rows if (r.available_qty or 0) <= 0 or r.stock_status == "out_of_stock")
+
+        # 在途库存：所有 shipment_status='in_transit' 的明细数量合计
+        in_transit_qty = _query_in_transit_qty(db, project_ids, country)
+
         return {
             "sku_count": len(rows),
             "total_available": total_available,
             "low_stock_count": low_count,
             "oos_count": oos_count,
+            "in_transit": in_transit_qty,
         }
     except Exception as e:
         logger.warning("Failed to get inventory summary: %s", e)
-        return {"sku_count": 0, "total_available": 0, "low_stock_count": 0, "oos_count": 0}
+        return {"sku_count": 0, "total_available": 0, "low_stock_count": 0, "oos_count": 0, "in_transit": 0}
 
 
 # ── Alert helpers ────────────────────────────────────────────────────────────
@@ -844,6 +898,9 @@ def build_monthly_report_data(
     # 6. 广告数据对比
     ads_comparison = _get_ads_monthly_comparison(
         db, project_ids, country, curr_start, curr_end, prev_start, prev_end, yoy_start, yoy_end,
+        curr_sales_total=current_month.get("amount", 0.0),
+        prev_sales_total=prev_month.get("amount", 0.0),
+        yoy_sales_total=yoy_month.get("amount", 0.0),
     )
 
     # 7. 退货数据

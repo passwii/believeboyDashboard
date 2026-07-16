@@ -351,18 +351,20 @@ def _section_month_ads(report_data: dict[str, Any], country: str) -> str:
     roas = ads.get("roas", {})
     acos = ads.get("acos", {})
     ctr = ads.get("ctr", {})
+    ad_ratio_all = ads.get("ad_ratio_all", {})
 
     currency_label = _currency_code(country)
     spend_card = _render_ad_card("花费", spend.get("current", 0), spend.get("mom_change", 0), spend.get("yoy_change", 0), currency_label, True)
     roas_card = _render_ad_card("ROAS", roas.get("current", 0), roas.get("mom_change", 0), roas.get("yoy_change", 0), "广告回报率", True)
     acos_card = _render_ad_card("ACOS", acos.get("current", 0), acos.get("mom_change", 0), acos.get("yoy_change", 0), "%", False)
     ctr_card = _render_ad_card("CTR", ctr.get("current", 0), ctr.get("mom_change", 0), ctr.get("yoy_change", 0), "%", True)
+    ratio_card = _render_ad_card("广告占比", ad_ratio_all.get("current", 0), ad_ratio_all.get("mom_change", 0), ad_ratio_all.get("yoy_change", 0), "%", False)
 
     return f"""
       <tr>
         <td style="padding: 6px 16px 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-            <tr>{spend_card}{roas_card}{acos_card}{ctr_card}</tr>
+            <tr>{spend_card}{roas_card}{acos_card}{ctr_card}{ratio_card}</tr>
           </table>
         </td>
       </tr>"""
@@ -379,6 +381,7 @@ def _section_month_returns(report_data: dict[str, Any], country: str) -> str:
     inv_sku_cnt = inv_summary.get("sku_count", 0)
     inv_low_cnt = inv_summary.get("low_stock_count", 0)
     inv_oos_cnt = inv_summary.get("oos_count", 0)
+    inv_in_transit = inv_summary.get("in_transit", 0)
     if ret_qty <= 0 and ret_rate <= 0 and inv_total <= 0:
         return ""
 
@@ -387,6 +390,7 @@ def _section_month_returns(report_data: dict[str, Any], country: str) -> str:
     for label, val, val_clr in [
         ("在售 SKU 数", inv_sku_cnt, "#111827"),
         ("可用库存总量", f"{inv_total:,}", "#111827"),
+        ("在途库存", f"{inv_in_transit:,}", "#111827"),
         ("低库存告急", inv_low_cnt, "#D97706"),
         ("缺货", inv_oos_cnt, "#DC2626"),
     ]:

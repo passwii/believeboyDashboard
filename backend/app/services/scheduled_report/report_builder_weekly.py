@@ -19,6 +19,8 @@ from app.models import (
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
+    ShipmentSchedule,
+    ShipmentScheduleItem,
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
@@ -26,7 +28,7 @@ from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
 )
-from app.utils.country import get_today_for_country
+from app.utils.country import get_today_for_country, normalize_country
 
 from .ai_enhancer_weekly import (
     detect_weekly_anomalies,
@@ -175,6 +177,8 @@ def build_weekly_report_data(
         db, project_ids, country,
         prev_week_start, prev_week_end,
         prev_prev_week_start, prev_prev_week_end,
+        curr_sales_total=current_week.get("amount", 0.0),
+        prev_sales_total=prev_week.get("amount", 0.0),
     )
     
     # 7. 退货数据（需要周总销量算退货率）
@@ -702,11 +706,16 @@ def _get_inventory_summary(
             if 0 < (r.available_qty or 0) <= 20
             and r.stock_status != "out_of_stock"
         )
+
+        # 在途库存：所有 shipment_status='in_transit' 的明细数量合计
+        in_transit_qty = _query_in_transit_qty(db, project_ids, country)
+
         return {
             "sku_count": len(rows),
             "total_available": total_available,
             "low_stock_count": low_count,
             "oos_count": oos_count,
+            "in_transit": in_transit_qty,
         }
 
     except Exception as e:
@@ -716,7 +725,38 @@ def _get_inventory_summary(
             "total_available": 0,
             "low_stock_count": 0,
             "oos_count": 0,
+            "in_transit": 0,
         }
+
+
+def _query_in_transit_qty(
+    db: Session,
+    project_ids: list[int] | None,
+    country: str,
+) -> int:
+    """统计所有在途（shipment_status='in_transit'）的明细数量合计。"""
+    try:
+        normalized_country = normalize_country(country)
+        row = (
+            db.query(
+                func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0).label("in_transit_qty"),
+            )
+            .join(
+                ShipmentSchedule,
+                ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+            )
+            .filter(
+                ShipmentSchedule.country == normalized_country,
+                ShipmentSchedule.shipment_status == "in_transit",
+            )
+        )
+        if project_ids:
+            row = row.filter(ShipmentSchedule.project_id.in_(project_ids))
+        result = row.first()
+        return int(result.in_transit_qty or 0) if result else 0
+    except Exception as e:
+        logger.warning("Failed to query in-transit qty for %s: %s", country, e)
+        return 0
 
 
 def _get_ads_comparison(
@@ -727,10 +767,14 @@ def _get_ads_comparison(
     curr_end: date,
     prev_start: date,
     prev_end: date,
+    curr_sales_total: float = 0.0,
+    prev_sales_total: float = 0.0,
 ) -> dict[str, Any]:
     """获取广告数据对比（本周 vs 上周）。
 
     查询 analysis_ad_product_rows 表，按 period_end_date 范围过滤。
+    curr_sales_total / prev_sales_total 为对应周期的全站总销售额，
+    用于计算广告占比（ad_ratio_all = 广告花费 / 全站总销售额）。
     """
     def _aggregate_ads(start: date, end: date) -> dict[str, float]:
         try:
@@ -773,11 +817,16 @@ def _get_ads_comparison(
     curr = _aggregate_ads(curr_start, curr_end)
     prev = _aggregate_ads(prev_start, prev_end)
 
+    # 广告占比 = 广告花费 / 全站总销售额（非仅广告销售额）
+    curr_ratio = round(curr["spend"] / curr_sales_total * 100, 2) if curr_sales_total > 0 else 0.0
+    prev_ratio = round(prev["spend"] / prev_sales_total * 100, 2) if prev_sales_total > 0 else 0.0
+
     return {
         "spend": {"current": curr["spend"], "prev": prev["spend"], "change": _calc_change_pct(curr["spend"], prev["spend"])},
         "roas": {"current": curr["roas"], "prev": prev["roas"], "change": _calc_change_pct(curr["roas"], prev["roas"])},
         "acos": {"current": curr["acos"], "prev": prev["acos"], "change": _calc_change_pct(curr["acos"], prev["acos"])},
         "ctr": {"current": curr["ctr"], "prev": prev["ctr"], "change": _calc_change_pct(curr["ctr"], prev["ctr"])},
+        "ad_ratio_all": {"current": curr_ratio, "prev": prev_ratio, "change": _calc_change_pct(curr_ratio, prev_ratio)},
     }
 
 

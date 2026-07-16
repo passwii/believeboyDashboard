@@ -75,6 +75,7 @@ def _render_daily_content_sections(
     oos      = inventory.get("oos_skus", [])
     low_skus = inventory.get("low_stock_skus", [])
     avail    = inventory.get("total_available", 0)
+    in_transit = inventory.get("in_transit", 0)
 
     # 广告
     ad_spend = ads.get("spend", 0.0)
@@ -82,6 +83,7 @@ def _render_daily_content_sections(
     ad_roas  = ads.get("roas", 0.0)
     ad_acos  = ads.get("acos", 0.0)
     ad_ctr   = ads.get("ctr", 0.0)
+    ad_ratio_all = ads.get("ad_ratio_all", 0.0)
     roas_clr = _color_positive(ad_roas, good_threshold=2.0)
     acos_clr = "#16A34A" if ad_acos <= 30 else "#DC2626"
 
@@ -145,6 +147,7 @@ def _render_daily_content_sections(
     for label, val, val_clr in [
         ("SKU 总数", sku_cnt, "#111827"),
         ("可用总量", f"{avail:,}", "#111827"),
+        ("在途库存", f"{in_transit:,}", "#111827"),
         ("缺货", len(oos), "#DC2626"),
         ("告急 ≤10件", len(low_skus), "#D97706"),
     ]:
@@ -156,6 +159,7 @@ def _render_daily_content_sections(
     ads_rows_td = ""
     for label, val, val_clr in [
         ("广告花费", _fmt_currency(ad_spend, country), "#111827"),
+        ("广告占比", f"{ad_ratio_all:.1f}%", "#111827"),
         ("ROAS", f"{ad_roas:.2f}", roas_clr),
         ("ACOS", f"{ad_acos:.1f}%", acos_clr),
         ("CTR", f"{ad_ctr:.1f}%", "#111827"),
@@ -514,11 +518,13 @@ def _section_inventory_ads(report_data: dict[str, Any], country: str) -> str:
     oos = inventory.get("oos_skus", [])
     low_skus = inventory.get("low_stock_skus", [])
     avail = inventory.get("total_available", 0)
+    in_transit = inventory.get("in_transit", 0)
 
     ad_spend = ads.get("spend", 0.0)
     ad_roas = ads.get("roas", 0.0)
     ad_acos = ads.get("acos", 0.0)
     ad_ctr = ads.get("ctr", 0.0)
+    ad_ratio_all = ads.get("ad_ratio_all", 0.0)
     roas_clr = _color_positive(ad_roas, good_threshold=2.0)
     acos_clr = "#16A34A" if ad_acos <= 30 else "#DC2626"
 
@@ -526,6 +532,7 @@ def _section_inventory_ads(report_data: dict[str, Any], country: str) -> str:
     for label, val, val_clr in [
         ("SKU 总数", sku_cnt, "#111827"),
         ("可用总量", f"{avail:,}", "#111827"),
+        ("在途库存", f"{in_transit:,}", "#111827"),
         ("缺货", len(oos), "#DC2626"),
         ("告急 ≤10件", len(low_skus), "#D97706"),
     ]:
@@ -537,6 +544,7 @@ def _section_inventory_ads(report_data: dict[str, Any], country: str) -> str:
     ads_rows_td = ""
     for label, val, val_clr in [
         ("广告花费", _fmt_currency(ad_spend, country), "#111827"),
+        ("广告占比", f"{ad_ratio_all:.1f}%", "#111827"),
         ("ROAS", f"{ad_roas:.2f}", roas_clr),
         ("ACOS", f"{ad_acos:.1f}%", acos_clr),
         ("CTR", f"{ad_ctr:.1f}%", "#111827"),
