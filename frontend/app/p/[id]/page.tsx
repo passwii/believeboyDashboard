@@ -21,10 +21,13 @@ type PublicPayload = {
 }
 
 async function fetchPublic(id: string): Promise<PublicPayload | null> {
-  const base =
-    process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3200'
+  // Use a relative URL so the server-side fetch resolves against the current
+  // deployment automatically. Relying on NEXTAUTH_URL / NEXT_PUBLIC_BASE_URL
+  // here broke in production: those vars live only in the un-deployed
+  // .env.local, so the fallback `http://localhost:3200` was unreachable from
+  // the serverless runtime and every public page 404'd with "页面不存在".
   try {
-    const res = await fetch(`${base}/api/public/page-render/${id}`, {
+    const res = await fetch(`/api/public/page-render/${id}`, {
       next: { revalidate: 3600 },
     })
     if (res.status === 404) return null
