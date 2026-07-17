@@ -411,14 +411,12 @@ def build_payload_messages_with_search(
 
 
 def resolve_title_model(settings: Settings) -> str:
-    title_model = settings.ai_chat_title_model.strip()
-    if title_model:
-        return title_model
+    """为标题生成选用模型。
 
-    default_model = settings.ai_chat_default_model.strip()
-    if default_model:
-        return default_model
-
+    策略：直接复用动态解析的可用模型列表，选第一个。
+    避免硬写 ai_chat_title_model 导致模型变动维护成本。
+    （若 provider 未配置，返回空字符串；由调用方处理）
+    """
     allowed_models, _ = resolve_available_models(settings)
     return allowed_models[0] if allowed_models else ""
 

@@ -55,7 +55,6 @@ class Settings(BaseSettings):
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)
     ai_chat_backup_model: str = Field(default="", max_length=200)
-    ai_chat_title_model: str = Field(default="", max_length=200)
     ai_chat_model_blocklist: str = Field(default="")
     ai_chat_premium_models: str = Field(default="")
     ai_chat_basic_models: str = Field(default="")
