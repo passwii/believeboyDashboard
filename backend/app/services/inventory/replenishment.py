@@ -25,6 +25,7 @@ from app.models import (
     ShipmentSchedule,
     ShipmentScheduleItem,
 )
+from app.services.sales_query import counted_sales_where
 
 from app.utils.text_utils import normalize_text, normalize_asin
 from app.utils.math_utils import decimal_to_float, round_decimal, round_decimal_to_int
@@ -326,20 +327,17 @@ def _load_sales_dms_map(
 ) -> dict[str, Decimal]:
     window_end = today - timedelta(days=lag_days)
     since = window_end - timedelta(days=window_days - 1)
+    # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     rows = db.execute(
         select(
             AnalysisSalesOrderRow.sku,
             func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0),
         )
-        .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
         .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == "sales_report",
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSalesOrderRow.is_counted_sales.is_(True),
-            AnalysisSalesOrderRow.purchase_date_pt >= since,
-            AnalysisSalesOrderRow.purchase_date_pt <= window_end,
+            *counted_sales_where(
+                project_id=project_id, country=country,
+                date_from=since, date_to=window_end,
+            )
         )
         .group_by(AnalysisSalesOrderRow.sku)
     ).all()

@@ -15,6 +15,7 @@ from app.models import (
     SkuRecord,
     Project,
 )
+from app.services.sales_query import counted_sales_where
 
 
 def _safe_rate(numerator: int, denominator: int) -> float:
@@ -67,6 +68,7 @@ def _build_sales_aggregates(
     """
     from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
 
+    # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     q = (
         db.query(
             AnalysisSalesOrderRow.sku,
@@ -74,18 +76,13 @@ def _build_sales_aggregates(
             AnalysisSalesOrderRow.quantity,
             AnalysisSalesOrderRow.item_price,
         )
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-        )
         .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_type == "sales_report",
-            AnalysisSourceFile.is_current == True,
-            AnalysisSalesOrderRow.purchase_date_pt >= date.fromisoformat(start_date),
-            AnalysisSalesOrderRow.purchase_date_pt <= date.fromisoformat(end_date),
-            AnalysisSalesOrderRow.is_counted_sales == True,
+            *counted_sales_where(
+                project_id=project_id,
+                country=country,
+                date_from=date.fromisoformat(start_date),
+                date_to=date.fromisoformat(end_date),
+            )
         )
     )
 
@@ -147,21 +144,16 @@ def _build_cycle_days_by_sku(
 
     # 2) 单次 SQL: 查所有 (amazon_order_id, sku) 对应的 purchase_date_pt
     order_ids = list({k[0] for k in keys})
+    # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current），按订单号列表匹配。
     sales_q = (
         db.query(
             AnalysisSalesOrderRow.amazon_order_id,
             AnalysisSalesOrderRow.sku,
             AnalysisSalesOrderRow.purchase_date_pt,
         )
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-        )
         .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.report_type == "sales_report",
-            AnalysisSourceFile.is_current == True,
+            AnalysisSalesOrderRow.project_id == project_id,
+            AnalysisSalesOrderRow.country == country,
             AnalysisSalesOrderRow.amazon_order_id.in_(order_ids),
             AnalysisSalesOrderRow.is_counted_sales == True,
         )

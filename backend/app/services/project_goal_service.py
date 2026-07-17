@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSalesOrderRow, AnalysisSourceFile, Project, ProjectGoal
+from app.models import AnalysisSalesOrderRow, Project, ProjectGoal
+from app.services.sales_query import counted_sales_where
 from app.schemas.project_goal import (
     AnnualProgressItem,
     MonthlyProgressItem,
@@ -96,20 +97,14 @@ def _query_monthly_sales(
     _, last_day = monthrange(year, month)
     end_date = date(year, month, last_day)
 
+    # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     stmt = (
         select(AnalysisSalesOrderRow.item_price)
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-        )
         .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == 'sales_report',
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSourceFile.report_date >= start_date,
-            AnalysisSourceFile.report_date <= end_date,
-            AnalysisSalesOrderRow.is_counted_sales.is_(True),
+            *counted_sales_where(
+                project_id=project_id, country=country,
+                date_from=start_date, date_to=end_date,
+            )
         )
     )
     rows = db.execute(stmt).scalars().all()
@@ -129,20 +124,14 @@ def _query_annual_sales(
     start_date = date(year, 1, 1)
     end_date = date(year, 12, 31)
 
+    # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     stmt = (
         select(AnalysisSalesOrderRow.item_price)
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-        )
         .where(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.report_type == 'sales_report',
-            AnalysisSourceFile.country == country,
-            AnalysisSourceFile.is_current.is_(True),
-            AnalysisSourceFile.report_date >= start_date,
-            AnalysisSourceFile.report_date <= end_date,
-            AnalysisSalesOrderRow.is_counted_sales.is_(True),
+            *counted_sales_where(
+                project_id=project_id, country=country,
+                date_from=start_date, date_to=end_date,
+            )
         )
     )
     rows = db.execute(stmt).scalars().all()

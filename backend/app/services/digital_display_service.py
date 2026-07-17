@@ -25,6 +25,7 @@ from app.models import (
 )
 from app.utils.math_utils import round_money
 from app.utils.country import normalize_country
+from app.services.sales_query import counted_sales_where
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -72,18 +73,12 @@ def _build_sales_snapshot(
                     func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
                 ), 0).label("amount"),
             )
-            .join(
-                AnalysisSourceFile,
-                AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-            )
+            # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,
-                AnalysisSalesOrderRow.is_counted_sales == True,
-                AnalysisSalesOrderRow.purchase_date_pt >= start,
-                AnalysisSalesOrderRow.purchase_date_pt <= end,
+                *counted_sales_where(
+                    project_id=project_id, country=country,
+                    date_from=start, date_to=end,
+                )
             )
             .first()
         )
@@ -294,18 +289,12 @@ def _build_return_snapshot(
     # sales qty for return rate
     sales_qty = (
         db.query(func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0))
-        .join(
-            AnalysisSourceFile,
-            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-        )
+        # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
         .filter(
-            AnalysisSourceFile.project_id == project_id,
-            AnalysisSourceFile.country == normalize_country(country),
-            AnalysisSourceFile.report_type == "sales_report",
-            AnalysisSourceFile.is_current == True,
-            AnalysisSalesOrderRow.is_counted_sales == True,
-            AnalysisSalesOrderRow.purchase_date_pt >= start_date,
-            AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+            *counted_sales_where(
+                project_id=project_id, country=normalize_country(country),
+                date_from=start_date, date_to=end_date,
+            )
         )
         .scalar() or 0
     )
