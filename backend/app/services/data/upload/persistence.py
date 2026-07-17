@@ -388,6 +388,15 @@ def commit_report_upload(
             project = _get_project_by_name(db, project_name)
             _invalidate_daily_analysis_cache(project.id)
     elif report_type == "sales_report":
+        # BEL-348：固定"计数截至日期"快照，避免 is_counted_sales 在
+        # 多次重传时按函数执行当下的墙钟日期重算而翻转。
+        # 优先用用户选定的 report_date；自动上报无 report_date 时退回识别到的日期。
+        count_as_of_date = None
+        _rd = (payload.report_date or "").strip()
+        if _rd:
+            count_as_of_date = _parse_yyyy_mm_dd(_rd, "report_date")
+        elif recognition and recognition.detected_date:
+            count_as_of_date = _parse_yyyy_mm_dd(recognition.detected_date, "report_date")
         outcome = persist_sales_report_by_purchase_date(
             db,
             project_name=project_name,
@@ -395,6 +404,7 @@ def commit_report_upload(
             upload_file_id=file_meta["file_id"],
             upload_file_path=file_meta["file_path"],
             created_by=operator,
+            count_as_of_date=count_as_of_date,
         )
         if not outcome["success"]:
             raise HTTPException(

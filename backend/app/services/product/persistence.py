@@ -806,6 +806,7 @@ def persist_sales_report_by_purchase_date(
     """销售报告按购买日期拆分持久化。"""
     from app.models import Project
     from app.utils.parsers import _parse_sales_rows
+    from app.utils.persist_helpers import upsert_sales_order_rows
 
     ensure_tables(db)
     project = _get_project_by_name(db, project_name)  # type: ignore[arg-type]
@@ -920,11 +921,15 @@ def persist_sales_report_by_purchase_date(
         for row in daily_rows:
             item = dict(row)
             item['source_file_id'] = source.id
+            # BEL-348: 冗余 project_id，供行级 upsert / 直接按行计数使用。
+            item['project_id'] = project.id
             if item.get('is_counted_sales'):
                 included += 1
             payloads.append(item)
+        # BEL-348: 行级 upsert——同一 (project_id, amazon_order_id, sku, country)
+        # 多次上报合并为一行，避免整文件版本选择丢单。
         if payloads:
-            db.execute(insert(AnalysisSalesOrderRow), payloads)
+            upsert_sales_order_rows(db, payloads)
 
         source.row_count_total = len(payloads)
         source.row_count_included = included

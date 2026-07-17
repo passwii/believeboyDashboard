@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisSalesOrderRow, AnalysisSourceFile, Project
@@ -29,6 +29,7 @@ from app.utils import (
 )
 from app.utils.parsers import parse_sales_rows as _parse_sales_rows
 from app.utils.parsers import detect_countries_in_sales_file
+from app.utils.persist_helpers import upsert_sales_order_rows
 from app.services.product._internal import _normalize_country
 
 
@@ -40,10 +41,15 @@ def persist_sales_report_by_purchase_date(
     upload_file_path: str,
     country: str = 'US',
     created_by: str | None = None,
+    count_as_of_date: date | None = None,
 ) -> dict[str, Any]:
-    """销售报告按购买日期拆分持久化。
+    """销售报告按购买日期拆分持久化（BEL-348：行级 upsert）。
 
     支持多站点文件：自动检测文件中的所有站点，按站点+日期拆分为多个 source_file。
+
+    ``count_as_of_date``：固定"计数截至日期"快照。传入后，``is_counted_sales``
+    的重算不再依赖函数执行时的墙钟日期，避免同一订单在多次重传时因"今天"
+    不同而导致计数标记翻转。
     """
     project = db.execute(select(Project).where(Project.project_name == project_name)).scalar_one_or_none()
     if project is None:
@@ -61,12 +67,14 @@ def persist_sales_report_by_purchase_date(
         return _persist_single_country(
             db, project, upload_file_id, path,
             detected_countries[0], created_by,
+            count_as_of_date=count_as_of_date,
         )
 
     # 多站点文件：按站点+日期拆分
     return _persist_multi_country(
         db, project, upload_file_id, path,
         detected_countries, created_by,
+        count_as_of_date=count_as_of_date,
     )
 
 
@@ -77,9 +85,12 @@ def _persist_single_country(
     path: Path,
     country: str,
     created_by: str | None,
+    count_as_of_date: date | None = None,
 ) -> dict[str, Any]:
-    """处理单站点文件（原有逻辑）。"""
-    rows, total, _ = _parse_sales_rows(path, 0, None, country=country)
+    """处理单站点文件（BEL-348：行级 upsert）。"""
+    rows, total, _ = _parse_sales_rows(
+        path, 0, count_as_of_date, country=country,
+    )
     grouped_rows: dict[date, list[dict[str, Any]]] = {}
     for row in rows:
         purchase_date_pt = row.get('purchase_date_pt')
@@ -155,11 +166,12 @@ def _persist_single_country(
         for row in daily_rows:
             item = dict(row)
             item['source_file_id'] = source.id
+            item['project_id'] = project.id
             if item.get('is_counted_sales'):
                 included += 1
             payloads.append(item)
         if payloads:
-            db.execute(insert(AnalysisSalesOrderRow), payloads)
+            upsert_sales_order_rows(db, payloads)
 
         source.row_count_total = len(payloads)
         source.row_count_included = included
@@ -206,10 +218,13 @@ def _persist_multi_country(
     path: Path,
     countries: list[str],
     created_by: str | None,
+    count_as_of_date: date | None = None,
 ) -> dict[str, Any]:
-    """处理多站点文件：按站点+日期拆分为多个 source_file。"""
+    """处理多站点文件：按站点+日期拆分为多个 source_file（BEL-348：行级 upsert）。"""
     # 一次性解析所有行
-    all_rows, total, _ = _parse_sales_rows(path, 0, None, country=countries[0] if countries else 'US')
+    all_rows, total, _ = _parse_sales_rows(
+        path, 0, count_as_of_date, country=countries[0] if countries else 'US',
+    )
 
     # 按 (country, date) 分组
     grouped: dict[tuple[str, date], list[dict[str, Any]]] = {}
@@ -297,12 +312,13 @@ def _persist_multi_country(
         for row in rows:
             item = dict(row)
             item['source_file_id'] = source.id
+            item['project_id'] = project.id
             if item.get('is_counted_sales'):
                 included += 1
             payloads.append(item)
 
         if payloads:
-            db.execute(insert(AnalysisSalesOrderRow), payloads)
+            upsert_sales_order_rows(db, payloads)
 
         source.row_count_total = len(payloads)
         source.row_count_included = included
