@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -26,6 +27,20 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_BACKEND_ROOT))
 
 import httpx
+
+# 把 backend/.env 和 .env.test 注入 os.environ（用 setdefault，不覆盖已有环境变量）；
+# .env 提供 AI provider / API_KEY 等，.env.test 提供 TEST_DATABASE_URL / TEST_*_PASSWORD。
+# get_settings() 发现 TEST_DATABASE_URL 时路由到独立测试库（隔离 dev DB）；
+# subprocess.Popen(uvicorn) 子进程继承这些环境变量。
+for _env_file in (_BACKEND_ROOT / ".env", _BACKEND_ROOT / ".env.test"):
+    if not _env_file.exists():
+        continue
+    for _line in _env_file.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _k, _, _v = _line.partition("=")
+        os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE  # noqa: E402
 
@@ -138,7 +153,7 @@ def _done_of(events: list[dict]) -> dict | None:
 def _test_autotitle_first_turn(api_key: str) -> tuple[bool, str]:
     conv_id = _create_conversation(api_key, title=DEFAULT_CONVERSATION_TITLE)
     events = _streaming_curl(
-        api_key, conv_id, {"content": "帮我分析一下上个月的销售趋势", "enable_web_search": False}
+        api_key, conv_id, {"content": "帮我分析一下上个月的销售趋势", "enable_web_search": False, "model": "Believeboy-Nano"}
     )
     done = _done_of(events)
     if done is None:
@@ -157,7 +172,7 @@ def _test_autotitle_first_turn(api_key: str) -> tuple[bool, str]:
 def _test_custom_title_skipped(api_key: str) -> tuple[bool, str]:
     conv_id = _create_conversation(api_key, title="我的自定义标题")
     events = _streaming_curl(
-        api_key, conv_id, {"content": "帮我分析一下库存", "enable_web_search": False}
+        api_key, conv_id, {"content": "帮我分析一下库存", "enable_web_search": False, "model": "Believeboy-Nano"}
     )
     done = _done_of(events)
     if done is None:
@@ -171,12 +186,12 @@ def _test_custom_title_skipped(api_key: str) -> tuple[bool, str]:
 
 def _test_second_turn_no_regen(api_key: str) -> tuple[bool, str]:
     conv_id = _create_conversation(api_key, title=DEFAULT_CONVERSATION_TITLE)
-    e1 = _streaming_curl(api_key, conv_id, {"content": "第一问", "enable_web_search": False})
+    e1 = _streaming_curl(api_key, conv_id, {"content": "第一问", "enable_web_search": False, "model": "Believeboy-Nano"})
     d1 = _done_of(e1)
     if not d1 or not d1.get("title_regenerated"):
         return False, "首轮未触发自动标题"
     first_title = d1.get("conversation_title")
-    e2 = _streaming_curl(api_key, conv_id, {"content": "第二问", "enable_web_search": False})
+    e2 = _streaming_curl(api_key, conv_id, {"content": "第二问", "enable_web_search": False, "model": "Believeboy-Nano"})
     d2 = _done_of(e2)
     if not d2:
         return False, "第二轮无 done"
