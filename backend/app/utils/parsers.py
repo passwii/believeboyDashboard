@@ -135,7 +135,9 @@ def is_counted_sales_status(
     if normalized in {"cancelled", "canceled"}:
         return False
     age_days = (as_of_date_pt - purchase_date_pt).days
-    if age_days <= 2:
+    # Pending/Unshipped 在订单产生后短时间内视为有效销售（给 Amazon 发货留出时间），
+    # 超过该窗口仍未发货则不再计入，避免历史挂起订单长期虚高销量。
+    if age_days <= 5:
         return normalized in {"pending", "unshipped", "shipped"}
     return normalized == "shipped"
 
