@@ -1,5 +1,8 @@
 import { notFound } from 'next/navigation'
 
+import { buildBackendAuthHeaders, getBackendApiKey } from '@/lib/backend-auth'
+import { backendFetchJson } from '@/lib/server/backend-api'
+
 import PageRenderer from './page-renderer'
 
 // Public content is immutable (no versioning). A long revalidate window
@@ -21,18 +24,23 @@ type PublicPayload = {
 }
 
 async function fetchPublic(id: string): Promise<PublicPayload | null> {
-  // Use a relative URL so the server-side fetch resolves against the current
-  // deployment automatically. Relying on NEXTAUTH_URL / NEXT_PUBLIC_BASE_URL
-  // here broke in production: those vars live only in the un-deployed
-  // .env.local, so the fallback `http://localhost:3200` was unreachable from
-  // the serverless runtime and every public page 404'd with "页面不存在".
+  // Call the backend directly instead of self-fetching our own `/api/public`
+  // route. Two previous approaches both failed in production:
+  //   1. Absolute URL from NEXTAUTH_URL/NEXT_PUBLIC_BASE_URL — those vars live
+  //      only in the un-deployed .env.local, so it fell back to
+  //      `http://localhost:3200` and 404'd.
+  //   2. Relative URL `/api/public/...` — in a Next server component on Vercel
+  //      this resolves against the function's loopback (`localhost`), which has
+  //      no `/api/public`, so it hung then 404'd.
+  // Talking to the backend (BACKEND_API_BASE_URL / BACKEND_API_KEY, both set on
+  // Vercel) is the same path the working `/api/public` route handler uses.
+  const apiKey = getBackendApiKey()
+  if (!apiKey) return null
   try {
-    const res = await fetch(`/api/public/page-render/${id}`, {
-      next: { revalidate: 3600 },
+    return await backendFetchJson<PublicPayload>(`/api/v1/page-render/public/${id}`, {
+      method: 'GET',
+      headers: buildBackendAuthHeaders(null, { apiKey }),
     })
-    if (res.status === 404) return null
-    if (!res.ok) return null
-    return (await res.json()) as PublicPayload
   } catch {
     return null
   }
