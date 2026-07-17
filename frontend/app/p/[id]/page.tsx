@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 
-import { buildBackendAuthHeaders, getBackendApiKey } from '@/lib/backend-auth'
-import { backendFetchJson } from '@/lib/server/backend-api'
+import { buildBackendAuthHeaders } from '@/lib/backend-auth'
+import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 import PageRenderer from './page-renderer'
 
