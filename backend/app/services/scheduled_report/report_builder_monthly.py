@@ -133,17 +133,16 @@ def _aggregate_monthly_sales(
                 ), 0).label("amount"),
                 func.count(func.distinct(AnalysisSalesOrderRow.purchase_date_pt)).label("active_days"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,
+                AnalysisSalesOrderRow.country == country,
+                AnalysisSalesOrderRow.is_counted_sales.is_(True),  # noqa: E712
                 AnalysisSalesOrderRow.purchase_date_pt >= start_date,
                 AnalysisSalesOrderRow.purchase_date_pt <= end_date,
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         row = query.first()
 
@@ -187,17 +186,16 @@ def _query_sku_sales_detail(
                     + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
                 ).label("total_amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,
+                AnalysisSalesOrderRow.country == country,
+                AnalysisSalesOrderRow.is_counted_sales.is_(True),  # noqa: E712
                 AnalysisSalesOrderRow.purchase_date_pt >= start_date,
                 AnalysisSalesOrderRow.purchase_date_pt <= end_date,
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         results = (
             query
@@ -341,17 +339,16 @@ def _get_top_skus_monthly_comparison(
                     )
                 ).label("yoy_amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,
+                AnalysisSalesOrderRow.country == country,
+                AnalysisSalesOrderRow.is_counted_sales.is_(True),  # noqa: E712
                 # 优化：只查涉及的时间范围
                 AnalysisSalesOrderRow.purchase_date_pt.between(yoy_start, curr_end),
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         results = (
             query.group_by(AnalysisSalesOrderRow.sku)
@@ -437,16 +434,15 @@ def _analyze_sku_monthly_attribution(
                     )
                 ).label("yoy_qty"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+            # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,
+                AnalysisSalesOrderRow.country == country,
+                AnalysisSalesOrderRow.is_counted_sales.is_(True),  # noqa: E712
                 AnalysisSalesOrderRow.purchase_date_pt.between(yoy_start, curr_end),
             )
         )
         if project_ids:
-            all_skus_query = all_skus_query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            all_skus_query = all_skus_query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         results = all_skus_query.group_by(AnalysisSalesOrderRow.sku).all()
 
@@ -612,7 +608,7 @@ def _get_monthly_returns(
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         records = query.all()
 
@@ -741,7 +737,7 @@ def _get_inventory_summary(db: Session, project_ids: list[int] | None, country: 
             )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         rows = query.all()
         total_available = sum(int(r.available_qty or 0) for r in rows)

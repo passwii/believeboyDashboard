@@ -76,24 +76,24 @@ def _query_sales_snapshot(
         amount_expr = func.coalesce(AnalysisSalesOrderRow.item_price, 0) + func.coalesce(
             AnalysisSalesOrderRow.shipping_price, 0
         )
+        # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
+        # 销售订单行已改为行级 upsert，旧 is_current 版本口径会漏掉
+        # 同订单在更早、更全版本里的行，导致定时报告丢单。
         rows = (
             db.query(
                 AnalysisSalesOrderRow.purchase_date_pt.label("purchase_date"),
                 func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
                 func.coalesce(func.sum(amount_expr), 0).label("amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
             .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,  # noqa: E712
-                AnalysisSalesOrderRow.is_counted_sales == True,  # noqa: E712
+                AnalysisSalesOrderRow.country == country,
+                AnalysisSalesOrderRow.is_counted_sales.is_(True),  # noqa: E712
                 AnalysisSalesOrderRow.purchase_date_pt >= start_date,
                 AnalysisSalesOrderRow.purchase_date_pt <= end_date,
             )
         )
         if project_ids:
-            rows = rows.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            rows = rows.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         for row in rows.group_by(AnalysisSalesOrderRow.purchase_date_pt).all():
             purchase_date = row.purchase_date
@@ -584,17 +584,15 @@ def _query_top_skus(
                     + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
                 ).label("total_amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
-            .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,  # noqa: E712
-                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
-                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
-            )
+        # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
+        .filter(
+            AnalysisSalesOrderRow.country == country,
+            AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+            AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+        )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         query = (
             query
@@ -803,17 +801,15 @@ def _query_period_sales(
                     func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
                 ), 0).label("amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
-            .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,  # noqa: E712
-                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
-                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
-            )
+        # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
+        .filter(
+            AnalysisSalesOrderRow.country == country,
+            AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+            AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+        )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         row = query.first()
         return {
@@ -959,17 +955,15 @@ def _query_sku_sales_detail(
                     + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
                 ).label("total_amount"),
             )
-            .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
-            .filter(
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.is_current == True,  # noqa: E712
-                AnalysisSalesOrderRow.purchase_date_pt >= start_date,
-                AnalysisSalesOrderRow.purchase_date_pt <= end_date,
-            )
+        # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
+        .filter(
+            AnalysisSalesOrderRow.country == country,
+            AnalysisSalesOrderRow.purchase_date_pt >= start_date,
+            AnalysisSalesOrderRow.purchase_date_pt <= end_date,
+        )
         )
         if project_ids:
-            query = query.filter(AnalysisSourceFile.project_id.in_(project_ids))
+            query = query.filter(AnalysisSalesOrderRow.project_id.in_(project_ids))
 
         results = (
             query
