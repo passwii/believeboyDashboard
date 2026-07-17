@@ -356,11 +356,17 @@ class AnalysisReturnRow(Base):
 class AnalysisSalesOrderRow(Base):
     __tablename__ = 'analysis_sales_order_rows'
     __table_args__ = (
-        UniqueConstraint('source_file_id', 'source_row_no', name='analysis_sales_order_rows_source_row_key'),
+        # BEL-348: 行级唯一键——同一项目的 (订单号, SKU, 国家, 购买日期) 视为同一笔
+        # 订单明细，多次上报（不同 source_file / version）做 upsert 合并，避免整文件
+        # 版本选择丢单。含 purchase_date_pt：同一订单落在相邻日期桶（如 06-23 与 06-24）
+        # 视为不同行，不会被误合并。sku 为 NULL 时 Postgres 唯一约束不合并（NULL 互不相等），属可接受边界情况。
+        UniqueConstraint(
+            'project_id', 'amazon_order_id', 'sku', 'country', 'purchase_date_pt',
+            name='uq_sales_order_project_order_sku_country',
+        ),
         Index('idx_analysis_sales_order_source_id', 'source_file_id'),
-        Index('idx_analysis_sales_order_source_purchase_date', 'source_file_id', 'purchase_date_pt'),
-        Index('idx_analysis_sales_order_source_status', 'source_file_id', 'order_status'),
-        Index('idx_analysis_sales_order_source_sku', 'source_file_id', 'sku'),
+        Index('idx_analysis_sales_order_project', 'project_id'),
+        Index('idx_analysis_sales_order_project_country_date', 'project_id', 'country', 'purchase_date_pt'),
         Index('idx_analysis_sales_order_order_id', 'amazon_order_id'),
         Index('idx_analysis_sales_order_country', 'country'),
     )
@@ -374,6 +380,14 @@ class AnalysisSalesOrderRow(Base):
         nullable=False,
     )
     source_row_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    # BEL-348: 冗余 project_id，使计数/查询可直接按行过滤，不再依赖 source_file 版本选择。
+    project_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey('projects.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    # BEL-348: 行级数据版本，每次 upsert 自增，仅作审计/幂等参考，不参与计数选择。
+    data_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')
     # Per-row country for multi-site order splitting (UK/DE orders in same file)
     country: Mapped[str] = mapped_column(String(2), nullable=False, server_default='US')
     amazon_order_id: Mapped[str] = mapped_column(String(64), nullable=False)

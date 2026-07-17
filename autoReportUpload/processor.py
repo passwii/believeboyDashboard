@@ -99,6 +99,7 @@ from app.utils.persist_helpers import (
     PERIODIC_REPORT_TYPES,
     next_version as _next_version,
     replace_current_pointer as _replace_current_pointer,
+    upsert_sales_order_rows as _upsert_sales_order_rows,
 )
 
 logger = logging.getLogger(__name__)
@@ -1179,12 +1180,16 @@ def _persist_sales_report(
         for row in daily_rows:
             item = dict(row)
             item["source_file_id"] = source.id
+            # BEL-348: 冗余 project_id，供行级 upsert / 直接按行计数使用。
+            item["project_id"] = project.id
             if item.get("is_counted_sales"):
                 included += 1
             payloads.append(item)
 
+        # BEL-348: 行级 upsert——同一 (project_id, amazon_order_id, sku, country)
+        # 多次上报合并为一行，避免整文件版本选择丢单。
         if payloads:
-            db.execute(insert(AnalysisSalesOrderRow), payloads)
+            _upsert_sales_order_rows(db, payloads)
 
         source.row_count_total = len(payloads)
         source.row_count_included = included
