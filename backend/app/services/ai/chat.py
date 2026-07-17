@@ -9,6 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.models.ai_chat import AIMessage, AIConversation
 
+# 新会话默认标题；Phase 3 用作「是否仍需自动生成标题」的哨兵，
+# 与新流式端点约定保持一致，避免字面量散落。
+DEFAULT_CONVERSATION_TITLE = "新对话"
+
 
 def normalize_optional_text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
@@ -42,7 +46,7 @@ def create_conversation(
     db: Session, title: str | None, user_id: int
 ) -> AIConversation:
     """创建归属于 user_id 的会话。user_id 由 endpoint 从 X-User-Id 注入。"""
-    normalized_title = (title or "").strip() or "新对话"
+    normalized_title = (title or "").strip() or DEFAULT_CONVERSATION_TITLE
     row = AIConversation(user_id=user_id, title=normalized_title)
     db.add(row)
     db.flush()

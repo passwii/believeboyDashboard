@@ -2,7 +2,9 @@
 AI Chat Endpoints — 瘦化的 endpoint 层。
 SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 """
+import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +26,7 @@ from app.schemas.ai_chat import (
 )
 from app.services import ai as ai_chat_service
 from app.services.ai import cancel as cancel_registry
+from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
 from app.services.ai.agent import build_chat_agent  # 模块级 import，便于测试 monkeypatch
 from app.services.ai.stream_mapper import MapperState, map_agent_event
 from pydantic_ai.messages import FunctionToolCallEvent  # Phase 2: 端点层紧接 tool_calls 后 yield tool_searching
@@ -40,6 +43,8 @@ from app.services.ai.stream_utils import (
     build_stream_tool_searching,
     build_stream_usage,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(protected)])
 
@@ -407,6 +412,34 @@ async def stream_message(
             db.refresh(assistant_row)
             ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
             db.commit()
+
+            # Phase 3：首轮且会话仍为默认标题时，自动用 LLM 生成会话标题。
+            # 仅触发一次（默认标题哨兵），绝不覆盖用户自定义标题；
+            # regenerate 路径不改写标题（手动重生成走专用端点）。
+            # generate_conversation_title 为同步 HTTP，用 to_thread 避免阻塞事件循环；
+            # 其自身已对 provider 未配置 / 空内容 / API 失败返回 None，此处再包一层
+            # try/except 双保险，确保标题失败绝不影响 done 事件。
+            title_regenerated = False
+            if (
+                not regenerate
+                and conversation.title == DEFAULT_CONVERSATION_TITLE
+                and final_content
+            ):
+                try:
+                    generated = await asyncio.to_thread(
+                        ai_chat_service.generate_conversation_title,
+                        settings,
+                        user_content,
+                        final_content,
+                    )
+                except Exception:
+                    logger.warning("Phase 3 autotitle failed; keep default title", exc_info=True)
+                    generated = None
+                if generated:
+                    conversation.title = generated
+                    db.commit()
+                    title_regenerated = True
+
             yield build_stream_done(
                 user_message=serialize_message(user_row) if not regenerate else serialize_message(target_assistant),
                 assistant_message=serialize_message(assistant_row),
@@ -418,7 +451,7 @@ async def stream_message(
                     "total_tokens": conversation.total_tokens,
                 },
                 duration_ms=None,
-                title_regenerated=False,
+                title_regenerated=title_regenerated,
             )
         except _CancelledError:
             db.rollback()
