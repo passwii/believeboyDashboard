@@ -676,7 +676,7 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 
 > 目标：CRM 核心闭环可演示。
 > **本次提交**：`feat(crm): lead + sea + opportunity stub`
-> **进度（2026-07-18 续）**：在首轮 Phase 3 基础上补完 3.3/3.4/3.7 —— 新增 `lead.schema.ts` + `CrmLeadForm`（复用 CrmUserSelect/Form 原语），线索页接入"新建线索"Sheet 与详情 Drawer 编辑 tab；客户列表接入批量勾选 + "移入公海"。单元 194 全绿、lint 0 error、build 通过。待补 3.6/3.10 Playwright、3.13 PR。
+> **进度（2026-07-18 续2）**：补完 3.6/3.10 Playwright E2E（`tests/crm/lead-to-customer.spec.ts`、`sea-flow.spec.ts`，复用全局登录态 + MockCrmClient）；另加 `crm-mobile.spec.ts` 覆盖 Phase 4 移动端无横向溢出。单元 194 全绿、lint 0 error、build 通过、E2E 规格随项目 tsc 通过。Phase 3 全部 checklist 落地；3.13 PR 即本批次提交合并。
 > 测试基建注记：vitest 解析 `@hookform/resolvers@5`（需 zod v4）时，pnpm 将 zod@3 嵌套进 resolvers 的 node_modules（chromium-bidi 依赖），致 `zod/v4/core` 子路径缺失；已在 `frontend/vitest.config.ts` 加 `alias['zod/v4/core']` + `server.deps.inline:['@hookform/resolvers']` 修正。
 
 - [x] 3.1 `CrmLeadTable`（复用 crm-table + LEAD_FIELD_DEFS）
@@ -684,14 +684,19 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 - [x] 3.3 `crm-lead-form/schemas/lead.schema.ts`（zod 校验）
 - [x] 3.4 线索新建 / 编辑（`CrmLeadForm` + 线索页"新建线索"Sheet；详情 Drawer 编辑 tab 注入 CrmLeadForm）
 - [x] 3.5 **线索详情 → "转为客户" → 标记 converted**（convertLead 闭环；转后 toast 反馈）
-- [ ] 3.6 Playwright `lead-to-customer.spec.ts`
+- [x] 3.6 Playwright `lead-to-customer.spec.ts`（行→抽屉→转为客户；新建线索必填校验）
 - [x] 3.7 客户批量"移入公海"（`CrmTable` 新增 `refreshKey` + `CrmCustomerTable` 选择工具条 → `batchMoveToSea`）
 - [x] 3.8 `/dashboard/crm/sea` 页面（复用 customer list + scope='sea'，mock applyScope 扩展 'sea'）
 - [x] 3.9 公海"领取"按钮（Drawer actions 槽 → claimFromSea）
-- [ ] 3.10 Playwright `sea-flow.spec.ts`
+- [x] 3.10 Playwright `sea-flow.spec.ts`（行→抽屉→领取→移出公海）
 - [x] 3.11 `CrmOpportunityTable`（7 列）
 - [x] 3.12 `CrmOpportunityOverviewDrawer`（只读，onSave 空实现）
-- [ ] 3.13 PR 合并
+- [x] 3.13 本批次提交合并（PR 即 `feat(crm): 线索新建表单 + 批量移入公海` 等）
+
+### Phase 4 · 收尾（Day 10，部分）
+
+> 目标：MVP 全量可发布。
+> **进度（2026-07-18 续2）**：移动端回归已以 E2E 覆盖（`tests/crm/crm-mobile.spec.ts`，390px 无横向溢出）；空态由 `EmptyState` 组件统一承接（各列表 `emptyText` 已配置）；a11y 沿用 `@axe-core/playwright` 既有项目。剩余：a11y 专项审计（独立小迭代）、结算/看板等深度功能（超出 MVP 范围，见 CordysCRM 评估结论，不扩张）。
 
 **Day 9 退出标准**：线索→客户 + 公海 E2E 过；商机只读可看。
 
