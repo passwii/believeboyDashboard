@@ -2,10 +2,12 @@
 
 import { useCallback, useState } from 'react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { Badge } from '@/components/ui/badge'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
+import { CrmOpportunityForm } from './crm-opportunity-form'
 import { OPPORTUNITY_FIELD_DEFS } from '@/lib/crm/field-defs/opportunity'
 import type { Opportunity } from '@/lib/crm/types'
 import {
@@ -38,20 +40,31 @@ const columns: CrmColumnDef<Opportunity>[] = [
 
 export function CrmOpportunityTable() {
   const client = useCrmClient()
+  const { scope } = useCrmDataScope()
   const [active, setActive] = useState<Opportunity | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const fetchPage = useCallback(
     async (params: Parameters<typeof client.listOpportunities>[0]) => {
-      return client.listOpportunities(params)
+      return client.listOpportunities({ ...params, scope: scope ?? params.scope })
     },
-    [client]
+    [client, scope]
   )
 
   const handleRowClick = useCallback(async (row: Opportunity) => {
     setActive(row)
     setDrawerOpen(true)
   }, [])
+
+  const handleSave = useCallback(
+    async (input: Record<string, unknown>) => {
+      if (!active) return
+      const updated = await client.updateOpportunity(active.id, input as never)
+      setActive(updated)
+      setDrawerOpen(false)
+    },
+    [active, client]
+  )
 
   return (
     <>
@@ -81,9 +94,15 @@ export function CrmOpportunityTable() {
           users={[]}
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
-          onSave={async () => {
-            /* 商机只读，不保存 */
-          }}
+          onSave={handleSave}
+          editForm={
+            <CrmOpportunityForm
+              users={[]}
+              initialValues={active}
+              onSubmit={handleSave}
+              submitText="保存修改"
+            />
+          }
         />
       )}
     </>

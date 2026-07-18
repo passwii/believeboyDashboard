@@ -8,6 +8,7 @@ import type {
   Lead,
   LeadInput,
   Opportunity,
+  OpportunityInput,
   User,
 } from '@/lib/crm/types'
 import {
@@ -468,6 +469,52 @@ export class MockCrmClient implements CrmClient {
     const o = this.state.opportunities.find((x) => x.id === id)
     if (!o) throw new Error(`商机不存在: ${id}`)
     return o
+  }
+
+  async createOpportunity(input: OpportunityInput): Promise<Opportunity> {
+    await this.delay('createOpportunity')
+    const now = new Date().toISOString()
+    const id = genId('o')
+    const owner = input.ownerId ? this.state.users.find((u) => u.id === input.ownerId) : null
+    const customer = this.state.customers.find((c) => c.id === input.customerId)
+    const { ownerId: inputOwnerId, ...rest } = input
+    const opp: Opportunity = {
+      ...rest,
+      id,
+      ownerName: owner?.name,
+      customerName: customer?.name,
+      createdAt: now,
+      updatedAt: now,
+      ownerId: inputOwnerId ?? this.currentUserId,
+    }
+    this.state.opportunities.unshift(opp)
+    persistState(this.state)
+    return opp
+  }
+
+  async updateOpportunity(id: string, input: Partial<OpportunityInput>): Promise<Opportunity> {
+    await this.delay('updateOpportunity')
+    const idx = this.state.opportunities.findIndex((o) => o.id === id)
+    if (idx === -1) throw new Error(`商机不存在: ${id}`)
+    const prev = this.state.opportunities[idx]
+    const owner =
+      input.ownerId !== undefined ? this.state.users.find((u) => u.id === input.ownerId) : null
+    const customer =
+      input.customerId !== undefined
+        ? this.state.customers.find((c) => c.id === input.customerId)
+        : undefined
+    const { ownerId: updOwnerId, ...restInput } = input
+    const updated: Opportunity = {
+      ...prev,
+      ...restInput,
+      ownerName: updOwnerId !== undefined ? owner?.name : prev.ownerName,
+      customerName: input.customerId !== undefined ? customer?.name : prev.customerName,
+      updatedAt: new Date().toISOString(),
+      ownerId: updOwnerId ?? prev.ownerId,
+    }
+    this.state.opportunities[idx] = updated
+    persistState(this.state)
+    return updated
   }
 
   // ===== Follow =====

@@ -15,3 +15,10 @@ export interface Opportunity {
   createdAt: string
   updatedAt: string
 }
+
+export type OpportunityInput = Omit<
+  Opportunity,
+  'id' | 'customerName' | 'ownerName' | 'createdAt' | 'updatedAt' | 'ownerId'
+> & {
+  ownerId?: string | null
+}

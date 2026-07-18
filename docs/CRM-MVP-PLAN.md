@@ -693,6 +693,21 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 - [x] 3.12 `CrmOpportunityOverviewDrawer`（只读，onSave 空实现）
 - [x] 3.13 本批次提交合并（PR 即 `feat(crm): 线索新建表单 + 批量移入公海` 等）
 
+### 基础版框架补全（2026-07-18 续3）
+
+> 目标：补齐基础版框架最后的结构件 —— 商机 CRUD 闭环 + 客户新建入口，使三大实体（客户/线索/商机）均具备"列表→详情→新建/编辑→保存"完整闭环。
+> **本次提交**：`feat(crm): 商机 CRUD 闭环 + 客户新建入口`
+
+- [x] 类型/接口层：`OpportunityInput` 类型、`CrmClient` 接口新增 `createOpportunity` / `updateOpportunity`，`MockCrmClient` 与 `HttpCrmClient` 桩同步补齐
+- [x] `CrmCustomerSelect` 组件（选客户，Command/Popover，复刻 CrmUserSelect）
+- [x] `opportunity.schema.ts`（zod）+ `CrmOpportunityForm`（name/customerId/amount/stage/ownerId/expectedCloseDate/probability/remark）
+- [x] 商机页接入"新建商机"Sheet（createOpportunity）+ ScopeToggle；`CrmOpportunityTable` 详情 Drawer 编辑 tab 注入 `CrmOpportunityForm`，`onSave` → `updateOpportunity`（原只读空壳已替换）
+- [x] 客户页（`/dashboard/crm/customers`）接入"新建客户"Sheet（`CrmFormCreate` → `createCustomer`）
+- [x] 单测：`opportunity.schema` 校验 + `MockCrmClient` create/updateOpportunity round-trip；单元 **201 全绿**、lint 0 error、build 通过
+- [ ] 待补：`crm-opportunity-form` / `crm-customer-select` 的组件级单测（当前由 schema + mock 单测 + 类型检查覆盖）；a11y 专项审计
+
+**基础版 CRM 框架闭环状态**：客户（列表/详情/编辑/新建/批量移公海）、线索（列表/详情/编辑/新建/转客户）、商机（列表/详情/编辑/新建）、公海（列表/领取）均已可用。占位件（settings / business-dev / workbench）按评估结论留待 V2，不纳入基础版。
+
 ### Phase 4 · 收尾（Day 10，部分）
 
 > 目标：MVP 全量可发布。
