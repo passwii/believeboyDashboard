@@ -1,7 +1,7 @@
 # CRM MVP 实施计划（单一权威源 · Living Doc）
 
-> **状态**：🚧 启动前（Day 0 待开工）
-> **版本**：v1.1 · 2026-07-10
+> **状态**：🚧 Phase 1 完成，Phase 2 待开工
+> **版本**：v1.2 · 2026-07-18（对照 CordysCRM 评估后小修，见 §17）
 > **作者**：Claude (ZCode) · 用户最终审阅
 > **关联**：[`docs/cordys-crm-analysis.md`](./cordys-crm-analysis.md)（调研参考 · 不再是事实权威；偏差见 [附录 D](#附录-d与上游分析文档的偏差)）
 > **维护规则**：每个 Phase 结束或每日开工前更新「进度日志」+ 把对应复选框打勾。
@@ -19,6 +19,9 @@
 | 2026-07-11 | Phase 1 · Day 2（续） | **任务 1.1–1.2（useCrmTable hook）**：`components/crm/crm-table/use-crm-table.ts` — URL 单一真理源 + 过期请求守卫 + router.replace 写操作 + parseFilters useMemo 防无限循环；27 case 单测全过（state init 6 + URL sync 11 + fetch 5 + loading 1 + scope 1 + 数据校验 3） | — | 修复了 3 类 bug：① `parseFilters` 每次返回新 `[]` 触发无限循环（useMemo 修）② setFilters 双重编码（去掉 `encodeURIComponent`）③ 部分测试缺 `rerender()` |
 | 2026-07-11 | Phase 1 · Day 2 | **任务 1.3–1.4（CrmTable 组件）+ 1.8/1.9/1.10/1.11 拼装**：`crm-table/index.tsx` 基于 TanStack headless + shadcn Table/Checkbox/Button/EmptyState；23 case 单测；`CrmCustomerTable` 7 列 + 最后跟进 7 天红色 + `customers/components/scope-toggle.tsx` + `customers/page.tsx` 接入；**客户列表页面已从占位切换到 100 条真实 mock**，sidebar CRM 业务组已可见 | — | 修了 4 类实现 bug：① EmptyState 用 `message` prop ② Radix Checkbox 用 `data-state` ③ SortIcon 加 `data-testid` ④ 日期 locale 用 `getAllByText` 容错；跳过 1.5+1.6（mock-crm-client 服务端已实现 predicate） |
 | 2026-07-11 | Phase 1 · 整理 | **路径 A 分支恢复**：原分支被其他 agent cherry-pick 5 个 船期批次 commit 污染；备份 CRM 工作（`.agent-contexts/crm-recovery/` 11 文件）→ 隔离旧分支（`feat/crm-customer-table-take2-polluted`、`feat/crm-customer-table-polluted` 留作对照）→ 从 `origin/main`（`c759b49b`）重开干净 `feat/crm-customer-table` → 还原文件 + 补 page.tsx + 测试重跑 50/50 绿 | — | 中途发现 `8d550065 Merge branch 'feat/crm-customer-table'` **merge 进 main 的是污染不是 CRM**（因为 Day 2 工作一直未提交）；handoff 文档 [2026-07-10-crm-phase1-day2-handoff.md](./superpowers/plans/2026-07-10-crm-phase1-day2-handoff.md) 已记录恢复步骤 |
+| 2026-07-11 | Phase 1 · 收尾 | **PR #129 `feat(crm): customer list with mock client` 合并进 main**（`e23ed594`）；客户列表从占位切换到真实数据、50/50 单测全绿 | — | 至此 Phase 0 + Phase 1 列表层全部合并，下一步进 Phase 2（详情/表单/跟进） |
+| 2026-07-18 | 评估 | **对照 `openSourceProjects/CordysCRM` 评估方案**：确认 D1–D22 决策全部成立，不推翻、不扩范围；补 3 处打磨（商机 Kanban 维持砍补文案 / 公海维持手动补验收 / Phase 2 抽 `FIELD_DEFS`+`renderField` 渲染器）；文档健康 2 处修正。评估见 `docs/superpowers/plans/2026-07-18-crm-vs-cordys-evaluation.md` | — | CordysCRM 是生产级全功能 CRM（52 business 组件 / 9 域 / 自定义字段设计器 / 公式引擎 / Kanban），本 MVP 定位为 Dashboard 内销售闭环演示片段，不应直接对标功能广度 |
+| 2026-07-18 | Phase 2 | **详情/跟进/表单核心组件落地**（任务 2.1–2.9 全打勾）：`renderField` 渲染器 + `CUSTOMER_FIELD_DEFS`；`crm-detail-card` / `crm-follow-timeline`(+`follow-form`) / `crm-user-select` / `crm-form-create`(zod schema) / `crm-overview-drawer`(3 tab)；`customer-table.tsx` 接入行点击 → Drawer。测试 +67 case（共 183），`pnpm lint && build && test` 全绿 | — | 仍缺 2.10 Playwright E2E 与 2.11 PR 合并；线索/商机/公海详情复用同一 Drawer 换 `FIELD_DEFS`（v1.2 抽象生效） |
 
 ---
 
@@ -77,6 +80,8 @@
 
 ### 2.2 ❌ 非目标（明确写出防 scope creep）
 
+> **定位锚点（2026-07-18 补）**：本 MVP 是 **Dashboard 内嵌的销售闭环演示片段**，不是对标 [CordysCRM](https://github.com/1Panel-dev/CordysCRM) 这类生产级全功能 CRM。CordysCRM 用 52 个 business 组件 + 9 大业务域 + 自定义字段设计器 + 公式引擎 + 商机 Kanban 拖拽看板才撑起全功能；我们的 Mock 先行 + 接口契约 + 三层分层策略与之同源，但时间盒仅 10 工作日。**自定义字段 / 公式引擎 / 表单设计器 / Kanban / 合同 / 订单 / 回款 / 发票 / 标讯 / 审批流 / BI / AI 助手均按 D5–D8 / D19 推 V2+**，详见 `docs/cordys-crm-analysis.md` 与 `docs/superpowers/plans/2026-07-18-crm-vs-cordys-evaluation.md`。下方逐项即 MVP 明确不做的内容。
+
 - 商机 Kanban 拖拽换阶段（D8）
 - 合同 / 订单 / 回款 / 发票 / 报价
 - 自定义字段 / 公式引擎 / 表单设计器（D5-D7）
@@ -104,7 +109,7 @@
 | 客户 Customer | `/dashboard/crm/customers` | **深**（列表+详情+编辑+公海+跟进+批量） | 查重、合并、客户画像 |
 | 线索 Lead | `/dashboard/crm/leads` | **深**（列表+详情+编辑+**转客户**+跟进+公海） | 线索池自动分配规则 |
 | 商机 Opportunity | `/dashboard/crm/opportunities` | **浅**（列表+详情，只读） | Kanban 拖拽、报价单 |
-| 公海 Sea | `/dashboard/crm/sea` | **浅**（复用 customer 列表 + scope='sea'） | 独立页 + 自动回收规则 |
+| 公海 Sea | `/dashboard/crm/sea` | **浅**（复用 customer 列表 + scope='sea'；MVP 仅手动移入/领取，**无超时自动回收规则**，自动回收推 V2） | 独立页 + 自动回收规则 |
 | CRM 设置 | `/dashboard/crm/settings` | **不开放**（redirect → no-resource） | 自定义字段、阶段、来源 |
 | CRM 工作台 | `/dashboard/crm/workbench` | **redirect → /customers** | 个人首页（V2） |
 
@@ -486,7 +491,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
 | C1 | **crm-table** | TanStack Table (已装) + shadcn Table/Checkbox/Button | **P0 · 自研**（D21） |
 | C2 | **crm-advance-filter** | react-hook-form + zod + shadcn Popover/Select/Input | P0 |
 | C3 | **crm-overview-drawer** | shadcn Sheet/Tabs/Badge | P0 |
-| C4 | **crm-detail-card** | shadcn Card | P0 |
+| C4 | **crm-detail-card** | shadcn Card | P0 | **v1.2 升级**：接收 `fields: FieldDefinition[]`，内部 `fields.map(renderField)` 渲染（不违背 D5——仍是写死字段值，仅把"字段清单"从散落 JSX 提为 `FieldDefinition[]` 数组）；线索/商机/公海详情复用同一卡片换 `FIELD_DEFS`（对齐 CordysCRM "一个 Drawer 服务多实体" 范式，详见评估 §3.3）|
 | C5 | **crm-user-select** | shadcn Command/Popover | P0 |
 | C6 | **crm-follow-timeline** | shadcn ScrollArea + lucide icons | P0 |
 | C7 | **crm-form-create** | react-hook-form + zod + shadcn Form | P0 |
@@ -650,16 +655,17 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 
 > 目标：客户单条全流程可演示。
 > **本次提交**：`feat(crm): customer detail + form`
+> **进度（2026-07-18）**：核心组件已全部落地（2.1–2.9），含 v1.2 引入的 `FIELD_DEFS`+`renderField` 渲染器抽象（§9 C4）；待补 2.10 Playwright 与 2.11 PR。
 
-- [ ] 2.1 `crm-detail-card/index.tsx` 测试 + 实现
-- [ ] 2.2 `crm-user-select/index.tsx` 测试 + 实现
-- [ ] 2.3 `crm-follow-timeline/index.tsx` 实现
-- [ ] 2.4 `crm-follow-timeline/follow-form.tsx`
-- [ ] 2.5 `crm-overview-drawer/index.tsx` + 4 个 tab
-- [ ] 2.6 客户列表行点击 → Drawer
-- [ ] 2.7 `crm-form-create/schemas/customer.schema.ts` (zod)
-- [ ] 2.8 `crm-form-create/index.tsx` 测试 + 实现
-- [ ] 2.9 Drawer "编辑" → 打开 form
+- [x] 2.1 `crm-detail-card/index.tsx` 测试 + 实现（按 `FIELD_DEFS` 渲染）
+- [x] 2.2 `crm-user-select/index.tsx` 测试 + 实现（搜索 + 头像，支持 allowClear）
+- [x] 2.3 `crm-follow-timeline/index.tsx` 实现（多态复用）
+- [x] 2.4 `crm-follow-timeline/follow-form.tsx`（类型 + 内容 + 下次跟进）
+- [x] 2.5 `crm-overview-drawer/index.tsx` + 3 个 tab（详情/跟进/编辑；相关/日志 V2）
+- [x] 2.6 客户列表行点击 → Drawer（`customer-table.tsx` 接入）
+- [x] 2.7 `crm-form-create/schemas/customer.schema.ts` (zod)
+- [x] 2.8 `crm-form-create/index.tsx` 测试 + 实现（react-hook-form + zod）
+- [x] 2.9 Drawer "编辑" → 打开 form（CrmFormCreate）
 - [ ] 2.10 Playwright `customer-lifecycle.spec.ts` 补全
 - [ ] 2.11 PR 合并
 
@@ -826,5 +832,14 @@ components/crm/
 
 ---
 
-**版本**：v1.1 · 2026-07-10
-**下一次同步**：Day 0 完成时 / Phase 0 结束时
+## 17. 对照 CordysCRM 的方案评估（2026-07-18）
+
+> 完整评估：`docs/superpowers/plans/2026-07-18-crm-vs-cordys-evaluation.md`
+> 结论：**方案方向正确，D1–D22 决策全部成立，不推翻、不扩范围**。对照全功能 CRM 仅做三处打磨：
+
+1. **商机 Kanban（D8）维持砍**，§2.2 补文案说明"看板属 V2，MVP 用列表 + 状态徽章替代"。
+2. **公海维持手动模式**（无自动回收），§3 公海行补"（MVP 仅手动，无自动回收规则）"；Phase 3 验收须含"领取后列表刷新、公海项消失"。
+3. **Phase 2 抽 `FIELD_DEFS` + `renderField` 渲染器**（§9 C4 已更新）：不违背 D5，但让线索/商机/公海详情复用同一 `crm-detail-card` 换字段数组，对齐 CordysCRM "一个 Drawer 服务多实体" 范式。
+
+**版本**：v1.2 · 2026-07-18
+**下一次同步**：Phase 2 结束时

@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { Badge } from '@/components/ui/badge'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
+import { CrmOverviewDrawer } from './crm-overview-drawer'
+import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 import {
   CUSTOMER_RATING_COLORS,
@@ -73,6 +76,8 @@ const columns: CrmColumnDef<Customer>[] = [
 export function CrmCustomerTable() {
   const client = useCrmClient()
   const { scope } = useCrmDataScope()
+  const [active, setActive] = useState<Customer | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const fetchPage = useCallback(
     async (params: Parameters<typeof client.listCustomers>[0]) => {
@@ -81,14 +86,52 @@ export function CrmCustomerTable() {
     [client, scope]
   )
 
+  const handleRowClick = useCallback(async (row: Customer) => {
+    setActive(row)
+    setDrawerOpen(true)
+  }, [])
+
+  const handleSave = useCallback(
+    async (input: Record<string, unknown>) => {
+      if (!active) return
+      const updated = await client.updateCustomer(active.id, input as never)
+      setActive(updated)
+      setDrawerOpen(false)
+    },
+    [active, client]
+  )
+
   return (
-    <CrmTable<Customer>
-      queryKey="customers"
-      fetchPage={fetchPage}
-      columns={columns}
-      rowKey="id"
-      emptyText="暂无客户"
-      defaultPageSize={20}
-    />
+    <>
+      <CrmTable<Customer>
+        queryKey="customers"
+        fetchPage={fetchPage}
+        columns={columns}
+        rowKey="id"
+        emptyText="暂无客户"
+        defaultPageSize={20}
+        onRowClick={handleRowClick}
+      />
+      {active && (
+        <CrmOverviewDrawer<Customer>
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          entityType="customer"
+          entityId={active.id}
+          data={active}
+          fields={CUSTOMER_FIELD_DEFS}
+          title={active.name}
+          headerExtra={
+            <Badge variant="secondary" className={CUSTOMER_STATUS_COLORS[active.status]}>
+              {CUSTOMER_STATUS_LABELS[active.status]}
+            </Badge>
+          }
+          users={[]}
+          loadFollows={(et, id) => client.listFollows(et, id)}
+          createFollow={(input) => client.createFollow(input)}
+          onSave={handleSave}
+        />
+      )}
+    </>
   )
 }
