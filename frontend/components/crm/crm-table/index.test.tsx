@@ -378,16 +378,46 @@ describe('CrmTable · 选择', () => {
  })
 })
 
+describe('CrmTable · refreshKey', () => {
+  it('refreshKey>0 时触发 refresh', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    render(
+      <CrmTable
+        queryKey="x"
+        fetchPage={vi.fn()}
+        columns={sampleColumns}
+        rowKey="id"
+        refreshKey={1}
+      />,
+    )
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshKey 为 0 / 未传时不触发 refresh', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    render(
+      <CrmTable
+        queryKey="x"
+        fetchPage={vi.fn()}
+        columns={sampleColumns}
+        rowKey="id"
+        refreshKey={0}
+      />,
+    )
+    expect(mockRefresh).not.toHaveBeenCalled()
+  })
+})
+
 describe('CrmTable · 分页', () => {
- it('total > pageSize 时显示分页', () => {
- mockUseCrmTableReturn.data = sampleCustomers
- mockUseCrmTableReturn.total = 100
- mockUseCrmTableReturn.pageSize = 20
- render(
- <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
- )
- expect(screen.getByText(/共 100 条/)).toBeInTheDocument()
- })
+  it('total > pageSize 时显示分页', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    mockUseCrmTableReturn.total = 100
+    mockUseCrmTableReturn.pageSize = 20
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    expect(screen.getByText(/共 100 条/)).toBeInTheDocument()
+  })
 
  it('total <= pageSize 时不显示分页', () => {
  mockUseCrmTableReturn.data = sampleCustomers

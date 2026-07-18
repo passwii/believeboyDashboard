@@ -676,16 +676,16 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 
 > 目标：CRM 核心闭环可演示。
 > **本次提交**：`feat(crm): lead + sea + opportunity stub`
-> **进度（2026-07-18）**：列表/详情/跟进/转客户/公海领取/商机只读全部落地（3.1/3.5/3.8/3.9/3.11/3.12）；单元 187 全绿、lint 0 error、build 10 条 CRM 路由通过。待补 3.3/3.4 线索新建表单（MVP 用编辑 Drawer 暂代新建）、3.6/3.10 Playwright、3.7 批量移公海、3.13 PR。
+> **进度（2026-07-18 续）**：在首轮 Phase 3 基础上补完 3.3/3.4/3.7 —— 新增 `lead.schema.ts` + `CrmLeadForm`（复用 CrmUserSelect/Form 原语），线索页接入"新建线索"Sheet 与详情 Drawer 编辑 tab；客户列表接入批量勾选 + "移入公海"。单元 194 全绿、lint 0 error、build 通过。待补 3.6/3.10 Playwright、3.13 PR。
 > 测试基建注记：vitest 解析 `@hookform/resolvers@5`（需 zod v4）时，pnpm 将 zod@3 嵌套进 resolvers 的 node_modules（chromium-bidi 依赖），致 `zod/v4/core` 子路径缺失；已在 `frontend/vitest.config.ts` 加 `alias['zod/v4/core']` + `server.deps.inline:['@hookform/resolvers']` 修正。
 
 - [x] 3.1 `CrmLeadTable`（复用 crm-table + LEAD_FIELD_DEFS）
 - [x] 3.2 `CrmLeadOverviewDrawer`（复用 crm-overview-drawer，actions 槽注入"转为客户"）
-- [ ] 3.3 `crm-form-create/schemas/lead.schema.ts`
-- [ ] 3.4 线索新建 / 编辑（MVP 暂用编辑 Drawer 代新建；独立新建表单推小迭代）
-- [x] 3.5 **线索详情 → "转为客户" → 标记 converted**（convertLead 闭环；跳过独立 form 页，转后 toast 反馈）
+- [x] 3.3 `crm-lead-form/schemas/lead.schema.ts`（zod 校验）
+- [x] 3.4 线索新建 / 编辑（`CrmLeadForm` + 线索页"新建线索"Sheet；详情 Drawer 编辑 tab 注入 CrmLeadForm）
+- [x] 3.5 **线索详情 → "转为客户" → 标记 converted**（convertLead 闭环；转后 toast 反馈）
 - [ ] 3.6 Playwright `lead-to-customer.spec.ts`
-- [ ] 3.7 客户批量"移入公海"（mock `batchMoveToSea` 已就绪，列表批量勾选 + 按钮待接）
+- [x] 3.7 客户批量"移入公海"（`CrmTable` 新增 `refreshKey` + `CrmCustomerTable` 选择工具条 → `batchMoveToSea`）
 - [x] 3.8 `/dashboard/crm/sea` 页面（复用 customer list + scope='sea'，mock applyScope 扩展 'sea'）
 - [x] 3.9 公海"领取"按钮（Drawer actions 槽 → claimFromSea）
 - [ ] 3.10 Playwright `sea-flow.spec.ts`

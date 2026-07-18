@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
+import { CrmLeadForm } from './crm-lead-form'
 import { LEAD_FIELD_DEFS } from '@/lib/crm/field-defs/lead'
 import type { Lead } from '@/lib/crm/types'
 import {
@@ -92,6 +93,16 @@ export function CrmLeadTable() {
     [active, client]
   )
 
+  const handleLeadFormSave = useCallback(
+    async (input: import('@/lib/crm/types/lead').LeadInput) => {
+      if (!active) return
+      const updated = await client.updateLead(active.id, input)
+      setActive(updated)
+      setDrawerOpen(false)
+    },
+    [active, client]
+  )
+
   const handleConvert = useCallback(async () => {
     if (!active) return
     await client.convertLead(active.id)
@@ -135,6 +146,14 @@ export function CrmLeadTable() {
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
           onSave={handleSave}
+          editForm={
+            <CrmLeadForm
+              users={[]}
+              initialValues={active}
+              onSubmit={handleLeadFormSave}
+              submitText="保存修改"
+            />
+          }
         />
       )}
     </>

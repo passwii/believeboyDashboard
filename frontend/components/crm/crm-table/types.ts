@@ -39,6 +39,8 @@ export interface CrmTableProps<T> {
   emptyText?: string
   defaultPageSize?: number
   rowKey: keyof T
+  /** 外部变更后主动刷新表格（每次 +1 触发） */
+  refreshKey?: number
 }
 
 export interface CrmTableSelectionState {

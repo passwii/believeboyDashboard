@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCrmTable } from './use-crm-table'
 import type { CrmColumnDef, CrmTableProps } from './types'
@@ -76,12 +76,21 @@ export function CrmTable<T extends { id?: string | number }>({
   emptyText = '暂无数据',
   defaultPageSize,
   rowKey,
+  refreshKey,
 }: CrmTableProps<T>) {
   const table = useCrmTable<T>({
     queryKey,
     fetchPage,
     defaultPageSize,
   })
+
+  // 外部批量操作（如移入公海）后主动刷新
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      void table.refresh()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   const [internalSelected, setInternalSelected] = useState<string[]>([])
   const isControlled = controlledSelectedIds !== undefined

@@ -3,7 +3,9 @@
 import { useCallback, useState } from 'react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
@@ -76,8 +78,12 @@ const columns: CrmColumnDef<Customer>[] = [
 export function CrmCustomerTable() {
   const client = useCrmClient()
   const { scope } = useCrmDataScope()
+  const { notify } = useNotifications()
   const [active, setActive] = useState<Customer | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [moving, setMoving] = useState(false)
 
   const fetchPage = useCallback(
     async (params: Parameters<typeof client.listCustomers>[0]) => {
@@ -101,8 +107,41 @@ export function CrmCustomerTable() {
     [active, client]
   )
 
+  const handleBatchMoveToSea = useCallback(async () => {
+    if (selectedIds.length === 0) return
+    setMoving(true)
+    try {
+      await client.batchMoveToSea(selectedIds)
+      notify({
+        type: 'success',
+        title: '已移入公海',
+        message: `已释放 ${selectedIds.length} 个客户`,
+      })
+      setSelectedIds([])
+      setRefreshKey((k) => k + 1)
+    } finally {
+      setMoving(false)
+    }
+  }, [selectedIds, client, notify])
+
   return (
     <>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          客户列表 · 勾选后可批量释放到公海
+        </p>
+        {selectedIds.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleBatchMoveToSea}
+            disabled={moving}
+            data-testid="batch-move-to-sea"
+          >
+            {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
+          </Button>
+        )}
+      </div>
       <CrmTable<Customer>
         queryKey="customers"
         fetchPage={fetchPage}
@@ -111,6 +150,10 @@ export function CrmCustomerTable() {
         emptyText="暂无客户"
         defaultPageSize={20}
         onRowClick={handleRowClick}
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        refreshKey={refreshKey}
       />
       {active && (
         <CrmOverviewDrawer<Customer>

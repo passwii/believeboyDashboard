@@ -16,6 +16,11 @@ export interface CrmOverviewDrawerProps<T extends object> {
   headerExtra?: React.ReactNode
   /** 头部操作区（如线索"转为客户"按钮），渲染在标题右侧 */
   actions?: React.ReactNode
+  /**
+   * 自定义编辑表单。提供时编辑 tab 直接渲染该节点（如线索用 CrmLeadForm），
+   * 不再懒加载默认 CrmFormCreate，也不再走"编辑信息"开关。
+   */
+  editForm?: React.ReactNode
   users: User[]
   /** 加载跟进记录 */
   loadFollows: (entityType: FollowEntityType, entityId: string) => Promise<Follow[]>

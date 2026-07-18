@@ -37,6 +37,7 @@ export function CrmOverviewDrawer<T extends object>({
   title,
   headerExtra,
   actions,
+  editForm,
   users,
   loadFollows,
   createFollow,
@@ -130,7 +131,9 @@ export function CrmOverviewDrawer<T extends object>({
             </TabsContent>
 
             <TabsContent value="edit" className="mt-0">
-              {editing ? (
+              {editForm ? (
+                editForm
+              ) : editing ? (
                 <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                   <CrmFormCreate
                     users={users}
