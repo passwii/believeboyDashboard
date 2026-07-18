@@ -13,7 +13,7 @@ import type {
 export interface ListParams {
   keyword?: string
   filters?: FilterCondition[]
-  scope?: 'mine' | 'all'
+  scope?: 'mine' | 'all' | 'sea'
   page?: number
   pageSize?: number
   sortBy?: string

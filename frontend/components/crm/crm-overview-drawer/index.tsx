@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -13,9 +13,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { CrmDetailCard } from '@/components/crm/crm-detail-card'
 import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
-import { CrmFormCreate } from '@/components/crm/crm-form-create'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 import type { CrmOverviewDrawerProps } from './types'
+
+// 懒加载表单（含 react-hook-form + zod resolver），避免在仅需详情/跟进时
+// 拖入重型依赖；也便于测试隔离。
+const CrmFormCreate = lazy(() =>
+  import('@/components/crm/crm-form-create').then((m) => ({ default: m.CrmFormCreate }))
+)
 
 /**
  * 通用详情抽屉（v1.2）：详情 Tab（crm-detail-card，按 FIELD_DEFS 渲染）
@@ -31,6 +36,7 @@ export function CrmOverviewDrawer<T extends object>({
   fields,
   title,
   headerExtra,
+  actions,
   users,
   loadFollows,
   createFollow,
@@ -84,9 +90,12 @@ export function CrmOverviewDrawer<T extends object>({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full gap-0 p-0 sm:max-w-xl">
         <SheetHeader className="border-b border-border/60 px-5 py-4">
-          <div className="flex items-center justify-between pr-8">
+          <div className="flex items-center justify-between gap-2 pr-8">
             <SheetTitle className="truncate">{title}</SheetTitle>
-            {headerExtra}
+            <div className="flex items-center gap-2">
+              {actions}
+              {headerExtra}
+            </div>
           </div>
         </SheetHeader>
 
@@ -122,12 +131,14 @@ export function CrmOverviewDrawer<T extends object>({
 
             <TabsContent value="edit" className="mt-0">
               {editing ? (
-                <CrmFormCreate
-                  users={users}
-                  initialValues={data as Record<string, never>}
-                  onSubmit={handleSave}
-                  submitText="保存修改"
-                />
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <CrmFormCreate
+                    users={users}
+                    initialValues={data as Record<string, never>}
+                    onSubmit={handleSave}
+                    submitText="保存修改"
+                  />
+                </Suspense>
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">

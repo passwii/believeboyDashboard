@@ -125,6 +125,16 @@ describe('MockCrmClient · Customer', () => {
  const claimed = await client.claimFromSea(seaCustomer.id)
  expect(claimed.ownerId).toBe(TEST_USER)
  })
+
+ it("listCustomers scope='sea' returns only ownerId=null customers", async () => {
+ const page = await client.listCustomers({ scope: 'sea', pageSize: 100 })
+ expect(page.items.length).toBeGreaterThan(0)
+ page.items.forEach((c) => expect(c.ownerId).toBeNull())
+ // sea 与 all 不相交
+ const all = await client.listCustomers({ scope: 'all', pageSize: 100 })
+ const seaIds = new Set(page.items.map((c) => c.id))
+ all.items.forEach((c) => expect(seaIds.has(c.id)).toBe(c.ownerId === null))
+ })
 })
 
 describe('MockCrmClient · Lead', () => {

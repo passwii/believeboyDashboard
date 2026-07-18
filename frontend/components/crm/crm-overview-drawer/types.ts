@@ -14,6 +14,8 @@ export interface CrmOverviewDrawerProps<T extends object> {
   /** 标题（如客户名） */
   title: string
   headerExtra?: React.ReactNode
+  /** 头部操作区（如线索"转为客户"按钮），渲染在标题右侧 */
+  actions?: React.ReactNode
   users: User[]
   /** 加载跟进记录 */
   loadFollows: (entityType: FollowEntityType, entityId: string) => Promise<Follow[]>

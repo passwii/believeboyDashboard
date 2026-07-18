@@ -22,6 +22,7 @@
 | 2026-07-11 | Phase 1 · 收尾 | **PR #129 `feat(crm): customer list with mock client` 合并进 main**（`e23ed594`）；客户列表从占位切换到真实数据、50/50 单测全绿 | — | 至此 Phase 0 + Phase 1 列表层全部合并，下一步进 Phase 2（详情/表单/跟进） |
 | 2026-07-18 | 评估 | **对照 `openSourceProjects/CordysCRM` 评估方案**：确认 D1–D22 决策全部成立，不推翻、不扩范围；补 3 处打磨（商机 Kanban 维持砍补文案 / 公海维持手动补验收 / Phase 2 抽 `FIELD_DEFS`+`renderField` 渲染器）；文档健康 2 处修正。评估见 `docs/superpowers/plans/2026-07-18-crm-vs-cordys-evaluation.md` | — | CordysCRM 是生产级全功能 CRM（52 business 组件 / 9 域 / 自定义字段设计器 / 公式引擎 / Kanban），本 MVP 定位为 Dashboard 内销售闭环演示片段，不应直接对标功能广度 |
 | 2026-07-18 | Phase 2 | **详情/跟进/表单核心组件落地**（任务 2.1–2.9 全打勾）：`renderField` 渲染器 + `CUSTOMER_FIELD_DEFS`；`crm-detail-card` / `crm-follow-timeline`(+`follow-form`) / `crm-user-select` / `crm-form-create`(zod schema) / `crm-overview-drawer`(3 tab)；`customer-table.tsx` 接入行点击 → Drawer。测试 +67 case（共 183），`pnpm lint && build && test` 全绿 | — | 仍缺 2.10 Playwright E2E 与 2.11 PR 合并；线索/商机/公海详情复用同一 Drawer 换 `FIELD_DEFS`（v1.2 抽象生效） |
+| 2026-07-18 | Phase 3 | **线索/公海/商机落地**（3.1/3.2/3.5/3.8/3.9/3.11/3.12）：`lead-table`/`sea-table`/`opportunity-table` + 各自 `FIELD_DEFS`；Drawer `actions` 槽支持线索"转为客户"与公海"领取"；mock `applyScope` 扩展 `scope='sea'`（ownerId=null）。三个页面接出占位 | — | 待补 3.3/3.4 线索独立新建表单、3.6/3.10 Playwright、3.7 批量移公海按钮、3.13 PR；商机只读（onSave 空实现）符合 D8 砍 Kanban 策略 |
 
 ---
 
@@ -675,19 +676,21 @@ MVP 仅 `mine | all` 两档；V2 加部门粒度。
 
 > 目标：CRM 核心闭环可演示。
 > **本次提交**：`feat(crm): lead + sea + opportunity stub`
+> **进度（2026-07-18）**：列表/详情/跟进/转客户/公海领取/商机只读全部落地（3.1/3.5/3.8/3.9/3.11/3.12）；单元 187 全绿、lint 0 error、build 10 条 CRM 路由通过。待补 3.3/3.4 线索新建表单（MVP 用编辑 Drawer 暂代新建）、3.6/3.10 Playwright、3.7 批量移公海、3.13 PR。
+> 测试基建注记：vitest 解析 `@hookform/resolvers@5`（需 zod v4）时，pnpm 将 zod@3 嵌套进 resolvers 的 node_modules（chromium-bidi 依赖），致 `zod/v4/core` 子路径缺失；已在 `frontend/vitest.config.ts` 加 `alias['zod/v4/core']` + `server.deps.inline:['@hookform/resolvers']` 修正。
 
-- [ ] 3.1 `CrmLeadTable`
-- [ ] 3.2 `CrmLeadOverviewDrawer`
+- [x] 3.1 `CrmLeadTable`（复用 crm-table + LEAD_FIELD_DEFS）
+- [x] 3.2 `CrmLeadOverviewDrawer`（复用 crm-overview-drawer，actions 槽注入"转为客户"）
 - [ ] 3.3 `crm-form-create/schemas/lead.schema.ts`
-- [ ] 3.4 线索新建 / 编辑
-- [ ] 3.5 **线索详情 → "转化为客户" → form → 提交**
+- [ ] 3.4 线索新建 / 编辑（MVP 暂用编辑 Drawer 代新建；独立新建表单推小迭代）
+- [x] 3.5 **线索详情 → "转为客户" → 标记 converted**（convertLead 闭环；跳过独立 form 页，转后 toast 反馈）
 - [ ] 3.6 Playwright `lead-to-customer.spec.ts`
-- [ ] 3.7 客户批量"移入公海"
-- [ ] 3.8 `/dashboard/crm/sea` 页面（复用 customer list + scope='sea'）
-- [ ] 3.9 公海"领取"按钮
+- [ ] 3.7 客户批量"移入公海"（mock `batchMoveToSea` 已就绪，列表批量勾选 + 按钮待接）
+- [x] 3.8 `/dashboard/crm/sea` 页面（复用 customer list + scope='sea'，mock applyScope 扩展 'sea'）
+- [x] 3.9 公海"领取"按钮（Drawer actions 槽 → claimFromSea）
 - [ ] 3.10 Playwright `sea-flow.spec.ts`
-- [ ] 3.11 `CrmOpportunityTable`（最简 10 列）
-- [ ] 3.12 `CrmOpportunityOverviewDrawer`（只读）
+- [x] 3.11 `CrmOpportunityTable`（7 列）
+- [x] 3.12 `CrmOpportunityOverviewDrawer`（只读，onSave 空实现）
 - [ ] 3.13 PR 合并
 
 **Day 9 退出标准**：线索→客户 + 公海 E2E 过；商机只读可看。

@@ -179,6 +179,7 @@ function applyScope<T>(
   currentUserId: string | null,
   ownerKey: keyof T
 ): T[] {
+  if (scope === 'sea') return items.filter((item) => item[ownerKey] === null)
   if (scope !== 'mine' || !currentUserId) return items
   return items.filter((item) => item[ownerKey] === currentUserId)
 }
