@@ -62,7 +62,7 @@ BelieveBoy Dashboard 是一个**垂直领域的跨境电商运营工具**，旨�
 | **后端** | FastAPI | 现代高性能 Python Web 框架 |
 | **后端** | SQLAlchemy | Python SQL 工具包和 ORM |
 | **后端** | Alembic | 数据库迁移工具 |
-| **后端** | Celery | 分布式任务队列（当前不依赖 Redis） |
+| **后端** | Celery | 分布式任务队列（broker 走 Redis） |
 | **数据库** | PostgreSQL | 强大的开源关系数据库 |
 | **部署** | Vercel | 前端部署平台 |
 | **部署** | Systemd | 后端服务管理（VPS） |
@@ -162,6 +162,7 @@ believeboyDashboard/
 - Node.js 18+
 - Python 3.9+
 - PostgreSQL 12+
+- Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew按需启停)）
 - pnpm（推荐）
 
 ### 前端设置

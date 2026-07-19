@@ -34,6 +34,51 @@
 
 ---
 
+## 本地服务（mac / brew）按需启停
+
+> **省资源原则：** 本地是 mac 开发机时，Postgres / Redis 用 `brew services` 管，
+> **跑测试前启动、测完关闭**，不要常驻后台吃内存。下面命令按需取用。
+
+### 1. 启动（跑测试前）
+
+```bash
+# PostgreSQL（应用 schema + 测试库 BLF_test 都建在本地 PG 上）
+brew services start postgresql@16     # 版本按本机 brew 装的实际大版本号调整
+# 确认在监听
+pg_isready                          # 期望 → /tmp:5432 - accepting connections
+
+# Redis（Celery broker：定时报告 / AI 摘要等后台任务依赖）
+brew services start redis
+# 确认在监听
+redis-cli ping                      # 期望 → PONG
+```
+
+- 首次跑测试还需先初始化独立测试库（见下方「一次性搭建」）：
+  `python scripts/setup_test_db.py`（会自动建 `BLF_test` + seed 账号）。
+- 仅跑纯 pytest 单元、不涉及后台任务的用例，Redis 可不起；
+  一旦用例触发 Celery 任务（定时报告 / AI 摘要 / 鉴权缓存），Redis broker 必须在线，否则任务派发失败。
+
+### 2. 关闭（测完释放资源）
+
+```bash
+brew services stop postgresql@16
+brew services stop redis
+# 想看当前在跑哪些 brew 服务
+brew services list
+```
+
+### 3. 忘记是否已启动？先查再决定
+
+```bash
+pg_isready && redis-cli ping        # 两者都通 → 直接跑测试即可
+```
+
+> 注意：本地 PG 的 `DATABASE_URL` / `TEST_DATABASE_URL` 不在 `backend/.env`，
+> 而是从 shell 环境变量或运行时注入；`.env` 只放 R2 / API_KEY / 密码等。
+> 连哪个库以 `psql -l` 列出的本地库为准（主库一般为 `BLF`，测试库为 `BLF_test`）。
+
+---
+
 ## 流程总图
 
 ### 一次性搭建（每个开发者首次或库 schema 变了时）

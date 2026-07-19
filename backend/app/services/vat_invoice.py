@@ -40,27 +40,41 @@ def compute_invoice_totals(
     ``summary_by_rate`` 按 rate 升序，每行
     ``{rate, item_excl, item_vat, shipping_excl, shipping_vat, total}``。
     """
+    # 规整入参：允许 line 里传 str / int / Decimal（测试与端点都传过 str）
+    norm_lines = [
+        {
+            **it,
+            'unit_price_incl_vat': Decimal(it['unit_price_incl_vat']),
+            'qty': int(it['qty']),
+            'vat_rate': Decimal(it['vat_rate']),
+        }
+        for it in lines
+    ]
+    ship_dec = Decimal(shipping_incl_vat)
+
     buckets: dict[Decimal, dict] = {}
     items_total = Decimal(0)
-    for it in lines:
-        sub = split_vat(it['unit_price_incl_vat'] * it['qty'], it['vat_rate'])
+    for it in norm_lines:
+        rate = it['vat_rate']
+        sub = split_vat(it['unit_price_incl_vat'] * it['qty'], rate)
         items_total = _q(items_total + sub['incl'])
         b = buckets.setdefault(
-            it['vat_rate'],
+            rate,
             {
-                'rate': it['vat_rate'], 'item_excl': Decimal(0), 'item_vat': Decimal(0),
+                'rate': rate, 'item_excl': Decimal(0), 'item_vat': Decimal(0),
                 'shipping_excl': Decimal(0), 'shipping_vat': Decimal(0),
             },
         )
         b['item_excl'] = _q(b['item_excl'] + sub['excl'])
         b['item_vat'] = _q(b['item_vat'] + sub['vat'])
 
-    if lines:
-        ship = split_vat(shipping_incl_vat, _first_rate(lines))
+    if norm_lines:
+        first_rate = _first_rate(norm_lines)
+        ship = split_vat(ship_dec, first_rate)
         b = buckets.setdefault(
-            _first_rate(lines),
+            first_rate,
             {
-                'rate': _first_rate(lines), 'item_excl': Decimal(0), 'item_vat': Decimal(0),
+                'rate': first_rate, 'item_excl': Decimal(0), 'item_vat': Decimal(0),
                 'shipping_excl': Decimal(0), 'shipping_vat': Decimal(0),
             },
         )
@@ -73,7 +87,7 @@ def compute_invoice_totals(
         total = _q(b['item_excl'] + b['item_vat'] + b['shipping_excl'] + b['shipping_vat'])
         summary.append({**b, 'total': total})
 
-    total_incl = _q(items_total + shipping_incl_vat)
+    total_incl = _q(items_total + ship_dec)
     subtotal_excl = _q(Decimal(0))
     for row in summary:
         subtotal_excl = _q(subtotal_excl + row['item_excl'] + row['shipping_excl'])

@@ -21,10 +21,10 @@
 | 阶段 | 范围 | 状态 | 已落地 commits |
 |---|---|---|---|
 | **Phase 1** | async 化 + Pydantic AI 纯文本/思考/usage；T4/T5（工具调用）推迟 | ✅ **9/9 任务完成**（2026-07-13，PR #133 已合）| 详见下方「Phase 1 已落 commits」表 |
-| **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14）| 详见下方「Phase 2 已落 commits」表 |
+| **Phase 2** | Pydantic AI native Tavily tool + sources 编排 + `enable_web_search=True` 切到 Pydantic AI | ✅ **7/7 任务完成**（2026-07-14，PR #134 已合 · ec71d04b）| 详见下方「Phase 2 已落 commits」表 |
 | **Phase 3** | 自动生成会话标题（首轮默认标题时调 `generate_conversation_title`，`done` 事件 `title_regenerated=True`，前端零改动） | ✅ **6/6 任务完成**（2026-07-15，待 PR 合并）| 详见下方「Phase 3 已落 commits」表 / `2026-07-15-ai-chat-pydantic-ai-phase3.md` |
 
-**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）；Phase 3 100%（待 PR 合并）。
+**总进度：** Phase 1 100%（已合并 #133），Phase 2 100%（已合并 #134 · ec71d04b）；Phase 3 100%（待 PR 合并）。原 10 任务路线图 + 标题补齐全部落地，无定义中的后续 phase。
 
 ---
 
@@ -168,19 +168,16 @@ c759b49b build(deps): 引入 pydantic-ai==2.8.0（chat 流式编排原生化 · 
 
 ---
 
-## 下一步（建议顺序）
+## 下一步（已完成归档）
 
-### Phase 1 收尾（任务 7 待人工）
+原 10 任务 + Phase 3 标题补齐全部落地。无定义中的后续 phase。
 
-1. **任务 7（真 LLM 烟雾测试）**— 启动后端 + curl 流式请求 + 取消按钮 + 前端冒烟；脚本与验证清单见 PR 描述
-2. **开 PR**— 中文 + Conventional Commits（feat/docs/test/build），引用 phase-tracker + native plan + phase1 plan
-3. **Merge 后观察一周**— Pydantic AI 2.9 在不同 OpenAI 兼容 provider 上的事件顺序可能差异；模型兼容性需观察
+**剩余的独立 ticket（不在本系列 plan 范围）：**
+- SearXNG 中文搜索质量
+- tool 调用循环的 token 成本优化
+- streaming tool calls（多轮工具调用）
 
-### Phase 2 起步（待 Phase 1 PR 合并后）
-
-1. ✅ **写 `2026-07-10-ai-chat-pydantic-ai-phase2.md` 详细计划** — 2026-07-13 起草完成
-2. **任务 1：SearXNG Tavily adapter 返回格式 spike**— 决定 mapper `_handle_tool_result` 怎么解析 content（dict vs list[dict]）
-3. 后续按 Phase 2 plan 任务 2-7 顺序推进
+**归集：** 本系列 4 个平铺文件（`native` / `phase1` / `phase2` / `phase3` / `phase-tracker` / phase1-pr-description / phase2-pr-description）已按 `docs/superpowers/plans/README.md` §三流程归集到子目录 `2026-07-10-ai-chat-pydantic-ai-native/`，入口见该子目录 `index.md`。
 
 ---
 

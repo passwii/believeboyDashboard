@@ -194,6 +194,12 @@ class Settings(BaseSettings):
     r2_bucket_name: str = Field(default="", max_length=100)
     r2_region: str = Field(default="auto", max_length=50)
 
+    # --- PostgreSQL Backup (via pgBackRest → R2) ---------------------------
+    # Plan: docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/
+    # true  = API 端只 enqueue, Celery worker 跑 (新形态, §3.1 P0-1)
+    # false = API 端同步 subprocess.run (旧形态, 回滚兜底, §Phase 6)
+    backup_via_celery: bool = Field(default=True)
+
     @property
     def r2_enabled(self) -> bool:
         """Check if R2 is properly configured."""

@@ -82,7 +82,8 @@ systemd 会拉起新进程但可能读旧代码 / 旧 `.env`、撞端口，进�
 
 **Frontend**（`frontend/.env.local`，Mac 本地）：`BACKEND_API_BASE_URL`、`BACKEND_API_KEY`、`NEXTAUTH_URL`、`NEXTAUTH_SECRET`。
 
-**Backend**（`backend/.env`）：`DATABASE_URL`（必填）、`API_KEY`（须匹配前端 `BACKEND_API_KEY`）、`UPLOAD_ROOT` / `RESULT_ROOT` / `MAX_UPLOAD_BYTES`、`AI_CHAT_PROVIDER_*`、`AI_CHAT_WEB_SEARCH_*`、`REDIS_*`（可选，presence 用）。
+**Backend**（`backend/.env`）：`API_KEY`（须匹配前端 `BACKEND_API_KEY`）、`UPLOAD_ROOT` / `RESULT_ROOT` / `MAX_UPLOAD_BYTES`、`AI_CHAT_PROVIDER_*`、`AI_CHAT_WEB_SEARCH_*`、`REDIS_*`（可选，presence 用）。
+> 注：`DATABASE_URL` / `TEST_DATABASE_URL` **不在** `backend/.env` 里，而从 shell 环境变量或运行时注入（`.env` 只放 R2 / API_KEY / 密码等）。Mac launchd 本地开发走远程 VPS（`145.79.143.98:5432`），按 `deploy/launchd/.env.mac.example` 填；本地 pytest / Playwright 测试则连本机 `brew` 起的 Postgres（见 [TESTING.md](../../TESTING.md#本地服务mac--brew按需启停)）。
 
 ---
 

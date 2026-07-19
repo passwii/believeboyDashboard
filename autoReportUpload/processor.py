@@ -1195,9 +1195,12 @@ def _persist_sales_report(
         source.row_count_included = included
         source.ingestion_status = "success"
 
-        _replace_current_pointer(db, source)
-        source.is_current = True
-        source.superseded_at = None
+        # BEL-348: 销售订单行已改为行级 upsert（_upsert_sales_order_rows），
+        # 计数/查询直接按行过滤（counted_sales_where），不再依赖 source_file
+        # 的 is_current 版本选择。因此这里不再调用 _replace_current_pointer /
+        # 维护 is_current 指针——那只会留下冗余的 is_current 历史版本，且
+        # 若将来任何查询误按 is_current 读销售将重现 BEL-348 丢单根因。
+        # source 记录本身仍保留（作为血缘/审计 + 驱动 RPA 状态格子）。
         db.flush()
         latest_id = source.id
 

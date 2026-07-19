@@ -5,6 +5,8 @@ created inline (no ``project_factory`` fixture exists in this repo).
 """
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from fastapi import HTTPException
 
@@ -13,8 +15,12 @@ from app.models.vat_entity import VatEntity
 from app.services import vat_invoice as svc
 
 
-def _make_project(db_session, *, name: str = 'SmokeShop', vat_enabled: bool = True) -> Project:
-    p = Project(project_name=name, sort_order=1, vat_enabled=vat_enabled)
+def _uid(prefix: str) -> str:
+    return f'{prefix}-{uuid.uuid4().hex[:8]}'
+
+
+def _make_project(db_session, *, name: str | None = None, vat_enabled: bool = True) -> Project:
+    p = Project(project_name=name or _uid('SmokeShop'), sort_order=1, vat_enabled=vat_enabled)
     db_session.add(p)
     db_session.flush()
     return p
@@ -69,7 +75,7 @@ def test_ensure_vat_enabled_passes_when_enabled(db_session):
 
 
 def test_ensure_vat_enabled_raises_403_when_disabled(db_session):
-    p = _make_project(db_session, name='OtherShop', vat_enabled=False)
+    p = _make_project(db_session, name=_uid('OtherShop'), vat_enabled=False)
     with pytest.raises(HTTPException) as exc:
         svc.ensure_vat_enabled(db_session, p.id)
     assert exc.value.status_code == 403
@@ -89,7 +95,7 @@ from app.models.vat_invoice import VatInvoice, VatInvoiceLine  # noqa: E402
 
 
 def _seed_project_and_seller(db_session, *, vat_id='DE123456789'):
-    p = Project(project_name='VATshop', sort_order=1, vat_enabled=True)
+    p = Project(project_name=_uid('VATshop'), sort_order=1, vat_enabled=True)
     db_session.add(p)
     db_session.flush()
     seller = svc.upsert_entity(

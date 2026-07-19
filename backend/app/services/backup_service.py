@@ -8,6 +8,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
+from app.celery_tasks.backup import run_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus, BackupType
 
 
@@ -46,6 +48,41 @@ def _get_pgbackrest_info() -> tuple[bool, str, list[dict]]:
         return True, stdout, backups
     except json.JSONDecodeError:
         return True, stdout, []
+
+
+def enqueue_backup(
+    db: Session,
+    backup_type: str,
+    user_id: int | None = None,
+    settings: Settings | None = None,
+) -> tuple[BackupRecord, str]:
+    """API 端入口: INSERT backup_records + 入队 Celery task (§3.1 P0-1).
+
+    - ``backup_via_celery=True``  (默认, 新形态): 5ms 返回, worker 跑 pgbackrest
+    - ``backup_via_celery=False`` (回滚形态): 走旧同步路径 ``_run_pgbackrest_backup_sync``
+
+    Phase 1 §3.4: 新增 ``phase`` / ``triggered_by`` 字段在此写入。
+    """
+    if settings is None:
+        settings = get_settings()
+
+    record = BackupRecord(
+        backup_type=backup_type,
+        status=BackupStatus.PENDING.value,
+        phase="pending",
+        triggered_by="manual",
+        started_at=datetime.now(),
+        created_by=user_id,
+    )
+    db.add(record)
+    db.flush()
+
+    if settings.backup_via_celery:
+        run_backup_task.delay(record.id)
+        return record, "备份任务已入队"
+    else:
+        # 回滚形态: 走旧同步路径 (Phase 1 循环 2 拆分出 _run_pgbackrest_backup_sync)
+        return trigger_backup(db, backup_type, user_id=user_id)
 
 
 def trigger_backup(db: Session, backup_type: str, user_id: int | None = None) -> tuple[BackupRecord, str]:

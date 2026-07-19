@@ -23,6 +23,8 @@ def _seed_project(db_session, *, name: str, vat_enabled: bool = True) -> int:
     p = Project(project_name=name, sort_order=1, vat_enabled=vat_enabled)
     db_session.add(p)
     db_session.flush()
+    # commit so the app's own SessionLocal (used by TestClient) can see the row
+    db_session.commit()
     return p.id
 
 
@@ -101,6 +103,7 @@ def test_projects_manage_includes_vat_enabled(client, db_session, admin_headers)
     db_session.add(Project(project_name=on_name, sort_order=1, vat_enabled=True))
     db_session.add(Project(project_name=off_name, sort_order=2, vat_enabled=False))
     db_session.flush()
+    db_session.commit()  # so TestClient (own session) can see the rows
 
     r = client.get('/api/v1/projects/manage', headers=admin_headers)
     assert r.status_code == 200, r.text
@@ -126,6 +129,8 @@ def _seed_invoice_setup(db_session, *, vat_id='DE999'):
     e = VatEntity(project_id=p.id, country='DE', company_name='ACME', vat_id=vat_id)
     db_session.add(e)
     db_session.flush()
+    # commit so the app's own SessionLocal (used by TestClient) can see the rows
+    db_session.commit()
     return p.id, e.id
 
 
@@ -182,6 +187,7 @@ def test_invoice_create_blocks_when_vat_disabled(client, db_session, admin_heade
     )
     db_session.add(p)
     db_session.flush()
+    db_session.commit()  # so TestClient (own session) can see the row
     r = client.post(
         '/api/v1/vat-invoices',
         headers=admin_headers,
