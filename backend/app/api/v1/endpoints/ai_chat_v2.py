@@ -175,9 +175,9 @@ async def _first_request_stream(
                 await runner.cancel(conversation_id)
                 break
 
-            # 内部事件:StreamResult → DB 收尾(不转发客户端)
+            # 内部事件:StreamResult → DB 收尾 + 发 done(不转发 StreamResult 本身)
             if isinstance(event, StreamResult):
-                await _finalize_db(
+                done_payload = await _finalize_db(
                     db=db,
                     settings=settings,
                     conversation=conversation,
@@ -188,6 +188,9 @@ async def _first_request_stream(
                     user_content=user_content,
                     regenerate=regenerate,
                 )
+                if done_payload:
+                    # 项目扩展:done 事件(兼容前端,携带持久化数据)
+                    yield _encode_done_sse(done_payload)
                 continue
 
             # 客户端事件 → SSE
@@ -228,10 +231,10 @@ async def _finalize_db(
     stream_result: StreamResult,
     user_content: str,
     regenerate: bool,
-):
+) -> dict | None:
     """DB 收尾:保存内容、更新 token 统计、自动生成标题。
 
-    在 endpoint 的 event_stream 中调用(持有 DB session)。
+    返回 done payload(供 SSE done 事件),失败返回 None。
     幂等:如果 assistant_row 已有内容(重连场景),跳过。
     """
     from app.services.ai.stream_utils import serialize_message
@@ -239,7 +242,7 @@ async def _finalize_db(
     try:
         # 幂等守卫:重连时不重复写
         if assistant_row.content:
-            return
+            return None
 
         final_content = stream_result.full_text or ""
         ai_chat_service.update_message_content(db, assistant_row.id, final_content)
@@ -265,6 +268,7 @@ async def _finalize_db(
         db.commit()
 
         # 首轮自动生成标题
+        title_regenerated = False
         if (
             not regenerate
             and conversation.title == DEFAULT_CONVERSATION_TITLE
@@ -283,10 +287,38 @@ async def _finalize_db(
             if generated:
                 conversation.title = generated
                 db.commit()
+                title_regenerated = True
+
+        # 构建 done payload(兼容旧前端协议)
+        return {
+            "type": "done",
+            "user_message": serialize_message(target_assistant if regenerate else user_row),
+            "assistant_message": serialize_message(assistant_row),
+            "conversation_title": conversation.title,
+            "token_usage": {
+                "prompt_tokens": usage.input_tokens if usage else 0,
+                "completion_tokens": usage.output_tokens if usage else 0,
+                "total_tokens": usage.total_tokens if usage else 0,
+            } if usage else None,
+            "conversation_token_usage": {
+                "prompt_tokens": conversation.total_prompt_tokens,
+                "completion_tokens": conversation.total_completion_tokens,
+                "total_tokens": conversation.total_tokens,
+            },
+            "duration_ms": None,
+            "title_regenerated": title_regenerated,
+        }
 
     except Exception:
         logger.exception("V2 DB finalize failed for conv %s", conversation.id)
         db.rollback()
+        return None
+
+
+def _encode_done_sse(payload: dict) -> bytes:
+    """编码 done 事件为 SSE 格式(项目扩展,非 Anthropic 标准)。"""
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return f"data: {data}\n\n".encode("utf-8")
 
 
 # ── V2 取消端点 ──
