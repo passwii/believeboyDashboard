@@ -2585,13 +2585,11 @@ export default function ShipmentManagementPage() {
         views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
       })
 
-      // 列定义（所有国家一致：均包含 Prep owner / Labeling owner 两列，仅单位按国家区分）
-      // 列顺序：Merchant SKU, Quantity, Prep owner, Labeling owner, Units per box, Number of boxes, ...
+      // 列定义（Prep owner / Labeling owner 已在顶部两行单独设置，列不再包含）
+      // 列顺序：Merchant SKU, Quantity, Units per box, Number of boxes, ...
       const columns = [
         { header: 'Merchant SKU', key: 'merchant_sku', width: 24 },
         { header: 'Quantity', key: 'quantity', width: 12 },
-        { header: 'Prep owner', key: 'prep_owner', width: 14 },
-        { header: 'Labeling owner', key: 'labeling_owner', width: 16 },
         { header: 'Units per box', key: 'units_per_box', width: 14 },
         { header: 'Number of boxes', key: 'number_of_boxes', width: 16 },
         { header: useMetric ? 'Box length (cm)' : 'Box length (in)', key: 'box_length', width: 16 },
@@ -2691,12 +2689,10 @@ export default function ShipmentManagementPage() {
             ? Number((skuInfo.carton_weight_kg * KG_TO_LB).toFixed(2))
             : ''
 
-        // 所有国家均为 10 列（含 Prep owner / Labeling owner，固定为 'Seller'；boxLength 等已按单位换算）
+        // 所有国家均为 8 列（Prep/Labeling owner 已在顶部行设置；boxLength 等已按单位换算）
         row.values = [
           item.sku,
           item.quantity,
-          'Seller',
-          'Seller',
           unitsPerBox > 0 ? unitsPerBox : '',
           cartonCount > 0 ? cartonCount : '',
           boxLength,
@@ -2708,7 +2704,7 @@ export default function ShipmentManagementPage() {
         row.height = 18
         row.eachCell((cell, colNumber) => {
           cell.font = { name: 'Microsoft YaHei', size: 9, color: { argb: 'FF0F172A' } }
-          cell.alignment = { vertical: 'middle', horizontal: colNumber >= 5 ? 'right' : 'left' }
+          cell.alignment = { vertical: 'middle', horizontal: colNumber >= 3 ? 'right' : 'left' }
           applyBorder(cell)
         })
       })
