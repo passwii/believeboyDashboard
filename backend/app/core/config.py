@@ -141,6 +141,12 @@ class Settings(BaseSettings):
 
     redis_db: int = Field(default=0, ge=0, le=15)
 
+    # AI Chat stream(Redis Stream + cancel registry)
+    ai_chat_redis_db: int = Field(default=3, ge=0, le=15)
+    ai_chat_stream_prefix: str = Field(default="ai:chat", max_length=50)
+    ai_chat_stream_ttl_seconds: int = Field(default=86400, ge=60, le=604800)  # 24h
+    ai_chat_stream_maxlen: int = Field(default=10000, ge=100, le=100000)
+
     # Celery (auto-derived from REDIS_* when blank)
     celery_broker_url: str = Field(default="", max_length=500)
     celery_result_url: str = Field(default="", max_length=500)
