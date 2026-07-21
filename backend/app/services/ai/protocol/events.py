@@ -7,7 +7,7 @@ discriminated union 写法正确(官方用 PropertyInfo,我们用 Field,语义�
 """
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, TypeAdapter
 
@@ -120,6 +120,20 @@ class ErrorEvent(BaseModel):
     error: ProtocolError
 
 
+class StreamResult(BaseModel):
+    """后端内部事件:agent 跑完后的业务载荷(供 endpoint 持久化,不转发客户端)。
+
+    本仓库扩展(非 Anthropic 标准)。runner 在 message_stop 前发出,endpoint 消费它做
+    持久化(content / search sources / usage)+ 自动标题,然后合成客户端 done 事件。
+    对应 2026-07-21 集成计划 Phase 1(Option B:runner=执行器,endpoint=业务 owner)。
+    """
+    type: Literal["stream_result"] = "stream_result"
+    full_text: str
+    search_source_cards: list[dict[str, Any]] | None = None
+    search_time_range: str | None = None
+    usage: Usage = Field(default_factory=Usage)
+
+
 ProtocolEvent = Annotated[
     Union[
         MessageStart,
@@ -130,6 +144,7 @@ ProtocolEvent = Annotated[
         MessageStop,
         Ping,
         ErrorEvent,
+        StreamResult,
     ],
     Field(discriminator="type"),
 ]

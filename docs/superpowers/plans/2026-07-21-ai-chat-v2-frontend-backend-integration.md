@@ -86,17 +86,34 @@
 - [ ] 0.4 本地起 redis + 后端，`scripts/` 烟雾脚本或 curl 验证 `StreamRunner` happy path（message_start → content_block_delta → message_stop）
 - **产出**：地基可信。若 0.2 失败 → 先修 Phase A/B，不进 Phase 1。
 
-### Phase 1 — 后端端点接入 V2（feature flag 保护）（2–3 天）· V2 Phase C1
+### Phase 1 — 后端端点接入 V2（feature flag 保护）（3–4 天）· V2 Phase C1
 
-> 细节沿用 [`.../phase-c-endpoint-frontend.md`](./2026-07-19-ai-application-layer-v2/2026-07-19-ai-application-layer-v2-phase-c-endpoint-frontend.md) 任务 C1，**增量：feature flag + 旧路径保留**。
+> ⚠️ **2026-07-21 修订（实测发现）**：现行 `stream_message` 含大量 V2 runner 未覆盖的业务逻辑——
+> `_prepare_conversation_turn`（建 user_row + 空 assistant_row、**regenerate** 删旧行）、流后持久化
+> （final_content / search_source_cards / search_time_range / usage / token 统计）、**Phase 3 自动标题**、
+> 以及前端依赖的 `done` 事件载荷（序列化 message 行 + title + usage + title_regenerated）。
+> V2 runner 是纯传输层（且 tool_result 截断 500 字、丢失 source 结构化数据）。**直接换传输会回归这些功能。**
 
-- [ ] 1.1 TDD：写 `tests/api/test_ai_chat_stream_v2.py`（happy / cancel / resume / error 分类 / 并发同 conv）→ 先 FAIL
-- [ ] 1.2 `stream_message` 重写：`_get_stream_runner()`（模块级，Redis bus + cancel registry）；首请求 `asyncio.create_task(runner.run(...))` + `subscribe()` yield SSE；resume 请求（带 `Last-Event-ID`）只订阅不重启 agent
-- [ ] 1.3 `cancel_stream` 重写：`runner.cancel()`（GETDEL live_key，跨 worker）→ `{"cancelled": bool}`
-- [ ] 1.4 **feature flag** `settings.ai_chat_use_v2_stream: bool = False`：False 走旧 ndjson 路径（保留不删），True 走 V2 SSE
-- [ ] 1.5 `pytest tests/api/test_ai_chat_stream_v2.py -v` → PASS
-- [ ] 1.6 Commit：`feat(ai-chat): V2 stream 端点 — StreamRunner + SSE + resume + feature flag(V2 Phase C1)`
-- **产出**：后端 V2 端点可用，flag 控制，旧路径可瞬间回滚。
+**修订后设计（Option B：runner=agent 执行器，endpoint=业务逻辑 owner，全程保留功能）：**
+
+- **runner 增强**：agent 跑完后从 `agent_run.result.all_messages()` 抽取业务载荷，发一个**内部事件 `stream_result`**
+  （`full_text` + `search_source_cards` + `search_time_range` + `usage`），紧接 `message_stop` 之前。
+  `_extract_search_meta` 逻辑下沉到 `search.py` 共享（runner / 旧端点复用）。`stream_result` 仅供 endpoint 消费，不转发客户端。
+- **endpoint 重写（V2 路径）**：`_prepare_conversation_turn`（建行，含 regenerate）→ 首请求 `asyncio.create_task(runner.run(...))`，
+  resume 请求（带 `Last-Event-ID`）只订阅 → `subscribe()` 逐事件：遇 `stream_result` 则持久化（update content/sources/usage + recalc + autotitle，**仅原始请求**），
+  其余标准事件 `encode_sse` 转发客户端 → `message_stop` 后合成客户端 `done` 事件（序列化 user/assistant 行 + title + usage + title_regenerated）。
+- **cancel**：`runner.cancel()`（Redis GETDEL，跨 worker）。**resume**：`Last-Event-ID` → `subscribe(from_id)`。
+- **feature flag** `settings.ai_chat_use_v2_stream: bool = False`：False 走旧 ndjson（保留不删），True 走 V2 SSE。
+
+**任务：**
+- [ ] 1.1 TDD：`stream_result` 事件入 `protocol/events.py` + `tests/protocol/test_events.py` → 先 FAIL → PASS
+- [ ] 1.2 `_extract_search_meta` 下沉 `search.py`；runner 跑完发 `stream_result`（含 source_cards/time_range/usage/full_text）+ `tests/orchestrator/test_runner.py` 扩展 → PASS
+- [ ] 1.3 TDD：`tests/api/test_ai_chat_stream_v2.py`（happy / regenerate / cancel / resume / error 分类 / source 持久化 / autotitle / done 载荷）→ 先 FAIL
+- [ ] 1.4 `stream_message` V2 路径重写（_get_stream_runner 模块级 + 业务逻辑保留 + done 合成）；`cancel_stream` 改 `runner.cancel()`
+- [ ] 1.5 feature flag `ai_chat_use_v2_stream`（默认 False，旧 ndjson 路径保留）
+- [ ] 1.6 `pytest tests/api/test_ai_chat_stream_v2.py tests/orchestrator tests/protocol -v` → 全 PASS
+- [ ] 1.7 Commit：`feat(ai-chat): V2 stream 端点 — StreamRunner + stream_result + SSE + resume + feature flag(V2 Phase C1)`
+- **产出**：后端 V2 端点可用，业务功能（regenerate/autotitle/sources/usage/done）零回归，flag 控制可瞬间回滚。
 
 ### Phase 2 — 前端协议层（纯新增，零风险）（1 天）· V2 Phase C2
 

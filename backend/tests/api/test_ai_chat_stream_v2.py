@@ -287,3 +287,141 @@ def test_v2_agent_crash_emits_typed_error(patched_v2, client, db_session, api_ke
     error_event = next((e for e in events if e["data"].get("type") == "error"), None)
     assert error_event is not None
     assert error_event["data"]["error"]["code"] == "internal"
+
+
+# ─── 自动标题(移植自 V1 test_ai_chat_autotitle.py) ──
+# V2 `_finalize_db` 复用 V1 同一套 autotitle 逻辑(首轮默认标题 → LLM 生成 →
+# done.title_regenerated + DB 落库)。以下用 SSE done 事件断言,覆盖 4 个场景。
+
+def _create_conversation_titled(db_session: Session, *, title: str, user_id: int = 42) -> int:
+    from app.models.ai_chat import AIConversation
+    row = AIConversation(user_id=user_id, title=title)
+    db_session.add(row)
+    db_session.commit()
+    return row.id
+
+
+def _done_from_sse(body: str) -> dict:
+    """从 SSE body 取 done 事件载荷(项目扩展)。"""
+    for e in _parse_sse_events(body):
+        if e["data"].get("type") == "done":
+            return e["data"]
+    raise AssertionError("no done event found in SSE body")
+
+
+def _stream_v2(client, conv_id, api_key, *, content, **extra) -> str:
+    payload = {"content": content, "enable_web_search": False, **extra}
+    with client.stream(
+        "POST",
+        f"/api/v1/ai/conversations/{conv_id}/messages/stream",
+        json=payload,
+        headers={"X-User-Id": "42", "X-API-Key": api_key},
+    ) as resp:
+        assert resp.status_code == 200, f"expected 200, got {resp.status_code}"
+        return b"".join(resp.iter_bytes()).decode("utf-8")
+
+
+def _db_title(db_session: Session, conv_id: int) -> str:
+    from app.models.ai_chat import AIConversation
+    db_session.expire_all()
+    return db_session.get(AIConversation, conv_id).title
+
+
+def test_v2_autotitle_first_turn_default_title(patched_v2, client, db_session, api_key, monkeypatch):
+    """首轮默认标题 → 调 generate_conversation_title → done.title_regenerated=True 且 DB 落库。"""
+    from app.services import ai as ai_chat_service
+    from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
+
+    conv_id = _create_conversation_titled(db_session, title=DEFAULT_CONVERSATION_TITLE)
+    captured: dict = {}
+
+    def fake_gen(settings, user_content, assistant_content):
+        captured["called"] = True
+        captured["user"] = user_content
+        captured["assistant"] = assistant_content
+        return "生成的会话标题"
+
+    monkeypatch.setattr(ai_chat_service, "generate_conversation_title", fake_gen)
+
+    done = _done_from_sse(_stream_v2(client, conv_id, api_key, content="帮我分析一下销售"))
+
+    assert done["title_regenerated"] is True
+    assert done["conversation_title"] == "生成的会话标题"
+    assert captured.get("called") is True
+    assert captured["user"] == "帮我分析一下销售"
+    assert "V2 已完成" in captured["assistant"]
+    assert _db_title(db_session, conv_id) == "生成的会话标题"
+
+
+def test_v2_autotitle_skips_custom_title(patched_v2, client, db_session, api_key, monkeypatch):
+    """用户自定义标题 → 不调 generate_conversation_title → title_regenerated=False。"""
+    from app.services import ai as ai_chat_service
+
+    conv_id = _create_conversation_titled(db_session, title="我的自定义标题")
+    captured = {"called": False}
+
+    def fake_gen(*args, **kwargs):
+        captured["called"] = True
+        return "x"
+
+    monkeypatch.setattr(ai_chat_service, "generate_conversation_title", fake_gen)
+
+    done = _done_from_sse(_stream_v2(client, conv_id, api_key, content="帮我分析一下销售"))
+
+    assert done["title_regenerated"] is False
+    assert done["conversation_title"] == "我的自定义标题"
+    assert captured["called"] is False
+    assert _db_title(db_session, conv_id) == "我的自定义标题"
+
+
+def test_v2_autotitle_none_keeps_default(patched_v2, client, db_session, api_key, monkeypatch):
+    """generate 返回 None(provider 未配置/失败) → 不崩、保留默认标题。"""
+    from app.services import ai as ai_chat_service
+    from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
+
+    conv_id = _create_conversation_titled(db_session, title=DEFAULT_CONVERSATION_TITLE)
+    monkeypatch.setattr(ai_chat_service, "generate_conversation_title", lambda *a, **k: None)
+
+    done = _done_from_sse(_stream_v2(client, conv_id, api_key, content="帮我分析一下销售"))
+
+    assert done["title_regenerated"] is False
+    assert done["conversation_title"] == DEFAULT_CONVERSATION_TITLE
+    assert _db_title(db_session, conv_id) == DEFAULT_CONVERSATION_TITLE
+
+
+def test_v2_autotitle_skips_regenerate(patched_v2, client, db_session, api_key, monkeypatch):
+    """regenerate 路径不触发自动标题(即使会话仍为默认标题)。
+
+    预置一对 user/assistant 消息后只发一次 regenerate 流——避免单测试内两次背靠背
+    stream(fakeredis aioredis 的 asyncio 原语会跨 TestClient 事件循环绑定,导致伪 flaky)。
+    """
+    from app.models.ai_chat import AIMessage
+    from app.services import ai as ai_chat_service
+    from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
+
+    conv_id = _create_conversation_titled(db_session, title=DEFAULT_CONVERSATION_TITLE)
+    db_session.add(AIMessage(conversation_id=conv_id, role="user", content="帮我分析销售"))
+    assistant = AIMessage(conversation_id=conv_id, role="assistant", content="旧回复", is_complete=True)
+    db_session.add(assistant)
+    db_session.commit()
+    target_mid = assistant.id
+
+    captured = {"called": False}
+
+    def fake_gen(*args, **kwargs):
+        captured["called"] = True
+        return "生成的会话标题"
+
+    monkeypatch.setattr(ai_chat_service, "generate_conversation_title", fake_gen)
+
+    done = _done_from_sse(
+        _stream_v2(
+            client, conv_id, api_key, content="重写",
+            enable_web_search=True, regenerate=True, target_message_id=target_mid,
+        )
+    )
+
+    assert done["title_regenerated"] is False
+    assert captured["called"] is False
+    # 默认标题保持不变(regenerate 不改写标题)
+    assert _db_title(db_session, conv_id) == DEFAULT_CONVERSATION_TITLE

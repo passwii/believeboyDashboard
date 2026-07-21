@@ -59,6 +59,7 @@ from app.services.ai.protocol.events import (
     ThinkingDelta,
     InputJSONDelta,
     Usage,
+    StreamResult,
     validate_event,
 )
 
@@ -171,3 +172,45 @@ def test_validate_event_rejects_unknown_type():
     """非法 type 应被拒绝。"""
     with pytest.raises(Exception):
         validate_event('{"type":"not_a_real_event"}')
+
+
+# ─── 任务 1.1:StreamResult 内部事件(2026-07-21 集成计划 Phase 1)──────────
+
+def test_stream_result_minimal():
+    """StreamResult 最小字段(full_text),其余默认 None。"""
+    ev = StreamResult(full_text="hello world")
+    assert ev.type == "stream_result"
+    assert ev.full_text == "hello world"
+    assert ev.search_source_cards is None
+    assert ev.search_time_range is None
+    assert ev.usage.input_tokens == 0
+
+
+def test_stream_result_with_search_meta():
+    """StreamResult 可携带搜索 source cards + time_range + usage。"""
+    cards = [{"title": "T", "url": "https://x.com", "content": "c", "score": 0.9}]
+    ev = StreamResult(
+        full_text="answer",
+        search_source_cards=cards,
+        search_time_range="a_week",
+        usage=Usage(input_tokens=10, output_tokens=20, total_tokens=30),
+    )
+    assert ev.search_source_cards == cards
+    assert ev.search_time_range == "a_week"
+    assert ev.usage.total_tokens == 30
+
+
+def test_stream_result_round_trip():
+    """StreamResult 经 validate_event 往返(discriminated union)。"""
+    original = StreamResult(
+        full_text="answer",
+        search_source_cards=[{"title": "T", "url": "u", "content": "c", "score": 0.5}],
+        search_time_range="a_day",
+        usage=Usage(output_tokens=7),
+    )
+    parsed = validate_event(original.model_dump_json())
+    assert isinstance(parsed, StreamResult)
+    assert parsed.full_text == "answer"
+    assert parsed.search_source_cards == original.search_source_cards
+    assert parsed.search_time_range == "a_day"
+    assert parsed.usage.output_tokens == 7

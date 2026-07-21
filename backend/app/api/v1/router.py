@@ -15,6 +15,7 @@ from app.api.v1.endpoints.pricing_calculation_snapshots import router as pricing
 from app.api.v1.endpoints.shop_calculation import router as shop_calculation_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.ai_chat import router as ai_chat_router
+from app.api.v1.endpoints.ai_chat_v2 import router as ai_chat_v2_router
 from app.api.v1.endpoints.ai_file_upload import router as ai_file_upload_router
 from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.auth import router as auth_router
@@ -60,6 +61,7 @@ api_router.include_router(inventory_replenishment_router)
 api_router.include_router(inventory_replenishment_snapshots_router)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
+api_router.include_router(ai_chat_v2_router)
 api_router.include_router(ai_file_upload_router)
 api_router.include_router(ai_insight_router)
 api_router.include_router(uploads_router)

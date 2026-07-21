@@ -15,10 +15,10 @@ import { ChatMessageList } from './chat-message-list'
 import { ConversationSidebar } from './conversation-sidebar'
 import { SuggestionChips } from './suggestion-chips'
 import {
-  useChatStream,
+  useChatStreamV2,
   type UseChatStreamCallbacks,
   type ChatStreamOptions,
-} from './hooks/use-chat-stream'
+} from './hooks/use-chat-stream-v2'
 
 import { ensureConfigLoaded, getConfig } from '@/lib/api/ai-chat-config-store'
 import {
@@ -220,7 +220,7 @@ export function AIChatWindow({
     error: streamHookError,
     toolState,
     pendingSources,
-  } = useChatStream(activeServerIdRef, streamCallbacksRef)
+  } = useChatStreamV2(activeServerIdRef, streamCallbacksRef)
 
   // Surface stream-hook errors as a transient banner.
   useEffect(() => {

@@ -51,14 +51,20 @@ export async function POST(request: Request, { params }: RouteContext) {
     return NextResponse.json({ message: '场景或语气选项无效' }, { status: 400 })
   }
 
+  const upstreamHeaders = buildBackendAuthHeaders(session, {
+    apiKey: apiKeyOrResponse.apiKey,
+    contentType: 'application/json',
+    accept: 'text/event-stream',
+  })
+  // V2 重连：把客户端的 Last-Event-ID 透传给后端，从该 ID 之后续传。
+  const lastEventId = request.headers.get('Last-Event-ID')
+  if (lastEventId) upstreamHeaders.set('Last-Event-ID', lastEventId)
+
   const upstream = await fetch(
     `${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`,
     {
       method: 'POST',
-      headers: buildBackendAuthHeaders(session, {
-        apiKey: apiKeyOrResponse.apiKey,
-        contentType: 'application/json',
-      }),
+      headers: upstreamHeaders,
       body: JSON.stringify({
         content: body.content?.trim() || '',
         model: body.model?.trim() || undefined,
@@ -89,8 +95,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
-      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
     },
   })
 }

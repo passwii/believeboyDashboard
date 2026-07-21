@@ -162,6 +162,53 @@ async def test_crash_emits_typed_error(runner, bus, monkeypatch):
     assert events[-1].type == "message_stop"
 
 
+# ─── Phase 1.2: stream_result 业务载荷 ──
+
+@pytest.mark.asyncio
+async def test_run_emits_stream_result_with_full_text(runner, bus):
+    """happy path 末尾发 stream_result(含 full_text),位于 message_stop 之前。"""
+    conv_id = 7
+    agent = _create_fake_agent("StreamResult payload!")
+    task = asyncio.create_task(runner.run(conv_id, agent, "hi", model_name="test-model"))
+    events = await _collect_events(bus, conv_id)
+    await task
+
+    results = [e for e in events if e.type == "stream_result"]
+    assert len(results) == 1
+    assert "StreamResult payload!" in results[0].full_text
+    types = [e.type for e in events]
+    assert types.index("stream_result") < types.index("message_stop")
+
+
+@pytest.mark.asyncio
+async def test_subscribe_events_exposes_stream_result(runner, bus):
+    """subscribe_events 能看到内部 stream_result 事件(供 endpoint 持久化)。"""
+    conv_id = 8
+    agent = _create_fake_agent("x")
+    task = asyncio.create_task(runner.run(conv_id, agent, "hi", model_name="m"))
+    seen = []
+    async for event, _eid in runner.subscribe_events(conv_id, from_id="0"):
+        seen.append(event.type)
+    await task
+    assert "stream_result" in seen
+    assert seen[-1] == "message_stop"
+
+
+@pytest.mark.asyncio
+async def test_subscribe_bytes_skips_stream_result(runner, bus):
+    """subscribe(bytes) 跳过内部 stream_result,不转发客户端。"""
+    conv_id = 9
+    agent = _create_fake_agent("y")
+    task = asyncio.create_task(runner.run(conv_id, agent, "hi", model_name="m"))
+    chunks = []
+    async for chunk in runner.subscribe(conv_id, from_id="0"):
+        chunks.append(chunk.decode("utf-8"))
+    await task
+    assert chunks
+    assert not any("stream_result" in c for c in chunks)
+    assert "message_stop" in chunks[-1]
+
+
 # ─── 验收 5: InProcess 降级 ──
 
 @pytest.mark.asyncio
