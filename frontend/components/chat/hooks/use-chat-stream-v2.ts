@@ -1,35 +1,25 @@
 /**
- * useChatStream — drives a single backend streaming turn.
+ * useChatStream V2 — drives a single backend streaming turn via Anthropic SSE protocol.
  *
- * Replaces `useSimulatedStream`. Instead of typing out a hard-coded reply,
- * it POSTs to `/api/ai-chat/conversations/:id/messages/stream` and pipes the
- * ndjson body through `consumeStream`. The hook exposes:
+ * Changes from V1:
+ *   - Uses `consumeStreamV2` (SSE parser) instead of `consumeStream` (ndjson parser)
+ *   - `stop()` calls the backend cancel endpoint (cross-worker cancel via Redis GETDEL)
+ *   - Tracks Last-Event-ID for resume/reconnect support
+ *   - Accept header: text/event-stream
  *
- *   - `send(content, options)`  — fire-and-forget POST that resolves on `done`
- *                                  and rejects on `error` / abort / network
- *   - `stop()`                  — `AbortController.abort()`. Stops the local
- *                                  UI from receiving chunks; the backend is
- *                                  not signaled (it has no awareness of
- *                                  client abort yet — see parent issue).
- *   - `isStreaming`             — convenience flag for callers.
- *   - `error`                   — last error message, cleared on next `send`.
- *
- * The hook owns the AbortController; mounting a new `send` cancels any
- * previously in-flight one. The caller passes a stable `callbacks` object
- * (or refs) — the stream's event flow is forwarded there.
- *
- * `callbacks.onUserMessageId` / `onAssistantId` are exposed so the parent
- * can swap optimistic placeholder ids for the real persisted ones once
- * the `done` event arrives.
+ * The hook interface is identical to V1 — callers don't need to change.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
-  consumeStream,
-  type StreamCallbacks,
-  type StreamDonePayload,
-  type StreamUsage,
+  consumeStreamV2,
+  type V2ProtocolEvent,
+} from '@/lib/api/ai-chat-stream-v2'
+import type {
+  StreamCallbacks,
+  StreamDonePayload,
+  StreamUsage,
 } from '@/lib/api/ai-chat-stream'
 import type { SearchSource } from '@/lib/api/ai-chat'
 
@@ -50,11 +40,8 @@ export type ChatStreamOptions = {
 }
 
 export type UseChatStreamCallbacks = StreamCallbacks & {
-  /** Persisted id of the user message once the backend commits it. */
   onUserMessageId?: (id: number) => void
-  /** Persisted id of the assistant message once the backend commits it. */
   onAssistantId?: (id: number) => void
-  /** When the server regenerates a conversation title — fired in the `done` event. */
   onTitleUpdate?: (title: string) => void
 }
 
@@ -63,37 +50,46 @@ export type UseChatStreamResult = {
   stop: () => void
   isStreaming: boolean
   error: string | null
-  /** Latest tool state (e.g. "searching…" badge in the UI). */
   toolState: { toolCallsCount: number; searching: boolean; done: boolean } | null
-  /** Accumulated sources for the in-flight turn. */
   pendingSources: SearchSource[]
-  /** Accumulated usage for the in-flight turn. */
   pendingUsage: StreamUsage | null
 }
 
-export function useChatStream(
+export function useChatStreamV2(
   conversationIdRef: React.RefObject<number | null>,
   callbacksRef: React.MutableRefObject<UseChatStreamCallbacks>
 ): UseChatStreamResult {
   const abortRef = useRef<AbortController | null>(null)
+  const lastEventIdRef = useRef<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toolState, setToolState] = useState<UseChatStreamResult['toolState']>(null)
   const [pendingSources, setPendingSources] = useState<SearchSource[]>([])
   const [pendingUsage, setPendingUsage] = useState<StreamUsage | null>(null)
 
-  // Reset accumulated per-turn state when a new turn starts / aborts.
   const resetTurnState = useCallback(() => {
     setToolState(null)
     setPendingSources([])
     setPendingUsage(null)
+    lastEventIdRef.current = null
   }, [])
 
   const stop = useCallback(() => {
+    const cid = conversationIdRef.current
     abortRef.current?.abort()
     abortRef.current = null
     setIsStreaming(false)
-  }, [])
+
+    // V2: 调后端取消端点(跨 worker 生效)
+    if (cid != null) {
+      fetch(`/api/ai-chat/conversations/${cid}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }).catch(() => {
+        // 取消失败不影响 UI(流可能已结束)
+      })
+    }
+  }, [conversationIdRef])
 
   const send = useCallback(
     async (content: string, options: ChatStreamOptions = {}): Promise<StreamDonePayload> => {
@@ -104,7 +100,6 @@ export function useChatStream(
         throw new Error(msg)
       }
 
-      // Cancel any in-flight request before starting a new one.
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
@@ -126,7 +121,6 @@ export function useChatStream(
         onThinking: cb('onThinking') as (delta: string) => void,
         onSources: (sources, meta) => {
           setPendingSources(sources)
-          // [BEL-81.B] 把 time_range / query 一并透传给父组件
           cb('onSources')(sources, meta)
         },
         onUsage: (usage) => {
@@ -138,8 +132,6 @@ export function useChatStream(
           cb('onToolState')(state)
         },
         onDone: (payload) => {
-          // Persisted ids are surfaced so the parent can reconcile optimistic
-          // placeholders with the real server ids (needed for retry/regen).
           callbacksRef.current.onUserMessageId?.(payload.userMessage.id)
           callbacksRef.current.onAssistantId?.(payload.assistantMessage.id)
           if (payload.titleRegenerated && payload.conversationTitle) {
@@ -154,15 +146,23 @@ export function useChatStream(
       }
 
       try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        }
+        // V2 重连:传 Last-Event-ID
+        if (lastEventIdRef.current) {
+          headers['Last-Event-ID'] = lastEventIdRef.current
+        }
+
         const res = await fetch(`/api/ai-chat/conversations/${cid}/messages/stream`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+          headers,
           body: JSON.stringify({
             content,
             model: options.model,
             reasoningEffort: options.reasoningEffort ?? null,
             regenerate: options.regenerate ?? false,
-            // Route handler reads snake_case; this is the contract.
             target_message_id: options.targetMessageId,
             overviewPromptId: options.overviewPromptId ?? null,
             detailPromptId: options.detailPromptId ?? null,
@@ -178,14 +178,13 @@ export function useChatStream(
           cache: 'no-store',
         })
 
-        const payload = await consumeStream(res, streamCallbacks, controller.signal)
+        const payload = await consumeStreamV2(res, streamCallbacks, controller.signal)
         setIsStreaming(false)
         abortRef.current = null
+        lastEventIdRef.current = null
         return payload
       } catch (err) {
         setIsStreaming(false)
-        // For abort, the parent called stop() — keep the existing error in place
-        // (do not clobber with an abort error). Re-throw so callers can branch.
         if (err instanceof DOMException && err.name === 'AbortError') {
           throw err
         }
@@ -197,8 +196,6 @@ export function useChatStream(
     [conversationIdRef, callbacksRef, resetTurnState]
   )
 
-  // Make sure to abort on unmount — otherwise React will warn about state
-  // updates on an unmounted component when the stream resolves later.
   useEffect(() => {
     return () => {
       abortRef.current?.abort()

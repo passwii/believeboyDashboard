@@ -3,7 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useChatStream, type UseChatStreamCallbacks } from '@/components/chat/hooks/use-chat-stream'
+import {
+  useChatStreamV2,
+  type UseChatStreamCallbacks,
+} from '@/components/chat/hooks/use-chat-stream-v2'
 import { createConversation } from '@/lib/api/ai-chat'
 import { buildUserContent } from './build-prompt'
 import type { ScenarioField, ToneOption } from '@/lib/server/ai-chat'
@@ -55,7 +58,7 @@ export function ToneCard({
       onStreamingChange(false)
     },
   })
-  const { send, isStreaming } = useChatStream(convIdRef, callbacksRef)
+  const { send, isStreaming } = useChatStreamV2(convIdRef, callbacksRef)
 
   // 把所有 prop / state 同步到 latestRef，generate 内部读 ref 取最新值；
   // 这样 generate 的 useCallback 只依赖稳定的 `send`，effect 也无需 disable。

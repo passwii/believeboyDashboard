@@ -2,14 +2,11 @@
 AI Chat Endpoints — 瘦化的 endpoint 层。
 SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 """
-import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_read_db_session, protected
@@ -25,24 +22,7 @@ from app.schemas.ai_chat import (
     MessageItem,
 )
 from app.services import ai as ai_chat_service
-from app.services.ai import cancel as cancel_registry
-from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
-from app.services.ai.agent import build_chat_agent  # 模块级 import，便于测试 monkeypatch
-from app.services.ai.stream_mapper import MapperState, map_agent_event
-from pydantic_ai.messages import FunctionToolCallEvent  # Phase 2: 端点层紧接 tool_calls 后 yield tool_searching
-from app.services.ai.stream_utils import (
-    encode_stream_event,
-    serialize_message,
-    build_stream_chunk,
-    build_stream_done,
-    build_stream_error,
-    build_stream_sources,
-    build_stream_thinking_chunk,
-    build_stream_tool_calls,
-    build_stream_tool_done,
-    build_stream_tool_searching,
-    build_stream_usage,
-)
+from app.services.ai.stream_utils import serialize_message
 
 logger = logging.getLogger(__name__)
 
@@ -308,166 +288,6 @@ def create_message(
     )
 
 
-# ─── SSE 流式对话 ────────────────────────────────────────────────────────────
-
-@router.post("/conversations/{conversation_id}/messages/stream")
-async def stream_message(
-    request: Request,
-    conversation_id: int,
-    payload: MessageCreate,
-    db: Session = Depends(get_primary_db_session),
-    settings: Settings = Depends(get_settings),
-    user_id: int | None = Depends(_get_request_user_id),
-):
-    """SSE 流式对话端点（Phase 2：所有用户走 Pydantic AI driver）。
-
-    路由矩阵（Phase 2 简化）：
-    - enable_web_search=False / True 均走 Pydantic AI
-    - regenerate=True + enable_web_search=False → HTTP 400（保守保留：Tavily tool 行为对 regenerate 友好性未验证）
-    - regenerate=True + enable_web_search=True  → Pydantic AI with tavily tool
-
-    [BEL-80 follow-up] 取消支持：注册 `threading.Event` 到 `cancel_registry`。
-    [P0-1] 客户端断连：async 路径通过 `await request.is_disconnected()` 检测。
-    [P0-2] DB session：Pydantic AI 路径仅在 yield 间隙持有，不每 chunk 写 DB。
-    """
-    ai_chat_service.ensure_tables(db)
-    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
-    history = ai_chat_service.list_messages(db, conversation_id, user_id)
-    user_content = payload.content.strip()
-    regenerate = payload.regenerate
-
-    # Phase 2 路由矩阵：regenerate + 无 web_search → 400（保守保留，避免 Tavily tool 对 regenerate 行为未验证）
-    if regenerate and not payload.enable_web_search:
-        raise HTTPException(
-            status_code=400,
-            detail="重新生成仅在启用联网搜索时支持",
-        )
-
-    prompt_messages, context_messages, user_row, assistant_row, target_assistant = (
-        _prepare_conversation_turn(
-            db=db,
-            conversation_id=conversation_id,
-            history=history,
-            payload=payload,
-            user_content=user_content,
-            regenerate=regenerate,
-        )
-    )
-
-    cancel_event = cancel_registry.register(conversation_id)
-
-    # 统一走 Pydantic AI 路径（Phase 2 任务 5 收口）
-    # web_search=True 时 factory 注册 tavily_search_tool；False 时空工具列表
-    agent = build_chat_agent(
-        settings,
-        model_name=payload.model,
-        web_search=payload.enable_web_search,
-    )
-    state: MapperState = {
-        "search_time_range": ai_chat_service.detect_time_range_from_query(user_content),
-        "last_search_query": user_content if payload.enable_web_search else None,
-    }
-    user_prompt, message_history = _prompt_messages_to_pydantic_ai_args(prompt_messages)
-
-    async def event_stream():
-        try:
-            yield encode_stream_event({"type": "start"})
-            async with agent.run_stream_events(
-                user_prompt=user_prompt,
-                message_history=message_history,
-            ) as events:
-                async for ev in events:
-                    if cancel_event.is_set() or await request.is_disconnected():
-                        cancel_event.set()
-                        raise _CancelledError()
-                    payload_bytes = map_agent_event(ev, state)
-                    if payload_bytes is None:
-                        continue
-                    # tool_calls 后立即 yield tool_searching（与既有 ndjson 协议兼容）
-                    if isinstance(ev, FunctionToolCallEvent):
-                        if state.get("last_tool_part", {}).get("tool_name") in ("tavily_search", "web_search"):
-                            yield encode_stream_event({"type": "tool_searching"})
-                    for line in payload_bytes.split(b"\n"):
-                        if line:
-                            yield line + b"\n"
-
-            # commit final state
-            final_content = state.get("final_content") or ""
-            ai_chat_service.update_message_content(db, assistant_row.id, final_content)
-            if state.get("search_source_cards"):
-                assistant_row.search_sources = json.dumps(
-                    state["search_source_cards"], ensure_ascii=False
-                )
-            if state.get("search_time_range"):
-                assistant_row.search_time_range = state["search_time_range"]
-            usage = state.get("final_usage")
-            ai_chat_service.mark_message_complete(
-                db, assistant_row.id,
-                prompt_tokens=(usage or {}).get("prompt_tokens", 0),
-                completion_tokens=(usage or {}).get("completion_tokens", 0),
-                total_tokens=(usage or {}).get("total_tokens", 0),
-            )
-            conversation.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(assistant_row)
-            ai_chat_service.recalculate_conversation_token_stats(db, conversation_id)
-            db.commit()
-
-            # Phase 3：首轮且会话仍为默认标题时，自动用 LLM 生成会话标题。
-            # 仅触发一次（默认标题哨兵），绝不覆盖用户自定义标题；
-            # regenerate 路径不改写标题（手动重生成走专用端点）。
-            # generate_conversation_title 为同步 HTTP，用 to_thread 避免阻塞事件循环；
-            # 其自身已对 provider 未配置 / 空内容 / API 失败返回 None，此处再包一层
-            # try/except 双保险，确保标题失败绝不影响 done 事件。
-            title_regenerated = False
-            if (
-                not regenerate
-                and conversation.title == DEFAULT_CONVERSATION_TITLE
-                and final_content
-            ):
-                try:
-                    generated = await asyncio.to_thread(
-                        ai_chat_service.generate_conversation_title,
-                        settings,
-                        user_content,
-                        final_content,
-                    )
-                except Exception:
-                    logger.warning("Phase 3 autotitle failed; keep default title", exc_info=True)
-                    generated = None
-                if generated:
-                    conversation.title = generated
-                    db.commit()
-                    title_regenerated = True
-
-            yield build_stream_done(
-                user_message=serialize_message(user_row) if not regenerate else serialize_message(target_assistant),
-                assistant_message=serialize_message(assistant_row),
-                conversation_title=conversation.title,
-                token_usage=usage,
-                conversation_token_usage={
-                    "prompt_tokens": conversation.total_prompt_tokens,
-                    "completion_tokens": conversation.total_completion_tokens,
-                    "total_tokens": conversation.total_tokens,
-                },
-                duration_ms=None,
-                title_regenerated=title_regenerated,
-            )
-        except _CancelledError:
-            db.rollback()
-        except Exception as exc:
-            db.rollback()
-            yield build_stream_error(str(exc) or "发送失败")
-        finally:
-            cancel_registry.unregister(conversation_id, cancel_event)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
-    )
-
-
 def _prepare_conversation_turn(
     *,
     db: Session,
@@ -601,28 +421,3 @@ def _prompt_messages_to_pydantic_ai_args(prompt_messages: list[dict]) -> tuple:
         # else: 未知 role 跳过
 
     return user_prompt, message_history
-
-
-
-
-class _CancelledError(Exception):
-    """内部 sentinel：用户主动停止时使用，区别于真正的错误。"""
-    pass
-
-
-@router.post("/conversations/{conversation_id}/stream/cancel", status_code=204)
-def cancel_stream(
-    conversation_id: int,
-    db: Session = Depends(get_primary_db_session),
-    user_id: int | None = Depends(_get_request_user_id),
-) -> None:
-    """请求取消正在进行的流式生成。
-
-    - 校验 conv 归属，避免跨用户取消。
-    - 通过 `cancel_registry` 设 event；
-      `event_stream()` 在下一次 LLM 迭代时检测到并终止。
-    - 进程级：只在同一个 worker 进程内有效（multi-worker
-      部署需要 sticky session 或 Redis，本 PR 暂不处理）。
-    """
-    ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
-    cancel_registry.request_cancel(conversation_id)

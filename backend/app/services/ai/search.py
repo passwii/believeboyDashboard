@@ -15,6 +15,51 @@ from app.utils.constants import (
 
 from app.services.ai.chat import normalize_optional_text, trim_trailing_slash
 
+# Phase 1.2(2026-07-21 集成计划):search 类工具名集合 + 消息级搜索元数据抽取,
+# 供 V2 StreamRunner 在 agent 跑完后从 result.all_messages() 还原 source cards。
+from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+
+SEARCH_TOOL_NAMES = frozenset({"tavily_search", "web_search"})
+
+
+def normalize_tool_content(content: Any) -> list[dict]:
+    """把 Tavily tool 返回的 content 标准化为 list[dict]。
+
+    SearXNG adapter 走 Pydantic AI 自带 `tavily_search_tool` 时返回
+    list[TavilySearchResult](每项含 title/url/content/score/raw_content)。
+    兼容两种格式:list[dict](标准)/ dict 含 'results' 键(adapter 直返回)。
+    """
+    if isinstance(content, list):
+        return [dict(r) for r in content]
+    if isinstance(content, dict):
+        return list(content.get("results") or [])
+    return []
+
+
+def extract_search_meta_from_messages(
+    messages: Any,
+) -> tuple[list[dict] | None, str | None, str | None]:
+    """从 agent 最终消息列表抽取联网搜索元数据。
+
+    返回 (source_cards, time_range, query);无搜索调用则 (None, None, None)。
+    通过 part.tool_name 直接识别 search 工具(ToolCallPart 取 query/time_range,
+    ToolReturnPart 取结果建卡片),不依赖 tool_call_id 配对。
+    """
+    query: str | None = None
+    time_range: str | None = None
+    cards: list[dict] | None = None
+    for msg in messages or []:
+        for part in getattr(msg, "parts", None) or []:
+            if isinstance(part, ToolCallPart) and part.tool_name in SEARCH_TOOL_NAMES:
+                args = part.args if isinstance(part.args, dict) else {}
+                query = args.get("query") or query
+                time_range = args.get("time_range") or time_range
+            elif isinstance(part, ToolReturnPart) and part.tool_name in SEARCH_TOOL_NAMES:
+                results = normalize_tool_content(part.content)
+                if results:
+                    cards = build_search_source_cards({"results": results})
+    return cards, time_range, query
+
 
 def is_web_search_configured(settings: Settings) -> bool:
     return bool(
