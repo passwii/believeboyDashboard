@@ -196,7 +196,7 @@ async def _first_request_stream(
             # 客户端事件 → SSE
             yield encode_sse(event, entry_id=entry_id)
 
-            if isinstance(event, (MessageStop, ErrorEvent)):
+            if isinstance(event, MessageStop):
                 break
 
     except Exception:

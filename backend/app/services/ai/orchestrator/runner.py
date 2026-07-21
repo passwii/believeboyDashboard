@@ -32,10 +32,11 @@ from app.services.ai.protocol.errors import ErrorCode, ProtocolError
 from app.services.ai.protocol.events import (
     ContentBlockStart, ContentBlockDelta, ContentBlockStop,
     ErrorEvent, MessageDelta, MessageStart, MessageStop,
-    ProtocolEvent, TextBlock, TextDelta,
+    ProtocolEvent, StreamResult, TextBlock, TextDelta,
     ThinkingBlock, ThinkingDelta, ToolUseBlock, ToolResultBlock,
     Usage, validate_event,
 )
+from app.services.ai.search import extract_search_meta_from_messages
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class StreamRunner:
                 message_id=message_id, model=model_name, created_at=created_at,
             ))
 
+            text_parts: list[str] = []
             async with agent.iter(
                 user_prompt, message_history=message_history or [],
             ) as agent_run:
@@ -88,6 +90,13 @@ class StreamRunner:
                         continue
                     async with node.stream(agent_run.ctx) as node_stream:
                         async for event in node_stream:
+                            # 累积 text delta → full_text(与旧端点 final_content 口径一致)
+                            if (
+                                isinstance(event, PartDeltaEvent)
+                                and isinstance(event.delta, TextPartDelta)
+                                and event.delta.content_delta
+                            ):
+                                text_parts.append(event.delta.content_delta)
                             mapped = _map_node_event(event)
                             if mapped:
                                 if isinstance(mapped, list):
@@ -98,6 +107,18 @@ class StreamRunner:
 
             usage = _extract_usage(agent_run)
             await self._bus.add(conv_id, MessageDelta(usage=usage, stop_reason="end_turn"))
+
+            # Phase 1.2:业务载荷(供 endpoint 持久化,不转发客户端)。
+            # source cards / time_range 从最终消息列表还原(工具结果未被截断)。
+            source_cards, time_range, _query = extract_search_meta_from_messages(
+                agent_run.result.all_messages()
+            )
+            await self._bus.add(conv_id, StreamResult(
+                full_text="".join(text_parts).strip(),
+                search_source_cards=source_cards,
+                search_time_range=time_range,
+                usage=usage,
+            ))
 
         except CancelledError:
             await self._emit_cancelled(conv_id)
@@ -123,10 +144,14 @@ class StreamRunner:
         await self._bus.add(conv_id, MessageStop())
         await self._bus.stop(conv_id)
 
-    async def subscribe(
+    async def subscribe_events(
         self, conv_id: int, from_id: str = "0"
-    ) -> AsyncGenerator[bytes, None]:
-        """HTTP 端点调此方法。从 Redis Stream 读取,编码为 SSE bytes。"""
+    ) -> AsyncGenerator[tuple[ProtocolEvent, str], None]:
+        """从 Redis Stream 读取并解析事件,yield (event, entry_id)。
+
+        endpoint 用此方法:可区分内部 stream_result(持久化用,不转发)与客户端事件。
+        只在 MessageStop 时停止(ErrorEvent 后仍有 MessageStop)。
+        """
         async for entry_id, entry_type, data_json in self._bus.listen(conv_id, from_id):
             if entry_type == "begin":
                 continue
@@ -134,9 +159,18 @@ class StreamRunner:
                 break
             if entry_type in ("event", "error"):
                 event = validate_event(data_json)
-                yield encode_sse(event, entry_id=entry_id)
-                if isinstance(event, (MessageStop, ErrorEvent)):
+                yield event, entry_id
+                if isinstance(event, MessageStop):
                     break
+
+    async def subscribe(
+        self, conv_id: int, from_id: str = "0"
+    ) -> AsyncGenerator[bytes, None]:
+        """HTTP 简单订阅:编码为 SSE bytes,跳过内部 stream_result 事件。"""
+        async for event, entry_id in self.subscribe_events(conv_id, from_id):
+            if isinstance(event, StreamResult):
+                continue
+            yield encode_sse(event, entry_id=entry_id)
 
     async def cancel(self, conv_id: int) -> bool:
         """取消:GETDEL live_key。"""
