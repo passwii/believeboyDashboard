@@ -93,7 +93,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
 
   return (
     <>
-      <DataTableCard>
+      <DataTableCard className="flex flex-col">
         <DataTableCardHeader
           title="产品图片"
           description="为项目下每个 SKU 维护一张产品主图"
@@ -109,7 +109,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
             </div>
           }
         />
-        <DataTableCardBody>
+        <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
           {loading ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (

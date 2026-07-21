@@ -26,7 +26,7 @@ export function DirectionalTabTransition({
   void order
 
   return (
-    <div className={cn('relative overflow-x-clip', className)}>
+    <div className={cn('relative flex-1 min-h-0 overflow-x-clip', className)}>
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={value}

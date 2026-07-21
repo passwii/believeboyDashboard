@@ -857,7 +857,7 @@ export default function SkuInfoPage() {
   }
 
   return (
-    <div className="w-full space-y-6 text-foreground">
+    <div className="flex w-full flex-col space-y-6 text-foreground">
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardHeader title="筛选条件" />
         <DataCardContent className="p-4 lg:p-6">
@@ -953,11 +953,11 @@ export default function SkuInfoPage() {
         </DataCardContent>
       </DataCard>
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as ActiveTab)}
-        className="space-y-4"
-      >
+<Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as ActiveTab)}
+          className="flex flex-col space-y-4 flex-1 min-h-0"
+        >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsMotionGroup id="sku-cost-tabs">
             <TabsList className="inline-flex h-auto w-full max-w-[600px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
@@ -1023,45 +1023,42 @@ export default function SkuInfoPage() {
         <DirectionalTabTransition value={activeTab} order={ACTIVE_TAB_ORDER}>
           <TabsContent forceMount value={activeTab}>
             {activeTab === 'cost' ? (
-              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-                <DataTableCardHeader className="px-6 py-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-semibold">成本管理</h2>
+<DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                  <DataTableCardHeader className="px-6 py-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <h2 className="text-base font-semibold">成本管理</h2>
+                      </div>
+                      <ActionsBar
+                        batchImporting={batchImporting}
+                        syncing={syncing}
+                        hasSelectedProject={Boolean(selectedProject?.id)}
+                        syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
+                        syncPendingCount={pendingFirstLegSyncCount}
+                        projectName={projectFilter}
+                        onDownloadCreateTemplate={downloadCostTemplate}
+                        onDownloadUpdateTemplate={handleExportCurrentFiltered}
+                        onUpload={handleBatchImportFile}
+                        onSync={handleSyncFirstLeg}
+                      />
+                      {selectedSkus.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setBatchSheetOpen(true)}
+                        >
+                          批量编辑属性 ({selectedSkus.length})
+                        </Button>
+                      )}
                     </div>
-                    <ActionsBar
-                      batchImporting={batchImporting}
-                      syncing={syncing}
-                      hasSelectedProject={Boolean(selectedProject?.id)}
-                      syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
-                      syncPendingCount={pendingFirstLegSyncCount}
-                      projectName={projectFilter}
-                      onDownloadCreateTemplate={downloadCostTemplate}
-                      onDownloadUpdateTemplate={handleExportCurrentFiltered}
-                      onUpload={handleBatchImportFile}
-                      onSync={handleSyncFirstLeg}
-                    />
-                    {selectedSkus.length > 0 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setBatchSheetOpen(true)}
-                      >
-                        批量编辑属性 ({selectedSkus.length})
-                      </Button>
-                    )}
-                  </div>
-                </DataTableCardHeader>
-                <DataTableCardBody
-                  className="relative overflow-auto"
-                  style={{ maxHeight: '560px' }}
-                >
-                  {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-                      数据更新中...
-                    </div>
-                  ) : null}
+                  </DataTableCardHeader>
+                  <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+                    {loading && items.length > 0 ? (
+                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                        数据更新中...
+                      </div>
+                    ) : null}
                   <table className="w-full border-separate border-spacing-0 text-sm">
                     <thead className="[&_tr]:border-b">
                       <tr className="border-b bg-[hsl(var(--surface-subtle))]">
@@ -1360,7 +1357,7 @@ export default function SkuInfoPage() {
                 </DataTableCardBody>
               </DataTableCard>
             ) : activeTab === 'dimension' ? (
-              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+              <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
                 <DataTableCardHeader className="px-6 py-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -1380,10 +1377,7 @@ export default function SkuInfoPage() {
                     />
                   </div>
                 </DataTableCardHeader>
-                <DataTableCardBody
-                  className="relative overflow-auto"
-                  style={{ maxHeight: '560px' }}
-                >
+                <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
                     <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
@@ -1667,19 +1661,16 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            ) : activeTab === 'factory' ? (
-              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-                <DataTableCardHeader className="px-6 py-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-semibold">产品属性</h2>
-                    </div>
-                  </div>
-                </DataTableCardHeader>
-                <DataTableCardBody
-                  className="relative overflow-auto"
-                  style={{ maxHeight: '560px' }}
-                >
+) : activeTab === 'factory' ? (
+               <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                 <DataTableCardHeader className="px-6 py-5">
+                   <div className="flex flex-wrap items-center justify-between gap-3">
+                     <div className="space-y-1">
+                       <h2 className="text-base font-semibold">产品属性</h2>
+                     </div>
+                   </div>
+                 </DataTableCardHeader>
+                 <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
                     <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...
@@ -1814,37 +1805,34 @@ export default function SkuInfoPage() {
                   </table>
                 </DataTableCardBody>
               </DataTableCard>
-            ) : activeTab === 'label' ? (
-              /* ── 产品标签 Tab ── */
-              <DataTableCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-                <DataTableCardHeader className="px-6 py-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <h2 className="text-base font-semibold">产品标签</h2>
-                      <p className="text-xs text-muted-foreground">
-                        上传和管理每个 SKU 的 FNSKU 标签 PDF
-                      </p>
-                    </div>
-                    {selectedLabelSkus.length > 0 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="default"
-                        disabled={labelDownloading}
-                        onClick={() => void handleBatchDownloadLabels()}
-                      >
-                        <FileDown className="mr-2 h-4 w-4" />
-                        {labelDownloading
-                          ? '下载中...'
-                          : `批量下载标签 (${selectedLabelSkus.filter((s) => s.fnsku_label_r2_key).length})`}
-                      </Button>
-                    )}
-                  </div>
-                </DataTableCardHeader>
-                <DataTableCardBody
-                  className="relative overflow-auto"
-                  style={{ maxHeight: '560px' }}
-                >
+) : activeTab === 'label' ? (
+               /* ── 产品标签 Tab ── */
+               <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+                 <DataTableCardHeader className="px-6 py-5">
+                   <div className="flex flex-wrap items-center justify-between gap-3">
+                     <div className="space-y-1">
+                       <h2 className="text-base font-semibold">产品标签</h2>
+                       <p className="text-xs text-muted-foreground">
+                         上传和管理每个 SKU 的 FNSKU 标签 PDF
+                       </p>
+                     </div>
+                     {selectedLabelSkus.length > 0 && (
+                       <Button
+                         type="button"
+                         size="sm"
+                         variant="default"
+                         disabled={labelDownloading}
+                         onClick={() => void handleBatchDownloadLabels()}
+                       >
+                         <FileDown className="mr-2 h-4 w-4" />
+                         {labelDownloading
+                           ? '下载中...'
+                           : `批量下载标签 (${selectedLabelSkus.filter((s) => s.fnsku_label_r2_key).length})`}
+                       </Button>
+                     )}
+                   </div>
+                 </DataTableCardHeader>
+                 <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
                   {loading && items.length > 0 ? (
                     <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                       数据更新中...

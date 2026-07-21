@@ -1,0 +1,271 @@
+"""Inventory analysis & replenishment cache (Redis-backed).
+
+TTL 策略:
+- inventory-analysis: 5 min — 库存数据由快照上传触发变更，频率低
+- inventory-snapshot-options: 10 min — 选项列表变更更少
+- inventory-replenishment-analysis: 5 min — 与 inventory-analysis 同源
+- return-analysis: 5 min — 退货数据 T+1 同步
+- platform-revenues: 5 min — 财务数据手动录入，变更频率极低
+- sku-info: 5 min — SKU 主数据编辑/同步后主动失效
+"""
+
+import hashlib
+
+from app.services.infra.cache import cache_delete_pattern, cache_get, cache_set
+
+# ── TTL constants ─────────────────────────────────────────────────────
+INVENTORY_ANALYSIS_TTL = 300  # 5 minutes
+INVENTORY_SNAPSHOT_OPTIONS_TTL = 600  # 10 minutes
+INVENTORY_REPLENISHMENT_TTL = 300  # 5 minutes
+RETURN_ANALYSIS_TTL = 300  # 5 minutes
+PLATFORM_REVENUE_TTL = 300  # 5 minutes
+SKU_INFO_TTL = 300  # 5 minutes
+
+# ── Key prefixes ──────────────────────────────────────────────────────
+INVENTORY_ANALYSIS_KEY_PREFIX = "cache:inventory-analysis"
+INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX = "cache:inventory-snapshot-options"
+INVENTORY_REPLENISHMENT_KEY_PREFIX = "cache:inventory-replenishment"
+RETURN_ANALYSIS_KEY_PREFIX = "cache:return-analysis"
+PLATFORM_REVENUE_KEY_PREFIX = "cache:platform-revenues"
+SKU_INFO_KEY_PREFIX = "cache:sku-info"
+
+
+def _hash_params(*parts: str) -> str:
+    """Hash variable-length params into a stable 16-char key segment."""
+    raw = ":".join(str(p) for p in parts)
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
+
+
+# ── Inventory Analysis ────────────────────────────────────────────────
+
+
+def get_inventory_analysis_cache(
+    project_id: int,
+    country: str,
+    report_date: str | None,
+) -> dict | None:
+    key = f"{INVENTORY_ANALYSIS_KEY_PREFIX}:project:{project_id}:country:{country}:date:{report_date or 'current'}"
+    return cache_get(key)
+
+
+def set_inventory_analysis_cache(
+    project_id: int,
+    country: str,
+    report_date: str | None,
+    data: dict,
+) -> None:
+    key = f"{INVENTORY_ANALYSIS_KEY_PREFIX}:project:{project_id}:country:{country}:date:{report_date or 'current'}"
+    cache_set(key, data, INVENTORY_ANALYSIS_TTL)
+
+
+def invalidate_inventory_analysis_cache(project_id: int | None = None) -> int:
+    if project_id:
+        pattern = f"{INVENTORY_ANALYSIS_KEY_PREFIX}:project:{project_id}:*"
+    else:
+        pattern = f"{INVENTORY_ANALYSIS_KEY_PREFIX}:*"
+    return cache_delete_pattern(pattern)
+
+
+# ── Inventory Snapshot Options ────────────────────────────────────────
+
+
+def get_inventory_snapshot_options_cache(
+    project_id: int,
+    country: str,
+) -> list | None:
+    key = f"{INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX}:project:{project_id}:country:{country}"
+    return cache_get(key)
+
+
+def set_inventory_snapshot_options_cache(
+    project_id: int,
+    country: str,
+    data: list,
+) -> None:
+    key = f"{INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX}:project:{project_id}:country:{country}"
+    cache_set(key, data, INVENTORY_SNAPSHOT_OPTIONS_TTL)
+
+
+def invalidate_inventory_snapshot_options_cache(project_id: int | None = None) -> int:
+    if project_id:
+        pattern = f"{INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX}:project:{project_id}:*"
+    else:
+        pattern = f"{INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX}:*"
+    return cache_delete_pattern(pattern)
+
+
+# ── Inventory Replenishment Analysis ─────────────────────────────────
+
+
+def get_inventory_replenishment_cache(
+    project_id: int,
+    country: str,
+    keyword: str | None,
+    risk_status: str | None,
+    in_transit_only: bool,
+    page: int,
+    page_size: int,
+) -> dict | None:
+    params_hash = _hash_params(
+        str(project_id), country, keyword or "", risk_status or "",
+        str(in_transit_only), str(page), str(page_size),
+    )
+    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
+    return cache_get(key)
+
+
+def set_inventory_replenishment_cache(
+    project_id: int,
+    country: str,
+    keyword: str | None,
+    risk_status: str | None,
+    in_transit_only: bool,
+    page: int,
+    page_size: int,
+    data: dict,
+) -> None:
+    params_hash = _hash_params(
+        str(project_id), country, keyword or "", risk_status or "",
+        str(in_transit_only), str(page), str(page_size),
+    )
+    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
+    cache_set(key, data, INVENTORY_REPLENISHMENT_TTL)
+
+
+def invalidate_inventory_replenishment_cache(project_id: int | None = None) -> int:
+    """Invalidate all replenishment cache (params are hashed, so we clear all)."""
+    return cache_delete_pattern(f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:*")
+
+
+# ── Return Analysis ───────────────────────────────────────────────────
+
+
+def get_return_analysis_cache(
+    project_id: int,
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+) -> dict | None:
+    key = (
+        f"{RETURN_ANALYSIS_KEY_PREFIX}:project:{project_id}:country:{country}"
+        f":start:{start_date}:end:{end_date}:sku:{sku or 'all'}"
+    )
+    return cache_get(key)
+
+
+def set_return_analysis_cache(
+    project_id: int,
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+    data: dict,
+) -> None:
+    key = (
+        f"{RETURN_ANALYSIS_KEY_PREFIX}:project:{project_id}:country:{country}"
+        f":start:{start_date}:end:{end_date}:sku:{sku or 'all'}"
+    )
+    cache_set(key, data, RETURN_ANALYSIS_TTL)
+
+
+def invalidate_return_analysis_cache(project_id: int | None = None) -> int:
+    if project_id:
+        pattern = f"{RETURN_ANALYSIS_KEY_PREFIX}:project:{project_id}:*"
+    else:
+        pattern = f"{RETURN_ANALYSIS_KEY_PREFIX}:*"
+    return cache_delete_pattern(pattern)
+
+
+# ── Platform Revenues ─────────────────────────────────────────────────
+
+
+def get_platform_revenue_cache(
+    project_id: int | None,
+    year: int | None,
+    month: int | None,
+    country: str | None,
+    currency: str | None,
+    page: int,
+    page_size: int,
+    operator: str | None,
+) -> dict | None:
+    params_hash = _hash_params(
+        str(project_id or "all"), str(year or "all"), str(month or "all"),
+        country or "all", currency or "all", str(page), str(page_size),
+        operator or "all",
+    )
+    key = f"{PLATFORM_REVENUE_KEY_PREFIX}:{params_hash}"
+    return cache_get(key)
+
+
+def set_platform_revenue_cache(
+    project_id: int | None,
+    year: int | None,
+    month: int | None,
+    country: str | None,
+    currency: str | None,
+    page: int,
+    page_size: int,
+    operator: str | None,
+    data: dict,
+) -> None:
+    params_hash = _hash_params(
+        str(project_id or "all"), str(year or "all"), str(month or "all"),
+        country or "all", currency or "all", str(page), str(page_size),
+        operator or "all",
+    )
+    key = f"{PLATFORM_REVENUE_KEY_PREFIX}:{params_hash}"
+    cache_set(key, data, PLATFORM_REVENUE_TTL)
+
+
+def invalidate_platform_revenue_cache() -> int:
+    return cache_delete_pattern(f"{PLATFORM_REVENUE_KEY_PREFIX}:*")
+
+
+# ── SKU Info ──────────────────────────────────────────────────────────
+
+
+def get_sku_info_cache(
+    project_name: str | None,
+    sku: str | None,
+    asin: str | None,
+    country: str | None,
+    is_active: bool | None,
+    page: int,
+    page_size: int,
+    managed_project_ids: list[int] | None,
+) -> dict | None:
+    ids_str = ",".join(str(i) for i in sorted(managed_project_ids)) if managed_project_ids else "all"
+    params_hash = _hash_params(
+        project_name or "", sku or "", asin or "", country or "",
+        str(is_active) if is_active is not None else "none",
+        str(page), str(page_size), ids_str,
+    )
+    key = f"{SKU_INFO_KEY_PREFIX}:{params_hash}"
+    return cache_get(key)
+
+
+def set_sku_info_cache(
+    project_name: str | None,
+    sku: str | None,
+    asin: str | None,
+    country: str | None,
+    is_active: bool | None,
+    page: int,
+    page_size: int,
+    managed_project_ids: list[int] | None,
+    data: dict,
+) -> None:
+    ids_str = ",".join(str(i) for i in sorted(managed_project_ids)) if managed_project_ids else "all"
+    params_hash = _hash_params(
+        project_name or "", sku or "", asin or "", country or "",
+        str(is_active) if is_active is not None else "none",
+        str(page), str(page_size), ids_str,
+    )
+    key = f"{SKU_INFO_KEY_PREFIX}:{params_hash}"
+    cache_set(key, data, SKU_INFO_TTL)
+
+
+def invalidate_sku_info_cache() -> int:
+    return cache_delete_pattern(f"{SKU_INFO_KEY_PREFIX}:*")
