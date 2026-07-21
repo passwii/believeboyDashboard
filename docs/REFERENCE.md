@@ -155,12 +155,15 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 ### Workflow
 - 推送前：前端 `pnpm lint` → `pnpm build` → `pnpm test`；后端 `pytest`。
-- 推送：`git push origin main` 触发 **`.git/hooks/pre-push`** 自动部署 VPS。
+- 推送 + 部署：**用 `git deploy`**（替代旧 pre-push hook）。脚本在 `productEnvAgent/deploy.sh`，做三件事：
+  1. 校验当前在 main 分支
+  2. `git push origin main`
+  3. 若 `origin/main..HEAD` 命中 `backend/`，跑 `python productEnvAgent/deploy_vps.py --auto`
 
-> ⚠️ **pre-push hook 已知坑（实测 2026-07-09）**：该 hook 会**递归卡死**——Step1 用 `GIT_SKIP_HOOKS=1 git push` 试图绕过自身，但 `GIT_SKIP_HOOKS` **不屏蔽 pre-push**，导致 `git push` 反复重入 hook；叠加 github.com 连接常被远端关闭，push 长时间挂起、远端 ref 不更新。
-> - **只推代码不部署**：`SKIP_POST_PUSH_DEPLOY=1 git push origin main`（hook 检测到该变量即 `exit 0`，git 自行完成原生 push）
+> **为什么不用 pre-push hook**：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
+> - **只推代码不部署**：`git push origin main`（直接 push，绕开 alias；旧 `SKIP_POST_PUSH_DEPLOY` 环境变量已废弃）
 > - **单独部署**：`python productEnvAgent/deploy_vps.py --auto`（SSH `root@145.79.143.98` → `git pull` → `alembic upgrade head` → `systemctl restart believeboy-api` → 健康检查）
-> - **根治**：把 hook Step1 的 `GIT_SKIP_HOOKS=1 git push` 改成 `git push --no-verify "$remote" "${push_refspecs[@]}"`（`--no-verify` 可靠屏蔽 pre-push）
+> - **新机器首次配置**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`
 
 ### Key Conventions
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`）——`/manage` 按 `X-Operator` 过滤可见项目。

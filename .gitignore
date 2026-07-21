@@ -43,7 +43,17 @@ statuses/
 .sandbox/
 .staging/
 BusinessDev/
-productEnvAgent/
+# productEnvAgent/ 默认全部忽略(本地部署脚本和配置),
+# 但下面用 ! 把需要版本控制的运维脚本显式重新纳入。
+productEnvAgent/*
+productEnvAgent/.[!.]*
+!productEnvAgent/deploy.sh
+!productEnvAgent/deploy_vps.py
+!productEnvAgent/DEPLOYMENT_SKILL.md
+!productEnvAgent/README.md
+!productEnvAgent/config.json
+!productEnvAgent/post-push.sh
+!productEnvAgent/.gitignore
 
 # Logs
 npm-debug.log*

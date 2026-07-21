@@ -64,23 +64,28 @@ journalctl -u believeboy-api -f   # 实时日志
 
 ## 触发方式
 
-### 方式 1：Git pre-push Hook（生产推荐，已安装）
-仓库已安装 `.git/hooks/pre-push`（唯一会在 push 时自动触发的 hook），逻辑：
-- push 到 `main` 且本次改动命中 `backend/` 才部署；纯前端改动不触发（前端在 Vercel）。
-- 内部用 `git push --no-verify` 完成推送（避免重入自身），随后在 VPS 跑 `deploy_vps.py --auto`。
-- 临时跳过：`SKIP_POST_PUSH_DEPLOY=1 git push origin main`。
-- 长期关闭：`chmod -x .git/hooks/pre-push`。
+### 方式 1：`git deploy` alias（生产推荐）
 
-源码与安装说明见 hook 文件头部注释；如需新 clone 复用，可放进 `~/.git-templates/hooks/pre-push` 并 `git config --global init.templateDir ~/.git-templates`。
+`git deploy` 是 `productEnvAgent/deploy.sh` 的 git alias，一次完成 push + 条件 deploy：
+
+- **触发条件**：当前必须在 `main` 分支；`origin/main..HEAD` 命中 `backend/` 才部署，纯前端/docs/配置改动只推代码（前端由 Vercel 自动部署）。
+- **执行流程**：① 校验分支 → ② `git push origin main` → ③ 若命中 backend/，跑 `python productEnvAgent/deploy_vps.py --auto`。
+- **临时跳过 deploy**：`git push origin main`（直接 push，绕开 alias）。
+- **长期关闭**：`git config --unset alias.deploy`。
+- **新机器首次配置**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`。
+
+> 为什么不用 pre-push hook：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
+
+源码与安装说明见 `productEnvAgent/deploy.sh` 头部注释。
 
 ### 方式 2：手动调用 / Skill
 - 对 Claude 说 `/deploy-vps` 或 "部署到 VPS"。
-- 或本地直接跑（等价于 hook 触发的部署）：`cd productEnvAgent && python deploy_vps.py --auto`。
+- 或本地直接跑（等价于 alias 触发的部署）：`cd productEnvAgent && python deploy_vps.py --auto`。
 
 ### 方式 3：post-push.sh（可选替代，非默认）
-`productEnvAgent/post-push.sh` 是 pre-push 的替代模板。注意：**git 没有内置的 post-push hook**，把它装成 `.git/hooks/post-push` 也不会被 git 自动调用；自动部署请用上面的 pre-push。该文件仅作参考 / 手动执行用。
+`productEnvAgent/post-push.sh` 是旧的替代模板。注意：**git 没有内置的 post-push hook**，把它装成 `.git/hooks/post-push` 也不会被 git 自动调用；自动部署请用上面的 `git deploy` alias。该文件仅作参考 / 手动执行用。
 
-> 弃用说明：旧版文档曾推荐 post-commit hook（每次提交即部署、含本地分支，危险）与无过滤的 post-push。这些均已弃用，请勿使用。
+> 弃用说明：旧版文档曾推荐 pre-push hook（已弃用，原因是 `git push --no-verify` 二次 push 竞态导致的 `remote rejected` 噪音）、post-commit hook（每次提交即部署、含本地分支，危险）、以及无过滤的 post-push。这些均已弃用，请改用 `git deploy` alias。
 
 ### 配置来源
 部署参数（host / user / 路径 / 触发开关）以 `productEnvAgent/config.json` 为准（注意是 `config.json`，不是 `settings.json`）；脚本里的 `VPS_HOST` 等常量与之一致。

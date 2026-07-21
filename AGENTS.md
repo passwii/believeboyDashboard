@@ -18,12 +18,14 @@
 
 ## Push / 部署规则（重要）
 
-- `git push origin main` 触发 **`.git/hooks/pre-push`** 自动部署 VPS（`python productEnvAgent/deploy_vps.py --auto`：SSH `root@145.79.143.98` → `git pull --ff-only` → `alembic upgrade head` → `systemctl restart believeboy-api` → 健康检查）。
+- **用 `git deploy` 推送 + 部署**（替代旧的 pre-push hook）：`git push origin main` 后脚本自动判断 — 若 `origin/main..HEAD` 命中 `backend/` 则跑 `python productEnvAgent/deploy_vps.py --auto`（SSH `root@145.79.143.98` → `git pull --ff-only` → `alembic upgrade head` → `systemctl restart believeboy-api` → 健康检查）。
 - **触发条件**：仅当本次 push 命中 `backend/` 路径才部署；纯前端 / docs / 配置改动只推代码、不碰 VPS（前端在 Vercel 自动部署）。
-- **递归卡死 bug 已修复（2026-07-09）**：旧 hook 用 `GIT_SKIP_HOOKS=1 git push` 试图绕过自身，但 `GIT_SKIP_HOOKS` 不屏蔽 pre-push，导致 `git push` 反复重入 hook；叠加 github.com 连接常被远端关闭，`git push` 长时间挂起。现已把 hook Step1 改为 `git push --no-verify "$remote" "${push_refspecs[@]}"`，不再递归。
-- **只推代码不部署**：`SKIP_POST_PUSH_DEPLOY=1 git push origin main`
+- **必须从 main 分支跑**：脚本会检查 `symbolic-ref --short HEAD`，非 main 直接报错退出。
+- **为什么不用 pre-push hook**：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
+- **只推代码不部署**：`git push origin main`（直接 push，绕过 alias）
 - **单独部署**：`python productEnvAgent/deploy_vps.py --auto`
-- **deploy 失败怎么办**：pre-push 先完成 push 再跑 deploy；若 deploy 失败，代码已上 `origin/main` 但 VPS 未更新，hook 会打印告警并以 push 成功退出。此时手动 `python productEnvAgent/deploy_vps.py --auto` 补齐即可；重推会因 up-to-date 不再触发 deploy。
+- **deploy 失败怎么办**：代码已上 `origin/main` 但 VPS 未更新，脚本会以非零退出并提示手动 `python productEnvAgent/deploy_vps.py --auto` 补齐；重推会因 up-to-date 不再触发 deploy。
+- **新机器首次配置 alias**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`
 
 ## 测试规则
 
