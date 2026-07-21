@@ -3,7 +3,6 @@ import {
   Banknote,
   BarChart3,
   Bell,
-  Bot,
   Calculator,
   CalendarRange,
   ChartColumnBig,
@@ -37,6 +36,9 @@ import {
   Target,
   Settings as SettingsIcon,
 } from 'lucide-react'
+
+// Custom AI icons
+import { AnthropicIcon } from '@/components/ui/icons/anthropic-icon'
 
 /**
  * Sidebar 两层结构的唯一数据权威。
@@ -78,7 +80,7 @@ const IconMap = {
   LayoutDashboard,
   MessagesSquare,
   Store,
-  Bot,
+  AnthropicIcon,
   TrendingUp,
   Calculator,
   FileBarChart,
@@ -236,11 +238,11 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
   {
     id: 'ai',
     label: 'AI 智能',
-    icon: IconMap.Bot,
+    icon: IconMap.AnthropicIcon,
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
-      { title: 'AI概览', url: '/dashboard/ai', icon: IconMap.Bot },
+      { title: 'AI概览', url: '/dashboard/ai', icon: IconMap.AnthropicIcon },
       { title: 'AI洞察', url: '/dashboard/ai/insights', icon: IconMap.TrendingUp },
       {
         title: 'AI 广告分析',
@@ -248,7 +250,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/ai/ad-analysis'],
         icon: IconMap.BarChart3,
       },
-      { title: 'AI Chat', url: '/dashboard/ai/chat', icon: IconMap.Bot },
+      { title: 'AI Chat', url: '/dashboard/ai/chat', icon: IconMap.AnthropicIcon },
       {
         title: '模型选型',
         url: '/dashboard/ai/believeboy-models',
