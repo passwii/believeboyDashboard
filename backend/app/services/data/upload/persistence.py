@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from fastapi import HTTPException, status
@@ -541,14 +542,30 @@ def commit_report_upload(
             original_filename=original_filename,
         )
 
+    def _coerce_date_to_iso_str(value: object) -> str | None:
+        """归一化 report_start_date / report_end_date 为 ISO 字符串。
+
+        不同分支对 payload 这两个字段的赋值类型不一致：
+        - sales_report 分支：persist_sales_report_by_purchase_date 已返回 .isoformat() 字符串
+        - return_report 分支：persist_return_report 返回的是 datetime.date 对象
+        - 其他分支：保持 None 或用户传入的字符串
+        Pydantic 在末尾构造 ReportCommitResponse 时 schema 强制 str|None，这里统一兜底。
+        """
+        if value is None:
+            return None
+        if isinstance(value, date):
+            return value.isoformat()
+        text = str(value).strip()
+        return text or None
+
     return ReportCommitResponse(
         report_type=report_type,
         status=response_status,
         project_name=project_name,
         country=country,
         report_date=payload.report_date,
-        report_start_date=payload.report_start_date,
-        report_end_date=payload.report_end_date,
+        report_start_date=_coerce_date_to_iso_str(payload.report_start_date),
+        report_end_date=_coerce_date_to_iso_str(payload.report_end_date),
         file_id=str(file_meta["file_id"]),
         file_path=str(file_meta["file_path"]),
         persisted_source_id=persisted_source_id,
