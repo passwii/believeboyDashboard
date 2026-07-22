@@ -87,6 +87,7 @@ from app.models.digital_employee import (
     TaskStatus,
     LogLevel,
 )
+from app.models.digital_employee_playback import DigitalEmployeePlayback  # noqa: F401
 from app.models.project_goal import ProjectGoal
 from app.models.reconciliation import ReconciliationRecord
 from app.models.alert_rule import AlertRule
@@ -190,6 +191,7 @@ __all__ = [
     'CategoryResearchSalesTrend',
     'ProjectGoal',
     'DigitalEmployee',
+    'DigitalEmployeePlayback',
     'DigitalEmployeeTask',
     'DigitalEmployeeLog',
     'EmployeeType',
