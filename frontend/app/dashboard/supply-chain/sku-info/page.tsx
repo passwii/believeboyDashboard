@@ -52,6 +52,7 @@ import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
+import { formatInch, formatLb } from '@/lib/unit-convert'
 
 export type ProductCostItem = {
   id: number
@@ -857,7 +858,7 @@ export default function SkuInfoPage() {
   }
 
   return (
-    <div className="flex w-full flex-col space-y-6 text-foreground">
+    <div className="w-full space-y-6 text-foreground">
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardHeader title="筛选条件" />
         <DataCardContent className="p-4 lg:p-6">
@@ -956,7 +957,7 @@ export default function SkuInfoPage() {
 <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}
-          className="flex flex-col space-y-4 flex-1 min-h-0"
+          className="space-y-4"
         >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsMotionGroup id="sku-cost-tabs">
@@ -1024,36 +1025,39 @@ export default function SkuInfoPage() {
           <TabsContent forceMount value={activeTab}>
             {activeTab === 'cost' ? (
 <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-                  <DataTableCardHeader className="px-6 py-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <h2 className="text-base font-semibold">成本管理</h2>
-                      </div>
-                      <ActionsBar
-                        batchImporting={batchImporting}
-                        syncing={syncing}
-                        hasSelectedProject={Boolean(selectedProject?.id)}
-                        syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
-                        syncPendingCount={pendingFirstLegSyncCount}
-                        projectName={projectFilter}
-                        onDownloadCreateTemplate={downloadCostTemplate}
-                        onDownloadUpdateTemplate={handleExportCurrentFiltered}
-                        onUpload={handleBatchImportFile}
-                        onSync={handleSyncFirstLeg}
-                      />
-                      {selectedSkus.length > 0 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setBatchSheetOpen(true)}
-                        >
-                          批量编辑属性 ({selectedSkus.length})
-                        </Button>
-                      )}
+                <DataTableCardHeader className="px-6 py-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h2 className="text-base font-semibold">成本管理</h2>
                     </div>
-                  </DataTableCardHeader>
-                  <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+                    <ActionsBar
+                      batchImporting={batchImporting}
+                      syncing={syncing}
+                      hasSelectedProject={Boolean(selectedProject?.id)}
+                      syncDisabled={!selectedProject?.id || pendingFirstLegSyncCount === 0}
+                      syncPendingCount={pendingFirstLegSyncCount}
+                      projectName={projectFilter}
+                      onDownloadCreateTemplate={downloadCostTemplate}
+                      onDownloadUpdateTemplate={handleExportCurrentFiltered}
+                      onUpload={handleBatchImportFile}
+                      onSync={handleSyncFirstLeg}
+                    />
+                    {selectedSkus.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setBatchSheetOpen(true)}
+                      >
+                        批量编辑属性 ({selectedSkus.length})
+                      </Button>
+                    )}
+                  </div>
+                </DataTableCardHeader>
+                <DataTableCardBody
+                  className="relative overflow-auto"
+                  style={{ maxHeight: 'calc(100vh - 260px)' }}
+                >
                     {loading && items.length > 0 ? (
                       <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-[hsl(var(--surface-panel))] px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
                         数据更新中...
@@ -1501,7 +1505,12 @@ export default function SkuInfoPage() {
                                 }
                               />
                             ) : (
-                              `${row.package_length_cm} × ${row.package_width_cm} × ${row.package_height_cm} cm`
+                              <div>
+                                <div>{row.package_length_cm} × {row.package_width_cm} × {row.package_height_cm} cm</div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">
+                                  {formatInch(row.package_length_cm)} × {formatInch(row.package_width_cm)} × {formatInch(row.package_height_cm)}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
@@ -1517,7 +1526,10 @@ export default function SkuInfoPage() {
                                 }
                               />
                             ) : (
-                              `${row.weight_kg} kg`
+                              <div>
+                                <div>{row.weight_kg} kg</div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">{formatLb(row.weight_kg)}</div>
+                              </div>
                             )}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
@@ -1538,7 +1550,12 @@ export default function SkuInfoPage() {
                                 }
                               />
                             ) : (
-                              `${row.carton_length_cm} × ${row.carton_width_cm} × ${row.carton_height_cm} cm`
+                              <div>
+                                <div>{row.carton_length_cm} × {row.carton_width_cm} × {row.carton_height_cm} cm</div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">
+                                  {formatInch(row.carton_length_cm)} × {formatInch(row.carton_width_cm)} × {formatInch(row.carton_height_cm)}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
@@ -1554,7 +1571,10 @@ export default function SkuInfoPage() {
                                 }
                               />
                             ) : (
-                              `${row.carton_weight_kg} kg`
+                              <div>
+                                <div>{row.carton_weight_kg} kg</div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">{formatLb(row.carton_weight_kg)}</div>
+                              </div>
                             )}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
