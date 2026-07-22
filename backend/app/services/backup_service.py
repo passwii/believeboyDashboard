@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tarfile
+import tempfile
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.celery_tasks.backup import run_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus, BackupType
+
+# pgbackrest 本地备份仓库根目录（backup set 目录在 {base}/{set_name}/）。
+PG_BACKUP_BASE = Path("/var/lib/pgbackrest/backup/blf")
 
 
 def _run_pgbackrest(args: list[str], timeout: int = 3600) -> tuple[int, str, str]:
@@ -61,6 +67,17 @@ def _run_pgbackrest_backup(backup_type: str) -> tuple[int, str, str]:
         "--log-path=/var/log/pgbackrest",
     ]
     return _run_pgbackrest(backup_args, timeout=7200)
+
+
+def _archive_to_tar_gz(set_name: str, record_id: int) -> Path:
+    """把单次 backup set 目录打成 {tmp}/{record_id}.tar.gz，返回路径。"""
+    src = PG_BACKUP_BASE / set_name
+    if not src.is_dir():
+        raise FileNotFoundError(f"backup set not found: {src}")
+    tar_path = Path(tempfile.gettempdir()) / f"{record_id}.tar.gz"
+    with tarfile.open(tar_path, "w:gz") as tar:
+        tar.add(src, arcname=set_name)
+    return tar_path
 
 
 def enqueue_backup(
