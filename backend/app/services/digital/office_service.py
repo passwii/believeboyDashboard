@@ -3,6 +3,7 @@
 FIX-2: 只查 virtual_index 之后的待播任务，不加载全量历史。
 FIX-3: today_done / success_rate 只统计当日任务。
 FIX-4: advance_employee 不自行 commit，由 build_wall_snapshot 统一提交。
+P3-A: chatter 事件检测（状态转换 → 拟人化动态文案）。
 """
 from __future__ import annotations
 
@@ -103,11 +104,66 @@ def _today_stats(db: Session, employee_id: int, now: datetime) -> tuple[int, flo
     return succeeded, round(succeeded / total, 2)
 
 
-def advance_employee(db: Session, employee: DigitalEmployee, now: datetime) -> dict:
+def _detect_chatter(
+    old_state: PlaybackState,
+    new_engine: PlaybackState,
+    snap,
+    employee: DigitalEmployee,
+    now: datetime,
+) -> list[dict]:
+    """P3-A: 比较 advance 前后状态，检测转换事件并生成拟人化 chatter。
+
+    返回 chatter 事件列表（可能为空）。每个事件：
+    {employee_id, name, emoji, event_type, text, timestamp}
+    """
+    persona = PERSONA_BY_TYPE.get(
+        employee.employee_type.value, PERSONA_BY_TYPE["custom"],
+    )
+    events: list[dict] = []
+
+    def _emit(event_type: str, text: str):
+        events.append({
+            "employee_id": employee.id,
+            "name": employee.name,
+            "emoji": persona["emoji"],
+            "event_type": event_type,
+            "text": text,
+            "timestamp": now.isoformat(),
+        })
+
+    meta = snap.current_task.metadata if snap.current_task else None
+    project = (meta or {}).get("project_name") or ""
+    report = (meta or {}).get("report_label") or ""
+    work_label = f"【{project}】{report}" if project else (report or snap.current_task.task_name if snap.current_task else "任务")
+
+    # 任务完成（virtual_index 递增）
+    if new_engine.virtual_index > 0 and snap.current_task:
+        if snap.current_task.status.upper() == "FAILED":
+            _emit("task_failed", f"😵 {work_label} 卡住了，需要人帮忙")
+        else:
+            _emit("task_completed", f"✅ 完成了 {work_label}")
+
+    # 新任务开始（之前没有 current_task，现在有了）
+    elif old_state.current_task_id is None and new_engine.current_task_id is not None:
+        _emit("task_started", f"📋 开始处理 {work_label}")
+
+    # 进入停顿（之前没 pause，现在有 pause，且不是因为任务完成）
+    elif old_state.pause_until is None and new_engine.pause_until is not None and new_engine.virtual_index == 0:
+        _emit("pause_started", "🍵 稍作整理，喝口水…")
+
+    # 离线检测
+    if snap.display_status == "OFFLINE" and old_state.last_advanced_at is not None:
+        _emit("went_offline", "🌙 今日工作告一段落")
+
+    return events
+
+
+def advance_employee(db: Session, employee: DigitalEmployee, now: datetime) -> tuple[dict, list[dict]]:
     """推进单个员工的虚拟播放状态。
 
     FIX-2: 只查 virtual_index 之后的待播任务。
     FIX-4: 不自行 commit，由 build_wall_snapshot 统一提交。
+    P3-A: 返回 (snapshot_dict, chatter_events)。
     """
     state, row = _load_state(db, employee.id)
 
@@ -138,6 +194,9 @@ def advance_employee(db: Session, employee: DigitalEmployee, now: datetime) -> d
         employee.last_heartbeat_at,
     )
 
+    # P3-A: 检测状态转换 → chatter 事件
+    chatter = _detect_chatter(state, new_engine, snap, employee, now)
+
     # 映射回绝对 virtual_index
     new_state = PlaybackState(
         employee_id=state.employee_id,
@@ -153,7 +212,7 @@ def advance_employee(db: Session, employee: DigitalEmployee, now: datetime) -> d
     )
     _persist(row, new_state)
 
-    return _enrich(db, employee, snap, now)
+    return _enrich(db, employee, snap, now), chatter
 
 
 def _enrich(db: Session, employee: DigitalEmployee, snap, now: datetime) -> dict:
@@ -192,20 +251,24 @@ def _enrich(db: Session, employee: DigitalEmployee, snap, now: datetime) -> dict
     }
 
 
-def build_wall_snapshot(db: Session, now: datetime) -> list[dict]:
-    """推进所有员工并返回整墙快照。
+def build_wall_snapshot(db: Session, now: datetime) -> tuple[list[dict], list[dict]]:
+    """推进所有员工并返回整墙快照 + chatter 事件。
 
     FIX-4: 用 SAVEPOINT 隔离单员工失败，统一一次 commit。
+    P3-A: 返回 (employees, chatter_events)。
     """
     employees = list(db.execute(
         select(DigitalEmployee).where(DigitalEmployee.is_deleted == 0)
     ).scalars().all())
     results = []
+    all_chatter = []
     for e in employees:
         try:
             with db.begin_nested():  # SAVEPOINT：单员工失败不影响其他
-                results.append(advance_employee(db, e, now))
+                snapshot, chatter = advance_employee(db, e, now)
+                results.append(snapshot)
+                all_chatter.extend(chatter)
         except Exception:
             logger.exception("advance_employee failed for employee %s", e.id)
     db.commit()
-    return results
+    return results, all_chatter

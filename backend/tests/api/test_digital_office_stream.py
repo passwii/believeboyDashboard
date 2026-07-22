@@ -1,8 +1,8 @@
-"""SSE 端点测试（FIX-6）。
+"""SSE 端点测试（FIX-6 + P3-A chatter）。
 
 策略：
-- _build_snapshot_sync：mock SessionLocal + build_wall_snapshot，验证 JSON 格式和 session 关闭。
-- _event_stream：直接驱动 async generator（mock request），验证 SSE 协议格式、keep-alive、错误恢复。
+- _build_tick_sync：mock SessionLocal + build_wall_snapshot，验证 JSON 格式和 session 关闭。
+- _event_stream：直接驱动 async generator（mock request），验证 SSE 协议格式、keep-alive、错误恢复、chatter 事件。
 - 端点注册：验证路由存在 + response headers。
 不依赖 DB，不需要 TEST_DATABASE_URL。
 """
@@ -26,37 +26,65 @@ FAKE_EMPLOYEES = [
     }
 ]
 
+FAKE_CHATTER = [
+    {
+        "employee_id": 1,
+        "name": "报表快递员",
+        "emoji": "📤",
+        "event_type": "task_completed",
+        "text": "✅ 完成了【润茗】Payment Report",
+        "timestamp": "2026-07-22T09:00:00+00:00",
+    }
+]
 
-# ─── _build_snapshot_sync 单测 ────────────────────────────────────────────────
+
+# ─── _build_tick_sync 单测 ────────────────────────────────────────────────────
 
 
-def test_build_snapshot_sync_returns_valid_json():
-    """返回合法 JSON，包含 server_time 和 employees。"""
+def test_build_tick_sync_returns_snapshot_and_chatter():
+    """返回 (snapshot_json, [chatter_json, ...])。"""
     mock_db = MagicMock()
     with (
         patch("app.api.v1.endpoints.digital_office.SessionLocal", return_value=mock_db),
-        patch("app.api.v1.endpoints.digital_office.build_wall_snapshot", return_value=FAKE_EMPLOYEES),
+        patch("app.api.v1.endpoints.digital_office.build_wall_snapshot", return_value=(FAKE_EMPLOYEES, FAKE_CHATTER)),
     ):
-        from app.api.v1.endpoints.digital_office import _build_snapshot_sync
+        from app.api.v1.endpoints.digital_office import _build_tick_sync
 
-        raw = _build_snapshot_sync()
-        data = json.loads(raw)
+        snapshot_json, chatter_jsons = _build_tick_sync()
+        data = json.loads(snapshot_json)
         assert "server_time" in data
         assert data["employees"] == FAKE_EMPLOYEES
+        assert len(chatter_jsons) == 1
+        chatter_data = json.loads(chatter_jsons[0])
+        assert chatter_data["event_type"] == "task_completed"
         mock_db.close.assert_called_once()
 
 
-def test_build_snapshot_sync_closes_session_on_error():
+def test_build_tick_sync_empty_chatter():
+    """无 chatter 事件时返回空列表。"""
+    mock_db = MagicMock()
+    with (
+        patch("app.api.v1.endpoints.digital_office.SessionLocal", return_value=mock_db),
+        patch("app.api.v1.endpoints.digital_office.build_wall_snapshot", return_value=(FAKE_EMPLOYEES, [])),
+    ):
+        from app.api.v1.endpoints.digital_office import _build_tick_sync
+
+        snapshot_json, chatter_jsons = _build_tick_sync()
+        assert chatter_jsons == []
+        mock_db.close.assert_called_once()
+
+
+def test_build_tick_sync_closes_session_on_error():
     """build_wall_snapshot 抛异常时 session 仍然关闭。"""
     mock_db = MagicMock()
     with (
         patch("app.api.v1.endpoints.digital_office.SessionLocal", return_value=mock_db),
         patch("app.api.v1.endpoints.digital_office.build_wall_snapshot", side_effect=RuntimeError("boom")),
     ):
-        from app.api.v1.endpoints.digital_office import _build_snapshot_sync
+        from app.api.v1.endpoints.digital_office import _build_tick_sync
 
         with pytest.raises(RuntimeError, match="boom"):
-            _build_snapshot_sync()
+            _build_tick_sync()
         mock_db.close.assert_called_once()
 
 
@@ -100,7 +128,7 @@ def test_event_stream_emits_snapshot_event():
     request = _make_mock_request(disconnected_after=1)
 
     with (
-        patch("app.api.v1.endpoints.digital_office._build_snapshot_sync", return_value=fake_json),
+        patch("app.api.v1.endpoints.digital_office._build_tick_sync", return_value=(fake_json, [])),
         patch("app.api.v1.endpoints.digital_office.TICK_SECONDS", 0),
     ):
         chunks = asyncio.run(
@@ -114,13 +142,34 @@ def test_event_stream_emits_snapshot_event():
     assert payload["employees"][0]["name"] == "报表快递员"
 
 
+def test_event_stream_emits_chatter_events():
+    """P3-A: snapshot 之后跟 chatter 事件。"""
+    fake_json = json.dumps({"server_time": "x", "employees": FAKE_EMPLOYEES})
+    chatter_json = json.dumps(FAKE_CHATTER[0])
+    request = _make_mock_request(disconnected_after=1)
+
+    with (
+        patch("app.api.v1.endpoints.digital_office._build_tick_sync", return_value=(fake_json, [chatter_json])),
+        patch("app.api.v1.endpoints.digital_office.TICK_SECONDS", 0),
+    ):
+        chunks = asyncio.run(
+            _collect_stream_chunks(request, max_chunks=5)
+        )
+
+    chatter_chunks = [c for c in chunks if c.startswith("event: chatter\n")]
+    assert len(chatter_chunks) == 1, f"expected 1 chatter event, got {chunks}"
+    payload = json.loads(chatter_chunks[0].split("data: ", 1)[1].strip())
+    assert payload["event_type"] == "task_completed"
+    assert "润茗" in payload["text"]
+
+
 def test_event_stream_emits_keep_alive():
     """snapshot 之后必须跟 keep-alive 注释行。"""
     fake_json = json.dumps({"server_time": "x", "employees": []})
     request = _make_mock_request(disconnected_after=1)
 
     with (
-        patch("app.api.v1.endpoints.digital_office._build_snapshot_sync", return_value=fake_json),
+        patch("app.api.v1.endpoints.digital_office._build_tick_sync", return_value=(fake_json, [])),
         patch("app.api.v1.endpoints.digital_office.TICK_SECONDS", 0),
     ):
         chunks = asyncio.run(
@@ -131,7 +180,7 @@ def test_event_stream_emits_keep_alive():
 
 
 def test_event_stream_survives_tick_error():
-    """_build_snapshot_sync 抛异常时发 tick-error 注释行，流不断。"""
+    """_build_tick_sync 抛异常时发 tick-error 注释行，流不断。"""
     fake_json = json.dumps({"server_time": "x", "employees": FAKE_EMPLOYEES})
     call_count = 0
 
@@ -140,12 +189,12 @@ def test_event_stream_survives_tick_error():
         call_count += 1
         if call_count == 1:
             raise RuntimeError("DB exploded")
-        return fake_json
+        return (fake_json, [])
 
     request = _make_mock_request(disconnected_after=2)
 
     with (
-        patch("app.api.v1.endpoints.digital_office._build_snapshot_sync", side_effect=flaky),
+        patch("app.api.v1.endpoints.digital_office._build_tick_sync", side_effect=flaky),
         patch("app.api.v1.endpoints.digital_office.TICK_SECONDS", 0),
     ):
         chunks = asyncio.run(
@@ -164,7 +213,7 @@ def test_event_stream_stops_on_disconnect():
     request = _make_mock_request(disconnected_after=0)
 
     with (
-        patch("app.api.v1.endpoints.digital_office._build_snapshot_sync", return_value=fake_json),
+        patch("app.api.v1.endpoints.digital_office._build_tick_sync", return_value=(fake_json, [])),
         patch("app.api.v1.endpoints.digital_office.TICK_SECONDS", 0),
     ):
         chunks = asyncio.run(

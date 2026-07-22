@@ -124,15 +124,16 @@ def test_advance_employee_returns_snapshot_and_persists_cursor(db_session):
 
     emp = _seed_employee_with_tasks(db_session, task_count=1)
     now = datetime.now(UTC)
-    snap = advance_employee(db_session, emp, now)
+    snap, chatter = advance_employee(db_session, emp, now)
 
     assert snap["employee_id"] == emp.id
     assert snap["display_status"] in ("WORKING", "PAUSING")
     assert snap["work_item"]["project_name"] == "润茗"
     assert snap["persona"]["emoji"] == "📤"
+    assert isinstance(chatter, list)
 
     # 再调一次：游标已持久化，virtual_progress 不回退
-    snap2 = advance_employee(db_session, emp, now + timedelta(seconds=1))
+    snap2, _ = advance_employee(db_session, emp, now + timedelta(seconds=1))
     assert snap2["virtual_progress"] >= snap["virtual_progress"]
 
 
@@ -153,11 +154,13 @@ def test_advance_employee_virtual_index_advances(db_session):
     initial_index = row.virtual_index
 
     # 快进到任务播完（display_duration 最多 2h，给 3h 足够）
-    advance_employee(db_session, emp, now + timedelta(hours=3))
+    _, chatter = advance_employee(db_session, emp, now + timedelta(hours=3))
     db_session.commit()
 
     row = db_session.get(DigitalEmployeePlayback, emp.id)
     assert row.virtual_index > initial_index
+    # P3-A: 任务播完应产生 chatter 事件
+    assert any(c["event_type"] == "task_completed" for c in chatter)
 
 
 def test_today_stats_only_counts_today(db_session):
@@ -200,13 +203,14 @@ def test_build_wall_snapshot_lists_all_active_employees(db_session):
     from app.services.digital.office_service import build_wall_snapshot
 
     _seed_employee_with_tasks(db_session, task_count=1)
-    wall = build_wall_snapshot(db_session, datetime.now(UTC))
+    wall, chatter = build_wall_snapshot(db_session, datetime.now(UTC))
 
     assert isinstance(wall, list)
     assert len(wall) >= 1
     assert "persona" in wall[0]
     assert "display_status" in wall[0]
     assert "today_done" in wall[0]
+    assert isinstance(chatter, list)
 
 
 def test_build_wall_snapshot_skips_deleted_employees(db_session):
@@ -224,6 +228,6 @@ def test_build_wall_snapshot_skips_deleted_employees(db_session):
     db_session.commit()
     db_session.refresh(emp)
 
-    wall = build_wall_snapshot(db_session, datetime.now(UTC))
+    wall, _ = build_wall_snapshot(db_session, datetime.now(UTC))
     employee_ids = [w["employee_id"] for w in wall]
     assert emp.id not in employee_ids

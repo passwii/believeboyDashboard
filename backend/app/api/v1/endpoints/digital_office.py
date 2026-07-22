@@ -6,6 +6,8 @@ FIX-1 重写要点：
 - 每 tick 发 keep-alive 注释行（防代理超时断流）
 - 单 tick 异常不断流（catch + 日志 + 继续）
 - 客户端断连检测（request.is_disconnected）
+
+P3-A: 每 tick 额外推送 chatter 事件（状态转换 → 拟人化动态）。
 """
 import asyncio
 import json
@@ -26,16 +28,24 @@ router = APIRouter(prefix="/digital-employees", tags=["digital-employees"])
 TICK_SECONDS = 3.0
 
 
-def _build_snapshot_sync() -> str:
-    """在线程池中执行：短生命周期 session，构建快照后立即归还连接。"""
+def _build_tick_sync() -> tuple[str, list[str]]:
+    """在线程池中执行：短生命周期 session，构建快照 + chatter 后立即归还连接。
+
+    Returns:
+        (snapshot_json, [chatter_json, ...])
+    """
     db = SessionLocal()
     try:
         now = datetime.now(UTC)
-        employees = build_wall_snapshot(db, now)
-        return json.dumps(
+        employees, chatter = build_wall_snapshot(db, now)
+        snapshot_json = json.dumps(
             {"server_time": now.isoformat(), "employees": employees},
             ensure_ascii=False,
         )
+        chatter_jsons = [
+            json.dumps(evt, ensure_ascii=False) for evt in chatter
+        ]
+        return snapshot_json, chatter_jsons
     finally:
         db.close()
 
@@ -47,8 +57,11 @@ async def _event_stream(request: Request):
         if await request.is_disconnected():
             break
         try:
-            payload = await asyncio.to_thread(_build_snapshot_sync)
-            yield f"event: snapshot\ndata: {payload}\n\n"
+            snapshot_json, chatter_jsons = await asyncio.to_thread(_build_tick_sync)
+            yield f"event: snapshot\ndata: {snapshot_json}\n\n"
+            # P3-A: 推送 chatter 事件（每条独立 event）
+            for cj in chatter_jsons:
+                yield f"event: chatter\ndata: {cj}\n\n"
         except Exception:
             logger.exception("office stream tick failed")
             # 发注释行保持连接，不断流
