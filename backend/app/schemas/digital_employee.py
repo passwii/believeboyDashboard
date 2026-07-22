@@ -127,10 +127,13 @@ class RegisterResponse(BaseModel):
 
 class HeartbeatRequest(BaseModel):
     task_id: str | None = None
+    task_name: str | None = Field(default=None, max_length=256)
+    task_type: str | None = Field(default=None, max_length=64)
     status: TaskStatusSchema | None = None
     progress_percent: int | None = Field(default=None, ge=0, le=100)
     current_step: str | None = None
     message: str | None = None
+    metadata_json: dict | None = None
 
 
 class HeartbeatResponse(BaseModel):

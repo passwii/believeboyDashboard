@@ -202,16 +202,24 @@ def heartbeat(
     employee_id: int,
     api_secret: str | None,
     task_id: str | None = None,
+    task_name: str | None = None,
+    task_type: str | None = None,
     status: str | None = None,
     progress_percent: int | None = None,
     current_step: str | None = None,
     message: str | None = None,
+    metadata_json: dict | None = None,
 ) -> datetime:
     """心跳上报。验证 api_secret，更新任务和员工状态。
+
+    当 task_id 未知且 status=RUNNING 时自动创建任务，透传
+    task_name / task_type / metadata_json 供伸展引擎富化工牌。
 
     Returns:
         确认时间 (UTC datetime)
     """
+    import json as _json
+
     from fastapi import HTTPException
     employee = db.get(DigitalEmployee, employee_id)
     if not employee or employee.is_deleted:
@@ -235,19 +243,24 @@ def heartbeat(
             task.progress_percent = progress_percent
         if current_step is not None:
             task.current_step = current_step
+        # 后续心跳可补充 metadata（首次建 task 时可能还没拿到）
+        if metadata_json is not None:
+            task.metadata_json = _json.dumps(metadata_json, ensure_ascii=False)
+        if status and status.upper() in ("SUCCEEDED", "FAILED", "CANCELLED"):
+            task.ended_at = now
         task.updated_at = now
         employee.status = EmployeeStatus[task.status.name.upper()]
     elif task_id and status and status.upper() == "RUNNING":
         task = DigitalEmployeeTask(
             employee_id=employee_id,
             task_id=task_id,
-            task_name=message or task_id,
-            task_type="unknown",
+            task_name=task_name or message or task_id,
+            task_type=task_type or "unknown",
             status=TaskStatus.RUNNING,
             progress_percent=progress_percent or 0,
             current_step=current_step,
             started_at=now,
-            metadata_json="{}",
+            metadata_json=_json.dumps(metadata_json, ensure_ascii=False) if metadata_json else "{}",
         )
         db.add(task)
         db.flush()

@@ -176,9 +176,12 @@ def heartbeat_endpoint(
         employee_id=employee_id,
         api_secret=api_secret,
         task_id=data.task_id if data else None,
+        task_name=data.task_name if data else None,
+        task_type=data.task_type if data else None,
         status=data.status.value if data and data.status else None,
         progress_percent=data.progress_percent if data else None,
         current_step=data.current_step if data else None,
         message=data.message if data else None,
+        metadata_json=data.metadata_json if data else None,
     )
     return HeartbeatResponse(ok=True, acknowledged_at=now)

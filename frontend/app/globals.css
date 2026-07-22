@@ -687,6 +687,54 @@
     animation: de-running-glow 1.5s ease-in-out infinite;
   }
 
+/* ── Office Badge Wall Animations ─────────────────────────────────────────── */
+
+  /* 呼吸脉动：在岗状态点柔和呼吸 */
+  @keyframes office-breathe {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.25); }
+  }
+
+  /* 忙碌 shimmer：进度条流光加速 */
+  @keyframes office-busy-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* 失败红闪：gentle 不刺眼 */
+  @keyframes office-fail-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(0 84% 60% / 0); }
+    50% { box-shadow: 0 0 12px 2px hsl(0 84% 60% / 0.15); }
+  }
+
+  .office-breathe {
+    animation: office-breathe 2.4s ease-in-out infinite;
+  }
+
+  .office-busy-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.25) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: office-busy-shimmer 1.2s linear infinite;
+  }
+
+  .office-fail-pulse {
+    animation: office-fail-pulse 2s ease-in-out infinite;
+  }
+
+  /* prefers-reduced-motion：关闭所有工牌墙动效 */
+  @media (prefers-reduced-motion: reduce) {
+    .office-breathe,
+    .office-busy-shimmer,
+    .office-fail-pulse {
+      animation: none !important;
+    }
+  }
+
   .web-search-toggle {
     transition:
       background-color var(--motion-fast) var(--motion-ease-out),
