@@ -228,4 +228,9 @@ __all__ = [
     'VatEntity',
     'VatInvoice',
     'VatInvoiceLine',
+    'CrmCustomer',
+    'CrmContact',
+    'CrmLead',
+    'CrmOpportunity',
+    'CrmFollow',
 ]

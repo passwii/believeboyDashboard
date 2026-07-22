@@ -115,11 +115,11 @@
 - 创建：`backend/alembic/versions/20260722_300_add_crm_tables.py`
 - 修改：`backend/app/models/__init__.py`
 
-- [ ] **步骤 1：验证 `/api/v1` 挂载前缀**
+- [x] **步骤 1：验证 `/api/v1` 挂载前缀**
 
 读 `backend/app/main.py`，确认 `app.include_router(api_router, prefix="/api/v1", ...)`。记录实际前缀；若非 `/api/v1`，本计划所有 `/api/v1/crm/...` 路径按实际前缀替换。
 
-- [ ] **步骤 2：编写模型 `backend/app/models/crm.py`**
+- [x] **步骤 2：编写模型 `backend/app/models/crm.py`**
 
 ```python
 """CRM domain models (customer / contact / lead / opportunity / follow)."""
@@ -326,7 +326,7 @@ class CrmFollow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 ```
 
-- [ ] **步骤 3：在 `backend/app/models/__init__.py` 导出模型**
+- [x] **步骤 3：在 `backend/app/models/__init__.py` 导出模型**
 
 在文件末尾追加（保持现有 import 风格）：
 
@@ -340,7 +340,7 @@ from app.models.crm import (  # noqa: F401,E402
 )
 ```
 
-- [ ] **步骤 4：编写迁移 `backend/alembic/versions/20260722_300_add_crm_tables.py`**
+- [x] **步骤 4：编写迁移 `backend/alembic/versions/20260722_crm_tables_add_crm_tables.py`**（revision id 按新约定取 `20260722_crm_tables`，非序号 300）
 
 ```python
 """add crm tables (customer/contact/lead/opportunity/follow)
@@ -492,7 +492,7 @@ def downgrade() -> None:
 
 > **注意**：`down_revision` 须指向当前最新 head。运行 `cd backend && alembic heads` 确认；若 head 不是 `20260718_214_...`，把 `down_revision` 改为实际 head 的 revision id。
 
-- [ ] **步骤 5：在测试库应用迁移并验证**
+- [x] **步骤 5：在测试库应用迁移并验证**
 
 运行：`cd backend && alembic upgrade head`（针对 `TEST_DATABASE_URL`，确认 `.env.test` 已加载或临时 `export`）
 预期：5 张 `crm_*` 表创建成功，无报错。

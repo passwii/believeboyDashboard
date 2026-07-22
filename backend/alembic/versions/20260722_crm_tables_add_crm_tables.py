@@ -10,19 +10,16 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "20260722_300"
+revision: str = "20260722_crm_tables"
 down_revision: Union[str, None] = "20260718_214"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def _pk() -> sa.Column:
-    return sa.Column(
-        "id",
-        sa.BigInteger().with_variant(sa.Integer, "sqlite"),
-        primary_key=True,
-        autoincrement=True,
-    )
+    # 与模型 (app/models/crm.py) 及屋风 (alert_rule.py) 保持一致：Integer 主键。
+    # 勿用 BigInteger —— 会与模型 id: Mapped[int] = mapped_column(Integer) 及 Integer 外键不一致。
+    return sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True)
 
 
 def _timestamps() -> list[sa.Column]:
