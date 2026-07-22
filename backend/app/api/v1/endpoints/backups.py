@@ -16,12 +16,12 @@ from app.schemas.backup import (
     BackupVerifyResponse,
 )
 from app.services.backup_service import (
+    enqueue_backup,
     get_backup_records,
     get_backup_status_summary,
     get_raw_backup_info,
     is_backup_configured,
     is_pgbackrest_available,
-    trigger_backup,
     verify_backups,
 )
 
@@ -88,7 +88,7 @@ def trigger_backup_endpoint(
         except (ValueError, TypeError):
             pass
 
-    record, message = trigger_backup(db, data.backup_type, user_id)
+    record, message = enqueue_backup(db, data.backup_type, user_id)
 
     return BackupTriggerResponse(
         id=record.id,
