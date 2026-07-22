@@ -15,6 +15,7 @@ from app.schemas.backup import (
     BackupTriggerResponse,
     BackupVerifyResponse,
 )
+from app.models.backup_record import BackupRecord
 from app.services.backup_service import (
     enqueue_backup,
     get_backup_records,
@@ -130,3 +131,16 @@ def check_backup_health() -> dict:
         return {"status": "unconfigured", "message": msg}
 
     return {"status": "ready", "message": msg}
+
+
+@router.get("/{record_id}", response_model=BackupRecordItem)
+def get_backup_record(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupRecordItem:
+    """单条备份记录详情（含 phase / R2 字段），供前端轮询。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    return BackupRecordItem.model_validate(record)
