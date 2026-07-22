@@ -20,7 +20,50 @@
  */
 
 import type { ServerChatMessage, SearchSource, SearchTimeRange } from './ai-chat'
-import type { StreamCallbacks, StreamDonePayload, StreamUsage, StreamToolState } from './ai-chat-stream'
+
+// ── Shared stream types (migrated from ai-chat-stream.ts) ──
+
+export type StreamUsage = {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
+export type StreamToolState = {
+  toolCallsCount: number
+  searching: boolean
+  done: boolean
+}
+
+export type StreamDonePayload = {
+  userMessage: ServerChatMessage
+  assistantMessage: ServerChatMessage
+  conversationTitle: string | null
+  tokenUsage: StreamUsage | null
+  /**
+   * Conversation-level cumulative token usage (prompt / completion / total).
+   * The backend emits this in the `done` event; we surface it for sidebar
+   * totals and other future UI. Optional so the consumer can ignore it
+   * without an extra type guard.
+   */
+  conversationTokenUsage?: StreamUsage | null
+  durationMs: number | null
+  titleRegenerated: boolean
+}
+
+export type StreamCallbacks = {
+  onStart?: () => void
+  onChunk?: (delta: string) => void
+  onThinking?: (delta: string) => void
+  onSources?: (
+    sources: SearchSource[],
+    meta?: { timeRange?: SearchTimeRange; query?: string }
+  ) => void
+  onUsage?: (usage: StreamUsage) => void
+  onToolState?: (state: StreamToolState) => void
+  onDone?: (payload: StreamDonePayload) => void
+  onError?: (message: string) => void
+}
 
 // ── V2 Protocol Types ──
 

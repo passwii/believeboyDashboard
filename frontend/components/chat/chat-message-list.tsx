@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Brain, Bot, Globe, RefreshCw, Sparkles, User } from 'lucide-react'
+import { Brain, Bot, Check, Globe, RefreshCw, Sparkles, User, X } from 'lucide-react'
 import gsap from 'gsap'
 import { AIChatMessageContent } from '@/components/ai-chat-message-content'
 import { AIChatSearchSources } from '@/components/ai-chat-search-sources'
@@ -15,6 +15,12 @@ interface ChatMessageListProps {
   onRegenerate?: (messageId: string) => void
   onEdit?: (messageId: string) => void
   onDelete?: (messageId: string) => void
+  /** ID of the message currently in inline-edit mode (user messages only). */
+  editingMessageId?: string | null
+  /** Called when the user saves an inline edit. */
+  onEditSave?: (messageId: string, newContent: string) => void
+  /** Called when the user cancels an inline edit. */
+  onEditCancel?: () => void
   /** Top-level stream error (network failure, backend down, etc.) — shown
    *  next to the most recent assistant message with a retry CTA. */
   streamError?: string | null
@@ -69,11 +75,76 @@ function ThinkingBlock({ content }: { content: string }) {
   )
 }
 
+function UserMessageEdit({
+  initialContent,
+  onSave,
+  onCancel,
+}: {
+  initialContent: string
+  onSave: (content: string) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState(initialContent)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (el) {
+      el.focus()
+      el.selectionStart = el.selectionEnd = el.value.length
+    }
+  }, [])
+
+  const handleSave = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== initialContent) onSave(trimmed)
+    else onCancel()
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        ref={textareaRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave()
+          if (e.key === 'Escape') onCancel()
+        }}
+        rows={Math.min(6, Math.max(2, draft.split('\n').length))}
+        className="w-full resize-none rounded-xl border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-[15px] leading-7 text-white outline-none placeholder:text-[#4a4a4f] focus:border-blue-500/50 focus:bg-white/[0.06] transition-colors"
+      />
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="flex items-center gap-1 rounded-lg bg-blue-600/80 px-2.5 py-1 text-xs text-white hover:bg-blue-600 transition-colors"
+        >
+          <Check className="size-3" />
+          保存
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex items-center gap-1 rounded-lg bg-white/[0.06] px-2.5 py-1 text-xs text-[#8a8a8f] hover:bg-white/[0.1] hover:text-white transition-colors"
+        >
+          <X className="size-3" />
+          取消
+        </button>
+        <span className="ml-1 text-[10px] text-[#3a3a3f]">⌘Enter 保存 · Esc 取消</span>
+      </div>
+    </div>
+  )
+}
+
 export function ChatMessageList({
   messages,
   onRegenerate,
   onEdit,
   onDelete,
+  editingMessageId,
+  onEditSave,
+  onEditCancel,
   streamError,
   onRetry,
   pendingSearchState,
@@ -180,9 +251,17 @@ export function ChatMessageList({
                 ) : null}
 
                 {msg.role === 'user' ? (
-                  <p className="whitespace-pre-wrap break-words text-[15px] sm:text-base leading-7 sm:leading-[1.75] text-white">
-                    {msg.content}
-                  </p>
+                  editingMessageId === msg.id && onEditSave && onEditCancel ? (
+                    <UserMessageEdit
+                      initialContent={msg.content}
+                      onSave={(content) => onEditSave(msg.id, content)}
+                      onCancel={onEditCancel}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-[15px] sm:text-base leading-7 sm:leading-[1.75] text-white">
+                      {msg.content}
+                    </p>
+                  )
                 ) : msg.content ? (
                   <AIChatMessageContent
                     content={msg.content}

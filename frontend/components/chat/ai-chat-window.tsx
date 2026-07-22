@@ -25,6 +25,7 @@ import {
   createConversation,
   deleteConversation,
   deleteMessage,
+  editMessage,
   getMessages,
   listConversations,
   renameConversation,
@@ -584,8 +585,36 @@ export function AIChatWindow({
     ]
   )
 
-  const handleEditMessage = useCallback((_messageId: string) => {
-    // TODO: wire to a real PATCH /messages/{id} once the backend ships it.
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+
+  const handleEditMessage = useCallback((messageId: string) => {
+    setEditingMessageId(messageId)
+  }, [])
+
+  const handleEditSave = useCallback(
+    async (messageId: string, newContent: string) => {
+      setEditingMessageId(null)
+      const target = messages.find((m) => m.id === messageId)
+      if (!target?.serverId || activeServerId == null) return
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, content: newContent } : m))
+      )
+      try {
+        await editMessage(activeServerId, target.serverId, newContent)
+      } catch (err) {
+        console.error('[ai-chat] editMessage failed', err)
+        // Revert on failure
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, content: target.content } : m))
+        )
+      }
+    },
+    [activeServerId, messages]
+  )
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMessageId(null)
   }, [])
 
   const handleDeleteMessage = useCallback(
@@ -867,6 +896,9 @@ export function AIChatWindow({
                 onRegenerate={handleRegenerateMessage}
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
+                editingMessageId={editingMessageId}
+                onEditSave={handleEditSave}
+                onEditCancel={handleEditCancel}
                 streamError={streamError}
                 pendingSearchState={
                   toolState ? { searching: toolState.searching, sources: pendingSources } : null

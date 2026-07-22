@@ -167,6 +167,20 @@ export async function getMessages(
   return handleJson<ServerChatMessage[]>(res, '加载消息失败')
 }
 
+export async function editMessage(
+  conversationId: number,
+  messageId: number,
+  content: string
+): Promise<ServerChatMessage> {
+  const res = await fetch(`/api/ai-chat/conversations/${conversationId}/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+    cache: 'no-store',
+  })
+  return handleJson<ServerChatMessage>(res, '编辑消息失败')
+}
+
 export async function deleteMessage(conversationId: number, messageId: number): Promise<void> {
   const res = await fetch(`/api/ai-chat/conversations/${conversationId}/messages/${messageId}`, {
     method: 'DELETE',

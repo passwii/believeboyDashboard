@@ -20,7 +20,7 @@ import type {
   StreamCallbacks,
   StreamDonePayload,
   StreamUsage,
-} from '@/lib/api/ai-chat-stream'
+} from '@/lib/api/ai-chat-stream-v2'
 import type { SearchSource } from '@/lib/api/ai-chat'
 
 export type ChatStreamOptions = {
