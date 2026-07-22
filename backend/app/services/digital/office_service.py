@@ -1,7 +1,14 @@
+"""虚拟办公室编排：读真实任务 → 伸展引擎 advance → 持久化游标 → 富化展示字段。
+
+FIX-2: 只查 virtual_index 之后的待播任务，不加载全量历史。
+FIX-3: today_done / success_rate 只统计当日任务。
+FIX-4: advance_employee 不自行 commit，由 build_wall_snapshot 统一提交。
+"""
 from __future__ import annotations
 
 import json
-from datetime import datetime, UTC
+import logging
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +22,8 @@ from app.services.digital.playback_engine import (
     advance,
 )
 
+logger = logging.getLogger(__name__)
+
 PERSONA_BY_TYPE = {
     "auto_report_upload": {"emoji": "📤", "color_key": "blue", "tagline": "报表快递员"},
     "scheduled_job": {"emoji": "⏰", "color_key": "orange", "tagline": "定时指挥官"},
@@ -24,6 +33,9 @@ PERSONA_BY_TYPE = {
     "database": {"emoji": "🗄️", "color_key": "slate", "tagline": "数据库守护者"},
     "custom": {"emoji": "⚙️", "color_key": "gray", "tagline": "自定义任务"},
 }
+
+# 每次 advance 最多加载的待播任务数（防止历史任务无限增长拖慢查询）
+MAX_PENDING_TASKS = 200
 
 
 def _load_state(db: Session, employee_id: int) -> tuple[PlaybackState, DigitalEmployeePlayback]:
@@ -72,25 +84,84 @@ def _to_real_tasks(rows: list[DigitalEmployeeTask]) -> list[RealTask]:
     return out
 
 
+def _today_stats(db: Session, employee_id: int, now: datetime) -> tuple[int, float]:
+    """FIX-3: 只统计当日任务。返回 (today_done, success_rate)。"""
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = db.execute(
+        select(DigitalEmployeeTask.status)
+        .where(
+            DigitalEmployeeTask.employee_id == employee_id,
+            DigitalEmployeeTask.started_at >= today_start,
+        )
+    ).scalars().all()
+    total = len(rows)
+    if total == 0:
+        return 0, 1.0
+    succeeded = sum(
+        1 for s in rows if (s.value if hasattr(s, "value") else str(s)) == "succeeded"
+    )
+    return succeeded, round(succeeded / total, 2)
+
+
 def advance_employee(db: Session, employee: DigitalEmployee, now: datetime) -> dict:
+    """推进单个员工的虚拟播放状态。
+
+    FIX-2: 只查 virtual_index 之后的待播任务。
+    FIX-4: 不自行 commit，由 build_wall_snapshot 统一提交。
+    """
     state, row = _load_state(db, employee.id)
-    task_rows = list(db.execute(
+
+    # FIX-2: 只加载尚未播完的任务（跳过已播完的历史）
+    pending_rows = list(db.execute(
         select(DigitalEmployeeTask)
         .where(DigitalEmployeeTask.employee_id == employee.id)
         .order_by(DigitalEmployeeTask.started_at.asc())
+        .offset(state.virtual_index)
+        .limit(MAX_PENDING_TASKS)
     ).scalars().all())
-    new_state, snap = advance(state, _to_real_tasks(task_rows), now, DEFAULT_CONFIG, employee.last_heartbeat_at)
+
+    # 引擎以 virtual_index=0 视角处理这批任务
+    engine_state = PlaybackState(
+        employee_id=state.employee_id,
+        virtual_index=0,
+        current_task_id=state.current_task_id,
+        virtual_progress=state.virtual_progress,
+        display_started_at=state.display_started_at,
+        display_duration_s=state.display_duration_s,
+        pause_until=state.pause_until,
+        pace=state.pace,
+        busy_level=state.busy_level,
+        last_advanced_at=state.last_advanced_at,
+    )
+    new_engine, snap = advance(
+        engine_state, _to_real_tasks(pending_rows), now, DEFAULT_CONFIG,
+        employee.last_heartbeat_at,
+    )
+
+    # 映射回绝对 virtual_index
+    new_state = PlaybackState(
+        employee_id=state.employee_id,
+        virtual_index=state.virtual_index + new_engine.virtual_index,
+        current_task_id=new_engine.current_task_id,
+        virtual_progress=new_engine.virtual_progress,
+        display_started_at=new_engine.display_started_at,
+        display_duration_s=new_engine.display_duration_s,
+        pause_until=new_engine.pause_until,
+        pace=new_engine.pace,
+        busy_level=new_engine.busy_level,
+        last_advanced_at=new_engine.last_advanced_at,
+    )
     _persist(row, new_state)
-    db.commit()
-    return _enrich(employee, snap, task_rows)
+
+    return _enrich(db, employee, snap, now)
 
 
-def _enrich(employee: DigitalEmployee, snap, task_rows: list[DigitalEmployeeTask]) -> dict:
-    persona = dict(PERSONA_BY_TYPE.get(employee.employee_type.value, PERSONA_BY_TYPE["custom"]))
+def _enrich(db: Session, employee: DigitalEmployee, snap, now: datetime) -> dict:
+    persona = dict(PERSONA_BY_TYPE.get(
+        employee.employee_type.value, PERSONA_BY_TYPE["custom"],
+    ))
     meta = snap.current_task.metadata if snap.current_task else None
-    today_done = sum(1 for t in task_rows if (t.status.value if hasattr(t.status, "value") else t.status) == "succeeded")
-    total = len(task_rows) or 1
-    succeeded = today_done
+    today_done, success_rate = _today_stats(db, employee.id, now)
     return {
         "employee_id": employee.id,
         "name": employee.name,
@@ -100,20 +171,41 @@ def _enrich(employee: DigitalEmployee, snap, task_rows: list[DigitalEmployeeTask
         "queued_count": snap.queued_count,
         "pace": snap.pace,
         "current_task": (
-            {"task_id": snap.current_task.task_id, "task_name": snap.current_task.task_name, "status": snap.current_task.status}
+            {
+                "task_id": snap.current_task.task_id,
+                "task_name": snap.current_task.task_name,
+                "status": snap.current_task.status,
+            }
             if snap.current_task else None
         ),
-        "work_item": {"project_name": (meta or {}).get("project_name"), "report_label": (meta or {}).get("report_label")},
+        "work_item": {
+            "project_name": (meta or {}).get("project_name"),
+            "report_label": (meta or {}).get("report_label"),
+        },
         "virtual_progress": snap.virtual_progress,
         "step_label": snap.step_label,
         "today_done": today_done,
-        "success_rate": round(succeeded / total, 2),
-        "last_heartbeat_at": employee.last_heartbeat_at.isoformat() if employee.last_heartbeat_at else None,
+        "success_rate": success_rate,
+        "last_heartbeat_at": (
+            employee.last_heartbeat_at.isoformat() if employee.last_heartbeat_at else None
+        ),
     }
 
 
 def build_wall_snapshot(db: Session, now: datetime) -> list[dict]:
+    """推进所有员工并返回整墙快照。
+
+    FIX-4: 用 SAVEPOINT 隔离单员工失败，统一一次 commit。
+    """
     employees = list(db.execute(
         select(DigitalEmployee).where(DigitalEmployee.is_deleted == 0)
     ).scalars().all())
-    return [advance_employee(db, e, now) for e in employees]
+    results = []
+    for e in employees:
+        try:
+            with db.begin_nested():  # SAVEPOINT：单员工失败不影响其他
+                results.append(advance_employee(db, e, now))
+        except Exception:
+            logger.exception("advance_employee failed for employee %s", e.id)
+    db.commit()
+    return results

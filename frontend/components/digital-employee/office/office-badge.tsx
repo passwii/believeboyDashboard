@@ -43,7 +43,7 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
 
       <div className="min-h-[3.5rem]">
         <p className="dashboard-kicker">正在处理</p>
-        <p className="dashboard-display text-foreground" style={{ fontSize: 'clamp(1.25rem, 2vw, 1.6rem)' }}>{hero}</p>
+        <p className="dashboard-display text-foreground text-[clamp(1.25rem,2vw,1.6rem)]">{hero}</p>
       </div>
 
       <div>

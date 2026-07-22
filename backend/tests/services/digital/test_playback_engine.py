@@ -1,7 +1,10 @@
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from app.services.digital.playback_engine import (
     PlaybackConfig,
+    PlaybackState,
+    RealTask,
+    advance,
     classify_busy,
     compute_pace,
     stretch_duration_s,
@@ -38,13 +41,6 @@ def test_classify_busy_levels():
     assert classify_busy(2, 1.0) == "NORMAL"
     assert classify_busy(4, 2.0) == "BUSY"
     assert classify_busy(10, 5.0) == "SWAMPED"
-
-
-from app.services.digital.playback_engine import (
-    PlaybackState,
-    RealTask,
-    advance,
-)
 
 
 def _task(task_id="t1", status="RUNNING", started=T0, ended=None, step=None, meta=None):
