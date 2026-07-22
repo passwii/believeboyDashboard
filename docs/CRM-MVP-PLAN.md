@@ -4,6 +4,7 @@
 > **版本**：v1.2 · 2026-07-18（对照 CordysCRM 评估后小修，见 §17）
 > **作者**：Claude (ZCode) · 用户最终审阅
 > **关联**：[`docs/cordys-crm-analysis.md`](./cordys-crm-analysis.md)（调研参考 · 不再是事实权威；偏差见 [附录 D](#附录-d与上游分析文档的偏差)）
+> **基础版（P1+）**：本文件记录的 MVP 即基础版路线图的 **P0（已完成）**；P1 起以 [`CRM-BASIC-PLAN.md`](./CRM-BASIC-PLAN.md) 为权威。
 > **维护规则**：每个 Phase 结束或每日开工前更新「进度日志」+ 把对应复选框打勾。
 
 ---
