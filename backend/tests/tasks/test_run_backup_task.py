@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 import pytest
 from sqlalchemy import text
 
-from app.celery_tasks.backup import run_backup_task
+from app.celery_tasks.backup import run_backup_task, schedule_daily_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus
 
 
@@ -86,3 +86,16 @@ def test_success_with_r2_advances_through_upload_phases(db_session):
     mock_archive.assert_called_once_with("20260722-030000F", rec.id)
     mock_upload.assert_called_once()
     assert result["status"] == "completed"
+
+
+def test_schedule_daily_backup_task_creates_auto_record(db_session):
+    """schedule_daily_backup_task: INSERT triggered_by='auto' / created_by=null 记录 + run_backup_task.delay。"""
+    with patch("app.services.backup_service.run_backup_task") as mock_task:
+        result = schedule_daily_backup_task.apply(throw=True).result
+    mock_task.delay.assert_called_once_with(result["record_id"])
+    db_session.expire_all()
+    rec = db_session.get(BackupRecord, result["record_id"])
+    assert rec is not None
+    assert rec.triggered_by == "auto"
+    assert rec.backup_type == "full"
+    assert rec.created_by is None

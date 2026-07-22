@@ -118,6 +118,7 @@ def enqueue_backup(
     backup_type: str,
     user_id: int | None = None,
     settings: Settings | None = None,
+    triggered_by: str = "manual",
 ) -> tuple[BackupRecord, str]:
     """API 端入口: INSERT backup_records + 入队 Celery task (§3.1 P0-1).
 
@@ -133,7 +134,7 @@ def enqueue_backup(
         backup_type=backup_type,
         status=BackupStatus.PENDING.value,
         phase="pending",
-        triggered_by="manual",
+        triggered_by=triggered_by,
         started_at=datetime.now(),
         created_by=user_id,
     )

@@ -128,3 +128,17 @@ def run_backup_task(self, record_id: int) -> dict:
         record.error_message = stderr or stdout
         db.commit()
         return {"record_id": record_id, "status": "failed", "error": record.error_message}
+
+
+@shared_task(name="app.celery_tasks.backup.schedule_daily_backup_task")
+def schedule_daily_backup_task(backup_type: str = "full", triggered_by: str = "auto") -> dict:
+    """Celery Beat 入口 (§3.6): 创建一条自动备份记录并入队 run_backup_task。
+
+    thin wrapper — 真正的备份由 run_backup_task 在 backups 队列执行。
+    """
+    from app.services.backup_service import enqueue_backup
+
+    with SessionLocal() as db:
+        record, _ = enqueue_backup(db, backup_type=backup_type, user_id=None, triggered_by=triggered_by)
+        db.commit()
+        return {"record_id": record.id, "status": record.status}
