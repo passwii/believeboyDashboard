@@ -63,12 +63,26 @@ export const PERSONA_MAP: Record<string, PersonaConfig> = {
   },
 }
 
+const PERSONA_HUES: Record<string, string> = {
+  blue: '217 91% 60%',
+  orange: '25 95% 53%',
+  violet: '258 90% 66%',
+  emerald: '160 84% 39%',
+  pink: '330 81% 60%',
+  slate: '210 16% 47%',
+  gray: '220 9% 46%',
+}
+
+const FALLBACK_HUE = PERSONA_HUES.slate
+
 export function getPersonaGradient(colorKey: string): string {
-  return `linear-gradient(135deg, hsl(var(--${colorKey}-500)/.08) 0%, hsl(var(--${colorKey}-500)/.03) 100%)`
+  const hue = PERSONA_HUES[colorKey] ?? FALLBACK_HUE
+  return `linear-gradient(135deg, hsl(${hue} / 0.08) 0%, hsl(${hue} / 0.03) 100%)`
 }
 
 export function getPersonaBorder(colorKey: string): string {
-  return `hsl(var(--${colorKey}-500)/.2)`
+  const hue = PERSONA_HUES[colorKey] ?? FALLBACK_HUE
+  return `hsl(${hue} / 0.2)`
 }
 
 export function getPersona(employeeType: string): PersonaConfig {

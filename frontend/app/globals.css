@@ -975,10 +975,10 @@
  .sidebar-panel-shell {
  width: var(--sidebar-panel-width,240px);
  transform: translateX(var(--sidebar-panel-translate,0));
- transition:
- transform240ms cubic-bezier(0.22,1.18,0.36,1),
- width240ms cubic-bezier(0.22,1.18,0.36,1),
- opacity240ms ease-out;
+  transition:
+  transform 240ms cubic-bezier(0.22,1.18,0.36,1),
+  width 240ms cubic-bezier(0.22,1.18,0.36,1),
+  opacity 240ms ease-out;
  will-change: transform, width;
  }
 
