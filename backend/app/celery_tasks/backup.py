@@ -142,3 +142,36 @@ def schedule_daily_backup_task(backup_type: str = "full", triggered_by: str = "a
         record, _ = enqueue_backup(db, backup_type=backup_type, user_id=None, triggered_by=triggered_by)
         db.commit()
         return {"record_id": record.id, "status": record.status}
+
+
+@shared_task(name="app.celery_tasks.backup.cleanup_r2_task")
+def cleanup_r2_task() -> dict:
+    """R2 保留策略 (§3.7): 仅保留最近 N 份已上传 R2 的备份，其余删 R2 对象 + 写 r2_deleted_at。
+
+    N = settings.backup_r2_retention_count（默认 7，与本地 retention-full 对齐）。
+    记录行不删，仅写 r2_deleted_at 留审计。
+    """
+    from app.core.config import get_settings
+    from app.services.r2_service import try_delete_file_from_r2
+
+    settings = get_settings()
+    retention = settings.backup_r2_retention_count
+
+    with SessionLocal() as db:
+        rows = db.execute(
+            select(BackupRecord)
+            .where(BackupRecord.r2_uploaded_at.is_not(None))
+            .where(BackupRecord.r2_deleted_at.is_(None))
+            .order_by(BackupRecord.r2_uploaded_at.desc())
+        ).scalars().all()
+
+        kept = deleted = 0
+        for idx, record in enumerate(rows):
+            if idx < retention:
+                kept += 1
+                continue
+            if try_delete_file_from_r2(settings, record.r2_key).success:
+                record.r2_deleted_at = datetime.now()
+                deleted += 1
+        db.commit()
+        return {"kept": kept, "deleted": deleted, "total": len(rows)}

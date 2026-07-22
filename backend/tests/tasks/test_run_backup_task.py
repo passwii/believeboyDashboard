@@ -6,14 +6,14 @@ task 用独立 SessionLocal 会话 commit（跨会话可见需真提交），故
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 
-from app.celery_tasks.backup import run_backup_task, schedule_daily_backup_task
+from app.celery_tasks.backup import cleanup_r2_task, run_backup_task, schedule_daily_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus
 
 
@@ -99,3 +99,36 @@ def test_schedule_daily_backup_task_creates_auto_record(db_session):
     assert rec.triggered_by == "auto"
     assert rec.backup_type == "full"
     assert rec.created_by is None
+
+
+def test_cleanup_r2_task_keeps_n_deletes_rest(db_session):
+    """塞 12 条已上传 R2 的记录，retention=7 → 留 7 删 5，被删的写 r2_deleted_at。"""
+    base = datetime.now(timezone.utc)
+    for i in range(12):
+        db_session.add(
+            BackupRecord(
+                backup_type="full",
+                status="completed",
+                phase="completed",
+                triggered_by="auto",
+                started_at=base,
+                r2_key=f"db-backups/pgbackrest/blf_2026-07-{i + 1:02d}_full_{i}.tar.gz",
+                r2_uploaded_at=base - timedelta(hours=i),
+            )
+        )
+    db_session.commit()
+
+    fake_settings = Mock(backup_r2_retention_count=7)
+    with patch("app.core.config.get_settings", return_value=fake_settings), \
+         patch("app.services.r2_service.try_delete_file_from_r2", return_value=Mock(success=True)) as mock_del:
+        result = cleanup_r2_task.apply(throw=True).result
+
+    assert result["total"] == 12
+    assert result["kept"] == 7
+    assert result["deleted"] == 5
+    assert mock_del.call_count == 5
+    db_session.expire_all()
+    deleted_rows = db_session.execute(
+        select(BackupRecord).where(BackupRecord.r2_deleted_at.is_not(None))
+    ).scalars().all()
+    assert len(deleted_rows) == 5
