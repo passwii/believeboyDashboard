@@ -50,6 +50,19 @@ def _get_pgbackrest_info() -> tuple[bool, str, list[dict]]:
         return True, stdout, []
 
 
+def _run_pgbackrest_backup(backup_type: str) -> tuple[int, str, str]:
+    """Worker 内执行一次 pgbackrest backup，返回 (returncode, stdout, stderr)。"""
+    backup_args = [
+        "backup",
+        "--stanza=blf",
+        f"--type={backup_type}",
+        "--log-level-console=info",
+        "--log-level-file=info",
+        "--log-path=/var/log/pgbackrest",
+    ]
+    return _run_pgbackrest(backup_args, timeout=7200)
+
+
 def enqueue_backup(
     db: Session,
     backup_type: str,
