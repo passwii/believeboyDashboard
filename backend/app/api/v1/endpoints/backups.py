@@ -12,6 +12,7 @@ from app.schemas.backup import (
     BackupInfoResponse,
     BackupRecordItem,
     BackupRecordListResponse,
+    BackupRestoreCommandResponse,
     BackupStatusSummary,
     BackupTriggerRequest,
     BackupTriggerResponse,
@@ -164,3 +165,22 @@ def get_backup_download_url(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return BackupDownloadUrlResponse(url=url)
+
+
+@router.get("/{record_id}/restore-command", response_model=BackupRestoreCommandResponse)
+def get_backup_restore_command(
+    record_id: int,
+    target_time: str | None = None,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupRestoreCommandResponse:
+    """生成可复制的 pgbackrest restore 命令文本（不执行）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    if not record.backup_set_name:
+        raise HTTPException(status_code=400, detail="该备份无 pgbackrest set，无法生成恢复命令")
+    command = f"pgbackrest restore --stanza=blf --set={record.backup_set_name}"
+    if target_time:
+        command += f" --type=time --target={target_time} --target-action=pause"
+    return BackupRestoreCommandResponse(command=command, set_name=record.backup_set_name)

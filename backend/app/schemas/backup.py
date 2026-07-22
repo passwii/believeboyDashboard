@@ -79,3 +79,9 @@ class BackupVerifyResponse(BaseModel):
 class BackupDownloadUrlResponse(BaseModel):
     """R2 presigned 下载链接。"""
     url: str
+
+
+class BackupRestoreCommandResponse(BaseModel):
+    """pgbackrest restore 命令预览（不执行）。"""
+    command: str
+    set_name: str

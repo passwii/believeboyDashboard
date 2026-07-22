@@ -11,7 +11,11 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.endpoints.backups import get_backup_download_url, get_backup_record
+from app.api.v1.endpoints.backups import (
+    get_backup_download_url,
+    get_backup_record,
+    get_backup_restore_command,
+)
 from app.models.backup_record import BackupRecord
 
 
@@ -64,4 +68,29 @@ def test_download_url_400_when_not_uploaded():
          patch("app.api.v1.endpoints.backups.get_settings"):
         with pytest.raises(HTTPException) as exc:
             get_backup_download_url(record_id=1, db=db, _=True)
+    assert exc.value.status_code == 400
+
+
+def test_restore_command_includes_set_name_and_target():
+    db = Mock()
+    db.get.return_value = _record(id=1, backup_set_name="20260722-030000F")
+    resp = get_backup_restore_command(record_id=1, target_time="2026-07-22T10:00:00Z", db=db, _=True)
+    assert resp.set_name == "20260722-030000F"
+    assert "--set=20260722-030000F" in resp.command
+    assert "--target=2026-07-22T10:00:00Z" in resp.command
+
+
+def test_restore_command_without_target_time():
+    db = Mock()
+    db.get.return_value = _record(id=1, backup_set_name="20260722-030000F")
+    resp = get_backup_restore_command(record_id=1, target_time=None, db=db, _=True)
+    assert "--set=20260722-030000F" in resp.command
+    assert "--target" not in resp.command
+
+
+def test_restore_command_400_when_no_set():
+    db = Mock()
+    db.get.return_value = _record(id=1, backup_set_name=None)
+    with pytest.raises(HTTPException) as exc:
+        get_backup_restore_command(record_id=1, db=db, _=True)
     assert exc.value.status_code == 400
