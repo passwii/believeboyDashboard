@@ -237,6 +237,21 @@ def heartbeat(
             task.current_step = current_step
         task.updated_at = now
         employee.status = EmployeeStatus[task.status.name.upper()]
+    elif task_id and status and status.upper() == "RUNNING":
+        task = DigitalEmployeeTask(
+            employee_id=employee_id,
+            task_id=task_id,
+            task_name=message or task_id,
+            task_type="unknown",
+            status=TaskStatus.RUNNING,
+            progress_percent=progress_percent or 0,
+            current_step=current_step,
+            started_at=now,
+            metadata_json="{}",
+        )
+        db.add(task)
+        db.flush()
+        employee.status = EmployeeStatus.RUNNING
 
     if message:
         log = DigitalEmployeeLog(
