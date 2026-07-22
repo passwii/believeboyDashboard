@@ -54,6 +54,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.external_audit_cleanup",
             # BEL-379：每日 03:15 CST 刷新 ai_chat token 用量聚合快照
             "app.celery_tasks.ai_chat_token_usage_refresh",
+            "app.celery_tasks.backup",
         ],
     )
 
@@ -90,6 +91,8 @@ def _build_celery_app() -> Celery:
             "external_audit_cleanup": {"queue": "default"},
             # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
             "ai_chat_token_usage.refresh_daily": {"queue": "default"},
+            # 数据库备份：IO 重活，独立 `backups` 队列 + 独立 worker（-c 1，Phase 4）。
+            "app.celery_tasks.backup.run_backup_task": {"queue": "backups"},
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={
