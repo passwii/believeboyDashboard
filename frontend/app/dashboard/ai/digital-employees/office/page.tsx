@@ -1,9 +1,11 @@
 'use client'
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useOfficeStream } from '@/lib/digital-employee/use-office-stream'
 import { OfficeBadge } from '@/components/digital-employee/office/office-badge'
 import { OfficeChatterTicker, OfficeSpotlightToast } from '@/components/digital-employee/office/office-chatter'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import type { OfficeEmployee } from '@/lib/digital-employee/office-stream-types'
 
 /** 排序权重：忙碌/在岗优先，休息/离线沉底 */
@@ -25,7 +27,7 @@ function sortEmployees(employees: OfficeEmployee[]): OfficeEmployee[] {
   })
 }
 
-function OfficeOverview({ employees }: { employees: OfficeEmployee[] }) {
+function OfficeOverview({ employees, large }: { employees: OfficeEmployee[]; large?: boolean }) {
   const working = employees.filter((e) => e.display_status === 'WORKING').length
   const busy = employees.filter((e) => e.busy_level === 'BUSY' || e.busy_level === 'SWAMPED').length
   const pausing = employees.filter((e) => e.display_status === 'PAUSING').length
@@ -35,7 +37,10 @@ function OfficeOverview({ employees }: { employees: OfficeEmployee[] }) {
   const todayTotal = employees.reduce((sum, e) => sum + e.today_done, 0)
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+    <div className={cn(
+      'flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground',
+      large ? 'text-lg' : 'text-sm',
+    )}>
       <span>🟢 在岗 {working}</span>
       {busy > 0 && <span>🔥 忙碌 {busy}</span>}
       {pausing > 0 && <span>🍵 收尾 {pausing}</span>}
@@ -48,17 +53,106 @@ function OfficeOverview({ employees }: { employees: OfficeEmployee[] }) {
 }
 
 export default function DigitalOfficePage() {
+  const searchParams = useSearchParams()
+  const isPresentation = searchParams.get('mode') === 'presentation'
   const { employees, connected, chatterFeed } = useOfficeStream()
   const sorted = useMemo(() => sortEmployees(employees), [employees])
+  const [clock, setClock] = useState('')
 
+  // 投屏模式：显示时钟
+  useEffect(() => {
+    if (!isPresentation) return
+    const tick = () => setClock(new Date().toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'medium' }))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [isPresentation])
+
+  // 投屏模式：强制深色
+  useEffect(() => {
+    if (!isPresentation) return
+    document.documentElement.classList.add('dark')
+    return () => { document.documentElement.classList.remove('dark') }
+  }, [isPresentation])
+
+  // 投屏模式：ESC 退出全屏
+  const exitPresentation = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    }
+    window.location.href = '/dashboard/ai/digital-employees/office'
+  }, [])
+
+  useEffect(() => {
+    if (!isPresentation) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') exitPresentation() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isPresentation, exitPresentation])
+
+  // ── 投屏模式布局 ──
+  if (isPresentation) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] p-8 text-slate-100">
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">虚拟办公室</h1>
+            <p className="mt-1 text-sm text-slate-400">{clock}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500">
+              {connected ? '🟢 实时同步中' : '🔌 连接中…'}
+            </span>
+            <button
+              onClick={exitPresentation}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+            >
+              ESC 退出
+            </button>
+          </div>
+        </div>
+
+        {employees.length > 0 && (
+          <div className="mb-6">
+            <OfficeOverview employees={employees} large />
+          </div>
+        )}
+
+        <OfficeChatterTicker feed={chatterFeed} />
+
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
+          {sorted.map((e) => (
+            <div key={e.employee_id} className="scale-[1.02]">
+              <OfficeBadge employee={e} />
+            </div>
+          ))}
+        </div>
+
+        <OfficeSpotlightToast feed={chatterFeed} />
+      </div>
+    )
+  }
+
+  // ── 普通模式布局 ──
   return (
     <div className="dashboard-page-shell space-y-6">
       <header className="space-y-2">
         <div className="flex items-center justify-between">
           <h1 className="dashboard-display">虚拟办公室</h1>
-          <span className="text-xs text-muted-foreground">
-            {connected ? '🟢 实时同步中' : '🔌 连接中…'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {connected ? '🟢 实时同步中' : '🔌 连接中…'}
+            </span>
+            <button
+              onClick={() => {
+                void document.documentElement.requestFullscreen?.()
+                window.location.href = '/dashboard/ai/digital-employees/office?mode=presentation'
+              }}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              🖥️ 投屏
+            </button>
+          </div>
         </div>
         {employees.length > 0 && <OfficeOverview employees={employees} />}
       </header>
