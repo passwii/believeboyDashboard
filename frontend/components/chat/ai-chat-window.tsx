@@ -843,6 +843,18 @@ export function AIChatWindow({
                   { text: '分析', highlight: true, speed: 100 },
                   { text: '什么？', speed: 80 },
                 ]}
+                rollingWords={[
+                  '分析',
+                  '发现',
+                  '探索',
+                  '学习',
+                  '构建',
+                  '理解',
+                  '洞察',
+                  '预测',
+                  '拆解',
+                  '复盘',
+                ]}
                 startDelay={500}
               />
             </h1>
@@ -864,7 +876,7 @@ export function AIChatWindow({
         <div
           ref={chatScrollRef}
           className={`absolute inset-0 overflow-y-auto overscroll-contain ${
-            isChat ? 'bb-chat-enter' : 'opacity-0'
+            isChat ? 'bb-chat-enter' : 'invisible'
           }`}
           style={{
             paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',

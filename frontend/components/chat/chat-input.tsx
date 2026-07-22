@@ -365,7 +365,7 @@ export function ChatInput({
                 {enableWebSearch && cfg?.webSearchConfigured && (
                   <Globe aria-hidden="true" className="size-3.5" />
                 )}
-                <span className="hidden sm:inline">立即构建</span>
+                <span className="hidden sm:inline">发送</span>
                 <SendHorizontal className="size-4" />
               </button>
             </div>
