@@ -278,12 +278,16 @@ data: {"server_time":"...","employees":[{...VirtualSnapshot + persona 字段...}
 
 | Phase | 主题 | 范围 | 状态 |
 |-------|------|------|------|
-| **Phase 1** | **端到端骨架** | 1 个真实/模拟 Agent 上报 → 后端伸展引擎（基础自适应）→ `digital_employee_playback` 表 → SSE 端点 → 前端 `useOfficeStream` + 单张工牌渲染。**跑通"1 分钟真实任务拉伸成 ~10 分钟展示"** | 详细任务见 [phase1 文件](./2026-07-22-digital-employee-virtual-office-phase1.md) |
-| **Phase 2** | 多 Agent 工牌墙 | 扩展到 N 个 Agent：响应式网格、办公室概览条、忙碌优先排序、per-badge persona、（可选）Celery beat 独立推进器。压测 5-10 个不同负载的 Agent | 推进到时起草 |
-| **Phase 3** | 拟人化交互层 | office chatter 信息流、完成/失败 spotlight+toast、忙碌光晕、ambient 动效、hover 展开、human_name、投屏模式、`prefers-reduced-motion` 全覆盖 | 推进到时起草 |
+| **Phase 1** | **端到端骨架** | 1 个真实/模拟 Agent 上报 → 后端伸展引擎（基础自适应）→ `digital_employee_playback` 表 → SSE 端点 → 前端 `useOfficeStream` + 单张工牌渲染。**跑通"1 分钟真实任务拉伸成 ~10 分钟展示"** | ✅ 完成（2026-07-23）— 含质量修复（SSE 连接泄漏/查询优化/测试补全）+ 端到端模拟器验证通过。详见 [phase1 文件](./2026-07-22-digital-employee-virtual-office-phase1.md) |
+| **Phase 2** | 多 Agent 工牌墙 | 扩展到 N 个 Agent：响应式网格、办公室概览条、忙碌优先排序、per-badge persona 渐变环、heartbeat metadata 透传、模拟器多员工场景 | ✅ 大部分完成（2026-07-23）— 网格/概览条/排序/persona/metadata/模拟器已落地。**剩余**：Celery beat 独立推进器（多 SSE 客户端竞态）、压测 5-10 Agent |
+| **Phase 3** | 拟人化交互层 | office chatter 信息流、完成/失败 spotlight+toast、忙碌光晕、ambient 动效、hover 展开、human_name、投屏模式、`prefers-reduced-motion` 全覆盖 | ⚡ 部分完成 — 呼吸脉动/忙碌 shimmer/失败红闪/hover 展开+click 跳详情/reduced-motion 降级已落地。**剩余**：chatter 信息流、spotlight+toast、投屏模式 |
 | **Phase 4** | 接入真实内网 Agent + 调参 | 把 autoReportUpload 等真实 Agent 接上心跳 SDK，用真实数据调 `PlaybackConfig`（stretch/pace/忙碌阈值），接静默心跳告警（`is_silent_alert_threshold_minutes` 已建模） | 推进到时起草 |
 
 **推进原则**：Phase 1 跑通端到端再横向扩；每个 phase 独立可验证、可上线。
+
+### 合并前待验证
+
+- [ ] Next.js `/api/backend` 代理 SSE 透传（Plan §4.3 风险点）：前端 `EventSource` 走代理，需确认不缓冲。回退：代理 route 强制流式 / EventSource 直连后端。
 
 ---
 
