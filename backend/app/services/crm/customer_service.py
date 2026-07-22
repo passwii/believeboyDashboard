@@ -8,36 +8,28 @@ from app.models.crm import CrmContact, CrmCustomer
 from app.schemas.crm import CustomerCreate, CustomerUpdate
 
 
-def _current_user_id(user_id: str | None) -> int | None:
+def _current_user_id(user_id: str | None) -> str | None:
     if user_id is None:
         return None
-    try:
-        return int(user_id.strip())
-    except (ValueError, TypeError):
-        return None
+    uid = user_id.strip()
+    return uid or None
 
 
-def _owner_name_map(db: Session, owner_ids: set[int]) -> dict[int, str]:
+def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
     """批量查 user_accounts.name，避免 N+1。
 
-    注意：user_accounts.id 是 UUID，CrmCustomer.owner_id 是 Integer，
-    两者类型不匹配（上游建模遗留问题）。查询失败时优雅降级返回空 dict，
-    owner_name 字段为 None，不影响主流程。
+    owner_id 现为 String(36)（user_accounts.id UUID），类型匹配，正常 join。
+    返回 {str(id): name}。
     """
     from sqlalchemy import text
 
     if not owner_ids:
         return {}
-    try:
-        with db.begin_nested():  # savepoint：失败只回滚这条 SQL，不破坏外层事务
-            rows = db.execute(
-                text("select id, name from public.user_accounts where id = any(:ids)"),
-                {"ids": list(owner_ids)},
-            ).all()
-        return {int(r[0]): r[1] for r in rows}
-    except Exception:
-        # user_accounts.id 是 UUID，owner_id 是 Integer，类型不匹配时降级
-        return {}
+    rows = db.execute(
+        text("select id, name from public.user_accounts where id = any(:ids)"),
+        {"ids": list(owner_ids)},
+    ).all()
+    return {str(r[0]): r[1] for r in rows}
 
 
 def _primary_contact_map(db: Session, customer_ids: list[int]) -> dict[int, CrmContact]:
@@ -59,7 +51,7 @@ def _primary_contact_map(db: Session, customer_ids: list[int]) -> dict[int, CrmC
     return result
 
 
-def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[int, str], primary: CrmContact | None):
+def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[str, str], primary: CrmContact | None):
     from app.schemas.crm import CustomerItem
 
     return CustomerItem(
@@ -170,7 +162,7 @@ def delete_customer(db: Session, customer_id: int) -> bool:
     return True
 
 
-def batch_transfer(db: Session, ids: list[int], to_owner_id: int) -> int:
+def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
     rows = db.execute(
         select(CrmCustomer).where(CrmCustomer.id.in_(ids), CrmCustomer.is_deleted.is_(False))
     ).scalars().all()

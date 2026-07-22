@@ -17,7 +17,7 @@ class CustomerCreate(BaseModel):
     rating: str = "C"
     status: str = "active"
     source: str | None = None
-    owner_id: int | None = None
+    owner_id: str | None = None
     address: str | None = None
     website: str | None = None
     annual_revenue: float | None = None
@@ -32,7 +32,7 @@ class CustomerUpdate(BaseModel):
     rating: str | None = None
     status: str | None = None
     source: str | None = None
-    owner_id: int | None = None
+    owner_id: str | None = None
     address: str | None = None
     website: str | None = None
     annual_revenue: float | None = None
@@ -48,7 +48,7 @@ class CustomerItem(BaseModel):
     rating: str
     status: str
     source: str | None = None
-    owner_id: int | None = None
+    owner_id: str | None = None
     owner_name: str | None = None
     # 来自 primary contact 的 join 计算字段（前端 Customer.contactName/Phone/Email 映射自这里）
     contact_name: str | None = None
@@ -60,7 +60,7 @@ class CustomerItem(BaseModel):
     employee_count: int | None = None
     remark: str | None = None
     last_follow_at: datetime | None = None
-    created_by: int | None = None
+    created_by: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -118,7 +118,7 @@ class LeadCreate(BaseModel):
     source: str | None = None
     status: str = "new"
     intent: str = "medium"
-    owner_id: int | None = None
+    owner_id: str | None = None
     expected_amount: float | None = None
     expected_close_date: str | None = None
     remark: str | None = None
@@ -133,7 +133,7 @@ class LeadUpdate(BaseModel):
     source: str | None = None
     status: str | None = None
     intent: str | None = None
-    owner_id: int | None = None
+    owner_id: str | None = None
     expected_amount: float | None = None
     expected_close_date: str | None = None
     remark: str | None = None
@@ -149,14 +149,14 @@ class LeadItem(BaseModel):
     source: str | None = None
     status: str
     intent: str
-    owner_id: int | None = None
+    owner_id: str | None = None
     owner_name: str | None = None
     expected_amount: float | None = None
     expected_close_date: str | None = None
     remark: str | None = None
     converted_to_customer_id: int | None = None
     converted_at: datetime | None = None
-    created_by: int | None = None
+    created_by: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -189,7 +189,7 @@ class OpportunityCreate(BaseModel):
     customer_id: int | None = None
     amount: float = 0
     stage: str = "lead_in"
-    owner_id: int | None = None
+    owner_id: str | None = None
     expected_close_date: str | None = None
     probability: int | None = Field(default=None, ge=0, le=100)
     remark: str | None = None
@@ -200,7 +200,7 @@ class OpportunityUpdate(BaseModel):
     customer_id: int | None = None
     amount: float | None = None
     stage: str | None = None
-    owner_id: int | None = None
+    owner_id: str | None = None
     expected_close_date: str | None = None
     probability: int | None = Field(default=None, ge=0, le=100)
     remark: str | None = None
@@ -213,13 +213,13 @@ class OpportunityItem(BaseModel):
     customer_name: str | None = None
     amount: float
     stage: str
-    owner_id: int | None = None
+    owner_id: str | None = None
     owner_name: str | None = None
     expected_close_date: str | None = None
     probability: int | None = None
     linked_project_id: int | None = None
     remark: str | None = None
-    created_by: int | None = None
+    created_by: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -249,7 +249,7 @@ class FollowItem(BaseModel):
     type: str
     content: str
     next_follow_at: datetime | None = None
-    created_by: int | None = None
+    created_by: str | None = None
     created_by_name: str | None = None
     created_at: datetime
 
@@ -258,7 +258,7 @@ class FollowItem(BaseModel):
 
 # ---------- User (crm-user-select 数据源) ----------
 class CrmUserItem(BaseModel):
-    id: int
+    id: str
     name: str
     email: str
     role_type: str | None = None
@@ -268,7 +268,7 @@ class CrmUserItem(BaseModel):
 # ---------- 批量操作 ----------
 class BatchTransferRequest(BaseModel):
     ids: list[int] = Field(min_length=1)
-    to_owner_id: int
+    to_owner_id: str
 
 
 class BatchIdsRequest(BaseModel):

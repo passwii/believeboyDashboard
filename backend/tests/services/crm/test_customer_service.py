@@ -18,10 +18,38 @@ from app.services.crm.customer_service import (
     update_customer,
 )
 
+# 用户 id 是 UUID 字符串（user_accounts.id）；以下为本测试用的假 UUID。
+ALICE = "11111111-1111-1111-1111-111111111111"
+BOB = "22222222-2222-2222-2222-222222222222"
+CAROL = "33333333-3333-3333-3333-333333333333"
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def _seed_customer(db: Session, name: str = "Acme", owner_id: int | None = 1, **kw) -> CrmCustomer:
+@pytest.fixture(autouse=True)
+def _clean_crm_tables(db_session):
+    """服务层（create_customer 等）会 commit，跨测试/跨运行会留下脏数据。
+
+    每个测试前清空 CRM 表，保证 scope/count 断言确定、不受历史脏行影响。
+    依赖 db_session 以继承“无 TEST_DATABASE_URL 则 skip”保护；
+    清理用独立 session + commit（db_session 会回滚，清不掉已提交行）。
+    """
+    from app.db.session import SessionLocal
+
+    s = SessionLocal()
+    try:
+        s.execute(text("delete from crm_follows"))
+        s.execute(text("delete from crm_opportunities"))
+        s.execute(text("delete from crm_contacts"))
+        s.execute(text("delete from crm_leads"))
+        s.execute(text("delete from crm_customers"))
+        s.commit()
+    finally:
+        s.close()
+    yield
+
+
+def _seed_customer(db: Session, name: str = "Acme", owner_id: str | None = ALICE, **kw) -> CrmCustomer:
     c = CrmCustomer(name=name, owner_id=owner_id, created_by=owner_id, **kw)
     db.add(c)
     db.flush()
@@ -40,16 +68,16 @@ def _seed_contact(db: Session, customer_id: int, name: str, is_primary: bool = F
 class TestCreate:
     def test_create_returns_item_with_owner_default(self, db_session: Session):
         payload = CustomerCreate(name="NewCo")
-        item = create_customer(db_session, payload, user_id="42")
+        item = create_customer(db_session, payload, user_id=ALICE)
         assert item is not None
         assert item.name == "NewCo"
-        assert item.owner_id == 42  # 默认归创建人
-        assert item.created_by == 42
+        assert item.owner_id == ALICE  # 默认归创建人
+        assert item.created_by == ALICE
 
     def test_create_explicit_owner(self, db_session: Session):
-        payload = CustomerCreate(name="OwnedCo", owner_id=7)
-        item = create_customer(db_session, payload, user_id="42")
-        assert item.owner_id == 7
+        payload = CustomerCreate(name="OwnedCo", owner_id=BOB)
+        item = create_customer(db_session, payload, user_id=ALICE)
+        assert item.owner_id == BOB
 
     def test_create_no_user(self, db_session: Session):
         payload = CustomerCreate(name="AnonCo")
@@ -60,7 +88,7 @@ class TestCreate:
 
 class TestGet:
     def test_get_existing(self, db_session: Session):
-        c = _seed_customer(db_session, name="GetMe", owner_id=1)
+        c = _seed_customer(db_session, name="GetMe", owner_id=ALICE)
         item = get_customer(db_session, c.id)
         assert item is not None
         assert item.name == "GetMe"
@@ -102,22 +130,22 @@ class TestDelete:
 
 class TestScope:
     def test_scope_mine(self, db_session: Session):
-        _seed_customer(db_session, name="Mine", owner_id=10)
-        _seed_customer(db_session, name="Other", owner_id=20)
-        items, total = list_customers(db_session, user_id="10", scope="mine")
+        _seed_customer(db_session, name="Mine", owner_id=ALICE)
+        _seed_customer(db_session, name="Other", owner_id=BOB)
+        items, total = list_customers(db_session, user_id=ALICE, scope="mine")
         assert total == 1
         assert items[0].name == "Mine"
 
     def test_scope_all(self, db_session: Session):
-        _seed_customer(db_session, name="A1", owner_id=10)
-        _seed_customer(db_session, name="A2", owner_id=20)
-        items, total = list_customers(db_session, user_id="10", scope="all")
+        _seed_customer(db_session, name="A1", owner_id=ALICE)
+        _seed_customer(db_session, name="A2", owner_id=BOB)
+        items, total = list_customers(db_session, user_id=ALICE, scope="all")
         assert total >= 2
 
     def test_scope_sea(self, db_session: Session):
         _seed_customer(db_session, name="InSea", owner_id=None)
-        _seed_customer(db_session, name="Owned", owner_id=1)
-        items, total = list_customers(db_session, user_id="1", scope="sea")
+        _seed_customer(db_session, name="Owned", owner_id=ALICE)
+        items, total = list_customers(db_session, user_id=ALICE, scope="sea")
         names = [i.name for i in items]
         assert "InSea" in names
         assert "Owned" not in names
@@ -133,15 +161,15 @@ class TestScope:
 
 class TestBatch:
     def test_batch_transfer(self, db_session: Session):
-        c1 = _seed_customer(db_session, name="B1", owner_id=1)
-        c2 = _seed_customer(db_session, name="B2", owner_id=1)
-        count = batch_transfer(db_session, [c1.id, c2.id], to_owner_id=99)
+        c1 = _seed_customer(db_session, name="B1", owner_id=ALICE)
+        c2 = _seed_customer(db_session, name="B2", owner_id=ALICE)
+        count = batch_transfer(db_session, [c1.id, c2.id], to_owner_id=CAROL)
         assert count == 2
         db_session.refresh(c1)
-        assert c1.owner_id == 99
+        assert c1.owner_id == CAROL
 
     def test_batch_move_to_sea(self, db_session: Session):
-        c1 = _seed_customer(db_session, name="S1", owner_id=5)
+        c1 = _seed_customer(db_session, name="S1", owner_id=BOB)
         count = batch_move_to_sea(db_session, [c1.id])
         assert count == 1
         db_session.refresh(c1)
@@ -153,17 +181,29 @@ class TestBatch:
 class TestClaim:
     def test_claim_success(self, db_session: Session):
         c = _seed_customer(db_session, name="SeaCo", owner_id=None)
-        item = claim_from_sea(db_session, c.id, user_id="77")
+        item = claim_from_sea(db_session, c.id, user_id=BOB)
         assert item is not None
-        assert item.owner_id == 77
+        assert item.owner_id == BOB
 
     def test_claim_owned_returns_none(self, db_session: Session):
-        c = _seed_customer(db_session, name="NotSea", owner_id=1)
-        assert claim_from_sea(db_session, c.id, user_id="77") is None
+        c = _seed_customer(db_session, name="NotSea", owner_id=ALICE)
+        assert claim_from_sea(db_session, c.id, user_id=BOB) is None
 
     def test_claim_no_user_returns_none(self, db_session: Session):
         c = _seed_customer(db_session, name="SeaNoUser", owner_id=None)
         assert claim_from_sea(db_session, c.id, user_id=None) is None
+
+
+# ── owner_name join（UUID 类型匹配后应能正常解析）────────────────────────────
+
+class TestOwnerNameJoin:
+    def test_owner_name_resolves_from_user_accounts(self, db_session: Session, test_admin: dict):
+        admin_id = str(test_admin["id"])
+        c = _seed_customer(db_session, name="NamedOwner", owner_id=admin_id)
+        item = get_customer(db_session, c.id)
+        assert item is not None
+        assert item.owner_id == admin_id
+        assert item.owner_name == test_admin["name"]  # 类型匹配后非 None
 
 
 # ── primary contact join ─────────────────────────────────────────────────────
