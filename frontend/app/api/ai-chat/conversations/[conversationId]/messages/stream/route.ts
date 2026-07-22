@@ -8,7 +8,7 @@ import {
   buildScenarioSystemPrompt,
   validateScenarioIds,
 } from '@/lib/server/ai-chat'
-import { getBackendBaseUrl } from '@/lib/server/backend-api'
+import { appendApiKeyQuery, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
   params: Promise<{
@@ -61,7 +61,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (lastEventId) upstreamHeaders.set('Last-Event-ID', lastEventId)
 
   const upstream = await fetch(
-    `${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/messages/stream`,
+    `${getBackendBaseUrl()}${appendApiKeyQuery(`/api/v1/ai/conversations/${conversationId}/messages/stream`)}`,
     {
       method: 'POST',
       headers: upstreamHeaders,

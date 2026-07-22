@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireUserSession } from '@/lib/auth/server'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { getBackendBaseUrl } from '@/lib/server/backend-api'
+import { appendApiKeyQuery, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 type RouteContext = {
   params: Promise<{
@@ -25,7 +25,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
 
   try {
     const upstream = await fetch(
-      `${getBackendBaseUrl()}/api/v1/ai/conversations/${conversationId}/cancel`,
+      `${getBackendBaseUrl()}${appendApiKeyQuery(`/api/v1/ai/conversations/${conversationId}/cancel`)}`,
       {
         method: 'POST',
         headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),

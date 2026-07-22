@@ -45,3 +45,25 @@ def test_require_api_key_bearer_wrong_token_returns_403(bearer_app):
     client = TestClient(bearer_app)
     resp = client.get("/_protected", headers={"Authorization": "Bearer wrong-key"})
     assert resp.status_code == 403
+
+
+def test_require_api_key_accepts_query_api_key(bearer_app, api_key):
+    """[Live-chat 401 fix, round 2] Vercel/edge also strips `Authorization`.
+    Query param `?api_key=` survives because it's part of the URL. The
+    frontend proxy appends it as the last-resort fallback.
+    """
+    client = TestClient(bearer_app)
+    resp = client.get(f"/_protected?api_key={api_key}")
+    assert resp.status_code == 200, resp.text
+
+
+def test_require_api_key_no_auth_returns_401(bearer_app):
+    client = TestClient(bearer_app)
+    resp = client.get("/_protected")
+    assert resp.status_code == 401
+
+
+def test_require_api_key_query_api_key_wrong_returns_403(bearer_app):
+    client = TestClient(bearer_app)
+    resp = client.get("/_protected?api_key=wrong-key")
+    assert resp.status_code == 403
