@@ -70,7 +70,7 @@ def run_task(api, emp_id, secret, project, task_type, speed, fail=False):
         "task_id": task_id,
         "task_name": task_name,
         "task_type": task_type,
-        "status": "RUNNING",
+        "status": "running",
         "progress_percent": 5,
         "current_step": STEPS[0],
         "message": f"开始处理 {task_name}",
@@ -85,7 +85,7 @@ def run_task(api, emp_id, secret, project, task_type, speed, fail=False):
         step = STEPS[min(i, len(STEPS) - 1)]
         _heartbeat(api, emp_id, secret, {
             "task_id": task_id,
-            "status": "RUNNING",
+            "status": "running",
             "progress_percent": pct,
             "current_step": step,
             "metadata_json": meta,
@@ -96,7 +96,7 @@ def run_task(api, emp_id, secret, project, task_type, speed, fail=False):
     if fail:
         _heartbeat(api, emp_id, secret, {
             "task_id": task_id,
-            "status": "FAILED",
+            "status": "failed",
             "progress_percent": pct,
             "current_step": "❌ 数据源连接超时",
             "message": f"{task_name} 处理失败：数据源连接超时",
@@ -105,7 +105,7 @@ def run_task(api, emp_id, secret, project, task_type, speed, fail=False):
     else:
         _heartbeat(api, emp_id, secret, {
             "task_id": task_id,
-            "status": "SUCCEEDED",
+            "status": "succeeded",
             "progress_percent": 100,
             "current_step": "完成",
             "message": f"{task_name} 处理完成",
@@ -159,7 +159,7 @@ def main():
         "task_id": long_task_id,
         "task_name": f"{long_proj['project_name']}/{long_proj['report_label']}",
         "task_type": "ai_insight",
-        "status": "RUNNING",
+        "status": "running",
         "progress_percent": 10,
         "current_step": "正在分析数据趋势…",
         "message": f"开始深度分析 {long_proj['project_name']}",
@@ -176,7 +176,7 @@ def main():
     for pct in [30, 55, 75, 90]:
         _heartbeat(api, emp_id, secret, {
             "task_id": long_task_id,
-            "status": "RUNNING",
+            "status": "running",
             "progress_percent": pct,
             "current_step": f"深度分析中… {pct}%",
             "metadata_json": long_meta,
@@ -185,7 +185,7 @@ def main():
 
     _heartbeat(api, emp_id, secret, {
         "task_id": long_task_id,
-        "status": "SUCCEEDED",
+        "status": "succeeded",
         "progress_percent": 100,
         "current_step": "洞察报告已生成",
         "message": f"{long_proj['project_name']} 深度分析完成",
