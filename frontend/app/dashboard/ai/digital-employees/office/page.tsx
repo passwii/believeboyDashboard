@@ -2,6 +2,7 @@
 import { useMemo } from 'react'
 import { useOfficeStream } from '@/lib/digital-employee/use-office-stream'
 import { OfficeBadge } from '@/components/digital-employee/office/office-badge'
+import { OfficeChatterTicker, OfficeSpotlightToast } from '@/components/digital-employee/office/office-chatter'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { OfficeEmployee } from '@/lib/digital-employee/office-stream-types'
 
@@ -47,7 +48,7 @@ function OfficeOverview({ employees }: { employees: OfficeEmployee[] }) {
 }
 
 export default function DigitalOfficePage() {
-  const { employees, connected } = useOfficeStream()
+  const { employees, connected, chatterFeed } = useOfficeStream()
   const sorted = useMemo(() => sortEmployees(employees), [employees])
 
   return (
@@ -62,6 +63,9 @@ export default function DigitalOfficePage() {
         {employees.length > 0 && <OfficeOverview employees={employees} />}
       </header>
 
+      {/* P3-B: 办公室 chatter 信息流 */}
+      <OfficeChatterTicker feed={chatterFeed} />
+
       {employees.length === 0 ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -75,6 +79,9 @@ export default function DigitalOfficePage() {
           ))}
         </div>
       )}
+
+      {/* P3-B: 完成/失败 Spotlight Toast */}
+      <OfficeSpotlightToast feed={chatterFeed} />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { parseSnapshot, type OfficeEmployee } from './office-stream-types'
+import { parseSnapshot, parseChatter, type OfficeEmployee, type ChatterEvent } from './office-stream-types'
 
 const STREAM_URL = '/api/backend/api/v1/digital-employees/office/stream'
 
@@ -8,9 +8,13 @@ const STREAM_URL = '/api/backend/api/v1/digital-employees/office/stream'
 const BACKOFF_BASE_MS = 1000
 const BACKOFF_MAX_MS = 30_000
 
+/** chatter feed 最多保留条数 */
+const MAX_CHATTER = 50
+
 export function useOfficeStream() {
   const [employees, setEmployees] = useState<OfficeEmployee[]>([])
   const [connected, setConnected] = useState(false)
+  const [chatterFeed, setChatterFeed] = useState<ChatterEvent[]>([])
   const retriesRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -20,6 +24,14 @@ export function useOfficeStream() {
     es.addEventListener('snapshot', (e) => {
       const snap = parseSnapshot((e as MessageEvent).data)
       if (snap) setEmployees(snap.employees)
+    })
+
+    // P3-B: 监听 chatter 事件，追加到 feed（最新在前，上限 MAX_CHATTER）
+    es.addEventListener('chatter', (e) => {
+      const evt = parseChatter((e as MessageEvent).data)
+      if (evt) {
+        setChatterFeed((prev) => [evt, ...prev].slice(0, MAX_CHATTER))
+      }
     })
 
     es.onopen = () => {
@@ -47,5 +59,5 @@ export function useOfficeStream() {
     }
   }, [connect])
 
-  return { employees, connected }
+  return { employees, connected, chatterFeed }
 }
