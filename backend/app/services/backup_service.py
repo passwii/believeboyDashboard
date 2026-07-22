@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.celery_tasks.backup import run_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus, BackupType
+from app.services.r2_service import check_file_exists, generate_presigned_url, upload_file_to_r2
 
 # pgbackrest 本地备份仓库根目录（backup set 目录在 {base}/{set_name}/）。
 PG_BACKUP_BASE = Path("/var/lib/pgbackrest/backup/blf")
@@ -78,6 +79,38 @@ def _archive_to_tar_gz(set_name: str, record_id: int) -> Path:
     with tarfile.open(tar_path, "w:gz") as tar:
         tar.add(src, arcname=set_name)
     return tar_path
+
+
+def _upload_to_r2(settings: Settings, record: BackupRecord, tar_path: Path) -> dict:
+    """上传 tar.gz 到 R2（修正 M1 的 key 结构），写回 record 的 R2 字段，返回 upload 结果。
+
+    幂等：若 record.r2_key 已存在且 R2 上确有该对象，跳过重复上传。
+    """
+    if record.r2_key and check_file_exists(settings, record.r2_key):
+        return {
+            "key": record.r2_key,
+            "url": record.r2_url,
+            "bucket": record.r2_bucket,
+            "size": record.compressed_size_bytes,
+        }
+    date = record.started_at.strftime("%Y-%m-%d")
+    filename = f"blf_{date}_{record.backup_type}_{record.id}.tar.gz"
+    with tar_path.open("rb") as fh:
+        result = upload_file_to_r2(
+            settings, fh, filename=filename, project_slug="db-backups", file_type="pgbackrest"
+        )
+    record.r2_key = result["key"]
+    record.r2_url = result["url"]
+    record.r2_bucket = result["bucket"]
+    record.compressed_size_bytes = result["size"]
+    return result
+
+
+def get_r2_download_url(settings: Settings, record: BackupRecord) -> str:
+    """生成 R2 临时下载链接（presigned，1h 有效）。"""
+    if not record.r2_key:
+        raise ValueError("该备份尚未上传 R2")
+    return generate_presigned_url(settings, record.r2_key, expires_in=3600)
 
 
 def enqueue_backup(
