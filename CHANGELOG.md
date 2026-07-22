@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **数据库备份端到端链路 + R2 异步上传**（plan [`2026-07-17-pg-r2-backup-feature`](docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/2026-07-17-pg-r2-backup-feature.md)）：手动触发 → API 5ms 异步入队 → `backups` 队列 worker（`-c 1`）跑 pgBackRest → 打 tar.gz → 上传 Cloudflare R2（幂等 via `check_file_exists`）→ phase 全程 `pending→pgbackrest_running→compressing→r2_uploading→completed` → 落 `r2_key/r2_url/r2_uploaded_at/compressed_size_bytes` 等字段
+  - **详情端点**：`POST /api/v1/backups/trigger`、`GET /api/v1/backups/{id}`、`GET /api/v1/backups/{id}/download-url`（presigned，1h）、`GET /api/v1/backups/{id}/restore-command`（预览不执行）、`DELETE /api/v1/backups/{id}`（软删 + 删 R2）、`POST /api/v1/backups/cleanup`
+  - **模型**：新增 `phase / triggered_by / retry_count / r2_key / r2_url / r2_bucket / r2_uploaded_at / r2_deleted_at / compressed_size_bytes / backup_set_name / backup_set_path` + 部分索引
+  - **调度**：Celery Beat 每日 03:00 全量 + 04:30 R2 保留清理（默认留 7 份，与本地 `retention-full=7` 对齐）
+  - **前端**：3s 条件轮询 + phase 进度条 + 行展开（R2 元信息 + 下载 / 恢复命令 / 软删三按钮）
+  - **部署**：`believeboy-worker-backups.service`（独立单元 + 单并发）+ 运维手册（`backend/docs/multi-worker-ops.md`）补充 Beat 单实例约束
+  - **配置**：`BACKUP_VIA_CELERY` 异步开关（默认 true，回滚 false 走旧同步路径）、`BACKUP_SOFT_TIME_LIMIT`（90min）、`BACKUP_HARD_TIME_LIMIT`（120min）、`R2_BACKUP_RETENTION_COUNT`（7）、`BACKUP_DAILY_SCHEDULE_HOUR`（3）
+  - **测试**：29 个备份相关测试全绿，零回归（与 base 失败清单逐条 diff 验证）
+  - **实现评审**：[`implementation-review.md`](docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/2026-07-17-pg-r2-backup-feature-implementation-review.md) 记录与 frozen 方案的 8 处偏差 + 3 项未完成项
+  - **分支**：`feat/pg-r2-backup`（19 个 commit，未动 main）
+
 - **Motion design system v1** — Apple 级动效设计系统（spring 物理、玻璃/聚光、加权按下、统一页面过渡）
   - **Token 层**：CSS (`frontend/app/globals.css :root`) + JS (`frontend/lib/motion/tokens.ts`) 双侧定义，约 100 行新 token + utility 规则
   - **Primitive 层**：`PageTransition` / `MotionFade` / `MotionStagger` / `MotionStaggerItem` / `useSpotlight`
