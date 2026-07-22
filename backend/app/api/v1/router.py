@@ -34,6 +34,7 @@ from app.api.v1.endpoints.category_research import router as category_research_r
 from app.api.v1.endpoints.return_analysis import router as return_analysis_router
 from app.api.v1.endpoints.project_goals import router as project_goals_router
 from app.api.v1.endpoints.digital_employees import router as digital_employees_router
+from app.api.v1.endpoints.digital_office import router as digital_office_router
 from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
 from app.api.v1.endpoints.report_reconciliation import router as report_reconciliation_router
 from app.api.v1.endpoints.digital_display import router as digital_display_router
@@ -81,6 +82,7 @@ api_router.include_router(return_analysis_router)
 api_router.include_router(project_goals_router)
 api_router.include_router(rpa_reports_router)
 api_router.include_router(digital_employees_router)
+api_router.include_router(digital_office_router)
 api_router.include_router(report_reconciliation_router)
 api_router.include_router(digital_display_router)
 api_router.include_router(alerts_router)
