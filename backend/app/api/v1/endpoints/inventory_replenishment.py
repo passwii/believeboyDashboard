@@ -26,6 +26,17 @@ from app.services import (
     inventory_analysis_service,
     project_service,
 )
+from app.services.infra.inventory_cache import (
+    get_inventory_analysis_cache,
+    set_inventory_analysis_cache,
+    get_inventory_snapshot_options_cache,
+    set_inventory_snapshot_options_cache,
+    get_inventory_replenishment_cache,
+    set_inventory_replenishment_cache,
+    invalidate_inventory_analysis_cache,
+    invalidate_inventory_snapshot_options_cache,
+    invalidate_inventory_replenishment_cache,
+)
 from app.services.inventory.replenishment import (
     list_inventory_replenishment_analysis,
     list_inventory_replenishment_shipments,
@@ -61,6 +72,13 @@ def get_inventory_analysis(
         operator=operator,
         is_admin=bool(is_admin),
     )
+
+    # ── Redis cache: 5 min TTL, keyed by project+country+date ──
+    report_date_str = str(report_date) if report_date else None
+    cached = get_inventory_analysis_cache(project_id, country, report_date_str)
+    if cached is not None:
+        return InventoryAnalysisResponse(**cached)
+
     payload = inventory_analysis_service.list_inventory_analysis(
         db,
         project_id=project_id,
@@ -82,7 +100,8 @@ def get_inventory_analysis(
         request=request,
     )
     db.commit()
-    return InventoryAnalysisResponse(
+
+    response = InventoryAnalysisResponse(
         project_id=int(payload["project_id"]),
         project_name=str(payload["project_name"]),
         country=str(payload["country"]),
@@ -91,6 +110,10 @@ def get_inventory_analysis(
         action_options=[str(item) for item in payload["action_options"]],
         items=[InventoryAnalysisItem(**item) for item in payload["items"]],
     )
+    set_inventory_analysis_cache(
+        project_id, country, report_date_str, response.model_dump(mode="json")
+    )
+    return response
 
 
 @router.get(
@@ -102,11 +125,20 @@ def list_inventory_snapshot_options(
     country: str = Query(default="US"),
     db: Session = Depends(get_read_db_session),
 ) -> list[InventorySnapshotOption]:
+    # ── Redis cache: 10 min TTL ──
+    cached = get_inventory_snapshot_options_cache(project_id, country)
+    if cached is not None:
+        return [InventorySnapshotOption(**row) for row in cached]
+
     options = list_snapshot_options(db, project_id=project_id, country=country)
-    return [
+    result = [
         InventorySnapshotOption(report_date=row["report_date"], is_current=row["is_current"])
         for row in options
     ]
+    set_inventory_snapshot_options_cache(
+        project_id, country, [r.model_dump(mode="json") for r in result]
+    )
+    return result
 
 
 @router.get(
@@ -132,6 +164,14 @@ def list_inventory_replenishment_analysis_endpoint(
         operator=operator,
         is_admin=bool(is_admin),
     )
+
+    # ── Redis cache: 5 min TTL ──
+    cached = get_inventory_replenishment_cache(
+        project_id, country, keyword, risk_status, in_transit_only, page, page_size
+    )
+    if cached is not None:
+        return InventoryReplenishmentListResponse(**cached)
+
     rows, summary, total, has_next = (
         list_inventory_replenishment_analysis(
             db,
@@ -164,7 +204,7 @@ def list_inventory_replenishment_analysis_endpoint(
         request=request,
     )
     db.commit()
-    return InventoryReplenishmentListResponse(
+    response = InventoryReplenishmentListResponse(
         items=[InventoryReplenishmentListItem(**row) for row in rows],
         summary=InventoryReplenishmentSummary(**summary),
         page=page,
@@ -172,6 +212,11 @@ def list_inventory_replenishment_analysis_endpoint(
         total=total,
         has_next=has_next,
     )
+    set_inventory_replenishment_cache(
+        project_id, country, keyword, risk_status, in_transit_only, page, page_size,
+        response.model_dump(mode="json"),
+    )
+    return response
 
 
 @router.put(

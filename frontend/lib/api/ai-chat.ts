@@ -167,6 +167,17 @@ export async function getMessages(
   return handleJson<ServerChatMessage[]>(res, '加载消息失败')
 }
 
+export async function deleteMessage(conversationId: number, messageId: number): Promise<void> {
+  const res = await fetch(`/api/ai-chat/conversations/${conversationId}/messages/${messageId}`, {
+    method: 'DELETE',
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || '删除消息失败')
+  }
+}
+
 // ── Errors ────────────────────────────────────────────────────────────────
 
 /**

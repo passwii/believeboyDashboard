@@ -4,7 +4,7 @@
 - 承接：V2 Phase A（protocol）/ Phase B（orchestrator）已在分支 `feat/ai-app-layer-v2-p1` 完成（未合并）
 - 本计划 = V2 **Phase C（端点 + 前端）+ Phase D（迁移 + 测试）** 的落地执行，叠加「业务优先 / 全程可回滚 / 临时 hack 清理」
 - 日期：2026-07-21
-- 状态：待用户确认决策点 D1–D4 后开工
+- 状态：✅ 已完成（2026-07-22）— Phase C（SSE 端点 + 前端切换）+ Phase D（V1 legacy 移除 + e2e 测试）全部落地，PR #136 已合 + api_key 修复 e0916373
 
 ---
 

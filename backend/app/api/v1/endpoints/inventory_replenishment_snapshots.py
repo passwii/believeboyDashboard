@@ -31,6 +31,11 @@ from app.schemas.inventory_replenishment import (
 from app.services.audit_log_service import (
     append_operation_audit_log,
 )
+from app.services.infra.inventory_cache import (
+    invalidate_inventory_analysis_cache,
+    invalidate_inventory_replenishment_cache,
+    invalidate_inventory_snapshot_options_cache,
+)
 
 router = APIRouter(prefix="/inventory-replenishment-snapshots", dependencies=[Depends(protected)])
 
@@ -120,6 +125,9 @@ def create_snapshot(
         request=request,
     )
     db.commit()
+    invalidate_inventory_analysis_cache(project_id)
+    invalidate_inventory_replenishment_cache(project_id)
+    invalidate_inventory_snapshot_options_cache(project_id)
 
     # 获取明细
     items = get_snapshot_items(db, snapshot.id)
@@ -432,5 +440,8 @@ def delete_snapshot_endpoint(
             request=request,
         )
         db.commit()
+        invalidate_inventory_analysis_cache(snapshot.project_id)
+        invalidate_inventory_replenishment_cache(snapshot.project_id)
+        invalidate_inventory_snapshot_options_cache(snapshot.project_id)
 
     return {"success": success, "snapshot_id": snapshot_id}

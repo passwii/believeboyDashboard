@@ -24,6 +24,7 @@ import { ensureConfigLoaded, getConfig } from '@/lib/api/ai-chat-config-store'
 import {
   createConversation,
   deleteConversation,
+  deleteMessage,
   getMessages,
   listConversations,
   renameConversation,
@@ -97,15 +98,6 @@ export function AIChatWindow({
   /** Bumped to force re-fetching the conversation list (after create/delete/rename). */
   const [refreshKey, setRefreshKey] = useState(0)
   const refreshConversations = useCallback(() => setRefreshKey((k) => k + 1), [])
-  /**
-   * Server-persisted message ids the user has deleted client-side.
-   * Backend has no message-level DELETE endpoint yet (see TODO below); we
-   * remember deletes locally so a refresh / conversation switch doesn't
-   * resurrect messages the user has already dismissed.
-   * Keyed by conversation serverId so different conversations stay isolated.
-   */
-  const [locallyDeletedIds, setLocallyDeletedIds] = useState<Record<number, Set<number>>>({})
-
   const [enableWebSearch, setEnableWebSearch] = useState(false)
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
@@ -185,17 +177,10 @@ export function AIChatWindow({
     }
     let cancelled = false
     setLoadingMessages(true)
-    const hiddenForConv = locallyDeletedIds[activeServerId] ?? new Set<number>()
     getMessages(activeServerId)
       .then((rows) => {
         if (cancelled) return
-        const mapped = rows.map(toClientMessage)
-        // Filter out messages the user deleted in a previous session.
-        const visible =
-          hiddenForConv.size > 0
-            ? mapped.filter((m) => m.serverId == null || !hiddenForConv.has(m.serverId))
-            : mapped
-        setMessages(visible)
+        setMessages(rows.map(toClientMessage))
       })
       .catch((err) => {
         if (cancelled) return
@@ -208,7 +193,7 @@ export function AIChatWindow({
     return () => {
       cancelled = true
     }
-  }, [activeServerId, locallyDeletedIds])
+  }, [activeServerId])
 
   // ── Chat stream hook — uses ref-based conversation ID so send() always
   // ── resolves to the current server ID, even when the conversation is
@@ -605,29 +590,35 @@ export function AIChatWindow({
 
   const handleDeleteMessage = useCallback(
     (messageId: string) => {
+      // Collect server IDs before the state update (functional updater can't do async)
+      const idx = messages.findIndex((m) => m.id === messageId)
+      if (idx === -1) return
+      const deleted = messages.slice(idx, idx + 2)
+      const serverIdsToDelete = deleted
+        .filter((m) => m.serverId != null)
+        .map((m) => m.serverId as number)
+
+      // Optimistic UI update
       setMessages((prev) => {
-        const idx = prev.findIndex((m) => m.id === messageId)
-        if (idx === -1) return prev
-        const deleted = prev.slice(idx, idx + 2)
-        const idsToHide: number[] = []
-        for (const m of deleted) {
-          if (m.serverId != null) idsToHide.push(m.serverId)
-        }
-        if (idsToHide.length > 0 && activeServerId != null) {
-          setLocallyDeletedIds((prevDeleted) => {
-            const existing = prevDeleted[activeServerId] ?? new Set<number>()
-            const next = new Set(existing)
-            for (const id of idsToHide) next.add(id)
-            return { ...prevDeleted, [activeServerId]: next }
-          })
-        }
-        if (deleted[1] && deleted[1].role === 'assistant') {
-          return [...prev.slice(0, idx), ...prev.slice(idx + 2)]
+        const i = prev.findIndex((m) => m.id === messageId)
+        if (i === -1) return prev
+        const pair = prev.slice(i, i + 2)
+        if (pair[1] && pair[1].role === 'assistant') {
+          return [...prev.slice(0, i), ...prev.slice(i + 2)]
         }
         return prev.filter((m) => m.id !== messageId)
       })
+
+      // Fire real DELETE calls (fire-and-forget; UI already updated)
+      if (activeServerId != null) {
+        for (const sid of serverIdsToDelete) {
+          deleteMessage(activeServerId, sid).catch((err) => {
+            console.error('[ai-chat] deleteMessage failed', err)
+          })
+        }
+      }
     },
-    [activeServerId]
+    [activeServerId, messages]
   )
 
   // ── Send ──────────────────────────────────────────────────────────

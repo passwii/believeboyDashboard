@@ -22,6 +22,11 @@ from app.schemas.platform_revenue import (
 )
 from app.services import platform_revenue_service
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.infra.inventory_cache import (
+    get_platform_revenue_cache,
+    invalidate_platform_revenue_cache,
+    set_platform_revenue_cache,
+)
 from app.services.r2_service import upload_bytes_to_r2
 from app.services.upload_service import _safe_project_folder_name
 
@@ -86,6 +91,13 @@ def list_platform_revenues(
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 200)
 
+    # ── Redis cache: 5 min TTL ──
+    cached = get_platform_revenue_cache(
+        project_id, year, month, country, currency, safe_page, safe_page_size, operator
+    )
+    if cached is not None:
+        return PlatformRevenueListResponse(**cached)
+
     rows, total = platform_revenue_service.list_revenues(
         db,
         page=safe_page,
@@ -101,13 +113,18 @@ def list_platform_revenues(
 
     total_pages = math.ceil(total / safe_page_size) if total > 0 else 1
 
-    return PlatformRevenueListResponse(
+    response = PlatformRevenueListResponse(
         items=[_serialize_item(row) for row in rows],
         total=total,
         page=safe_page,
         page_size=safe_page_size,
         total_pages=total_pages,
     )
+    set_platform_revenue_cache(
+        project_id, year, month, country, currency, safe_page, safe_page_size, operator,
+        response.model_dump(mode="json"),
+    )
+    return response
 
 
 @router.get('/platform-revenues/{revenue_id}', response_model=PlatformRevenueItem)
@@ -160,6 +177,7 @@ def create_platform_revenue(
         is_admin=bool(is_admin),
     )
     db.commit()
+    invalidate_platform_revenue_cache()
 
     # Audit log
     append_operation_audit_log(
@@ -199,6 +217,7 @@ def update_platform_revenue(
         **update_data,
     )
     db.commit()
+    invalidate_platform_revenue_cache()
 
     # Audit log
     append_operation_audit_log(
@@ -239,6 +258,7 @@ def delete_platform_revenue(
 
     platform_revenue_service.delete_revenue(db, revenue_id, operator=operator_name, is_admin=bool(is_admin))
     db.commit()
+    invalidate_platform_revenue_cache()
 
     # Audit log
     append_operation_audit_log(

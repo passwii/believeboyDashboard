@@ -9,6 +9,10 @@ from app.api.deps import get_read_db_session, get_request_operator, protected
 from app.schemas.return_analysis import ReturnAnalysisResponse
 from app.services import project_service
 from app.services.analysis.return_analysis import build_return_analysis
+from app.services.infra.inventory_cache import (
+    get_return_analysis_cache,
+    set_return_analysis_cache,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -31,7 +35,13 @@ def get_return_analysis(
         operator=operator,
         is_admin=bool(is_admin),
     )
-    return build_return_analysis(
+
+    # ── Redis cache: 5 min TTL ──
+    cached = get_return_analysis_cache(project_id, country, start_date, end_date, sku)
+    if cached is not None:
+        return ReturnAnalysisResponse(**cached)
+
+    result = build_return_analysis(
         db,
         project_id=project_id,
         country=country,
@@ -39,3 +49,9 @@ def get_return_analysis(
         end_date=end_date,
         sku=sku,
     )
+    # Serialize for cache storage
+    if hasattr(result, "model_dump"):
+        set_return_analysis_cache(
+            project_id, country, start_date, end_date, sku, result.model_dump(mode="json")
+        )
+    return result
