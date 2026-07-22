@@ -7,10 +7,11 @@
 **目标：** 把内网各机器上 Agent 员工的真实心跳，经后端"拟人化伸展引擎"平滑拉伸成全天动态，在前端一个"虚拟办公室工牌墙"上以工牌形式实时展示多个 Agent 当前正在做的事项。
 
 **架构：**
-- **上报层（已有，复用）**：内网 Agent 通过 HTTP 心跳 API（`POST /api/v1/digital-employees/{id}/heartbeat`，`api_secret` 鉴权）把 start/progress/complete 报上来，落入 `digital_employee_tasks` / `digital_employee_logs`。**不让 Agent 直连数据库**（凭据分散、强耦合）。
-- **伸展引擎（新增，后端核心）**：`playback_engine.py` 纯逻辑模块，把"脉冲式"真实任务流拉伸成平滑的"虚拟当前状态"——短任务（5-10 分钟）拉伸到 1-2 小时慢慢演、人为插入停顿、新心跳涌来时自适应加速消化、持续高负载的 Agent 标记"忙碌"。每个员工一行 `digital_employee_playback` 持久化游标。
-- **推送层（新增）**：SSE 端点 `GET /api/v1/digital-employees/office/stream`（FastAPI `StreamingResponse`，参考 `ai_chat_v2.py`），每 tick（3s）推进所有员工虚拟态并推送整张工牌墙快照。
-- **展示层（新增，前端）**：`/dashboard/ai/digital-employees/office` 工牌墙页面，`EventSource` 接收，纯渲染。工牌突出"当前工作事项"，支持多 Agent 同时展示 + 拟人化交互。
+- **上报层（已有，复用）**：内网 Agent 通过 HTTP 心跳 API（`POST /api/v1/digital-employees/{id}/heartbeat`，`api_secret` 鉴权）把 start/progress/complete 报上来，落入 `digital_employee_tasks` / `digital_employee_logs`。支持 `task_name` / `task_type` / `metadata_json` 透传（P2-1）。**不让 Agent 直连数据库**（凭据分散、强耦合）。
+- **伸展引擎（新增，后端核心）**：`playback_engine.py` 纯逻辑模块，把“脉冲式”真实任务流拉伸成平滑的“虚拟当前状态”——短任务（5-10 分钟）拉伸到 1-2 小时慢慢演、人为插入停顿、新心跳涌来时自适应加速消化、持续高负载的 Agent 标记“忙碌”。每个员工一行 `digital_employee_playback` 持久化游标。
+- **推进层（新增，Celery beat）**：`office_tick` 每 3s 推进所有员工虚拟态，将整墙快照 + chatter 事件存入 Redis（TTL 5s）。解决多 SSE 客户端各自 advance 的竞态。
+- **推送层（新增）**：SSE 端点 `GET /api/v1/digital-employees/office/stream`（FastAPI `StreamingResponse`），每 tick（3s）优先读 Redis 缓存，miss 时 fallback 直接计算（dev 无 Redis 兼容）。推送 `event: snapshot`（整墙快照）+ `event: chatter`（拟人化动态事件）。
+- **展示层（新增，前端）**：`/dashboard/ai/digital-employees/office` 工牌墙页面，`EventSource` 接收，纯渲染。工牌突出“当前工作事项”，支持多 Agent 同时展示 + 拟人化交互 + 投屏模式（`?mode=presentation`）。
 
 **技术栈：**
 - 后端：FastAPI + SQLAlchemy + Alembic（沿用）；SSE 用 `StreamingResponse`（已有范式）；引擎纯逻辑 + pytest TDD。
@@ -279,8 +280,8 @@ data: {"server_time":"...","employees":[{...VirtualSnapshot + persona 字段...}
 | Phase | 主题 | 范围 | 状态 |
 |-------|------|------|------|
 | **Phase 1** | **端到端骨架** | 1 个真实/模拟 Agent 上报 → 后端伸展引擎（基础自适应）→ `digital_employee_playback` 表 → SSE 端点 → 前端 `useOfficeStream` + 单张工牌渲染。**跑通"1 分钟真实任务拉伸成 ~10 分钟展示"** | ✅ 完成（2026-07-23）— 含质量修复（SSE 连接泄漏/查询优化/测试补全）+ 端到端模拟器验证通过。详见 [phase1 文件](./2026-07-22-digital-employee-virtual-office-phase1.md) |
-| **Phase 2** | 多 Agent 工牌墙 | 扩展到 N 个 Agent：响应式网格、办公室概览条、忙碌优先排序、per-badge persona 渐变环、heartbeat metadata 透传、模拟器多员工场景 | ✅ 大部分完成（2026-07-23）— 网格/概览条/排序/persona/metadata/模拟器已落地。**剩余**：Celery beat 独立推进器（多 SSE 客户端竞态）、压测 5-10 Agent |
-| **Phase 3** | 拟人化交互层 | office chatter 信息流、完成/失败 spotlight+toast、忙碌光晕、ambient 动效、hover 展开、human_name、投屏模式、`prefers-reduced-motion` 全覆盖 | ✅ 大部分完成（2026-07-23）— 呼吸脉动/忙碌 shimmer/失败红闪/hover 展开+click 跳详情/reduced-motion 降级/chatter ticker/spotlight toast 已落地。**剩余**：投屏模式、human_name 可选叠加 |
+| **Phase 2** | 多 Agent 工牌墙 | 扩展到 N 个 Agent：响应式网格、办公室概览条、忙碌优先排序、per-badge persona 渐变环、heartbeat metadata 透传、模拟器多员工场景、Celery beat 独立推进器 | ✅ 完成（2026-07-23）— 网格/概览条/排序/persona/metadata/模拟器/Celery beat 独立推进器（Redis 缓存 + SSE 读缓存优先）全部落地 |
+| **Phase 3** | 拟人化交互层 | office chatter 信息流、完成/失败 spotlight+toast、忙碌光晕、ambient 动效、hover 展开、投屏模式、`prefers-reduced-motion` 全覆盖 | ✅ 完成（2026-07-23）— 呼吸脉动/忙碌 shimmer/失败红闪/hover 展开+click 跳详情/reduced-motion 降级/chatter ticker/spotlight toast/投屏模式（?mode=presentation 全屏深色+时钟+ESC 退出）全部落地。human_name 为可选叠加项，不阻塞 |
 | **Phase 4** | 接入真实内网 Agent + 调参 | 把 autoReportUpload 等真实 Agent 接上心跳 SDK，用真实数据调 `PlaybackConfig`（stretch/pace/忙碌阈值），接静默心跳告警（`is_silent_alert_threshold_minutes` 已建模） | 推进到时起草 |
 
 **推进原则**：Phase 1 跑通端到端再横向扩；每个 phase 独立可验证、可上线。
@@ -293,13 +294,14 @@ data: {"server_time":"...","employees":[{...VirtualSnapshot + persona 字段...}
 
 ## 8. 风险与回滚
 
-| 风险 | 缓解 |
-|------|------|
-| Next.js `/api/backend` 代理缓冲 SSE | Phase 1 专门验证任务；回退：代理 route 强制流式 / EventSource 直连 |
-| 多 SSE 客户端各自推进引擎竞态 | `advance()` 以 `last_advanced_at` 为基准幂等推进到 `now`；Phase 2 可移 Celery beat 单一推进 |
-| 节奏参数不舒服 | 全集中在 `PlaybackConfig`，改常量即可 |
-| 引擎逻辑 bug 影响展示 | 纯逻辑 + pytest 全覆盖；引擎不碰 DB，故障面小 |
-| 新表迁移 | 仅新增 `digital_employee_playback`，不动现有表；回滚 = drop 该表 |
+| 风险 | 缓解 | 状态 |
+|------|------|------|
+| Next.js `/api/backend` 代理缓冲 SSE | 代理 route 强制流式 / EventSource 直连 | ⚠️ 待验证（合并前） |
+| 多 SSE 客户端各自推进引擎竞态 | Celery beat 独立推进器（`office_tick` 每 3s 写 Redis，SSE 读缓存优先） | ✅ 已解决 |
+| 节奏参数不舒服 | 全集中在 `PlaybackConfig`，改常量即可 | ✅ 设计就绪 |
+| 引擎逻辑 bug 影响展示 | 纯逻辑 + pytest 全覆盖（32 tests）；引擎不碰 DB，故障面小 | ✅ 已覆盖 |
+| 新表迁移 | 仅新增 `digital_employee_playback`，不动现有表；回滚 = drop 该表 | ✅ 低风险 |
+| Redis 不可用时 SSE 断流 | `_build_tick_sync` fallback 直接计算（dev 无 Redis 兼容） | ✅ 已处理 |
 
 ---
 
@@ -308,3 +310,91 @@ data: {"server_time":"...","employees":[{...VirtualSnapshot + persona 字段...}
 - 3D 办公室 / 虚拟形象动画（用户明确"不是 3D，是工牌"）
 - Agent 双向控制（本计划只做"展示"，不下发指令）
 - 历史回放/时间轴拖动（未来可基于 `display_event` 扩展）
+
+
+---
+
+## 10. 本地验证指南
+
+### 快速端到端验证（无需 Celery/Redis）
+
+```bash
+# 1. 启动后端（需要 .env 或 .env.test 中的 DATABASE_URL）
+cd backend
+export $(grep -v '^#' .env.test | xargs)
+uvicorn app.main:app --port 8100
+
+# 2. 跑模拟器（3 个员工，8 个任务，含 FAILED/并发/真实 metadata）
+python scripts/simulate_agent.py --base http://localhost:8100 --speed 3
+
+# 3. 验证 SSE 推送
+curl -N -H "X-API-Key: <your-key>" http://localhost:8100/api/v1/digital-employees/office/stream
+
+# 4. 启动前端
+cd frontend && pnpm dev
+
+# 5. 打开工牌墙
+# 普通模式：http://localhost:3200/dashboard/ai/digital-employees/office
+# 投屏模式：http://localhost:3200/dashboard/ai/digital-employees/office?mode=presentation
+```
+
+### 带 Celery beat 的完整模式（生产）
+
+```bash
+# 启动 worker + beat（需要 Redis）
+celery -A app.tasks.celery_app worker --beat -Q default,reports,insights,scheduled,ai_summary -c 2
+
+# SSE 端点自动读 Redis 缓存，不再各自 advance
+```
+
+### 验证清单
+
+| 场景 | 预期 |
+|------|------|
+| 模拟器上报 1 个 5 秒任务 | 工牌进入"在岗"，进度条**缓慢**爬升（拉伸到 ~1h），不跳变 |
+| 连续上报 3 个任务 | 排队计数出现，pace 升高、进度加快消化 |
+| 任务播完 | 进入"收尾/PAUSING"，停顿后回"待命" |
+| FAILED 任务 | 工牌红色脉动 + chatter toast "😵 卡住了" |
+| 并发任务 | 忙碌 shimmer + 排队计数 + pace > 1 |
+| 30 分钟无心跳 | 工牌变"离线"、压暗 |
+| 浏览器刷新 | 重新连接 SSE，游标已持久化、进度不回退 |
+| 投屏模式 | 全屏深色、放大工牌、实时时钟、ESC 退出 |
+| chatter ticker | 底部横向滚动最近动态 |
+| 多客户端同时看 | Celery beat 单一推进，无竞态 |
+
+---
+
+## 11. 文件清单
+
+### 后端
+
+| 路径 | 职责 |
+|------|------|
+| `app/services/digital/playback_engine.py` | 伸展引擎纯逻辑（advance/stretch/pace/busy） |
+| `app/services/digital/office_service.py` | DB 编排 + 富化 + chatter 事件检测 |
+| `app/models/digital_employee_playback.py` | playback 表模型 |
+| `app/api/v1/endpoints/digital_office.py` | SSE 端点（Redis 缓存优先 + fallback） |
+| `app/celery_tasks/office_tick.py` | Celery beat 独立推进器 |
+| `app/tasks/celery_app.py` | Celery 配置（含 beat_schedule） |
+| `app/schemas/digital_employee.py` | HeartbeatRequest（含 metadata_json） |
+| `scripts/simulate_agent.py` | 端到端模拟器（3 员工 8 任务） |
+| `tests/services/digital/test_playback_engine.py` | 引擎单测（11） |
+| `tests/services/digital/test_office_service.py` | service 单测（5 纯逻辑 + 7 DB 集成） |
+| `tests/api/test_digital_office_stream.py` | SSE 端点测试（10） |
+
+### 前端
+
+| 路径 | 职责 |
+|------|------|
+| `lib/digital-employee/office-stream-types.ts` | SSE payload 类型 + ChatterEvent |
+| `lib/digital-employee/use-office-stream.ts` | EventSource hook（重连退避 + chatter 监听） |
+| `components/digital-employee/office/office-badge.tsx` | 工牌组件（拟人化动效） |
+| `components/digital-employee/office/office-chatter.tsx` | chatter ticker + Spotlight Toast |
+| `app/dashboard/ai/digital-employees/office/page.tsx` | 工牌墙页面（排序 + 概览 + 投屏模式） |
+| `app/globals.css` | office 动效 keyframes + reduced-motion |
+
+### 迁移
+
+| 路径 | 说明 |
+|------|------|
+| `alembic/versions/790a004efd39_add_digital_employee_playback.py` | 新增 playback 表 |
