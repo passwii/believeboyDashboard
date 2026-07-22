@@ -39,12 +39,12 @@
 - **Commit**：中文 + Conventional Commits（feat/fix/docs/test/chore…），scope 中文，subject 动宾短语 ≤50 字无句号。详细见 `chinese-commit-conventions` 技能。
 - **Superpowers**：收到任务先检查是否匹配 skill（哪怕 1% 可能）；设计先于编码、测试先于实现、验证先于完成。
 - **Plans 目录约定**：已完成 plan 归集到 `docs/superpowers/plans/<日期-slug>/` 子目录；进行中 plan 仍平铺（下一新 plan 起推荐从一开始就建子目录）。详见 [docs/superpowers/plans/README.md](./docs/superpowers/plans/README.md)。
-- **Alembic 迁移命名（重要，防"乱码" revision id）**：
-  - revision id 一律用 **`日期_功能slug`**（如 `20260722_crm_tables`），**不要**全局递增序号（多 worktree 并行无法协调共享序号），**更不要**裸跑 `alembic revision -m "..."`（默认生成 `a5571a96e542` 这类随机 hash）。
-  - 建迁移用：`cd backend && alembic revision --rev-id $(date +%Y%m%d)_<slug> -m "<中文说明>"`（`<slug>` 取功能名，如 `crm_tables`）。
-  - **并行 worktree 各自建迁移，汇合时用 `alembic merge heads -m "merge xxx"` 收口**（生成 `down_revision=(A, B)` 的合并迁移）——这是 Alembic 为并行开发设计的原生机制，不要 repoint/重排序号。
-  - **已部署到 prod 的迁移禁止改 revision id / 重命名**（prod `alembic_version` 按 id 追踪，改了会找不到版本）；仅未部署的迁移可改名。
-  - 主键统一用 `Integer`（对齐 `app/models/alert_rule.py` 屋风与模型 `Mapped[int]`），勿用 `BigInteger`。
+- **Alembic 迁移命名（遵循 [docs/REFERENCE.md](./docs/REFERENCE.md) §数据库与迁移）**：
+  - 文件名 `YYYYMMDD_NNN_description.py`，revision id 用**纯数字短 ID**（如 `'215'`），`NNN` 从最新迁移递增、**不从 1 重计**；**严禁**裸跑 `alembic revision -m "..."`（默认生成 `a5571a96e542` 这类随机 hash）。
+  - 建迁移：`cd backend && alembic revision --rev-id <下一序号> -m "<中文说明>"`（先 `ls alembic/versions | grep ^2026 | sort | tail` 看最新序号）。
+  - **多 worktree 并行撞车时**（两分支迁移挂同一 `down_revision` → 多 head）：汇合后跑 `alembic merge heads --rev-id <下一序号> -m "merge xxx"` 生成合并迁移（`down_revision=(A, B)`）把单链接回，**不要**手工加 `b` 后缀或重排序号（历史 `20260415_095b`、重复 `114` 即手工躲撞的教训）。
+  - **已部署到 prod 的迁移禁止改 revision id / 重命名**（prod `alembic_version` 按 id 追踪，改了会找不到版本）；仅未部署的可改。
+  - 主键统一 `Integer`（对齐 `alert_rule.py` 屋风与模型 `Mapped[int]`），勿用 `BigInteger`。
 
 ## 仓库根指针
 
