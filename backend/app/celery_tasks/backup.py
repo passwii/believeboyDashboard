@@ -60,7 +60,13 @@ def _advance_phase(db, record_id: int, from_phase: str, to_phase: str) -> bool:
 def run_backup_task(self, record_id: int) -> dict:
     """跑一次 pgBackRest 备份 (Phase 1: 不传 R2, Phase 2 接 compressing/r2_uploading)。"""
     # 延迟导入打破与 backup_service 的循环依赖 (见模块 docstring)。
-    from app.services.backup_service import _get_pgbackrest_info, _run_pgbackrest_backup
+    from app.core.config import get_settings
+    from app.services.backup_service import (
+        _archive_to_tar_gz,
+        _get_pgbackrest_info,
+        _run_pgbackrest_backup,
+        _upload_to_r2,
+    )
 
     with SessionLocal() as db:
         record = db.execute(
@@ -86,9 +92,7 @@ def run_backup_task(self, record_id: int) -> dict:
         returncode, stdout, stderr = _run_pgbackrest_backup(record.backup_type)
 
         if returncode == 0:
-            record.completed_at = datetime.now()
-            record.status = BackupStatus.COMPLETED.value
-            record.phase = "completed"
+            # 先解析 pgbackrest info 拿 set_name / size / duration
             success, info_raw, backups = _get_pgbackrest_info()
             if success:
                 record.backup_info = info_raw
@@ -97,6 +101,24 @@ def run_backup_task(self, record_id: int) -> dict:
                 record.size_bytes = latest.get("size")
                 record.duration_seconds = latest.get("duration")
                 record.backup_set_name = latest.get("label")
+            db.commit()
+
+            # Phase 2: R2 上传 (compressing → r2_uploading)，仅当 R2 可用且拿到 set_name
+            settings = get_settings()
+            if settings.r2_enabled and record.backup_set_name:
+                _advance_phase(db, record_id, "pgbackrest_running", "compressing")
+                tar_path = _archive_to_tar_gz(record.backup_set_name, record_id)
+                try:
+                    _advance_phase(db, record_id, "compressing", "r2_uploading")
+                    _upload_to_r2(settings, record, tar_path)
+                    record.r2_uploaded_at = datetime.now()
+                    db.commit()
+                finally:
+                    tar_path.unlink(missing_ok=True)
+
+            record.completed_at = datetime.now()
+            record.status = BackupStatus.COMPLETED.value
+            record.phase = "completed"
             db.commit()
             return {"record_id": record_id, "status": "completed"}
 

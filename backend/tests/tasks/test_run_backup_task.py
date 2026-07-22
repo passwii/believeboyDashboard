@@ -7,7 +7,8 @@ task 用独立 SessionLocal 会话 commit（跨会话可见需真提交），故
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy import text
@@ -64,3 +65,24 @@ def test_failure_marks_failed_and_increments_retry(db_session):
     assert rec.status == BackupStatus.FAILED.value
     assert rec.retry_count == 1
     assert "boom" in (rec.error_message or "")
+
+
+def test_success_with_r2_advances_through_upload_phases(db_session):
+    """r2_enabled 且拿到 set_name 时: 走 compressing → r2_uploading → completed，落 r2_uploaded_at。"""
+    rec = _mk_record(db_session)
+    fake_settings = Mock(r2_enabled=True)
+    info = (True, "{}", [{"label": "20260722-030000F", "size": 100, "duration": 60}])
+    with patch("app.services.backup_service._run_pgbackrest_backup", return_value=(0, "{}", "")), \
+         patch("app.services.backup_service._get_pgbackrest_info", return_value=info), \
+         patch("app.core.config.get_settings", return_value=fake_settings), \
+         patch("app.services.backup_service._archive_to_tar_gz", return_value=Path("/tmp/fake.tar.gz")) as mock_archive, \
+         patch("app.services.backup_service._upload_to_r2") as mock_upload:
+        result = run_backup_task.apply(args=(rec.id,), throw=True).result
+    db_session.refresh(rec)
+    assert rec.status == BackupStatus.COMPLETED.value
+    assert rec.phase == "completed"
+    assert rec.backup_set_name == "20260722-030000F"
+    assert rec.r2_uploaded_at is not None
+    mock_archive.assert_called_once_with("20260722-030000F", rec.id)
+    mock_upload.assert_called_once()
+    assert result["status"] == "completed"
