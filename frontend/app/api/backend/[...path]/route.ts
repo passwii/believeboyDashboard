@@ -12,6 +12,7 @@ import {
   getProxyRequestBody,
   toProxyResponse,
 } from '@/lib/server/backend-proxy'
+import { appendApiKeyQuery } from '@/lib/server/backend-api'
 import { getProxyTimeoutMs } from '@/lib/server/backend-proxy-timeout-policy'
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -74,7 +75,7 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept)
 
   try {
-    const response = await fetch(`${buildBackendUrl(backendPath)}${search}`, {
+    const response = await fetch(`${buildBackendUrl(backendPath)}${appendApiKeyQuery(search)}`, {
       method: request.method,
       headers: buildBackendProxyHeaders(session, request.headers),
       body: await getProxyRequestBody(request),

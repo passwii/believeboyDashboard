@@ -259,6 +259,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       },
       { title: '客服交流', url: '/dashboard/ai/customer-service', icon: IconMap.MessagesSquare },
       { title: '数字员工', url: '/dashboard/ai/digital-employees', icon: IconMap.Users },
+      { title: '虚拟办公室', url: '/dashboard/ai/digital-employees/office', icon: IconMap.LayoutDashboard },
     ],
   },
 

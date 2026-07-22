@@ -12,14 +12,14 @@ import { SkipLink } from '@/components/ui/skip-link'
 
 const manrope = Manrope({
   subsets: ['latin'],
-  variable: '--font-manrope',
+  variable: '--font-sans',
   weight: ['400', '500', '600', '700'],
   display: 'swap',
 })
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
+  variable: '--font-display',
   weight: ['500', '700'],
   display: 'swap',
   adjustFontFallback: false,

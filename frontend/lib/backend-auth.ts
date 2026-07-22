@@ -128,6 +128,11 @@ export function buildBackendAuthHeaders(
 ): Headers {
   const headers = new Headers()
   headers.set('X-API-Key', options.apiKey)
+  // Defense-in-depth: also send `Authorization: Bearer <key>`. Vercel/edge
+  // server-to-server fetches may strip the custom `X-API-Key` header, while
+  // the standard `Authorization` header is always forwarded. Backend
+  // `require_api_key` accepts both (added 2026-07-22, live-chat 401 fix).
+  headers.set('Authorization', `Bearer ${options.apiKey}`)
   if (options.contentType) headers.set('Content-Type', options.contentType)
   if (options.accept) headers.set('Accept', options.accept)
 
