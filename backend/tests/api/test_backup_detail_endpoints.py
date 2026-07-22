@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1.endpoints.backups import (
+    delete_backup,
     get_backup_download_url,
     get_backup_record,
     get_backup_restore_command,
@@ -94,3 +95,37 @@ def test_restore_command_400_when_no_set():
     with pytest.raises(HTTPException) as exc:
         get_backup_restore_command(record_id=1, db=db, _=True)
     assert exc.value.status_code == 400
+
+
+def test_delete_backup_soft_deletes_and_removes_r2():
+    db = Mock()
+    record = _record(id=1, r2_key="db-backups/pgbackrest/blf_2026-07-22_full_1.tar.gz")
+    db.get.return_value = record
+    with patch("app.api.v1.endpoints.backups.try_delete_file_from_r2") as mock_del, \
+         patch("app.api.v1.endpoints.backups.get_settings"):
+        resp = delete_backup(record_id=1, db=db, _=True)
+    mock_del.assert_called_once()
+    assert record.r2_deleted_at is not None
+    db.commit.assert_called_once()
+    assert resp.deleted is True
+    assert resp.id == 1
+
+
+def test_delete_backup_without_r2_key_skips_r2_delete():
+    db = Mock()
+    record = _record(id=2, r2_key=None)
+    db.get.return_value = record
+    with patch("app.api.v1.endpoints.backups.try_delete_file_from_r2") as mock_del, \
+         patch("app.api.v1.endpoints.backups.get_settings"):
+        resp = delete_backup(record_id=2, db=db, _=True)
+    mock_del.assert_not_called()
+    assert record.r2_deleted_at is not None
+    assert resp.deleted is True
+
+
+def test_delete_backup_404_when_missing():
+    db = Mock()
+    db.get.return_value = None
+    with pytest.raises(HTTPException) as exc:
+        delete_backup(record_id=999, db=db, _=True)
+    assert exc.value.status_code == 404

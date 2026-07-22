@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
 from app.core.config import get_settings
 from app.schemas.backup import (
+    BackupDeleteResponse,
     BackupDownloadUrlResponse,
     BackupInfoResponse,
     BackupRecordItem,
@@ -29,6 +32,7 @@ from app.services.backup_service import (
     is_pgbackrest_available,
     verify_backups,
 )
+from app.services.r2_service import try_delete_file_from_r2
 
 router = APIRouter(prefix="/backups", tags=["备份管理"], dependencies=[Depends(protected)])
 
@@ -184,3 +188,20 @@ def get_backup_restore_command(
     if target_time:
         command += f" --type=time --target={target_time} --target-action=pause"
     return BackupRestoreCommandResponse(command=command, set_name=record.backup_set_name)
+
+
+@router.delete("/{record_id}", response_model=BackupDeleteResponse)
+def delete_backup(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupDeleteResponse:
+    """软删备份记录 + 删除 R2 对象（记录行保留，写 r2_deleted_at）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    if record.r2_key:
+        try_delete_file_from_r2(get_settings(), record.r2_key)
+    record.r2_deleted_at = datetime.now()
+    db.commit()
+    return BackupDeleteResponse(id=record_id, deleted=True)

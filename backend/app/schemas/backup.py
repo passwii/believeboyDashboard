@@ -85,3 +85,9 @@ class BackupRestoreCommandResponse(BaseModel):
     """pgbackrest restore 命令预览（不执行）。"""
     command: str
     set_name: str
+
+
+class BackupDeleteResponse(BaseModel):
+    """软删备份记录结果。"""
+    id: int
+    deleted: bool
