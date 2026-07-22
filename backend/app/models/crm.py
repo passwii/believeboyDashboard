@@ -93,14 +93,14 @@ class CrmCustomer(Base):
     rating: Mapped[str] = mapped_column(String(2), nullable=False, default=CrmCustomerRating.C)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmCustomerStatus.ACTIVE)
     source: Mapped[str | None] = mapped_column(String(30))
-    owner_id: Mapped[int | None] = mapped_column(Integer)  # null = 在公海
+    owner_id: Mapped[str | None] = mapped_column(String(36))  # null = 在公海；user_accounts.id UUID
     address: Mapped[str | None] = mapped_column(Text)
     website: Mapped[str | None] = mapped_column(String(300))
     annual_revenue: Mapped[float | None] = mapped_column(Numeric(16, 2))
     employee_count: Mapped[int | None] = mapped_column(Integer)
     remark: Mapped[str | None] = mapped_column(Text)
     last_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -144,13 +144,13 @@ class CrmLead(Base):
     source: Mapped[str | None] = mapped_column(String(30))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmLeadStatus.NEW)
     intent: Mapped[str] = mapped_column(String(10), nullable=False, default=CrmLeadIntent.MEDIUM)
-    owner_id: Mapped[int | None] = mapped_column(Integer)  # null = 在线索池
+    owner_id: Mapped[str | None] = mapped_column(String(36))  # null = 在线索池；user_accounts.id UUID
     expected_amount: Mapped[float | None] = mapped_column(Numeric(16, 2))
     expected_close_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD
     remark: Mapped[str | None] = mapped_column(Text)
     converted_to_customer_id: Mapped[int | None] = mapped_column(Integer)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -172,12 +172,12 @@ class CrmOpportunity(Base):
     )
     amount: Mapped[float] = mapped_column(Numeric(16, 2), nullable=False, default=0)
     stage: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmOpportunityStage.LEAD_IN)
-    owner_id: Mapped[int | None] = mapped_column(Integer)
+    owner_id: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
     expected_close_date: Mapped[str | None] = mapped_column(String(10))
     probability: Mapped[int | None] = mapped_column(Integer)  # 0-100
     linked_project_id: Mapped[int | None] = mapped_column(Integer)  # L3 挂接点（commission project，P5+）
     remark: Mapped[str | None] = mapped_column(Text)
-    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -198,5 +198,5 @@ class CrmFollow(Base):
     type: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmFollowType.NOTE)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     next_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
