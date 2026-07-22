@@ -74,3 +74,8 @@ class BackupVerifyResponse(BaseModel):
     success: bool
     message: str
     verified_at: datetime
+
+
+class BackupDownloadUrlResponse(BaseModel):
+    """R2 presigned 下载链接。"""
+    url: str

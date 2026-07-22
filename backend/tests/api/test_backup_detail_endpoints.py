@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.endpoints.backups import get_backup_record
+from app.api.v1.endpoints.backups import get_backup_download_url, get_backup_record
 from app.models.backup_record import BackupRecord
 
 
@@ -46,3 +46,22 @@ def test_get_backup_record_404_when_missing():
     with pytest.raises(HTTPException) as exc:
         get_backup_record(record_id=999, db=db, _=True)
     assert exc.value.status_code == 404
+
+
+def test_download_url_returns_presigned():
+    db = Mock()
+    db.get.return_value = _record(id=1, r2_key="db-backups/pgbackrest/blf_2026-07-22_full_1.tar.gz")
+    with patch("app.api.v1.endpoints.backups.get_r2_download_url", return_value="https://signed/url"), \
+         patch("app.api.v1.endpoints.backups.get_settings"):
+        resp = get_backup_download_url(record_id=1, db=db, _=True)
+    assert resp.url == "https://signed/url"
+
+
+def test_download_url_400_when_not_uploaded():
+    db = Mock()
+    db.get.return_value = _record(id=1, r2_key=None)
+    with patch("app.api.v1.endpoints.backups.get_r2_download_url", side_effect=ValueError("该备份尚未上传 R2")), \
+         patch("app.api.v1.endpoints.backups.get_settings"):
+        with pytest.raises(HTTPException) as exc:
+            get_backup_download_url(record_id=1, db=db, _=True)
+    assert exc.value.status_code == 400

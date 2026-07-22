@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
+from app.core.config import get_settings
 from app.schemas.backup import (
+    BackupDownloadUrlResponse,
     BackupInfoResponse,
     BackupRecordItem,
     BackupRecordListResponse,
@@ -20,6 +22,7 @@ from app.services.backup_service import (
     enqueue_backup,
     get_backup_records,
     get_backup_status_summary,
+    get_r2_download_url,
     get_raw_backup_info,
     is_backup_configured,
     is_pgbackrest_available,
@@ -144,3 +147,20 @@ def get_backup_record(
     if record is None:
         raise HTTPException(status_code=404, detail="备份记录不存在")
     return BackupRecordItem.model_validate(record)
+
+
+@router.get("/{record_id}/download-url", response_model=BackupDownloadUrlResponse)
+def get_backup_download_url(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupDownloadUrlResponse:
+    """生成 R2 临时下载链接（presigned，1h 有效）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    try:
+        url = get_r2_download_url(get_settings(), record)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return BackupDownloadUrlResponse(url=url)
