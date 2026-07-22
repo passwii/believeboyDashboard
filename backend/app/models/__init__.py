@@ -113,6 +113,13 @@ from app.models.r2_delete_failure import R2DeleteFailure
 from app.models.uploaded_page import UploadedPage
 from app.models.vat_entity import VatEntity
 from app.models.vat_invoice import VatInvoice, VatInvoiceLine
+from app.models.crm import (  # noqa: F401,E402
+    CrmContact,
+    CrmCustomer,
+    CrmFollow,
+    CrmLead,
+    CrmOpportunity,
+)
 
 __all__ = [
     'SkuRecord',
@@ -223,4 +230,9 @@ __all__ = [
     'VatEntity',
     'VatInvoice',
     'VatInvoiceLine',
+    'CrmCustomer',
+    'CrmContact',
+    'CrmLead',
+    'CrmOpportunity',
+    'CrmFollow',
 ]
