@@ -1,0 +1,144 @@
+import { describe, expect, it } from 'vitest'
+import {
+  mapCustomer,
+  mapFollow,
+  mapLead,
+  mapUser,
+  toConvertPayload,
+  toCustomerPayload,
+  toFollowPayload,
+  toLeadPayload,
+  type CustomerDto,
+  type FollowDto,
+  type LeadDto,
+} from './dto-mappers'
+
+const customerDto: CustomerDto = {
+  id: 42,
+  name: '某工厂',
+  customer_type: '工厂',
+  interested_service: '代运营',
+  rating: 'A',
+  status: 'active',
+  source: 'referral',
+  owner_id: 'uuid-1',
+  owner_name: '张三',
+  contact_name: '李四',
+  annual_revenue: 100.5,
+  created_by: 'uuid-9',
+  created_at: '2026-07-23T00:00:00+00:00',
+  updated_at: '2026-07-23T00:00:00+00:00',
+  last_follow_at: null,
+}
+
+const leadDto: LeadDto = {
+  id: 7,
+  name: '王五',
+  company: '某贸易',
+  wechat: 'wx-1',
+  status: 'new',
+  intent: 'high',
+  customer_type: '贸易商',
+  interested_service: 'AI运营',
+  owner_id: null,
+  converted_to_customer_id: 42,
+  created_at: '2026-07-23T00:00:00+00:00',
+  updated_at: '2026-07-23T00:00:00+00:00',
+}
+
+describe('mapCustomer', () => {
+  it('int 主键转 string、snake 转 camel、新字段映射', () => {
+    const c = mapCustomer(customerDto)
+    expect(c.id).toBe('42')
+    expect(c.customerType).toBe('工厂')
+    expect(c.interestedService).toBe('代运营')
+    expect(c.ownerId).toBe('uuid-1')
+    expect(c.contactName).toBe('李四')
+    expect(c.annualRevenue).toBe(100.5)
+    expect(c.createdBy).toBe('uuid-9')
+  })
+  it('null → undefined / ownerId 保留 null', () => {
+    const c = mapCustomer({ ...customerDto, owner_id: null, short_name: null })
+    expect(c.ownerId).toBeNull()
+    expect(c.shortName).toBeUndefined()
+    expect(c.lastFollowAt).toBeUndefined()
+  })
+})
+
+describe('mapLead', () => {
+  it('映射新字段与转化字段', () => {
+    const l = mapLead(leadDto)
+    expect(l.id).toBe('7')
+    expect(l.customerType).toBe('贸易商')
+    expect(l.interestedService).toBe('AI运营')
+    expect(l.wechat).toBe('wx-1')
+    expect(l.ownerId).toBeNull()
+    expect(l.convertedToCustomerId).toBe('42')
+  })
+})
+
+describe('mapFollow', () => {
+  it('entity_id 转 string、type 映射', () => {
+    const dto: FollowDto = {
+      id: 1,
+      entity_type: 'customer',
+      entity_id: 42,
+      type: 'phone',
+      content: '电话',
+      created_by: 'uuid-1',
+      created_by_name: '张三',
+      created_at: '2026-07-23T00:00:00+00:00',
+    }
+    const f = mapFollow(dto)
+    expect(f.entityId).toBe('42')
+    expect(f.entityType).toBe('customer')
+    expect(f.type).toBe('phone')
+    expect(f.createdByName).toBe('张三')
+  })
+})
+
+describe('mapUser', () => {
+  it('role_type 缺省回退 operator', () => {
+    expect(mapUser({ id: 'u1', name: 'a', email: 'a@x.com', is_active: true }).roleType).toBe(
+      'operator'
+    )
+  })
+})
+
+describe('入站映射', () => {
+  it('toCustomerPayload 剔除 undefined 与 contact 展示字段', () => {
+    const p = toCustomerPayload({
+      name: 'x',
+      rating: 'B',
+      customerType: '工厂',
+      contactName: '不应入站',
+      shortName: undefined,
+    } as never)
+    expect(p).toEqual({ name: 'x', rating: 'B', customer_type: '工厂' })
+    expect(p).not.toHaveProperty('contact_name')
+  })
+  it('toLeadPayload camel→snake', () => {
+    const p = toLeadPayload({
+      name: 'x',
+      interestedService: '代运营',
+      expectedAmount: 1000,
+    } as never)
+    expect(p).toEqual({ name: 'x', interested_service: '代运营', expected_amount: 1000 })
+  })
+  it('toFollowPayload entity_id 转 int、不带 created_by', () => {
+    const p = toFollowPayload({
+      entityType: 'lead',
+      entityId: '7',
+      type: 'wechat',
+      content: '微信',
+      createdBy: 'uuid-1',
+    } as never)
+    expect(p).toEqual({ entity_type: 'lead', entity_id: 7, type: 'wechat', content: '微信' })
+    expect(p).not.toHaveProperty('created_by')
+  })
+  it('toConvertPayload 仅保留可覆盖字段，空则 undefined', () => {
+    expect(toConvertPayload(undefined)).toBeUndefined()
+    expect(toConvertPayload({})).toBeUndefined()
+    expect(toConvertPayload({ name: 'n', rating: 'A' } as never)).toEqual({ name: 'n', rating: 'A' })
+  })
+})

@@ -13,6 +13,8 @@ export interface Lead {
   source: CustomerSource
   status: LeadStatus
   intent: LeadIntent
+  customerType?: string
+  interestedService?: string
   ownerId: string | null
   ownerName?: string
   expectedAmount?: number
