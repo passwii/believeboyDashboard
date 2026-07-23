@@ -99,6 +99,20 @@ cd backend && ls alembic/versions/ | grep "^2026" | sort | tail -5
 cd backend && .venv/bin/alembic heads
 ```
 
+**多 worktree 并行迁移流程（防撞 + 不抢跑 prod）**：
+
+迁移碰撞的根因是"建迁移时 `down_revision` 选错"，不是 merge 时机。因此核心是**建前先同步 main 取单链**，而非"建完立即合 main"（立即合会让 schema 先于业务代码上 prod——`git deploy` 命中 `backend/` 即自动 `alembic upgrade head`，易造成列与代码错位）。
+
+1. **建迁移前（强制防撞）**：先同步 main 并确认单链，再以此 head 为 `down_revision`：
+   ```bash
+   git fetch origin && git rebase origin/main   # 或 merge
+   cd backend && .venv/bin/alembic heads         # 必须只有一个 head
+   # 然后才 alembic revision --rev-id <下一序号> -m "<中文说明>"
+   ```
+2. **建完随 feature 分支走**：迁移文件和用它代码同批 review、同批合 main，避免 schema 裸奔提前触发 prod 部署。
+3. **真撞了（出现两个 head）**：在 main 侧 `alembic merge heads --rev-id <下一序号> -m "merge xxx"` 合回单链（见下）。
+4. **其他 worktree 要用迁移**：先 rebase/pull main 拿到最新单链，再重复步骤 1。
+
 ---
 
 ## 广告数据说明（Ad Data）
