@@ -44,6 +44,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.insights.generate",
             "app.celery_tasks.scheduled_report",
             "app.celery_tasks.ai_summary",
+            "app.celery_tasks.office_tick",
         ],
     )
 
@@ -70,6 +71,15 @@ def _build_celery_app() -> Celery:
             # - `generate_delivery_summary` 在 `ai_summary` 队列，独立信号量 §4.6
             "dispatch_one": {"queue": "scheduled"},
             "generate_delivery_summary": {"queue": "ai_summary"},
+            # 虚拟办公室独立推进器：default 队列（短任务 <100ms）
+            "office_tick": {"queue": "default"},
+        },
+        # 虚拟办公室：每 3s 推进所有员工虚拟状态
+        beat_schedule={
+            "office-tick": {
+                "task": "office_tick",
+                "schedule": 3.0,
+            },
         },
         # All timestamps in messages/results use project timezone.
         timezone="Asia/Shanghai",
