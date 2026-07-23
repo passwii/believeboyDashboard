@@ -1,11 +1,17 @@
 """Lead domain service: CRUD + scope filter(mine/all/sea=线索池) + keyword + 池操作(transfer/move-pool/claim)."""
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from datetime import datetime, timezone
+
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmLead
-from app.schemas.crm import LeadCreate, LeadUpdate
+from app.models.crm import CrmContact, CrmCustomer, CrmFollow, CrmLead
+from app.schemas.crm import ConvertLeadRequest, ConvertLeadResponse, LeadCreate, LeadUpdate
+
+
+class LeadAlreadyConverted(Exception):
+    """线索已转化过，不能重复转化。"""
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -167,3 +173,75 @@ def claim_from_pool(db: Session, lead_id: int, *, user_id: str | None):
     db.commit()
     db.refresh(lead)
     return get_lead(db, lead.id)
+
+
+
+def convert_lead(
+    db: Session,
+    lead_id: int,
+    payload: ConvertLeadRequest | None = None,
+    *,
+    user_id: str | None,
+) -> ConvertLeadResponse | None:
+    """线索转客户（单事务，原子）：
+
+    1. 建客户：name 取 override.name 或 lead.company 或 lead.name；customer_type/
+       interested_service/source 带过去；rating 默认 C；owner=lead.owner；created_by=当前用户。
+    2. 建主联系人：name/phone/email/wechat 来自线索，is_primary=True。
+    3. re-parent 跟进：该线索的 crm_follows 改挂到新客户（entity_type lead→customer）。
+    4. 标记线索 converted：status/converted_to_customer_id/converted_at。
+
+    线索不存在返回 None；已转化抛 LeadAlreadyConverted。任一步失败整体回滚（单次 commit）。
+    """
+    from app.services.crm.customer_service import get_customer
+
+    lead = db.execute(
+        select(CrmLead).where(CrmLead.id == lead_id, CrmLead.is_deleted.is_(False))
+    ).scalar_one_or_none()
+    if lead is None:
+        return None
+    if lead.converted_to_customer_id is not None:
+        raise LeadAlreadyConverted(f"lead {lead_id} already converted")
+
+    ov = payload.model_dump(exclude_unset=True) if payload else {}
+    cur = _current_user_id(user_id)
+
+    cust = CrmCustomer(
+        name=ov.get("name") or lead.company or lead.name,
+        customer_type=lead.customer_type,
+        interested_service=lead.interested_service,
+        source=ov.get("source") or lead.source,
+        rating=ov.get("rating") or "C",
+        status="active",
+        owner_id=lead.owner_id,
+        remark=ov.get("remark") or lead.remark,
+        created_by=cur,
+    )
+    db.add(cust)
+    db.flush()  # 拿 cust.id
+
+    contact = CrmContact(
+        customer_id=cust.id,
+        name=lead.name,
+        phone=lead.phone,
+        email=lead.email,
+        wechat=lead.wechat,
+        is_primary=True,
+    )
+    db.add(contact)
+
+    # 跟进搬迁：lead → customer
+    db.execute(
+        update(CrmFollow)
+        .where(CrmFollow.entity_type == "lead", CrmFollow.entity_id == lead.id)
+        .values(entity_type="customer", entity_id=cust.id)
+    )
+
+    # 标记线索已转化
+    lead.status = "converted"
+    lead.converted_to_customer_id = cust.id
+    lead.converted_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    return ConvertLeadResponse(lead=get_lead(db, lead.id), customer=get_customer(db, cust.id))
