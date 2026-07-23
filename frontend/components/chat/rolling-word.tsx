@@ -45,6 +45,7 @@ export function RollingWord({
 }) {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
+  const [visible, setVisible] = useState(true)
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([])
   const prevRef = useRef(0)
   const reducedRef = useRef(false)
@@ -53,13 +54,21 @@ export function RollingWord({
     reducedRef.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   }, [])
 
-  // Advance on a timer; hovering pauses the cycle (interval is torn down
-  // and restarted, so the current word gets a full dwell on resume).
+  // Pause the carousel when the browser tab is hidden — prevents the
+  // interval from firing while GSAP animations are throttled, which
+  // caused overlapping words on tab-switch.
   useEffect(() => {
-    if (words.length < 2 || paused) return
+    const onVisibility = () => setVisible(!document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
+  // Advance on a timer; hovering or hidden tab pauses the cycle.
+  useEffect(() => {
+    if (words.length < 2 || paused || !visible) return
     const t = setInterval(() => setCurrent((c) => (c + 1) % words.length), interval)
     return () => clearInterval(t)
-  }, [words.length, interval, paused])
+  }, [words.length, interval, paused, visible])
 
   useGSAP(
     () => {

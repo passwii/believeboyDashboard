@@ -62,11 +62,17 @@ class StreamRunner:
         model_name: str = "unknown",
     ) -> None:
         """后台执行 agent。事件写入 Redis Stream。"""
-        await self._cancel.register(conv_id)
-        await self._bus.start(conv_id)
-
         message_id = str(uuid.uuid4())
         created_at = int(time.time() * 1000)
+
+        try:
+            await self._cancel.register(conv_id)
+            await self._bus.start(conv_id)
+        except Exception as exc:
+            # Redis 不可用时无法写 Stream；直接退出，subscriber 侧
+            # 的 xread 也会因连接失败而抛异常 → endpoint 返回 ErrorEvent。
+            logger.error("Stream %s: Redis setup failed: %s", conv_id, exc)
+            return
 
         # 取消检查点 0:agent 开始前
         await asyncio.sleep(0)

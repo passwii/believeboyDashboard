@@ -36,11 +36,11 @@ export function TypewriterText({
         if (seg.highlight) {
           // Typing finished → the highlighted word becomes a rolling carousel.
           if (rollerReady) {
-            return <RollingWord key={i} words={rollingWords!} className="px-1.5" />
+            return <RollingWord key={i} words={rollingWords!} className="px-2 mx-0.5" />
           }
           if (!visible) return null
           return (
-            <span key={i} className={`${HIGHLIGHT_WORD_CLASS} px-1.5`}>
+            <span key={i} className={`${HIGHLIGHT_WORD_CLASS} px-2 mx-0.5`}>
               {visible}
             </span>
           )

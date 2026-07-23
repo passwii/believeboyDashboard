@@ -240,6 +240,11 @@ async def _finalize_db(
     from app.services.ai.stream_utils import serialize_message
 
     try:
+        # ⚠️ 必须在任何 db.commit() 之前序列化 user message 快照。
+        # regenerate 路径中 target_assistant 已被 db.delete()+flush()，
+        # commit 后 session expire → 再访问属性会 DetachedInstanceError。
+        user_msg_snapshot = serialize_message(target_assistant if regenerate else user_row)
+
         # 幂等守卫:重连时不重复写
         if assistant_row.content:
             return None
@@ -292,7 +297,7 @@ async def _finalize_db(
         # 构建 done payload(兼容旧前端协议)
         return {
             "type": "done",
-            "user_message": serialize_message(target_assistant if regenerate else user_row),
+            "user_message": user_msg_snapshot,
             "assistant_message": serialize_message(assistant_row),
             "conversation_title": conversation.title,
             "token_usage": {
