@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmCustomer, CrmFollow
+from app.models.crm import CrmCustomer, CrmFollow, CrmLead
 from app.schemas.crm import FollowCreate, FollowItem
 
 
@@ -60,7 +60,10 @@ def list_follows(db: Session, entity_type: str, entity_id: int) -> list[FollowIt
 
 
 def create_follow(db: Session, payload: FollowCreate, *, user_id: str | None) -> FollowItem:
-    """创建跟进；若挂客户则回写该客户 last_follow_at。"""
+    """创建跟进；回写实体的 last_follow_at（客户）与 next_follow_at（客户+线索，P2b）。
+
+    next_follow_at 回写规则：payload 带值→设入实体；不带（None）→清空实体（表示这次跟进了、没约下次）。
+    """
     cur = _current_user_id(user_id)
     follow = CrmFollow(
         entity_type=payload.entity_type,
@@ -78,6 +81,13 @@ def create_follow(db: Session, payload: FollowCreate, *, user_id: str | None) ->
         ).scalar_one_or_none()
         if cust is not None:
             cust.last_follow_at = datetime.now(timezone.utc)
+            cust.next_follow_at = payload.next_follow_at
+    elif payload.entity_type == "lead":
+        lead = db.execute(
+            select(CrmLead).where(CrmLead.id == payload.entity_id)
+        ).scalar_one_or_none()
+        if lead is not None:
+            lead.next_follow_at = payload.next_follow_at
     db.commit()
     db.refresh(follow)
     names = _created_by_name_map(db, {cur} if cur else set())
