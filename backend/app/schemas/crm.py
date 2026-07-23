@@ -14,6 +14,8 @@ class CustomerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     short_name: str | None = None
     industry: str | None = None
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     rating: str = "C"
     status: str = "active"
     source: str | None = None
@@ -29,6 +31,8 @@ class CustomerUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     short_name: str | None = None
     industry: str | None = None
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     rating: str | None = None
     status: str | None = None
     source: str | None = None
@@ -45,6 +49,8 @@ class CustomerItem(BaseModel):
     name: str
     short_name: str | None = None
     industry: str | None = None
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     rating: str
     status: str
     source: str | None = None
@@ -79,6 +85,7 @@ class ContactCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     phone: str | None = None
     email: str | None = None
+    wechat: str | None = None
     title: str | None = None
     is_primary: bool = False
     remark: str | None = None
@@ -88,6 +95,7 @@ class ContactUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     phone: str | None = None
     email: str | None = None
+    wechat: str | None = None
     title: str | None = None
     is_primary: bool | None = None
     remark: str | None = None
@@ -99,6 +107,7 @@ class ContactItem(BaseModel):
     name: str
     phone: str | None = None
     email: str | None = None
+    wechat: str | None = None
     title: str | None = None
     is_primary: bool
     remark: str | None = None
@@ -118,6 +127,8 @@ class LeadCreate(BaseModel):
     source: str | None = None
     status: str = "new"
     intent: str = "medium"
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     owner_id: str | None = None
     expected_amount: float | None = None
     expected_close_date: str | None = None
@@ -133,6 +144,8 @@ class LeadUpdate(BaseModel):
     source: str | None = None
     status: str | None = None
     intent: str | None = None
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     owner_id: str | None = None
     expected_amount: float | None = None
     expected_close_date: str | None = None
@@ -149,6 +162,8 @@ class LeadItem(BaseModel):
     source: str | None = None
     status: str
     intent: str
+    customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     owner_id: str | None = None
     owner_name: str | None = None
     expected_amount: float | None = None
