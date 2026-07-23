@@ -7,6 +7,8 @@ export interface Customer {
   name: string
   shortName?: string
   industry?: string
+  customerType?: string
+  interestedService?: string
   rating: CustomerRating
   status: CustomerStatus
   source: CustomerSource

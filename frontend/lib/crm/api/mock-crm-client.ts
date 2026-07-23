@@ -7,14 +7,11 @@ import type {
   FollowInput,
   Lead,
   LeadInput,
-  Opportunity,
-  OpportunityInput,
   User,
 } from '@/lib/crm/types'
 import {
   CUSTOMERS_FIXTURE,
   LEADS_FIXTURE,
-  OPPORTUNITIES_FIXTURE,
   FOLLOWS_FIXTURE,
   USERS_FIXTURE,
 } from './mock-data'
@@ -28,7 +25,6 @@ const ERROR_RATE = 0.05
 interface MockState {
   customers: Customer[]
   leads: Lead[]
-  opportunities: Opportunity[]
   follows: Follow[]
   users: User[]
 }
@@ -64,7 +60,6 @@ function loadState(): MockState {
     return {
       customers: [...CUSTOMERS_FIXTURE],
       leads: [...LEADS_FIXTURE],
-      opportunities: [...OPPORTUNITIES_FIXTURE],
       follows: [...FOLLOWS_FIXTURE],
       users: [...USERS_FIXTURE],
     }
@@ -75,7 +70,6 @@ function loadState(): MockState {
       return {
         customers: [...CUSTOMERS_FIXTURE],
         leads: [...LEADS_FIXTURE],
-        opportunities: [...OPPORTUNITIES_FIXTURE],
         follows: [...FOLLOWS_FIXTURE],
         users: [...USERS_FIXTURE],
       }
@@ -84,7 +78,6 @@ function loadState(): MockState {
     return {
       customers: parsed.customers ?? [...CUSTOMERS_FIXTURE],
       leads: parsed.leads ?? [...LEADS_FIXTURE],
-      opportunities: parsed.opportunities ?? [...OPPORTUNITIES_FIXTURE],
       follows: parsed.follows ?? [...FOLLOWS_FIXTURE],
       users: parsed.users ?? [...USERS_FIXTURE],
     }
@@ -92,7 +85,6 @@ function loadState(): MockState {
     return {
       customers: [...CUSTOMERS_FIXTURE],
       leads: [...LEADS_FIXTURE],
-      opportunities: [...OPPORTUNITIES_FIXTURE],
       follows: [...FOLLOWS_FIXTURE],
       users: [...USERS_FIXTURE],
     }
@@ -446,75 +438,6 @@ export class MockCrmClient implements CrmClient {
     this.state.customers.unshift(customer)
     persistState(this.state)
     return { lead: updatedLead, customer }
-  }
-
-  // ===== Opportunity =====
-
-  async listOpportunities(params: ListParams): Promise<Paginated<Opportunity>> {
-    await this.delay('listOpportunities')
-    const filtered = applyScope(
-      this.state.opportunities,
-      params.scope,
-      this.currentUserId,
-      'ownerId'
-    )
-    const keywordFiltered = applyKeyword(filtered, params.keyword, ['name', 'customerName'])
-    const filterFiltered = applyFilters(keywordFiltered, params.filters)
-    const sorted = applySort(filterFiltered, params.sortBy, params.sortOrder)
-    return paginate(sorted, params.page, params.pageSize)
-  }
-
-  async getOpportunity(id: string): Promise<Opportunity> {
-    await this.delay('getOpportunity')
-    const o = this.state.opportunities.find((x) => x.id === id)
-    if (!o) throw new Error(`商机不存在: ${id}`)
-    return o
-  }
-
-  async createOpportunity(input: OpportunityInput): Promise<Opportunity> {
-    await this.delay('createOpportunity')
-    const now = new Date().toISOString()
-    const id = genId('o')
-    const owner = input.ownerId ? this.state.users.find((u) => u.id === input.ownerId) : null
-    const customer = this.state.customers.find((c) => c.id === input.customerId)
-    const { ownerId: inputOwnerId, ...rest } = input
-    const opp: Opportunity = {
-      ...rest,
-      id,
-      ownerName: owner?.name,
-      customerName: customer?.name,
-      createdAt: now,
-      updatedAt: now,
-      ownerId: inputOwnerId ?? this.currentUserId,
-    }
-    this.state.opportunities.unshift(opp)
-    persistState(this.state)
-    return opp
-  }
-
-  async updateOpportunity(id: string, input: Partial<OpportunityInput>): Promise<Opportunity> {
-    await this.delay('updateOpportunity')
-    const idx = this.state.opportunities.findIndex((o) => o.id === id)
-    if (idx === -1) throw new Error(`商机不存在: ${id}`)
-    const prev = this.state.opportunities[idx]
-    const owner =
-      input.ownerId !== undefined ? this.state.users.find((u) => u.id === input.ownerId) : null
-    const customer =
-      input.customerId !== undefined
-        ? this.state.customers.find((c) => c.id === input.customerId)
-        : undefined
-    const { ownerId: updOwnerId, ...restInput } = input
-    const updated: Opportunity = {
-      ...prev,
-      ...restInput,
-      ownerName: updOwnerId !== undefined ? owner?.name : prev.ownerName,
-      customerName: input.customerId !== undefined ? customer?.name : prev.customerName,
-      updatedAt: new Date().toISOString(),
-      ownerId: updOwnerId ?? prev.ownerId,
-    }
-    this.state.opportunities[idx] = updated
-    persistState(this.state)
-    return updated
   }
 
   // ===== Follow =====

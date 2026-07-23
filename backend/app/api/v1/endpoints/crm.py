@@ -1,23 +1,50 @@
-"""CRM API endpoints."""
+"""CRM API endpoints。
+
+权限（MVP，is_admin 二分，见 services/crm/permissions.py）：
+- 普通销售：scope=all 降级 mine（只见自己+公海）；不可指派；不可写非自己名下记录。
+- 管理员：scope=all 看全部；可指派/释放任意记录。
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_user_id, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_is_admin,
+    get_request_user_id,
+    protected,
+)
+from app.models.crm import CrmCustomer, CrmLead
 from app.schemas.crm import (
     BatchIdsRequest,
     BatchTransferRequest,
     ContactCreate,
     ContactItem,
     ContactUpdate,
+    ConvertLeadRequest,
+    ConvertLeadResponse,
     CustomerCreate,
     CustomerItem,
     CustomerListResponse,
     CustomerUpdate,
     CrmUserItem,
+    FollowCreate,
+    FollowItem,
+    LeadCreate,
+    LeadItem,
+    LeadListResponse,
+    LeadUpdate,
 )
-from app.services.crm import contact_service, customer_service, user_service
+from app.services.crm import contact_service, customer_service, follow_service, lead_service, user_service
+from app.services.crm.lead_service import LeadAlreadyConverted
+from app.services.crm.permissions import (
+    filter_owned_ids,
+    require_admin,
+    require_owner_or_admin,
+    resolve_scope,
+)
 
 router = APIRouter(prefix="/crm", tags=["crm"], dependencies=[Depends(protected)])
 
@@ -33,9 +60,10 @@ def list_customers(
     sort_order: str = "desc",
     db: Session = Depends(get_read_db_session),
     user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
     items, total = customer_service.list_customers(
-        db, user_id=user_id, scope=scope, keyword=keyword,
+        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword,
         page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order,
     )
     return CustomerListResponse(items=items, total=total, page=page, page_size=page_size)
@@ -63,27 +91,49 @@ def update_customer(
     customer_id: int,
     payload: CustomerUpdate,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
 ):
-    item = customer_service.update_customer(db, customer_id, payload)
-    if item is None:
+    existing = customer_service.get_customer(db, customer_id)
+    if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
-    return item
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    return customer_service.update_customer(db, customer_id, payload)
 
 
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_customer(customer_id: int, db: Session = Depends(get_primary_db_session)):
-    if not customer_service.delete_customer(db, customer_id):
+def delete_customer(
+    customer_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    existing = customer_service.get_customer(db, customer_id)
+    if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    customer_service.delete_customer(db, customer_id)
 
 
 @router.post("/customers/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
-def batch_transfer(payload: BatchTransferRequest, db: Session = Depends(get_primary_db_session)):
+def batch_transfer(
+    payload: BatchTransferRequest,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
     customer_service.batch_transfer(db, payload.ids, payload.to_owner_id)
 
 
 @router.post("/customers/batch-move-sea", status_code=status.HTTP_204_NO_CONTENT)
-def batch_move_to_sea(payload: BatchIdsRequest, db: Session = Depends(get_primary_db_session)):
-    customer_service.batch_move_to_sea(db, payload.ids)
+def batch_move_to_sea(
+    payload: BatchIdsRequest,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    ids = filter_owned_ids(db, CrmCustomer, payload.ids, user_id, is_admin)
+    customer_service.batch_move_to_sea(db, ids)
 
 
 @router.post("/customers/{customer_id}/claim", response_model=CustomerItem)
@@ -142,3 +192,126 @@ def get_user(user_id: str, db: Session = Depends(get_read_db_session)):
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return item
+
+
+# ---------- Lead ----------
+@router.get("/leads", response_model=LeadListResponse)
+def list_leads(
+    scope: str = Query("all"),
+    keyword: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: str = "updated_at",
+    sort_order: str = "desc",
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    items, total = lead_service.list_leads(
+        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword,
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order,
+    )
+    return LeadListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/leads", response_model=LeadItem, status_code=status.HTTP_201_CREATED)
+def create_lead(
+    payload: LeadCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    return lead_service.create_lead(db, payload, user_id=user_id)
+
+
+@router.get("/leads/{lead_id}", response_model=LeadItem)
+def get_lead(lead_id: int, db: Session = Depends(get_read_db_session)):
+    item = lead_service.get_lead(db, lead_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return item
+
+
+@router.patch("/leads/{lead_id}", response_model=LeadItem)
+def update_lead(
+    lead_id: int,
+    payload: LeadUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    existing = lead_service.get_lead(db, lead_id)
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    return lead_service.update_lead(db, lead_id, payload)
+
+
+@router.post("/leads/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
+def batch_transfer_leads(
+    payload: BatchTransferRequest,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    lead_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+
+
+@router.post("/leads/batch-move-pool", status_code=status.HTTP_204_NO_CONTENT)
+def batch_move_leads_to_pool(
+    payload: BatchIdsRequest,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    ids = filter_owned_ids(db, CrmLead, payload.ids, user_id, is_admin)
+    lead_service.batch_move_to_pool(db, ids)
+
+
+@router.post("/leads/{lead_id}/claim", response_model=LeadItem)
+def claim_lead_from_pool(
+    lead_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    item = lead_service.claim_from_pool(db, lead_id, user_id=user_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool")
+    return item
+
+
+@router.post("/leads/{lead_id}/convert", response_model=ConvertLeadResponse)
+def convert_lead(
+    lead_id: int,
+    payload: ConvertLeadRequest | None = None,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    existing = lead_service.get_lead(db, lead_id)
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    try:
+        resp = lead_service.convert_lead(db, lead_id, payload, user_id=user_id)
+    except LeadAlreadyConverted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead already converted")
+    return resp
+
+
+# ---------- Follow ----------
+@router.get("/follows", response_model=list[FollowItem])
+def list_follows(
+    entity_type: str = Query(...),
+    entity_id: int = Query(...),
+    db: Session = Depends(get_read_db_session),
+):
+    return follow_service.list_follows(db, entity_type, entity_id)
+
+
+@router.post("/follows", response_model=FollowItem, status_code=status.HTTP_201_CREATED)
+def create_follow(
+    payload: FollowCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    return follow_service.create_follow(db, payload, user_id=user_id)

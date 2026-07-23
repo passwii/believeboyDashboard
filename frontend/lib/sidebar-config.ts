@@ -283,12 +283,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         icon: IconMap.Sparkles,
         matchPrefixes: ['/dashboard/crm/leads'],
       },
-      {
-        title: '商机',
-        url: '/dashboard/crm/opportunities',
-        icon: IconMap.Target,
-        matchPrefixes: ['/dashboard/crm/opportunities'],
-      },
       { title: 'CRM 设置', url: '/dashboard/crm/settings', icon: IconMap.SettingsIcon },
       { title: '招商面板', url: '/dashboard/crm/business-dev/overview', icon: IconMap.Store },
       { title: '供应商管理', url: '/dashboard/crm/business-dev/suppliers', icon: IconMap.Truck },

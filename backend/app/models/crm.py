@@ -93,6 +93,8 @@ class CrmCustomer(Base):
     rating: Mapped[str] = mapped_column(String(2), nullable=False, default=CrmCustomerRating.C)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmCustomerStatus.ACTIVE)
     source: Mapped[str | None] = mapped_column(String(30))
+    customer_type: Mapped[str | None] = mapped_column(String(20))  # 工厂/贸易商/同行/其他
+    interested_service: Mapped[str | None] = mapped_column(String(30))  # 代运营/AI运营/运营服务/其他
     owner_id: Mapped[str | None] = mapped_column(String(36))  # null = 在公海；user_accounts.id UUID
     address: Mapped[str | None] = mapped_column(Text)
     website: Mapped[str | None] = mapped_column(String(300))
@@ -119,6 +121,7 @@ class CrmContact(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(200))
+    wechat: Mapped[str | None] = mapped_column(String(100))
     title: Mapped[str | None] = mapped_column(String(100))  # 职务
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     remark: Mapped[str | None] = mapped_column(Text)
@@ -142,6 +145,8 @@ class CrmLead(Base):
     email: Mapped[str | None] = mapped_column(String(200))
     wechat: Mapped[str | None] = mapped_column(String(100))
     source: Mapped[str | None] = mapped_column(String(30))
+    customer_type: Mapped[str | None] = mapped_column(String(20))  # 工厂/贸易商/同行/其他
+    interested_service: Mapped[str | None] = mapped_column(String(30))  # 代运营/AI运营/运营服务/其他
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=CrmLeadStatus.NEW)
     intent: Mapped[str] = mapped_column(String(10), nullable=False, default=CrmLeadIntent.MEDIUM)
     owner_id: Mapped[str | None] = mapped_column(String(36))  # null = 在线索池；user_accounts.id UUID

@@ -1,5 +1,4 @@
 export { CUSTOMERS_FIXTURE } from './customers.fixture'
 export { LEADS_FIXTURE } from './leads.fixture'
-export { OPPORTUNITIES_FIXTURE } from './opportunities.fixture'
 export { FOLLOWS_FIXTURE } from './follows.fixture'
 export { USERS_FIXTURE } from './users.fixture'

@@ -59,6 +59,8 @@ def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[str, str], primar
         name=cust.name,
         short_name=cust.short_name,
         industry=cust.industry,
+        customer_type=cust.customer_type,
+        interested_service=cust.interested_service,
         rating=cust.rating,
         status=cust.status,
         source=cust.source,

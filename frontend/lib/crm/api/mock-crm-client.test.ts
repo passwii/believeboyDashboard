@@ -184,34 +184,6 @@ describe('MockCrmClient · Lead', () => {
  })
 })
 
-describe('MockCrmClient · Opportunity', () => {
- it('listOpportunities returns 20 fixtures', async () => {
- const client = new MockCrmClient(TEST_USER)
- const page = await client.listOpportunities({ pageSize: 100 })
- expect(page.total).toBe(20)
- expect(page.items.every((o) => o.customerId)).toBe(true)
- })
-
- it('createOpportunity + updateOpportunity round-trip', async () => {
- const client = new MockCrmClient(TEST_USER)
- const created = await client.createOpportunity({
- name: '新商机',
- customerId: 'c-0001',
- amount: 80000,
- stage: 'proposal',
- ownerId: 'u-1',
- probability: 50,
- })
- expect(created.id).toBeTruthy()
- expect(created.customerName).toBeTruthy()
- const updated = await client.updateOpportunity(created.id, { stage: 'won', amount: 90000 })
- expect(updated.stage).toBe('won')
- expect(updated.amount).toBe(90000)
- const fetched = await client.getOpportunity(created.id)
- expect(fetched.stage).toBe('won')
- })
-})
-
 describe('MockCrmClient · Follow', () => {
  it('listFollows filters by entity', async () => {
  const client = new MockCrmClient(TEST_USER)

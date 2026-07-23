@@ -1,12 +1,10 @@
 import type {
   Customer,
   Lead,
-  Opportunity,
   Follow,
   User,
   CustomerInput,
   LeadInput,
-  OpportunityInput,
   FollowInput,
   FollowEntityType,
 } from '@/lib/crm/types'
@@ -55,11 +53,6 @@ export interface CrmClient {
     id: string,
     customerInput?: Partial<CustomerInput>
   ): Promise<{ lead: Lead; customer: Customer }>
-
-  listOpportunities(params: ListParams): Promise<Paginated<Opportunity>>
-  getOpportunity(id: string): Promise<Opportunity>
-  createOpportunity(input: OpportunityInput): Promise<Opportunity>
-  updateOpportunity(id: string, input: Partial<OpportunityInput>): Promise<Opportunity>
 
   listFollows(entityType: FollowEntityType, entityId: string): Promise<Follow[]>
   createFollow(input: FollowInput): Promise<Follow>
