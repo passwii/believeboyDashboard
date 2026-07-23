@@ -1,5 +1,7 @@
 # CRM P1b · 线索 + 跟进 + 转化 实现计划（精简版）
 
+> **进度（2026-07-23）**：✅ **后端全部完成**（任务 1–7 + 6b，分支 feat/crm-p1b-lead-follow-convert，129 CRM 测试全绿，1099 测试收集无破坏）。✅ **前端全部完成**（任务 8–11：类型+DTO 映射器 9 测、http-client 接通 17 方法、移除商机界面、线索页接通；前端 37 CRM 测试全绿，build 通过）。后端真实测试库端到端验证：建线索→跟进→转化→联系人微信+跟进搬迁全通过。实现方式：Task1–3 subagent（pi-worker），Task4 起因 provider 配额饱和改亲自 TDD（更稳）。
+
 > **面向 AI 代理的工作者：** 必需子技能：superpowers:subagent-driven-development（推荐）或 superpowers:test-driven-development 逐任务实现。步骤用复选框跟踪。
 
 **目标：** 在 P1a（客户/联系人/用户已上线 prod）基础上，把**线索 Lead + 跟进 Follow + 转化 convert_lead** 落真实后端并接通前端，完成销售核心闭环：**线索挑选 → 电话/微信推进（记跟进）→ 转化为客户（跟进记录一起搬）→ 客户维护**。同时**移除商机 Opportunity** 前端界面（后端空表保留不 drop）。
