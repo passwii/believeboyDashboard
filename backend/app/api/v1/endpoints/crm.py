@@ -11,13 +11,22 @@ from app.schemas.crm import (
     ContactCreate,
     ContactItem,
     ContactUpdate,
+    ConvertLeadRequest,
+    ConvertLeadResponse,
     CustomerCreate,
     CustomerItem,
     CustomerListResponse,
     CustomerUpdate,
     CrmUserItem,
+    FollowCreate,
+    FollowItem,
+    LeadCreate,
+    LeadItem,
+    LeadListResponse,
+    LeadUpdate,
 )
-from app.services.crm import contact_service, customer_service, user_service
+from app.services.crm import contact_service, customer_service, follow_service, lead_service, user_service
+from app.services.crm.lead_service import LeadAlreadyConverted
 
 router = APIRouter(prefix="/crm", tags=["crm"], dependencies=[Depends(protected)])
 
@@ -142,3 +151,109 @@ def get_user(user_id: str, db: Session = Depends(get_read_db_session)):
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return item
+
+
+
+# ---------- Lead ----------
+@router.get("/leads", response_model=LeadListResponse)
+def list_leads(
+    scope: str = Query("all"),
+    keyword: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: str = "updated_at",
+    sort_order: str = "desc",
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    items, total = lead_service.list_leads(
+        db, user_id=user_id, scope=scope, keyword=keyword,
+        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order,
+    )
+    return LeadListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/leads", response_model=LeadItem, status_code=status.HTTP_201_CREATED)
+def create_lead(
+    payload: LeadCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    return lead_service.create_lead(db, payload, user_id=user_id)
+
+
+@router.get("/leads/{lead_id}", response_model=LeadItem)
+def get_lead(lead_id: int, db: Session = Depends(get_read_db_session)):
+    item = lead_service.get_lead(db, lead_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return item
+
+
+@router.patch("/leads/{lead_id}", response_model=LeadItem)
+def update_lead(
+    lead_id: int,
+    payload: LeadUpdate,
+    db: Session = Depends(get_primary_db_session),
+):
+    item = lead_service.update_lead(db, lead_id, payload)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return item
+
+
+@router.post("/leads/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
+def batch_transfer_leads(payload: BatchTransferRequest, db: Session = Depends(get_primary_db_session)):
+    lead_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+
+
+@router.post("/leads/batch-move-pool", status_code=status.HTTP_204_NO_CONTENT)
+def batch_move_leads_to_pool(payload: BatchIdsRequest, db: Session = Depends(get_primary_db_session)):
+    lead_service.batch_move_to_pool(db, payload.ids)
+
+
+@router.post("/leads/{lead_id}/claim", response_model=LeadItem)
+def claim_lead_from_pool(
+    lead_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    item = lead_service.claim_from_pool(db, lead_id, user_id=user_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool")
+    return item
+
+
+@router.post("/leads/{lead_id}/convert", response_model=ConvertLeadResponse)
+def convert_lead(
+    lead_id: int,
+    payload: ConvertLeadRequest | None = None,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    try:
+        resp = lead_service.convert_lead(db, lead_id, payload, user_id=user_id)
+    except LeadAlreadyConverted:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead already converted")
+    if resp is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return resp
+
+
+# ---------- Follow ----------
+@router.get("/follows", response_model=list[FollowItem])
+def list_follows(
+    entity_type: str = Query(...),
+    entity_id: int = Query(...),
+    db: Session = Depends(get_read_db_session),
+):
+    return follow_service.list_follows(db, entity_type, entity_id)
+
+
+@router.post("/follows", response_model=FollowItem, status_code=status.HTTP_201_CREATED)
+def create_follow(
+    payload: FollowCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    return follow_service.create_follow(db, payload, user_id=user_id)
