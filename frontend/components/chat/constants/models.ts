@@ -1,4 +1,4 @@
-import { Brain, Cpu, Sparkles, Zap } from 'lucide-react'
+import { Brain, Cpu, Gauge, Rocket, Sparkles, Zap } from 'lucide-react'
 import React from 'react'
 
 import type { Model } from '../types'
@@ -6,21 +6,26 @@ import type { Model } from '../types'
 /**
  * Pinned-model lookup table.
  *
- * The 5 pinned models each get a curated icon + color + Chinese description.
- * The actual model `id` still comes from the backend (`cfg.models`); the
- * lookup is keyed by `id.toLowerCase()`. If the backend ever renames an id,
- * update the `id` field below — the displayed `name`/`description`/`icon`
- * will then follow automatically.
+ * The pinned models each get a curated icon + color + Chinese description.
+ * The actual model `id` still comes from the backend (`cfg.models`, fetched
+ * live from the provider's /models endpoint); the lookup is keyed by
+ * `id.toLowerCase()`. If the provider renames an id, update the `id` field
+ * below — the displayed `name`/`description`/`icon` will then follow.
+ *
+ * NOTE: the "Pro / 默认" badge is NOT read from this table — it is always
+ * derived from the backend `premiumModels` / `defaultModel` sets (see
+ * model-selector.tsx `badgeFor`). The `badge` field here is documentation
+ * only; keep it in sync with `AI_CHAT_PREMIUM_MODELS` in backend/.env.
  *
  * Anything not matched here is rendered as a generic "other" model: a single
  * neutral `Cpu` icon, the fixed description `其他模型`, and no badge.
  */
 export const PINNED_MODELS: Model[] = [
   {
-    id: 'MiniMax-M2.7-highspeed',
-    name: 'MiniMax M2.7 Highspeed',
-    shortName: 'M2H',
-    description: '极速智能',
+    id: 'Believeboy-Nano',
+    name: 'Believeboy Nano',
+    shortName: 'BN',
+    description: '极速轻量',
     icon: React.createElement(Zap, { className: 'size-4 text-blue-400' }),
   },
   {
@@ -32,25 +37,26 @@ export const PINNED_MODELS: Model[] = [
     badge: 'Pro',
   },
   {
-    id: 'Nemotron3-Nano',
-    name: 'Nemotron 3 Nano',
-    shortName: 'N3',
-    description: '极速响应',
-    icon: React.createElement(Brain, { className: 'size-4 text-emerald-400' }),
+    id: 'DeepSeek-V4-Pro',
+    name: 'DeepSeek V4 Pro',
+    shortName: 'D4P',
+    description: '深度推理',
+    icon: React.createElement(Brain, { className: 'size-4 text-indigo-400' }),
+    badge: 'Pro',
   },
   {
-    id: 'Deepseek-V4-Flash',
+    id: 'DeepSeek-V4-Flash',
     name: 'DeepSeek V4 Flash',
-    shortName: 'D4',
+    shortName: 'D4F',
     description: '通用快速',
-    icon: React.createElement(Sparkles, { className: 'size-4 text-green-400' }),
+    icon: React.createElement(Gauge, { className: 'size-4 text-green-400' }),
   },
   {
-    id: 'Nex-N2-Pro',
-    name: 'Nex N2 Pro',
-    shortName: 'N2',
-    description: '性价比 Agent 任务',
-    icon: React.createElement(Brain, { className: 'size-4 text-cyan-400' }),
+    id: 'qwen3.8-max-preview',
+    name: 'Qwen 3.8 Max',
+    shortName: 'Q3.8',
+    description: '长文本预览',
+    icon: React.createElement(Rocket, { className: 'size-4 text-amber-400' }),
   },
 ]
 
