@@ -32,12 +32,13 @@ from app.schemas.crm import (
     CrmUserItem,
     FollowCreate,
     FollowItem,
+    FollowUpGroups,
     LeadCreate,
     LeadItem,
     LeadListResponse,
     LeadUpdate,
 )
-from app.services.crm import contact_service, customer_service, follow_service, lead_service, user_service
+from app.services.crm import contact_service, customer_service, follow_service, follow_up_service, lead_service, user_service
 from app.services.crm.lead_service import LeadAlreadyConverted
 from app.services.crm.permissions import (
     filter_owned_ids,
@@ -315,3 +316,16 @@ def create_follow(
     user_id: str | None = Depends(get_request_user_id),
 ):
     return follow_service.create_follow(db, payload, user_id=user_id)
+
+
+# ---------- Follow-up 待跟进视图（P2b） ----------
+@router.get("/follow-ups", response_model=FollowUpGroups)
+def list_follow_ups(
+    scope: str = Query("mine"),
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    return follow_up_service.list_follow_ups(
+        db, user_id=user_id, scope=resolve_scope(scope, is_admin)
+    )
