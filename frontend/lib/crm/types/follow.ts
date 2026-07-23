@@ -1,5 +1,5 @@
 export type FollowType = 'phone' | 'visit' | 'wechat' | 'email' | 'note'
-export type FollowEntityType = 'customer' | 'lead' | 'opportunity'
+export type FollowEntityType = 'customer' | 'lead'
 
 export interface FollowAttachment {
   name: string

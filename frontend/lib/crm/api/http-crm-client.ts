@@ -26,11 +26,6 @@ export class HttpCrmClient implements Partial<CrmClient> {
   updateLead = (id: string) => notImplemented(`updateLead(${id})`)
   convertLead = (id: string) => notImplemented(`convertLead(${id})`)
 
-  listOpportunities = () => notImplemented('listOpportunities')
-  getOpportunity = (id: string) => notImplemented(`getOpportunity(${id})`)
-  createOpportunity = () => notImplemented('createOpportunity')
-  updateOpportunity = (id: string) => notImplemented(`updateOpportunity(${id})`)
-
   listFollows = () => notImplemented('listFollows')
   createFollow = () => notImplemented('createFollow')
 

@@ -3,7 +3,7 @@
  *
  * 用法：仅被 `*.fixture.ts` 调用一次，导出为常量。
  * 设计原则：seeded RNG（mulberry32）保证多次运行结果一致；
- * 实体之间通过 ID 真实关联（leads → customers, opportunities → customers）。
+ * 实体之间通过 ID 真实关联（leads → customers）。
  */
 
 import type {
@@ -16,8 +16,6 @@ import type {
   Lead,
   LeadIntent,
   LeadStatus,
-  Opportunity,
-  OpportunityStage,
   User,
 } from '@/lib/crm/types'
 
@@ -200,14 +198,6 @@ const LEAD_STATUSES: readonly LeadStatus[] = [
   'discarded',
 ]
 const LEAD_INTENTS: readonly LeadIntent[] = ['high', 'high', 'medium', 'medium', 'medium', 'low']
-const STAGES: readonly OpportunityStage[] = [
-  'lead_in',
-  'qualified',
-  'proposal',
-  'negotiation',
-  'won',
-  'lost',
-]
 const FOLLOW_TYPES: readonly FollowType[] = [
   'phone',
   'visit',
@@ -348,53 +338,19 @@ export function generateLeads(
   return out
 }
 
-export function generateOpportunities(
-  count: number,
-  seed = 4004,
-  users: User[] = [],
-  customers: Customer[] = []
-): Opportunity[] {
-  if (customers.length === 0) return []
-  const rand = mulberry32(seed)
-  const out: Opportunity[] = []
-  for (let i = 0; i < count; i++) {
-    const id = `o-${String(i + 1).padStart(4, '0')}`
-    const customer = customers[i % customers.length]
-    const owner = users.length > 0 ? pick(rand, users.slice(1)) : null
-    out.push({
-      id,
-      name: `${customer.name} ${pick(rand, ['合作', '续约', '升级', '试点', '采购'])}项目`,
-      customerId: customer.id,
-      customerName: customer.name,
-      amount: Math.floor(rand() * 1000000) + 50000,
-      stage: pick(rand, STAGES),
-      ownerId: owner?.id ?? 'u-001',
-      ownerName: owner?.name,
-      expectedCloseDate: daysAgo(rand, -180),
-      probability: Math.floor(rand() * 100),
-      remark: rand() > 0.6 ? '客户预算已确认' : undefined,
-      createdAt: daysAgo(rand, 120),
-      updatedAt: daysAgo(rand, 30),
-    })
-  }
-  return out
-}
-
 export function generateFollows(
   count: number,
   seed = 5005,
   users: User[] = [],
   customers: Customer[] = [],
-  leads: Lead[] = [],
-  opportunities: Opportunity[] = []
+  leads: Lead[] = []
 ): Follow[] {
   const rand = mulberry32(seed)
   const out: Follow[] = []
   const customerWeights = customers.map(() => 2)
   const leadWeights = leads.map(() => 1)
-  const oppWeights = opportunities.map(() => 1.5)
   type EntityRef = {
-    entityType: 'customer' | 'lead' | 'opportunity'
+    entityType: 'customer' | 'lead'
     entityId: string
     weight: number
   }
@@ -408,11 +364,6 @@ export function generateFollows(
       entityType: 'lead' as const,
       entityId: l.id,
       weight: leadWeights[i],
-    })),
-    ...opportunities.map((o, i) => ({
-      entityType: 'opportunity' as const,
-      entityId: o.id,
-      weight: oppWeights[i],
     })),
   ]
   if (refs.length === 0) return []
