@@ -10,6 +10,7 @@ import type {
   FollowEntityType,
   FollowUpGroups,
   ContactInput,
+  DashboardStats,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -68,4 +69,6 @@ export interface CrmClient {
 
   listUsers(): Promise<User[]>
   getUser(id: string): Promise<User>
+
+  getDashboardStats(): Promise<DashboardStats>
 }

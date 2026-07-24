@@ -276,6 +276,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     activeAccent: NEUTRAL_ACTIVE,
     items: [
       {
+        title: '数据看板',
+        url: '/dashboard/crm/dashboard',
+        icon: IconMap.BarChart3,
+        matchPrefixes: ['/dashboard/crm/dashboard'],
+      },
+      {
         title: '待跟进',
         url: '/dashboard/crm/follow-ups',
         icon: IconMap.Bell,

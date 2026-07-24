@@ -35,6 +35,7 @@ from app.schemas.crm import (
     CustomerListResponse,
     CustomerUpdate,
     CrmUserItem,
+    DashboardStats,
     FollowCreate,
     FollowItem,
     FollowUpGroups,
@@ -46,6 +47,7 @@ from app.schemas.crm import (
 from app.services.crm import (
     contact_service,
     customer_service,
+    dashboard_service,
     export_service,
     follow_service,
     follow_up_service,
@@ -432,3 +434,13 @@ def list_follow_ups(
     return follow_up_service.list_follow_ups(
         db, user_id=user_id, scope=resolve_scope(scope, is_admin)
     )
+
+
+# ---------- Dashboard 数据看板（P3c，仅管理员） ----------
+@router.get("/dashboard/stats", response_model=DashboardStats)
+def get_dashboard_stats(
+    db: Session = Depends(get_read_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    return dashboard_service.get_dashboard_stats(db, is_admin=is_admin)

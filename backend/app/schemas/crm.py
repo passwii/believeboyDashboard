@@ -318,3 +318,38 @@ class BatchTransferRequest(BaseModel):
 
 class BatchIdsRequest(BaseModel):
     ids: list[int] = Field(min_length=1)
+
+
+# ---------- 数据看板（P3c，仅管理员） ----------
+class NewThisMonth(BaseModel):
+    """本月新增（Asia/Shanghai 口径）。"""
+
+    new_customers: int = 0  # 本月新建客户数
+    new_leads: int = 0  # 本月新建线索数
+    converted_count: int = 0  # 本月转化数（converted_at 落本月）
+
+
+class FollowActivity(BaseModel):
+    """跟进活跃度。"""
+
+    follow_count_7d: int = 0  # 最近 7 天跟进记录数
+
+
+class OwnerPerformance(BaseModel):
+    """每销售业绩（按负责人分组）。"""
+
+    owner_id: str
+    owner_name: str | None = None
+    customer_count: int = 0  # 名下客户数（未删除）
+    converted_this_month: int = 0  # 名下本月转化线索数
+
+
+class DashboardStats(BaseModel):
+    """CRM 数据看板聚合结果。"""
+
+    lead_funnel: dict[
+        str, int
+    ] = {}  # 线索各状态计数（new/contacting/qualified/converted/discarded）
+    new_this_month: NewThisMonth = Field(default_factory=NewThisMonth)
+    follow_activity: FollowActivity = Field(default_factory=FollowActivity)
+    per_owner: list[OwnerPerformance] = []
