@@ -76,7 +76,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-/** ListParams → 后端 query string。filters（高级筛选）后端暂不支持，不入站。 */
+/** ListParams → 后端 query string。filters（高级筛选）序列化为 JSON 数组入站（Task B2 后端支持）。 */
 function toQueryString(params: ListParams): string {
   const qs = new URLSearchParams()
   if (params.scope) qs.set('scope', params.scope)
@@ -85,6 +85,9 @@ function toQueryString(params: ListParams): string {
   if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
   if (params.sortBy) qs.set('sort_by', params.sortBy)
   if (params.sortOrder) qs.set('sort_order', params.sortOrder)
+  if (params.filters && params.filters.length > 0) {
+    qs.set('filters', JSON.stringify(params.filters))
+  }
   const s = qs.toString()
   return s ? `?${s}` : ''
 }

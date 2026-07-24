@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCrmTable } from './use-crm-table'
-import type { CrmColumnDef, CrmTableProps } from './types'
+import type { CrmColumnDef, CrmTableProps, FilterCondition } from './types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -77,12 +77,34 @@ export function CrmTable<T extends { id?: string | number }>({
   defaultPageSize,
   rowKey,
   refreshKey,
+  filterFields = [],
 }: CrmTableProps<T>) {
   const table = useCrmTable<T>({
     queryKey,
     fetchPage,
     defaultPageSize,
   })
+
+  // 表头快捷筛选：选中项转 FilterCondition 写入 hook 的 filters（URL 状态）；
+  // hook 的 runFetch 会自动把 filters 注入 fetchPage 重新拉数。
+  const handleFilterChange = (field: string, value: string) => {
+    const rest = table.filters.filter((f) => !('field' in f) || f.field !== field)
+    const next: FilterCondition[] = value ? [...rest, { field, op: 'eq', value }] : rest
+    table.setFilters(next)
+  }
+
+  // 筛选变更后重置到第 1 页。单独用 effect 而非在 handleFilterChange 里连发
+  // setFilters + setPage —— 两个 setter 闭包共享同一份渲染期 searchParams 快照，
+  // 同 tick 连发会互相覆盖（setPage 会把刚写的 filters 冲掉）。effect 在 filters
+  // 写入后的新一轮渲染里执行，此时 setPage(1) 基于含 filters 的最新 URL，安全。
+  const prevFiltersRef = useRef(table.filters)
+  useEffect(() => {
+    if (prevFiltersRef.current !== table.filters && table.page > 1) {
+      table.setPage(1)
+    }
+    prevFiltersRef.current = table.filters
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 精确依赖 filters/page/setPage，无需整个 table 对象
+  }, [table.filters, table.page, table.setPage])
 
   // 外部批量操作（如移入公海）后主动刷新
   useEffect(() => {
@@ -151,6 +173,28 @@ export function CrmTable<T extends { id?: string | number }>({
 
   return (
     <div className="flex h-full flex-col">
+      {filterFields.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-3">
+          {filterFields.map((f) => (
+            <label key={f.key} className="flex items-center gap-1 text-sm">
+              <span className="text-muted-foreground">{f.label}</span>
+              <select
+                aria-label={f.label}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                defaultValue=""
+                onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
+              >
+                <option value="">全部</option>
+                {(f.options ?? []).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/60">
         <Table>
           <TableHeader>
