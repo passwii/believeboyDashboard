@@ -105,6 +105,7 @@ def list_customers(
     page_size: int = 20,
     sort_by: str = "updated_at",
     sort_order: str = "desc",
+    filters: list[dict] | None = None,
 ) -> tuple[list, int]:
     cur = _current_user_id(user_id)
     stmt = select(CrmCustomer).where(CrmCustomer.is_deleted.is_(False))
@@ -120,6 +121,12 @@ def list_customers(
         stmt = stmt.where(
             or_(CrmCustomer.name.ilike(like), CrmCustomer.short_name.ilike(like))
         )
+
+    # 高级筛选（P4）：白名单字段 → where；非法字段/运算符由 filter_engine 抛 ValueError/TypeError。
+    if filters:
+        from app.services.crm.filter_engine import CUSTOMER_FILTER_FIELDS, apply_filters
+
+        stmt = apply_filters(stmt, CrmCustomer, filters, CUSTOMER_FILTER_FIELDS)
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 

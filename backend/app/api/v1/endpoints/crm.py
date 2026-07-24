@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from urllib.parse import quote
 
@@ -68,11 +69,28 @@ from app.services.crm.permissions import (
 router = APIRouter(prefix="/crm", tags=["crm"], dependencies=[Depends(protected)])
 
 
+def _parse_filters(filters: str | None) -> list[dict] | None:
+    """解析 filters 查询参数（FilterCondition JSON 数组）；非法 JSON → 400。
+
+    字段白名单/运算符校验在 filter_engine（service 层）做，抛 ValueError/TypeError，
+    由端点 catch 转 400。
+    """
+    if not filters:
+        return None
+    try:
+        return json.loads(filters)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="filters 非法 JSON"
+        )
+
+
 # ---------- Customer ----------
 @router.get("/customers", response_model=CustomerListResponse)
 def list_customers(
     scope: str = Query("all"),
     keyword: str | None = None,
+    filters: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     sort_by: str = "updated_at",
@@ -81,16 +99,22 @@ def list_customers(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    items, total = customer_service.list_customers(
-        db,
-        user_id=user_id,
-        scope=resolve_scope(scope, is_admin),
-        keyword=keyword,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_order=sort_order,
-    )
+    parsed_filters = _parse_filters(filters)
+    try:
+        items, total = customer_service.list_customers(
+            db,
+            user_id=user_id,
+            scope=resolve_scope(scope, is_admin),
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filters=parsed_filters,
+        )
+    except (ValueError, TypeError) as e:
+        # 非白名单字段/未知运算符 → ValueError；畸形 between/in value → TypeError。统一 400。
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return CustomerListResponse(
         items=items, total=total, page=page, page_size=page_size
     )
@@ -364,6 +388,7 @@ def get_user(user_id: str, db: Session = Depends(get_read_db_session)):
 def list_leads(
     scope: str = Query("all"),
     keyword: str | None = None,
+    filters: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     sort_by: str = "updated_at",
@@ -372,16 +397,22 @@ def list_leads(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    items, total = lead_service.list_leads(
-        db,
-        user_id=user_id,
-        scope=resolve_scope(scope, is_admin),
-        keyword=keyword,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_order=sort_order,
-    )
+    parsed_filters = _parse_filters(filters)
+    try:
+        items, total = lead_service.list_leads(
+            db,
+            user_id=user_id,
+            scope=resolve_scope(scope, is_admin),
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            filters=parsed_filters,
+        )
+    except (ValueError, TypeError) as e:
+        # 非白名单字段/未知运算符 → ValueError；畸形 between/in value → TypeError。统一 400。
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return LeadListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
