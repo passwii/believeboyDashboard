@@ -13,12 +13,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import type { LeadInput } from '@/lib/crm/types/lead'
 
 export default function LeadsPage() {
   const client = useCrmClient()
   const { notify } = useNotifications()
+  const users = useCrmUsers()
   const [open, setOpen] = useState(false)
 
   async function handleCreate(input: LeadInput) {
@@ -49,7 +51,7 @@ export default function LeadsPage() {
             <SheetTitle>新建线索</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <CrmLeadForm users={[]} onSubmit={handleCreate} submitText="创建线索" />
+            <CrmLeadForm users={users} onSubmit={handleCreate} submitText="创建线索" />
           </div>
         </SheetContent>
       </Sheet>

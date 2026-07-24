@@ -1,5 +1,7 @@
 import type { CrmClient, ListParams, Paginated } from './crm-client'
 import type {
+  Contact,
+  ContactInput,
   Customer,
   CustomerInput,
   Follow,
@@ -11,15 +13,18 @@ import type {
   User,
 } from '@/lib/crm/types'
 import {
+  mapContact,
   mapCustomer,
   mapFollow,
   mapFollowUpGroups,
   mapLead,
   mapUser,
+  toContactPayload,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
   toLeadPayload,
+  type ContactDto,
   type CustomerDto,
   type FollowDto,
   type FollowUpGroupsDto,
@@ -175,6 +180,30 @@ export class HttpCrmClient implements CrmClient {
   }
   async listFollowUps(scope: 'mine' | 'all' = 'mine'): Promise<FollowUpGroups> {
     return mapFollowUpGroups(await request<FollowUpGroupsDto>(`/follow-ups?scope=${scope}`))
+  }
+
+  // ===== Contact =====
+  async listContacts(customerId: string): Promise<Contact[]> {
+    return (await request<ContactDto[]>(`/customers/${customerId}/contacts`)).map(mapContact)
+  }
+  async createContact(customerId: string, input: ContactInput): Promise<Contact> {
+    return mapContact(
+      await request<ContactDto>(`/customers/${customerId}/contacts`, {
+        method: 'POST',
+        body: JSON.stringify(toContactPayload(input)),
+      })
+    )
+  }
+  async updateContact(id: string, input: ContactInput): Promise<Contact> {
+    return mapContact(
+      await request<ContactDto>(`/contacts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(toContactPayload(input)),
+      })
+    )
+  }
+  async deleteContact(id: string): Promise<void> {
+    await request<void>(`/contacts/${id}`, { method: 'DELETE' })
   }
 
   // ===== User =====

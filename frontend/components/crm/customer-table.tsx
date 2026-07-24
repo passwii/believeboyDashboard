@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -79,6 +80,7 @@ export function CrmCustomerTable() {
   const client = useCrmClient()
   const { scope } = useCrmDataScope()
   const { notify } = useNotifications()
+  const users = useCrmUsers()
   const [active, setActive] = useState<Customer | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -169,7 +171,7 @@ export function CrmCustomerTable() {
               {CUSTOMER_STATUS_LABELS[active.status]}
             </Badge>
           }
-          users={[]}
+          users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
           onSave={handleSave}

@@ -3,11 +3,13 @@ import type {
   Lead,
   Follow,
   User,
+  Contact,
   CustomerInput,
   LeadInput,
   FollowInput,
   FollowEntityType,
   FollowUpGroups,
+  ContactInput,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -58,6 +60,11 @@ export interface CrmClient {
   listFollows(entityType: FollowEntityType, entityId: string): Promise<Follow[]>
   createFollow(input: FollowInput): Promise<Follow>
   listFollowUps(scope?: 'mine' | 'all'): Promise<FollowUpGroups>
+
+  listContacts(customerId: string): Promise<Contact[]>
+  createContact(customerId: string, input: ContactInput): Promise<Contact>
+  updateContact(id: string, input: ContactInput): Promise<Contact>
+  deleteContact(id: string): Promise<void>
 
   listUsers(): Promise<User[]>
   getUser(id: string): Promise<User>
