@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CalendarClock, ChevronRight, Inbox } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ export function CrmFollowUpList() {
   const client = useCrmClient()
   const { scope } = useCrmDataScope()
   const { notify } = useNotifications()
+  const users = useCrmUsers()
   const [groups, setGroups] = useState<FollowUpGroups | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -208,7 +210,7 @@ export function CrmFollowUpList() {
               {CUSTOMER_STATUS_LABELS[activeCustomer.status]}
             </Badge>
           }
-          users={[]}
+          users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
           onSave={handleSaveCustomer}
@@ -235,13 +237,13 @@ export function CrmFollowUpList() {
               {LEAD_STATUS_LABELS[activeLead.status]}
             </Badge>
           }
-          users={[]}
+          users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
           onSave={handleSaveLead}
           editForm={
             <CrmLeadForm
-              users={[]}
+              users={users}
               initialValues={activeLead}
               onSubmit={handleLeadFormSave}
               submitText="保存修改"

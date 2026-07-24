@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,7 @@ const columns: CrmColumnDef<Customer>[] = [
 export function CrmSeaTable() {
   const client = useCrmClient()
   const { notify } = useNotifications()
+  const users = useCrmUsers()
   const [active, setActive] = useState<Customer | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -103,7 +105,7 @@ export function CrmSeaTable() {
               {CUSTOMER_STATUS_LABELS[active.status]}
             </Badge>
           }
-          users={[]}
+          users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
           createFollow={(input) => client.createFollow(input)}
           onSave={async () => {

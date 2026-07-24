@@ -12,12 +12,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 
 export default function CustomersPage() {
   const client = useCrmClient()
   const { notify } = useNotifications()
+  const users = useCrmUsers()
   const [open, setOpen] = useState(false)
 
   async function handleCreate(input: CustomerInput) {
@@ -52,7 +54,7 @@ export default function CustomersPage() {
             <SheetTitle>新建客户</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <CrmFormCreate users={[]} onSubmit={handleCreate} submitText="创建客户" />
+            <CrmFormCreate users={users} onSubmit={handleCreate} submitText="创建客户" />
           </div>
         </SheetContent>
       </Sheet>
