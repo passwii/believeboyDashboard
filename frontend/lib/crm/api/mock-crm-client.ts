@@ -4,6 +4,7 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  DashboardStats,
   Follow,
   FollowEntityType,
   FollowInput,
@@ -668,5 +669,63 @@ export class MockCrmClient implements CrmClient {
     const u = this.state.users.find((x) => x.id === id)
     if (!u) throw new Error(`用户不存在: ${id}`)
     return u
+  }
+
+  // ===== Dashboard 数据看板（P3c） =====
+
+  async getDashboardStats(): Promise<DashboardStats> {
+    await this.delay('getDashboardStats')
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    // 线索漏斗（各状态计数）
+    const funnelOrder = ['new', 'contacting', 'qualified', 'converted', 'discarded']
+    const leadFunnel: Record<string, number> = Object.fromEntries(funnelOrder.map((s) => [s, 0]))
+    for (const l of this.state.leads) {
+      if (leadFunnel[l.status] != null) leadFunnel[l.status] += 1
+    }
+
+    // 本月新增
+    const inMonth = (iso?: string) => (iso ? new Date(iso) >= monthStart : false)
+    const newCustomers = this.state.customers.filter((c) => inMonth(c.createdAt)).length
+    const newLeads = this.state.leads.filter((l) => inMonth(l.createdAt)).length
+    const convertedCount = this.state.leads.filter((l) => inMonth(l.convertedAt)).length
+
+    // 跟进活跃度（最近 7 天）
+    const followCount7d = this.state.follows.filter((f) => new Date(f.createdAt) >= sevenDaysAgo)
+      .length
+
+    // 每销售业绩（按负责人分组）
+    const ownerName = (id: string) => this.state.users.find((u) => u.id === id)?.name
+    const byOwner = new Map<string, { customerCount: number; convertedThisMonth: number }>()
+    for (const c of this.state.customers) {
+      if (!c.ownerId) continue
+      const e = byOwner.get(c.ownerId) ?? { customerCount: 0, convertedThisMonth: 0 }
+      e.customerCount += 1
+      byOwner.set(c.ownerId, e)
+    }
+    for (const l of this.state.leads) {
+      if (!l.ownerId || !inMonth(l.convertedAt)) continue
+      const e = byOwner.get(l.ownerId) ?? { customerCount: 0, convertedThisMonth: 0 }
+      e.convertedThisMonth += 1
+      byOwner.set(l.ownerId, e)
+    }
+    const perOwner = [...byOwner.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([ownerId, v]) => ({
+        ownerId,
+        ownerName: ownerName(ownerId),
+        customerCount: v.customerCount,
+        convertedThisMonth: v.convertedThisMonth,
+      }))
+
+    return {
+      leadFunnel,
+      newThisMonth: { newCustomers, newLeads, convertedCount },
+      followActivity: { followCount7d },
+      perOwner,
+    }
   }
 }

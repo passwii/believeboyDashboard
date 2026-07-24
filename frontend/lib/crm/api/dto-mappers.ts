@@ -10,6 +10,7 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  DashboardStats,
   Follow,
   FollowInput,
   FollowUpGroups,
@@ -127,6 +128,24 @@ export interface ContactDto {
   remark?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface DashboardStatsDto {
+  lead_funnel: Record<string, number>
+  new_this_month: {
+    new_customers: number
+    new_leads: number
+    converted_count: number
+  }
+  follow_activity: {
+    follow_count_7d: number
+  }
+  per_owner: {
+    owner_id: string
+    owner_name?: string | null
+    customer_count: number
+    converted_this_month: number
+  }[]
 }
 
 // ---------- 出站映射（snake → camel，int → string） ----------
@@ -250,6 +269,26 @@ export function mapContact(dto: ContactDto): Contact {
     remark: dto.remark ?? undefined,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
+  }
+}
+
+export function mapDashboardStats(dto: DashboardStatsDto): DashboardStats {
+  return {
+    leadFunnel: dto.lead_funnel,
+    newThisMonth: {
+      newCustomers: dto.new_this_month.new_customers,
+      newLeads: dto.new_this_month.new_leads,
+      convertedCount: dto.new_this_month.converted_count,
+    },
+    followActivity: {
+      followCount7d: dto.follow_activity.follow_count_7d,
+    },
+    perOwner: dto.per_owner.map((p) => ({
+      ownerId: p.owner_id,
+      ownerName: p.owner_name ?? undefined,
+      customerCount: p.customer_count,
+      convertedThisMonth: p.converted_this_month,
+    })),
   }
 }
 

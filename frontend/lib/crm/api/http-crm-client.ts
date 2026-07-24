@@ -4,6 +4,7 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  DashboardStats,
   Follow,
   FollowEntityType,
   FollowInput,
@@ -15,6 +16,7 @@ import type {
 import {
   mapContact,
   mapCustomer,
+  mapDashboardStats,
   mapFollow,
   mapFollowUpGroups,
   mapLead,
@@ -26,6 +28,7 @@ import {
   toLeadPayload,
   type ContactDto,
   type CustomerDto,
+  type DashboardStatsDto,
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
@@ -212,5 +215,10 @@ export class HttpCrmClient implements CrmClient {
   }
   async getUser(id: string): Promise<User> {
     return mapUser(await request<UserDto>(`/users/${id}`))
+  }
+
+  // ===== Dashboard 数据看板（P3c） =====
+  async getDashboardStats(): Promise<DashboardStats> {
+    return mapDashboardStats(await request<DashboardStatsDto>('/dashboard/stats'))
   }
 }
