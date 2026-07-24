@@ -1,7 +1,10 @@
 # CRM P2b — 待跟进视图 + 提醒（实施计划）
 
-> 状态：进行中 ｜ 分支：`feat/crm-p2b-follow-up-view` ｜ 日期：2026-07-24
+> 状态：✅ 完成（待合并）｜ 分支：`feat/crm-p2b-follow-up-view` ｜ 日期：2026-07-24
 > 上游：P1b 已合并部署（main=3bd7fc17，迁移 218）。本计划新增迁移 **219**。
+>
+> **完成验证**：后端 147 passed（+18 新）/ 前端 lint 0 错 · build 91 页 · test 212 passed（+3）；
+> 本地真实 HTTP 冒烟全通（三分组 / 线索转化排除 / scope / next_follow_at 回写+暴露+清空）。
 
 ## 目标
 
