@@ -23,6 +23,7 @@ from app.api.deps import (
 )
 from app.models.crm import CrmCustomer, CrmLead
 from app.schemas.crm import (
+    AuditLogListResponse,
     BatchIdsRequest,
     BatchTransferRequest,
     ContactCreate,
@@ -45,6 +46,7 @@ from app.schemas.crm import (
     LeadUpdate,
 )
 from app.services.crm import (
+    audit_service,
     contact_service,
     customer_service,
     dashboard_service,
@@ -54,6 +56,7 @@ from app.services.crm import (
     lead_service,
     user_service,
 )
+from app.services.crm.audit_service import CUSTOMER_FIELD_LABELS, LEAD_FIELD_LABELS
 from app.services.crm.lead_service import LeadAlreadyConverted
 from app.services.crm.permissions import (
     filter_owned_ids,
@@ -126,7 +129,16 @@ def create_customer(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    return customer_service.create_customer(db, payload, user_id=user_id)
+    item = customer_service.create_customer(db, payload, user_id=user_id)
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=item.id,
+        action="create",
+        actor_id=user_id,
+        summary="新建客户",
+    )
+    return item
 
 
 @router.get("/customers/{customer_id}", response_model=CustomerItem)
@@ -153,7 +165,20 @@ def update_customer(
             status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
-    return customer_service.update_customer(db, customer_id, payload)
+    before = existing.model_dump()
+    item = customer_service.update_customer(db, customer_id, payload)
+    summary = audit_service.summarize_update(
+        before, payload.model_dump(exclude_unset=True), CUSTOMER_FIELD_LABELS
+    )
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=customer_id,
+        action="update",
+        actor_id=user_id,
+        summary=summary,
+    )
+    return item
 
 
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -170,16 +195,34 @@ def delete_customer(
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     customer_service.delete_customer(db, customer_id)
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=customer_id,
+        action="delete",
+        actor_id=user_id,
+        summary=f"删除客户 {existing.name}",
+    )
 
 
 @router.post("/customers/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
 def batch_transfer(
     payload: BatchTransferRequest,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
     customer_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+    for cid in payload.ids:
+        audit_service.record_log(
+            db,
+            entity_type="customer",
+            entity_id=cid,
+            action="transfer",
+            actor_id=user_id,
+            summary="指派负责人",
+        )
 
 
 @router.post("/customers/batch-move-sea", status_code=status.HTTP_204_NO_CONTENT)
@@ -191,6 +234,15 @@ def batch_move_to_sea(
 ):
     ids = filter_owned_ids(db, CrmCustomer, payload.ids, user_id, is_admin)
     customer_service.batch_move_to_sea(db, ids)
+    for cid in ids:
+        audit_service.record_log(
+            db,
+            entity_type="customer",
+            entity_id=cid,
+            action="move_sea",
+            actor_id=user_id,
+            summary="释放至公海",
+        )
 
 
 @router.post("/customers/{customer_id}/claim", response_model=CustomerItem)
@@ -204,6 +256,14 @@ def claim_from_sea(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Customer not in sea"
         )
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=item.id,
+        action="claim",
+        actor_id=user_id,
+        summary="从公海领取",
+    )
     return item
 
 
@@ -222,12 +282,21 @@ def create_contact(
     customer_id: int,
     payload: ContactCreate,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
 ):
     contact = contact_service.create_contact(db, customer_id, payload)
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
         )
+    audit_service.record_log(
+        db,
+        entity_type="contact",
+        entity_id=contact.id,
+        action="create",
+        actor_id=user_id,
+        summary=f"新增联系人 {contact.name}",
+    )
     return contact
 
 
@@ -236,21 +305,42 @@ def update_contact(
     contact_id: int,
     payload: ContactUpdate,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
 ):
     contact = contact_service.update_contact(db, contact_id, payload)
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
         )
+    audit_service.record_log(
+        db,
+        entity_type="contact",
+        entity_id=contact.id,
+        action="update",
+        actor_id=user_id,
+        summary=f"编辑联系人 {contact.name}",
+    )
     return contact
 
 
 @router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_contact(contact_id: int, db: Session = Depends(get_primary_db_session)):
+def delete_contact(
+    contact_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
     if not contact_service.delete_contact(db, contact_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
         )
+    audit_service.record_log(
+        db,
+        entity_type="contact",
+        entity_id=contact_id,
+        action="delete",
+        actor_id=user_id,
+        summary="删除联系人",
+    )
 
 
 # ---------- User ----------
@@ -316,7 +406,16 @@ def create_lead(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    return lead_service.create_lead(db, payload, user_id=user_id)
+    item = lead_service.create_lead(db, payload, user_id=user_id)
+    audit_service.record_log(
+        db,
+        entity_type="lead",
+        entity_id=item.id,
+        action="create",
+        actor_id=user_id,
+        summary="新建线索",
+    )
+    return item
 
 
 @router.get("/leads/{lead_id}", response_model=LeadItem)
@@ -343,17 +442,40 @@ def update_lead(
             status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
-    return lead_service.update_lead(db, lead_id, payload)
+    before = existing.model_dump()
+    item = lead_service.update_lead(db, lead_id, payload)
+    summary = audit_service.summarize_update(
+        before, payload.model_dump(exclude_unset=True), LEAD_FIELD_LABELS
+    )
+    audit_service.record_log(
+        db,
+        entity_type="lead",
+        entity_id=lead_id,
+        action="update",
+        actor_id=user_id,
+        summary=summary,
+    )
+    return item
 
 
 @router.post("/leads/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
 def batch_transfer_leads(
     payload: BatchTransferRequest,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
     lead_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+    for lid in payload.ids:
+        audit_service.record_log(
+            db,
+            entity_type="lead",
+            entity_id=lid,
+            action="transfer",
+            actor_id=user_id,
+            summary="指派负责人",
+        )
 
 
 @router.post("/leads/batch-move-pool", status_code=status.HTTP_204_NO_CONTENT)
@@ -365,6 +487,15 @@ def batch_move_leads_to_pool(
 ):
     ids = filter_owned_ids(db, CrmLead, payload.ids, user_id, is_admin)
     lead_service.batch_move_to_pool(db, ids)
+    for lid in ids:
+        audit_service.record_log(
+            db,
+            entity_type="lead",
+            entity_id=lid,
+            action="move_sea",
+            actor_id=user_id,
+            summary="释放至线索池",
+        )
 
 
 @router.post("/leads/{lead_id}/claim", response_model=LeadItem)
@@ -378,6 +509,14 @@ def claim_lead_from_pool(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool"
         )
+    audit_service.record_log(
+        db,
+        entity_type="lead",
+        entity_id=item.id,
+        action="claim",
+        actor_id=user_id,
+        summary="从线索池领取",
+    )
     return item
 
 
@@ -401,6 +540,14 @@ def convert_lead(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Lead already converted"
         )
+    audit_service.record_log(
+        db,
+        entity_type="lead",
+        entity_id=lead_id,
+        action="convert",
+        actor_id=user_id,
+        summary="线索转化为客户",
+    )
     return resp
 
 
@@ -433,6 +580,34 @@ def list_follow_ups(
 ):
     return follow_up_service.list_follow_ups(
         db, user_id=user_id, scope=resolve_scope(scope, is_admin)
+    )
+
+
+# ---------- Audit Log 审计日志（P4，仅管理员） ----------
+@router.get("/audit-logs", response_model=AuditLogListResponse)
+def list_audit_logs(
+    entity_type: str | None = Query(None),
+    entity_id: int | None = Query(None),
+    actor_id: str | None = Query(None),
+    action: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_read_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """审计日志查询（仅管理员）。"""
+    require_admin(is_admin)
+    items, total = audit_service.list_audit_logs(
+        db,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        actor_id=actor_id,
+        action=action,
+        page=page,
+        page_size=page_size,
+    )
+    return AuditLogListResponse(
+        items=items, total=total, page=page, page_size=page_size
     )
 
 
