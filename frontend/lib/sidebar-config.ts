@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import {
   Banknote,
   BarChart3,
@@ -39,6 +40,7 @@ import {
 
 // Custom AI icons
 import { ChatGptIcon } from '@/components/ui/icons/chatgpt-icon'
+import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 
 /**
  * Sidebar 两层结构的唯一数据权威。
@@ -59,6 +61,8 @@ export type SidebarSubItem = {
   matchPrefixes?: string[]
   /** 子项图标（用于 pinned / search / recent 显示）；可省略，使用所属外层 icon */
   icon?: LucideIcon
+  /** 可选动态徽标组件（如 CRM 待跟进逾期数红点），渲染在标题右侧 */
+  badge?: ComponentType
   /** 子项级可见性（已弃用：权限改由单页接管，保留字段以兼容辅助函数） */
   roles?: RoleType[]
 }
@@ -271,6 +275,13 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
+      {
+        title: '待跟进',
+        url: '/dashboard/crm/follow-ups',
+        icon: IconMap.Bell,
+        badge: CrmFollowUpBadge,
+        matchPrefixes: ['/dashboard/crm/follow-ups'],
+      },
       {
         title: '客户',
         url: '/dashboard/crm/customers',
