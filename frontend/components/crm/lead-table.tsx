@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useCrmUsers } from '@/hooks/use-crm-users'
@@ -11,6 +12,7 @@ import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
 import { CrmLeadForm } from './crm-lead-form'
+import { CrmExportButton } from './crm-export-button'
 import { LEAD_FIELD_DEFS } from '@/lib/crm/field-defs/lead'
 import type { Lead } from '@/lib/crm/types'
 import {
@@ -70,6 +72,8 @@ export function CrmLeadTable() {
   const { scope } = useCrmDataScope()
   const { notify } = useNotifications()
   const users = useCrmUsers()
+  const searchParams = useSearchParams()
+  const keyword = searchParams.get('keyword') ?? ''
   const [active, setActive] = useState<Lead | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -114,6 +118,9 @@ export function CrmLeadTable() {
 
   return (
     <>
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <CrmExportButton entity="leads" scope={scope} keyword={keyword} />
+      </div>
       <CrmTable<Lead>
         queryKey="leads"
         fetchPage={fetchPage}

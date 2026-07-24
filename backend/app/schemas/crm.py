@@ -1,4 +1,5 @@
 """CRM API schemas (Pydantic v2)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -60,6 +61,7 @@ class CustomerItem(BaseModel):
     contact_name: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    contact_wechat: str | None = None
     address: str | None = None
     website: str | None = None
     annual_revenue: float | None = None

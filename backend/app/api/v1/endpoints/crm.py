@@ -4,9 +4,14 @@
 - 普通销售：scope=all 降级 mine（只见自己+公海）；不可指派；不可写非自己名下记录。
 - 管理员：scope=all 看全部；可指派/释放任意记录。
 """
+
 from __future__ import annotations
 
+from datetime import date
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -38,7 +43,15 @@ from app.schemas.crm import (
     LeadListResponse,
     LeadUpdate,
 )
-from app.services.crm import contact_service, customer_service, follow_service, follow_up_service, lead_service, user_service
+from app.services.crm import (
+    contact_service,
+    customer_service,
+    export_service,
+    follow_service,
+    follow_up_service,
+    lead_service,
+    user_service,
+)
 from app.services.crm.lead_service import LeadAlreadyConverted
 from app.services.crm.permissions import (
     filter_owned_ids,
@@ -64,13 +77,48 @@ def list_customers(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     items, total = customer_service.list_customers(
-        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword,
-        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order,
+        db,
+        user_id=user_id,
+        scope=resolve_scope(scope, is_admin),
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
-    return CustomerListResponse(items=items, total=total, page=page, page_size=page_size)
+    return CustomerListResponse(
+        items=items, total=total, page=page, page_size=page_size
+    )
 
 
-@router.post("/customers", response_model=CustomerItem, status_code=status.HTTP_201_CREATED)
+def _csv_response(content: str, filename: str) -> StreamingResponse:
+    """CSV 下载响应：text/csv + UTF-8 BOM 已在 content 里；文件名 RFC5987 编码（中文）。"""
+    encoded = quote(filename)
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+@router.get("/customers/export")
+def export_customers(
+    scope: str = Query("all"),
+    keyword: str | None = None,
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """按当前 scope/keyword 导出客户清单为 CSV（不分页，导出全部命中）。"""
+    content = export_service.export_customers_csv(
+        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword
+    )
+    return _csv_response(content, f"客户_{date.today():%Y%m%d}.csv")
+
+
+@router.post(
+    "/customers", response_model=CustomerItem, status_code=status.HTTP_201_CREATED
+)
 def create_customer(
     payload: CustomerCreate,
     db: Session = Depends(get_primary_db_session),
@@ -83,7 +131,9 @@ def create_customer(
 def get_customer(customer_id: int, db: Session = Depends(get_read_db_session)):
     item = customer_service.get_customer(db, customer_id)
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
     return item
 
 
@@ -97,7 +147,9 @@ def update_customer(
 ):
     existing = customer_service.get_customer(db, customer_id)
     if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     return customer_service.update_customer(db, customer_id, payload)
 
@@ -111,7 +163,9 @@ def delete_customer(
 ):
     existing = customer_service.get_customer(db, customer_id)
     if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     customer_service.delete_customer(db, customer_id)
 
@@ -145,7 +199,9 @@ def claim_from_sea(
 ):
     item = customer_service.claim_from_sea(db, customer_id, user_id=user_id)
     if item is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Customer not in sea")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Customer not in sea"
+        )
     return item
 
 
@@ -155,7 +211,11 @@ def list_contacts(customer_id: int, db: Session = Depends(get_read_db_session)):
     return contact_service.list_contacts(db, customer_id)
 
 
-@router.post("/customers/{customer_id}/contacts", response_model=ContactItem, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/customers/{customer_id}/contacts",
+    response_model=ContactItem,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_contact(
     customer_id: int,
     payload: ContactCreate,
@@ -163,22 +223,32 @@ def create_contact(
 ):
     contact = contact_service.create_contact(db, customer_id, payload)
     if contact is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
     return contact
 
 
 @router.patch("/contacts/{contact_id}", response_model=ContactItem)
-def update_contact(contact_id: int, payload: ContactUpdate, db: Session = Depends(get_primary_db_session)):
+def update_contact(
+    contact_id: int,
+    payload: ContactUpdate,
+    db: Session = Depends(get_primary_db_session),
+):
     contact = contact_service.update_contact(db, contact_id, payload)
     if contact is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
+        )
     return contact
 
 
 @router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_contact(contact_id: int, db: Session = Depends(get_primary_db_session)):
     if not contact_service.delete_contact(db, contact_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
+        )
 
 
 # ---------- User ----------
@@ -191,7 +261,9 @@ def list_users(db: Session = Depends(get_read_db_session)):
 def get_user(user_id: str, db: Session = Depends(get_read_db_session)):
     item = user_service.get_crm_user(db, user_id)
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return item
 
 
@@ -209,10 +281,31 @@ def list_leads(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     items, total = lead_service.list_leads(
-        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword,
-        page=page, page_size=page_size, sort_by=sort_by, sort_order=sort_order,
+        db,
+        user_id=user_id,
+        scope=resolve_scope(scope, is_admin),
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     return LeadListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/leads/export")
+def export_leads(
+    scope: str = Query("all"),
+    keyword: str | None = None,
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """按当前 scope/keyword 导出线索清单为 CSV（不分页，导出全部命中）。"""
+    content = export_service.export_leads_csv(
+        db, user_id=user_id, scope=resolve_scope(scope, is_admin), keyword=keyword
+    )
+    return _csv_response(content, f"线索_{date.today():%Y%m%d}.csv")
 
 
 @router.post("/leads", response_model=LeadItem, status_code=status.HTTP_201_CREATED)
@@ -228,7 +321,9 @@ def create_lead(
 def get_lead(lead_id: int, db: Session = Depends(get_read_db_session)):
     item = lead_service.get_lead(db, lead_id)
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
+        )
     return item
 
 
@@ -242,7 +337,9 @@ def update_lead(
 ):
     existing = lead_service.get_lead(db, lead_id)
     if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
+        )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     return lead_service.update_lead(db, lead_id, payload)
 
@@ -276,7 +373,9 @@ def claim_lead_from_pool(
 ):
     item = lead_service.claim_from_pool(db, lead_id, user_id=user_id)
     if item is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool"
+        )
     return item
 
 
@@ -290,12 +389,16 @@ def convert_lead(
 ):
     existing = lead_service.get_lead(db, lead_id)
     if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
+        )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     try:
         resp = lead_service.convert_lead(db, lead_id, payload, user_id=user_id)
     except LeadAlreadyConverted:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Lead already converted")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Lead already converted"
+        )
     return resp
 
 

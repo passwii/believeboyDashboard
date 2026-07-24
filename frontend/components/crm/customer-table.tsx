@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useCrmUsers } from '@/hooks/use-crm-users'
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
+import { CrmExportButton } from './crm-export-button'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 import {
@@ -81,6 +83,8 @@ export function CrmCustomerTable() {
   const { scope } = useCrmDataScope()
   const { notify } = useNotifications()
   const users = useCrmUsers()
+  const searchParams = useSearchParams()
+  const keyword = searchParams.get('keyword') ?? ''
   const [active, setActive] = useState<Customer | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -132,17 +136,20 @@ export function CrmCustomerTable() {
         <p className="text-sm text-muted-foreground">
           客户列表 · 勾选后可批量释放到公海
         </p>
-        {selectedIds.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleBatchMoveToSea}
-            disabled={moving}
-            data-testid="batch-move-to-sea"
-          >
-            {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBatchMoveToSea}
+              disabled={moving}
+              data-testid="batch-move-to-sea"
+            >
+              {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
+            </Button>
+          )}
+          <CrmExportButton entity="customers" scope={scope} keyword={keyword} />
+        </div>
       </div>
       <CrmTable<Customer>
         queryKey="customers"
