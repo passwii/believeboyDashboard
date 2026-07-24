@@ -1,5 +1,7 @@
 import type { CrmClient, FilterCondition, ListParams, Paginated } from './crm-client'
 import type {
+  Contact,
+  ContactInput,
   Customer,
   CustomerInput,
   Follow,
@@ -28,6 +30,7 @@ interface MockState {
   customers: Customer[]
   leads: Lead[]
   follows: Follow[]
+  contacts: Contact[]
   users: User[]
 }
 
@@ -63,6 +66,7 @@ function loadState(): MockState {
       customers: [...CUSTOMERS_FIXTURE],
       leads: [...LEADS_FIXTURE],
       follows: [...FOLLOWS_FIXTURE],
+      contacts: [],
       users: [...USERS_FIXTURE],
     }
   }
@@ -73,6 +77,7 @@ function loadState(): MockState {
         customers: [...CUSTOMERS_FIXTURE],
         leads: [...LEADS_FIXTURE],
         follows: [...FOLLOWS_FIXTURE],
+        contacts: [],
         users: [...USERS_FIXTURE],
       }
     }
@@ -81,6 +86,7 @@ function loadState(): MockState {
       customers: parsed.customers ?? [...CUSTOMERS_FIXTURE],
       leads: parsed.leads ?? [...LEADS_FIXTURE],
       follows: parsed.follows ?? [...FOLLOWS_FIXTURE],
+      contacts: parsed.contacts ?? [],
       users: parsed.users ?? [...USERS_FIXTURE],
     }
   } catch {
@@ -88,6 +94,7 @@ function loadState(): MockState {
       customers: [...CUSTOMERS_FIXTURE],
       leads: [...LEADS_FIXTURE],
       follows: [...FOLLOWS_FIXTURE],
+      contacts: [],
       users: [...USERS_FIXTURE],
     }
   }
@@ -561,6 +568,92 @@ export class MockCrmClient implements CrmClient {
       overdueCount: overdue.length,
       totalCount: overdue.length + today.length + thisWeek.length,
     }
+  }
+
+  // ===== Contact =====
+
+  async listContacts(customerId: string): Promise<Contact[]> {
+    await this.delay('listContacts')
+    return this.state.contacts
+      .filter((c) => c.customerId === customerId)
+      .sort((a, b) => {
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
+        return a.id.localeCompare(b.id)
+      })
+  }
+
+  async createContact(customerId: string, input: ContactInput): Promise<Contact> {
+    await this.delay('createContact')
+    const now = new Date().toISOString()
+    const siblings = this.state.contacts.filter((c) => c.customerId === customerId)
+    const isPrimary = input.isPrimary || siblings.length === 0 // 首个自动成主
+    if (isPrimary) {
+      this.state.contacts = this.state.contacts.map((c) =>
+        c.customerId === customerId ? { ...c, isPrimary: false } : c
+      )
+    }
+    const contact: Contact = {
+      id: genId('ct'),
+      customerId,
+      name: input.name,
+      phone: input.phone,
+      email: input.email,
+      wechat: input.wechat,
+      title: input.title,
+      isPrimary,
+      remark: input.remark,
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.state.contacts.push(contact)
+    persistState(this.state)
+    return contact
+  }
+
+  async updateContact(id: string, input: ContactInput): Promise<Contact> {
+    await this.delay('updateContact')
+    const idx = this.state.contacts.findIndex((c) => c.id === id)
+    if (idx === -1) throw new Error(`联系人不存在: ${id}`)
+    const prev = this.state.contacts[idx]
+    const updated: Contact = {
+      ...prev,
+      name: input.name,
+      phone: input.phone,
+      email: input.email,
+      wechat: input.wechat,
+      title: input.title,
+      isPrimary: input.isPrimary ?? prev.isPrimary,
+      remark: input.remark,
+      updatedAt: new Date().toISOString(),
+    }
+    if (updated.isPrimary) {
+      this.state.contacts = this.state.contacts.map((c) =>
+        c.customerId === updated.customerId && c.id !== id ? { ...c, isPrimary: false } : c
+      )
+    }
+    this.state.contacts[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    await this.delay('deleteContact')
+    const target = this.state.contacts.find((c) => c.id === id)
+    if (!target) throw new Error(`联系人不存在: ${id}`)
+    const wasPrimary = target.isPrimary
+    this.state.contacts = this.state.contacts.filter((c) => c.id !== id)
+    if (wasPrimary) {
+      const remaining = this.state.contacts
+        .filter((c) => c.customerId === target.customerId)
+        .sort((a, b) => a.id.localeCompare(b.id))
+      if (remaining.length > 0) {
+        const nextId = remaining[0].id
+        this.state.contacts = this.state.contacts.map((c) =>
+          c.id === nextId ? { ...c, isPrimary: true } : c
+        )
+      }
+    }
+    persistState(this.state)
   }
 
   // ===== User =====

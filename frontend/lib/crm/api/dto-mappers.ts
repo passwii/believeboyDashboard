@@ -6,6 +6,8 @@
  * 逐字段映射（不整体转换，避免漏字段）；null → undefined（前端可选字段缺省）。
  */
 import type {
+  Contact,
+  ContactInput,
   Customer,
   CustomerInput,
   Follow,
@@ -111,6 +113,20 @@ export interface FollowUpGroupsDto {
   this_week: FollowUpItemDto[]
   overdue_count: number
   total_count: number
+}
+
+export interface ContactDto {
+  id: number
+  customer_id: number
+  name: string
+  phone?: string | null
+  email?: string | null
+  wechat?: string | null
+  title?: string | null
+  is_primary: boolean
+  remark?: string | null
+  created_at: string
+  updated_at: string
 }
 
 // ---------- 出站映射（snake → camel，int → string） ----------
@@ -221,6 +237,22 @@ export function mapFollowUpGroups(dto: FollowUpGroupsDto): FollowUpGroups {
   }
 }
 
+export function mapContact(dto: ContactDto): Contact {
+  return {
+    id: String(dto.id),
+    customerId: String(dto.customer_id),
+    name: dto.name,
+    phone: dto.phone ?? undefined,
+    email: dto.email ?? undefined,
+    wechat: dto.wechat ?? undefined,
+    title: dto.title ?? undefined,
+    isPrimary: dto.is_primary,
+    remark: dto.remark ?? undefined,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  }
+}
+
 // ---------- 入站映射（camel → snake；undefined 剔除，配合后端 exclude_unset） ----------
 function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -293,4 +325,17 @@ export function toConvertPayload(
     remark: input.remark,
   })
   return Object.keys(payload).length > 0 ? payload : undefined
+}
+
+/** 联系人创建/更新入参。 */
+export function toContactPayload(input: ContactInput): Record<string, unknown> {
+  return stripUndefined({
+    name: input.name,
+    phone: input.phone,
+    email: input.email,
+    wechat: input.wechat,
+    title: input.title,
+    is_primary: input.isPrimary,
+    remark: input.remark,
+  })
 }

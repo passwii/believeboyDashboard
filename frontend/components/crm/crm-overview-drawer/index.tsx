@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { CrmDetailCard } from '@/components/crm/crm-detail-card'
 import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
+import { CrmContactList } from '@/components/crm/crm-contact-list'
+import { cn } from '@/lib/utils'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 import type { CrmOverviewDrawerProps } from './types'
 
@@ -47,6 +49,7 @@ export function CrmOverviewDrawer<T extends object>({
   const [follows, setFollows] = useState<import('@/lib/crm/types/follow').Follow[]>([])
   const [followLoading, setFollowLoading] = useState(false)
   const [editing, setEditing] = useState(false)
+  const isCustomer = entityType === 'customer'
 
   const refreshFollows = useCallback(async () => {
     setFollowLoading(true)
@@ -102,9 +105,10 @@ export function CrmOverviewDrawer<T extends object>({
 
         <Tabs defaultValue="detail" className="flex h-full flex-col">
           <div className="px-5 pt-3">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className={cn('grid w-full', isCustomer ? 'grid-cols-4' : 'grid-cols-3')}>
               <TabsTrigger value="detail">详情</TabsTrigger>
               <TabsTrigger value="follow">跟进</TabsTrigger>
+              {isCustomer && <TabsTrigger value="contacts">联系人</TabsTrigger>}
               <TabsTrigger value="edit">编辑</TabsTrigger>
             </TabsList>
           </div>
@@ -129,6 +133,12 @@ export function CrmOverviewDrawer<T extends object>({
                 />
               )}
             </TabsContent>
+
+            {isCustomer && (
+              <TabsContent value="contacts" className="mt-0">
+                <CrmContactList customerId={entityId} />
+              </TabsContent>
+            )}
 
             <TabsContent value="edit" className="mt-0">
               {editForm ? (
