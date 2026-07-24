@@ -22,6 +22,10 @@ SH = ZoneInfo("Asia/Shanghai")
 NOW = datetime(2026, 7, 24, 10, 0, 0, tzinfo=SH)
 MONTH_START = datetime(2026, 7, 1, 0, 0, 0, tzinfo=SH)
 
+# 负责人用真实 UUID（user_accounts.id 是 uuid 类型，_owner_name_map 的 any(:ids) 要求合法 UUID）
+U1 = "11111111-1111-1111-1111-111111111111"
+U2 = "22222222-2222-2222-2222-222222222222"
+
 
 @pytest.fixture(autouse=True)
 def _clean_crm_tables(db_session):
@@ -117,12 +121,15 @@ def test_new_this_month_customers_leads_converted(db_session):
         db_session,
         name="L转化本月",
         status="converted",
+        created_at=MONTH_START
+        - timedelta(days=10),  # 创建于上月，仅 converted_at 在本月
         converted_at=MONTH_START + timedelta(days=3),
     )
     _mk_lead(
         db_session,
         name="L转化上月",
         status="converted",
+        created_at=MONTH_START - timedelta(days=10),
         converted_at=MONTH_START - timedelta(days=3),
     )
     stats = get_dashboard_stats(db_session, is_admin=True, now=NOW)
@@ -158,30 +165,30 @@ def test_follow_activity_last_7_days(db_session):
 
 
 def test_per_owner_customer_count_and_converted(db_session):
-    _mk_customer(db_session, name="C1", owner_id="u1")
-    _mk_customer(db_session, name="C2", owner_id="u1")
-    _mk_customer(db_session, name="C3", owner_id="u2")
+    _mk_customer(db_session, name="C1", owner_id=U1)
+    _mk_customer(db_session, name="C2", owner_id=U1)
+    _mk_customer(db_session, name="C3", owner_id=U2)
     _mk_customer(db_session, name="C公海", owner_id=None)  # 公海不计入任何销售
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id="u1",
+        owner_id=U1,
         converted_at=NOW - timedelta(days=1),
     )
     _mk_lead(
         db_session,
         name="L2",
         status="converted",
-        owner_id="u2",
+        owner_id=U2,
         converted_at=NOW - timedelta(days=40),
     )
     stats = get_dashboard_stats(db_session, is_admin=True, now=NOW)
     by_owner = {p.owner_id: p for p in stats.per_owner}
-    assert by_owner["u1"].customer_count == 2
-    assert by_owner["u1"].converted_this_month == 1
-    assert by_owner["u2"].customer_count == 1
-    assert by_owner["u2"].converted_this_month == 0
+    assert by_owner[U1].customer_count == 2
+    assert by_owner[U1].converted_this_month == 1
+    assert by_owner[U2].customer_count == 1
+    assert by_owner[U2].converted_this_month == 0
     assert None not in by_owner
 
 
