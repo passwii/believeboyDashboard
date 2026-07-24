@@ -22,13 +22,14 @@ export interface Lead {
   remark?: string
   createdAt: string
   updatedAt: string
+  nextFollowAt?: string
   convertedToCustomerId?: string
   convertedAt?: string
 }
 
 export type LeadInput = Omit<
   Lead,
-  'id' | 'ownerName' | 'createdAt' | 'updatedAt' | 'convertedToCustomerId' | 'convertedAt'
+  'id' | 'ownerName' | 'createdAt' | 'updatedAt' | 'nextFollowAt' | 'convertedToCustomerId' | 'convertedAt'
 > & {
   ownerId?: string | null
 }

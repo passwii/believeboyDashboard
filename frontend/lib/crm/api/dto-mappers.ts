@@ -10,6 +10,8 @@ import type {
   CustomerInput,
   Follow,
   FollowInput,
+  FollowUpGroups,
+  FollowUpItem,
   Lead,
   LeadInput,
   User,
@@ -84,6 +86,29 @@ export interface UserDto {
   email: string
   role_type?: string | null
   is_active: boolean
+}
+
+export interface FollowUpItemDto {
+  entity_type: string
+  entity_id: number
+  name: string
+  subtitle?: string | null
+  owner_id?: string | null
+  owner_name?: string | null
+  next_follow_at: string
+  last_follow_content?: string | null
+  last_follow_at?: string | null
+  rating?: string | null
+  status?: string | null
+  intent?: string | null
+}
+
+export interface FollowUpGroupsDto {
+  overdue: FollowUpItemDto[]
+  today: FollowUpItemDto[]
+  this_week: FollowUpItemDto[]
+  overdue_count: number
+  total_count: number
 }
 
 // ---------- 出站映射（snake → camel，int → string） ----------
@@ -162,6 +187,33 @@ export function mapUser(dto: UserDto): User {
     email: dto.email,
     roleType: (dto.role_type ?? 'operator') as User['roleType'],
     isActive: dto.is_active,
+  }
+}
+
+export function mapFollowUp(dto: FollowUpItemDto): FollowUpItem {
+  return {
+    entityType: dto.entity_type as FollowUpItem['entityType'],
+    entityId: String(dto.entity_id),
+    name: dto.name,
+    subtitle: dto.subtitle ?? undefined,
+    ownerId: dto.owner_id ?? null,
+    ownerName: dto.owner_name ?? undefined,
+    nextFollowAt: dto.next_follow_at,
+    lastFollowContent: dto.last_follow_content ?? undefined,
+    lastFollowAt: dto.last_follow_at ?? undefined,
+    rating: dto.rating ?? undefined,
+    status: dto.status ?? undefined,
+    intent: dto.intent ?? undefined,
+  }
+}
+
+export function mapFollowUpGroups(dto: FollowUpGroupsDto): FollowUpGroups {
+  return {
+    overdue: dto.overdue.map(mapFollowUp),
+    today: dto.today.map(mapFollowUp),
+    thisWeek: dto.this_week.map(mapFollowUp),
+    overdueCount: dto.overdue_count,
+    totalCount: dto.total_count,
   }
 }
 

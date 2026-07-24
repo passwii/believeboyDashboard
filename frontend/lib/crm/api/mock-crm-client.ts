@@ -5,6 +5,8 @@ import type {
   Follow,
   FollowEntityType,
   FollowInput,
+  FollowUpGroups,
+  FollowUpItem,
   Lead,
   LeadInput,
   User,
@@ -463,11 +465,102 @@ export class MockCrmClient implements CrmClient {
     if (input.entityType === 'customer') {
       const cIdx = this.state.customers.findIndex((c) => c.id === input.entityId)
       if (cIdx !== -1) {
-        this.state.customers[cIdx] = { ...this.state.customers[cIdx], lastFollowAt: now }
+        this.state.customers[cIdx] = {
+          ...this.state.customers[cIdx],
+          lastFollowAt: now,
+          nextFollowAt: input.nextFollowAt, // 回写：带则设，不带清空（同后端）
+        }
+      }
+    } else if (input.entityType === 'lead') {
+      const lIdx = this.state.leads.findIndex((l) => l.id === input.entityId)
+      if (lIdx !== -1) {
+        this.state.leads[lIdx] = { ...this.state.leads[lIdx], nextFollowAt: input.nextFollowAt }
       }
     }
     persistState(this.state)
     return follow
+  }
+
+  async listFollowUps(scope: 'mine' | 'all' = 'mine'): Promise<FollowUpGroups> {
+    await this.delay('listFollowUps')
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const tomorrowStart = new Date(todayStart)
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+    const weekEnd = new Date(todayStart)
+    weekEnd.setDate(weekEnd.getDate() + (6 - now.getDay())) // 本周日
+    weekEnd.setHours(23, 59, 59, 999)
+
+    const ownerName = (id: string | null) =>
+      id ? this.state.users.find((u) => u.id === id)?.name ?? undefined : undefined
+    const latestFollow = (et: FollowEntityType, eid: string) =>
+      this.state.follows
+        .filter((f) => f.entityType === et && f.entityId === eid)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+
+    const toItem = (
+      et: FollowEntityType,
+      id: string,
+      name: string,
+      subtitle: string | undefined,
+      ownerId: string | null,
+      nextFollowAt: string,
+      extra: { rating?: string; status?: string; intent?: string }
+    ): FollowUpItem => {
+      const f = latestFollow(et, id)
+      return {
+        entityType: et,
+        entityId: id,
+        name,
+        subtitle,
+        ownerId,
+        ownerName: ownerName(ownerId),
+        nextFollowAt,
+        lastFollowContent: f?.content,
+        lastFollowAt: f?.createdAt,
+        rating: extra.rating,
+        status: extra.status,
+        intent: extra.intent,
+      }
+    }
+
+    const customers = applyScope(this.state.customers, scope, this.currentUserId, 'ownerId')
+      .filter((c) => c.nextFollowAt)
+      .map((c) =>
+        toItem('customer', c.id, c.name, c.industry, c.ownerId, c.nextFollowAt!, {
+          rating: c.rating,
+          status: c.status,
+        })
+      )
+    const leads = applyScope(this.state.leads, scope, this.currentUserId, 'ownerId')
+      .filter((l) => l.nextFollowAt && l.status !== 'converted' && l.status !== 'discarded')
+      .map((l) =>
+        toItem('lead', l.id, l.name, l.company, l.ownerId, l.nextFollowAt!, {
+          status: l.status,
+          intent: l.intent,
+        })
+      )
+
+    const overdue: FollowUpItem[] = []
+    const today: FollowUpItem[] = []
+    const thisWeek: FollowUpItem[] = []
+    for (const item of [...customers, ...leads]) {
+      const d = new Date(item.nextFollowAt)
+      if (d < todayStart) overdue.push(item)
+      else if (d < tomorrowStart) today.push(item)
+      else if (d <= weekEnd) thisWeek.push(item)
+    }
+    const byNext = (a: FollowUpItem, b: FollowUpItem) => a.nextFollowAt.localeCompare(b.nextFollowAt)
+    overdue.sort(byNext)
+    today.sort(byNext)
+    thisWeek.sort(byNext)
+    return {
+      overdue,
+      today,
+      thisWeek,
+      overdueCount: overdue.length,
+      totalCount: overdue.length + today.length + thisWeek.length,
+    }
   }
 
   // ===== User =====

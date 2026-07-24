@@ -5,6 +5,7 @@ import type {
   Follow,
   FollowEntityType,
   FollowInput,
+  FollowUpGroups,
   Lead,
   LeadInput,
   User,
@@ -12,6 +13,7 @@ import type {
 import {
   mapCustomer,
   mapFollow,
+  mapFollowUpGroups,
   mapLead,
   mapUser,
   toConvertPayload,
@@ -20,6 +22,7 @@ import {
   toLeadPayload,
   type CustomerDto,
   type FollowDto,
+  type FollowUpGroupsDto,
   type LeadDto,
   type UserDto,
 } from './dto-mappers'
@@ -169,6 +172,9 @@ export class HttpCrmClient implements CrmClient {
         body: JSON.stringify(toFollowPayload(input)),
       })
     )
+  }
+  async listFollowUps(scope: 'mine' | 'all' = 'mine'): Promise<FollowUpGroups> {
+    return mapFollowUpGroups(await request<FollowUpGroupsDto>(`/follow-ups?scope=${scope}`))
   }
 
   // ===== User =====
