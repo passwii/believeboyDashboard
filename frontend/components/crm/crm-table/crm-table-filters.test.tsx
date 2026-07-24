@@ -149,4 +149,36 @@ describe('CrmTable · 快捷筛选行', () => {
       expect(last?.filters).toEqual([])
     })
   })
+
+  it('翻页（非筛选 URL 变更）不会被误重置回第 1 页（回归：引用比较 bug）', async () => {
+    // 起点第 2 页，filters 为空
+    mockSearchParams = new URLSearchParams('page=2')
+    const fetchPage = vi.fn(async (params: { page?: number }) => ({
+      items: [{ id: '1', name: '客户A' }],
+      total: 60, // > pageSize 20 → 分页可见（3 页）
+      page: params.page ?? 1,
+      pageSize: 20,
+    }))
+    const { rerender } = renderTable(fetchPage, fields)
+
+    const nextBtn = await screen.findByLabelText('下一页')
+
+    // 点下一页 → setPage(3) → URL page=3；filters 内容不变（仍为空数组）
+    fireEvent.click(nextBtn)
+    await act(async () => {
+      rerender(
+        <CrmTable queryKey="t" fetchPage={fetchPage} columns={columns} rowKey="id" filterFields={fields} />
+      )
+    })
+
+    // 修复后：filtersKey（JSON 内容）未变，page-reset effect 不触发 setPage(1)。
+    // 最近一次 replace 应保留 page=3；修复前引用比较会误删 page 弹回第 1 页。
+    const lastUrl = mockReplace.mock.calls.at(-1)?.[0] as string
+    expect(lastUrl).toContain('page=3')
+
+    await waitFor(() => {
+      const last = fetchPage.mock.calls.at(-1)?.[0]
+      expect(last?.page).toBe(3)
+    })
+  })
 })

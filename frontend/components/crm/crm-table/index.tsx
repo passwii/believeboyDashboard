@@ -93,18 +93,19 @@ export function CrmTable<T extends { id?: string | number }>({
     table.setFilters(next)
   }
 
-  // 筛选变更后重置到第 1 页。单独用 effect 而非在 handleFilterChange 里连发
-  // setFilters + setPage —— 两个 setter 闭包共享同一份渲染期 searchParams 快照，
-  // 同 tick 连发会互相覆盖（setPage 会把刚写的 filters 冲掉）。effect 在 filters
-  // 写入后的新一轮渲染里执行，此时 setPage(1) 基于含 filters 的最新 URL，安全。
-  const prevFiltersRef = useRef(table.filters)
+  // 筛选变更后重置到第 1 页。用序列化内容比较（非引用）——table.filters 是
+  // useMemo(parseFilters)，任何 URL 变更（翻页/排序）都返回新数组引用，引用比较
+  // 会让翻页/排序误触发重置（点下一页被弹回第 1 页）；比较 JSON 内容则只在筛选
+  // 真正变化时重置。单独用 effect 而非连发 setFilters+setPage，避免闭包快照互相覆盖。
+  const filtersKey = JSON.stringify(table.filters)
+  const prevFiltersKeyRef = useRef(filtersKey)
   useEffect(() => {
-    if (prevFiltersRef.current !== table.filters && table.page > 1) {
+    if (prevFiltersKeyRef.current !== filtersKey && table.page > 1) {
       table.setPage(1)
     }
-    prevFiltersRef.current = table.filters
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 精确依赖 filters/page/setPage，无需整个 table 对象
-  }, [table.filters, table.page, table.setPage])
+    prevFiltersKeyRef.current = filtersKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 精确依赖 filtersKey/page/setPage
+  }, [filtersKey, table.page, table.setPage])
 
   // 外部批量操作（如移入公海）后主动刷新
   useEffect(() => {
