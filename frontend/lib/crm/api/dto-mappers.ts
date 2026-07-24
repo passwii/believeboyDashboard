@@ -39,6 +39,7 @@ export interface CustomerDto {
   employee_count?: number | null
   remark?: string | null
   last_follow_at?: string | null
+  next_follow_at?: string | null
   created_by?: string | null
   created_at: string
   updated_at: string
@@ -61,6 +62,7 @@ export interface LeadDto {
   expected_amount?: number | null
   expected_close_date?: string | null
   remark?: string | null
+  next_follow_at?: string | null
   converted_to_customer_id?: number | null
   converted_at?: string | null
   created_by?: string | null
@@ -137,6 +139,7 @@ export function mapCustomer(dto: CustomerDto): Customer {
     updatedAt: dto.updated_at,
     createdBy: dto.created_by ?? '',
     lastFollowAt: dto.last_follow_at ?? undefined,
+    nextFollowAt: dto.next_follow_at ?? undefined,
   }
 }
 
@@ -160,6 +163,7 @@ export function mapLead(dto: LeadDto): Lead {
     remark: dto.remark ?? undefined,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
+    nextFollowAt: dto.next_follow_at ?? undefined,
     convertedToCustomerId:
       dto.converted_to_customer_id != null ? String(dto.converted_to_customer_id) : undefined,
     convertedAt: dto.converted_at ?? undefined,

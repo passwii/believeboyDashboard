@@ -66,6 +66,7 @@ class CustomerItem(BaseModel):
     employee_count: int | None = None
     remark: str | None = None
     last_follow_at: datetime | None = None
+    next_follow_at: datetime | None = None
     created_by: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -169,6 +170,7 @@ class LeadItem(BaseModel):
     expected_amount: float | None = None
     expected_close_date: str | None = None
     remark: str | None = None
+    next_follow_at: datetime | None = None
     converted_to_customer_id: int | None = None
     converted_at: datetime | None = None
     created_by: str | None = None
