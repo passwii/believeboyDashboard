@@ -1,4 +1,5 @@
 """Customer domain service: CRUD + scope filter + batch + sea + primary contact join."""
+
 from __future__ import annotations
 
 from sqlalchemy import func, or_, select
@@ -40,18 +41,27 @@ def _primary_contact_map(db: Session, customer_ids: list[int]) -> dict[int, CrmC
         db.execute(
             select(CrmContact)
             .where(CrmContact.customer_id.in_(customer_ids))
-            .order_by(CrmContact.customer_id, CrmContact.is_primary.desc(), CrmContact.id)
+            .order_by(
+                CrmContact.customer_id, CrmContact.is_primary.desc(), CrmContact.id
+            )
         )
         .scalars()
         .all()
     )
     result: dict[int, CrmContact] = {}
     for c in rows:
-        result.setdefault(c.customer_id, c)  # 第一条即主联系人（已按 is_primary desc 排序）
+        result.setdefault(
+            c.customer_id, c
+        )  # 第一条即主联系人（已按 is_primary desc 排序）
     return result
 
 
-def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[str, str], primary: CrmContact | None):
+def _to_item(
+    db: Session,
+    cust: CrmCustomer,
+    owner_names: dict[str, str],
+    primary: CrmContact | None,
+):
     from app.schemas.crm import CustomerItem
 
     return CustomerItem(
@@ -69,9 +79,12 @@ def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[str, str], primar
         contact_name=primary.name if primary else None,
         contact_phone=primary.phone if primary else None,
         contact_email=primary.email if primary else None,
+        contact_wechat=primary.wechat if primary else None,
         address=cust.address,
         website=cust.website,
-        annual_revenue=float(cust.annual_revenue) if cust.annual_revenue is not None else None,
+        annual_revenue=float(cust.annual_revenue)
+        if cust.annual_revenue is not None
+        else None,
         employee_count=cust.employee_count,
         remark=cust.remark,
         last_follow_at=cust.last_follow_at,
@@ -104,7 +117,9 @@ def list_customers(
 
     if keyword:
         like = f"%{keyword}%"
-        stmt = stmt.where(or_(CrmCustomer.name.ilike(like), CrmCustomer.short_name.ilike(like)))
+        stmt = stmt.where(
+            or_(CrmCustomer.name.ilike(like), CrmCustomer.short_name.ilike(like))
+        )
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 
@@ -121,7 +136,9 @@ def list_customers(
 
 def get_customer(db: Session, customer_id: int):
     cust = db.execute(
-        select(CrmCustomer).where(CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False))
+        select(CrmCustomer).where(
+            CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
+        )
     ).scalar_one_or_none()
     if cust is None:
         return None
@@ -143,7 +160,9 @@ def create_customer(db: Session, payload: CustomerCreate, *, user_id: str | None
 
 def update_customer(db: Session, customer_id: int, payload: CustomerUpdate):
     cust = db.execute(
-        select(CrmCustomer).where(CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False))
+        select(CrmCustomer).where(
+            CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
+        )
     ).scalar_one_or_none()
     if cust is None:
         return None
@@ -156,7 +175,9 @@ def update_customer(db: Session, customer_id: int, payload: CustomerUpdate):
 
 def delete_customer(db: Session, customer_id: int) -> bool:
     cust = db.execute(
-        select(CrmCustomer).where(CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False))
+        select(CrmCustomer).where(
+            CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
+        )
     ).scalar_one_or_none()
     if cust is None:
         return False
@@ -166,9 +187,15 @@ def delete_customer(db: Session, customer_id: int) -> bool:
 
 
 def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
-    rows = db.execute(
-        select(CrmCustomer).where(CrmCustomer.id.in_(ids), CrmCustomer.is_deleted.is_(False))
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(CrmCustomer).where(
+                CrmCustomer.id.in_(ids), CrmCustomer.is_deleted.is_(False)
+            )
+        )
+        .scalars()
+        .all()
+    )
     for cust in rows:
         cust.owner_id = to_owner_id
     db.commit()
@@ -176,9 +203,15 @@ def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
 
 
 def batch_move_to_sea(db: Session, ids: list[int]) -> int:
-    rows = db.execute(
-        select(CrmCustomer).where(CrmCustomer.id.in_(ids), CrmCustomer.is_deleted.is_(False))
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(CrmCustomer).where(
+                CrmCustomer.id.in_(ids), CrmCustomer.is_deleted.is_(False)
+            )
+        )
+        .scalars()
+        .all()
+    )
     for cust in rows:
         cust.owner_id = None
     db.commit()
