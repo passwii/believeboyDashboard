@@ -40,8 +40,12 @@ class Settings(BaseSettings):
     # — see TEST_*_PASSWORD below. These mirror the accounts the agent/E2E
     # test suites authenticate as.
     test_admin_email: str = Field(default="test_admin@believeboy.com", max_length=320)
-    test_operator_email: str = Field(default="test_operator@believeboy.com", max_length=320)
-    test_businessdev_email: str = Field(default="test_businessdev@believeboy.com", max_length=320)
+    test_operator_email: str = Field(
+        default="test_operator@believeboy.com", max_length=320
+    )
+    test_businessdev_email: str = Field(
+        default="test_businessdev@believeboy.com", max_length=320
+    )
     test_admin_password: str = Field(default="", max_length=256)
     test_operator_password: str = Field(default="", max_length=256)
     test_businessdev_password: str = Field(default="", max_length=256)
@@ -121,8 +125,15 @@ class Settings(BaseSettings):
     alert_from_name: str = Field(default="BelieveBoy Dashboard", max_length=128)
 
     # Scheduled report dispatch
-    report_ai_concurrency: int = Field(default=2, ge=1, le=10, description="Max concurrent AI summary API calls during report dispatch")
-    max_concurrent_insights: int = Field(default=3, ge=1, le=10, description="Max concurrent AI insight generation tasks")
+    report_ai_concurrency: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        description="Max concurrent AI summary API calls during report dispatch",
+    )
+    max_concurrent_insights: int = Field(
+        default=3, ge=1, le=10, description="Max concurrent AI insight generation tasks"
+    )
 
     # BEL-NEW: 定时报告迁移至 Celery worker (方案 docs/superpowers/plans/2026-07-10-scheduled-report-to-celery.md)
     # ENABLE_SCHEDULER=false 时本 API 进程不启动 APScheduler（多副本时仅一个副本设 true）。
@@ -135,7 +146,9 @@ class Settings(BaseSettings):
     # ai_summary 队列的 LLM 并发信号量上限（与 insights 独立）。方案 §4.6 取 5：
     #   insights 占 3 路，ai_summary 额外允许 5 路，留 headroom 不撞 LLM RPM。
     max_concurrent_ai_summary: int = Field(
-        default=5, ge=1, le=20,
+        default=5,
+        ge=1,
+        le=20,
         description="Max concurrent AI summary tasks on ai_summary queue (separate semaphore from insights).",
     )
 
@@ -151,6 +164,9 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="", max_length=500)
     celery_result_url: str = Field(default="", max_length=500)
     celery_worker_concurrency: int = Field(default=4, ge=1, le=32)
+    # CRM 公海自动回收（P3a）：有主但超过 N 天未跟进的客户/线索自动掉公海。
+    # 0 = 关闭自动回收。环境变量 CRM_SEA_RECLAIM_DAYS 可调。
+    crm_sea_reclaim_days: int = Field(default=15, ge=0, le=365)
     # BEL-55-P1 dual-write switch. When true, `job_service.enqueue_job`
     # dispatches via Celery; when false, it falls back to the in-process
     # daemon thread. Flip to false to roll back the Celery migration
@@ -209,7 +225,12 @@ class Settings(BaseSettings):
     @property
     def r2_enabled(self) -> bool:
         """Check if R2 is properly configured."""
-        return bool(self.r2_endpoint_url and self.r2_access_key_id and self.r2_secret_access_key and self.r2_bucket_name)
+        return bool(
+            self.r2_endpoint_url
+            and self.r2_access_key_id
+            and self.r2_secret_access_key
+            and self.r2_bucket_name
+        )
 
     @property
     def replica_enabled(self) -> bool:
