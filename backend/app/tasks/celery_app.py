@@ -12,6 +12,7 @@ and the `insights` queue route.
 from __future__ import annotations
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -45,6 +46,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.scheduled_report",
             "app.celery_tasks.ai_summary",
             "app.celery_tasks.office_tick",
+            "app.celery_tasks.crm_sea_reclaim",
         ],
     )
 
@@ -73,12 +75,19 @@ def _build_celery_app() -> Celery:
             "generate_delivery_summary": {"queue": "ai_summary"},
             # 虚拟办公室独立推进器：default 队列（短任务 <100ms）
             "office_tick": {"queue": "default"},
+            # CRM 公海自动回收（P3a）：default 队列（每日一次短任务）
+            "crm_sea_reclaim": {"queue": "default"},
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={
             "office-tick": {
                 "task": "office_tick",
                 "schedule": 3.0,
+            },
+            # CRM 公海自动回收（P3a）：每日凌晨 3 点扫描 N 天未跟进的客户/线索掉公海。
+            "crm-sea-reclaim": {
+                "task": "crm_sea_reclaim",
+                "schedule": crontab(hour=3, minute=0),
             },
         },
         # All timestamps in messages/results use project timezone.
