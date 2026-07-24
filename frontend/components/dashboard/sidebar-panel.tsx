@@ -125,6 +125,7 @@ export const SidebarPanel = React.memo(function SidebarPanel({
                       )}
                     />
                     <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                    {item.badge && <item.badge />}
                     {isActive && (
                       <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
                     )}

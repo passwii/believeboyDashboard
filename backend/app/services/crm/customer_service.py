@@ -75,6 +75,7 @@ def _to_item(db: Session, cust: CrmCustomer, owner_names: dict[str, str], primar
         employee_count=cust.employee_count,
         remark=cust.remark,
         last_follow_at=cust.last_follow_at,
+        next_follow_at=cust.next_follow_at,
         created_by=cust.created_by,
         created_at=cust.created_at,
         updated_at=cust.updated_at,

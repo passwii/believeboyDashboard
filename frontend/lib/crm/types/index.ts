@@ -1,5 +1,6 @@
 export * from './customer'
 export * from './lead'
 export * from './follow'
+export * from './follow-up'
 export * from './user'
 export * from './field'

@@ -26,11 +26,12 @@ export interface Customer {
   updatedAt: string
   createdBy: string
   lastFollowAt?: string
+  nextFollowAt?: string
 }
 
 export type CustomerInput = Omit<
   Customer,
-  'id' | 'ownerName' | 'createdAt' | 'updatedAt' | 'createdBy' | 'lastFollowAt'
+  'id' | 'ownerName' | 'createdAt' | 'updatedAt' | 'createdBy' | 'lastFollowAt' | 'nextFollowAt'
 > & {
   ownerId?: string | null
 }

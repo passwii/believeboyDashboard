@@ -66,6 +66,7 @@ class CustomerItem(BaseModel):
     employee_count: int | None = None
     remark: str | None = None
     last_follow_at: datetime | None = None
+    next_follow_at: datetime | None = None
     created_by: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -169,6 +170,7 @@ class LeadItem(BaseModel):
     expected_amount: float | None = None
     expected_close_date: str | None = None
     remark: str | None = None
+    next_follow_at: datetime | None = None
     converted_to_customer_id: int | None = None
     converted_at: datetime | None = None
     created_by: str | None = None
@@ -269,6 +271,32 @@ class FollowItem(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------- Follow-up 待跟进视图（P2b） ----------
+class FollowUpItem(BaseModel):
+    """一条待跟进记录（客户或线索），按 next_follow_at 归入逾期/今日/本周。"""
+
+    entity_type: Literal["customer", "lead"]
+    entity_id: int
+    name: str
+    subtitle: str | None = None  # 线索=公司名；客户=行业
+    owner_id: str | None = None
+    owner_name: str | None = None
+    next_follow_at: datetime
+    last_follow_content: str | None = None
+    last_follow_at: datetime | None = None
+    rating: str | None = None  # 客户等级
+    status: str | None = None  # 客户状态 / 线索状态
+    intent: str | None = None  # 线索意向
+
+
+class FollowUpGroups(BaseModel):
+    overdue: list[FollowUpItem] = []
+    today: list[FollowUpItem] = []
+    this_week: list[FollowUpItem] = []
+    overdue_count: int = 0
+    total_count: int = 0
 
 
 # ---------- User (crm-user-select 数据源) ----------

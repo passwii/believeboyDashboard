@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   mapCustomer,
   mapFollow,
+  mapFollowUp,
+  mapFollowUpGroups,
   mapLead,
   mapUser,
   toConvertPayload,
@@ -10,6 +12,7 @@ import {
   toLeadPayload,
   type CustomerDto,
   type FollowDto,
+  type FollowUpGroupsDto,
   type LeadDto,
 } from './dto-mappers'
 
@@ -140,5 +143,81 @@ describe('入站映射', () => {
     expect(toConvertPayload(undefined)).toBeUndefined()
     expect(toConvertPayload({})).toBeUndefined()
     expect(toConvertPayload({ name: 'n', rating: 'A' } as never)).toEqual({ name: 'n', rating: 'A' })
+  })
+})
+
+
+describe('mapFollowUp / mapFollowUpGroups', () => {
+  const groupsDto: FollowUpGroupsDto = {
+    overdue: [
+      {
+        entity_type: 'customer',
+        entity_id: 7,
+        name: '逾期客户',
+        subtitle: '五金',
+        owner_id: 'uuid-1',
+        owner_name: '张三',
+        next_follow_at: '2026-07-20T10:00:00+00:00',
+        last_follow_content: '上次电话',
+        last_follow_at: '2026-07-19T10:00:00+00:00',
+        rating: 'A',
+        status: 'active',
+        intent: null,
+      },
+    ],
+    today: [
+      {
+        entity_type: 'lead',
+        entity_id: 3,
+        name: '今日线索',
+        subtitle: '东莞五金厂',
+        owner_id: null,
+        owner_name: null,
+        next_follow_at: '2026-07-22T12:00:00+08:00',
+        last_follow_content: null,
+        last_follow_at: null,
+        rating: null,
+        status: 'contacting',
+        intent: 'high',
+      },
+    ],
+    this_week: [],
+    overdue_count: 1,
+    total_count: 2,
+  }
+
+  it('maps a customer follow-up item (snake→camel, int→string, null→undefined)', () => {
+    const item = mapFollowUp(groupsDto.overdue[0])
+    expect(item.entityType).toBe('customer')
+    expect(item.entityId).toBe('7')
+    expect(item.name).toBe('逾期客户')
+    expect(item.subtitle).toBe('五金')
+    expect(item.ownerId).toBe('uuid-1')
+    expect(item.ownerName).toBe('张三')
+    expect(item.nextFollowAt).toBe('2026-07-20T10:00:00+00:00')
+    expect(item.lastFollowContent).toBe('上次电话')
+    expect(item.rating).toBe('A')
+    expect(item.intent).toBeUndefined() // null → undefined
+  })
+
+  it('maps a lead follow-up item with null owner', () => {
+    const item = mapFollowUp(groupsDto.today[0])
+    expect(item.entityType).toBe('lead')
+    expect(item.ownerId).toBeNull()
+    expect(item.ownerName).toBeUndefined()
+    expect(item.lastFollowContent).toBeUndefined()
+    expect(item.intent).toBe('high')
+    expect(item.rating).toBeUndefined()
+  })
+
+  it('maps groups recursively + counts', () => {
+    const groups = mapFollowUpGroups(groupsDto)
+    expect(groups.overdue).toHaveLength(1)
+    expect(groups.today).toHaveLength(1)
+    expect(groups.thisWeek).toHaveLength(0)
+    expect(groups.overdueCount).toBe(1)
+    expect(groups.totalCount).toBe(2)
+    expect(groups.overdue[0].entityId).toBe('7')
+    expect(groups.today[0].entityType).toBe('lead')
   })
 })

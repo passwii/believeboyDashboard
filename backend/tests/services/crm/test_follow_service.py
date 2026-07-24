@@ -1,6 +1,8 @@
 """follow_service TDD tests — 列表/创建/回写客户 last_follow_at/created_by_name join。"""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from sqlalchemy import text
 
@@ -134,3 +136,59 @@ def test_create_follow_created_by_name_join(db_session):
     )
     assert item.created_by == uid
     assert item.created_by_name == uname
+
+
+# ---------- P2b: 回写实体 next_follow_at（客户 + 线索） ----------
+
+
+def test_create_follow_sets_customer_next_follow_at(db_session):
+    cust = _mk_customer(db_session)
+    nxt = datetime.now(timezone.utc) + timedelta(days=3)
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=cust.id, content="约下次", next_follow_at=nxt),
+        user_id=ALICE,
+    )
+    db_session.refresh(cust)
+    assert cust.next_follow_at is not None
+    assert abs((cust.next_follow_at - nxt).total_seconds()) < 2
+
+
+def test_create_follow_clears_customer_next_follow_at_when_absent(db_session):
+    cust = _mk_customer(db_session)
+    cust.next_follow_at = datetime.now(timezone.utc) + timedelta(days=1)
+    db_session.commit()
+    # 再记一条不带 next_follow_at 的跟进 → 清空（没约下次）
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=cust.id, content="跟进了没约下次"),
+        user_id=ALICE,
+    )
+    db_session.refresh(cust)
+    assert cust.next_follow_at is None
+
+
+def test_create_follow_sets_lead_next_follow_at(db_session):
+    lead = _mk_lead(db_session)
+    nxt = datetime.now(timezone.utc) + timedelta(days=2)
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="lead", entity_id=lead.id, content="约下次", next_follow_at=nxt),
+        user_id=BOB,
+    )
+    db_session.refresh(lead)
+    assert lead.next_follow_at is not None
+    assert abs((lead.next_follow_at - nxt).total_seconds()) < 2
+
+
+def test_create_follow_clears_lead_next_follow_at_when_absent(db_session):
+    lead = _mk_lead(db_session)
+    lead.next_follow_at = datetime.now(timezone.utc) + timedelta(days=1)
+    db_session.commit()
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="lead", entity_id=lead.id, content="没约下次"),
+        user_id=BOB,
+    )
+    db_session.refresh(lead)
+    assert lead.next_follow_at is None

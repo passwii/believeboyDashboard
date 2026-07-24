@@ -10,6 +10,7 @@ export type {
 export { CrmCustomerTable } from './customer-table'
 export { CrmLeadTable } from './lead-table'
 export { CrmSeaTable } from './sea-table'
+export { CrmFollowUpList } from './follow-up-list'
 export { CrmDetailCard } from './crm-detail-card'
 export type { CrmDetailCardProps } from './crm-detail-card/types'
 export { CrmOverviewDrawer } from './crm-overview-drawer'

@@ -84,6 +84,7 @@ class CrmCustomer(Base):
         Index("idx_cc_owner", "owner_id"),
         Index("idx_cc_status_rating", "status", "rating"),
         Index("idx_cc_last_follow", "last_follow_at"),
+        Index("idx_cc_next_follow", "next_follow_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -102,6 +103,7 @@ class CrmCustomer(Base):
     employee_count: Mapped[int | None] = mapped_column(Integer)
     remark: Mapped[str | None] = mapped_column(Text)
     last_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 下次跟进时间（P2b 待跟进视图）
     created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -136,6 +138,7 @@ class CrmLead(Base):
     __table_args__ = (
         Index("idx_cl_owner", "owner_id"),
         Index("idx_cl_status_intent", "status", "intent"),
+        Index("idx_cl_next_follow", "next_follow_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -153,6 +156,7 @@ class CrmLead(Base):
     expected_amount: Mapped[float | None] = mapped_column(Numeric(16, 2))
     expected_close_date: Mapped[str | None] = mapped_column(String(10))  # YYYY-MM-DD
     remark: Mapped[str | None] = mapped_column(Text)
+    next_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 下次跟进时间（P2b 待跟进视图）
     converted_to_customer_id: Mapped[int | None] = mapped_column(Integer)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[str | None] = mapped_column(String(36))

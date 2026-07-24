@@ -58,6 +58,7 @@ def _to_item(db: Session, lead: CrmLead, owner_names: dict[str, str]):
         expected_amount=float(lead.expected_amount) if lead.expected_amount is not None else None,
         expected_close_date=lead.expected_close_date,
         remark=lead.remark,
+        next_follow_at=lead.next_follow_at,
         converted_to_customer_id=lead.converted_to_customer_id,
         converted_at=lead.converted_at,
         created_by=lead.created_by,
