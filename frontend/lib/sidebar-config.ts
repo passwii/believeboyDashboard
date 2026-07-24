@@ -246,7 +246,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
-      { title: 'AI概览', url: '/dashboard/ai', icon: IconMap.ChatGptIcon },
       { title: 'AI洞察', url: '/dashboard/ai/insights', icon: IconMap.TrendingUp },
       {
         title: 'AI 广告分析',
