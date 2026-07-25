@@ -6,6 +6,7 @@
  * 逐字段映射（不整体转换，避免漏字段）；null → undefined（前端可选字段缺省）。
  */
 import type {
+  AuditLog,
   Contact,
   ContactInput,
   Customer,
@@ -146,6 +147,17 @@ export interface DashboardStatsDto {
     customer_count: number
     converted_this_month: number
   }[]
+}
+
+export interface AuditLogDto {
+  id: number
+  entity_type: string
+  entity_id: number
+  action: string
+  actor_id?: string | null
+  actor_name?: string | null
+  summary?: string | null
+  created_at: string
 }
 
 // ---------- 出站映射（snake → camel，int → string） ----------
@@ -289,6 +301,20 @@ export function mapDashboardStats(dto: DashboardStatsDto): DashboardStats {
       customerCount: p.customer_count,
       convertedThisMonth: p.converted_this_month,
     })),
+  }
+}
+
+/** 审计日志出站映射（snake → camel，int → string；可空字段保留 null）。 */
+export function mapAuditLog(dto: AuditLogDto): AuditLog {
+  return {
+    id: String(dto.id),
+    entityType: dto.entity_type as AuditLog['entityType'],
+    entityId: String(dto.entity_id),
+    action: dto.action as AuditLog['action'],
+    actorId: dto.actor_id ?? null,
+    actorName: dto.actor_name ?? null,
+    summary: dto.summary ?? null,
+    createdAt: dto.created_at,
   }
 }
 

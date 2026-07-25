@@ -41,6 +41,8 @@ export interface CrmTableProps<T> {
   rowKey: keyof T
   /** 外部变更后主动刷新表格（每次 +1 触发） */
   refreshKey?: number
+  /** 表头快捷筛选字段定义（P4 实用档）；不传则不渲染筛选行 */
+  filterFields?: FilterFieldDef[]
 }
 
 export interface CrmTableSelectionState {

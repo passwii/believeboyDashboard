@@ -1,5 +1,7 @@
 import type { CrmClient, ListParams, Paginated } from './crm-client'
 import type {
+  AuditLog,
+  AuditLogQuery,
   Contact,
   ContactInput,
   Customer,
@@ -14,6 +16,7 @@ import type {
   User,
 } from '@/lib/crm/types'
 import {
+  mapAuditLog,
   mapContact,
   mapCustomer,
   mapDashboardStats,
@@ -26,6 +29,7 @@ import {
   toCustomerPayload,
   toFollowPayload,
   toLeadPayload,
+  type AuditLogDto,
   type ContactDto,
   type CustomerDto,
   type DashboardStatsDto,
@@ -72,7 +76,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-/** ListParams → 后端 query string。filters（高级筛选）后端暂不支持，不入站。 */
+/** ListParams → 后端 query string。filters（高级筛选）序列化为 JSON 数组入站（Task B2 后端支持）。 */
 function toQueryString(params: ListParams): string {
   const qs = new URLSearchParams()
   if (params.scope) qs.set('scope', params.scope)
@@ -81,6 +85,9 @@ function toQueryString(params: ListParams): string {
   if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
   if (params.sortBy) qs.set('sort_by', params.sortBy)
   if (params.sortOrder) qs.set('sort_order', params.sortOrder)
+  if (params.filters && params.filters.length > 0) {
+    qs.set('filters', JSON.stringify(params.filters))
+  }
   const s = qs.toString()
   return s ? `?${s}` : ''
 }
@@ -220,5 +227,18 @@ export class HttpCrmClient implements CrmClient {
   // ===== Dashboard 数据看板（P3c） =====
   async getDashboardStats(): Promise<DashboardStats> {
     return mapDashboardStats(await request<DashboardStatsDto>('/dashboard/stats'))
+  }
+
+  // ===== Audit Log 操作审计日志（P4） =====
+  async listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>> {
+    const qs = new URLSearchParams()
+    if (params.entityType) qs.set('entity_type', params.entityType)
+    if (params.entityId) qs.set('entity_id', params.entityId)
+    if (params.actorId) qs.set('actor_id', params.actorId)
+    if (params.action) qs.set('action', params.action)
+    qs.set('page', String(params.page ?? 1))
+    qs.set('page_size', String(params.pageSize ?? 20))
+    const dto = await request<ListResponseDto<AuditLogDto>>(`/audit-logs?${qs.toString()}`)
+    return mapPage(dto, mapAuditLog)
   }
 }

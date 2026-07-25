@@ -353,3 +353,22 @@ class DashboardStats(BaseModel):
     new_this_month: NewThisMonth = Field(default_factory=NewThisMonth)
     follow_activity: FollowActivity = Field(default_factory=FollowActivity)
     per_owner: list[OwnerPerformance] = []
+
+
+# ---------- Audit Log (P4) ----------
+class AuditLogItem(BaseModel):
+    id: int
+    entity_type: str
+    entity_id: int
+    action: str
+    actor_id: str | None = None
+    actor_name: str | None = None
+    summary: str | None = None
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogItem]
+    total: int
+    page: int
+    page_size: int

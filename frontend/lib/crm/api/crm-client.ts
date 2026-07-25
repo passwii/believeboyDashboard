@@ -11,6 +11,8 @@ import type {
   FollowUpGroups,
   ContactInput,
   DashboardStats,
+  AuditLog,
+  AuditLogQuery,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -71,4 +73,6 @@ export interface CrmClient {
   getUser(id: string): Promise<User>
 
   getDashboardStats(): Promise<DashboardStats>
+
+  listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>>
 }

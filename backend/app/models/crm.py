@@ -209,3 +209,23 @@ class CrmFollow(Base):
     next_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class CrmAuditLog(Base):
+    """CRM 操作审计日志（P4）：记录谁对实体做了什么。actor_id=null 表示系统操作。"""
+    __tablename__ = "crm_audit_logs"
+    __table_args__ = (
+        Index("idx_cal_entity", "entity_type", "entity_id"),
+        Index("idx_cal_actor", "actor_id"),
+        Index("idx_cal_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)  # customer/lead/contact
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(30), nullable=False)  # create/update/delete/transfer/move_sea/claim/convert/set_primary
+    actor_id: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID；null=系统
+    summary: Mapped[str | None] = mapped_column(Text)  # 中文变更摘要
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

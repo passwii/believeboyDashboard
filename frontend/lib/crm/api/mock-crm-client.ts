@@ -1,5 +1,7 @@
 import type { CrmClient, FilterCondition, ListParams, Paginated } from './crm-client'
 import type {
+  AuditLog,
+  AuditLogQuery,
   Contact,
   ContactInput,
   Customer,
@@ -33,6 +35,7 @@ interface MockState {
   follows: Follow[]
   contacts: Contact[]
   users: User[]
+  audits: AuditLog[]
 }
 
 function isE2E(): boolean {
@@ -69,6 +72,7 @@ function loadState(): MockState {
       follows: [...FOLLOWS_FIXTURE],
       contacts: [],
       users: [...USERS_FIXTURE],
+      audits: [],
     }
   }
   try {
@@ -80,6 +84,7 @@ function loadState(): MockState {
         follows: [...FOLLOWS_FIXTURE],
         contacts: [],
         users: [...USERS_FIXTURE],
+        audits: [],
       }
     }
     const parsed = JSON.parse(raw) as Partial<MockState>
@@ -89,6 +94,7 @@ function loadState(): MockState {
       follows: parsed.follows ?? [...FOLLOWS_FIXTURE],
       contacts: parsed.contacts ?? [],
       users: parsed.users ?? [...USERS_FIXTURE],
+      audits: parsed.audits ?? [],
     }
   } catch {
     return {
@@ -97,6 +103,7 @@ function loadState(): MockState {
       follows: [...FOLLOWS_FIXTURE],
       contacts: [],
       users: [...USERS_FIXTURE],
+      audits: [],
     }
   }
 }
@@ -726,6 +733,27 @@ export class MockCrmClient implements CrmClient {
       newThisMonth: { newCustomers, newLeads, convertedCount },
       followActivity: { followCount7d },
       perOwner,
+    }
+  }
+
+  // ===== Audit Log 操作审计日志（P4） =====
+
+  async listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>> {
+    await this.delay('listAuditLogs')
+    const all = this.state.audits ?? []
+    const filtered = all.filter(
+      (a) =>
+        (!params.entityType || a.entityType === params.entityType) &&
+        (!params.entityId || a.entityId === params.entityId) &&
+        (!params.action || a.action === params.action)
+    )
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 20
+    return {
+      items: filtered.slice((page - 1) * pageSize, page * pageSize),
+      total: filtered.length,
+      page,
+      pageSize,
     }
   }
 }

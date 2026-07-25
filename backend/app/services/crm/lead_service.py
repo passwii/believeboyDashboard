@@ -1,4 +1,5 @@
 """Lead domain service: CRUD + scope filter(mine/all/sea=线索池) + keyword + 池操作(transfer/move-pool/claim)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,7 +8,12 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmContact, CrmCustomer, CrmFollow, CrmLead
-from app.schemas.crm import ConvertLeadRequest, ConvertLeadResponse, LeadCreate, LeadUpdate
+from app.schemas.crm import (
+    ConvertLeadRequest,
+    ConvertLeadResponse,
+    LeadCreate,
+    LeadUpdate,
+)
 
 
 class LeadAlreadyConverted(Exception):
@@ -55,7 +61,9 @@ def _to_item(db: Session, lead: CrmLead, owner_names: dict[str, str]):
         interested_service=lead.interested_service,
         owner_id=lead.owner_id,
         owner_name=owner_names.get(lead.owner_id) if lead.owner_id else None,
-        expected_amount=float(lead.expected_amount) if lead.expected_amount is not None else None,
+        expected_amount=float(lead.expected_amount)
+        if lead.expected_amount is not None
+        else None,
         expected_close_date=lead.expected_close_date,
         remark=lead.remark,
         next_follow_at=lead.next_follow_at,
@@ -77,6 +85,7 @@ def list_leads(
     page_size: int = 20,
     sort_by: str = "updated_at",
     sort_order: str = "desc",
+    filters: list[dict] | None = None,
 ) -> tuple[list, int]:
     cur = _current_user_id(user_id)
     stmt = select(CrmLead).where(CrmLead.is_deleted.is_(False))
@@ -90,6 +99,12 @@ def list_leads(
     if keyword:
         like = f"%{keyword}%"
         stmt = stmt.where(or_(CrmLead.name.ilike(like), CrmLead.company.ilike(like)))
+
+    # 高级筛选（P4）：白名单字段 → where；非法字段/运算符由 filter_engine 抛 ValueError/TypeError。
+    if filters:
+        from app.services.crm.filter_engine import LEAD_FILTER_FIELDS, apply_filters
+
+        stmt = apply_filters(stmt, CrmLead, filters, LEAD_FILTER_FIELDS)
 
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 
@@ -138,9 +153,13 @@ def update_lead(db: Session, lead_id: int, payload: LeadUpdate):
 
 
 def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
-    rows = db.execute(
-        select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
+        )
+        .scalars()
+        .all()
+    )
     for lead in rows:
         lead.owner_id = to_owner_id
     db.commit()
@@ -148,9 +167,13 @@ def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
 
 
 def batch_move_to_pool(db: Session, ids: list[int]) -> int:
-    rows = db.execute(
-        select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
+        )
+        .scalars()
+        .all()
+    )
     for lead in rows:
         lead.owner_id = None
     db.commit()
@@ -174,7 +197,6 @@ def claim_from_pool(db: Session, lead_id: int, *, user_id: str | None):
     db.commit()
     db.refresh(lead)
     return get_lead(db, lead.id)
-
 
 
 def convert_lead(
@@ -245,4 +267,6 @@ def convert_lead(
 
     db.commit()
 
-    return ConvertLeadResponse(lead=get_lead(db, lead.id), customer=get_customer(db, cust.id))
+    return ConvertLeadResponse(
+        lead=get_lead(db, lead.id), customer=get_customer(db, cust.id)
+    )
