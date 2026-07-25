@@ -1,4 +1,5 @@
 """contact_service TDD tests — CRUD / single-primary / list-by-customer."""
+
 from __future__ import annotations
 
 import pytest
@@ -16,6 +17,7 @@ from app.services.crm.contact_service import (
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 def _clean_crm_tables(db_session):
@@ -46,7 +48,9 @@ def _seed_customer(db: Session, name: str = "Acme") -> CrmCustomer:
     return c
 
 
-def _seed_contact(db: Session, customer_id: int, name: str, is_primary: bool = False, **kw) -> CrmContact:
+def _seed_contact(
+    db: Session, customer_id: int, name: str, is_primary: bool = False, **kw
+) -> CrmContact:
     ct = CrmContact(customer_id=customer_id, name=name, is_primary=is_primary, **kw)
     db.add(ct)
     db.flush()
@@ -58,6 +62,7 @@ def _primaries(db: Session, customer_id: int) -> list[CrmContact]:
 
 
 # ── create ───────────────────────────────────────────────────────────────────
+
 
 class TestCreate:
     def test_create_first_contact_auto_primary(self, db_session: Session):
@@ -78,7 +83,9 @@ class TestCreate:
         c = _seed_customer(db_session)
         first = create_contact(db_session, c.id, ContactCreate(name="First"))
         assert first.is_primary is True
-        second = create_contact(db_session, c.id, ContactCreate(name="Second", is_primary=True))
+        second = create_contact(
+            db_session, c.id, ContactCreate(name="Second", is_primary=True)
+        )
         assert second.is_primary is True
         db_session.refresh(first)
         assert first.is_primary is False  # 旧主被取消
@@ -95,6 +102,7 @@ class TestCreate:
 
 
 # ── list ─────────────────────────────────────────────────────────────────────
+
 
 class TestList:
     def test_list_orders_primary_first(self, db_session: Session):
@@ -117,14 +125,20 @@ class TestList:
 
 # ── update ───────────────────────────────────────────────────────────────────
 
+
 class TestUpdate:
     def test_update_fields(self, db_session: Session):
         c = _seed_customer(db_session)
         ct = create_contact(db_session, c.id, ContactCreate(name="Old", phone="1"))
-        updated = update_contact(db_session, ct.id, ContactUpdate(name="New", phone="2"))
+        updated, summary = update_contact(
+            db_session, ct.id, ContactUpdate(name="New", phone="2")
+        )
         assert updated is not None
         assert updated.name == "New"
         assert updated.phone == "2"
+        assert summary is not None
+        assert "姓名" in summary and "Old→New" in summary
+        assert "电话" in summary and "1→2" in summary
 
     def test_update_set_primary_demotes_others(self, db_session: Session):
         c = _seed_customer(db_session)
@@ -138,11 +152,23 @@ class TestUpdate:
         assert first.is_primary is False
         assert len(_primaries(db_session, c.id)) == 1
 
-    def test_update_missing_returns_none(self, db_session: Session):
-        assert update_contact(db_session, 999999, ContactUpdate(name="X")) is None
+    def test_update_missing_returns_none_tuple(self, db_session: Session):
+        updated, summary = update_contact(db_session, 999999, ContactUpdate(name="X"))
+        assert updated is None
+        assert summary is None
+
+    def test_update_no_real_change_returns_none_summary(self, db_session: Session):
+        """P5-1: patch 与 before 实际无变化时，summary 必须返回 None。"""
+        c = _seed_customer(db_session)
+        ct = create_contact(db_session, c.id, ContactCreate(name="Sam", phone="1"))
+        # 只传同值 name，不传 phone（exclude_unset 排除），应该无变化
+        updated, summary = update_contact(db_session, ct.id, ContactUpdate(name="Sam"))
+        assert updated is not None
+        assert summary is None
 
 
 # ── delete ───────────────────────────────────────────────────────────────────
+
 
 class TestDelete:
     def test_delete_physical(self, db_session: Session):

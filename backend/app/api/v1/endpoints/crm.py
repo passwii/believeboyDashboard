@@ -336,18 +336,20 @@ def update_contact(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    contact = contact_service.update_contact(db, contact_id, payload)
+    contact, summary = contact_service.update_contact(db, contact_id, payload)
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
         )
+    # P5-1：字段级变更摘要；无变化时（summary is None）兜底写"编辑联系人 X"
+    audit_summary = summary or f"编辑联系人 {contact.name}"
     audit_service.record_log(
         db,
         entity_type="contact",
         entity_id=contact.id,
         action="update",
         actor_id=user_id,
-        summary=f"编辑联系人 {contact.name}",
+        summary=audit_summary,
     )
     return contact
 

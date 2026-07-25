@@ -78,3 +78,43 @@ def test_delete_primary_promotes_next(client, admin_headers):
 def test_update_and_delete_contact_404(client, admin_headers):
     assert client.patch("/api/v1/crm/contacts/999999", headers=admin_headers, json={"name": "x"}).status_code == 404
     assert client.delete("/api/v1/crm/contacts/999999", headers=admin_headers).status_code == 404
+
+
+def test_update_contact_writes_field_level_audit_summary(client, admin_headers):
+    """P5-1: PATCH /crm/contacts/{id} 写审计时，summary 应是字段级中文（不再是固定「编辑联系人 X」）。"""
+    from sqlalchemy import text
+    from app.db.session import SessionLocal
+
+    cust = _mk_customer(client, admin_headers)
+    c = client.post(
+        f"/api/v1/crm/customers/{cust['id']}/contacts",
+        headers=admin_headers,
+        json={"name": "张三", "phone": "13800000000"},
+    ).json()
+    # 改 phone + 改 title（同时改两个字段）
+    upd = client.patch(
+        f"/api/v1/crm/contacts/{c['id']}",
+        headers=admin_headers,
+        json={"phone": "+86-13800001111", "title": "总监"},
+    )
+    assert upd.status_code == 200, upd.text
+
+    # 查审计：应包含字段级中文摘要「电话: ...→...; 职位: 空→总监」
+    s = SessionLocal()
+    try:
+        rows = s.execute(
+            text(
+                "select action, summary from crm_audit_logs "
+                "where entity_type='contact' and entity_id=:cid order by id desc"
+            ),
+            {"cid": c["id"]},
+        ).all()
+    finally:
+        s.close()
+    assert rows, "应至少有一条 contact 审计"
+    action, summary = rows[0]
+    assert action == "update"
+    assert "电话" in summary and "职位" in summary
+    assert "总监" in summary
+    # 旧「编辑联系人 X」是兜底格式，这里应已被字段级摘要覆盖
+    assert "编辑联系人" not in summary

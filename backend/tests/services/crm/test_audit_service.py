@@ -1,4 +1,4 @@
-"""audit_service TDD tests — 审计日志记录/查询/变更摘要（P4）。"""
+"""audit_service TDD tests — 审计日志记录/查询/变更摘要（P4 + P5-1）。"""
 
 from __future__ import annotations
 
@@ -6,9 +6,11 @@ import pytest
 from sqlalchemy import text
 
 from app.services.crm.audit_service import (
+    CONTACT_FIELD_LABELS,
     CUSTOMER_FIELD_LABELS,
     list_audit_logs,
     record_log,
+    summarize_contact_update,
     summarize_update,
 )
 
@@ -107,3 +109,80 @@ def test_summarize_update_handles_none_and_missing_label():
     )
     assert "负责人" in summary
     assert "source" in summary or "来源" in summary
+
+
+# ── P5-1 联系人字段级变更摘要 ──────────────────────────────────────────────────
+
+
+def test_contact_field_labels_covers_all_contact_fields():
+    """CONTACT_FIELD_LABELS 必须覆盖 CrmContact schema 的所有业务字段。
+
+    注：CrmContact 实际字段是 title/remark（plan 草稿的 role/note 已对齐）。
+    """
+    expected_keys = {
+        "name",
+        "title",
+        "phone",
+        "email",
+        "wechat",
+        "is_primary",
+        "remark",
+    }
+    assert set(CONTACT_FIELD_LABELS.keys()) == expected_keys
+
+
+def test_summarize_contact_update_single_field():
+    """单字段变更：phone 改成新值。"""
+    before = {"name": "张三", "phone": "13800000000", "is_primary": False}
+    summary = summarize_contact_update(before, {"phone": "+86-13800001111"})
+    assert summary is not None
+    assert "电话" in summary
+    assert "13800000000" in summary
+    assert "+86-13800001111" in summary
+
+
+def test_summarize_contact_update_multi_field():
+    """多字段同时变更：phone + title。"""
+    before = {"phone": "1", "title": "经理", "is_primary": False}
+    summary = summarize_contact_update(before, {"phone": "2", "title": "总监"})
+    assert summary is not None
+    # 两个变更都要在摘要里
+    assert "电话" in summary and "1" in summary and "2" in summary
+    assert "职位" in summary and "经理" in summary and "总监" in summary
+
+
+def test_summarize_contact_update_none_to_value():
+    """None → 值：email 从空填上 x@y.com。"""
+    before = {"email": None}
+    summary = summarize_contact_update(before, {"email": "x@y.com"})
+    assert summary is not None
+    assert "邮箱" in summary
+    assert "空" in summary  # 旧值
+    assert "x@y.com" in summary  # 新值
+
+
+def test_summarize_contact_update_is_primary_toggle():
+    """is_primary: false → true，主联系人变更。"""
+    before = {"is_primary": False, "name": "A"}
+    summary = summarize_contact_update(before, {"is_primary": True})
+    assert summary is not None
+    assert "主联系人" in summary
+    # _fmt 行为：False→"空"、True→"True"（_fmt 当前只对 None/"" 友好，bool 会原样）
+    assert "True" in summary or "true" in summary.lower()
+
+
+def test_summarize_contact_update_no_change_returns_none():
+    """无变化：返回 None（让 endpoint 决定是否仍写 '编辑联系人 X' 兜底，或跳过）。"""
+    before = {"phone": "1", "name": "A"}
+    assert summarize_contact_update(before, {"phone": "1", "name": "A"}) is None
+
+
+def test_summarize_contact_update_unknown_field_skipped():
+    """patch 含未声明字段 → 跳过不抛错。"""
+    before = {"phone": "1", "unknown_field": "old"}
+    # 故意混入 unknown_field；summarize_contact_update 只看 CONTACT_FIELD_LABELS 已声明的 key
+    summary = summarize_contact_update(before, {"phone": "2", "unknown_field": "new"})
+    # 摘要里只列 phone，不应包含 "unknown_field" 这个原始 key
+    assert summary is not None
+    assert "电话" in summary and "1" in summary and "2" in summary
+    assert "unknown_field" not in summary

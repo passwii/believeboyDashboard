@@ -48,6 +48,20 @@ LEAD_FIELD_LABELS: dict[str, str] = {
     "remark": "备注",
 }
 
+# P5-1：联系人字段标签。
+# 注：plan 写的是 role/note，但 CrmContact 实际字段是 title/remark
+# （参见 backend/app/schemas/crm.py:87 / backend/app/models/crm.py:127）。
+# 按 schema 实际命名落 labels，避免 service 的 setattr 触发 AttributeError。
+CONTACT_FIELD_LABELS: dict[str, str] = {
+    "name": "姓名",
+    "title": "职位",
+    "phone": "电话",
+    "email": "邮箱",
+    "wechat": "微信",
+    "is_primary": "主联系人",
+    "remark": "备注",
+}
+
 
 def record_log(
     db: Session,
@@ -80,7 +94,7 @@ def _actor_name_map(db: Session, actor_ids: set[str]) -> dict[str, str]:
         text("select id, name from public.user_accounts where id = any(:ids)"),
         {"ids": list(actor_ids)},
     ).all()
-    return {str(r[0]): r[1] for r in rows}
+    return {str(r[0]): str(r[1]) for r in rows}
 
 
 def list_audit_logs(
@@ -138,6 +152,25 @@ def summarize_update(before: dict, patch: dict, labels: dict[str, str]) -> str:
         label = labels.get(key, key)
         parts.append(f"{label}: {_fmt(old)}→{_fmt(new)}")
     return "; ".join(parts)
+
+
+def summarize_contact_update(before: dict, patch: dict) -> str | None:
+    """P5-1 联系人字段级变更摘要。
+
+    只迭代 ``patch`` 中已声明的字段（``CONTACT_FIELD_LABELS`` 的 key），
+    未声明字段（含 caller 误传的自定义 key）静默跳过、不抛错。
+    无变化返回 ``None``，让 endpoint 决定是否仍写兜底摘要或跳过。
+    """
+    parts: list[str] = []
+    for key, new in patch.items():
+        if key not in CONTACT_FIELD_LABELS:
+            continue
+        old = before.get(key)
+        if old == new:
+            continue
+        label = CONTACT_FIELD_LABELS[key]
+        parts.append(f"{label}: {_fmt(old)}→{_fmt(new)}")
+    return "; ".join(parts) if parts else None
 
 
 def _fmt(value) -> str:
