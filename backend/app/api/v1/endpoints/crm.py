@@ -70,7 +70,7 @@ router = APIRouter(prefix="/crm", tags=["crm"], dependencies=[Depends(protected)
 
 
 def _parse_filters(filters: str | None) -> list[dict] | None:
-    """解析 filters 查询参数（FilterCondition JSON 数组）；非法 JSON → 400。
+    """解析 filters 查询参数（FilterCondition JSON 数组）；非法 JSON 或非数组 → 400。
 
     字段白名单/运算符校验在 filter_engine（service 层）做，抛 ValueError/TypeError，
     由端点 catch 转 400。
@@ -78,11 +78,16 @@ def _parse_filters(filters: str | None) -> list[dict] | None:
     if not filters:
         return None
     try:
-        return json.loads(filters)
+        parsed = json.loads(filters)
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="filters 非法 JSON"
         )
+    if not isinstance(parsed, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="filters 须为 JSON 数组"
+        )
+    return parsed
 
 
 # ---------- Customer ----------

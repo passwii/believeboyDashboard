@@ -80,6 +80,15 @@ def test_filter_illegal_op_returns_400(client, admin_headers):
     assert resp.status_code == 400
 
 
+def test_filter_non_array_json_returns_400(client, admin_headers):
+    """合法 JSON 但非数组（dict）→ 400（否则 apply_filters 迭代 dict 键 → 500）。"""
+    filters = json.dumps({"field": "status", "op": "eq", "value": "active"})
+    resp = client.get(
+        "/api/v1/crm/customers", params={"filters": filters}, headers=admin_headers
+    )
+    assert resp.status_code == 400
+
+
 def test_filter_malformed_json_returns_400(client, admin_headers):
     resp = client.get(
         "/api/v1/crm/customers", params={"filters": "not-json["}, headers=admin_headers
