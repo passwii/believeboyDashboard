@@ -13,6 +13,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -586,6 +587,33 @@ def convert_lead(
         actor_id=user_id,
         summary="线索转化为客户",
     )
+    # P5-2: 补 customer create + contact create 留痕（让客户审计时间线有起点）。
+    # service.convert_lead 已 commit + 创建 customer + 默认主联系人。
+    # 不动 service（plan 字面要求），端点按 customer_id 反查 primary contact id。
+    customer_id = resp.customer.id
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=customer_id,
+        action="create",
+        actor_id=user_id,
+        summary="新建客户",
+    )
+    primary_contact_id = db.execute(
+        text(
+            "select id from crm_contacts where customer_id = :cid and is_primary = true limit 1"
+        ),
+        {"cid": customer_id},
+    ).scalar_one_or_none()
+    if primary_contact_id is not None:
+        audit_service.record_log(
+            db,
+            entity_type="contact",
+            entity_id=int(primary_contact_id),
+            action="create",
+            actor_id=user_id,
+            summary="新建联系人",
+        )
     return resp
 
 
