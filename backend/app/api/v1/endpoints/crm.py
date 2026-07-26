@@ -167,6 +167,7 @@ def create_customer(
         action="create",
         actor_id=user_id,
         summary="新建客户",
+        commit=True,
     )
     return item
 
@@ -207,6 +208,7 @@ def update_customer(
         action="update",
         actor_id=user_id,
         summary=summary,
+        commit=True,
     )
     return item
 
@@ -232,6 +234,7 @@ def delete_customer(
         action="delete",
         actor_id=user_id,
         summary=f"删除客户 {existing.name}",
+        commit=True,
     )
 
 
@@ -252,6 +255,7 @@ def batch_transfer(
             action="transfer",
             actor_id=user_id,
             summary="指派负责人",
+            commit=True,
         )
 
 
@@ -272,6 +276,7 @@ def batch_move_to_sea(
             action="move_sea",
             actor_id=user_id,
             summary="释放至公海",
+            commit=True,
         )
 
 
@@ -293,6 +298,7 @@ def claim_from_sea(
         action="claim",
         actor_id=user_id,
         summary="从公海领取",
+        commit=True,
     )
     return item
 
@@ -326,6 +332,7 @@ def create_contact(
         action="create",
         actor_id=user_id,
         summary=f"新增联系人 {contact.name}",
+        commit=True,
     )
     return contact
 
@@ -351,6 +358,7 @@ def update_contact(
         action="update",
         actor_id=user_id,
         summary=audit_summary,
+        commit=True,
     )
     return contact
 
@@ -372,6 +380,7 @@ def delete_contact(
         action="delete",
         actor_id=user_id,
         summary="删除联系人",
+        commit=True,
     )
 
 
@@ -453,6 +462,7 @@ def create_lead(
         action="create",
         actor_id=user_id,
         summary="新建线索",
+        commit=True,
     )
     return item
 
@@ -493,6 +503,7 @@ def update_lead(
         action="update",
         actor_id=user_id,
         summary=summary,
+        commit=True,
     )
     return item
 
@@ -514,6 +525,7 @@ def batch_transfer_leads(
             action="transfer",
             actor_id=user_id,
             summary="指派负责人",
+            commit=True,
         )
 
 
@@ -534,6 +546,7 @@ def batch_move_leads_to_pool(
             action="move_sea",
             actor_id=user_id,
             summary="释放至线索池",
+            commit=True,
         )
 
 
@@ -555,6 +568,7 @@ def claim_lead_from_pool(
         action="claim",
         actor_id=user_id,
         summary="从线索池领取",
+        commit=True,
     )
     return item
 
@@ -586,6 +600,7 @@ def convert_lead(
         action="convert",
         actor_id=user_id,
         summary="线索转化为客户",
+        commit=True,
     )
     # P5-2: 补 customer create + contact create 留痕（让客户审计时间线有起点）。
     # service.convert_lead 已 commit + 创建 customer + 默认主联系人。
@@ -598,6 +613,7 @@ def convert_lead(
         action="create",
         actor_id=user_id,
         summary="新建客户",
+        commit=True,
     )
     primary_contact_id = db.execute(
         text(
@@ -613,6 +629,7 @@ def convert_lead(
             action="create",
             actor_id=user_id,
             summary="新建联系人",
+            commit=True,
         )
     return resp
 

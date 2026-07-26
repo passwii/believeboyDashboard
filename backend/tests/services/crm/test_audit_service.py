@@ -204,3 +204,51 @@ def test_summarize_update_empty_string_to_none_skipped():
     before = {"remark": ""}
     summary = summarize_update(before, {"remark": None}, CUSTOMER_FIELD_LABELS)
     assert summary == "", f"应空串（无变更），实际 {summary!r}"
+
+
+# ── P5-6 record_log commit 参数 ────────────────────────────────────────────────
+
+
+def test_record_log_no_commit_by_default(db_session):
+    """P5-6: record_log 默认 commit=False，不自动 commit。
+    调用方负责 commit，保证业务写入 + 审计写入原子化。
+    """
+    from app.services.crm.audit_service import record_log
+
+    log = record_log(
+        db_session,
+        entity_type="customer",
+        entity_id=1,
+        action="create",
+        actor_id=ALICE,
+        summary="新建客户",
+    )
+    assert log.id is not None  # flush 拿到 id
+    # 默认不 commit；外部回滚应该清掉
+    db_session.rollback()
+    row = db_session.execute(
+        text("select count(*) from crm_audit_logs")
+    ).scalar()
+    assert row == 0, "默认 commit=False 时 rollback 应清掉"
+
+
+def test_record_log_commit_true_commits(db_session):
+    """P5-6: record_log(commit=True) 自动 commit，即使后续回滚也保留。"""
+    from app.services.crm.audit_service import record_log
+
+    record_log(
+        db_session,
+        entity_type="customer",
+        entity_id=1,
+        action="create",
+        actor_id=ALICE,
+        summary="新建客户",
+        commit=True,
+    )
+    # 显式 commit 后，rollback 不影响
+    db_session.commit()
+    db_session.rollback()
+    row = db_session.execute(
+        text("select count(*) from crm_audit_logs")
+    ).scalar()
+    assert row == 1

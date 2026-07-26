@@ -71,8 +71,14 @@ def record_log(
     action: str,
     actor_id: str | None,
     summary: str = "",
+    commit: bool = False,
 ) -> CrmAuditLog:
-    """记录一条审计日志（add + commit + refresh）。"""
+    """记录一条审计日志（add + flush + refresh）。
+
+    P5-6: 默认 commit=False（不自动 commit），让调用方负责 commit，
+    保证业务写入 + 审计写入原子化（要么都成功、要么都回滚）。
+    兼容旧调用：传 commit=True 保持原有「record_log 自带 commit」行为。
+    """
     log = CrmAuditLog(
         entity_type=entity_type,
         entity_id=entity_id,
@@ -81,7 +87,9 @@ def record_log(
         summary=summary or None,
     )
     db.add(log)
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(log)
     return log
 
