@@ -16,6 +16,20 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
+/**
+ * P5-4: 从 table.filters 反推 select 当前应显示的 value。
+ * 仅匹配 op=eq 的单字段条件；'and' / 'or' 复合条件视为无单字段快捷筛选。
+ * 未匹配时返回 '' （= 「全部」占位）。
+ */
+function _filterSelectValue(
+  filters: FilterCondition[],
+  field: string
+): string {
+  const cond = filters.find((c) => 'field' in c && c.field === field && c.op === 'eq')
+  if (!cond || !('value' in cond)) return ''
+  return String((cond as { field: string; op: 'eq'; value: unknown }).value)
+}
+
 function formatCell<T>(value: unknown, row: T, column: CrmColumnDef<T>): React.ReactNode {
   if (column.render) {
     return column.render(value as T[keyof T], row)
@@ -182,7 +196,7 @@ export function CrmTable<T extends { id?: string | number }>({
               <select
                 aria-label={f.label}
                 className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                defaultValue=""
+                value={_filterSelectValue(table.filters, f.field ?? f.key)}
                 onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
               >
                 <option value="">全部</option>

@@ -182,3 +182,39 @@ describe('CrmTable · 快捷筛选行', () => {
     })
   })
 })
+
+
+describe('CrmTable · 筛选 select 受控 value（P5-4）', () => {
+  it('深链带 filters 时 select 显示对应 value（不是默认「全部」）', async () => {
+    mockSearchParams = new URLSearchParams(
+      'filters=' + encodeURIComponent(JSON.stringify([{ field: 'status', op: 'eq', value: 'active' }]))
+    )
+    const fetchPage = makeFetchPage()
+    renderTable(fetchPage, fields)
+    const select = await screen.findByLabelText('状态') as HTMLSelectElement
+    // 受控 value 应等于 URL 中的 filter value
+    expect(select.value).toBe('active')
+  })
+
+  it('URL filters 变化时 rerender 让 select value 跟着变', async () => {
+    mockSearchParams = new URLSearchParams(
+      'filters=' + encodeURIComponent(JSON.stringify([{ field: 'status', op: 'eq', value: 'active' }]))
+    )
+    const fetchPage = makeFetchPage()
+    const { rerender } = renderTable(fetchPage, fields)
+    let select = await screen.findByLabelText('状态') as HTMLSelectElement
+    expect(select.value).toBe('active')
+
+    // 改 URL 模拟「用户从另一页深链带 lost」
+    mockSearchParams = new URLSearchParams(
+      'filters=' + encodeURIComponent(JSON.stringify([{ field: 'status', op: 'eq', value: 'lost' }]))
+    )
+    await act(async () => {
+      rerender(
+        <CrmTable queryKey="t" fetchPage={fetchPage} columns={columns} rowKey="id" filterFields={fields} />
+      )
+    })
+    select = screen.getByLabelText('状态') as HTMLSelectElement
+    expect(select.value).toBe('lost')
+  })
+})
