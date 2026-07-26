@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef, FilterFieldDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
+import { CUSTOMER_TYPE_OPTIONS, INTERESTED_SERVICE_OPTIONS } from '@/lib/crm/constants/options'
 import { CrmLeadForm } from './crm-lead-form'
 import { CrmExportButton } from './crm-export-button'
 import { LEAD_FIELD_DEFS } from '@/lib/crm/field-defs/lead'
@@ -100,14 +101,14 @@ export function CrmLeadTable() {
         label: '对象类型',
         type: 'select',
         field: 'customerType',
-        options: ['工厂', '贸易商', '同行', '其他'].map((v) => ({ value: v, label: v })),
+        options: [...CUSTOMER_TYPE_OPTIONS],
       },
       {
         key: 'interestedService',
         label: '意向服务',
         type: 'select',
         field: 'interestedService',
-        options: ['代运营', 'AI运营', '运营服务', '其他'].map((v) => ({ value: v, label: v })),
+        options: [...INTERESTED_SERVICE_OPTIONS],
       },
       {
         key: 'ownerId',
