@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from sqlalchemy import and_, or_
 
+# P5-7：and/or 递归深度上限（防恶意客户端构造深嵌套 DoS）。
+MAX_FILTER_DEPTH = 8
+
 # 前端字段名 → 模型属性名（白名单）。只有列出的字段可筛选。
 CUSTOMER_FILTER_FIELDS: dict[str, str] = {
     "status": "status",
@@ -37,14 +40,23 @@ def apply_filters(stmt, model, filters: list[dict], allowed: dict[str, str]):
     """把 FilterCondition 列表应用到 stmt（追加 where）。filters 为空直接返回。"""
     if not filters:
         return stmt
-    return stmt.where(and_(*[_parse_condition(model, f, allowed) for f in filters]))
+    return stmt.where(
+        and_(*[_parse_condition(model, f, allowed, depth=0) for f in filters])
+    )
 
 
-def _parse_condition(model, cond: dict, allowed: dict[str, str]):
+def _parse_condition(model, cond: dict, allowed: dict[str, str], depth: int = 0):
+    """递归解析单条 condition（叶子 或 and/or 嵌套）。depth 防御深嵌套 DoS。"""
+    if depth > MAX_FILTER_DEPTH:
+        raise ValueError(f"filters 嵌套深度超过 {MAX_FILTER_DEPTH}")
     if "and" in cond:
-        return and_(*[_parse_condition(model, c, allowed) for c in cond["and"]])
+        return and_(
+            *[_parse_condition(model, c, allowed, depth=depth + 1) for c in cond["and"]]
+        )
     if "or" in cond:
-        return or_(*[_parse_condition(model, c, allowed) for c in cond["or"]])
+        return or_(
+            *[_parse_condition(model, c, allowed, depth=depth + 1) for c in cond["or"]]
+        )
 
     field, op, value = cond.get("field"), cond.get("op"), cond.get("value")
     if op not in _OPS:
@@ -59,7 +71,11 @@ def _parse_condition(model, cond: dict, allowed: dict[str, str]):
     if op == "neq":
         return col != value
     if op == "contains":
-        return col.ilike(f"%{value}%")
+        # P5-3：转义 SQL 通配符 % / _ / \，配合 ESCAPE '\\' 子句字面匹配。
+        escaped = (
+            str(value).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+        return col.ilike(f"%{escaped}%", escape="\\")
     if op == "gt":
         return col > value
     if op == "lt":
