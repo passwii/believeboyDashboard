@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { ApiError } from '@/lib/crm/api/http-crm-client'
 import { AUDIT_ACTION_LABELS } from '@/lib/crm/types'
 import type { AuditAction, AuditLog } from '@/lib/crm/types'
 import { formatRelativeTime } from '@/lib/crm/method/format'
@@ -13,7 +14,7 @@ import { formatRelativeTime } from '@/lib/crm/method/format'
 /** 动作 → 徽标配色（与跟进时间线 TYPE_BADGE 同风格，含暗色）。管理员页表格复用。 */
 export const ACTION_BADGE: Record<AuditAction, string> = {
   create: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
-  update: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+  update: 'bg-sky-100 text-sky-800 dark:bg-sky-800/40 dark:text-sky-200',
   delete: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200',
   transfer: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
   move_sea: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
@@ -25,31 +26,70 @@ export const ACTION_BADGE: Record<AuditAction, string> = {
 interface CrmAuditTimelineProps {
   entityType: 'customer' | 'lead' | 'contact'
   entityId: string
+  /**
+   * P5-9: 可选附加过滤。多值传入时与 entityType/entityId 合并（AND 关系）。
+   * 用于客户抽屉同时展示客户审计 + 该客户下联系人的审计。
+   */
+  extraEntityTypes?: ('customer' | 'contact' | 'lead')[]
+  extraEntityIds?: number[]
 }
 
 /**
  * 操作记录时间线（P4 审计日志）：拉取某实体的审计记录并时间线展示。
  * 客户/线索详情抽屉「操作记录」Tab 复用；管理员页用独立的表格视图。
  * 数据拉取沿用本仓库 useEffect + useState 范式（项目未引入 react-query）。
+ *
+ * P5-11: 错误信息按 ApiError.status 区分（401/403/5xx/network），不再一律「无权限」。
  */
-export function CrmAuditTimeline({ entityType, entityId }: CrmAuditTimelineProps) {
+export function CrmAuditTimeline({
+  entityType,
+  entityId,
+  extraEntityTypes,
+  extraEntityIds,
+}: CrmAuditTimelineProps) {
   const client = useCrmClient()
   const [items, setItems] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<{ kind: 'forbidden' | 'unauthorized' | 'server' | 'network' | 'unknown'; message: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(false)
+    setError(null)
     try {
-      const page = await client.listAuditLogs({ entityType, entityId, pageSize: 50 })
+      // 合并 entityType + extraEntityTypes 去重
+      const typesSet = new Set<string>([entityType, ...(extraEntityTypes ?? [])])
+      const entityTypes = Array.from(typesSet)
+      const ids = extraEntityIds && extraEntityIds.length > 0 ? extraEntityIds : undefined
+      const page = await client.listAuditLogs({
+        entityType,
+        entityId,
+        entityTypes: entityTypes.length > 1 ? entityTypes : undefined,
+        entityIds: ids,
+        pageSize: 50,
+      })
       setItems(page.items)
-    } catch {
-      setError(true)
+    } catch (e) {
+      // P5-11: 按 status 分类提示
+      if (e instanceof ApiError) {
+        if (e.status === 401) {
+          setError({ kind: 'unauthorized', message: '请重新登录' })
+        } else if (e.status === 403) {
+          setError({ kind: 'forbidden', message: '无权限查看此操作记录' })
+        } else if (e.status >= 500) {
+          setError({ kind: 'server', message: '服务器错误，请稍后重试' })
+        } else {
+          setError({ kind: 'unknown', message: e.message })
+        }
+      } else if (e instanceof TypeError) {
+        // fetch 失败（断网/CORS/abort）—— TypeError
+        setError({ kind: 'network', message: '网络错误，请检查连接后重试' })
+      } else {
+        setError({ kind: 'unknown', message: (e as Error)?.message ?? '加载失败' })
+      }
     } finally {
       setLoading(false)
     }
-  }, [client, entityType, entityId])
+  }, [client, entityType, entityId, extraEntityTypes, extraEntityIds])
 
   useEffect(() => {
     void load()
@@ -66,7 +106,7 @@ export function CrmAuditTimeline({ entityType, entityId }: CrmAuditTimelineProps
   }
 
   if (error) {
-    return <EmptyState icon="file" message="操作记录加载失败" />
+    return <EmptyState icon="file" message={error.message} />
   }
 
   if (items.length === 0) {

@@ -32,6 +32,9 @@ export interface AuditLog {
 export interface AuditLogQuery {
   entityType?: string
   entityId?: string
+  /** P5-9: 多值过滤（客户抽屉同时查 customer + 该客户下所有 contact）。 */
+  entityTypes?: string[]
+  entityIds?: number[]
   actorId?: string
   action?: string
   page?: number

@@ -55,22 +55,49 @@ interface ListResponseDto<TDto> {
   page_size: number
 }
 
+/**
+ * 带 HTTP status 的请求错误（P5-11）。
+ * 调用方按 status 区分 401/403/5xx/network 给用户精确提示，而不是一律「无权限」。
+ */
+export class ApiError extends Error {
+  status: number
+  body: unknown
+  constructor(status: number, message: string, body?: unknown) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    })
+  } catch (e) {
+    // 网络层错误（断网/CORS/abort）—— 抛不带 status 的 Error，让 catch 区分 network vs HTTP
+    throw new Error(`网络错误：${(e as Error)?.message ?? String(e)}`)
+  }
   if (!res.ok) {
+    let body: unknown = undefined
     let message = `CRM 请求失败（${res.status}）`
     try {
-      const body = await res.json()
-      if (typeof body?.detail === 'string') message = body.detail
-      else if (body?.detail) message = JSON.stringify(body.detail)
-      else if (typeof body?.message === 'string') message = body.message
+      body = await res.json()
+      if (typeof body === 'object' && body !== null) {
+        const detail = (body as { detail?: unknown }).detail
+        if (typeof detail === 'string') message = detail
+        else if (detail) message = JSON.stringify(detail)
+        else if (typeof (body as { message?: unknown }).message === 'string') {
+          message = (body as { message: string }).message
+        }
+      }
     } catch {
       // 非 JSON 错误体，保留默认消息
     }
-    throw new Error(message)
+    throw new ApiError(res.status, message, body)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
@@ -90,6 +117,26 @@ function toQueryString(params: ListParams): string {
   }
   const s = qs.toString()
   return s ? `?${s}` : ''
+}
+
+/** 列表参数 → 后端 query string（P5-9 支持 entity_types / entity_ids 多值）。 */
+function toAuditQueryString(params: AuditLogQuery): string {
+  const qs = new URLSearchParams()
+  if (params.entityTypes && params.entityTypes.length > 0) {
+    params.entityTypes.forEach((t) => qs.append('entity_types', t))
+  } else if (params.entityType) {
+    qs.set('entity_type', params.entityType)
+  }
+  if (params.entityIds && params.entityIds.length > 0) {
+    params.entityIds.forEach((id) => qs.append('entity_ids', String(id)))
+  } else if (params.entityId) {
+    qs.set('entity_id', params.entityId)
+  }
+  if (params.actorId) qs.set('actor_id', params.actorId)
+  if (params.action) qs.set('action', params.action)
+  qs.set('page', String(params.page ?? 1))
+  qs.set('page_size', String(params.pageSize ?? 20))
+  return `?${qs.toString()}`
 }
 
 function mapPage<TDto, T>(dto: ListResponseDto<TDto>, map: (d: TDto) => T): Paginated<T> {
@@ -150,7 +197,10 @@ export class HttpCrmClient implements CrmClient {
   }
   async createLead(input: LeadInput): Promise<Lead> {
     return mapLead(
-      await request<LeadDto>('/leads', { method: 'POST', body: JSON.stringify(toLeadPayload(input)) })
+      await request<LeadDto>('/leads', {
+        method: 'POST',
+        body: JSON.stringify(toLeadPayload(input)),
+      })
     )
   }
   async updateLead(id: string, input: Partial<LeadInput>): Promise<Lead> {
@@ -229,16 +279,11 @@ export class HttpCrmClient implements CrmClient {
     return mapDashboardStats(await request<DashboardStatsDto>('/dashboard/stats'))
   }
 
-  // ===== Audit Log 操作审计日志（P4） =====
+  // ===== Audit Log 操作审计日志（P4 + P5-9/P5-11） =====
   async listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>> {
-    const qs = new URLSearchParams()
-    if (params.entityType) qs.set('entity_type', params.entityType)
-    if (params.entityId) qs.set('entity_id', params.entityId)
-    if (params.actorId) qs.set('actor_id', params.actorId)
-    if (params.action) qs.set('action', params.action)
-    qs.set('page', String(params.page ?? 1))
-    qs.set('page_size', String(params.pageSize ?? 20))
-    const dto = await request<ListResponseDto<AuditLogDto>>(`/audit-logs?${qs.toString()}`)
+    const dto = await request<ListResponseDto<AuditLogDto>>(
+      `/audit-logs${toAuditQueryString(params)}`
+    )
     return mapPage(dto, mapAuditLog)
   }
 }

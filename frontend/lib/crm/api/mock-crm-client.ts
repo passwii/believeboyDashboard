@@ -741,8 +741,13 @@ export class MockCrmClient implements CrmClient {
   async listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>> {
     await this.delay('listAuditLogs')
     const all = this.state.audits ?? []
+    // P5-9: 多值过滤（entityTypes / entityIds）优先于单值（entityType / entityId）。
+    const typeSet = params.entityTypes && params.entityTypes.length > 0 ? new Set(params.entityTypes) : null
+    const idSet = params.entityIds && params.entityIds.length > 0 ? new Set(params.entityIds.map(String)) : null
     const filtered = all.filter(
       (a) =>
+        (!typeSet || typeSet.has(a.entityType)) &&
+        (!idSet || idSet.has(a.entityId)) &&
         (!params.entityType || a.entityType === params.entityType) &&
         (!params.entityId || a.entityId === params.entityId) &&
         (!params.action || a.action === params.action)
