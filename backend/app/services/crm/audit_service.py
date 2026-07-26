@@ -143,14 +143,24 @@ def list_audit_logs(
 
 
 def summarize_update(before: dict, patch: dict, labels: dict[str, str]) -> str:
-    """比较改前值与 patch，只列变化字段，格式「字段: 旧→新; ...」。无变化返回空串。"""
+    """比较改前值与 patch，只列变化字段，格式「字段: 旧→新; ...」。无变化返回空串。
+
+    P5-10: None ↔ "" 视为无变更（避免「空→空」噪音）。
+    """
+
+    def _is_empty(v):
+        return v is None or v == ""
+
     parts: list[str] = []
     for key, new in patch.items():
-        old = before.get(key)
-        if old == new:
+        old_val = before.get(key)
+        # None ↔ "" 视为无变更
+        if _is_empty(old_val) and _is_empty(new):
+            continue
+        if old_val == new:
             continue
         label = labels.get(key, key)
-        parts.append(f"{label}: {_fmt(old)}→{_fmt(new)}")
+        parts.append(f"{label}: {_fmt(old_val)}→{_fmt(new)}")
     return "; ".join(parts)
 
 

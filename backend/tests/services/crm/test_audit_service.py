@@ -186,3 +186,21 @@ def test_summarize_contact_update_unknown_field_skipped():
     assert summary is not None
     assert "电话" in summary and "1" in summary and "2" in summary
     assert "unknown_field" not in summary
+
+
+# ── P5-10 None ↔ \"\" 视为无变更 ──────────────────────────────────────────────────
+
+
+def test_summarize_update_none_to_empty_string_skipped():
+    """P5-10: None → \"\" 视为无变更（不产生「空→空」噪音）。"""
+    before = {"phone": None}
+    summary = summarize_update(before, {"phone": ""}, CUSTOMER_FIELD_LABELS)
+    # None 和 \"\" 都视作「空」，相互转换不算变更
+    assert summary == "", f"应空串（无变更），实际 {summary!r}"
+
+
+def test_summarize_update_empty_string_to_none_skipped():
+    """P5-10: \"\" → None 反向同理。"""
+    before = {"remark": ""}
+    summary = summarize_update(before, {"remark": None}, CUSTOMER_FIELD_LABELS)
+    assert summary == "", f"应空串（无变更），实际 {summary!r}"
