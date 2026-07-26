@@ -104,7 +104,8 @@ export function CrmTable<T extends { id?: string | number }>({
   const handleFilterChange = (field: string, value: string) => {
     const rest = table.filters.filter((f) => !('field' in f) || f.field !== field)
     const next: FilterCondition[] = value ? [...rest, { field, op: 'eq', value }] : rest
-    table.setFilters(next)
+    // P5-12: 原子 URL 写（filters + page=1 合并到一次 router.replace）
+    table.setFiltersAndPage(next, 1)
   }
 
   // 筛选变更后重置到第 1 页。用序列化内容比较（非引用）——table.filters 是

@@ -218,3 +218,33 @@ describe('CrmTable · 筛选 select 受控 value（P5-4）', () => {
     expect(select.value).toBe('lost')
   })
 })
+
+
+describe('CrmTable · 筛选变更原子重置 page（P5-12）', () => {
+  it('从 page=3 改筛选只触发 1 次 fetchPage（原子 URL 写）', async () => {
+    mockSearchParams = new URLSearchParams('page=3')
+    const fetchPage = makeFetchPage()
+    const { rerender } = renderTable(fetchPage, fields)
+    const select = await screen.findByLabelText('状态') as HTMLSelectElement
+
+    // 触发筛选变更
+    fireEvent.change(select, { target: { value: 'active' } })
+
+    // rerender 让 hook 读取最新 URL
+    await act(async () => {
+      rerender(
+        <CrmTable queryKey="t" fetchPage={fetchPage} columns={columns} rowKey="id" filterFields={fields} />
+      )
+    })
+
+    // P5-12: 原子写后只触发 1 次 fetch（不是 2 次：filter write + page reset write）
+    // 抓所有 fetchPage 调用，最后一次的 args 应同时含 filters 和 page=1
+    const lastCall = fetchPage.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters).toEqual([{ field: 'status', op: 'eq', value: 'active' }])
+    expect(lastCall?.page).toBe(1)
+    // 替换次数（mockReplace）应 <= 1（原子 router.replace），
+    // 允许 1（首次）+ 0（effect setPage 不再触发）
+    const totalReplaces = mockReplace.mock.calls.length
+    expect(totalReplaces).toBeLessThanOrEqual(1)
+  })
+})

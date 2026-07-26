@@ -31,6 +31,7 @@ export interface UseCrmTableReturn<T> {
   setSort: (sortBy: string | undefined, sortOrder: CrmSortOrder | undefined) => void
   toggleSort: (sortBy: string) => void
   setFilters: (next: FilterCondition[]) => void
+  setFiltersAndPage: (filters: FilterCondition[], page: number) => void
   setScope: (next: 'mine' | 'all' | undefined) => void
   reset: () => void
   refresh: () => Promise<void>
@@ -141,6 +142,18 @@ export function useCrmTable<T>({
     },
     [writeUrl]
   )
+  // P5-12: 原子写 URL —— 筛选变更 + 重置 page 合并到一次 router.replace，
+  // 避免 page>1 时筛选变更触发一次瞬时多余 fetch。
+  const setFiltersAndPage = useCallback(
+    (next: FilterCondition[], nextPage: number) => {
+      const value = next.length === 0 ? null : JSON.stringify(next)
+      writeUrl({
+        filters: value,
+        page: nextPage === 1 ? null : nextPage,
+      })
+    },
+    [writeUrl]
+  )
   const setScope = useCallback(
     (next: 'mine' | 'all' | undefined) => writeUrl({ scope: next ?? null }),
     [writeUrl]
@@ -207,6 +220,7 @@ export function useCrmTable<T>({
       setSort,
       toggleSort,
       setFilters,
+      setFiltersAndPage,
       setScope,
       reset,
       refresh,
@@ -229,6 +243,7 @@ export function useCrmTable<T>({
       setSort,
       toggleSort,
       setFilters,
+      setFiltersAndPage,
       setScope,
       reset,
       refresh,
