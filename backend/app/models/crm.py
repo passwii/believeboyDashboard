@@ -223,7 +223,7 @@ class CrmAuditLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     entity_type: Mapped[str] = mapped_column(String(20), nullable=False)  # customer/lead/contact
     entity_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    action: Mapped[str] = mapped_column(String(30), nullable=False)  # create/update/delete/transfer/move_sea/claim/convert/set_primary
+    action: Mapped[str] = mapped_column(String(30), nullable=False)  # create/update/delete/transfer/move_sea/claim/convert
     actor_id: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID；null=系统
     summary: Mapped[str | None] = mapped_column(Text)  # 中文变更摘要
     created_at: Mapped[datetime] = mapped_column(

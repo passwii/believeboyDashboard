@@ -20,7 +20,6 @@ export const ACTION_BADGE: Record<AuditAction, string> = {
   move_sea: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   claim: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200',
   convert: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
-  set_primary: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
 }
 
 interface CrmAuditTimelineProps {

@@ -14,7 +14,6 @@ export type AuditAction =
   | 'move_sea'
   | 'claim'
   | 'convert'
-  | 'set_primary'
 
 /** 一条审计日志（前端视角）。 */
 export interface AuditLog {
@@ -50,5 +49,4 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   move_sea: '释放公海',
   claim: '领取',
   convert: '转化',
-  set_primary: '设主联系人',
 }
