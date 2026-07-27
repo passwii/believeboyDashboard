@@ -13,13 +13,12 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Iterable
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.product_analysis_source import (
@@ -60,6 +59,7 @@ EXPORT_MAX_ROWS = 5000
 
 # ===== Serialization =====
 
+
 def _safe_str(value: object | None) -> str | None:
     if value is None:
         return None
@@ -77,7 +77,7 @@ def _isoformat(value: datetime | None) -> str | None:
     return str(value)
 
 
-def _to_float(value: Decimal | float | int | None) -> float:
+def _to_float(value: Decimal | float | None) -> float:
     if value is None:
         return 0.0
     try:
@@ -101,7 +101,9 @@ def _to_pt_str(value: datetime | None) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def serialize_order_row(row: AnalysisSalesOrderRow, *, project: Project | None) -> OrderInfoItem:
+def serialize_order_row(
+    row: AnalysisSalesOrderRow, *, project: Project | None
+) -> OrderInfoItem:
     raw: dict = row.raw_row if isinstance(row.raw_row, dict) else {}
     fulfillment = (
         _safe_str(raw.get("fulfillment-channel"))
@@ -116,23 +118,27 @@ def serialize_order_row(row: AnalysisSalesOrderRow, *, project: Project | None) 
         source_file_id=int(row.source_file_id),
         purchase_at_utc=row.purchase_at_utc,
         purchase_at_pt=row.purchase_at_pt,
-        purchase_date_pt=row.purchase_date_pt.isoformat() if row.purchase_date_pt else "",
+        purchase_date_pt=row.purchase_date_pt.isoformat()
+        if row.purchase_date_pt
+        else "",
         amazon_order_id=str(row.amazon_order_id),
         order_status=str(row.order_status) or "UNKNOWN",
         fulfillment_channel=fulfillment,
-        fulfillment_label=FULFILLMENT_LABEL_MAP.get(fulfillment, fulfillment or "未分类"),
+        fulfillment_label=FULFILLMENT_LABEL_MAP.get(
+            fulfillment, fulfillment or "未分类"
+        ),
         ship_service_level=_safe_str(raw.get("ship-service-level"))
         or _safe_str(raw.get("ship service level")),
         sku=_safe_str(row.sku),
         asin=_safe_str(row.asin),
-        product_name=_safe_str(raw.get("product-name")) or _safe_str(raw.get("product name")),
+        product_name=_safe_str(raw.get("product-name"))
+        or _safe_str(raw.get("product name")),
         quantity=int(row.quantity or 0),
         item_price=_to_float(row.item_price),
         shipping_price=_to_float(row.shipping_price),
         currency=_safe_str(row.currency),
         country=str(row.country or "").upper(),
-        state=_safe_str(raw.get("ship-state"))
-        or _safe_str(raw.get("ship state")),
+        state=_safe_str(raw.get("ship-state")) or _safe_str(raw.get("ship state")),
         city=_safe_str(raw.get("ship-city")) or _safe_str(raw.get("ship city")),
         postal_code=_safe_str(raw.get("ship-postal-code"))
         or _safe_str(raw.get("ship postal code")),
@@ -148,6 +154,7 @@ def serialize_order_row(row: AnalysisSalesOrderRow, *, project: Project | None) 
 
 # ===== Query building =====
 
+
 def _build_base_query() -> Select:
     """所有"按项目归类"的订单查询都基于此 — 通过 source_file → source_file.project_id 过滤项目
 
@@ -156,14 +163,17 @@ def _build_base_query() -> Select:
     `replace_current_pointer` 把旧版本置为 is_current=false 的语义一致）。
     """
 
-    stmt: Select = select(AnalysisSalesOrderRow, Project).join(
-        AnalysisSourceFile,
-        AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-    ).join(
-        Project,
-        Project.id == AnalysisSourceFile.project_id,
-    ).where(
-        AnalysisSourceFile.is_current.is_(True)
+    stmt: Select = (
+        select(AnalysisSalesOrderRow, Project)
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .join(
+            Project,
+            Project.id == AnalysisSourceFile.project_id,
+        )
+        .where(AnalysisSourceFile.is_current.is_(True))
     )
     return stmt
 
@@ -184,8 +194,8 @@ def _ensure_project_access_for_orders(
     - 非 admin 且 operator 非空：从候选集合中过滤"运营关联包含该 operator"的项目；
             没传候选时，按 `list_accessible_project_ids` 缩到 operator 有权限的活跃项目。
     """
-    from app.services.ad.helpers import _ensure_project_access
     from app.services import project_service
+    from app.services.ad.helpers import _ensure_project_access
 
     if is_admin:
         # admin 透传候选；若前端没传（默认"全部店铺"），返回 None 让 caller 不带
@@ -197,7 +207,9 @@ def _ensure_project_access_for_orders(
 
     if not candidate_project_ids:
         # 没传 project 过滤时，operator 只被允许看自己运营的活跃项目
-        return project_service.list_accessible_project_ids(db, operator=operator, is_admin=False)
+        return project_service.list_accessible_project_ids(
+            db, operator=operator, is_admin=False
+        )
 
     allowed: list[int] = []
     for pid in candidate_project_ids:
@@ -213,7 +225,11 @@ def _ensure_project_access_for_orders(
 
 def _extract_fulfillment_channel(row: AnalysisSalesOrderRow) -> str:
     raw = row.raw_row if isinstance(row.raw_row, dict) else {}
-    return _safe_str(raw.get("fulfillment-channel")) or _safe_str(raw.get("fulfillment channel")) or ""
+    return (
+        _safe_str(raw.get("fulfillment-channel"))
+        or _safe_str(raw.get("fulfillment channel"))
+        or ""
+    )
 
 
 def _fulfillment_filter_sql_supported(db: Session) -> bool:
@@ -290,7 +306,9 @@ def apply_sql_filters(
         "id": AnalysisSalesOrderRow.id,
     }
     sort_col = sort_column_map.get(sort_by, AnalysisSalesOrderRow.purchase_at_pt)
-    stmt = stmt.order_by(sort_col.desc() if sort_dir.lower() != "asc" else sort_col.asc())
+    stmt = stmt.order_by(
+        sort_col.desc() if sort_dir.lower() != "asc" else sort_col.asc()
+    )
 
     return stmt
 
@@ -311,6 +329,7 @@ def _apply_app_filters(
 
 
 # ===== Public read APIs =====
+
 
 def list_orders(
     db: Session,
@@ -347,17 +366,23 @@ def list_orders(
         logger.warning(
             "[order-info] list_orders empty: operator=%r has no accessible projects "
             "(candidate_project_ids=%r, is_admin=%r)",
-            operator, project_ids, is_admin,
+            operator,
+            project_ids,
+            is_admin,
         )
-        return OrderInfoListResponse(items=[], total=0, page=safe_page, page_size=safe_page_size)
+        return OrderInfoListResponse(
+            items=[], total=0, page=safe_page, page_size=safe_page_size
+        )
 
     # total: 应用层先按 SQL 过滤拿到候选总数，再按 fulfillment-channel 过滤得到精确 total
     # 注意：count_sql 单独构建，不走 _build_base_query，要自己加 is_current 过滤
-    count_sql = select(func.count(AnalysisSalesOrderRow.id)).join(
-        AnalysisSourceFile,
-        AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
-    ).where(
-        AnalysisSourceFile.is_current.is_(True)
+    count_sql = (
+        select(func.count(AnalysisSalesOrderRow.id))
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
+        .where(AnalysisSourceFile.is_current.is_(True))
     )
     count_sql = apply_sql_filters(
         count_sql,
@@ -489,7 +514,13 @@ def compute_stats(
     operator: str | None = None,
     is_admin: bool = True,
 ) -> OrderInfoStats:
-    """顶部 stat bar：当前筛选条件下的 订单数 / 数量 / 金额（取主导币种）/ FBA·FBM 分布"""
+    """顶部 stat bar：当前筛选条件下的 订单数 / 数量 / 金额（取主导币种）/ FBA·FBM 分布
+
+    纯 SQL 聚合实现：所有指标都通过 COUNT / SUM / CASE WHEN 在数据库层算完，
+    后端只收 1 行结果。**不**再 `LIMIT 10000` + Python 循环聚合——后者在
+    `/dashboard/supply-chain/order-info` 频繁筛选时拉满 1 万行 ORM 对象，是
+    该页面 timeout 的根因（参见测试 `TestComputeStatsSqlAggregate`）。
+    """
 
     scoped_project_ids = _ensure_project_access_for_orders(
         db,
@@ -501,7 +532,9 @@ def compute_stats(
         logger.warning(
             "[order-info] compute_stats empty: operator=%r has no accessible projects "
             "(candidate_project_ids=%r, is_admin=%r)",
-            operator, project_ids, is_admin,
+            operator,
+            project_ids,
+            is_admin,
         )
         return OrderInfoStats(
             total_orders=0,
@@ -512,9 +545,22 @@ def compute_stats(
             fbm_count=0,
         )
 
-    stmt = _build_base_query()
+    # ===== 1) 主聚合：COUNT / SUM / FBA·FBM case when =====
+    # 复用 _build_base_query 的 join + is_current；select 列只取要聚合的标量。
+    fc_expr = AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
+    base = _build_base_query()
+    # 投影成单表：移除 Project join 投影，保留 join 仅作为过滤。
+    base = base.with_only_columns(
+        AnalysisSalesOrderRow.id,
+        AnalysisSalesOrderRow.quantity,
+        AnalysisSalesOrderRow.item_price,
+        AnalysisSalesOrderRow.shipping_price,
+        AnalysisSalesOrderRow.currency,
+        AnalysisSalesOrderRow.raw_row,
+    )
+
     stmt = apply_sql_filters(
-        stmt,
+        base,
         project_ids=scoped_project_ids,
         order_statuses=order_statuses,
         countries=countries,
@@ -524,55 +570,85 @@ def compute_stats(
         asin_keyword=asin_keyword,
         date_from=date_from,
         date_to=date_to,
-        sort_by="purchase_at_pt",
-        sort_dir="desc",
+        include_order_by=False,
     )
     fc_set = {c for c in (fulfillment_channels or []) if c}
-    if fc_set and _fulfillment_filter_sql_supported(db):
+    if fc_set:
         if len(fc_set) == 1:
-            stmt = stmt.where(
-                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string() == next(iter(fc_set))
-            )
+            stmt = stmt.where(fc_expr == next(iter(fc_set)))
         else:
-            stmt = stmt.where(
-                or_(*[
-                    AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string() == channel
-                    for channel in fc_set
-                ])
-            )
-    # stats 最多拉 1w 行做精确聚合（页面 stat bar 不需要 100% 精确）
-    rows = db.execute(stmt.limit(10000)).all()
-    rows = _apply_app_filters(rows, fulfillment_channels=fulfillment_channels)
+            stmt = stmt.where(or_(*[fc_expr == c for c in fc_set]))
 
-    total_orders = len(rows)
-    total_quantity = 0
-    total_amount = 0.0
-    fba_count = 0
-    fbm_count = 0
-    currency_count: dict[str, int] = defaultdict(int)
+    total_orders = func.count(AnalysisSalesOrderRow.id)
+    total_quantity = func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0)
+    total_amount_expr = func.coalesce(
+        func.sum(
+            AnalysisSalesOrderRow.item_price + AnalysisSalesOrderRow.shipping_price
+        ),
+        0.0,
+    )
+    fba_count_expr = func.coalesce(func.sum(case((fc_expr == "Amazon", 1), else_=0)), 0)
+    fbm_count_expr = func.coalesce(
+        func.sum(case((fc_expr == "Merchant", 1), else_=0)), 0
+    )
 
-    for row, _project in rows:
-        total_quantity += int(row.quantity or 0)
-        total_amount += _to_float(row.item_price) + _to_float(row.shipping_price)
-        fc = _extract_fulfillment_channel(row)
-        if fc == "Amazon":
-            fba_count += 1
-        elif fc == "Merchant":
-            fbm_count += 1
-        if row.currency:
-            currency_count[str(row.currency)] += 1
+    # 把聚合列投影到已应用所有 WHERE 过滤的 stmt 上（用 with_only_columns），
+    # 而不是新建一个 select(...)——后者会丢掉前面 where 进去的 fc / 日期等过滤条件。
+    agg_stmt = stmt.with_only_columns(
+        total_orders.label("total_orders"),
+        total_quantity.label("total_quantity"),
+        total_amount_expr.label("total_amount"),
+        fba_count_expr.label("fba_count"),
+        fbm_count_expr.label("fbm_count"),
+    )
+    agg_row = db.execute(agg_stmt).one()
 
-    dominant_currency = None
-    if currency_count:
-        dominant_currency = max(currency_count.items(), key=lambda kv: kv[1])[0]
+    # ===== 2) 主导币种：GROUP BY currency + count + LIMIT 1 =====
+    currency_count = func.count(AnalysisSalesOrderRow.id).label("c")
+    currency_sub = apply_sql_filters(
+        _build_base_query().with_only_columns(
+            AnalysisSalesOrderRow.id, AnalysisSalesOrderRow.currency
+        ),
+        project_ids=scoped_project_ids,
+        order_statuses=order_statuses,
+        countries=countries,
+        currencies=currencies,
+        sku_keyword=sku_keyword,
+        order_id_keyword=order_id_keyword,
+        asin_keyword=asin_keyword,
+        date_from=date_from,
+        date_to=date_to,
+        include_order_by=False,
+    )
+    if fc_set:
+        if len(fc_set) == 1:
+            currency_sub = currency_sub.where(fc_expr == next(iter(fc_set)))
+        else:
+            currency_sub = currency_sub.where(or_(*[fc_expr == c for c in fc_set]))
+    # 把 GROUP BY / ORDER BY / LIMIT 投影到已应用 WHERE 的 currency_sub 上（用
+    # with_only_columns），不要新建 select(...)——否则会丢掉 fc / 日期过滤。
+    currency_stmt = (
+        currency_sub.where(AnalysisSalesOrderRow.currency.is_not(None))
+        .with_only_columns(
+            AnalysisSalesOrderRow.currency.label("currency"),
+            currency_count,
+        )
+        .group_by(AnalysisSalesOrderRow.currency)
+        .order_by(currency_count.desc(), AnalysisSalesOrderRow.currency.asc())
+        .limit(1)
+    )
+    currency_rows = db.execute(currency_stmt).all()
+    dominant_currency: str | None = None
+    if currency_rows:
+        dominant_currency = str(currency_rows[0].currency)
 
     return OrderInfoStats(
-        total_orders=total_orders,
-        total_quantity=total_quantity,
-        total_amount=round(total_amount, 2),
+        total_orders=int(agg_row.total_orders or 0),
+        total_quantity=int(agg_row.total_quantity or 0),
+        total_amount=round(float(agg_row.total_amount or 0.0), 2),
         currency=dominant_currency,
-        fba_count=fba_count,
-        fbm_count=fbm_count,
+        fba_count=int(agg_row.fba_count or 0),
+        fbm_count=int(agg_row.fbm_count or 0),
     )
 
 
@@ -628,7 +704,9 @@ def collect_filter_options(
         .order_by(AnalysisSalesOrderRow.order_status.asc())
     ).all()
     status_options = [
-        FilterOption(value=str(row[0]), label=str(row[0]) or ORDER_STATUS_FALLBACK_LABEL)
+        FilterOption(
+            value=str(row[0]), label=str(row[0]) or ORDER_STATUS_FALLBACK_LABEL
+        )
         for row in order_statuses
         if row[0]
     ]
@@ -760,6 +838,7 @@ def parse_date_input(value: str | None) -> date | None:
 
 # ===== Mutation (FBM 补录) =====
 
+
 class OrderInfoNotFound(LookupError):
     """订单行 id 不存在"""
 
@@ -890,7 +969,9 @@ def export_orders_to_csv(
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(ORDER_CSV_HEADERS)
-        filename = f"order-info-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+        filename = (
+            f"order-info-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+        )
         return filename, buffer.getvalue()
 
     stmt = _build_base_query()
@@ -912,14 +993,18 @@ def export_orders_to_csv(
     if fc_set and _fulfillment_filter_sql_supported(db):
         if len(fc_set) == 1:
             stmt = stmt.where(
-                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string() == next(iter(fc_set))
+                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
+                == next(iter(fc_set))
             )
         else:
             stmt = stmt.where(
-                or_(*[
-                    AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string() == channel
-                    for channel in fc_set
-                ])
+                or_(
+                    *[
+                        AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
+                        == channel
+                        for channel in fc_set
+                    ]
+                )
             )
     rows = db.execute(stmt.limit(max_rows)).all()
     if not (fc_set and _fulfillment_filter_sql_supported(db)):
@@ -931,31 +1016,33 @@ def export_orders_to_csv(
 
     for row, project in rows:
         item = serialize_order_row(row, project=project)
-        writer.writerow([
-            _to_beijing_str(item.purchase_at_utc),
-            _to_pt_str(item.purchase_at_pt) or item.purchase_date_pt or "",
-            item.amazon_order_id,
-            item.order_status,
-            item.fulfillment_label,
-            item.ship_service_level or "",
-            item.sku or "",
-            item.asin or "",
-            item.product_name or "",
-            item.quantity,
-            f"{item.item_price:.2f}",
-            f"{item.shipping_price:.2f}",
-            item.currency or "",
-            item.project_name,
-            item.country,
-            item.state or "",
-            item.city or "",
-            item.postal_code or "",
-            item.carrier or "",
-            item.tracking_no or "",
-            _to_beijing_str(item.shipped_at) if item.shipped_at else "",
-            item.updated_by or "",
-            _to_beijing_str(item.updated_at) if item.updated_at else "",
-        ])
+        writer.writerow(
+            [
+                _to_beijing_str(item.purchase_at_utc),
+                _to_pt_str(item.purchase_at_pt) or item.purchase_date_pt or "",
+                item.amazon_order_id,
+                item.order_status,
+                item.fulfillment_label,
+                item.ship_service_level or "",
+                item.sku or "",
+                item.asin or "",
+                item.product_name or "",
+                item.quantity,
+                f"{item.item_price:.2f}",
+                f"{item.shipping_price:.2f}",
+                item.currency or "",
+                item.project_name,
+                item.country,
+                item.state or "",
+                item.city or "",
+                item.postal_code or "",
+                item.carrier or "",
+                item.tracking_no or "",
+                _to_beijing_str(item.shipped_at) if item.shipped_at else "",
+                item.updated_by or "",
+                _to_beijing_str(item.updated_at) if item.updated_at else "",
+            ]
+        )
 
     csv_text = buffer.getvalue()
     filename = f"order-info-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
@@ -963,19 +1050,19 @@ def export_orders_to_csv(
 
 
 __all__ = [
-    "FULFILLMENT_LABEL_MAP",
-    "ORDER_CSV_HEADERS",
     "DEFAULT_PAGE_SIZE",
-    "MAX_PAGE_SIZE",
     "EXPORT_MAX_ROWS",
-    "OrderInfoNotFound",
+    "FULFILLMENT_LABEL_MAP",
+    "MAX_PAGE_SIZE",
+    "ORDER_CSV_HEADERS",
     "OrderInfoForbidden",
-    "serialize_order_row",
-    "list_orders",
-    "compute_stats",
+    "OrderInfoNotFound",
     "collect_filter_options",
-    "get_page_data",
-    "parse_date_input",
-    "update_order_by_id",
+    "compute_stats",
     "export_orders_to_csv",
+    "get_page_data",
+    "list_orders",
+    "parse_date_input",
+    "serialize_order_row",
+    "update_order_by_id",
 ]

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.schemas.order_info import OrderInfoItem
 from app.services.data import order_info_service
 from app.services.data.order_info_service import (
     DEFAULT_PAGE_SIZE,
@@ -23,10 +24,9 @@ from app.services.data.order_info_service import (
     parse_date_input,
     serialize_order_row,
 )
-from app.schemas.order_info import OrderInfoItem
-
 
 # ---------- parse_date_input ----------
+
 
 class TestParseDateInput:
     def test_valid_yyyy_mm_dd(self):
@@ -48,6 +48,7 @@ class TestParseDateInput:
 
 # ---------- Fulfillment label map ----------
 
+
 class TestFulfillmentLabelMap:
     def test_amazon_maps_to_fba(self):
         assert FULFILLMENT_LABEL_MAP["Amazon"] == "FBA（亚马逊配送）"
@@ -57,6 +58,7 @@ class TestFulfillmentLabelMap:
 
 
 # ---------- _to_beijing_str ----------
+
 
 class TestToBeijingStr:
     def test_utc_input_converts_to_beijing(self):
@@ -75,6 +77,7 @@ class TestToBeijingStr:
 
 
 # ---------- _extract_fulfillment_channel ----------
+
 
 class TestExtractFulfillmentChannel:
     def test_returns_amazon_when_present(self):
@@ -100,6 +103,7 @@ class TestExtractFulfillmentChannel:
 
 # ---------- _fulfillment_filter_sql_supported ----------
 
+
 class TestFulfillmentFilterSqlSupported:
     def test_postgresql_dialect_supported(self):
         db = MagicMock()
@@ -123,6 +127,7 @@ class TestFulfillmentFilterSqlSupported:
 
 
 # ---------- serialize_order_row ----------
+
 
 class TestSerializeOrderRow:
     def test_minimal_row(self):
@@ -261,6 +266,7 @@ class TestSerializeOrderRow:
 
 # ---------- Constants ----------
 
+
 class TestConstants:
     def test_default_page_size_sane(self):
         assert 1 <= DEFAULT_PAGE_SIZE <= MAX_PAGE_SIZE
@@ -271,6 +277,7 @@ class TestConstants:
 
 # ---------- is_current 过滤 ----------
 
+
 class TestCurrentFilter:
     """验证 _build_base_query / list_orders 的 count_sql 都强制走
     AnalysisSourceFile.is_current = TRUE。
@@ -280,11 +287,17 @@ class TestCurrentFilter:
         from sqlalchemy.dialects import sqlite
 
         stmt = order_info_service._build_base_query()
-        compiled = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
+        compiled = str(
+            stmt.compile(
+                dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}
+            )
+        )
         # is_current 过滤必须出现在 SQL 文本里
         assert "is_current" in compiled
         # 同时 boolean 表达式 true（或 1）也应存在
-        assert ("true" in compiled) or ("1" in compiled) or ("IS TRUE" in compiled.upper())
+        assert (
+            ("true" in compiled) or ("1" in compiled) or ("IS TRUE" in compiled.upper())
+        )
 
     def test_list_orders_count_sql_includes_is_current(self, monkeypatch):
         """通过 stub db 验证 list_orders 的 count_sql 路径也带 is_current。"""
@@ -303,7 +316,11 @@ class TestCurrentFilter:
             def execute(self, stmt):
                 from sqlalchemy.dialects import sqlite
 
-                compiled = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}))
+                compiled = str(
+                    stmt.compile(
+                        dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True}
+                    )
+                )
                 # 只关心第一次调用（count_sql），记下文本即可
                 if "count(" in compiled and "count_sql" not in captured:
                     captured["count_sql"] = compiled
@@ -320,6 +337,7 @@ class TestCurrentFilter:
 
 
 # ---------- operator / is_admin 行为 ----------
+
 
 class TestOperatorAccess:
     """非 admin 操作员的项目范围缩窄：admin 透传、非 admin 按 _ensure_project_access 过滤。"""
@@ -377,10 +395,15 @@ class TestOperatorAccess:
             if project_id == 2:
                 # 模拟无权限
                 from fastapi import HTTPException
+
                 raise HTTPException(status_code=403, detail="no access")
             return MagicMock()
 
-        monkeypatch.setattr(svc, "_ensure_project_access_for_orders", svc._ensure_project_access_for_orders)
+        monkeypatch.setattr(
+            svc,
+            "_ensure_project_access_for_orders",
+            svc._ensure_project_access_for_orders,
+        )
         monkeypatch.setattr(
             "app.services.ad.helpers._ensure_project_access", fake_ensure
         )
@@ -395,6 +418,7 @@ class TestOperatorAccess:
 
 
 # ---------- update_order_by_id (FBM 补录) ----------
+
 
 class TestUpdateOrderById:
     """FBM 补录逻辑。Mock DB.execute.first() 返回 (row, project)，验证：写入列、权限、updated_at 兜底。"""
@@ -436,10 +460,12 @@ class TestUpdateOrderById:
         class _Result:
             def first(inner_self):
                 return (row, project) if row else None
+
         return _Result()
 
     def _make_db_full(self, row, project):
         """完整 mock db：execute().first() + flush()"""
+
         class _R:
             def first(inner_self_):
                 return (row, project)
@@ -450,6 +476,7 @@ class TestUpdateOrderById:
 
             def flush(inner_self):
                 return None
+
         return _DB()
 
     def test_admin_can_update_carrier_and_tracking(self, monkeypatch):
@@ -512,9 +539,7 @@ class TestUpdateOrderById:
 
         payload = OrderInfoUpdate(carrier="USPS")
         with pytest.raises(svc.OrderInfoForbidden):
-            svc.update_order_by_id(
-                db, 100, payload, operator="op1", is_admin=False
-            )
+            svc.update_order_by_id(db, 100, payload, operator="op1", is_admin=False)
 
     def test_not_found_raises_order_info_not_found(self, monkeypatch):
         from app.schemas.order_info import OrderInfoUpdate
@@ -525,6 +550,7 @@ class TestUpdateOrderById:
                 class _R:
                     def first(inner_self_):
                         return None
+
                 return _R()
 
         payload = OrderInfoUpdate(carrier="DHL")
@@ -545,9 +571,7 @@ class TestUpdateOrderById:
 
         # 显式传空串 → 清空
         payload = OrderInfoUpdate(updated_by="")
-        svc.update_order_by_id(
-            db, 100, payload, operator="admin_user", is_admin=True
-        )
+        svc.update_order_by_id(db, 100, payload, operator="admin_user", is_admin=True)
         assert row.updated_by is None
 
     def test_carrier_whitespace_normalized_to_none(self, monkeypatch):
@@ -570,6 +594,7 @@ class TestUpdateOrderById:
 
 
 # ---------- CSV headers 含新列 ----------
+
 
 class TestOrderCsvHeaders:
     def test_csv_headers_include_carrier_tracking(self):
@@ -634,7 +659,9 @@ class TestCollectFilterOptionsProjects:
         # include_inactive 必须 False（筛选项只显示激活店铺）
         assert captured_kwargs.get("include_inactive") is False
 
-    def test_collect_filter_options_passes_operator_for_non_admin_scope(self, monkeypatch):
+    def test_collect_filter_options_passes_operator_for_non_admin_scope(
+        self, monkeypatch
+    ):
         """非 admin 必须把 operator 透传给 list_project_items，让它做权限过滤。"""
         captured_kwargs: dict = {}
 
@@ -668,3 +695,228 @@ class TestCollectFilterOptionsProjects:
             MagicMock(), operator="op", is_admin=True
         )
         assert [opt.value for opt in result.projects] == ["7"]
+
+
+# ---- compute_stats tests below ----
+#
+# Background: `compute_stats` was the prime suspect for /dashboard/supply-chain/order-info
+# intermittent timeouts — every filter change pulled up to 10,000 rows + Python-loop
+# aggregates. After the fix it should run a pure SQL aggregate (1 row) plus a
+# GROUP BY currency query (1 row), and apply the fulfillment-channel filter in SQL
+# (via raw_row JSON path → `JSON_EXTRACT` on SQLite / `->>` on PG).
+#
+# We assert against the COMPILED SQL — not the result values — to lock in the
+# "no row pull" behavior so a future refactor that re-introduces `LIMIT 10000`
+# trips these tests.
+
+from sqlalchemy.dialects import sqlite as sqlite_dialect
+
+
+def _compile(stmt):
+    return str(
+        stmt.compile(
+            dialect=sqlite_dialect.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    )
+
+
+class TestComputeStatsSqlAggregate:
+    """compute_stats must be O(1) result rows: one aggregate + one currency-mode query.
+
+    These tests stub the DB to capture the SQL emitted. They do NOT need live data
+    — the goal is to lock in that we do not pull the underlying rows.
+    """
+
+    def test_aggregate_query_uses_count_and_sum_not_limit(self, monkeypatch):
+        """Main aggregate SELECT must contain COUNT/SUM/case-when, must NOT contain
+        `LIMIT` (no row pull)."""
+        from app.services.data import order_info_service as svc
+
+        captured: dict[str, str] = {}
+
+        class _AggRow:
+            total_orders = 42
+            total_quantity = 100
+            total_amount = 1234.56
+            fba_count = 25
+            fbm_count = 17
+
+        class _FakeResult:
+            def one(inner_self):
+                return _AggRow()
+
+            def all(inner_self):
+                return []  # currency-mode returns empty → dominant_currency = None
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                sql = _compile(stmt)
+                if (
+                    "count(" in sql.lower()
+                    and "sum(" in sql.lower()
+                    and "aggregate" not in captured
+                ):
+                    captured["aggregate"] = sql
+                return _FakeResult()
+
+        db = _FakeDB()
+        result = svc.compute_stats(
+            db,
+            project_ids=None,
+            order_statuses=None,
+            countries=None,
+            currencies=None,
+            operator="admin_user",
+            is_admin=True,
+        )
+        assert "limit" not in captured["aggregate"].lower(), (
+            f"compute_stats main aggregate must not LIMIT; got:\n{captured['aggregate']}"
+        )
+        assert "case" in captured["aggregate"].lower(), (
+            f"compute_stats must use CASE WHEN for FBA/FBM counts; got:\n{captured['aggregate']}"
+        )
+        assert result.total_orders == 42
+        assert result.total_quantity == 100
+        assert result.total_amount == 1234.56
+        assert result.fba_count == 25
+        assert result.fbm_count == 17
+        assert result.currency is None
+
+    def test_fulfillment_channel_filter_applied_in_sql(self, monkeypatch):
+        """When fulfillment_channels is provided, the SQL emitted must contain
+        the fulfillment-channel filter."""
+        from app.services.data import order_info_service as svc
+
+        captured: list[str] = []
+
+        class _AggRow:
+            total_orders = 5
+            total_quantity = 5
+            total_amount = 50.0
+            fba_count = 5
+            fbm_count = 0
+
+        class _FakeResult:
+            def one(inner_self):
+                return _AggRow()
+
+            def all(inner_self):
+                return []
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                captured.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        svc.compute_stats(
+            db,
+            fulfillment_channels=["Amazon"],
+            operator="admin_user",
+            is_admin=True,
+        )
+        aggregate_sql = captured[0].lower()
+        assert "fulfillment-channel" in aggregate_sql, (
+            f"fc filter must be applied in SQL; got:\n{captured[0]}"
+        )
+
+    def test_fulfillment_filter_works_on_sqlite_via_json_extract(self):
+        """The compiled SQL on SQLite must use JSON_EXTRACT(...) so it works
+        without depending on the dialect-detection gating (JSON1 is built into
+        stdlib sqlite3 3.9+)."""
+        from app.models.product_analysis_source import AnalysisSalesOrderRow
+        from app.services.data import order_info_service as svc
+
+        fc_expr = AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
+        stmt = svc._build_base_query().where(fc_expr == "Amazon")
+        compiled = _compile(stmt).lower()
+        assert "json_extract" in compiled or "->>" in compiled, (
+            f"fc filter must compile to JSON_EXTRACT (sqlite) or ->> (pg); got:\n{compiled}"
+        )
+
+    def test_dominant_currency_uses_group_by_order_by_limit(self, monkeypatch):
+        """The currency-mode query must GROUP BY currency + ORDER BY count DESC + LIMIT 1."""
+        from app.services.data import order_info_service as svc
+
+        # Phase 0 = aggregate, 1+ = currency-mode (and any later queries).
+        captured: list[str] = []
+        call_count = 0
+
+        class _AggRow:
+            total_orders = 10
+            total_quantity = 10
+            total_amount = 100.0
+            fba_count = 6
+            fbm_count = 4
+
+        class _CurrencyRow:
+            currency = "USD"
+            c = 8
+
+        class _FakeResult:
+            def one(inner_self):
+                return _AggRow()
+
+            def all(inner_self):
+                return [_CurrencyRow()]
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                nonlocal call_count
+                call_count += 1
+                captured.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        result = svc.compute_stats(
+            db,
+            operator="admin_user",
+            is_admin=True,
+        )
+        assert len(captured) >= 2, (
+            f"expected aggregate + currency-mode, got: {captured}"
+        )
+        currency_query = captured[-1].lower()
+        assert "group by" in currency_query
+        assert "order by" in currency_query
+        assert "limit" in currency_query
+        assert "currency" in currency_query
+        assert result.currency == "USD"
+
+    def test_no_access_returns_zeros_without_running_query(self, monkeypatch):
+        """Non-admin with no accessible projects must short-circuit to zeros
+        WITHOUT issuing any SQL aggregate — same behavior as before."""
+        from app.services.data import order_info_service as svc
+
+        executed: list[str] = []
+
+        class _FakeResult:
+            def one(inner_self):
+                return None
+
+            def all(inner_self):
+                return []
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                executed.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        monkeypatch.setattr(
+            svc, "_ensure_project_access_for_orders", lambda *a, **kw: []
+        )
+
+        result = svc.compute_stats(
+            db,
+            project_ids=[1, 2, 3],
+            operator="some_op",
+            is_admin=False,
+        )
+        assert result.total_orders == 0
+        assert result.total_quantity == 0
+        assert result.total_amount == 0.0
+        assert result.fba_count == 0
+        assert result.fbm_count == 0
+        assert result.currency is None
+        assert executed == [], f"expected no DB calls, got: {executed}"
