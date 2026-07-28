@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import io
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.main import app
 from app.core.config import get_settings
@@ -37,13 +37,19 @@ def _make_png_bytes() -> bytes:
 def _create_test_sku(db, project_name: str = "测试项目", sku: str = "TEST-SKU-001") -> SkuRecord:
     """在 DB 中创建一个测试 SKU 记录"""
     project = db.execute(
-        select(Project).where(Project.name == project_name)
+        select(Project).where(Project.project_name == project_name)
     ).scalars().first()
     if project is None:
-        project = Project(name=project_name)
+        project = Project(project_name=project_name, sort_order=0)
         db.add(project)
         db.commit()
         db.refresh(project)
+
+    # 幂等：测试库持久，先清同 (project, sku) 旧记录再建，保证可重复跑
+    db.execute(
+        delete(SkuRecord).where(SkuRecord.project_id == project.id, SkuRecord.sku == sku)
+    )
+    db.commit()
 
     row = SkuRecord(
         project_id=project.id,
@@ -75,9 +81,9 @@ def _create_test_sku(db, project_name: str = "测试项目", sku: str = "TEST-SK
 def test_upload_product_image_success(client):
     """成功上传 1 张 PNG 图片"""
     settings = get_settings()
-    with patch("app.api.v1.endpoints.sku_info.upload_bytes_to_r2") as mock_upload, \
-         patch("app.api.v1.endpoints.sku_info.delete_file_from_r2") as mock_delete, \
-         patch.object(settings, "r2_enabled", True):
+    with patch("app.services.r2_service.upload_bytes_to_r2") as mock_upload, \
+         patch("app.services.r2_service.delete_file_from_r2") as mock_delete, \
+         patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=True):
         mock_upload.side_effect = [
             {"key": "test/main.webp", "url": "https://r2.example/main.webp", "size": 1000},
             {"key": "test/thumb.webp", "url": "https://r2.example/thumb.webp", "size": 500},
@@ -108,9 +114,9 @@ def test_upload_product_image_success(client):
 def test_upload_product_image_replaces_old(client):
     """替换已有产品图：先删除旧 R2 对象"""
     settings = get_settings()
-    with patch("app.api.v1.endpoints.sku_info.upload_bytes_to_r2") as mock_upload, \
-         patch("app.api.v1.endpoints.sku_info.delete_file_from_r2") as mock_delete, \
-         patch.object(settings, "r2_enabled", True):
+    with patch("app.services.r2_service.upload_bytes_to_r2") as mock_upload, \
+         patch("app.services.r2_service.delete_file_from_r2") as mock_delete, \
+         patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=True):
         mock_upload.side_effect = [
             {"key": "test/new_main.webp", "url": "https://r2.example/new_main.webp", "size": 1000},
             {"key": "test/new_thumb.webp", "url": "https://r2.example/new_thumb.webp", "size": 500},
@@ -123,6 +129,7 @@ def test_upload_product_image_replaces_old(client):
             sku.product_image_r2_key = "test/old_main.webp"
             sku.product_image_thumbnail_r2_key = "test/old_thumb.webp"
             db.commit()
+            db.refresh(sku)
         finally:
             db.close()
 
@@ -143,7 +150,7 @@ def test_upload_product_image_replaces_old(client):
 def test_upload_product_image_oversize(client):
     """文件超过 10MB 应返回 400"""
     settings = get_settings()
-    with patch.object(settings, "r2_enabled", True):
+    with patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=True):
         from app.db.session import SessionLocal
         db = SessionLocal()
         try:
@@ -164,7 +171,7 @@ def test_upload_product_image_oversize(client):
 def test_upload_product_image_invalid_type(client):
     """上传 .txt 应返回 400"""
     settings = get_settings()
-    with patch.object(settings, "r2_enabled", True):
+    with patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=True):
         from app.db.session import SessionLocal
         db = SessionLocal()
         try:
@@ -184,7 +191,7 @@ def test_upload_product_image_invalid_type(client):
 def test_upload_product_image_sku_not_found(client):
     """不存在的 SKU 应返回 404"""
     settings = get_settings()
-    with patch.object(settings, "r2_enabled", True):
+    with patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=True):
         files = {"file": ("test.png", _make_png_bytes(), "image/png")}
         response = client.post(
             "/api/v1/sku-info/999999/product-image",
@@ -197,7 +204,7 @@ def test_upload_product_image_sku_not_found(client):
 def test_upload_product_image_r2_disabled(client):
     """R2 未配置应返回 503"""
     settings = get_settings()
-    with patch.object(settings, "r2_enabled", False):
+    with patch.object(type(settings), "r2_enabled", new_callable=PropertyMock, return_value=False):
         from app.db.session import SessionLocal
         db = SessionLocal()
         try:
@@ -217,7 +224,7 @@ def test_upload_product_image_r2_disabled(client):
 def test_delete_product_image_success(client):
     """删除有图 SKU：清空 DB 字段 + 删除 R2 对象"""
     settings = get_settings()
-    with patch("app.api.v1.endpoints.sku_info.delete_file_from_r2") as mock_delete:
+    with patch("app.services.r2_service.delete_file_from_r2") as mock_delete:
         from app.db.session import SessionLocal
         db = SessionLocal()
         try:
@@ -227,6 +234,7 @@ def test_delete_product_image_success(client):
             sku.product_image_uploaded_at = datetime.now()
             sku.product_image_uploaded_by = "old_operator"
             db.commit()
+            db.refresh(sku)
         finally:
             db.close()
 
@@ -255,7 +263,7 @@ def test_delete_product_image_success(client):
 def test_delete_product_image_idempotent(client):
     """删除无图 SKU：返回 200，DB 字段本就为 null"""
     settings = get_settings()
-    with patch("app.api.v1.endpoints.sku_info.delete_file_from_r2") as mock_delete:
+    with patch("app.services.r2_service.delete_file_from_r2") as mock_delete:
         from app.db.session import SessionLocal
         db = SessionLocal()
         try:

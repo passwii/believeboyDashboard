@@ -56,6 +56,16 @@ from app.utils.constants import (
 )
 
 
+@pytest.fixture
+def db_session():
+    """本文件全是纯单元测试，完全 mock 掉 DB 会话（无真实 I/O）。
+
+    在模块内遮蔽 conftest 的真实 ``db_session`` fixture——后者绑定测试库、
+    其 ``execute``/``get`` 是真实方法，无法被设置 ``return_value``/``side_effect``。
+    """
+    return MagicMock()
+
+
 class TestRiskConstants:
     def test_constants_match_expected_values(self):
         assert IN_TRANSIT_STATUSES == ("in_transit", "draft")
