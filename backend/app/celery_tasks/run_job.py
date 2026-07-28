@@ -42,7 +42,7 @@ from app.db.session import SessionLocal
 from app.models.job import JobStatus
 from app.services import job_service
 from app.services import report as monthly_report_service
-from app.tasks.script_registry import SCRIPT_HANDLERS
+from app.tasks import script_registry
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def run_job(self, job_id: int) -> dict:
         )
         payload = job.payload_json
 
-        handler = SCRIPT_HANDLERS.get(payload.get("job_type", ""))
+        handler = script_registry.get_script_handlers().get(payload.get("job_type", ""))
         if not handler:
             raise ValueError(f"Unsupported job_type: {payload.get('job_type')}")
 

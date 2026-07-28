@@ -20,13 +20,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from slugify import slugify
 
 # ─── Type conversion ─────────────────────────────────────────────────────────
 
 
 def to_int(value: Any) -> int:
+    import pandas as pd
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return 0
     try:
@@ -36,6 +36,7 @@ def to_int(value: Any) -> int:
 
 
 def to_decimal(value: Any) -> Decimal:
+    import pandas as pd
     if value is None:
         return Decimal("0")
     if isinstance(value, float) and pd.isna(value):
@@ -50,6 +51,7 @@ def to_decimal(value: Any) -> Decimal:
 
 
 def to_decimal_with_currency(value: Any) -> Decimal:
+    import pandas as pd
     if value is None:
         return Decimal("0")
     if isinstance(value, float) and pd.isna(value):
@@ -171,6 +173,7 @@ def build_storage_key(
 
 
 def to_raw_row(row: dict[str, Any]) -> dict[str, Any]:
+    import pandas as pd
     payload: dict[str, Any] = {}
     for key, value in row.items():
         text_key = str(key)

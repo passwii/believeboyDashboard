@@ -15,10 +15,6 @@ from app.utils.constants import (
 
 from app.services.ai.chat import normalize_optional_text, trim_trailing_slash
 
-# Phase 1.2(2026-07-21 集成计划):search 类工具名集合 + 消息级搜索元数据抽取,
-# 供 V2 StreamRunner 在 agent 跑完后从 result.all_messages() 还原 source cards。
-from pydantic_ai.messages import ToolCallPart, ToolReturnPart
-
 SEARCH_TOOL_NAMES = frozenset({"tavily_search", "web_search"})
 
 
@@ -45,6 +41,7 @@ def extract_search_meta_from_messages(
     通过 part.tool_name 直接识别 search 工具(ToolCallPart 取 query/time_range,
     ToolReturnPart 取结果建卡片),不依赖 tool_call_id 配对。
     """
+    from pydantic_ai.messages import ToolCallPart, ToolReturnPart
     query: str | None = None
     time_range: str | None = None
     cards: list[dict] | None = None

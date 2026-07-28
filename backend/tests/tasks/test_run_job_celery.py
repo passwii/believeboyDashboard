@@ -118,7 +118,11 @@ def test_run_job_early_exit_when_already_success(
         handler_called["count"] += 1
         return {"result_path": str(tmp_path / "should-not-exist.xlsx")}
 
-    monkeypatch.setitem(run_job_mod.SCRIPT_HANDLERS, "product_analysis", _spy_handler)
+    monkeypatch.setattr(
+        run_job_mod.script_registry,
+        "get_script_handlers",
+        lambda: {"product_analysis": _spy_handler},
+    )
 
     result = run_job.apply(args=[job.id]).get()
 
@@ -170,7 +174,11 @@ def test_run_job_writes_task_id_into_log_excerpt(
         output.write_text("ok")
         return {"result_path": str(output)}
 
-    monkeypatch.setitem(run_job_mod.SCRIPT_HANDLERS, "product_analysis", _fake_handler)
+    monkeypatch.setattr(
+        run_job_mod.script_registry,
+        "get_script_handlers",
+        lambda: {"product_analysis": _fake_handler},
+    )
 
     # Stub out resolve_upload_path so the job doesn't need a real upload file.
     monkeypatch.setattr(

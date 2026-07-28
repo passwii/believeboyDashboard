@@ -11,7 +11,7 @@ from typing import Any
 from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.models.job import JobStatus
-from app.tasks.script_registry import SCRIPT_HANDLERS
+from app.tasks import script_registry as _script_registry
 from app.services.product._internal import _is_single_full_week as _is_single_full_week
 from app.services.product.persistence import (
     persist_product_analysis_pt1_calculation,
@@ -226,7 +226,7 @@ def _run_task(task_id: int, payload: dict[str, Any]) -> None:
         input_path = Path(str(payload["input_path"]))
         params = payload["params"] if isinstance(payload.get("params"), dict) else {}
 
-        handler = SCRIPT_HANDLERS.get(report_type)
+        handler = _script_registry.get_script_handlers().get(report_type)
         if handler is None:
             raise ValueError(f"Unsupported report_type: {report_type}")
 
