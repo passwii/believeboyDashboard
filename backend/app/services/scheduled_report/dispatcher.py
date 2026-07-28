@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
 
+from celery.exceptions import SoftTimeLimitExceeded, TimeLimitExceeded
 from sqlalchemy import select as sa_select
 
 from app.db.session import SessionLocal
@@ -822,6 +823,19 @@ def _dispatch_one_task_body(
             mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
             result["error"] = resend_id_or_error
             logger.warning("Report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
+    except (SoftTimeLimitExceeded, TimeLimitExceeded) as e:
+        # Celery's generic ``except Exception`` writes FAILED but ``str(exc)``
+        # is the unhelpful ``SoftTimeLimitExceeded('300s')`` repr — front-end
+        # operators can't tell timeout apart from other failures from that
+        # alone. Surface the cause explicitly so the UI shows a useful error
+        # string. Regression test: tests/services/scheduled_report/
+        # test_resend_hang_regression.py.
+        timeout_kind = "soft time limit" if isinstance(e, SoftTimeLimitExceeded) else "hard time limit"
+        err = f"Dispatch hit {timeout_kind} ({e}); partial work discarded."
+        update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
+        mark_delivery_failed(db, log_id, err)
+        result["error"] = err
+        logger.error("Report dispatch %s: sub=%d", timeout_kind, subscription_id)
     except Exception as e:
         update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
         mark_delivery_failed(db, log_id, str(e))

@@ -143,7 +143,10 @@ def html_to_png(
             page.set_content(html, wait_until="domcontentloaded")
             # logo 是 data URI（无网络请求），300ms 足够字体/布局稳定
             page.wait_for_timeout(300)
-            png_bytes = page.screenshot(full_page=True, type="png")
+            # 2x scale + full_page=True 在 1.9 GiB VPS 上 Playwright 默认 30s 经常超时
+            # （2026-07-28 journal: "Page.screenshot: Timeout 30000ms exceeded"）。
+            # 给到 120s 覆盖 P99 + 渲染抖动；超过这个应该视为 bug 而不是普通运行。
+            png_bytes = page.screenshot(full_page=True, type="png", timeout=120_000)
             browser.close()
     except Exception as e:
         logger.error("截图生成失败: %s", e)
