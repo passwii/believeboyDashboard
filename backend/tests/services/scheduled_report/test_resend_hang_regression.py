@@ -86,24 +86,25 @@ def test_html_to_png_passes_explicit_timeout_to_playwright(monkeypatch):
 
 
 def test_html_to_png_launch_is_minimal(monkeypatch):
-    """html_to_png must launch Chromium with the minimal call signature that
-    was stable for the last 7+ days in production (commit ``6afa78e1``).
+    """html_to_png must launch Chromium with headless=True and ONLY safe
+    resource-limiting args.
 
-    Real-world regression: on 2026-07-28 we naively added ``channel="chrome-headless-shell"``,
-    ``--single-process``, ``--disable-gpu``, and a long list of other args
-    because we mis-diagnosed "two chrome processes" and "120s timeout" as
-    launch-config problems. The actual root cause was elsewhere (HTML content
-    size + ai_summary blocking); the extra launch args made things worse:
+    Real-world regression history:
+    - 2026-07-28 (第一次): 误诊加 ``channel="chrome-headless-shell"``,
+      ``--single-process``, ``--disable-gpu`` → 更慢/死锁。已 revert。
+    - 2026-07-28 (第二次): playwright 1.60.0 的 Chrome 148 在 2核 VPS 打满
+      CPU → screenshot timeout → 级联崩溃。修复：降回 1.52.0 + 加资源限制参数。
 
-    - ``--disable-gpu`` forces ECharts / SVG / Canvas rendering through a
-      software path — 5-10x slower CPU.
-    - ``--single-process`` is officially "not recommended for production" by
-      Playwright (deadlock-prone).
-    - ``channel="chrome-headless-shell"`` is already playwright 1.55+'s
-      default for ``headless=True``; specifying it explicitly adds nothing.
+    禁止的参数（会导致性能退化或死锁）：
+    - ``--single-process``（playwright 官方不推荐，易 deadlock）
+    - ``--disable-gpu``（ECharts/SVG/Canvas 走软渲染，CPU 慢 5-10x）
+    - ``channel=``（playwright 1.55+ headless 已默认用 headless_shell）
 
-    This is a regression guard: anyone refactoring html_to_png should keep
-    the launch signature as a one-liner with ONLY headless=True.
+    允许的参数（资源限制，不影响渲染路径）：
+    - ``--renderer-process-limit``、``--disable-dev-shm-usage``、
+      ``--disable-background-networking``、``--disable-extensions``、
+      ``--disable-sync``、``--metrics-recording-only``、``--mute-audio``、
+      ``--no-first-run``
     """
     from app.services.scheduled_report import screenshot as ss_mod
 
@@ -125,17 +126,25 @@ def test_html_to_png_launch_is_minimal(monkeypatch):
 
     fake_pw_cm.__enter__.return_value.chromium.launch.assert_called_once()
     call = fake_pw_cm.__enter__.return_value.chromium.launch.call_args
-    # Must be called with ONLY headless=True. No args, no extra kwargs.
+    # 不能有 positional args
     assert call.args == (), (
         f"launch called with positional args {call.args!r}; expected no positional args"
     )
-    assert set(call.kwargs.keys()) == {"headless"}, (
-        f"launch kwargs={set(call.kwargs.keys())}; expected only {{'headless'}}. "
-        "Adding --single-process / --disable-gpu / channel= explicitly has "
-        "caused production screenshot timeouts (2026-07-28 regression)."
+    # kwargs 只允许 headless + args
+    assert set(call.kwargs.keys()) <= {"headless", "args"}, (
+        f"launch kwargs={set(call.kwargs.keys())}; expected subset of {{'headless', 'args'}}. "
+        "Adding channel= explicitly has caused production screenshot timeouts."
     )
     assert call.kwargs["headless"] is True, (
         f"headless={call.kwargs['headless']!r}; expected True"
+    )
+    # 禁止危险参数
+    launch_args = call.kwargs.get("args", [])
+    _FORBIDDEN = {"--single-process", "--disable-gpu"}
+    found_forbidden = _FORBIDDEN.intersection(launch_args)
+    assert not found_forbidden, (
+        f"launch args contain forbidden flags {found_forbidden}; "
+        "these cause software rendering (5-10x slower) or deadlocks."
     )
 
 

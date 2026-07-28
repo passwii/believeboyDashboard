@@ -109,16 +109,30 @@ def html_to_png(
 
     try:
         with sync_playwright() as p:
-            # 6afa78e1（2026-07-21，前一周）的稳定 launch 配置：
-            # p.chromium.launch(headless=True) — 一行就够，playwright 自动用 headless_shell。
+            # 6afa78e1（2026-07-21）的稳定 launch 配置基础上，追加资源限制参数：
             # 不要加 --single-process（playwright 官方说不推荐生产用，易 deadlock）
             # 不要加 --disable-gpu（会让 ECharts/SVG/Canvas 走软渲染，CPU 慢 5-10x）
             # 不要显式 channel='chrome-headless-shell'（playwright 1.55+ headless 已是默认行为）
-            # 保留 timeout=120_000 防御性超时（playwright 默认 30s 偏紧）。
-            # 6afa78e1 前的几次"修复"反而引入了问题：--disable-gpu 让 ECharts 极慢，
-            # --single-process 易死锁。回归测试 test_html_to_png_launch_is_minimal
-            # 会锁死这个一行 launch 契约，防止以后再被乱加参数。
-            browser = p.chromium.launch(headless=True)
+            #
+            # 2026-07-28 事故后追加的资源限制（Chrome 148 在 2核/2GB VPS 打满 CPU）：
+            # --renderer-process-limit=2  限制渲染进程数（默认按核数 spawn，2核=2个）
+            # --disable-dev-shm-usage     /dev/shm 太小（VPS 通常 64MB），改用 /tmp
+            # --disable-background-networking  禁止后台网络活动（更新检查等）
+            # --disable-extensions / --disable-sync / --metrics-recording-only  减少后台开销
+            # --mute-audio / --no-first-run  跳过无关初始化
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--renderer-process-limit=2",
+                    "--disable-dev-shm-usage",
+                    "--disable-background-networking",
+                    "--disable-extensions",
+                    "--disable-sync",
+                    "--metrics-recording-only",
+                    "--mute-audio",
+                    "--no-first-run",
+                ],
+            )
             page = browser.new_page(
                 viewport={"width": width, "height": _VIEWPORT_HEIGHT},
                 device_scale_factor=scale,
