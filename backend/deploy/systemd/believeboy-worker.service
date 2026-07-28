@@ -7,7 +7,7 @@ User=root
 Group=root
 WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
-ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=4
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=2
 Restart=always
 RestartSec=3
 

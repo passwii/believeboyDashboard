@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     # Celery (auto-derived from REDIS_* when blank)
     celery_broker_url: str = Field(default="", max_length=500)
     celery_result_url: str = Field(default="", max_length=500)
-    celery_worker_concurrency: int = Field(default=4, ge=1, le=32)
+    celery_worker_concurrency: int = Field(default=2, ge=1, le=32)
     # CRM 公海自动回收（P3a）：有主但超过 N 天未跟进的客户/线索自动掉公海。
     # 0 = 关闭自动回收。环境变量 CRM_SEA_RECLAIM_DAYS 可调。
     crm_sea_reclaim_days: int = Field(default=15, ge=0, le=365)
