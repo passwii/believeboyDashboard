@@ -41,6 +41,11 @@ DEPLOY_COMMANDS = [
     f"cd {PROJECT_DIR} && git pull --ff-only",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
+    # 同步 systemd service 文件到系统目录并重新加载
+    f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker.service /etc/systemd/system/believeboy-worker.service "
+    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker-scheduled.service /etc/systemd/system/believeboy-worker-scheduled.service "
+    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
+    f"&& systemctl daemon-reload",
     "systemctl restart believeboy-api",
     # BEL-补发修复：Celery worker 必须随代码部署一起重启，否则旧进程内存里
     # 的 task 签名不更新（如 dispatch_one 的 old_log_id 参数），补发任务会

@@ -10,7 +10,7 @@ WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
 ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
           -A app.tasks.celery_app worker \
-          -Q scheduled -c 1 --loglevel=info
+          -Q scheduled -c 1 --loglevel=info --max-tasks-per-child=100
 Restart=always
 RestartSec=3
 
@@ -23,9 +23,9 @@ MemoryHigh=384M
 MemorySwapMax=128M
 
 # 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
-<<<<<<< HEAD
 # `believeboy-worker.service` 负责。`-c 1` 避免并发启动多个 Chromium
 # 实例导致 OOM（截图任务内存膨胀）。单路并发 + countdown 错峰已足够。
+# `--max-tasks-per-child=100` 防止 fork worker 长期运行后内存膨胀不释放。
 
 [Install]
 WantedBy=multi-user.target
