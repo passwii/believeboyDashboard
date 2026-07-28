@@ -213,6 +213,9 @@ export default function OrderInfoPage() {
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
+  // 首次加载时自动选中第一个店铺，避免默认全部店铺导致全量数据慢查询
+  const initialProjectAutoselected = useRef(false)
+
   // ====== 关键字输入 debounce（250ms）======
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -332,15 +335,28 @@ export default function OrderInfoPage() {
     }
   }, [buildQuery, session])
 
+  // ====== 首次加载：拿到筛选项后自动选中第一个店铺 ======
+  useEffect(() => {
+    if (!filterOptions || initialProjectAutoselected.current) return
+    if (filterOptions.projects.length > 0) {
+      initialProjectAutoselected.current = true
+      setProjectId(filterOptions.projects[0].value)
+    } else {
+      initialProjectAutoselected.current = true
+    }
+  }, [filterOptions])
+
   // ====== 副作用：任何筛选变化触发 fetch ======
   // 等 filter-options 至少回来一次再拉数据，避免在 Next.js App Router 偶发的
   // session / X-Operator 头时序窗口内，与 filter-options 并行发出的 list 请求
   // 被后端 _ensure_project_access_for_orders 命中 "operator 为空 → 空结果" 分支，
   // 导致用户看到 "店铺下拉还是空的、列表已经是空" 的死锁。
+  // 首次加载时等待店铺自动选中后再 fetch，避免默认"全部店铺"拉全量数据慢查询。
   useEffect(() => {
     if (!filterOptions) return
+    if (!initialProjectAutoselected.current) return
     void fetchData()
-  }, [fetchData, filterOptions])
+  }, [fetchData, filterOptions, projectId])
 
   // ====== 操作 handlers ======
   const handleRefresh = () => {
