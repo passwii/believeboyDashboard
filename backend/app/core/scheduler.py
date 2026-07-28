@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 _scheduler: "BackgroundScheduler" | None = None
+_scheduler_lock_fd: int | None = None
+
+_SCHEDULER_LOCK_PATH = "/tmp/believeboy-scheduler.lock"
+
+
+def _try_acquire_lock() -> bool:
+    """Try to acquire an exclusive file lock for the scheduler.
+
+    Only one uvicorn worker should run APScheduler.
+    Lock auto-releases on process exit or fd close.
+    """
+    global _scheduler_lock_fd
+    fd = os.open(_SCHEDULER_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return False
+    _scheduler_lock_fd = fd
+    return True
+
+
+def _release_lock() -> None:
+    """Release the scheduler lock if held by this process."""
+    global _scheduler_lock_fd
+    if _scheduler_lock_fd is not None:
+        try:
+            os.close(_scheduler_lock_fd)
+        except OSError:
+            pass
+        _scheduler_lock_fd = None
 
 
 def get_scheduler():
@@ -184,12 +217,17 @@ def _dispatch_subscriptions(frequency: str, subscriptions: list) -> None:
 def init_scheduler() -> None:
     """Initialize and start the background scheduler.
 
+    Uses a file-based lock to ensure only one uvicorn worker runs APScheduler.
     Registers:
     - Insight schedules
     - Minutely dispatch scanner (checks all subscriptions every minute, Beijing time)
     """
     global _scheduler
     if _scheduler is not None:
+        return
+
+    if not _try_acquire_lock():
+        logger.info("Scheduler lock held by another worker, skipping scheduler startup")
         return
 
     try:
@@ -221,8 +259,10 @@ def init_scheduler() -> None:
 
     except ImportError:
         logger.warning("APScheduler not installed, scheduler disabled")
+        _release_lock()
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
+        _release_lock()
 
 
 def shutdown_scheduler() -> None:
@@ -239,3 +279,5 @@ def shutdown_scheduler() -> None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
         logger.info("Scheduler stopped")
+
+    _release_lock()
