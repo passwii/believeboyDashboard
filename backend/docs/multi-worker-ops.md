@@ -6,7 +6,7 @@
 
 本文档覆盖引入 Celery + Redis 多 worker 之后，日常运维最常触达的 5 件事：
 
-1. 启停 `believeboy-worker.service`
+1. 启停 `believeboy-celery.service`
 2. 查看队列 / 任务状态（CLI + 前端 Job 表）
 3. 队列堆积时的处置 SOP
 4. 把任务从 DLQ 拉回主队列
@@ -17,8 +17,8 @@
 | 单元文件 | 作用 | 关键命令 |
 | --- | --- | --- |
 | `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
-| `deploy/systemd/believeboy-worker.service` | 主 Celery worker（`-c 4`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
-| `deploy/systemd/believeboy-worker-scheduled.service` | 定时报告专用 worker（`-c 2`，BEL-NEW） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
+| `deploy/systemd/believeboy-celery.service` | 主 Celery worker（`-c 4`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
+| `deploy/systemd/believeboy-celery-scheduled.service` | 定时报告专用 worker（`-c 2`，BEL-NEW） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
 
 > **为什么新增 `scheduled` worker？** 方案 §4.4 的核心价值是**内存隔离**：
 > 定时报告带 Playwright headless 截图（约 200-400MB / 任务），OOM 时只
@@ -26,7 +26,7 @@
 > 副作用是 scheduled 单进程内 `_summary_cache` 全局共享（P1-3 / §4.3）。
 
 
-> **为什么只起一个 worker 进程？** `believeboy-worker.service` 用的是
+> **为什么只起一个 worker 进程？** `believeboy-celery.service` 用的是
 > `celery -A app.tasks.celery_app worker -c 4`：一个 worker **进程** + 4
 > 个并发线程。这是 CPU 4 核的 VPS 的默认配置。需要更多并行槽位时，参见
 > 末尾「横向扩展」一节；目前不建议直接调高 `-c`，因为报告类任务 IO
@@ -36,24 +36,24 @@
 
 ```bash
 # 查看状态
-systemctl status believeboy-worker
+systemctl status believeboy-celery
 
 # 启动 / 停止 / 重启
-sudo systemctl start believeboy-worker
-sudo systemctl stop believeboy-worker
-sudo systemctl restart believeboy-worker
+sudo systemctl start believeboy-celery
+sudo systemctl stop believeboy-celery
+sudo systemctl restart believeboy-celery
 
 # 看最近 200 行日志（journald；用 `--no-pager` 避免一次性卡住）
-sudo journalctl -u believeboy-worker -n 200 --no-pager
+sudo journalctl -u believeboy-celery -n 200 --no-pager
 
 # 实时跟踪
-sudo journalctl -u believeboy-worker -f
+sudo journalctl -u believeboy-celery -f
 
 # 只看 ERROR 级别
-sudo journalctl -u believeboy-worker -p err -n 100 --no-pager
+sudo journalctl -u believeboy-celery -p err -n 100 --no-pager
 ```
 
-`believeboy-worker.service` 已在 `[Service]` 段声明 `Restart=always` +
+`believeboy-celery.service` 已在 `[Service]` 段声明 `Restart=always` +
 `RestartSec=3`：进程崩溃后 3 秒自动拉起。**只有当业务层反复 OOM 时才
 需要手工停掉它排查**，见第 5 节。
 
@@ -66,7 +66,7 @@ sudo journalctl -u believeboy-worker -p err -n 100 --no-pager
 CELERY_WORKER_CONCURRENCY=8
 ```
 
-`sudo systemctl restart believeboy-worker` 即可生效。用
+`sudo systemctl restart believeboy-celery` 即可生效。用
 `celery -A app.tasks.celery_app inspect stats` 可立即看到新 `concurrency`。
 
 > 不要把单进程 `concurrency` 调到 `nproc × 2` 以上：CPU 切换 + DB 连
@@ -82,7 +82,7 @@ worker / 队列 / 任务用以下手段：
 
 ```bash
 # worker 进程在不在
-systemctl status believeboy-worker
+systemctl status believeboy-celery
 ps -ef | grep -E "celery -A app.tasks" | grep -v grep
 
 # 用 celery inspect 看在线 worker + 并发 + 当前活跃任务
@@ -124,8 +124,8 @@ redis-cli -n <broker_db> LLEN insights
 
 1. **先看 worker 是否在跑**：
    ```bash
-   systemctl status believeboy-worker
-   sudo journalctl -u believeboy-worker -p err -n 50 --no-pager
+   systemctl status believeboy-celery
+   sudo journalctl -u believeboy-celery -p err -n 50 --no-pager
    ```
    进程不在 / 一直 OOM 退出 → 看第 5.1 节。
 
@@ -134,10 +134,10 @@ redis-cli -n <broker_db> LLEN insights
    # 看 worker 的并发是否被吃满
    redis-cli -n 0 KEYS 'celery-task-meta-*' | wc -l
    # 看 worker 的 heartbeat（最近一次 ack 距今多久）
-   sudo journalctl -u believeboy-worker --since "10 min ago" | tail
+   sudo journalctl -u believeboy-celery --since "10 min ago" | tail
    ```
    现象 1：**所有任务都卡在 `Received` 不动** —— 任务体里 `await` 了一
-   个永不返回的 RPC / DB 死锁。`systemctl restart believeboy-worker`
+   个永不返回的 RPC / DB 死锁。`systemctl restart believeboy-celery`
    把 worker 进程整体踢掉，broker 会把未 ack 的消息 rebalance 给新进程
    （`task_acks_late=True` 已开），新进程从 `STARTED` 步骤开始重做。
 
@@ -225,23 +225,23 @@ redis-cli -n <broker_db> DEL celery  # 删除 broker 队列
 症状：journald 里反复看到：
 
 ```
-believeboy-worker.service: Main process exited, code=killed, status=9/KILL
+believeboy-celery.service: Main process exited, code=killed, status=9/KILL
 ```
 
 或花式 `MemoryError`、`Cannot allocate memory`。
 
 排查路径：
 
-1. `journalctl -u believeboy-worker -n 200 --no-pager | grep -E "Memory|OOM"` 看任务级别堆栈。
+1. `journalctl -u believeboy-celery -n 200 --no-pager | grep -E "Memory|OOM"` 看任务级别堆栈。
 2. 90% 的 case 是**单条报告任务拉了整张 200w+ 行的 `monthly_reports` 表到
    Python list**。在 `app/services/report_*` 里找 `df = pd.read_sql(...)` 看是不是
    没用 `chunksize=`。
 3. 临时止血：
    ```bash
    # 把 worker 暂停 5 分钟让任务在 broker 端排队，避免雪崩
-   sudo systemctl stop believeboy-worker
+   sudo systemctl stop believeboy-celery
    sleep 300
-   sudo systemctl start believeboy-worker
+   sudo systemctl start believeboy-celery
    ```
 4. 永久修复 PR 走正常的 code review 流程。
 
@@ -254,7 +254,7 @@ process 也一直没退。
 
 1. **worker 进程是否还在**？
    ```bash
-   systemctl status believeboy-worker
+   systemctl status believeboy-celery
    ps -ef | grep -E "celery -A app.tasks" | grep -v grep
    ```
 2. **worker 进程还在**：极可能是任务体里在 `await` 一个永不返回的对象
@@ -294,7 +294,7 @@ connecting to ...`。
 ```bash
 cd /root/believeboyDashboard/backend
 # 关掉 systemd 单元（不要同时跑）
-sudo systemctl stop believeboy-worker
+sudo systemctl stop believeboy-celery
 # 拉起 3 个 worker 进程
 ./run_worker.sh multi 3
 # 验证
@@ -303,7 +303,7 @@ ls run/celery/  # 3 个 pidfile
 ```
 
 横向扩展后会**绕过** systemd 的 `Restart=always`——要恢复自动拉起
-行为，需要写一个新的 systemd 单元（`believeboy-worker@.service`），
+行为，需要写一个新的 systemd 单元（`believeboy-celery@.service`），
 用 `celery multi start N` 替换 `ExecStart`，并 `systemctl enable
 celery-workers.target`。这一改造不在本 issue 范围内，等真的需要时
 另起子 issue。

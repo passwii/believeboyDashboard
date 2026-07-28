@@ -252,7 +252,7 @@ cd backend
 
 这将创建并启用 Systemd 服务：
 - `believeboy-api.service` - API 服务器
-- `believeboy-worker.service` - 后台任务执行器
+- `believeboy-celery.service` - 后台任务执行器
 
 ### 数据库
 - 生产环境建议使用独立的 PostgreSQL 实例

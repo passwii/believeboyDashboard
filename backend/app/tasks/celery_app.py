@@ -1,7 +1,7 @@
 """Celery application factory and configuration.
 
 This module owns the Celery app instance used by the worker systemd unit
-(`believeboy-worker.service`).
+(`believeboy-celery.service`).
 
 BEL-55-P0 brought up the broker + ping smoke-test task. BEL-55-P1 adds
 `app.celery_tasks.run_job` (the lifted `worker.tasks.run_job`) and the
@@ -34,7 +34,7 @@ def _build_celery_app() -> Celery:
         # `ping` is the BEL-55-P0 smoke-test task; `run_job` is the
         # BEL-55-P1 lift of `worker.tasks.run_job` into Celery. The
         # worker systemd unit consumes from `default,reports,insights`
-        # (see deploy/systemd/believeboy-worker.service) so both modules
+        # (see deploy/systemd/believeboy-celery.service) so both modules
         # are eagerly imported at worker boot.
         # BEL-NEW: `scheduled_report.dispatch_one` (方案 §4.5) and
         # `ai_summary.generate_delivery_summary` (§4.6) add two more tasks

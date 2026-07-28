@@ -16,7 +16,7 @@ VPS 部署 Agent - BelieveBoy Dashboard
 2. git pull 拉取最新代码
 3. 激活后端虚拟环境
 4. 运行 alembic 数据库迁移
- 5. 重启 believeboy-api 服务与两个 Celery worker（believeboy-worker / believeboy-worker-scheduled）
+ 5. 重启 believeboy-api 服务与两个 Celery worker（believeboy-celery / believeboy-celery-scheduled）
  6. 验证服务运行状态
  7. 获取并分析部署失败的日志
 """
@@ -41,29 +41,36 @@ DEPLOY_COMMANDS = [
     f"cd {PROJECT_DIR} && git pull --ff-only",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
-    # 同步 systemd service 文件到系统目录并重新加载
-    f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker.service /etc/systemd/system/believeboy-worker.service "
-    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker-scheduled.service /etc/systemd/system/believeboy-worker-scheduled.service "
+    # --- 一次性迁移：believeboy-worker* → believeboy-celery* ---
+    # 停旧单元（不存在则跳过），禁用并删除旧 service 文件
+    "systemctl stop believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
+    "systemctl disable believeboy-worker.service believeboy-worker-scheduled.service 2>/dev/null || true",
+    "rm -f /etc/systemd/system/believeboy-worker.service /etc/systemd/system/believeboy-worker-scheduled.service",
+    # --- 同步新 service 文件到系统目录并重新加载 ---
+    f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery.service /etc/systemd/system/believeboy-celery.service "
+    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-celery-scheduled.service /etc/systemd/system/believeboy-celery-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
     f"&& systemctl daemon-reload",
+    # 启用新单元（首次部署时 enable，后续幂等）
+    "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true",
     "systemctl restart believeboy-api",
     # Celery worker 必须随代码部署一起重启，否则旧进程内存里的 task 签名
     # 不更新（如 dispatch_one 的 old_log_id 参数），补发任务会抛 TypeError
     # 并永久卡在 preparing。两个 worker 单元：
-    #   believeboy-worker（-Q default,reports,insights,ai_summary -c 4）
-    #   believeboy-worker-scheduled（-Q scheduled -c 2，截图内存隔离）
+    #   believeboy-celery（-Q default,reports,insights,ai_summary -c 4）
+    #   believeboy-celery-scheduled（-Q scheduled -c 2，截图内存隔离）
     # 均用 acks_late + task_reject_on_worker_lost，重启时 in-flight 任务
     # 会被 broker 重投，安全。
-    "systemctl restart believeboy-worker.service",
-    "systemctl restart believeboy-worker-scheduled.service",
+    "systemctl restart believeboy-celery.service",
+    "systemctl restart believeboy-celery-scheduled.service",
     "systemctl status believeboy-api --no-pager",
 ]
 
 # 检查命令（部署后验证）
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
-    "systemctl is-active believeboy-worker.service",
-    "systemctl is-active believeboy-worker-scheduled.service",
+    "systemctl is-active believeboy-celery.service",
+    "systemctl is-active believeboy-celery-scheduled.service",
     f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
 ]
 
@@ -364,7 +371,7 @@ def deploy(dry_run=False, auto_confirm=False):
             )
             # 一并显示 scheduled worker 启动日志，确认新代码已加载、dispatch_one 已注册
             subprocess.run(
-                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-worker-scheduled --no-pager -n 12'",
+                f"ssh {VPS_USER}@{VPS_HOST} 'journalctl -u believeboy-celery-scheduled --no-pager -n 12'",
                 shell=True,
                 timeout=30,
             )

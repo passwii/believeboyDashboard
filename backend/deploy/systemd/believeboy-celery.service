@@ -1,0 +1,27 @@
+[Unit]
+Description=Believeboy Celery background worker
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/believeboyDashboard/backend
+EnvironmentFile=/root/believeboyDashboard/backend/.env
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=4 --max-tasks-per-child=100
+Restart=always
+RestartSec=3
+
+# 内存限制——主 worker 处理月报 / 洞察 / AI 摘要等 IO 密集任务，
+# 不含 Chrome 截图（已隔离到 believeboy-celery-scheduled）。
+# -c 4 并发峰值约 300-400 MB，512M 上限留有余量。
+MemoryMax=512M
+MemoryHigh=384M
+MemorySwapMax=128M
+
+# 消费 default,reports,insights,ai_summary 四个队列。
+# scheduled 队列由独立的 believeboy-celery-scheduled.service 消费，
+# 实现 Chrome 截图任务的内存隔离（方案 §4.4）。
+# --max-tasks-per-child=100 防止 fork worker 长期运行后内存膨胀不释放。
+
+[Install]
+WantedBy=multi-user.target

@@ -25,7 +25,7 @@
 
 ### Background Jobs
 Celery worker 基于 Redis broker 运行。当前两个 systemd 单元：
-- `believeboy-worker.service`（`-c 4`，消费 `default,reports,insights,ai_summary`）——手动月报 + AI 洞察 + 定时报告 AI 摘要
+- `believeboy-celery.service`（`-c 4`，消费 `default,reports,insights,ai_summary`）——手动月报 + AI 洞察 + 定时报告 AI 摘要
 - `belief-worker-scheduled.service`（`-c 2` BEL-NEW，仅消费 `scheduled`）——定时报告主体（数据 / 截图 / 邮件），方案 `2026-07-10-scheduled-report-to-celery.md §4.4`
 
 APScheduler 仍跑在 API 进程内，每分钟扫订阅触发派发。但调度本身退化成"定时器"——派发延迟通过 Celery `apply_async(countdown=i*SCHEDULED_DISPATCH_SPREAD_SECONDS, ...)` 错峰，主体任务跑在 worker。`SCHEDULED_REPORT_VIA_CELERY=false` 可回到 ThreadPoolExecutor 同步派发形态（秒级回滚，不动代码）。监控面板 Flower 已移除（冗余——任务状态走 Job 表 + 前端轮询，运维见 `backend/docs/multi-worker-ops.md`）。

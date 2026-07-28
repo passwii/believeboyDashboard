@@ -8,7 +8,7 @@ Group=root
 WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
 # 单实例 beat：--schedule 指定本地 db 文件，避免多 beat 重复发任务。
-# 只调度、不执行——任务由 believeboy-worker（default 队列）消费。
+# 只调度、不执行——任务由 believeboy-celery（default 队列）消费。
 ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app beat -l info --schedule=/var/lib/believeboy/celerybeat-schedule
 Restart=always
 RestartSec=3

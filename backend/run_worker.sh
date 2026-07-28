@@ -2,7 +2,7 @@
 #
 # Local Celery worker launcher.
 #
-# Production uses `backend/deploy/systemd/believeboy-worker.service` which
+# Production uses `backend/deploy/systemd/believeboy-celery.service` which
 # boots a single multi-process worker via the `celery worker` command. This
 # script mirrors that behaviour for local dev while also exposing a thin
 # wrapper around `celery multi` for spinning up multiple worker processes

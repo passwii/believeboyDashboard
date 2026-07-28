@@ -6,7 +6,7 @@
 
 1. 确认后台 Celery worker 已运行：
    ```bash
-   systemctl status believeboy-worker.service
+   systemctl status believeboy-celery.service
    celery -A app.tasks.celery_app inspect ping
    ```
 
@@ -45,7 +45,7 @@
    - 先在 staging 完成上述验证
    - 灰度 1 台生产 API 到 `--workers 4`
    - 观察 15 分钟无 404/500 增长后，再全量切换
-   - 保持 Celery worker 并发度由 `believeboy-worker.service` 的 `--concurrency=4` 控制
+   - 保持 Celery worker 并发度由 `believeboy-celery.service` 的 `--concurrency=4` 控制
 
 ## APScheduler 多实例去重（BEL-NEW：切片 3 / M7）
 
