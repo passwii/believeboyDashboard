@@ -43,16 +43,19 @@ DEPLOY_COMMANDS = [
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
     # 同步 systemd service 文件到系统目录并重新加载
     f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker.service /etc/systemd/system/believeboy-worker.service "
+    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker-scheduled.service /etc/systemd/system/believeboy-worker-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
     f"&& systemctl daemon-reload",
     "systemctl restart believeboy-api",
-    # BEL-补发修复：Celery worker 必须随代码部署一起重启，否则旧进程内存里
-    # 的 task 签名不更新（如 dispatch_one 的 old_log_id 参数），补发任务会
-    # 抛 TypeError 并永久卡在 preparing。3 个 worker 已合并为 1 个
-    # （-Q default,reports,insights,ai_summary,scheduled -c 1），
+    # Celery worker 必须随代码部署一起重启，否则旧进程内存里的 task 签名
+    # 不更新（如 dispatch_one 的 old_log_id 参数），补发任务会抛 TypeError
+    # 并永久卡在 preparing。两个 worker 单元：
+    #   believeboy-worker（-Q default,reports,insights,ai_summary -c 4）
+    #   believeboy-worker-scheduled（-Q scheduled -c 2，截图内存隔离）
     # 均用 acks_late + task_reject_on_worker_lost，重启时 in-flight 任务
     # 会被 broker 重投，安全。
     "systemctl restart believeboy-worker.service",
+    "systemctl restart believeboy-worker-scheduled.service",
     "systemctl status believeboy-api --no-pager",
 ]
 
@@ -60,7 +63,8 @@ DEPLOY_COMMANDS = [
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
     "systemctl is-active believeboy-worker.service",
-    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"import app.main\"",
+    "systemctl is-active believeboy-worker-scheduled.service",
+    f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
 ]
 
 # 日志获取命令（用于错误分析）
@@ -96,9 +100,9 @@ def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeou
 
 def collect_failure_logs(stage_name, dry_run=False):
     """收集部署失败时的详细日志信息。"""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  收集 {stage_name} 失败时的日志...")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     logs = {
         "timestamp": datetime.datetime.now().isoformat(),
@@ -124,7 +128,7 @@ def collect_failure_logs(stage_name, dry_run=False):
     print("\n>>> 检查 Python 应用错误...")
     rc, out, err = run_ssh_command(
         f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c 'import app.main' 2>&1",
-        dry_run=dry_run
+        dry_run=dry_run,
     )
     logs["journal_logs"]["python_import"] = {
         "success": rc == 0,
@@ -154,7 +158,9 @@ def analyze_logs(logs):
     error_log = logs["journal_logs"].get("error", {}).get("output", "")
     if "ModuleNotFoundError" in error_log:
         report["likely_causes"].append("Python 模块缺失（可能需要 pip install）")
-        report["recommendations"].append("检查 requirements.txt 是否完整，尝试 pip install -r requirements.txt")
+        report["recommendations"].append(
+            "检查 requirements.txt 是否完整，尝试 pip install -r requirements.txt"
+        )
 
     if "ImportError" in error_log:
         report["likely_causes"].append("模块导入失败（依赖问题或代码冲突）")
@@ -164,15 +170,22 @@ def analyze_logs(logs):
         report["likely_causes"].append("数据库迁移失败")
         report["recommendations"].append("检查迁移脚本语法，或手动运行 alembic 排查")
 
-    if "port" in error_log.lower() and ("bind" in error_log.lower() or "address" in error_log.lower()):
+    if "port" in error_log.lower() and (
+        "bind" in error_log.lower() or "address" in error_log.lower()
+    ):
         report["likely_causes"].append("端口 8100 被占用")
-        report["recommendations"].append("运行 lsof -i:8100 查看占用进程，然后 kill 或重启该进程")
+        report["recommendations"].append(
+            "运行 lsof -i:8100 查看占用进程，然后 kill 或重启该进程"
+        )
 
     if "Permission denied" in error_log:
         report["likely_causes"].append("权限不足")
         report["recommendations"].append("检查 systemd service 文件的 User/Group 配置")
 
-    if "connection refused" in error_log.lower() or "cannot connect" in error_log.lower():
+    if (
+        "connection refused" in error_log.lower()
+        or "cannot connect" in error_log.lower()
+    ):
         report["likely_causes"].append("数据库连接失败")
         report["recommendations"].append("检查 DATABASE_URL 配置和服务是否运行")
 
@@ -182,7 +195,9 @@ def analyze_logs(logs):
         report["recommendations"].append("查看最近 50 条日志，手动定位问题")
 
     # 生成摘要
-    report["summary"] = f"部署在 [{logs['stage']}] 阶段失败，可能原因：{' | '.join(report['likely_causes'])}"
+    report["summary"] = (
+        f"部署在 [{logs['stage']}] 阶段失败，可能原因：{' | '.join(report['likely_causes'])}"
+    )
 
     return report
 
@@ -261,14 +276,16 @@ def deploy(dry_run=False, auto_confirm=False):
 
     # 步骤 1: 显示当前 git 状态
     print("\n>>> 步骤 1: 检查代码仓库状态...")
-    rc, out, err = run_ssh_command(f"cd {PROJECT_DIR} && git log --oneline -3", dry_run=dry_run)
+    rc, out, err = run_ssh_command(
+        f"cd {PROJECT_DIR} && git log --oneline -3", dry_run=dry_run
+    )
     if rc == 0:
         print("当前 HEAD:")
         print(out)
 
     if not auto_confirm and not dry_run:
         resp = input("\n是否继续部署？[y/N]: ")
-        if resp.lower() != 'y':
+        if resp.lower() != "y":
             print("部署已取消。")
             return False
 
@@ -361,9 +378,9 @@ def deploy(dry_run=False, auto_confirm=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='部署 BelieveBoy Dashboard 到 VPS')
-    parser.add_argument('--dry-run', action='store_true', help='预览命令但不执行')
-    parser.add_argument('--auto', action='store_true', help='跳过所有确认提示')
+    parser = argparse.ArgumentParser(description="部署 BelieveBoy Dashboard 到 VPS")
+    parser.add_argument("--dry-run", action="store_true", help="预览命令但不执行")
+    parser.add_argument("--auto", action="store_true", help="跳过所有确认提示")
     args = parser.parse_args()
 
     success = deploy(dry_run=args.dry_run, auto_confirm=args.auto)
