@@ -671,6 +671,8 @@ def list_follow_ups(
 def list_audit_logs(
     entity_type: str | None = Query(None),
     entity_id: int | None = Query(None),
+    entity_types: list[str] | None = Query(None),
+    entity_ids: list[int] | None = Query(None),
     actor_id: str | None = Query(None),
     action: str | None = Query(None),
     page: int = Query(1, ge=1),
@@ -678,12 +680,18 @@ def list_audit_logs(
     db: Session = Depends(get_read_db_session),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """审计日志查询（仅管理员）。"""
+    """审计日志查询（仅管理员）。
+
+    P5-9: 支持 entity_types + entity_ids 多值过滤（前端客户抽屉同时查
+    客户审计 + 客户下所有联系人审计）。
+    """
     require_admin(is_admin)
     items, total = audit_service.list_audit_logs(
         db,
         entity_type=entity_type,
         entity_id=entity_id,
+        entity_types=entity_types,
+        entity_ids=entity_ids,
         actor_id=actor_id,
         action=action,
         page=page,

@@ -110,16 +110,26 @@ def list_audit_logs(
     *,
     entity_type: str | None = None,
     entity_id: int | None = None,
+    entity_types: list[str] | None = None,
+    entity_ids: list[int] | None = None,
     actor_id: str | None = None,
     action: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[AuditLogItem], int]:
-    """按条件查审计日志（created_at desc + id desc 兜底），actor_name 实时解析。"""
+    """按条件查审计日志（created_at desc + id desc 兜底），actor_name 实时解析。
+
+    P5-9: 支持 entity_types + entity_ids 多值过滤（用于客户抽屉同时查
+    客户审计 + 该客户下所有联系人审计）。
+    """
     stmt = select(CrmAuditLog)
-    if entity_type is not None:
+    if entity_types is not None:
+        stmt = stmt.where(CrmAuditLog.entity_type.in_(entity_types))
+    elif entity_type is not None:
         stmt = stmt.where(CrmAuditLog.entity_type == entity_type)
-    if entity_id is not None:
+    if entity_ids is not None:
+        stmt = stmt.where(CrmAuditLog.entity_id.in_(entity_ids))
+    elif entity_id is not None:
         stmt = stmt.where(CrmAuditLog.entity_id == entity_id)
     if actor_id is not None:
         stmt = stmt.where(CrmAuditLog.actor_id == actor_id)

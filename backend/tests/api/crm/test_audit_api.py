@@ -154,3 +154,37 @@ def test_convert_lead_creates_customer_and_contact_audit_logs(client, admin_head
         headers=admin_headers,
     ).json()
     assert single["total"] == 1, "新主联系人应有 1 条 create 留痕"
+
+
+def test_list_audit_logs_filter_by_entity_types_and_ids(client, admin_headers, db_session):
+    """P5-9: list_audit_logs 支持 entity_types + entity_ids 组合过滤。
+    客户抽屉「操作记录」tab 需要同时拉取 customer + 该客户下所有 contact 的审计。
+    """
+    from app.db.session import SessionLocal
+    from app.services.crm.audit_service import record_log
+
+    # 建 1 个 customer 审计 + 2 个 contact 审计
+    record_log(db_session, entity_type="customer", entity_id=100, action="create", actor_id=None)
+    record_log(db_session, entity_type="contact", entity_id=201, action="create", actor_id=None)
+    record_log(db_session, entity_type="contact", entity_id=202, action="update", actor_id=None)
+    record_log(db_session, entity_type="lead", entity_id=999, action="create", actor_id=None)
+    db_session.commit()
+
+    # 通过端点查询：customer(100) + contact(201, 202)
+    resp = client.get(
+        "/api/v1/crm/audit-logs",
+        params={
+            "entity_types": ["customer", "contact"],
+            "entity_ids": [100, 201, 202],
+            "page_size": 50,
+        },
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    types = sorted({item["entity_type"] for item in data["items"]})
+    ids = sorted({item["entity_id"] for item in data["items"]})
+    # 应包含 customer(100) + 2 个 contact(201, 202)，不含 lead(999)
+    assert "lead" not in types
+    assert set(ids) == {100, 201, 202}, f"应只含 100/201/202, 实际 {ids}"
+    assert data["total"] == 3
