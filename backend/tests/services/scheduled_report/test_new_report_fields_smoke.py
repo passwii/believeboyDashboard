@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from unittest.mock import MagicMock
 
 from sqlalchemy import create_engine
@@ -33,6 +35,17 @@ from app.services.scheduled_report import (
     report_builder_monthly,
     report_builder_weekly,
 )
+
+
+@pytest.fixture(autouse=True)
+def _restore_ad_upload_file_is_current():
+    """_make_fake_db 会把共享模型类 AdUploadFile.is_current 改成 MagicMock；
+    测试后必须还原，否则污染后续所有查 is_current 的测试（全量跑时）。"""
+    from app.models import AdUploadFile
+
+    original = AdUploadFile.is_current
+    yield
+    AdUploadFile.is_current = original
 
 
 # ---------------------------------------------------------------------------
