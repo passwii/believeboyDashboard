@@ -140,8 +140,8 @@ def html_to_png(
 
             page.route("**/*", _block_external)
 
-            page.set_content(html, wait_until="networkidle")
-            # 等待字体渲染 + 布局稳定（300ms 足够，500ms 是过度保守的估计）
+            page.set_content(html, wait_until="load")
+            # 等待字体渲染 + 布局稳定（300ms 足够）
             page.wait_for_timeout(300)
             png_bytes = page.screenshot(full_page=True, type="png")
             browser.close()
