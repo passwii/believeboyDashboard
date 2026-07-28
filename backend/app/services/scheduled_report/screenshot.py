@@ -19,7 +19,7 @@ _MOBILE_VIEWPORT_WIDTH = 420  # 手机竖屏宽度，截图专用
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
 # 手机端截图：4x 保证 Retina 超清（420 CSS px → 1680 物理 px）
 # 覆盖 iPhone 15 Pro Max（430 CSS @ 3x = 1290px）等高端设备，无毛刺
-_MOBILE_SCALE_FACTOR = 2
+_MOBILE_SCALE_FACTOR = 4
 _ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
 
 # 邮件 logo 本地副本（与 dash.believeboy.com/logo-email.png 同源）
