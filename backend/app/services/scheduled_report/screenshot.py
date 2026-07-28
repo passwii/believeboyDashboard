@@ -19,7 +19,7 @@ _MOBILE_VIEWPORT_WIDTH = 420  # 手机竖屏宽度，截图专用
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
 # 手机端截图：4x 保证 Retina 超清（420 CSS px → 1680 物理 px）
 # 覆盖 iPhone 15 Pro Max（430 CSS @ 3x = 1290px）等高端设备，无毛刺
-_MOBILE_SCALE_FACTOR = 4
+_MOBILE_SCALE_FACTOR = 2
 _ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
 
 # 邮件 logo 本地副本（与 dash.believeboy.com/logo-email.png 同源）
@@ -45,11 +45,15 @@ def _load_logo_data_uri() -> str | None:
     _logo_data_uri_attempted = True
     try:
         if not _LOCAL_LOGO_FILE.exists():
-            logger.warning("本地 logo 文件不存在: %s，将回退到外网 URL", _LOCAL_LOGO_FILE)
+            logger.warning(
+                "本地 logo 文件不存在: %s，将回退到外网 URL", _LOCAL_LOGO_FILE
+            )
             return None
         b64 = base64.b64encode(_LOCAL_LOGO_FILE.read_bytes()).decode("ascii")
         _logo_data_uri_cache = f"data:image/png;base64,{b64}"
-        logger.info("已加载本地 logo data URI（%d 字节）", _LOCAL_LOGO_FILE.stat().st_size)
+        logger.info(
+            "已加载本地 logo data URI（%d 字节）", _LOCAL_LOGO_FILE.stat().st_size
+        )
         return _logo_data_uri_cache
     except Exception as e:
         logger.warning("读取本地 logo 失败: %s，将回退到外网 URL", e)
@@ -89,7 +93,7 @@ def html_to_png(
     Args:
         html: 要渲染的完整 HTML 文档。
         width: CSS 视口宽度（默认 420px，手机竖屏宽度）。
-        scale: 设备缩放因子（默认 4x，生成 1680px 物理宽度，Retina 超清）。
+        scale: 设备缩放因子（默认 2x，生成 840px 物理宽度，Retina 清晰）。
 
     Returns:
         PNG 字节数据（含透明圆角），失败时返回 None（不阻断邮件发送）。
@@ -105,7 +109,21 @@ def html_to_png(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                # 限制 Chromium 内存占用——VPS 只有 1.9 GiB，单个 Chrome 实例
+                # 在 4x 缩放下可占 300+ MB，这些参数能显著降低内存峰值。
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-translate",
+                    "--disable-features=TranslateUI",
+                ],
+            )
             page = browser.new_page(
                 viewport={"width": width, "height": _VIEWPORT_HEIGHT},
                 device_scale_factor=scale,
@@ -119,11 +137,12 @@ def html_to_png(
                     route.continue_()
                 else:
                     route.abort()
+
             page.route("**/*", _block_external)
 
             page.set_content(html, wait_until="networkidle")
-            # 等待字体渲染 + 布局稳定（提高到 500ms 确保复杂表格渲染完成）
-            page.wait_for_timeout(500)
+            # 等待字体渲染 + 布局稳定（300ms 足够，500ms 是过度保守的估计）
+            page.wait_for_timeout(300)
             png_bytes = page.screenshot(full_page=True, type="png")
             browser.close()
     except Exception as e:
@@ -179,13 +198,15 @@ def process_screenshot_and_upload(
 
     try:
         # ── 邮件附件 ──────────────────────────────────────
-        email_params["attachments"] = [{
-            "filename": email_attachment_name,
-            "content": base64.b64encode(png_bytes).decode("ascii"),
-            "content_type": "image/png",
-        }]
+        email_params["attachments"] = [
+            {
+                "filename": email_attachment_name,
+                "content": base64.b64encode(png_bytes).decode("ascii"),
+                "content_type": "image/png",
+            }
+        ]
 
-        # ── R2 上传（完整尺寸 3x 图）───────────────────────
+        # ── R2 上传（完整尺寸 2x 图）───────────────────────
         settings = get_settings()
         project_slug = _safe_project_folder_name(project_name)
         report_date = report_data.get("report_date", "")
@@ -200,7 +221,9 @@ def process_screenshot_and_upload(
             file_type="scheduled-reports/full",
             content_type="image/png",
         )
-        logger.info("完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"])
+        logger.info(
+            "完整截图已上传到 R2: key=%s url=%s", full_result["key"], full_result["url"]
+        )
 
         # ── 缩略图（缩小至 1x：420px 宽）───────────────────
         img = PILImage.open(_io.BytesIO(png_bytes)).convert("RGBA")
@@ -220,7 +243,9 @@ def process_screenshot_and_upload(
             file_type="scheduled-reports/thumb",
             content_type="image/png",
         )
-        logger.info("缩略图已上传到 R2: key=%s url=%s", thumb_result["key"], thumb_result["url"])
+        logger.info(
+            "缩略图已上传到 R2: key=%s url=%s", thumb_result["key"], thumb_result["url"]
+        )
 
         # ── 回写 report_data，供 dispatcher 同步到 delivery log ─
         report_data["screenshot_r2_key"] = full_result["key"]
