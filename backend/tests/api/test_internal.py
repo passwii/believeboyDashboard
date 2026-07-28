@@ -17,6 +17,15 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.main import app
 
+# ⚠️ 孤儿测试：/api/v1/internal/auto-report/* 端点已于 commit 9aeef741
+# （revert: autoReportUpload 回到 db session 直连 + 删 7.1+ internal_ingest）
+# 随 internal_ingest 一并回退删除，本测试失去对应实现，全部 404。
+# 暂跳过；若重启 auto-report HTTP ingest 计划（见 AGENTS.md 引用的
+# docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md）再恢复本文件。
+pytestmark = pytest.mark.skip(
+    reason="internal/auto-report 端点已回退删除(9aeef741)，孤儿测试待 HTTP ingest 重启后恢复"
+)
+
 
 @pytest.fixture(scope="module", autouse=True)
 def _set_internal_token():
