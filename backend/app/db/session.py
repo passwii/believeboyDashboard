@@ -40,8 +40,8 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=1800,
     pool_timeout=10,
-    pool_size=20,
-    max_overflow=20,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
     pool_use_lifo=True,
     connect_args=connect_args
 )
