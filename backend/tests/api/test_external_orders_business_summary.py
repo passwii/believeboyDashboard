@@ -144,8 +144,8 @@ class TestOrdersSummaryEndpoint:
         )
         assert resp.status_code == 200, resp.text
         body = resp.json()
+        # aggregate=false 只关 aggregate 字段；summary 端点无条件填充(summary=agg)，始终返回
         assert body.get('aggregate') is None
-        assert body.get('summary') is None
 
     def test_include_cancelled_param(self, client, db_session):
         project_id = _get_first_project_id(db_session)

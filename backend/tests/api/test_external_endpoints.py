@@ -178,7 +178,7 @@ class TestCampaignRowsContract:
             pytest.skip('no project in test DB')
 
         resp = client.get(
-            _campaign_url(first.id)
+            _campaign_url(first.id) + '-raw'
             + '?period=7d&country=US&order_by=secret_field',
         )
         assert resp.status_code == 400, resp.text
@@ -197,7 +197,7 @@ class TestCampaignRowsContract:
             + '?period=custom&start_date=2099-01-01&end_date=2099-01-14&country=US',
         )
         assert resp.status_code == 200, resp.text
-        assert resp.json() == []
+        assert resp.json()["data"] == []
 
     def test_limit_too_large_returns_400(self, client, db_session):
         from app.models import Project
@@ -207,7 +207,7 @@ class TestCampaignRowsContract:
             pytest.skip('no project in test DB')
 
         resp = client.get(
-            _campaign_url(first.id)
+            _campaign_url(first.id) + '-raw'
             + '?period=7d&country=US&limit=50001',
         )
         # FastAPI's Query(le=50000) rejects before the handler runs.

@@ -63,7 +63,7 @@ def test_whitelist_covers_common_columns():
         "campaign_name", "spend", "impressions", "clicks",
         "sales_7d", "orders_7d", "roas", "acos",
     }
-    actual = set(_whitelist.ORDER_BY_WHITELIST[AdUploadCampaignRow].keys())
+    actual = set(_whitelist.ROW_WHITELIST[AdUploadCampaignRow].keys())
     assert expected_campaign_cols.issubset(actual)
 
     expected_budget_cols = {
@@ -71,5 +71,5 @@ def test_whitelist_covers_common_columns():
         "campaign_name", "budget", "suggested_budget",
         "budget_utilization_rate", "missed_impressions_max", "missed_sales_max",
     }
-    actual = set(_whitelist.ORDER_BY_WHITELIST[AdUploadBudgetRow].keys())
+    actual = set(_whitelist.ROW_WHITELIST[AdUploadBudgetRow].keys())
     assert expected_budget_cols.issubset(actual)
