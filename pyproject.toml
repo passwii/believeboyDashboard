@@ -4,7 +4,8 @@ pythonpath = ["backend"]
 # backend/scripts/*.py 文件名以 test_ 开头，会被 pytest 误当成测试收集；
 # 实际它们是 CLI 脚本（test_schedule_remote.py 等），testpaths 已限制
 # backend/tests，但 cwd=backend/ 时 pytest 会扫描 .，需要 norecursedirs 兜底。
-norecursedirs = ["backend/scripts"]
+# stress_test/ 是 k6 压测脚本 + 打活服务的健康检查，非单测，同样排除。
+norecursedirs = ["backend/scripts", "backend/stress_test"]
 # 按功能领域打标，支持 `pytest -m <功能>` 跑子集而非全盘。
 # 打标规范见 TESTING.md「按功能运行」一节。
 markers = [
