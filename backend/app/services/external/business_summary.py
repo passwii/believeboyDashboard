@@ -40,7 +40,6 @@ def _select_business_file_ids(
             AnalysisSourceFile.report_type == "business_report",
             AnalysisSourceFile.is_current.is_(True),
             AnalysisSourceFile.ingestion_status == "success",
-            AnalysisSourceFile.recognition_status == "recognized",
             or_(
                 AnalysisSourceFile.report_date.between(date_from, date_to),
                 and_(
