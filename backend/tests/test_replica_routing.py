@@ -51,7 +51,12 @@ from app.db.session import (
 )
 
 
-def _settings(*, read_url: str = "") -> Settings:
+def _settings(
+    *,
+    read_url: str = "",
+    db_read_pool_size: int = 5,
+    db_read_max_overflow: int = 5,
+) -> Settings:
     return Settings(
         _env_file=None,
         database_url="postgresql+psycopg://x:x@localhost:5432/x",
@@ -59,6 +64,8 @@ def _settings(*, read_url: str = "") -> Settings:
         redis_host="localhost",
         redis_port=6379,
         redis_db=0,
+        db_read_pool_size=db_read_pool_size,
+        db_read_max_overflow=db_read_max_overflow,
     )
 
 
@@ -87,7 +94,11 @@ def test_build_read_engine_returns_none_when_url_blank() -> None:
 def test_build_read_engine_returns_engine_when_url_set() -> None:
     """`_build_read_engine` reads settings via `get_settings()`; we patch
     that function (not the module-level `settings` attribute)."""
-    fake_settings = _settings(read_url="postgresql+psycopg://x:x@replica:5432/x")
+    fake_settings = _settings(
+        read_url="postgresql+psycopg://x:x@replica:5432/x",
+        db_read_pool_size=20,
+        db_read_max_overflow=20,
+    )
     with patch("app.db.replica.get_settings", return_value=fake_settings):
         engine = _build_read_engine()
     assert engine is not None
@@ -117,6 +128,7 @@ def test_build_read_engine_includes_idle_in_txn_timeout() -> None:
     with patch("app.db.replica.create_engine", side_effect=_spy_create_engine):
         with patch("app.db.replica.get_settings", return_value=fake_settings):
             from app.db.replica import _build_read_engine as helper
+
             helper()
     assert "connect_args" in captured
     connect_args = captured["connect_args"]
@@ -144,7 +156,9 @@ def test_get_read_db_returns_primary_when_replica_not_configured() -> None:
 
 def test_get_read_db_returns_read_session_when_replica_configured() -> None:
     sqlite = _sqlite_engine()
-    read_session_factory = sessionmaker(bind=sqlite, autoflush=False, autocommit=False, future=True)
+    read_session_factory = sessionmaker(
+        bind=sqlite, autoflush=False, autocommit=False, future=True
+    )
     with patch.object(session_module, "read_engine", sqlite):
         with patch.object(session_module, "ReadSessionLocal", read_session_factory):
             with patch.object(replica_module, "is_breaker_open", lambda: False):
@@ -158,14 +172,20 @@ def test_get_read_db_returns_read_session_when_replica_configured() -> None:
 def test_get_read_db_falls_back_to_primary_when_force_primary_set() -> None:
     """`force_primary()` pins the current context to primary reads."""
     sqlite = _sqlite_engine()
-    read_session_factory = sessionmaker(bind=sqlite, autoflush=False, autocommit=False, future=True)
+    read_session_factory = sessionmaker(
+        bind=sqlite, autoflush=False, autocommit=False, future=True
+    )
     primary_engine = _sqlite_engine()
-    primary_factory = sessionmaker(bind=primary_engine, autoflush=False, autocommit=False, future=True)
+    primary_factory = sessionmaker(
+        bind=primary_engine, autoflush=False, autocommit=False, future=True
+    )
 
     with patch.object(session_module, "engine", primary_engine):
         with patch.object(session_module, "SessionLocal", primary_factory):
             with patch.object(session_module, "read_engine", sqlite):
-                with patch.object(session_module, "ReadSessionLocal", read_session_factory):
+                with patch.object(
+                    session_module, "ReadSessionLocal", read_session_factory
+                ):
                     with patch.object(replica_module, "is_breaker_open", lambda: False):
                         with force_primary():
                             gen = get_read_db()
