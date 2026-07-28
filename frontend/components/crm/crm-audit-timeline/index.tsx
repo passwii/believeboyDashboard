@@ -55,14 +55,33 @@ export function CrmAuditTimeline({
     setLoading(true)
     setError(null)
     try {
-      // 合并 entityType + extraEntityTypes 去重
-      const typesSet = new Set<string>([entityType, ...(extraEntityTypes ?? [])])
+      // P5-9: 客户场景先取该客户的联系人 id，审计时间线同时展示客户 + 联系人审计。
+      let contactIds: number[] = []
+      const baseTypes: string[] = [entityType]
+      if (entityType === 'customer') {
+        const contacts = await client.listContacts(entityId)
+        contactIds = contacts.map((c) => Number(c.id)).filter((n) => !Number.isNaN(n))
+        if (contactIds.length > 0) baseTypes.push('contact')
+      }
+      // 合并 base + extraEntityTypes 去重
+      const typesSet = new Set<string>([...baseTypes, ...(extraEntityTypes ?? [])])
       const entityTypes = Array.from(typesSet)
-      const ids = extraEntityIds && extraEntityIds.length > 0 ? extraEntityIds : undefined
+      // 多实体查询时把主 entityId 与联系人 id（及 extraEntityIds）并入 id 集（去重）。
+      // "extra" 语义为「附加」，主 entityId 始终包含在内。
+      const multiEntity = entityTypes.length > 1
+      const ids = multiEntity
+        ? Array.from(
+            new Set<number>([
+              Number(entityId),
+              ...contactIds,
+              ...(extraEntityIds ?? []),
+            ])
+          )
+        : undefined
       const page = await client.listAuditLogs({
         entityType,
         entityId,
-        entityTypes: entityTypes.length > 1 ? entityTypes : undefined,
+        entityTypes: multiEntity ? entityTypes : undefined,
         entityIds: ids,
         pageSize: 50,
       })
