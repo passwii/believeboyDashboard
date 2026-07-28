@@ -109,12 +109,17 @@ def html_to_png(
 
     try:
         with sync_playwright() as p:
+            # 走 chrome-headless-shell 通道（playwright 1.55+ 默认但需显式指定）
+            # + --single-process 合并 chrome / chrome-headless-shell 两个子进程。
+            # 现象：playwright 默认 launch 会在 VPS 上拉起 2 个 chrome-headless 进程
+            # （chrome 父进程 + headless_shell 渲染子进程），加上 full_page 2x 缩放
+            # 把 load average 推到 3+，swap 抖动。2026-07-28 线上现象。
             browser = p.chromium.launch(
                 headless=True,
-                # 限制 Chromium 内存占用——VPS 只有 1.9 GiB，单个 Chrome 实例
-                # 在 4x 缩放下可占 300+ MB，这些参数能显著降低内存峰值。
+                channel="chrome-headless-shell",
                 args=[
                     "--no-sandbox",
+                    "--single-process",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-extensions",

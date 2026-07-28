@@ -85,6 +85,63 @@ def test_html_to_png_passes_explicit_timeout_to_playwright(monkeypatch):
     )
 
 
+def test_html_to_png_uses_headless_shell_and_single_process(monkeypatch):
+    """html_to_png must launch Chromium with --single-process and prefer the
+    lighter ``chrome-headless-shell`` channel.
+
+    Real-world symptom: on the 1.9 GiB VPS, ``p.chromium.launch(headless=True)``
+    on playwright 1.60 spawns **two** chrome processes (the parent ``chrome``
+    + the headless_shell renderer), pushing load average past 3 and thrashing
+    swap. ``--single-process`` collapses them into one; the chrome-headless-shell
+    channel uses a smaller binary (~70 MB vs ~180 MB) and is playwright 1.55+'s
+    default for headless — but only when explicitly requested via
+    ``chromium.launch(channel="chrome-headless-shell")``. Without that,
+    playwright falls back to the full chromium binary.
+
+    This is a regression guard: anyone refactoring html_to_png should keep
+    the lighter launch path.
+    """
+    from app.services.scheduled_report import screenshot as ss_mod
+
+    fake_page = MagicMock()
+    fake_page.screenshot.return_value = b"\x89PNG\r\n\x1a\n" * 4
+    fake_browser = MagicMock()
+    fake_browser.new_page.return_value = fake_page
+    fake_pw_cm = MagicMock()
+    fake_pw_cm.__enter__.return_value.chromium.launch.return_value = fake_browser
+    fake_pw_cm.__exit__.return_value = False
+    fake_sync_pw = MagicMock(return_value=fake_pw_cm)
+
+    import playwright.sync_api as pw_sync_api
+
+    monkeypatch.setattr(pw_sync_api, "sync_playwright", fake_sync_pw, raising=False)
+    monkeypatch.setattr(ss_mod, "_apply_rounded_corners", lambda b: b)
+
+    ss_mod.html_to_png("<html><body>hi</body></html>")
+
+    fake_pw_cm.__enter__.return_value.chromium.launch.assert_called_once()
+    launch_kwargs = fake_pw_cm.__enter__.return_value.chromium.launch.call_args.kwargs
+    launch_args = fake_pw_cm.__enter__.return_value.chromium.launch.call_args.args
+    # Accept either keyword ``channel=...`` or positional — both forms are valid.
+    channel = launch_kwargs.get("channel") or (
+        launch_args[0] if launch_args and isinstance(launch_args[0], str) else None
+    )
+    assert channel == "chrome-headless-shell", (
+        f"launch channel={channel!r}; expected 'chrome-headless-shell' to "
+        "use the lighter binary instead of full chromium"
+    )
+    # headless=True must stay (otherwise launches the full UI-bearing browser)
+    assert launch_kwargs.get("headless") is True, (
+        f"headless={launch_kwargs.get('headless')!r}; expected True"
+    )
+    # --single-process must be in the args list to collapse the 2-chrome process pair
+    args = launch_kwargs.get("args", [])
+    assert "--single-process" in args, (
+        f"--single-process missing from launch args; this is what collapses "
+        "the 2-chrome process pattern. Got args={args!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 2. dispatcher._dispatch_one_task_body on celery time limit
 # ---------------------------------------------------------------------------
