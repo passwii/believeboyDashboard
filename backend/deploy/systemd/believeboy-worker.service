@@ -7,12 +7,14 @@ User=root
 Group=root
 WorkingDirectory=/root/believeboyDashboard/backend
 EnvironmentFile=/root/believeboyDashboard/backend/.env
-ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary --concurrency=2 --max-tasks-per-child=100
+ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery -A app.tasks.celery_app worker -l info -Q default,reports,insights,ai_summary,scheduled --concurrency=1 --max-tasks-per-child=100
 Restart=always
 RestartSec=3
 
-# 内存限制——防止报告/洞察生成任务长期运行后内存膨胀拖慢 VPS。
-MemoryMax=1G
+# 内存限制——合并后的 worker 需处理 Chrome 截图任务，384MB 覆盖单实例。
+MemoryMax=384M
+MemoryHigh=256M
+MemorySwapMax=128M
 
 [Install]
 WantedBy=multi-user.target

@@ -43,16 +43,16 @@ DEPLOY_COMMANDS = [
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && alembic upgrade head",
     # 同步 systemd service 文件到系统目录并重新加载
     f"cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker.service /etc/systemd/system/believeboy-worker.service "
-    f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-worker-scheduled.service /etc/systemd/system/believeboy-worker-scheduled.service "
     f"&& cp {PROJECT_DIR}backend/deploy/systemd/believeboy-api.service /etc/systemd/system/believeboy-api.service "
     f"&& systemctl daemon-reload",
     "systemctl restart believeboy-api",
     # BEL-补发修复：Celery worker 必须随代码部署一起重启，否则旧进程内存里
     # 的 task 签名不更新（如 dispatch_one 的 old_log_id 参数），补发任务会
-    # 抛 TypeError 并永久卡在 preparing。两个 worker 均用 acks_late +
-    # task_reject_on_worker_lost，重启时 in-flight 任务会被 broker 重投，安全。
+    # 抛 TypeError 并永久卡在 preparing。3 个 worker 已合并为 1 个
+    # （-Q default,reports,insights,ai_summary,scheduled -c 1），
+    # 均用 acks_late + task_reject_on_worker_lost，重启时 in-flight 任务
+    # 会被 broker 重投，安全。
     "systemctl restart believeboy-worker.service",
-    "systemctl restart believeboy-worker-scheduled.service",
     "systemctl status believeboy-api --no-pager",
 ]
 
@@ -60,7 +60,6 @@ DEPLOY_COMMANDS = [
 CHECK_COMMANDS = [
     "systemctl is-active believeboy-api",
     "systemctl is-active believeboy-worker.service",
-    "systemctl is-active believeboy-worker-scheduled.service",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c \"import app.main\"",
 ]
 

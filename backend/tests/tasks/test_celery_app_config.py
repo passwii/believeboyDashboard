@@ -65,11 +65,11 @@ def test_no_password_omits_auth_segment(monkeypatch: pytest.MonkeyPatch) -> None
     assert s._celery_broker_url_resolved == "redis://redis.local:6379/1"
 
 
-def test_concurrency_default_is_four(monkeypatch: pytest.MonkeyPatch) -> None:
-    """CELERY_WORKER_CONCURRENCY defaults to 4 per BEL-55-P0 spec."""
+def test_concurrency_default_is_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CELERY_WORKER_CONCURRENCY defaults to 1 (2C/2G VPS 降配)。"""
     monkeypatch.delenv("CELERY_WORKER_CONCURRENCY", raising=False)
     s = _settings()
-    assert s.celery_worker_concurrency == 4
+    assert s.celery_worker_concurrency == 1
 
 
 def test_concurrency_override(monkeypatch: pytest.MonkeyPatch) -> None:
