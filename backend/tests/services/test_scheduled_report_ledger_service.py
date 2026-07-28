@@ -30,6 +30,22 @@ def db() -> Session:
         session.close()
 
 
+@pytest.fixture()
+def mock_dispatch_one(monkeypatch):
+    """resend_ledger_entry_async 派发 Celery ``dispatch_one.delay()``；单测无 broker，mock 并返回 fake 供断言。
+
+    service 内是懒加载 ``from app.celery_tasks.scheduled_report import dispatch_one``，
+    patch 源模块属性即可在调用时被取到。
+    """
+    from unittest.mock import MagicMock
+    import app.celery_tasks.scheduled_report as sr_tasks
+
+    fake_task = MagicMock()
+    fake_task.delay.return_value = MagicMock(id="fake-task-id")
+    monkeypatch.setattr(sr_tasks, "dispatch_one", fake_task)
+    return fake_task
+
+
 def add_subscription(
     db: Session,
     *,
@@ -165,7 +181,7 @@ def test_refresh_ledger_resolves_project_names_from_db(db: Session):
     assert len(item.project_names) == 2
 
 
-def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: pytest.MonkeyPatch):
+def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: pytest.MonkeyPatch, mock_dispatch_one):
     from app.models.scheduled_report import DeliveryStage
     from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
     import app.services.scheduled_report.ledger_service as ledger_service
@@ -218,17 +234,21 @@ def test_resend_async_refreshes_ledger_after_success(db: Session, monkeypatch: p
     assert success is True
     assert delivery_log_id is not None
     assert new_status == "processing"
-    assert started == [True]
+    # 新实现派发到 Celery（不再起后台线程），实际发送在 task 内完成
+    assert mock_dispatch_one.delay.call_count == 1
+    kwargs = mock_dispatch_one.delay.call_args.kwargs
+    assert kwargs["pre_existing_log_id"] == delivery_log_id
+    assert kwargs["use_cache"] is False
 
+    # delivery_log 初始 stage=PREPARING（发送完成后由 task 推进到 DONE）
     log = db.get(ScheduledReportDeliveryLog, delivery_log_id)
     assert log is not None
-    assert log.status == DeliveryStatus.SENT.value
-    assert log.stage == DeliveryStage.DONE.value
+    assert log.stage == DeliveryStage.PREPARING.value
 
+    # ledger entry 指向新 log，状态置 MISSING（待 Celery 完成后 refresh 回 SENT）
     refreshed_entry = db.query(ScheduledReportLedgerEntry).filter_by(ledger_key=ledger_key).one()
-    assert refreshed_entry.status == LedgerStatus.SENT.value
     assert refreshed_entry.latest_delivery_log_id == delivery_log_id
-    assert refreshed_entry.sent_at is not None
+    assert refreshed_entry.status == LedgerStatus.MISSING.value
 
 
 def test_build_report_with_throttle_bypasses_cache_when_requested(monkeypatch: pytest.MonkeyPatch):
@@ -260,7 +280,7 @@ def test_build_report_with_throttle_bypasses_cache_when_requested(monkeypatch: p
         assert dispatcher._summary_cache[key] == {"stale": True}
 
 
-def test_resend_async_multi_country_bypasses_report_cache(db: Session, monkeypatch: pytest.MonkeyPatch):
+def test_resend_async_multi_country_bypasses_report_cache(db: Session, monkeypatch: pytest.MonkeyPatch, mock_dispatch_one):
     from app.models.scheduled_report import DeliveryStage
     from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
     import app.services.scheduled_report.ledger_service as ledger_service
@@ -321,18 +341,17 @@ def test_resend_async_multi_country_bypasses_report_cache(db: Session, monkeypat
     assert success is True
     assert delivery_log_id is not None
     assert new_status == "processing"
-    assert started == [True]
-    assert len(captured) == 1
-    assert captured[0]["use_cache"] is False
+    # 新实现派发 Celery；多国家补发同样 use_cache=False
+    assert mock_dispatch_one.delay.call_count == 1
+    assert mock_dispatch_one.delay.call_args.kwargs["use_cache"] is False
 
     log = db.get(ScheduledReportDeliveryLog, delivery_log_id)
     assert log is not None
-    assert log.status == DeliveryStatus.SENT.value
-    assert log.stage == DeliveryStage.DONE.value
+    assert log.stage == DeliveryStage.PREPARING.value
 
 
 def test_resend_async_uses_subscription_ai_model_when_no_override(
-    db: Session, monkeypatch: pytest.MonkeyPatch
+    db: Session, monkeypatch: pytest.MonkeyPatch, mock_dispatch_one
 ):
     """未传 override_ai_model 时，后台线程应使用订阅本身预设的 ai_model。"""
     from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
@@ -371,12 +390,12 @@ def test_resend_async_uses_subscription_ai_model_when_no_override(
     success, delivery_log_id, new_status, message = resend_ledger_entry_async(db, ledger_key=ledger_key)
     assert success is True
 
-    # args[5] = ai_model
-    assert captured_args[0][5] == "preset-model-v1"
+    # 新实现派发 Celery dispatch_one.delay(ai_model=...)；未传 override 用订阅预设
+    assert mock_dispatch_one.delay.call_args.kwargs["ai_model"] == "preset-model-v1"
 
 
 def test_resend_async_overrides_ai_model_when_provided(
-    db: Session, monkeypatch: pytest.MonkeyPatch
+    db: Session, monkeypatch: pytest.MonkeyPatch, mock_dispatch_one
 ):
     """传 override_ai_model 时，后台线程应使用覆盖值而非订阅预设。"""
     from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
@@ -415,12 +434,12 @@ def test_resend_async_overrides_ai_model_when_provided(
     )
     assert success is True
 
-    # args[5] = ai_model：应为覆盖值
-    assert captured_args[0][5] == "override-model-v2"
+    # 新实现派发 Celery dispatch_one.delay(ai_model=...)：应为覆盖值
+    assert mock_dispatch_one.delay.call_args.kwargs["ai_model"] == "override-model-v2"
 
 
 def test_resend_async_empty_override_falls_back_to_subscription_ai_model(
-    db: Session, monkeypatch: pytest.MonkeyPatch
+    db: Session, monkeypatch: pytest.MonkeyPatch, mock_dispatch_one
 ):
     """override_ai_model 为空字符串/纯空白时，应回退到订阅预设。"""
     from app.services.scheduled_report.ledger_service import refresh_ledger, resend_ledger_entry_async
@@ -458,7 +477,8 @@ def test_resend_async_empty_override_falls_back_to_subscription_ai_model(
         db, ledger_key=ledger_key, override_ai_model="   "
     )
     assert success is True
-    assert captured_args[0][5] == "preset-model-v1"
+    # 空白 override 回退订阅预设
+    assert mock_dispatch_one.delay.call_args.kwargs["ai_model"] == "preset-model-v1"
 
 
 def test_refresh_ledger_multi_country_subscription_creates_single_entry(db: Session):

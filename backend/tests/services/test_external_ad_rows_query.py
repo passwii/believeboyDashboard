@@ -2,7 +2,7 @@
 
 Covers the query path without needing a live database:
   * ``_select_latest_file_id`` builds the expected WHERE clause shape.
-  * Each ``query_*_rows`` helper delegates to ``_run_query`` with the
+  * Each ``query_*_raw`` helper delegates to ``_run_raw_query`` with the
     correct ``report_type`` literal.
 
 These tests mock SQLAlchemy execution so we don't depend on PG state.
@@ -30,20 +30,20 @@ def db_session() -> MagicMock:
 
 class TestQueryDelegation:
     """Each query helper should pass the correct ``report_type`` literal to
-    ``_run_query`` (and ultimately to ``_select_latest_file_id``).
+    ``_run_raw_query`` (and ultimately to ``_select_latest_file_id``).
     """
 
     expected_report_types = {
-        "query_campaign_rows": "ad_campaign_report",
-        "query_budget_rows": "ad_budget_report",
-        "query_target_rows": "ad_target_report",
-        "query_placement_rows": "ad_placement_report",
-        "query_search_term_rows": "ad_search_term_report",
-        "query_search_term_share_rows": "ad_search_term_share_report",
-        "query_promoted_product_rows": "ad_promoted_product_report",
-        "query_time_trend_rows": "ad_time_trend_report",
-        "query_purchased_product_rows": "ad_purchased_product_report",
-        "query_invalid_traffic_rows": "ad_invalid_traffic_report",
+        "query_campaign_raw": "ad_campaign_report",
+        "query_budget_raw": "ad_budget_report",
+        "query_target_raw": "ad_target_report",
+        "query_placement_raw": "ad_placement_report",
+        "query_search_term_raw": "ad_search_term_report",
+        "query_search_term_share_raw": "ad_search_term_share_report",
+        "query_promoted_product_raw": "ad_promoted_product_report",
+        "query_time_trend_raw": "ad_time_trend_report",
+        "query_purchased_product_raw": "ad_purchased_product_report",
+        "query_invalid_traffic_raw": "ad_invalid_traffic_report",
     }
 
     @pytest.mark.parametrize("func_name,report_type", list(expected_report_types.items()))
@@ -55,7 +55,7 @@ class TestQueryDelegation:
             captured['row_model'] = row_model
             return []
 
-        monkeypatch.setattr(ad_rows_query, '_run_query', fake_run_query)
+        monkeypatch.setattr(ad_rows_query, '_run_raw_query', fake_run_query)
 
         func = getattr(ad_rows_query, func_name)
         func(
@@ -64,6 +64,7 @@ class TestQueryDelegation:
             country='US',
             date_from=date(2026, 6, 1),
             date_to=date(2026, 6, 30),
+            order_column=None,
             order_dir='desc',
             limit=10,
             offset=0,

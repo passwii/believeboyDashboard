@@ -5,7 +5,7 @@
 - dict['results'] 是 list
 - 每个 result 含 title / url / content 字段（score / raw_content 可选）
 
-依赖外网 SearXNG adapter；CI 环境用 SKIP_SEARXNG_SPIKE=1 跳过。
+依赖外网 SearXNG adapter；默认跳过，设 RUN_SEARXNG_SPIKE=1 显式启用（CI 无需配置即跳过）。
 """
 from __future__ import annotations
 
@@ -16,12 +16,14 @@ import pytest
 
 
 SEARXNG_SPIKE_QUERY = os.environ.get("SEARXNG_SPIKE_QUERY", "Pydantic AI")
-SKIP_SEARXNG_SPIKE = os.environ.get("SKIP_SEARXNG_SPIKE", "0") == "1"
+# spike 测试命中外网 SearXNG adapter，无服务时必挂 → 默认跳过，显式 RUN_SEARXNG_SPIKE=1 才跑。
+# （旧 SKIP_SEARXNG_SPIKE=1 的 CI 行为不变——默认即跳过，无需再设。）
+RUN_SEARXNG_SPIKE = os.environ.get("RUN_SEARXNG_SPIKE", "0") == "1"
 
 
 pytestmark = pytest.mark.skipif(
-    SKIP_SEARXNG_SPIKE,
-    reason="SKIP_SEARXNG_SPIKE=1 — SearXNG adapter 测试在 CI 跳过",
+    not RUN_SEARXNG_SPIKE,
+    reason="spike 测试需外网 SearXNG adapter；设 RUN_SEARXNG_SPIKE=1 启用",
 )
 
 
