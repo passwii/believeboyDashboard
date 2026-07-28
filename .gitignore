@@ -5,6 +5,7 @@
 .zcode/
 .openclaude/
 .pi/
+.pi-subagents/
 .pytest_cache/
 .rpiv/
 .sisyphus/
