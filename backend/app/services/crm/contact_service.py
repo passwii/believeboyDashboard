@@ -51,7 +51,7 @@ def _enforce_single_primary(db: Session, customer_id: int, keep_id: int) -> None
 
 
 def create_contact(
-    db: Session, customer_id: int, payload: ContactCreate
+    db: Session, customer_id: int, payload: ContactCreate, *, commit: bool = True
 ) -> CrmContact | None:
     if not _customer_exists(db, customer_id):
         return None
@@ -75,13 +75,15 @@ def create_contact(
         )
         if not existing:
             contact.is_primary = True
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(contact)
     return contact
 
 
 def update_contact(
-    db: Session, contact_id: int, payload: ContactUpdate
+    db: Session, contact_id: int, payload: ContactUpdate, *, commit: bool = True
 ) -> tuple[CrmContact | None, str | None]:
     """更新联系人；返回 ``(contact, summary)``。
 
@@ -112,12 +114,13 @@ def update_contact(
     db.flush()
     if contact.is_primary:
         _enforce_single_primary(db, contact.customer_id, contact.id)
-    db.commit()
+    if commit:
+        db.commit()
     db.refresh(contact)
     return contact, summary
 
 
-def delete_contact(db: Session, contact_id: int) -> bool:
+def delete_contact(db: Session, contact_id: int, *, commit: bool = True) -> bool:
     contact = db.execute(
         select(CrmContact).where(CrmContact.id == contact_id)
     ).scalar_one_or_none()
@@ -139,5 +142,6 @@ def delete_contact(db: Session, contact_id: int) -> bool:
         )
         if remaining:
             remaining[0].is_primary = True
-    db.commit()
+    if commit:
+        db.commit()
     return True

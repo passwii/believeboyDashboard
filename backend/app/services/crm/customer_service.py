@@ -154,18 +154,24 @@ def get_customer(db: Session, customer_id: int):
     return _to_item(db, cust, owner_names, primary)
 
 
-def create_customer(db: Session, payload: CustomerCreate, *, user_id: str | None):
+def create_customer(
+    db: Session, payload: CustomerCreate, *, user_id: str | None, commit: bool = True
+):
     cur = _current_user_id(user_id)
     cust = CrmCustomer(**payload.model_dump(exclude_unset=True), created_by=cur)
     if cust.owner_id is None and cur is not None:
         cust.owner_id = cur  # 默认归创建人
     db.add(cust)
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(cust)
     return get_customer(db, cust.id)
 
 
-def update_customer(db: Session, customer_id: int, payload: CustomerUpdate):
+def update_customer(
+    db: Session, customer_id: int, payload: CustomerUpdate, *, commit: bool = True
+):
     cust = db.execute(
         select(CrmCustomer).where(
             CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
@@ -175,12 +181,14 @@ def update_customer(db: Session, customer_id: int, payload: CustomerUpdate):
         return None
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(cust, key, value)
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(cust)
     return get_customer(db, cust.id)
 
 
-def delete_customer(db: Session, customer_id: int) -> bool:
+def delete_customer(db: Session, customer_id: int, *, commit: bool = True) -> bool:
     cust = db.execute(
         select(CrmCustomer).where(
             CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
@@ -189,11 +197,15 @@ def delete_customer(db: Session, customer_id: int) -> bool:
     if cust is None:
         return False
     cust.is_deleted = True
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     return True
 
 
-def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
+def batch_transfer(
+    db: Session, ids: list[int], to_owner_id: str, *, commit: bool = True
+) -> int:
     rows = (
         db.execute(
             select(CrmCustomer).where(
@@ -205,11 +217,13 @@ def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
     )
     for cust in rows:
         cust.owner_id = to_owner_id
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     return len(rows)
 
 
-def batch_move_to_sea(db: Session, ids: list[int]) -> int:
+def batch_move_to_sea(db: Session, ids: list[int], *, commit: bool = True) -> int:
     rows = (
         db.execute(
             select(CrmCustomer).where(
@@ -221,11 +235,15 @@ def batch_move_to_sea(db: Session, ids: list[int]) -> int:
     )
     for cust in rows:
         cust.owner_id = None
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     return len(rows)
 
 
-def claim_from_sea(db: Session, customer_id: int, *, user_id: str | None):
+def claim_from_sea(
+    db: Session, customer_id: int, *, user_id: str | None, commit: bool = True
+):
     cur = _current_user_id(user_id)
     if cur is None:
         return None
@@ -239,6 +257,8 @@ def claim_from_sea(db: Session, customer_id: int, *, user_id: str | None):
     if cust is None:
         return None  # 不在公海或不存在
     cust.owner_id = cur
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(cust)
     return get_customer(db, cust.id)

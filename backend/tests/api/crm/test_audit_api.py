@@ -120,12 +120,19 @@ def test_convert_lead_creates_customer_and_contact_audit_logs(client, admin_head
     # 2) customer create 留痕（之前 P4 漏掉这一条）
     cust_logs = client.get(
         "/api/v1/crm/audit-logs",
-        params={"entity_type": "customer", "entity_id": customer_id, "action": "create"},
+        params={
+            "entity_type": "customer",
+            "entity_id": customer_id,
+            "action": "create",
+        },
         headers=admin_headers,
     ).json()
     assert cust_logs["total"] == 1, "应有 1 条 customer create 留痕（起点）"
     assert cust_logs["items"][0]["actor_id"] == admin_headers["X-User-Id"]
-    assert cust_logs["items"][0]["summary"] == "新建客户" or cust_logs["items"][0]["summary"] is None
+    assert (
+        cust_logs["items"][0]["summary"] == "新建客户"
+        or cust_logs["items"][0]["summary"] is None
+    )
 
     # 3) contact create 留痕（端点查 primary contact id 后追加）
     contact_logs = client.get(
@@ -137,10 +144,13 @@ def test_convert_lead_creates_customer_and_contact_audit_logs(client, admin_head
     # 验证 contact 的 customer_id 与新建客户一致
     from sqlalchemy import text as _text
     from app.db.session import SessionLocal
+
     s = SessionLocal()
     try:
         row = s.execute(
-            _text("select id from crm_contacts where customer_id = :cid and is_primary = true"),
+            _text(
+                "select id from crm_contacts where customer_id = :cid and is_primary = true"
+            ),
             {"cid": customer_id},
         ).first()
     finally:
@@ -156,7 +166,119 @@ def test_convert_lead_creates_customer_and_contact_audit_logs(client, admin_head
     assert single["total"] == 1, "新主联系人应有 1 条 create 留痕"
 
 
-def test_list_audit_logs_filter_by_entity_types_and_ids(client, admin_headers, db_session):
+def test_create_customer_audit_failure_rolls_back_business(
+    client, admin_headers, monkeypatch
+):
+    """P5-6a 强一致：审计写入失败时，业务写入应整体回滚（不能只落客户、漏审计）。
+
+    模拟 record_log 抛错。旧实现（service 内部已 commit）→ 客户已落库 → 本测试红；
+    强一致改造后（service flush + 端点统一 commit）→ 提交前抛错 → 整体回滚 → 客户不落库。
+    """
+    from app.services.crm import audit_service
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("audit boom")
+
+    monkeypatch.setattr(audit_service, "record_log", _boom)
+
+    with pytest.raises(RuntimeError, match="audit boom"):
+        client.post(
+            "/api/v1/crm/customers", json={"name": "回滚客户"}, headers=admin_headers
+        )
+
+    from app.db.session import SessionLocal
+
+    s = SessionLocal()
+    try:
+        n = s.execute(
+            text("select count(*) from crm_customers where name = '回滚客户'")
+        ).scalar_one()
+    finally:
+        s.close()
+    assert n == 0, "审计失败时客户不应落库（业务+审计原子回滚）"
+
+
+def test_update_customer_audit_failure_rolls_back_business(
+    client, admin_headers, monkeypatch
+):
+    """P5-6a 强一致：update 端点审计失败时，字段变更应回滚（rating 不被改掉）。"""
+    cid = client.post(
+        "/api/v1/crm/customers",
+        json={"name": "客户A", "rating": "B"},
+        headers=admin_headers,
+    ).json()["id"]
+
+    from app.services.crm import audit_service
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("audit boom")
+
+    monkeypatch.setattr(audit_service, "record_log", _boom)
+
+    with pytest.raises(RuntimeError, match="audit boom"):
+        client.patch(
+            f"/api/v1/crm/customers/{cid}", json={"rating": "A"}, headers=admin_headers
+        )
+
+    from app.db.session import SessionLocal
+
+    s = SessionLocal()
+    try:
+        rating = s.execute(
+            text("select rating from crm_customers where id = :cid"), {"cid": cid}
+        ).scalar_one()
+    finally:
+        s.close()
+    assert rating == "B", "审计失败时 rating 变更应回滚（仍为 B）"
+
+
+def test_convert_lead_audit_failure_rolls_back_business(
+    client, admin_headers, monkeypatch
+):
+    """P5-6a 强一致：convert_lead 审计失败时，整个转化（客户+联系人+线索标记）应回滚。
+
+    convert_lead 是最复杂路径（1 次业务 flush 含 customer/contact/跟进搬迁/线索标记
+    + 3 条审计）。任一审计失败 → 端点不 commit → 整体回滚 → 客户不落库、线索未转化。
+    """
+    lead_id = client.post(
+        "/api/v1/crm/leads",
+        json={"name": "张三", "phone": "13800000000", "company": "Acme"},
+        headers=admin_headers,
+    ).json()["id"]
+
+    from app.services.crm import audit_service
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("audit boom")
+
+    monkeypatch.setattr(audit_service, "record_log", _boom)
+
+    with pytest.raises(RuntimeError, match="audit boom"):
+        client.post(
+            f"/api/v1/crm/leads/{lead_id}/convert",
+            json={"name": "Acme 客户"},
+            headers=admin_headers,
+        )
+
+    from app.db.session import SessionLocal
+
+    s = SessionLocal()
+    try:
+        cust_n = s.execute(
+            text("select count(*) from crm_customers where name = 'Acme 客户'")
+        ).scalar_one()
+        lead_status = s.execute(
+            text("select status from crm_leads where id = :lid"), {"lid": lead_id}
+        ).scalar_one()
+    finally:
+        s.close()
+    assert cust_n == 0, "审计失败时转化出的客户不应落库"
+    assert lead_status != "converted", "审计失败时线索不应被标记为已转化"
+
+
+def test_list_audit_logs_filter_by_entity_types_and_ids(
+    client, admin_headers, db_session
+):
     """P5-9: list_audit_logs 支持 entity_types + entity_ids 组合过滤。
     客户抽屉「操作记录」tab 需要同时拉取 customer + 该客户下所有 contact 的审计。
     """
@@ -164,10 +286,22 @@ def test_list_audit_logs_filter_by_entity_types_and_ids(client, admin_headers, d
     from app.services.crm.audit_service import record_log
 
     # 建 1 个 customer 审计 + 2 个 contact 审计
-    record_log(db_session, entity_type="customer", entity_id=100, action="create", actor_id=None)
-    record_log(db_session, entity_type="contact", entity_id=201, action="create", actor_id=None)
-    record_log(db_session, entity_type="contact", entity_id=202, action="update", actor_id=None)
-    record_log(db_session, entity_type="lead", entity_id=999, action="create", actor_id=None)
+    record_log(
+        db_session,
+        entity_type="customer",
+        entity_id=100,
+        action="create",
+        actor_id=None,
+    )
+    record_log(
+        db_session, entity_type="contact", entity_id=201, action="create", actor_id=None
+    )
+    record_log(
+        db_session, entity_type="contact", entity_id=202, action="update", actor_id=None
+    )
+    record_log(
+        db_session, entity_type="lead", entity_id=999, action="create", actor_id=None
+    )
     db_session.commit()
 
     # 通过端点查询：customer(100) + contact(201, 202)

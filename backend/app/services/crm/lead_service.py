@@ -128,18 +128,22 @@ def get_lead(db: Session, lead_id: int):
     return _to_item(db, lead, owner_names)
 
 
-def create_lead(db: Session, payload: LeadCreate, *, user_id: str | None):
+def create_lead(
+    db: Session, payload: LeadCreate, *, user_id: str | None, commit: bool = True
+):
     cur = _current_user_id(user_id)
     lead = CrmLead(**payload.model_dump(exclude_unset=True), created_by=cur)
     if lead.owner_id is None and cur is not None:
         lead.owner_id = cur  # 默认归创建人
     db.add(lead)
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(lead)
     return get_lead(db, lead.id)
 
 
-def update_lead(db: Session, lead_id: int, payload: LeadUpdate):
+def update_lead(db: Session, lead_id: int, payload: LeadUpdate, *, commit: bool = True):
     lead = db.execute(
         select(CrmLead).where(CrmLead.id == lead_id, CrmLead.is_deleted.is_(False))
     ).scalar_one_or_none()
@@ -147,12 +151,16 @@ def update_lead(db: Session, lead_id: int, payload: LeadUpdate):
         return None
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(lead, key, value)
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(lead)
     return get_lead(db, lead.id)
 
 
-def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
+def batch_transfer(
+    db: Session, ids: list[int], to_owner_id: str, *, commit: bool = True
+) -> int:
     rows = (
         db.execute(
             select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
@@ -162,11 +170,13 @@ def batch_transfer(db: Session, ids: list[int], to_owner_id: str) -> int:
     )
     for lead in rows:
         lead.owner_id = to_owner_id
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     return len(rows)
 
 
-def batch_move_to_pool(db: Session, ids: list[int]) -> int:
+def batch_move_to_pool(db: Session, ids: list[int], *, commit: bool = True) -> int:
     rows = (
         db.execute(
             select(CrmLead).where(CrmLead.id.in_(ids), CrmLead.is_deleted.is_(False))
@@ -176,11 +186,15 @@ def batch_move_to_pool(db: Session, ids: list[int]) -> int:
     )
     for lead in rows:
         lead.owner_id = None
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     return len(rows)
 
 
-def claim_from_pool(db: Session, lead_id: int, *, user_id: str | None):
+def claim_from_pool(
+    db: Session, lead_id: int, *, user_id: str | None, commit: bool = True
+):
     cur = _current_user_id(user_id)
     if cur is None:
         return None
@@ -194,7 +208,9 @@ def claim_from_pool(db: Session, lead_id: int, *, user_id: str | None):
     if lead is None:
         return None  # 不在线索池或不存在
     lead.owner_id = cur
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
     db.refresh(lead)
     return get_lead(db, lead.id)
 
@@ -205,6 +221,7 @@ def convert_lead(
     payload: ConvertLeadRequest | None = None,
     *,
     user_id: str | None,
+    commit: bool = True,
 ) -> ConvertLeadResponse | None:
     """线索转客户（单事务，原子）：
 
@@ -265,7 +282,9 @@ def convert_lead(
     lead.converted_to_customer_id = cust.id
     lead.converted_at = datetime.now(timezone.utc)
 
-    db.commit()
+    db.flush()
+    if commit:
+        db.commit()
 
     return ConvertLeadResponse(
         lead=get_lead(db, lead.id), customer=get_customer(db, cust.id)

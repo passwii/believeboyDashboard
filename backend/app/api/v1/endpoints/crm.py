@@ -159,7 +159,7 @@ def create_customer(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    item = customer_service.create_customer(db, payload, user_id=user_id)
+    item = customer_service.create_customer(db, payload, user_id=user_id, commit=False)
     audit_service.record_log(
         db,
         entity_type="customer",
@@ -167,8 +167,8 @@ def create_customer(
         action="create",
         actor_id=user_id,
         summary="新建客户",
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -197,7 +197,7 @@ def update_customer(
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     before = existing.model_dump()
-    item = customer_service.update_customer(db, customer_id, payload)
+    item = customer_service.update_customer(db, customer_id, payload, commit=False)
     summary = audit_service.summarize_update(
         before, payload.model_dump(exclude_unset=True), CUSTOMER_FIELD_LABELS
     )
@@ -208,8 +208,8 @@ def update_customer(
         action="update",
         actor_id=user_id,
         summary=summary,
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -226,7 +226,7 @@ def delete_customer(
             status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
-    customer_service.delete_customer(db, customer_id)
+    customer_service.delete_customer(db, customer_id, commit=False)
     audit_service.record_log(
         db,
         entity_type="customer",
@@ -234,8 +234,8 @@ def delete_customer(
         action="delete",
         actor_id=user_id,
         summary=f"删除客户 {existing.name}",
-        commit=True,
     )
+    db.commit()
 
 
 @router.post("/customers/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
@@ -246,7 +246,7 @@ def batch_transfer(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
-    customer_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+    customer_service.batch_transfer(db, payload.ids, payload.to_owner_id, commit=False)
     for cid in payload.ids:
         audit_service.record_log(
             db,
@@ -255,8 +255,8 @@ def batch_transfer(
             action="transfer",
             actor_id=user_id,
             summary="指派负责人",
-            commit=True,
         )
+    db.commit()
 
 
 @router.post("/customers/batch-move-sea", status_code=status.HTTP_204_NO_CONTENT)
@@ -267,7 +267,7 @@ def batch_move_to_sea(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     ids = filter_owned_ids(db, CrmCustomer, payload.ids, user_id, is_admin)
-    customer_service.batch_move_to_sea(db, ids)
+    customer_service.batch_move_to_sea(db, ids, commit=False)
     for cid in ids:
         audit_service.record_log(
             db,
@@ -276,8 +276,8 @@ def batch_move_to_sea(
             action="move_sea",
             actor_id=user_id,
             summary="释放至公海",
-            commit=True,
         )
+    db.commit()
 
 
 @router.post("/customers/{customer_id}/claim", response_model=CustomerItem)
@@ -286,7 +286,9 @@ def claim_from_sea(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    item = customer_service.claim_from_sea(db, customer_id, user_id=user_id)
+    item = customer_service.claim_from_sea(
+        db, customer_id, user_id=user_id, commit=False
+    )
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Customer not in sea"
@@ -298,8 +300,8 @@ def claim_from_sea(
         action="claim",
         actor_id=user_id,
         summary="从公海领取",
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -320,7 +322,7 @@ def create_contact(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    contact = contact_service.create_contact(db, customer_id, payload)
+    contact = contact_service.create_contact(db, customer_id, payload, commit=False)
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
@@ -332,8 +334,8 @@ def create_contact(
         action="create",
         actor_id=user_id,
         summary=f"新增联系人 {contact.name}",
-        commit=True,
     )
+    db.commit()
     return contact
 
 
@@ -344,7 +346,9 @@ def update_contact(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    contact, summary = contact_service.update_contact(db, contact_id, payload)
+    contact, summary = contact_service.update_contact(
+        db, contact_id, payload, commit=False
+    )
     if contact is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
@@ -358,8 +362,8 @@ def update_contact(
         action="update",
         actor_id=user_id,
         summary=audit_summary,
-        commit=True,
     )
+    db.commit()
     return contact
 
 
@@ -369,7 +373,7 @@ def delete_contact(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    if not contact_service.delete_contact(db, contact_id):
+    if not contact_service.delete_contact(db, contact_id, commit=False):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
         )
@@ -380,8 +384,8 @@ def delete_contact(
         action="delete",
         actor_id=user_id,
         summary="删除联系人",
-        commit=True,
     )
+    db.commit()
 
 
 # ---------- User ----------
@@ -454,7 +458,7 @@ def create_lead(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    item = lead_service.create_lead(db, payload, user_id=user_id)
+    item = lead_service.create_lead(db, payload, user_id=user_id, commit=False)
     audit_service.record_log(
         db,
         entity_type="lead",
@@ -462,8 +466,8 @@ def create_lead(
         action="create",
         actor_id=user_id,
         summary="新建线索",
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -492,7 +496,7 @@ def update_lead(
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     before = existing.model_dump()
-    item = lead_service.update_lead(db, lead_id, payload)
+    item = lead_service.update_lead(db, lead_id, payload, commit=False)
     summary = audit_service.summarize_update(
         before, payload.model_dump(exclude_unset=True), LEAD_FIELD_LABELS
     )
@@ -503,8 +507,8 @@ def update_lead(
         action="update",
         actor_id=user_id,
         summary=summary,
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -516,7 +520,7 @@ def batch_transfer_leads(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
-    lead_service.batch_transfer(db, payload.ids, payload.to_owner_id)
+    lead_service.batch_transfer(db, payload.ids, payload.to_owner_id, commit=False)
     for lid in payload.ids:
         audit_service.record_log(
             db,
@@ -525,8 +529,8 @@ def batch_transfer_leads(
             action="transfer",
             actor_id=user_id,
             summary="指派负责人",
-            commit=True,
         )
+    db.commit()
 
 
 @router.post("/leads/batch-move-pool", status_code=status.HTTP_204_NO_CONTENT)
@@ -537,7 +541,7 @@ def batch_move_leads_to_pool(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     ids = filter_owned_ids(db, CrmLead, payload.ids, user_id, is_admin)
-    lead_service.batch_move_to_pool(db, ids)
+    lead_service.batch_move_to_pool(db, ids, commit=False)
     for lid in ids:
         audit_service.record_log(
             db,
@@ -546,8 +550,8 @@ def batch_move_leads_to_pool(
             action="move_sea",
             actor_id=user_id,
             summary="释放至线索池",
-            commit=True,
         )
+    db.commit()
 
 
 @router.post("/leads/{lead_id}/claim", response_model=LeadItem)
@@ -556,7 +560,7 @@ def claim_lead_from_pool(
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
 ):
-    item = lead_service.claim_from_pool(db, lead_id, user_id=user_id)
+    item = lead_service.claim_from_pool(db, lead_id, user_id=user_id, commit=False)
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Lead not in pool"
@@ -568,8 +572,8 @@ def claim_lead_from_pool(
         action="claim",
         actor_id=user_id,
         summary="从线索池领取",
-        commit=True,
     )
+    db.commit()
     return item
 
 
@@ -588,7 +592,9 @@ def convert_lead(
         )
     require_owner_or_admin(existing.owner_id, user_id, is_admin)
     try:
-        resp = lead_service.convert_lead(db, lead_id, payload, user_id=user_id)
+        resp = lead_service.convert_lead(
+            db, lead_id, payload, user_id=user_id, commit=False
+        )
     except LeadAlreadyConverted:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Lead already converted"
@@ -600,11 +606,10 @@ def convert_lead(
         action="convert",
         actor_id=user_id,
         summary="线索转化为客户",
-        commit=True,
     )
     # P5-2: 补 customer create + contact create 留痕（让客户审计时间线有起点）。
-    # service.convert_lead 已 commit + 创建 customer + 默认主联系人。
-    # 不动 service（plan 字面要求），端点按 customer_id 反查 primary contact id。
+    # P5-6a: service.convert_lead 改为 commit=False（仅 flush），端点统一 commit，
+    # 使转化业务 + 3 条审计留痕原子化。按 customer_id 反查 primary contact id。
     customer_id = resp.customer.id
     audit_service.record_log(
         db,
@@ -613,7 +618,6 @@ def convert_lead(
         action="create",
         actor_id=user_id,
         summary="新建客户",
-        commit=True,
     )
     primary_contact_id = db.execute(
         text(
@@ -629,8 +633,8 @@ def convert_lead(
             action="create",
             actor_id=user_id,
             summary="新建联系人",
-            commit=True,
         )
+    db.commit()
     return resp
 
 
