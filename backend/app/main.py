@@ -29,22 +29,24 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
 settings = get_settings()
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-request_logger = logging.getLogger('app.request')
-performance_logger = logging.getLogger('app.performance')
-startup_logger = logging.getLogger('app.startup')
-logging.getLogger('uvicorn.access').disabled = True
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+request_logger = logging.getLogger("app.request")
+performance_logger = logging.getLogger("app.performance")
+startup_logger = logging.getLogger("app.startup")
+logging.getLogger("uvicorn.access").disabled = True
 
 # BEL-122: suppress APScheduler framework INFO noise from scheduled jobs.
-logging.getLogger('apscheduler.schedulers.background').setLevel(logging.WARNING)
-logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
-logging.getLogger('apscheduler.jobstores.default').setLevel(logging.WARNING)
+logging.getLogger("apscheduler.schedulers.background").setLevel(logging.WARNING)
+logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
+logging.getLogger("apscheduler.jobstores.default").setLevel(logging.WARNING)
 
 app = FastAPI(title=settings.app_name)
 app.state.limiter = limiter
 
 
-def _rate_limit_exceeded_handler(_request: Request, exc: RateLimitExceeded) -> JSONResponse:
+def _rate_limit_exceeded_handler(
+    _request: Request, exc: RateLimitExceeded
+) -> JSONResponse:
     """Translate slowapi RateLimitExceeded into a 429 JSON response."""
     return JSONResponse(
         status_code=429,
@@ -83,7 +85,7 @@ app.add_middleware(
 )
 
 
-@app.on_event('startup')
+@app.on_event("startup")
 def on_startup() -> None:
     db = SessionLocal()
     try:
@@ -116,14 +118,20 @@ def on_startup() -> None:
     init_scheduler()
 
 
-@app.on_event('shutdown')
-def on_shutdown() -> None:
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
     shutdown_scheduler()
+    # 关闭 Redis 客户端（sync + async）
+    from app.services.infra.redis import close_redis_client
+    from app.db.redis import close_async_redis_clients
+
+    close_redis_client()
+    await close_async_redis_clients()
 
 
-@app.middleware('http')
+@app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    request_id = (request.headers.get('X-Request-Id') or '').strip() or uuid4().hex
+    request_id = (request.headers.get("X-Request-Id") or "").strip() or uuid4().hex
     request.state.request_id = request_id
 
     start = time.perf_counter()
@@ -139,33 +147,33 @@ async def request_logging_middleware(request: Request, call_next):
         duration_ms = int((time.perf_counter() - start) * 1000)
         status_code = response.status_code if response is not None else 500
 
-        if request.method != 'OPTIONS':
+        if request.method != "OPTIONS":
             # Skip logging for high-frequency, low-value endpoints
-            if request.url.path.endswith('/presence/heartbeat'):
+            if request.url.path.endswith("/presence/heartbeat"):
                 pass  # Noisy, low-value - skip logging
             else:
-                operator = unquote(request.headers.get('X-Operator', '')).strip()
+                operator = unquote(request.headers.get("X-Operator", "")).strip()
                 log_parts = [
-                    f'[{status_code}]',
+                    f"[{status_code}]",
                     request.method,
                     request.url.path,
-                    f'{duration_ms}ms',
+                    f"{duration_ms}ms",
                 ]
                 if operator:
-                    log_parts.append(f'operator={operator}')
+                    log_parts.append(f"operator={operator}")
                 if error_message:
-                    log_parts.append(f'error={error_message}')
+                    log_parts.append(f"error={error_message}")
                 else:
-                    log_parts.append(f'request_id={request_id[:8]}')
-                request_logger.info(' '.join(log_parts))
+                    log_parts.append(f"request_id={request_id[:8]}")
+                request_logger.info(" ".join(log_parts))
 
         if response is not None:
-            response.headers['X-Request-Id'] = request_id
-            response.headers['X-Response-Time-Ms'] = str(duration_ms)
-            response.headers['Server-Timing'] = f'app;dur={duration_ms}'
+            response.headers["X-Request-Id"] = request_id
+            response.headers["X-Response-Time-Ms"] = str(duration_ms)
+            response.headers["Server-Timing"] = f"app;dur={duration_ms}"
             if duration_ms >= 800:
                 performance_logger.info(
-                    'slow_request path=%s method=%s status=%s duration_ms=%s request_id=%s',
+                    "slow_request path=%s method=%s status=%s duration_ms=%s request_id=%s",
                     request.url.path,
                     request.method,
                     status_code,
@@ -173,4 +181,5 @@ async def request_logging_middleware(request: Request, call_next):
                     request_id[:8],
                 )
 
-app.include_router(api_router, prefix='/api/v1')
+
+app.include_router(api_router, prefix="/api/v1")

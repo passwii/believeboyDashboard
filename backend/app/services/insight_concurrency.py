@@ -50,7 +50,6 @@ _LIMIT_BY_NAME: dict[str, str] = {
 }
 
 
-
 @contextlib.contextmanager
 def acquire_remote_semaphore(
     name: str,
@@ -82,7 +81,7 @@ def acquire_remote_semaphore(
     else:
         limit = max_concurrent
     client = get_redis_client()
-    key = f"semaphore:ai_insights:{name}"
+    key = f"{get_settings().redis_key_prefix}:semaphore:ai_insights:{name}"
     token = str(uuid.uuid4())
     ttl_ms = int(lease_seconds * 1000)
     deadline = time.monotonic() + timeout

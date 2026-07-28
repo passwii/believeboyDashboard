@@ -5,30 +5,32 @@ import json
 from typing import Any
 
 from app.services.infra._serialization import json_default
-from app.services.infra.data_management import DATA_MANAGEMENT_OVERVIEW_KEY
-from app.services.infra.product_cache import PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX
-from app.services.infra.redis import get_redis_client
+from app.services.infra.redis import _p, get_redis_client
 
-CACHE_KEY_PREFIX = "cache"
+CACHE_KEY_PREFIX = _p("cache")
 CACHE_TTL_LONG = 3600  # 1 hour
 
-SHIPMENT_SCHEDULES_KEY_PREFIX = "shipment-schedules"
+SHIPMENT_SCHEDULES_KEY_PREFIX = _p("shipment-schedules")
 SHIPMENT_LIST_TTL = 1800
 SHIPMENT_DETAIL_TTL = 600
 SHIPMENT_COST_SUMMARY_TTL = 3600
 SHIPMENT_SKU_TTL = 1800
 
-DAILY_ANALYSIS_KEY_PREFIX = "cache:reports:daily"
+DAILY_ANALYSIS_KEY_PREFIX = _p("cache:reports:daily")
 DAILY_ANALYSIS_TTL = 120  # 2 minutes; 短 TTL + 主动 invalidate，负载高时再放宽
 
-SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX = "cache:shipment:in-transit-qty"
+SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX = _p("cache:shipment:in-transit-qty")
 SHIPMENT_IN_TRANSIT_QTY_TTL = 1800  # 30 minutes
 
-MONTHLY_FINANCIAL_SERIES_KEY_PREFIX = "cache:monthly:financial-series"
+MONTHLY_FINANCIAL_SERIES_KEY_PREFIX = _p("cache:monthly:financial-series")
 MONTHLY_FINANCIAL_SERIES_TTL = 3600
 
 
 # ── Generic cache operations ──────────────────────────────────────────
+
+# 压缩阈值：JSON 序列化后超过此字节数才压缩（小 payload 压缩反而浪费 CPU）
+_COMPRESS_THRESHOLD = 1024  # 1 KB
+_COMPRESS_PREFIX = "z:"  # 标记已压缩的 value
 
 
 def _make_cache_key(*parts: str) -> str:
@@ -41,8 +43,15 @@ def cache_get(key: str) -> dict | list | None:
     if data is None:
         return None
     try:
+        # 检查压缩标记
+        if isinstance(data, str) and data.startswith(_COMPRESS_PREFIX):
+            import base64
+            import zlib
+
+            raw = base64.b64decode(data[len(_COMPRESS_PREFIX) :])
+            data = zlib.decompress(raw).decode("utf-8")
         return json.loads(data)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, Exception):
         return None
 
 
@@ -50,7 +59,15 @@ def cache_set(key: str, value: Any, ttl: int = CACHE_TTL_LONG) -> None:
     client = get_redis_client()
     # 使用共享 json_default 兜底 date / datetime / Decimal / UUID 等非原生 JSON
     # 类型,避免请求路径上抛 TypeError 500(P0-2)。
-    client.setex(key, ttl, json.dumps(value, ensure_ascii=False, default=json_default))
+    payload = json.dumps(value, ensure_ascii=False, default=json_default)
+    # 大 payload 压缩存储（zlib + base64），省 60-80% Redis 内存
+    if len(payload.encode("utf-8")) > _COMPRESS_THRESHOLD:
+        import base64
+        import zlib
+
+        compressed = zlib.compress(payload.encode("utf-8"), level=1)
+        payload = _COMPRESS_PREFIX + base64.b64encode(compressed).decode("ascii")
+    client.setex(key, ttl, payload)
 
 
 def cache_delete(key: str) -> None:
@@ -349,29 +366,85 @@ def invalidate_financial_series_cache(project_id: int) -> int:
 
 # ── Clear all caches ──────────────────────────────────────────────────
 
+# 所有已知的 Redis key 前缀（含其他模块的），用于 clear_all_caches。
+# 新增缓存域时在此追加前缀即可。
+_ALL_KEY_PREFIXES = [
+    CACHE_KEY_PREFIX,  # bb:cache:*
+    SHIPMENT_SCHEDULES_KEY_PREFIX,  # bb:shipment-schedules:*
+    DAILY_ANALYSIS_KEY_PREFIX,  # bb:cache:reports:daily:*
+    SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX,  # bb:cache:shipment:in-transit-qty:*
+    MONTHLY_FINANCIAL_SERIES_KEY_PREFIX,  # bb:cache:monthly:financial-series:*
+    _p("data_management"),  # bb:data_management:*
+    _p("product_analysis"),  # bb:product_analysis:*
+    _p("presence"),  # bb:presence:*
+    _p("session"),  # bb:session:*
+    _p("ratelimit"),  # bb:ratelimit:*
+    _p("semaphore"),  # bb:semaphore:*
+    _p("office"),  # bb:office:*
+]
+
 
 def clear_all_caches() -> int:
-    # DATA_MANAGEMENT_OVERVIEW_KEY 与 PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX
-    # 已由 infra/__init__.py 在包加载时导入,这里直接使用即可,无需再 import。
-    cache_prefixes = [
-        DATA_MANAGEMENT_OVERVIEW_KEY.split(":")[0],
-        PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX.split(":")[0],
-        CACHE_KEY_PREFIX,
-        SHIPMENT_SCHEDULES_KEY_PREFIX,
-        DAILY_ANALYSIS_KEY_PREFIX,
-        SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX,
-        MONTHLY_FINANCIAL_SERIES_KEY_PREFIX,
-        "presence",
-    ]
-
+    """清除所有已知前缀的 Redis key。"""
     total_deleted = 0
-    for prefix in cache_prefixes:
-        if prefix == "cache":
-            patterns = ["cache:*", "presence:*"]
-        else:
-            patterns = [f"{prefix}*"]
-
-        for pattern in patterns:
-            total_deleted += cache_delete_pattern(pattern)
-
+    for prefix in _ALL_KEY_PREFIXES:
+        total_deleted += cache_delete_pattern(f"{prefix}:*")
+        # 兼容无冒号分隔的旧 key（如 "cache" 前缀下的 "cache:xxx" 已含冒号）
+        if ":" not in prefix:
+            total_deleted += cache_delete_pattern(f"{prefix}*")
     return total_deleted
+
+
+# ── Stampede protection ─────────────────────────────────────────────
+
+
+def cache_get_or_set(
+    key: str,
+    compute_fn: Any,
+    ttl: int = CACHE_TTL_LONG,
+    lock_timeout: int = 10,
+    lock_wait: float = 0.1,
+    max_wait: float = 5.0,
+) -> dict | list | None:
+    """带 stampede 保护的缓存读取。
+
+    缓存命中直接返回；miss 时用 ``SET NX`` 抢互斥锁，只有一个调用方
+    执行 ``compute_fn()`` 并回填缓存，其余调用方短暂等待后重读缓存。
+
+    Args:
+        key: 缓存 key。
+        compute_fn: 无参可调用对象，返回要缓存的值（dict / list）。
+        ttl: 缓存 TTL（秒）。
+        lock_timeout: 互斥锁自动过期（秒），防 compute_fn 卡死。
+        lock_wait: 未抢到锁时的轮询间隔（秒）。
+        max_wait: 未抢到锁时的最大等待（秒），超时后 fallback 直接计算。
+    """
+    import time as _time
+
+    # 快路径：缓存命中
+    cached = cache_get(key)
+    if cached is not None:
+        return cached
+
+    client = get_redis_client()
+    lock_key = f"{key}:lock"
+
+    # 尝试抢锁
+    acquired = client.set(lock_key, "1", nx=True, ex=lock_timeout)
+    if acquired:
+        try:
+            value = compute_fn()
+            cache_set(key, value, ttl)
+            return value
+        finally:
+            client.delete(lock_key)
+    else:
+        # 未抢到锁：等待其他调用方回填
+        deadline = _time.monotonic() + max_wait
+        while _time.monotonic() < deadline:
+            _time.sleep(lock_wait)
+            cached = cache_get(key)
+            if cached is not None:
+                return cached
+        # 超时 fallback：直接计算（不回填，避免覆盖正在写入的值）
+        return compute_fn()

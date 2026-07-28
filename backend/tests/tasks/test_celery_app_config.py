@@ -23,6 +23,7 @@ def test_default_broker_uses_redis_db_plus_one(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("REDIS_HOST", "redis.local")
     monkeypatch.setenv("REDIS_PORT", "6380")
     monkeypatch.setenv("REDIS_DB", "3")
+    monkeypatch.setenv("AI_CHAT_REDIS_DB", "6")  # 避免与 redis_db=3 碰撞
     monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     monkeypatch.delenv("CELERY_RESULT_URL", raising=False)
     s = _settings()
@@ -51,7 +52,9 @@ def test_password_is_url_encoded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     s = _settings()
     # '@', '/', ':' all percent-encoded
-    assert s._celery_broker_url_resolved == "redis://:p%40ss%2Fw%3Aord@redis.local:6379/1"
+    assert (
+        s._celery_broker_url_resolved == "redis://:p%40ss%2Fw%3Aord@redis.local:6379/1"
+    )
 
 
 def test_no_password_omits_auth_segment(monkeypatch: pytest.MonkeyPatch) -> None:

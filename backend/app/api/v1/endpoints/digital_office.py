@@ -10,6 +10,7 @@ FIX-1 重写要点：
 P3-A: 每 tick 额外推送 chatter 事件（状态转换 → 拟人化动态）。
 P2-Celery: 优先读 Redis 缓存（Celery beat 独立推进器写入），miss 时 fallback 直接计算。
 """
+
 import asyncio
 import json
 import logging
@@ -28,23 +29,22 @@ router = APIRouter(prefix="/digital-employees", tags=["digital-employees"])
 
 TICK_SECONDS = 3.0
 
-# Redis keys（与 office_tick.py 保持一致）
-OFFICE_SNAPSHOT_KEY = "office:wall_snapshot"
-OFFICE_CHATTER_KEY = "office:chatter_events"
+# Redis keys（与 office_tick.py 保持一致，前缀由 settings 统一）
+_OFFICE_SNAPSHOT_SUFFIX = "office:wall_snapshot"
+_OFFICE_CHATTER_SUFFIX = "office:chatter_events"
+
+
+def _office_key(suffix: str) -> str:
+    from app.core.config import get_settings
+
+    return f"{get_settings().redis_key_prefix}:{suffix}"
 
 
 def _get_sync_redis():
-    """获取同步 Redis 客户端（用于线程池中的缓存读取）。"""
-    from app.core.config import get_settings
-    import redis as sync_redis
+    """获取共享同步 Redis 客户端（infra 连接池单例）。"""
+    from app.services.infra.redis import get_redis_client
 
-    settings = get_settings()
-    return sync_redis.Redis(
-        host=settings.redis_host,
-        port=settings.redis_port,
-        password=settings.redis_password or None,
-        db=settings.redis_db,
-    )
+    return get_redis_client()
 
 
 def _build_tick_sync() -> tuple[str, list[str]]:
@@ -56,17 +56,19 @@ def _build_tick_sync() -> tuple[str, list[str]]:
     # 尝试读 Redis 缓存（Celery beat 独立推进器写入）
     try:
         sr = _get_sync_redis()
-        cached = sr.get(OFFICE_SNAPSHOT_KEY)
+        snapshot_key = _office_key(_OFFICE_SNAPSHOT_SUFFIX)
+        chatter_key = _office_key(_OFFICE_CHATTER_SUFFIX)
+        cached = sr.get(snapshot_key)
         if cached:
-            snapshot_json = cached.decode("utf-8") if isinstance(cached, bytes) else cached
+            snapshot_json = (
+                cached.decode("utf-8") if isinstance(cached, bytes) else cached
+            )
             # 读 chatter（最近的事件）
-            chatter_raw = sr.lrange(OFFICE_CHATTER_KEY, 0, 9)
+            chatter_raw = sr.lrange(chatter_key, 0, 9)
             chatter_jsons = [
                 c.decode("utf-8") if isinstance(c, bytes) else c for c in chatter_raw
             ]
-            sr.close()
             return snapshot_json, chatter_jsons
-        sr.close()
     except Exception:
         # Redis 不可用（dev 模式无 Redis），fallback 直接计算
         pass
@@ -80,9 +82,7 @@ def _build_tick_sync() -> tuple[str, list[str]]:
             {"server_time": now.isoformat(), "employees": employees},
             ensure_ascii=False,
         )
-        chatter_jsons = [
-            json.dumps(evt, ensure_ascii=False) for evt in chatter
-        ]
+        chatter_jsons = [json.dumps(evt, ensure_ascii=False) for evt in chatter]
         return snapshot_json, chatter_jsons
     finally:
         db.close()

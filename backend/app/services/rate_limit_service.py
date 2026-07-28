@@ -4,6 +4,7 @@ Rate limiting for auth endpoints using Redis as backend.
 Redis is preferred; falls back to in-memory if Redis is unavailable.
 Redis counters survive server restarts via Redis persistence.
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 def _rate_limit_key(limit_type: str, identifier: str) -> str:
-    return f"ratelimit:{limit_type}:{identifier}"
+    from app.core.config import get_settings
+
+    prefix = get_settings().redis_key_prefix
+    return f"{prefix}:ratelimit:{limit_type}:{identifier}"
 
 
 def _redis_client():
@@ -56,7 +60,9 @@ def increment_and_check(
 
         if count > max_requests:
             oldest = client.zrange(key, 0, 0, withscores=True)
-            retry_after = int(oldest[0][1] + window_seconds - now) if oldest else window_seconds
+            retry_after = (
+                int(oldest[0][1] + window_seconds - now) if oldest else window_seconds
+            )
             return count, max(retry_after, 1)
 
         return count, 0
@@ -76,8 +82,7 @@ _IN_MEMORY_CLEANUP_INTERVAL = 1000  # 每 1000 次操作后清理一次过期条
 def _clean_expired_in_memory_entries(now: float) -> None:
     """清理已超过 24 小时的内存限流条目，防止字典无限增长。"""
     expired_keys = [
-        key for key, (_, timestamp) in _IN_MEMORY.items()
-        if now - timestamp > 86400
+        key for key, (_, timestamp) in _IN_MEMORY.items() if now - timestamp > 86400
     ]
     for key in expired_keys:
         del _IN_MEMORY[key]

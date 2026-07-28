@@ -25,6 +25,7 @@ class HealthResponse(BaseModel):
     database: str
     database_replica: str
     redis: str
+    redis_memory: str | None = None
     version: str | None = None
 
 
@@ -97,6 +98,7 @@ async def health(_=Depends(require_api_key)) -> HealthResponse:
     # 共享 infra 内的 Redis 客户端工厂,使用短 timeout 避免 health probe 被长
     # socket_timeout 拖死;不复用主单例连接池,避免探测流量占用业务连接。
     redis_status = "unavailable"
+    redis_memory = None
     if not settings.redis_host:
         redis_status = "not configured"
     else:
@@ -111,6 +113,12 @@ async def health(_=Depends(require_api_key)) -> HealthResponse:
             probe.ping()
             latency_ms = (time.perf_counter() - start) * 1000
             redis_status = f"ok ({latency_ms:.1f}ms)"
+            # 内存监控：INFO memory 取 used_memory_human
+            try:
+                info = probe.info("memory")
+                redis_memory = info.get("used_memory_human", "unknown")
+            except Exception:
+                redis_memory = "unavailable"
         except Exception as e:
             # 避免外泄 socket 错误细节,只暴露类型
             redis_status = f"error: {type(e).__name__}"
@@ -135,6 +143,7 @@ async def health(_=Depends(require_api_key)) -> HealthResponse:
         database=db_status,
         database_replica=replica_status,
         redis=redis_status,
+        redis_memory=redis_memory,
         version=get_settings().app_env,
     )
 
@@ -159,4 +168,7 @@ async def health_ready() -> dict:
             db.close()
         return {"status": "ok", "timestamp": time.time()}
     except Exception:
-        return {"status": "unavailable", "timestamp": time.time()}, status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "unavailable",
+            "timestamp": time.time(),
+        }, status.HTTP_503_SERVICE_UNAVAILABLE

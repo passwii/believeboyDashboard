@@ -7,6 +7,7 @@ from app.services.infra.cache import (
     cache_delete,
     cache_delete_pattern,
     cache_get,
+    cache_get_or_set,
     cache_set,
     clear_all_caches,
     get_daily_analysis_cache,
@@ -96,6 +97,7 @@ __all__ = [
     "SESSION_TTL_SECONDS",
     # cache
     "cache_get",
+    "cache_get_or_set",
     "cache_set",
     "cache_delete",
     "cache_delete_pattern",

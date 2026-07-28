@@ -12,6 +12,7 @@ TTL 策略:
 import hashlib
 
 from app.services.infra.cache import cache_delete_pattern, cache_get, cache_set
+from app.services.infra.redis import _p
 
 # ── TTL constants ─────────────────────────────────────────────────────
 INVENTORY_ANALYSIS_TTL = 300  # 5 minutes
@@ -22,12 +23,12 @@ PLATFORM_REVENUE_TTL = 300  # 5 minutes
 SKU_INFO_TTL = 300  # 5 minutes
 
 # ── Key prefixes ──────────────────────────────────────────────────────
-INVENTORY_ANALYSIS_KEY_PREFIX = "cache:inventory-analysis"
-INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX = "cache:inventory-snapshot-options"
-INVENTORY_REPLENISHMENT_KEY_PREFIX = "cache:inventory-replenishment"
-RETURN_ANALYSIS_KEY_PREFIX = "cache:return-analysis"
-PLATFORM_REVENUE_KEY_PREFIX = "cache:platform-revenues"
-SKU_INFO_KEY_PREFIX = "cache:sku-info"
+INVENTORY_ANALYSIS_KEY_PREFIX = _p("cache:inventory-analysis")
+INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX = _p("cache:inventory-snapshot-options")
+INVENTORY_REPLENISHMENT_KEY_PREFIX = _p("cache:inventory-replenishment")
+RETURN_ANALYSIS_KEY_PREFIX = _p("cache:return-analysis")
+PLATFORM_REVENUE_KEY_PREFIX = _p("cache:platform-revenues")
+SKU_INFO_KEY_PREFIX = _p("cache:sku-info")
 
 
 def _hash_params(*parts: str) -> str:
@@ -107,8 +108,13 @@ def get_inventory_replenishment_cache(
     page_size: int,
 ) -> dict | None:
     params_hash = _hash_params(
-        str(project_id), country, keyword or "", risk_status or "",
-        str(in_transit_only), str(page), str(page_size),
+        str(project_id),
+        country,
+        keyword or "",
+        risk_status or "",
+        str(in_transit_only),
+        str(page),
+        str(page_size),
     )
     key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
     return cache_get(key)
@@ -125,8 +131,13 @@ def set_inventory_replenishment_cache(
     data: dict,
 ) -> None:
     params_hash = _hash_params(
-        str(project_id), country, keyword or "", risk_status or "",
-        str(in_transit_only), str(page), str(page_size),
+        str(project_id),
+        country,
+        keyword or "",
+        risk_status or "",
+        str(in_transit_only),
+        str(page),
+        str(page_size),
     )
     key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
     cache_set(key, data, INVENTORY_REPLENISHMENT_TTL)
@@ -191,8 +202,13 @@ def get_platform_revenue_cache(
     operator: str | None,
 ) -> dict | None:
     params_hash = _hash_params(
-        str(project_id or "all"), str(year or "all"), str(month or "all"),
-        country or "all", currency or "all", str(page), str(page_size),
+        str(project_id or "all"),
+        str(year or "all"),
+        str(month or "all"),
+        country or "all",
+        currency or "all",
+        str(page),
+        str(page_size),
         operator or "all",
     )
     key = f"{PLATFORM_REVENUE_KEY_PREFIX}:{params_hash}"
@@ -211,8 +227,13 @@ def set_platform_revenue_cache(
     data: dict,
 ) -> None:
     params_hash = _hash_params(
-        str(project_id or "all"), str(year or "all"), str(month or "all"),
-        country or "all", currency or "all", str(page), str(page_size),
+        str(project_id or "all"),
+        str(year or "all"),
+        str(month or "all"),
+        country or "all",
+        currency or "all",
+        str(page),
+        str(page_size),
         operator or "all",
     )
     key = f"{PLATFORM_REVENUE_KEY_PREFIX}:{params_hash}"
@@ -236,11 +257,20 @@ def get_sku_info_cache(
     page_size: int,
     managed_project_ids: list[int] | None,
 ) -> dict | None:
-    ids_str = ",".join(str(i) for i in sorted(managed_project_ids)) if managed_project_ids else "all"
+    ids_str = (
+        ",".join(str(i) for i in sorted(managed_project_ids))
+        if managed_project_ids
+        else "all"
+    )
     params_hash = _hash_params(
-        project_name or "", sku or "", asin or "", country or "",
+        project_name or "",
+        sku or "",
+        asin or "",
+        country or "",
         str(is_active) if is_active is not None else "none",
-        str(page), str(page_size), ids_str,
+        str(page),
+        str(page_size),
+        ids_str,
     )
     key = f"{SKU_INFO_KEY_PREFIX}:{params_hash}"
     return cache_get(key)
@@ -257,11 +287,20 @@ def set_sku_info_cache(
     managed_project_ids: list[int] | None,
     data: dict,
 ) -> None:
-    ids_str = ",".join(str(i) for i in sorted(managed_project_ids)) if managed_project_ids else "all"
+    ids_str = (
+        ",".join(str(i) for i in sorted(managed_project_ids))
+        if managed_project_ids
+        else "all"
+    )
     params_hash = _hash_params(
-        project_name or "", sku or "", asin or "", country or "",
+        project_name or "",
+        sku or "",
+        asin or "",
+        country or "",
         str(is_active) if is_active is not None else "none",
-        str(page), str(page_size), ids_str,
+        str(page),
+        str(page_size),
+        ids_str,
     )
     key = f"{SKU_INFO_KEY_PREFIX}:{params_hash}"
     cache_set(key, data, SKU_INFO_TTL)

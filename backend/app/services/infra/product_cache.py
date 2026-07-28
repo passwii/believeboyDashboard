@@ -1,12 +1,12 @@
-"""Product analysis cache (weekly analysis cache)."""
+"""Product analysis cache (weekly analysis cache).
 
-import json
-from typing import Any
+统一走 cache_get / cache_set 共享层，不再直接操作 Redis 客户端。
+"""
 
-from app.services.infra._serialization import json_default
-from app.services.infra.redis import get_redis_client
+from app.services.infra.cache import cache_delete_pattern, cache_get, cache_set
+from app.services.infra.redis import _p
 
-PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX = "product_analysis:weekly"
+PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX = _p("product_analysis:weekly")
 PRODUCT_ANALYSIS_WEEKLY_TTL = 14400  # 4 hours
 
 
@@ -37,14 +37,7 @@ def get_weekly_analysis_cache(
     key = make_weekly_analysis_cache_key(
         project_id, country, start_date, end_date, current_only
     )
-    client = get_redis_client()
-    data = client.get(key)
-    if data is None:
-        return None
-    try:
-        return json.loads(data)
-    except json.JSONDecodeError:
-        return None
+    return cache_get(key)
 
 
 def set_weekly_analysis_cache(
@@ -58,15 +51,8 @@ def set_weekly_analysis_cache(
     key = make_weekly_analysis_cache_key(
         project_id, country, start_date, end_date, current_only
     )
-    client = get_redis_client()
-    client.setex(
-        key,
-        PRODUCT_ANALYSIS_WEEKLY_TTL,
-        json.dumps(rows, ensure_ascii=False, default=json_default),
-    )
+    cache_set(key, rows, PRODUCT_ANALYSIS_WEEKLY_TTL)
 
 
 def invalidate_weekly_analysis_cache() -> int:
-    from app.services.infra.cache import cache_delete_pattern
-
     return cache_delete_pattern(f"{PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX}:*")

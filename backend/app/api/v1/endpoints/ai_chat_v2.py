@@ -3,6 +3,7 @@
 对应 V2 spec §6(编排器)、§7(SSE 端点)、§8(取消)、§11(重连)。
 旧端点保留在 ai_chat.py,Phase D 删除。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,7 +27,9 @@ from app.services.ai.orchestrator.runner import StreamRunner
 from app.services.ai.orchestrator.stream_bus import RedisStreamBus
 from app.services.ai.orchestrator.cancel import RedisCancelRegistry
 from app.services.ai.protocol.events import (
-    ErrorEvent, MessageStop, StreamResult,
+    ErrorEvent,
+    MessageStop,
+    StreamResult,
 )
 from app.services.ai.protocol.errors import ErrorCode, ProtocolError
 from app.services.ai.protocol.encoder import encode_sse
@@ -52,7 +55,9 @@ def get_runner() -> StreamRunner:
     global _runner
     if _runner is None:
         from app.db.redis import create_redis_client
+
         settings = get_settings()
+        # 使用带连接池的 async 单例（db 由 ai_chat_redis_db 指定）
         redis = create_redis_client(
             host=settings.redis_host,
             port=settings.redis_port,
@@ -92,7 +97,10 @@ async def stream_message_v2(
         return StreamingResponse(
             _resume_stream(runner, conversation_id, last_event_id, request),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     # ── 首次请求路径 ──
@@ -124,13 +132,15 @@ async def stream_message_v2(
     user_prompt, message_history = _prompt_messages_to_pydantic_ai_args(prompt_messages)
 
     # 后台执行 agent(事件写入 Redis Stream)
-    asyncio.create_task(runner.run(
-        conv_id=conversation_id,
-        agent=agent,
-        user_prompt=user_prompt,
-        message_history=message_history,
-        model_name=payload.model or "unknown",
-    ))
+    asyncio.create_task(
+        runner.run(
+            conv_id=conversation_id,
+            agent=agent,
+            user_prompt=user_prompt,
+            message_history=message_history,
+            model_name=payload.model or "unknown",
+        )
+    )
 
     return StreamingResponse(
         _first_request_stream(
@@ -169,7 +179,9 @@ async def _first_request_stream(
     from app.services.ai.stream_utils import serialize_message
 
     try:
-        async for event, entry_id in runner.subscribe_events(conversation_id, from_id="0"):
+        async for event, entry_id in runner.subscribe_events(
+            conversation_id, from_id="0"
+        ):
             # 客户端断连 → 取消
             if await request.is_disconnected():
                 await runner.cancel(conversation_id)
@@ -202,9 +214,9 @@ async def _first_request_stream(
     except Exception:
         logger.exception("V2 stream %s failed", conversation_id)
         db.rollback()
-        yield encode_sse(ErrorEvent(
-            error=ProtocolError(code=ErrorCode.INTERNAL, message="内部错误")
-        ))
+        yield encode_sse(
+            ErrorEvent(error=ProtocolError(code=ErrorCode.INTERNAL, message="内部错误"))
+        )
 
 
 async def _resume_stream(
@@ -243,7 +255,9 @@ async def _finalize_db(
         # ⚠️ 必须在任何 db.commit() 之前序列化 user message 快照。
         # regenerate 路径中 target_assistant 已被 db.delete()+flush()，
         # commit 后 session expire → 再访问属性会 DetachedInstanceError。
-        user_msg_snapshot = serialize_message(target_assistant if regenerate else user_row)
+        user_msg_snapshot = serialize_message(
+            target_assistant if regenerate else user_row
+        )
 
         # 幂等守卫:重连时不重复写
         if assistant_row.content:
@@ -261,7 +275,8 @@ async def _finalize_db(
 
         usage = stream_result.usage
         ai_chat_service.mark_message_complete(
-            db, assistant_row.id,
+            db,
+            assistant_row.id,
             prompt_tokens=usage.input_tokens if usage else 0,
             completion_tokens=usage.output_tokens if usage else 0,
             total_tokens=usage.total_tokens if usage else 0,
@@ -304,7 +319,9 @@ async def _finalize_db(
                 "prompt_tokens": usage.input_tokens if usage else 0,
                 "completion_tokens": usage.output_tokens if usage else 0,
                 "total_tokens": usage.total_tokens if usage else 0,
-            } if usage else None,
+            }
+            if usage
+            else None,
             "conversation_token_usage": {
                 "prompt_tokens": conversation.total_prompt_tokens,
                 "completion_tokens": conversation.total_completion_tokens,

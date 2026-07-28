@@ -18,12 +18,18 @@ REDIS_POOL_SOCKET_CONNECT_TIMEOUT = 5
 REDIS_POOL_SOCKET_TIMEOUT = 5
 REDIS_POOL_HEALTH_CHECK_INTERVAL = 30
 
+
+def _p(suffix: str) -> str:
+    """给 Redis key 加上全局前缀: ``{prefix}:{suffix}``。"""
+    return f"{get_settings().redis_key_prefix}:{suffix}"
+
+
 # Presence
-PRESENCE_KEY_PREFIX = "presence:user:"
+PRESENCE_KEY_PREFIX = _p("presence:user:")
 PRESENCE_TTL_SECONDS = 90
 
 # Session
-SESSION_KEY_PREFIX = "session:"
+SESSION_KEY_PREFIX = _p("session:")
 SESSION_TTL_SECONDS = 8 * 3600  # 8 hours
 
 
@@ -69,45 +75,25 @@ def _disconnect_pool(client: redis.Redis | None) -> None:
 def get_redis_client() -> redis.Redis:
     """获取 Redis 客户端。使用连接池，支持自动重连。
 
-    如果现有连接已断开，会自动关闭并重建客户端。
+    热路径直接返回已有客户端（连接池的 ``health_check_interval=30`` +
+    ``retry_on_timeout=True`` 已提供自动探活与重连）。仅在连接池抛出
+    ``ConnectionError`` / ``TimeoutError`` 时才由 ``retry_on_timeout`` 自动
+    重建底层连接，无需外层 ping 探测。
 
-    线程安全:首次创建与重连路径都受 ``_redis_lock`` 保护,避免多线程并发
-    冷启动时产生多个 ``ConnectionPool`` 实例。
+    线程安全:首次创建受 ``_redis_lock`` 保护,避免多线程并发冷启动时产生
+    多个 ``ConnectionPool`` 实例。
     """
     global _redis_client
     if _redis_client is not None:
-        try:
-            _redis_client.ping()
-            return _redis_client
-        except (redis.ConnectionError, redis.TimeoutError, OSError):
-            logger.warning("Redis connection lost, reconnecting...")
-            with _redis_lock:
-                # 双重检查:其它线程可能已经完成重连
-                if _redis_client is None:
-                    return _redis_client  # type: ignore[return-value]
-                _disconnect_pool(_redis_client)
-                try:
-                    _redis_client.close()
-                except Exception:
-                    pass
-                _redis_client = None
+        return _redis_client
 
     with _redis_lock:
         if _redis_client is not None:
-            try:
-                _redis_client.ping()
-                return _redis_client
-            except (redis.ConnectionError, redis.TimeoutError, OSError):
-                _disconnect_pool(_redis_client)
-                try:
-                    _redis_client.close()
-                except Exception:
-                    pass
-                _redis_client = None
+            return _redis_client
 
         pool = _build_connection_pool()
         _redis_client = redis.Redis(connection_pool=pool)
-        # 首次连接验证
+        # 首次连接验证（仅冷启动一次）
         _redis_client.ping()
         return _redis_client
 
@@ -213,12 +199,17 @@ def get_all_presence(stale_after_seconds: int = 90) -> list[dict[str, Any]]:
     if not keys:
         return []
 
+    # Pipeline 批量读取，避免 N+1 网络往返
+    pipe = client.pipeline()
+    for key in keys:
+        pipe.get(key)
+    values = pipe.execute()
+
     now = datetime.now(UTC).timestamp()
     stale_cutoff = now - stale_after_seconds
     results = []
 
-    for key in keys:
-        data = client.get(key)
+    for data in values:
         if data is None:
             continue
         try:
@@ -249,13 +240,20 @@ def write_session(user_id: str, session_id: str) -> None:
     client.setex(_session_key(user_id, session_id), SESSION_TTL_SECONDS, "1")
 
 
+# Lua: 检查 key 是否存在，存在则刷新 TTL 并返回 1，否则返回 0。单次往返。
+_VALIDATE_SESSION_LUA = """
+if redis.call('EXISTS', KEYS[1]) == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    return 1
+end
+return 0
+"""
+
+
 def validate_session(user_id: str, session_id: str) -> bool:
     client = get_redis_client()
     key = _session_key(user_id, session_id)
-    if not client.exists(key):
-        return False
-    client.expire(key, SESSION_TTL_SECONDS)
-    return True
+    return bool(client.eval(_VALIDATE_SESSION_LUA, 1, key, SESSION_TTL_SECONDS))
 
 
 def delete_user_sessions(user_id: str) -> int:

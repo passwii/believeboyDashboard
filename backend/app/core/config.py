@@ -155,6 +155,9 @@ class Settings(BaseSettings):
     )
 
     redis_db: int = Field(default=0, ge=0, le=15)
+    # 全局 Redis key 前缀，避免多应用共享 Redis 时 key 碰撞。
+    # 所有业务 key 统一为 "{prefix}:{domain}:..." 格式。
+    redis_key_prefix: str = Field(default="bb", max_length=20)
 
     # AI Chat stream(Redis Stream + cancel registry)
     ai_chat_redis_db: int = Field(default=3, ge=0, le=15)
@@ -260,6 +263,31 @@ class Settings(BaseSettings):
                 "database_url is required: set DATABASE_URL, or TEST_DATABASE_URL "
                 "to route the app/tests at a separate test database."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_redis_db_no_collision(self) -> "Settings":
+        """确保业务缓存 / Celery broker / Celery result / AI Chat 四个 Redis DB 互不碰撞。
+
+        Celery broker = redis_db+1, result = redis_db+2（自动派生）。
+        ai_chat_redis_db 是独立配置。四者必须互不相同。
+        """
+        celery_broker_db = self.redis_db + 1
+        celery_result_db = self.redis_db + 2
+        used = {
+            "redis_db (业务缓存)": self.redis_db,
+            "celery_broker (redis_db+1)": celery_broker_db,
+            "celery_result (redis_db+2)": celery_result_db,
+            "ai_chat_redis_db": self.ai_chat_redis_db,
+        }
+        seen: dict[int, str] = {}
+        for label, db in used.items():
+            if db in seen:
+                raise ValueError(
+                    f"Redis DB 碰撞: {label}={db} 与 {seen[db]}={db} 相同。"
+                    f"请调整 REDIS_DB 或 AI_CHAT_REDIS_DB 避免冲突。"
+                )
+            seen[db] = label
         return self
 
 
