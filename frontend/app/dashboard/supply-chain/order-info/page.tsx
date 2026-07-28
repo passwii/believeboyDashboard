@@ -114,6 +114,11 @@ type OrderListResponse = {
   page_size: number
 }
 
+// /overview 一次返回 列表 + 统计（不含 filter_options），取代并行的 /list + /stats
+type OrderOverviewResponse = OrderListResponse & {
+  stats: OrderStats
+}
+
 type FilterOptions = {
   projects: Option[]
   order_statuses: Option[]
@@ -216,6 +221,10 @@ export default function OrderInfoPage() {
   // 首次加载时自动选中第一个店铺，避免默认全部店铺导致全量数据慢查询
   const initialProjectAutoselected = useRef(false)
 
+  // 当前在飞的 list/stats 请求控制器：发新请求前 abort 上一次，
+  // 避免快速切换筛选时多个重型请求并发堆积压垮后端（CPU/内存飙升根因之一）。
+  const fetchAbortRef = useRef<AbortController | null>(null)
+
   // ====== 关键字输入 debounce（250ms）======
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -301,39 +310,51 @@ export default function OrderInfoPage() {
 
   // ====== 拉取数据（list + stats 合并） ======
   const fetchData = useCallback(async () => {
+    // 取消上一次还在飞的请求：快速筛选/翻页时只有最后一次生效，
+    // 杜绝 N 次 list+stats 并发同时压到后端。
+    fetchAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    fetchAbortRef.current = ctrl
+
     setLoading(true)
     setErrorMessage(null)
     try {
       const params = buildQuery()
-      const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/backend/api/v1/order-info/list?${params.toString()}`, {
+      // 单请求 /overview 一次拿 列表+统计，取代原先并行的 /list + /stats：
+      // 后端不再在两个会话里对大表重复全扫描，消除 CPU/内存峰值。
+      const res = await fetch(
+        `/api/backend/api/v1/order-info/overview?${params.toString()}`,
+        {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
-        }),
-        fetch(`/api/backend/api/v1/order-info/stats?${params.toString()}`, {
-          cache: 'no-store',
-          headers: buildBackendClientHeaders(session),
-        }),
-      ])
-      if (!listRes.ok) {
-        const txt = await listRes.text().catch(() => '')
-        throw new Error(txt || `订单列表加载失败 (${listRes.status})`)
+          signal: ctrl.signal,
+        }
+      )
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        throw new Error(txt || `订单数据加载失败 (${res.status})`)
       }
-      if (!statsRes.ok) {
-        const txt = await statsRes.text().catch(() => '')
-        throw new Error(txt || `统计加载失败 (${statsRes.status})`)
-      }
-      const listData = (await listRes.json()) as OrderListResponse
-      const statsData = (await statsRes.json()) as OrderStats
-      setItems(listData.items)
-      setTotal(listData.total)
-      setStats(statsData)
+      const data = (await res.json()) as OrderOverviewResponse
+      // 走到这里说明没被 abort，安全落 state
+      setItems(data.items)
+      setTotal(data.total)
+      setStats(data.stats)
     } catch (e) {
+      // 被新请求取代（abort）不算错误，忽略；否则才提示用户
+      if (ctrl.signal.aborted) return
       setErrorMessage(e instanceof Error ? e.message : '数据加载失败')
     } finally {
-      setLoading(false)
+      // 已被 abort 时不要动 loading，交给接管的新请求维护其加载态
+      if (!ctrl.signal.aborted) setLoading(false)
     }
   }, [buildQuery, session])
+
+  // 卸载时取消在飞请求，避免对已卸载组件 setState
+  useEffect(() => {
+    return () => {
+      fetchAbortRef.current?.abort()
+    }
+  }, [])
 
   // ====== 首次加载：拿到筛选项后自动选中第一个店铺 ======
   useEffect(() => {
@@ -355,7 +376,13 @@ export default function OrderInfoPage() {
   useEffect(() => {
     if (!filterOptions) return
     if (!initialProjectAutoselected.current) return
-    void fetchData()
+    // 250ms debounce：下拉/排序/日期/翻页连点时合并成一次请求，
+    // 配合 fetchData 内的 abort，彻底消除筛选风暴下的并发堆积。
+    // 手动「刷新」按钮走 handleRefresh 直调 fetchData，不受此 debounce 影响。
+    const timer = setTimeout(() => {
+      void fetchData()
+    }, 250)
+    return () => clearTimeout(timer)
   }, [fetchData, filterOptions, projectId])
 
   // ====== 操作 handlers ======

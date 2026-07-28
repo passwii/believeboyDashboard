@@ -31,6 +31,7 @@ from app.schemas.order_info import (
     OrderInfoFilterOptions,
     OrderInfoItem,
     OrderInfoListResponse,
+    OrderInfoOverview,
     OrderInfoPageData,
     OrderInfoStats,
 )
@@ -350,6 +351,7 @@ def list_orders(
     sort_dir: str = "desc",
     operator: str | None = None,
     is_admin: bool = True,
+    known_total: int | None = None,
 ) -> OrderInfoListResponse:
     safe_page = max(int(page or 1), 1)
     safe_page_size = min(max(int(page_size or DEFAULT_PAGE_SIZE), 1), MAX_PAGE_SIZE)
@@ -372,6 +374,49 @@ def list_orders(
         )
         return OrderInfoListResponse(
             items=[], total=0, page=safe_page, page_size=safe_page_size
+        )
+
+    # get_overview 复用 compute_stats 主聚合里的 total_orders（与本函数精确 count 等价），
+    # 传入 known_total 时跳过 count 全扫描（4 次全扫描 → 3 次）。调用方仅在「未启用
+    # fulfillment 过滤」或「SQL 可精确过滤 fulfillment」（PG 生产）时才传 known_total，
+    # 故这里走纯 SQL 分页路径，不涉及 SQLite 应用层 fallback。known_total=None 时
+    # （所有既有调用方）完全走下面的原有逻辑，行为不变。
+    if known_total is not None:
+        fc_set = {c for c in (fulfillment_channels or []) if c}
+        stmt = _build_base_query()
+        stmt = apply_sql_filters(
+            stmt,
+            project_ids=scoped_project_ids,
+            order_statuses=order_statuses,
+            countries=countries,
+            currencies=currencies,
+            sku_keyword=sku_keyword,
+            order_id_keyword=order_id_keyword,
+            asin_keyword=asin_keyword,
+            date_from=date_from,
+            date_to=date_to,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
+        if fc_set:
+            fc_or_clauses = [
+                AnalysisSalesOrderRow.raw_row["fulfillment-channel"].as_string()
+                == channel
+                for channel in fc_set
+            ]
+            stmt = stmt.where(
+                fc_or_clauses[0] if len(fc_or_clauses) == 1 else or_(*fc_or_clauses)
+            )
+        offset = (safe_page - 1) * safe_page_size
+        page_rows = db.execute(stmt.limit(safe_page_size).offset(offset)).all()
+        items = [
+            serialize_order_row(row, project=project) for row, project in page_rows
+        ]
+        return OrderInfoListResponse(
+            items=items,
+            total=known_total,
+            page=safe_page,
+            page_size=safe_page_size,
         )
 
     # total: 应用层先按 SQL 过滤拿到候选总数，再按 fulfillment-channel 过滤得到精确 total
@@ -827,6 +872,80 @@ def get_page_data(
     )
 
 
+def get_overview(
+    db: Session,
+    *,
+    project_ids: list[int] | None = None,
+    fulfillment_channels: list[str] | None = None,
+    order_statuses: list[str] | None = None,
+    countries: list[str] | None = None,
+    currencies: list[str] | None = None,
+    sku_keyword: str | None = None,
+    order_id_keyword: str | None = None,
+    asin_keyword: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = 1,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    sort_by: str = "purchase_at_pt",
+    sort_dir: str = "desc",
+    operator: str | None = None,
+    is_admin: bool = True,
+) -> OrderInfoOverview:
+    """一次请求返回 列表 + 顶部统计（不含 filter_options，供筛选/翻页/排序复用）。
+
+    相比前端分别调 /list + /stats：
+    - 单次 HTTP / 单事务，消除两个重型请求并行重复过滤导致的 CPU/内存峰值；
+    - compute_stats 主聚合里的 total_orders 与 list 的精确 total 等价，在「无
+      fulfillment 过滤」或「SQL 可精确过滤 fulfillment」（PG 生产）时复用为
+      known_total，省掉 list 的 count 全扫描（4 次全扫描 → 3 次）。
+    """
+    stats = compute_stats(
+        db,
+        project_ids=project_ids,
+        fulfillment_channels=fulfillment_channels,
+        order_statuses=order_statuses,
+        countries=countries,
+        currencies=currencies,
+        sku_keyword=sku_keyword,
+        order_id_keyword=order_id_keyword,
+        asin_keyword=asin_keyword,
+        date_from=date_from,
+        date_to=date_to,
+        operator=operator,
+        is_admin=is_admin,
+    )
+    fc_set = {c for c in (fulfillment_channels or []) if c}
+    can_share_total = (not fc_set) or _fulfillment_filter_sql_supported(db)
+    listing = list_orders(
+        db,
+        project_ids=project_ids,
+        fulfillment_channels=fulfillment_channels,
+        order_statuses=order_statuses,
+        countries=countries,
+        currencies=currencies,
+        sku_keyword=sku_keyword,
+        order_id_keyword=order_id_keyword,
+        asin_keyword=asin_keyword,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        operator=operator,
+        is_admin=is_admin,
+        known_total=stats.total_orders if can_share_total else None,
+    )
+    return OrderInfoOverview(
+        items=listing.items,
+        total=listing.total,
+        page=listing.page,
+        page_size=listing.page_size,
+        stats=stats,
+    )
+
+
 def parse_date_input(value: str | None) -> date | None:
     if not value:
         return None
@@ -1060,6 +1179,7 @@ __all__ = [
     "collect_filter_options",
     "compute_stats",
     "export_orders_to_csv",
+    "get_overview",
     "get_page_data",
     "list_orders",
     "parse_date_input",

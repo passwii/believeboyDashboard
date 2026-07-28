@@ -920,3 +920,204 @@ class TestComputeStatsSqlAggregate:
         assert result.fbm_count == 0
         assert result.currency is None
         assert executed == [], f"expected no DB calls, got: {executed}"
+
+
+# ---------- get_overview / list_orders known_total（order-info 性能优化 C）----------
+#
+# 背景：order-info 页面原先每次筛选并行发 /list + /stats 两请求，后端在两个独立
+# 会话里对大表重复全扫描（4 次），是 CPU/内存飙升根因之一。优化后：
+#   - get_overview 单请求单事务返回 列表 + 统计；
+#   - compute_stats 主聚合里的 total_orders 与 list 精确 count 等价，复用为
+#     known_total 让 list_orders 跳过 count 全扫描（4 → 3 次）。
+# 这些测试锁定：known_total 确实省掉 count 查询，且 get_overview 只在「无 fc 过滤」
+# 或「SQL 可精确过滤 fc」时共享 total（SQLite+fc 的应用层 fallback 路径不共享）。
+
+
+class TestListOrdersKnownTotal:
+    """list_orders 传入 known_total 时应跳过 count 全扫描，直接用该 total。"""
+
+    def test_known_total_skips_count_query(self):
+        from app.services.data import order_info_service as svc
+
+        executed: list[str] = []
+
+        class _FakeResult:
+            def scalar(inner_self):
+                return 0
+
+            def all(inner_self):
+                return []  # 分页行：空
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                executed.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        result = svc.list_orders(
+            db,
+            project_ids=None,
+            operator="admin_user",
+            is_admin=True,
+            known_total=99,
+        )
+        # total 直接取 known_total，且没有执行任何 count( 查询
+        assert result.total == 99
+        assert result.items == []
+        count_queries = [sql for sql in executed if "count(" in sql.lower()]
+        assert count_queries == [], (
+            f"known_total 必须跳过 count 全扫描，却执行了: {count_queries}"
+        )
+        # 但仍要执行分页查询（带 LIMIT）
+        assert any("limit" in sql.lower() for sql in executed), (
+            f"known_total 路径仍需执行分页查询; got: {executed}"
+        )
+
+    def test_known_total_applies_fc_filter_in_sql(self):
+        from app.services.data import order_info_service as svc
+
+        executed: list[str] = []
+
+        class _FakeResult:
+            def scalar(inner_self):
+                return 0
+
+            def all(inner_self):
+                return []
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                executed.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        svc.list_orders(
+            db,
+            fulfillment_channels=["Amazon"],
+            operator="admin_user",
+            is_admin=True,
+            known_total=5,
+        )
+        # known_total 路径走纯 SQL，fulfillment-channel 过滤必须出现在分页查询里
+        assert any("fulfillment-channel" in sql for sql in executed), (
+            f"known_total 路径 fc 过滤须在 SQL; got: {executed}"
+        )
+
+    def test_known_total_none_still_runs_count(self):
+        """回归：不传 known_total（所有既有调用方）时 count 查询照常执行。"""
+        from app.services.data import order_info_service as svc
+
+        executed: list[str] = []
+
+        class _FakeResult:
+            def scalar(inner_self):
+                return 0
+
+            def all(inner_self):
+                return []
+
+        class _FakeDB:
+            def execute(inner_self, stmt):
+                executed.append(_compile(stmt))
+                return _FakeResult()
+
+        db = _FakeDB()
+        svc.list_orders(db, project_ids=None, operator="admin_user", is_admin=True)
+        assert any("count(" in sql.lower() for sql in executed), (
+            f"默认路径必须执行 count 查询; got: {executed}"
+        )
+
+
+class TestGetOverview:
+    """get_overview 编排：单请求出 列表+统计，并按 dialect/fc 决定是否共享 total。"""
+
+    @staticmethod
+    def _patch(svc, monkeypatch, *, sql_supported: bool, listing_total: int = 42):
+        """替换 compute_stats / list_orders / _fulfillment_filter_sql_supported，
+        返回捕获 list_orders kwargs 的字典。"""
+        from app.schemas.order_info import OrderInfoListResponse, OrderInfoStats
+
+        captured: dict[str, object] = {}
+
+        def fake_compute_stats(db, **kwargs):
+            return OrderInfoStats(
+                total_orders=listing_total,
+                total_quantity=100,
+                total_amount=1234.56,
+                currency="USD",
+                fba_count=25,
+                fbm_count=17,
+            )
+
+        def fake_list_orders(db, **kwargs):
+            captured.update(kwargs)
+            return OrderInfoListResponse(
+                items=[],
+                total=kwargs.get("known_total") or listing_total,
+                page=kwargs.get("page", 1),
+                page_size=kwargs.get("page_size", 50),
+            )
+
+        monkeypatch.setattr(svc, "compute_stats", fake_compute_stats)
+        monkeypatch.setattr(svc, "list_orders", fake_list_orders)
+        monkeypatch.setattr(
+            svc, "_fulfillment_filter_sql_supported", lambda db: sql_supported
+        )
+        return captured
+
+    def test_no_fc_shares_total(self, monkeypatch):
+        from app.services.data import order_info_service as svc
+
+        captured = self._patch(svc, monkeypatch, sql_supported=False, listing_total=42)
+        result = svc.get_overview(db=object(), operator="admin_user", is_admin=True)
+        # 无 fc 过滤 → 共享 compute_stats 的 total_orders，省掉 count 全扫描
+        assert captured["known_total"] == 42
+        assert result.total == 42
+        assert result.stats.total_orders == 42
+        assert result.stats.total_amount == 1234.56
+
+    def test_fc_sql_supported_shares_total(self, monkeypatch):
+        from app.services.data import order_info_service as svc
+
+        captured = self._patch(svc, monkeypatch, sql_supported=True, listing_total=7)
+        svc.get_overview(
+            db=object(),
+            fulfillment_channels=["Amazon"],
+            operator="admin_user",
+            is_admin=True,
+        )
+        # PG 生产：fc 可 SQL 精确过滤 → 共享 total
+        assert captured["known_total"] == 7
+
+    def test_fc_sql_unsupported_does_not_share_total(self, monkeypatch):
+        from app.services.data import order_info_service as svc
+
+        captured = self._patch(svc, monkeypatch, sql_supported=False, listing_total=7)
+        svc.get_overview(
+            db=object(),
+            fulfillment_channels=["Amazon"],
+            operator="admin_user",
+            is_admin=True,
+        )
+        # SQLite + fc 走应用层 fallback，total 由 list_orders 自算 → 不共享
+        assert captured["known_total"] is None
+
+    def test_assembles_overview_response(self, monkeypatch):
+        from app.schemas.order_info import OrderInfoOverview
+        from app.services.data import order_info_service as svc
+
+        self._patch(svc, monkeypatch, sql_supported=True, listing_total=7)
+        result = svc.get_overview(
+            db=object(),
+            page=2,
+            page_size=25,
+            operator="admin_user",
+            is_admin=True,
+        )
+        assert isinstance(result, OrderInfoOverview)
+        assert result.items == []
+        assert result.page == 2
+        assert result.page_size == 25
+        assert result.stats.currency == "USD"
+        assert result.stats.fba_count == 25
+        assert result.stats.fbm_count == 17

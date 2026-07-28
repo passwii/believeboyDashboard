@@ -14,7 +14,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.models.product_analysis_source import AnalysisSalesOrderRow, AnalysisSourceFile
 from app.models.project import Project
 from app.schemas.order_info import (
@@ -23,6 +28,7 @@ from app.schemas.order_info import (
     OrderInfoFilterOptions,
     OrderInfoItem,
     OrderInfoListResponse,
+    OrderInfoOverview,
     OrderInfoPageData,
     OrderInfoStats,
     OrderInfoUpdate,
@@ -35,7 +41,9 @@ from app.services.data.order_info_service import (
     serialize_order_row,
 )
 
-router = APIRouter(prefix="/order-info", tags=["order-info"], dependencies=[Depends(protected)])
+router = APIRouter(
+    prefix="/order-info", tags=["order-info"], dependencies=[Depends(protected)]
+)
 
 
 def _parse_int_list(values: list[str] | None) -> list[int]:
@@ -61,14 +69,18 @@ def _ensure_operator_header(operator: str | None, is_admin: bool) -> None:
     显式 401 让前端能识别并触发重试/重新登录。
     """
     if not is_admin and not (operator and operator.strip()):
-        raise HTTPException(status_code=401, detail="缺少 X-Operator 头，请重新登录后重试")
+        raise HTTPException(
+            status_code=401, detail="缺少 X-Operator 头，请重新登录后重试"
+        )
 
 
 def _normalize_date_range(
     date_from: Optional[str],
     date_to: Optional[str],
 ) -> tuple[Optional[date], Optional[date]]:
-    return order_info_service.parse_date_input(date_from), order_info_service.parse_date_input(date_to)
+    return order_info_service.parse_date_input(
+        date_from
+    ), order_info_service.parse_date_input(date_to)
 
 
 @router.get("/page", response_model=OrderInfoPageData)
@@ -89,7 +101,7 @@ def get_order_info_page(
     sort_dir: str = "desc",
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoPageData:
     _ensure_operator_header(operator, bool(is_admin))
     df, dt = _normalize_date_range(date_from, date_to)
@@ -132,7 +144,7 @@ def list_orders(
     sort_dir: str = "desc",
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoListResponse:
     _ensure_operator_header(operator, bool(is_admin))
     df, dt = _normalize_date_range(date_from, date_to)
@@ -171,7 +183,7 @@ def get_stats(
     date_to: str | None = None,
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoStats:
     _ensure_operator_header(operator, bool(is_admin))
     df, dt = _normalize_date_range(date_from, date_to)
@@ -192,11 +204,56 @@ def get_stats(
     )
 
 
+@router.get("/overview", response_model=OrderInfoOverview)
+def get_overview(
+    project_ids: list[int] | None = Query(default=None),
+    fulfillment_channels: list[str] | None = Query(default=None),
+    order_statuses: list[str] | None = Query(default=None),
+    countries: list[str] | None = Query(default=None),
+    currencies: list[str] | None = Query(default=None),
+    sku_keyword: str | None = None,
+    order_id_keyword: str | None = None,
+    asin_keyword: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
+    page_size: int = order_info_service.DEFAULT_PAGE_SIZE,
+    sort_by: str = "purchase_at_pt",
+    sort_dir: str = "desc",
+    db: Session = Depends(get_read_db_session),
+    operator: str | None = Depends(get_request_operator),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
+) -> OrderInfoOverview:
+    """一次返回 列表 + 顶部统计（不含 filter_options）。前端筛选/翻页/排序用这个，
+    取代原先并行的 /list + /stats 两请求。"""
+    _ensure_operator_header(operator, bool(is_admin))
+    df, dt = _normalize_date_range(date_from, date_to)
+    return order_info_service.get_overview(
+        db,
+        project_ids=_parse_int_list(project_ids),
+        fulfillment_channels=_parse_str_list(fulfillment_channels),
+        order_statuses=_parse_str_list(order_statuses),
+        countries=_parse_str_list(countries),
+        currencies=_parse_str_list(currencies),
+        sku_keyword=sku_keyword,
+        order_id_keyword=order_id_keyword,
+        asin_keyword=asin_keyword,
+        date_from=df,
+        date_to=dt,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        operator=operator,
+        is_admin=bool(is_admin),
+    )
+
+
 @router.get("/filter-options", response_model=OrderInfoFilterOptions)
 def get_filter_options(
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoFilterOptions:
     _ensure_operator_header(operator, bool(is_admin))
     return order_info_service.collect_filter_options(
@@ -209,7 +266,7 @@ def export_orders(
     payload: OrderInfoExportRequest,
     db: Session = Depends(get_read_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoExportResponse:
     _ensure_operator_header(operator, bool(is_admin))
     df = order_info_service.parse_date_input(payload.date_from)
@@ -243,7 +300,7 @@ def update_order(
     request: Request,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
-    is_admin: bool = Header(default=False, alias='X-Is-Admin'),
+    is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> OrderInfoItem:
     """FBM 订单补录/编辑（carrier / tracking_no / shipped_at / updated_by）。
 
@@ -256,7 +313,10 @@ def update_order(
     # before 快照：用于审计 + 错误时回滚（虽然本次仅改新列，但保留原值便于审计）
     before_row_tuple = db.execute(
         select(AnalysisSalesOrderRow, Project)
-        .join(AnalysisSourceFile, AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id)
+        .join(
+            AnalysisSourceFile,
+            AnalysisSourceFile.id == AnalysisSalesOrderRow.source_file_id,
+        )
         .join(Project, Project.id == AnalysisSourceFile.project_id)
         .where(AnalysisSourceFile.is_current.is_(True))
         .where(AnalysisSalesOrderRow.id == order_id)
