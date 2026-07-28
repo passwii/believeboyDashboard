@@ -85,21 +85,25 @@ def test_html_to_png_passes_explicit_timeout_to_playwright(monkeypatch):
     )
 
 
-def test_html_to_png_uses_headless_shell_and_single_process(monkeypatch):
-    """html_to_png must launch Chromium with --single-process and prefer the
-    lighter ``chrome-headless-shell`` channel.
+def test_html_to_png_launch_is_minimal(monkeypatch):
+    """html_to_png must launch Chromium with the minimal call signature that
+    was stable for the last 7+ days in production (commit ``6afa78e1``).
 
-    Real-world symptom: on the 1.9 GiB VPS, ``p.chromium.launch(headless=True)``
-    on playwright 1.60 spawns **two** chrome processes (the parent ``chrome``
-    + the headless_shell renderer), pushing load average past 3 and thrashing
-    swap. ``--single-process`` collapses them into one; the chrome-headless-shell
-    channel uses a smaller binary (~70 MB vs ~180 MB) and is playwright 1.55+'s
-    default for headless — but only when explicitly requested via
-    ``chromium.launch(channel="chrome-headless-shell")``. Without that,
-    playwright falls back to the full chromium binary.
+    Real-world regression: on 2026-07-28 we naively added ``channel="chrome-headless-shell"``,
+    ``--single-process``, ``--disable-gpu``, and a long list of other args
+    because we mis-diagnosed "two chrome processes" and "120s timeout" as
+    launch-config problems. The actual root cause was elsewhere (HTML content
+    size + ai_summary blocking); the extra launch args made things worse:
+
+    - ``--disable-gpu`` forces ECharts / SVG / Canvas rendering through a
+      software path — 5-10x slower CPU.
+    - ``--single-process`` is officially "not recommended for production" by
+      Playwright (deadlock-prone).
+    - ``channel="chrome-headless-shell"`` is already playwright 1.55+'s
+      default for ``headless=True``; specifying it explicitly adds nothing.
 
     This is a regression guard: anyone refactoring html_to_png should keep
-    the lighter launch path.
+    the launch signature as a one-liner with ONLY headless=True.
     """
     from app.services.scheduled_report import screenshot as ss_mod
 
@@ -120,25 +124,18 @@ def test_html_to_png_uses_headless_shell_and_single_process(monkeypatch):
     ss_mod.html_to_png("<html><body>hi</body></html>")
 
     fake_pw_cm.__enter__.return_value.chromium.launch.assert_called_once()
-    launch_kwargs = fake_pw_cm.__enter__.return_value.chromium.launch.call_args.kwargs
-    launch_args = fake_pw_cm.__enter__.return_value.chromium.launch.call_args.args
-    # Accept either keyword ``channel=...`` or positional — both forms are valid.
-    channel = launch_kwargs.get("channel") or (
-        launch_args[0] if launch_args and isinstance(launch_args[0], str) else None
+    call = fake_pw_cm.__enter__.return_value.chromium.launch.call_args
+    # Must be called with ONLY headless=True. No args, no extra kwargs.
+    assert call.args == (), (
+        f"launch called with positional args {call.args!r}; expected no positional args"
     )
-    assert channel == "chrome-headless-shell", (
-        f"launch channel={channel!r}; expected 'chrome-headless-shell' to "
-        "use the lighter binary instead of full chromium"
+    assert set(call.kwargs.keys()) == {"headless"}, (
+        f"launch kwargs={set(call.kwargs.keys())}; expected only {{'headless'}}. "
+        "Adding --single-process / --disable-gpu / channel= explicitly has "
+        "caused production screenshot timeouts (2026-07-28 regression)."
     )
-    # headless=True must stay (otherwise launches the full UI-bearing browser)
-    assert launch_kwargs.get("headless") is True, (
-        f"headless={launch_kwargs.get('headless')!r}; expected True"
-    )
-    # --single-process must be in the args list to collapse the 2-chrome process pair
-    args = launch_kwargs.get("args", [])
-    assert "--single-process" in args, (
-        f"--single-process missing from launch args; this is what collapses "
-        "the 2-chrome process pattern. Got args={args!r}"
+    assert call.kwargs["headless"] is True, (
+        f"headless={call.kwargs['headless']!r}; expected True"
     )
 
 

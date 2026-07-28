@@ -109,26 +109,16 @@ def html_to_png(
 
     try:
         with sync_playwright() as p:
-            # 走 chrome-headless-shell 通道（playwright 1.55+ 默认但需显式指定）
-            # + --single-process 合并 chrome / chrome-headless-shell 两个子进程。
-            # 现象：playwright 默认 launch 会在 VPS 上拉起 2 个 chrome-headless 进程
-            # （chrome 父进程 + headless_shell 渲染子进程），加上 full_page 2x 缩放
-            # 把 load average 推到 3+，swap 抖动。2026-07-28 线上现象。
-            browser = p.chromium.launch(
-                headless=True,
-                channel="chrome-headless-shell",
-                args=[
-                    "--no-sandbox",
-                    "--single-process",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-default-apps",
-                    "--disable-translate",
-                    "--disable-features=TranslateUI",
-                ],
-            )
+            # 6afa78e1（2026-07-21，前一周）的稳定 launch 配置：
+            # p.chromium.launch(headless=True) — 一行就够，playwright 自动用 headless_shell。
+            # 不要加 --single-process（playwright 官方说不推荐生产用，易 deadlock）
+            # 不要加 --disable-gpu（会让 ECharts/SVG/Canvas 走软渲染，CPU 慢 5-10x）
+            # 不要显式 channel='chrome-headless-shell'（playwright 1.55+ headless 已是默认行为）
+            # 保留 timeout=120_000 防御性超时（playwright 默认 30s 偏紧）。
+            # 6afa78e1 前的几次"修复"反而引入了问题：--disable-gpu 让 ECharts 极慢，
+            # --single-process 易死锁。回归测试 test_html_to_png_launch_is_minimal
+            # 会锁死这个一行 launch 契约，防止以后再被乱加参数。
+            browser = p.chromium.launch(headless=True)
             page = browser.new_page(
                 viewport={"width": width, "height": _VIEWPORT_HEIGHT},
                 device_scale_factor=scale,
@@ -145,12 +135,11 @@ def html_to_png(
 
             page.route("**/*", _block_external)
 
-            page.set_content(html, wait_until="domcontentloaded")
-            # logo 是 data URI（无网络请求），300ms 足够字体/布局稳定
-            page.wait_for_timeout(300)
-            # 2x scale + full_page=True 在 1.9 GiB VPS 上 Playwright 默认 30s 经常超时
-            # （2026-07-28 journal: "Page.screenshot: Timeout 30000ms exceeded"）。
-            # 给到 120s 覆盖 P99 + 渲染抖动；超过这个应该视为 bug 而不是普通运行。
+            page.set_content(html, wait_until="networkidle")
+            # 等待字体渲染 + 布局稳定（6afa78e1 用的 500ms，覆盖复杂表格渲染）
+            page.wait_for_timeout(500)
+            # 保留防御性 timeout=120_000（playwright 默认 30s 偏紧）— 这个是 0d8b697a 引入的，
+            # 和 launch 参数简化无关，防御性超时不应去掉。
             png_bytes = page.screenshot(full_page=True, type="png", timeout=120_000)
             browser.close()
     except Exception as e:
