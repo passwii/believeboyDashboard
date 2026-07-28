@@ -157,7 +157,8 @@ def serialize_order_row(
 
 
 def _build_base_query() -> Select:
-    """所有"按项目归类"的订单查询都基于此 — 通过 source_file → source_file.project_id 过滤项目
+    """所有“按项目归类”的订单查询都基于此 — join source_files 仅为取 is_current 版本；
+    项目过滤打在行级冗余列 AnalysisSalesOrderRow.project_id（见 apply_sql_filters）。
 
     注意：始终只取 `AnalysisSourceFile.is_current = TRUE` 的报告版本；
     被新版本取代的 source_file 下的订单行会从视图里消失（与销售报告上传时
@@ -262,10 +263,17 @@ def apply_sql_filters(
     sort_dir: str = "desc",
     include_order_by: bool = True,
 ) -> Select:
-    """应用可在 SQL 层表达的过滤。fulfillment-channel 在 raw_row JSON 里，过滤放应用层。"""
+    """应用可在 SQL 层表达的过滤。fulfillment-channel 在 raw_row JSON 里，过滤放应用层。
+
+    项目过滤打在行级冗余列 ``AnalysisSalesOrderRow.project_id``（BEL-348 从
+    source_file 回填、upsert 时同步，prod 验证与 source_files.project_id 恒等），
+    而非 join 出来的 ``AnalysisSourceFile.project_id``——这样能命中
+    ``(project_id, purchase_at_pt)`` 复合索引，单项目分页从全表倒扫降到索引直扫。
+    is_current 版本过滤仍由 _build_base_query 的 source_files join 负责。
+    """
 
     if project_ids:
-        stmt = stmt.where(AnalysisSourceFile.project_id.in_(list(project_ids)))
+        stmt = stmt.where(AnalysisSalesOrderRow.project_id.in_(list(project_ids)))
 
     status_list = [s for s in (order_statuses or []) if s]
     if status_list:

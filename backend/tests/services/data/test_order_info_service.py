@@ -1121,3 +1121,22 @@ class TestGetOverview:
         assert result.stats.currency == "USD"
         assert result.stats.fba_count == 25
         assert result.stats.fbm_count == 17
+
+
+class TestProjectFilterColumn:
+    """项目过滤必须打在行级冗余列 analysis_sales_order_rows.project_id（BEL-348），
+    而非 join 出来的 source_files.project_id——这是命中 (project_id, purchase_at_pt)
+    复合索引、把单项目默认视图从 ~119ms 降到 ~5ms 的前提。prod 已验证两列恒等
+    （47805 行 is_current，0 行不一致），切换不改变结果。"""
+
+    def test_project_filter_uses_row_level_project_id(self):
+        from app.services.data import order_info_service as svc
+
+        stmt = svc.apply_sql_filters(
+            svc._build_base_query(), project_ids=[18], include_order_by=False
+        )
+        sql = _compile(stmt).lower()
+        # IN 子句唯一标识行级 project_id 过滤（join 里的 source_files.project_id 用 = 不用 in）
+        assert "analysis_sales_order_rows.project_id in" in sql, (
+            f"项目过滤须打在行级 project_id 的 IN 子句; got:\n{sql}"
+        )
