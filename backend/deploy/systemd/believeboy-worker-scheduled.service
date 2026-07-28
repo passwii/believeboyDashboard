@@ -14,10 +14,18 @@ ExecStart=/root/believeboyDashboard/backend/.venv/bin/celery \
 Restart=always
 RestartSec=3
 
+# 内存限制——防止定时报告 Chrome 截图任务耗尽 VPS 全部内存。
+# 1.9 GiB VPS 上，单个 Chromium + 4x 缩放的截图可占用 200-400 MB，
+# 多个任务叠加或重试会迅速拖满 swap。512M 上限确保单 worker
+# 不影响其他服务，超出时内核直接 OOM 该 cgroup 而非全局崩溃。
+MemoryMax=512M
+MemoryHigh=384M
+MemorySwapMax=128M
+
 # 该 worker 故意只消费 `scheduled` 队列（定时报告主体），其他队列由
-# `believeboy-worker.service` 负责。`-c 1` 是为避免并发启动多个
-# Chromium 实例导致 OOM（截图任务内存膨胀）。单路并发 + countdown
-# 错峰已足够覆盖 P99 < 90s 的执行时长。
+<<<<<<< HEAD
+# `believeboy-worker.service` 负责。`-c 1` 避免并发启动多个 Chromium
+# 实例导致 OOM（截图任务内存膨胀）。单路并发 + countdown 错峰已足够。
 
 [Install]
 WantedBy=multi-user.target
