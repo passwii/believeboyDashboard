@@ -94,6 +94,7 @@ from app.models.alert_rule import AlertRule
 from app.models.alert_event import AlertEvent, AlertEventStatus
 from app.models.alert_preference import AlertPreference
 from app.models.notification_subscription import NotificationSubscription
+from app.models.notification import Notification
 from app.models.scheduled_report import (
     ScheduledReportSubscription,
     ScheduledReportDeliveryLog,
@@ -211,6 +212,7 @@ __all__ = [
     'AlertEventStatus',
     'AlertPreference',
     'NotificationSubscription',
+    'Notification',
     'ScheduledReportSubscription',
     'ScheduledReportDeliveryLog',
     'ScheduledReportLedgerEntry',
