@@ -89,7 +89,7 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("REDIS_DB", "0")
     monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     monkeypatch.delenv("CELERY_RESULT_URL", raising=False)
-    monkeypatch.setenv("CELERY_WORKER_CONCURRENCY", "4")
+    monkeypatch.setenv("CELERY_WORKER_CONCURRENCY", "2")
 
     # Reset the lru_cache so the singleton reflects the new env.
     from app.core import config as config_mod
@@ -108,7 +108,7 @@ def test_celery_app_required_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert conf.timezone == "Asia/Shanghai"
     assert conf.broker_url == "redis://redis.local:6379/1"
     assert conf.result_backend == "redis://redis.local:6379/2"
-    assert conf.worker_concurrency == 4
+    assert conf.worker_concurrency == 2
     assert "app.celery_tasks.ping" in fresh.conf.include
     assert "app.celery_tasks.insights.generate" in fresh.conf.include
     assert fresh.conf.task_routes["generate_insight"]["queue"] == "insights"
