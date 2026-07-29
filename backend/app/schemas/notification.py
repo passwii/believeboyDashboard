@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -54,3 +54,30 @@ class TestEmailResponse(BaseModel):
     success: bool
     message: str
     resend_id: str | None = None
+
+# === P2 通知中心 schemas (Task 2) ===
+
+class NotificationItem(BaseModel):
+    id: int
+    user_id: int
+    type: str
+    title: str
+    message: Optional[str] = None
+    data: Optional[dict] = None
+    read: bool
+    read_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class UnreadCountResponse(BaseModel):
+    count: int
+
