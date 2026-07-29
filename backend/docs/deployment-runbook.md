@@ -45,7 +45,7 @@
    - 先在 staging 完成上述验证
    - 灰度 1 台生产 API 到 `--workers 4`
    - 观察 15 分钟无 404/500 增长后，再全量切换
-   - 保持 Celery worker 并发度由 `believeboy-celery.service` 的 `--concurrency=2` 控制
+   - 保持 Celery worker 并发度由 `believeboy-celery.service` 的 `--concurrency=1` 控制
 
 ## APScheduler 多实例去重（BEL-NEW：切片 3 / M7）
 

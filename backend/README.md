@@ -195,4 +195,4 @@ cd backend
 
 月报任务状态已迁移到 `Job` / `JobRun` 数据库行，`POST /api/v1/monthly-reports` 只创建 `Job` 并交给 Celery reports 队列，`GET /api/v1/monthly-reports/tasks/{task_id}` 从数据库读取 `Job.status`、最新 `JobRun.log_excerpt` 和 `monthly_reports.status`。因此 API 可以按 `uvicorn --workers N` 横向扩容，worker A 接收创建请求、worker B 响应状态查询会看到同一份 DB 事实源。
 
-**建议发布流程**：先在 staging 将 API 扩到 `--workers 4`，再跑 `k6 saturation_50vu` 5 分钟，确认 p99 < 5s 且任务状态不丢、不串。Celery worker 进程的并发度仍由 systemd 单元的 `--concurrency=2` 控制（2026-07-29 由 4 降到 2，因 1.9 GiB VPS swap 已开始用，4 worker 子进程内存吃紧）；不要在同一台机器上用 `celery multi` 启多份 worker，除非已确认 broker 任务幂等与数据库锁策略。
+**建议发布流程**：先在 staging 将 API 扩到 `--workers 4`，再跑 `k6 saturation_50vu` 5 分钟，确认 p99 < 5s 且任务状态不丢、不串。Celery worker 进程的并发度仍由 systemd 单元的 `--concurrency=1` 控制（2026-07-29 由 4 → 2 → 1，因 1.9 GiB VPS baseline 已用 1.5Gi、剩余 477Mi 无法承接突发任务）；不要在同一台机器上用 `celery multi` 启多份 worker，除非已确认 broker 任务幂等与数据库锁策略。
