@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Scope = Literal["mine", "all", "sea"]
 
@@ -45,6 +45,19 @@ class CustomerUpdate(BaseModel):
     remark: str | None = None
 
 
+class ValueScoresUpdate(BaseModel):
+    """P6a 价值评分更新（部分更新：仅写入提供的维度）。
+
+    写入后若 4 维全非空 → 后端重算 rating；任一空 → rating 不动。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    score_scale: Literal["A", "B", "C", "D"] | None = None
+    score_pay: Literal["A", "B", "C", "D"] | None = None
+    score_fit: Literal["A", "B", "C", "D"] | None = None
+    score_coop: Literal["A", "B", "C", "D"] | None = None
+
+
 class CustomerItem(BaseModel):
     id: int
     name: str
@@ -53,6 +66,11 @@ class CustomerItem(BaseModel):
     customer_type: str | None = None  # 对象类型: 工厂/贸易商/同行/其他
     interested_service: str | None = None  # 意向服务: 代运营/AI运营/运营服务/其他
     rating: str
+    # P6a: 4 维价值评分（主观判断）。rating 由 4 维汇总自动计算（见 value_score_service.compute_rating）。
+    score_scale: str | None = None
+    score_pay: str | None = None
+    score_fit: str | None = None
+    score_coop: str | None = None
     status: str
     source: str | None = None
     owner_id: str | None = None
