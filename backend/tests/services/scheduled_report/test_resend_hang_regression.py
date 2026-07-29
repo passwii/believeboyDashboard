@@ -148,6 +148,52 @@ def test_html_to_png_launch_is_minimal(monkeypatch):
     )
 
 
+def test_html_to_png_closes_browser_on_screenshot_timeout(monkeypatch):
+    """Regression guard: 2026-07-29 scheduled-report 卡死事故。
+
+    现场症状：celery soft_time_limit=300 触发 SIGKILL worker 子进程 → python
+    进程立即死 → `browser.close()` 永远不会执行 → chromium 子进程成为孤儿，
+    长期占 400-500 MiB 内存 + D 状态等 IO pipe，必须 systemctl restart
+    scheduled service 才能释放。
+
+    修复：把 browser.close() 从成功路径移到 finally 块，无论异常、超时、
+    SIGKILL 路径都会尝试 close。
+
+    测试：模拟 page.screenshot 抛 TimeoutError，断言：
+    1. html_to_png 返回 None（失败不阻断）
+    2. fake_browser.close() 被调用过（清理路径触发了）
+    """
+    import playwright.sync_api as pw_sync_api
+
+    from app.services.scheduled_report import screenshot as ss_mod
+
+    fake_page = MagicMock()
+    # 模拟截图超时：playwright 真实 TimeoutError 是 playwright._impl._api_types
+    # .TimeoutError，继承自 Exception。
+    fake_page.screenshot.side_effect = TimeoutError(
+        "Page.screenshot: Timeout 120000ms exceeded"
+    )
+    fake_browser = MagicMock()
+    fake_browser.new_page.return_value = fake_page
+    fake_pw_cm = MagicMock()
+    fake_pw_cm.__enter__.return_value.chromium.launch.return_value = fake_browser
+    fake_pw_cm.__exit__.return_value = False
+    fake_sync_pw = MagicMock(return_value=fake_pw_cm)
+
+    monkeypatch.setattr(pw_sync_api, "sync_playwright", fake_sync_pw, raising=False)
+    monkeypatch.setattr(ss_mod, "_apply_rounded_corners", lambda b: b)
+
+    result = ss_mod.html_to_png("<html><body>hi</body></html>")
+
+    assert result is None, (
+        f"html_to_png returned {result!r} on screenshot timeout; "
+        "expected None so the dispatcher can fall through to email-only path"
+    )
+    fake_browser.close.assert_called_once()
+    # 额外说明：close() 必须被调用，否则 chromium 子进程成为孤儿
+    # (400-500 MiB D-state)，见 2026-07-29 scheduled-report 卡死事故。
+
+
 # ---------------------------------------------------------------------------
 # 2. dispatcher._dispatch_one_task_body on celery time limit
 # ---------------------------------------------------------------------------

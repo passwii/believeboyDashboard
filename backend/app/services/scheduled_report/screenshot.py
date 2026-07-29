@@ -17,9 +17,17 @@ logger = logging.getLogger(__name__)
 _DESKTOP_VIEWPORT_WIDTH = 900
 _MOBILE_VIEWPORT_WIDTH = 420  # 手机竖屏宽度，截图专用
 _VIEWPORT_HEIGHT = 800  # 初始高度，full_page=True 会自动扩展
-# 手机端截图：4x 保证 Retina 超清（420 CSS px → 1680 物理 px）
-# 覆盖 iPhone 15 Pro Max（430 CSS @ 3x = 1290px）等高端设备，无毛刺
-_MOBILE_SCALE_FACTOR = 4
+# 手机端截图缩放倍率。
+# 2x：420 CSS px → 840 物理 px，邮件客户端主流尺寸下清晰，Retina 屏略可
+#      见毛刺但邮件系统自身会压缩，可接受。
+# 4x：420 CSS px → 1680 物理 px，理论上覆盖 iPhone 15 Pro Max @3x。
+#      但在 1.9 GiB / 2 核 VPS 上 SwiftShader 软渲染 + ECharts + full_page
+#      会导致 GPU 进程长驻 400-500 MiB D 状态几分钟不出结果（2026-07-29
+#      scheduled_report dispatch_one 卡死的根因）。
+#      物理像素翻 4 倍，软渲染时间 5-10x，2 核 CPU 直接打满；chrome 进程
+#      还互相等 IO pipe，永远无法自然完成。
+#      ⇒ VPS / 2 核小机器结构性约束 = 2x，4x 仅在 4 核 / 4 GB+ 部署上启用。
+_MOBILE_SCALE_FACTOR = 2
 _ROUNDED_RADIUS = 30  # 与 420px 宽度成比例（原来 100/900 ≈ 30/420）
 
 # 邮件 logo 本地副本（与 dash.believeboy.com/logo-email.png 同源）
@@ -107,6 +115,7 @@ def html_to_png(
         )
         return None
 
+    browser = None
     try:
         with sync_playwright() as p:
             # 6afa78e1（2026-07-21）的稳定 launch 配置基础上，追加资源限制参数：
@@ -155,10 +164,25 @@ def html_to_png(
             # 保留防御性 timeout=120_000（playwright 默认 30s 偏紧）— 这个是 0d8b697a 引入的，
             # 和 launch 参数简化无关，防御性超时不应去掉。
             png_bytes = page.screenshot(full_page=True, type="png", timeout=120_000)
-            browser.close()
     except Exception as e:
+        # 2026-07-29: 任何异常 / 超时路径都必须确保 chrome 子进程被清理。
+        # celery soft_time_limit=300 SIGKILL worker 子进程时，python 进程立即
+        # 被杀，browser.close() 不会执行 → chrome 子进程成为孤儿，靠 cgroup
+        # OOM / 手动 systemctl restart 释放，会卡 5+ 分钟。
+        # 把关闭逻辑放到 finally 块，无论异常 / 超时 / SIGKILL 都能立即释放。
         logger.error("截图生成失败: %s", e)
         return None
+    finally:
+        # 双保险：成功路径在 with 块退出时 playwright 会自动关；异常路径
+        # 这里手动 close。注意 playwright 的 close 是 best-effort，如果
+        # chromium 子进程本身 D 状态，close 也会 hang，但 at least 我们调用了。
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception as close_err:
+                logger.warning(
+                    "browser.close() 失败（chromium 可能仍残留）: %s", close_err
+                )
 
     try:
         png_bytes = _apply_rounded_corners(png_bytes)
