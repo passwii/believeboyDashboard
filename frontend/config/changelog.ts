@@ -28,7 +28,7 @@ export const changeLog: ChangeLogEntry[] = [
     highlights: [
       '侧边栏新增「订单信息」入口（位于发货管理和 SKU 信息之间）',
       '后端：app/services/data/order_info_service.py + /api/v1/order-info/* 五个端点',
-      '前端：/dashboard/supply-chain/order-info 页面 + Next.js API 路由转发',
+      '前端：/dashboard/reports/order-info 页面 + Next.js API 路由转发',
     ],
   },
   {

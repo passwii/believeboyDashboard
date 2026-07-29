@@ -14,7 +14,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/operations/project-goals', title: '目标管理' },
   { match: '/reports/report-upload', title: '报表上传' },
   { match: '/supply-chain/shipment-management', title: '发货管理' },
-  { match: '/supply-chain/order-info', title: '订单信息' },
+  { match: '/reports/order-info', title: '订单信息' },
   { match: '/supply-chain/sku-info', title: 'SKU 信息中心' },
   { match: '/reports/report-reconciliation', title: '报表核对' },
   { match: '/finance/exchange-rate', title: '汇率信息' },

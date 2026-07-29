@@ -156,6 +156,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         icon: IconMap.Zap,
       },
       { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
+      { title: '订单信息', url: '/dashboard/reports/order-info', icon: IconMap.ShoppingBag },
     ],
   },
 
@@ -234,7 +235,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         icon: IconMap.CalendarRange,
       },
       { title: '发货管理', url: '/dashboard/supply-chain/shipment-management', icon: IconMap.Package },
-      { title: '订单信息', url: '/dashboard/supply-chain/order-info', icon: IconMap.ShoppingBag },
     ],
   },
 
