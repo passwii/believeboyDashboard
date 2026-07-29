@@ -31,6 +31,7 @@ import {
 import {
   DateRangePicker,
   formatDateInputValue as formatPickerDateInputValue,
+  getTodayInTimezone,
   parseDateRangeInputValue,
 } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
@@ -167,6 +168,20 @@ function formatLocalDate(isoStr: string | null | undefined): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function defaultLast7Days(): { from: string; to: string } {
+  // 默认近 7 天（含今天）— 直接把 stats 聚合扫描集 bound 在近期订单，
+  // 降低首屏与每次筛选的 CPU/内存压力，也匹配用户实际查近期订单的诉求。
+  // SSR/CSR 一致性：返回纯字符串、计算确定；调用方在 mount 后 effect 里 setState。
+  // 时区与后端 purchase_date_pt 一致（PT），避免跨时区切到下一天导致 7 天窗口跑偏。
+  const today = getTodayInTimezone('America/Los_Angeles')
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(today.getDate() - 6)
+  return {
+    from: formatPickerDateInputValue(sevenDaysAgo),
+    to: formatPickerDateInputValue(today),
+  }
+}
+
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const s = status.toLowerCase()
   if (s.includes('cancel')) return 'destructive'
@@ -248,27 +263,45 @@ export default function OrderInfoPage() {
   }, [session])
 
   // ====== 拉取筛选项（一次性） ======
+  // 8s 客户端超时护栏：collect_filter_options 在大表上 3 个 distinct 全表扫会拖到 3–6s，
+  // 这里给一个上限避免首屏无限转圈；同时超时/失败走 fallback 让首屏数据能出。
   useEffect(() => {
     let cancelled = false
+    const ctrl = new AbortController()
+    const timeoutId = setTimeout(() => ctrl.abort(), 8000)
     async function load() {
       setFilterOptionsLoading(true)
       try {
         const res = await fetch('/api/backend/api/v1/order-info/filter-options', {
           cache: 'no-store',
           headers: buildBackendClientHeaders(session),
+          signal: ctrl.signal,
         })
         if (!res.ok) throw new Error('筛选选项加载失败')
         const data = (await res.json()) as FilterOptions
         if (!cancelled) setFilterOptions(data)
       } catch (e) {
-        if (!cancelled) setErrorMessage(e instanceof Error ? e.message : '筛选选项加载失败')
+        if (cancelled) return
+        // 超时 / 失败 不弹红色错误（避免吓用户且造成 filterOptions 永久 null → 拦住数据请求），
+        // 而是用空壳触发 autoselect 完成，让首屏数据能走 /overview（用户起码能看到表格）。
+        // dropdown 会是空的，但表格可看；后续如果 /overview 返回 200 则一切正常。
+        setFilterOptions({
+          projects: [],
+          order_statuses: [],
+          fulfillment_channels: [],
+          countries: [],
+          currencies: [],
+        })
       } finally {
+        clearTimeout(timeoutId)
         if (!cancelled) setFilterOptionsLoading(false)
       }
     }
     void load()
     return () => {
       cancelled = true
+      ctrl.abort()
+      clearTimeout(timeoutId)
     }
   }, [session])
 
@@ -356,7 +389,9 @@ export default function OrderInfoPage() {
     }
   }, [])
 
-  // ====== 首次加载：拿到筛选项后自动选中第一个店铺 ======
+  // 首次加载：拿到筛选项后自动选中第一个店铺
+  // 即使 filter-options 失败/超时，setFilterOptions 会置为空壳触发本 effect，
+  // 让 autoselect 走"无项目"分支 → projectId 保持 DEFAULT（__all__）。
   useEffect(() => {
     if (!filterOptions || initialProjectAutoselected.current) return
     if (filterOptions.projects.length > 0) {
@@ -367,14 +402,19 @@ export default function OrderInfoPage() {
     }
   }, [filterOptions])
 
+  // 首屏默认近 7 天：在 mount 后 effect 里 setState 而不是 useState 初值，
+  // 避免 SSR pre-render 与 CSR hydrate 不一致导致 React hydration mismatch。
+  useEffect(() => {
+    const { from, to } = defaultLast7Days()
+    setDateFrom(from)
+    setDateTo(to)
+  }, [])
+
   // ====== 副作用：任何筛选变化触发 fetch ======
-  // 等 filter-options 至少回来一次再拉数据，避免在 Next.js App Router 偶发的
-  // session / X-Operator 头时序窗口内，与 filter-options 并行发出的 list 请求
-  // 被后端 _ensure_project_access_for_orders 命中 "operator 为空 → 空结果" 分支，
-  // 导致用户看到 "店铺下拉还是空的、列表已经是空" 的死锁。
+  // gate 只看 autoselect 是否完成（filter-options 失败时空壳 filterOptions 也会让 autoselect 走完），
+  // 保证首屏 /overview 不会被 filter-options 慢/失败永久拦住。
   // 首次加载时等待店铺自动选中后再 fetch，避免默认"全部店铺"拉全量数据慢查询。
   useEffect(() => {
-    if (!filterOptions) return
     if (!initialProjectAutoselected.current) return
     // 250ms debounce：下拉/排序/日期/翻页连点时合并成一次请求，
     // 配合 fetchData 内的 abort，彻底消除筛选风暴下的并发堆积。
@@ -402,8 +442,10 @@ export default function OrderInfoPage() {
     setOrderIdKeywordCommitted('')
     setAsinKeyword('')
     setAsinKeywordCommitted('')
-    setDateFrom('')
-    setDateTo('')
+    // 重置回退到默认 = 近 7 天（与首次加载默认一致），不是空=全部
+    const { from, to } = defaultLast7Days()
+    setDateFrom(from)
+    setDateTo(to)
     setPage(1)
   }
 
