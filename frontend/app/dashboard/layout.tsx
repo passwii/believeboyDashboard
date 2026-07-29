@@ -6,6 +6,7 @@ import { signOut, useSession } from 'next-auth/react'
 import { PageTransition } from '@/components/motion/PageTransition'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { SidebarShell } from '@/components/dashboard/sidebar-shell'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
@@ -58,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <SidebarProvider>
+      <NotificationBell />
       <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))]">
         <SidebarShell />
 

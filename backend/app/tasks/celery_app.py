@@ -47,6 +47,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.ai_summary",
             "app.celery_tasks.office_tick",
             "app.celery_tasks.crm_sea_reclaim",
+            "app.celery_tasks.alert_detection",
         ],
     )
 
@@ -77,6 +78,8 @@ def _build_celery_app() -> Celery:
             "office_tick": {"queue": "default"},
             # CRM 公海自动回收（P3a）：default 队列（每日一次短任务）
             "crm_sea_reclaim": {"queue": "default"},
+            # 告警定时检测（P1）：default 队列（短任务，每 15 分钟）
+            "alert_detect": {"queue": "default"},
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={
@@ -88,6 +91,11 @@ def _build_celery_app() -> Celery:
             "crm-sea-reclaim": {
                 "task": "crm_sea_reclaim",
                 "schedule": crontab(hour=3, minute=0),
+            },
+            # 告警定时检测（P1）：每 15 分钟跑全量规则检测 + 分发
+            "alert-detect": {
+                "task": "alert_detect",
+                "schedule": crontab(minute="*/15"),
             },
         },
         # All timestamps in messages/results use project timezone.

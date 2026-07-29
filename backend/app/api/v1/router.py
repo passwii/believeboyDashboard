@@ -6,12 +6,20 @@ from app.api.v1.endpoints.monthly_reports import router as monthly_reports_route
 from app.api.v1.endpoints.vat_invoices import router as vat_invoices_router
 from app.api.v1.endpoints.daily_analysis import router as daily_analysis_router
 from app.api.v1.endpoints.product_analysis import router as product_analysis_router
-from app.api.v1.endpoints.product_analysis_reports import router as product_analysis_reports_router
+from app.api.v1.endpoints.product_analysis_reports import (
+    router as product_analysis_reports_router,
+)
 from app.api.v1.endpoints.presence import router as presence_router
 from app.api.v1.endpoints.sku_info import router as sku_info_router
-from app.api.v1.endpoints.pricing_calculation import router as pricing_calculation_router
-from app.api.v1.endpoints.store_sku_pricing_snapshots import router as store_sku_pricing_snapshots_router
-from app.api.v1.endpoints.pricing_calculation_snapshots import router as pricing_calculation_snapshots_router
+from app.api.v1.endpoints.pricing_calculation import (
+    router as pricing_calculation_router,
+)
+from app.api.v1.endpoints.store_sku_pricing_snapshots import (
+    router as store_sku_pricing_snapshots_router,
+)
+from app.api.v1.endpoints.pricing_calculation_snapshots import (
+    router as pricing_calculation_snapshots_router,
+)
 from app.api.v1.endpoints.shop_calculation import router as shop_calculation_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.ai_chat import router as ai_chat_router
@@ -21,8 +29,12 @@ from app.api.v1.endpoints.ai_insight import router as ai_insight_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from app.api.v1.endpoints.order_info import router as order_info_router
-from app.api.v1.endpoints.inventory_replenishment import router as inventory_replenishment_router
-from app.api.v1.endpoints.inventory_replenishment_snapshots import router as inventory_replenishment_snapshots_router
+from app.api.v1.endpoints.inventory_replenishment import (
+    router as inventory_replenishment_router,
+)
+from app.api.v1.endpoints.inventory_replenishment_snapshots import (
+    router as inventory_replenishment_snapshots_router,
+)
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
@@ -36,17 +48,22 @@ from app.api.v1.endpoints.project_goals import router as project_goals_router
 from app.api.v1.endpoints.digital_employees import router as digital_employees_router
 from app.api.v1.endpoints.digital_office import router as digital_office_router
 from app.api.v1.endpoints.rpa_reports import router as rpa_reports_router
-from app.api.v1.endpoints.report_reconciliation import router as report_reconciliation_router
+from app.api.v1.endpoints.report_reconciliation import (
+    router as report_reconciliation_router,
+)
 from app.api.v1.endpoints.digital_display import router as digital_display_router
 from app.api.v1.endpoints.alerts import router as alerts_router
 from app.api.v1.endpoints.scheduled_reports import router as scheduled_reports_router
-from app.api.v1.endpoints.notification_settings import router as notification_settings_router
+from app.api.v1.endpoints.notification_settings import (
+    router as notification_settings_router,
+)
 from app.api.v1.endpoints.platform_revenues import router as platform_revenues_router
 from app.api.v1.endpoints.backups import router as backups_router
 from app.api.v1.endpoints.inspections import router as inspections_router
 from app.api.v1.endpoints.page_render import router as page_render_router
 from app.api.v1.endpoints.external import external_router
 from app.api.v1.endpoints.crm import router as crm_router
+from app.api.v1.endpoints.notifications import router as notifications_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -96,3 +113,4 @@ api_router.include_router(page_render_router)
 api_router.include_router(external_router)
 api_router.include_router(vat_invoices_router)
 api_router.include_router(crm_router)
+api_router.include_router(notifications_router)
