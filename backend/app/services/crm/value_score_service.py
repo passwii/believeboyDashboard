@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.crm import CrmCustomer
+
 GRADE_POINTS: dict[str, int] = {"A": 4, "B": 3, "C": 2, "D": 1}
 DEFAULT_WEIGHTS: dict[str, float] = {
     "score_scale": 0.25,
@@ -10,6 +15,18 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "score_coop": 0.25,
 }
 SCORE_FIELDS: tuple[str, ...] = ("score_scale", "score_pay", "score_fit", "score_coop")
+
+_VALID_GRADES = frozenset(GRADE_POINTS.keys())
+
+
+def _validate_scores(scores: dict) -> None:
+    for k, v in scores.items():
+        if k not in SCORE_FIELDS:
+            continue
+        if v is None:
+            continue
+        if v not in _VALID_GRADES:
+            raise ValueError(f"非法档位 {k}={v!r}（须为 A/B/C/D 或 null）")
 
 
 def compute_rating(
@@ -28,3 +45,47 @@ def compute_rating(
     if total >= 1.5:
         return "C"
     return "D"
+
+
+def update_scores(
+    db: Session,
+    customer_id: int,
+    scores: dict,
+    *,
+    user_id: str | None,
+    commit: bool = True,
+) -> tuple[CrmCustomer | None, str | None, bool]:
+    """部分更新 4 维；写入后 4 维全非空 → 重算 rating；否则不动。
+
+    返回 (customer, old_rating, rating_changed)。客户不存在 → (None, None, False)。
+    非法档位抛 ValueError。commit=False 仅 flush（端点统一 commit）。
+    """
+    _validate_scores(scores)
+    cust = db.execute(
+        select(CrmCustomer).where(
+            CrmCustomer.id == customer_id, CrmCustomer.is_deleted.is_(False)
+        )
+    ).scalar_one_or_none()
+    if cust is None:
+        return None, None, False
+    old_rating = cust.rating
+    for k, v in scores.items():
+        if k in SCORE_FIELDS and v is not None:
+            setattr(cust, k, v)
+    db.flush()
+    current = {
+        "score_scale": cust.score_scale,
+        "score_pay": cust.score_pay,
+        "score_fit": cust.score_fit,
+        "score_coop": cust.score_coop,
+    }
+    new_rating = compute_rating(current)
+    rating_changed = False
+    if new_rating is not None and new_rating != cust.rating:
+        cust.rating = new_rating
+        rating_changed = True
+        db.flush()
+    if commit:
+        db.commit()
+    db.refresh(cust)
+    return cust, old_rating, rating_changed
