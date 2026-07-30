@@ -7,6 +7,7 @@ Covers the query path without needing a live database:
 
 These tests mock SQLAlchemy execution so we don't depend on PG state.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -46,78 +47,35 @@ class TestQueryDelegation:
         "query_invalid_traffic_raw": "ad_invalid_traffic_report",
     }
 
-    @pytest.mark.parametrize("func_name,report_type", list(expected_report_types.items()))
+    @pytest.mark.parametrize(
+        "func_name,report_type", list(expected_report_types.items())
+    )
     def test_report_type_literal(self, db_session, func_name, report_type, monkeypatch):
         captured = {}
 
-        def fake_run_query(db, *, row_model, project_id, country, report_type, **kwargs):
-            captured['report_type'] = report_type
-            captured['row_model'] = row_model
+        def fake_run_query(
+            db, *, row_model, project_id, country, report_type, **kwargs
+        ):
+            captured["report_type"] = report_type
+            captured["row_model"] = row_model
             return []
 
-        monkeypatch.setattr(ad_rows_query, '_run_raw_query', fake_run_query)
+        monkeypatch.setattr(ad_rows_query, "_run_raw_query", fake_run_query)
 
         func = getattr(ad_rows_query, func_name)
         func(
             db_session,
             project_id=1,
-            country='US',
+            country="US",
             date_from=date(2026, 6, 1),
             date_to=date(2026, 6, 30),
             order_column=None,
-            order_dir='desc',
+            order_dir="desc",
             limit=10,
             offset=0,
         )
 
-        assert captured['report_type'] == report_type
-
-
-# ---------------------------------------------------------------------------
-# list_ad_upload_files validation
-# ---------------------------------------------------------------------------
-
-
-class TestListAdUploadFiles:
-    def test_limit_too_small(self, db_session):
-        with pytest.raises(ValueError, match="limit must be"):
-            ad_rows_query.list_ad_upload_files(
-                db_session, project_id=1, limit=0,
-            )
-
-    def test_limit_too_large(self, db_session):
-        with pytest.raises(ValueError, match="limit must be"):
-            ad_rows_query.list_ad_upload_files(
-                db_session, project_id=1, limit=501,
-            )
-
-    def test_negative_offset(self, db_session):
-        with pytest.raises(ValueError, match="offset must be"):
-            ad_rows_query.list_ad_upload_files(
-                db_session, project_id=1, offset=-1,
-            )
-
-    def test_filters_passed_to_query(self, db_session, monkeypatch):
-        captured = {}
-
-        def fake_run(db, stmt):
-            # Capture stmt.to_statement_params-like for assertion
-            captured['statement'] = stmt
-            return []
-
-        # Easier: just call the real function and assert db.execute was called once.
-        result = ad_rows_query.list_ad_upload_files(
-            db_session,
-            project_id=42,
-            report_type='ad_campaign_report',
-            country='US',
-            include_history=False,
-            limit=10,
-            offset=5,
-        )
-        assert result == []
-        # db.execute was called exactly once
-        assert db_session.execute.call_count == 1
+        assert captured["report_type"] == report_type
 
 
 # ---------------------------------------------------------------------------
@@ -135,15 +93,15 @@ class TestAggregateSearchTermsTargetingType:
 
     def _mock_row(self, **overrides):
         row = MagicMock()
-        row.campaign_name = overrides.get('campaign_name', 'Camp-A')
-        row.search_term = overrides.get('search_term', 'red shoes')
-        row.match_type = overrides.get('match_type', 'EXACT')
-        row.max_end_date = overrides.get('max_end_date', date(2026, 6, 15))
-        row.impressions = overrides.get('impressions', 10)
-        row.clicks = overrides.get('clicks', 1)
-        row.spend = overrides.get('spend', Decimal('1.50'))
-        row.sales_7d = overrides.get('sales_7d', Decimal('5.00'))
-        row.orders_7d = overrides.get('orders_7d', 1)
+        row.campaign_name = overrides.get("campaign_name", "Camp-A")
+        row.search_term = overrides.get("search_term", "red shoes")
+        row.match_type = overrides.get("match_type", "EXACT")
+        row.max_end_date = overrides.get("max_end_date", date(2026, 6, 15))
+        row.impressions = overrides.get("impressions", 10)
+        row.clicks = overrides.get("clicks", 1)
+        row.spend = overrides.get("spend", Decimal("1.50"))
+        row.sales_7d = overrides.get("sales_7d", Decimal("5.00"))
+        row.orders_7d = overrides.get("orders_7d", 1)
         return row
 
     def test_calls_build_cache_and_resolve_per_row(self, monkeypatch):
@@ -152,25 +110,38 @@ class TestAggregateSearchTermsTargetingType:
         cache_calls = []
 
         def fake_build_cache(db, *, project_id, country, date_from, date_to):
-            cache_calls.append({'project_id': project_id, 'country': country,
-                                'date_from': date_from, 'date_to': date_to})
-            return {('Camp-A', 'US'): '自动投放'}
+            cache_calls.append(
+                {
+                    "project_id": project_id,
+                    "country": country,
+                    "date_from": date_from,
+                    "date_to": date_to,
+                }
+            )
+            return {("Camp-A", "US"): "自动投放"}
 
         resolve_calls = []
 
         def fake_resolve(*, campaign_name, country, raw_row, campaign_targeting_map):
-            resolve_calls.append({
-                'campaign_name': campaign_name,
-                'country': country,
-                'raw_row': raw_row,
-            })
-            return raw_row.get('投放')
-
-        monkeypatch.setattr(aggregator.ad_targeting, 'build_campaign_targeting_cache', fake_build_cache)
-        monkeypatch.setattr(aggregator.ad_targeting, 'resolve_targeting_type', fake_resolve)
+            resolve_calls.append(
+                {
+                    "campaign_name": campaign_name,
+                    "country": country,
+                    "raw_row": raw_row,
+                }
+            )
+            return raw_row.get("投放")
 
         monkeypatch.setattr(
-            aggregator, '_select_file_ids',
+            aggregator.ad_targeting, "build_campaign_targeting_cache", fake_build_cache
+        )
+        monkeypatch.setattr(
+            aggregator.ad_targeting, "resolve_targeting_type", fake_resolve
+        )
+
+        monkeypatch.setattr(
+            aggregator,
+            "_select_file_ids",
             lambda db, **kw: [101, 102],
         )
 
@@ -178,12 +149,18 @@ class TestAggregateSearchTermsTargetingType:
         # a representative raw_row for the first group only (the second
         # group will also fetch one).  Track call args.
         exec_results = [
-            MagicMock(all=lambda: [
-                self._mock_row(),
-                self._mock_row(campaign_name='Camp-A', search_term='blue shoes'),
-            ]),
-            MagicMock(scalar_one_or_none=lambda: {'投放': 'close-match', '匹配类型': '-'}),
-            MagicMock(scalar_one_or_none=lambda: {'投放': 'substitutes', '匹配类型': '-'}),
+            MagicMock(
+                all=lambda: [
+                    self._mock_row(),
+                    self._mock_row(campaign_name="Camp-A", search_term="blue shoes"),
+                ]
+            ),
+            MagicMock(
+                scalar_one_or_none=lambda: {"投放": "close-match", "匹配类型": "-"}
+            ),
+            MagicMock(
+                scalar_one_or_none=lambda: {"投放": "substitutes", "匹配类型": "-"}
+            ),
         ]
         mock_db = MagicMock()
         mock_db.execute.side_effect = exec_results
@@ -191,29 +168,31 @@ class TestAggregateSearchTermsTargetingType:
         result = aggregator.aggregate_search_terms(
             mock_db,
             project_id=42,
-            country='US',
+            country="US",
             date_from=date(2026, 6, 1),
             date_to=date(2026, 6, 30),
         )
 
         assert len(cache_calls) == 1
         assert cache_calls[0] == {
-            'project_id': 42, 'country': 'US',
-            'date_from': date(2026, 6, 1), 'date_to': date(2026, 6, 30),
+            "project_id": 42,
+            "country": "US",
+            "date_from": date(2026, 6, 1),
+            "date_to": date(2026, 6, 30),
         }
         # Two resolve calls — one per aggregated row
         assert len(resolve_calls) == 2
         for call in resolve_calls:
-            assert call['campaign_name'] == 'Camp-A'
-            assert call['country'] == 'US'
+            assert call["campaign_name"] == "Camp-A"
+            assert call["country"] == "US"
 
         assert len(result) == 2
         seen = {r.targeting_type for r in result}
-        assert seen == {'close-match', 'substitutes'}
+        assert seen == {"close-match", "substitutes"}
 
         # Each aggregated row must NOT carry target_text (schema field removed).
         for r in result:
-            assert 'target_text' not in r.model_dump()
+            assert "target_text" not in r.model_dump()
 
     def test_group_by_omits_raw_row_due_to_postgres_json(self, monkeypatch):
         """Document current design: GROUP BY stays on 3 text keys (Postgres
@@ -223,15 +202,18 @@ class TestAggregateSearchTermsTargetingType:
         from app.services.external import aggregator
 
         monkeypatch.setattr(
-            aggregator.ad_targeting, 'build_campaign_targeting_cache',
+            aggregator.ad_targeting,
+            "build_campaign_targeting_cache",
             lambda *a, **kw: {},
         )
         monkeypatch.setattr(
-            aggregator.ad_targeting, 'resolve_targeting_type',
+            aggregator.ad_targeting,
+            "resolve_targeting_type",
             lambda **kw: None,
         )
         monkeypatch.setattr(
-            aggregator, '_select_file_ids',
+            aggregator,
+            "_select_file_ids",
             lambda db, **kw: [101],
         )
 
@@ -245,21 +227,25 @@ class TestAggregateSearchTermsTargetingType:
                 return None
 
         def fake_execute(stmt):
-            captured.setdefault('stmts', []).append(stmt)
+            captured.setdefault("stmts", []).append(stmt)
             return _ExecResult()
 
         mock_db = MagicMock()
         mock_db.execute.side_effect = fake_execute
 
         aggregator.aggregate_search_terms(
-            mock_db, project_id=1, country='US',
-            date_from=date(2026, 6, 1), date_to=date(2026, 6, 30),
+            mock_db,
+            project_id=1,
+            country="US",
+            date_from=date(2026, 6, 1),
+            date_to=date(2026, 6, 30),
         )
 
         from app.models import AdUploadSearchTermRow
+
         # First stmt is the aggregate stmt; verify GROUP BY does NOT include raw_row.
-        agg_stmt = captured['stmts'][0]
-        group_by_cols = {getattr(g, 'key', None) for g in agg_stmt._group_by_clauses}
+        agg_stmt = captured["stmts"][0]
+        group_by_cols = {getattr(g, "key", None) for g in agg_stmt._group_by_clauses}
         assert AdUploadSearchTermRow.raw_row.key not in group_by_cols
         # And SELECT also omits raw_row (would trigger Postgres "must appear in GROUP BY").
         selected_cols = {c.key for c in agg_stmt.selected_columns}

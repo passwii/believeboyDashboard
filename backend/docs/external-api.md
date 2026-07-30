@@ -13,14 +13,15 @@ Whitelisted read-only endpoints for internal BI tools and data analysts.
 All endpoints are `GET` and live under `/api/v1/external/`. They return
 JSON, with snake_case field names.
 
-### 1.1 Discovery
+### 1.1 Discovery & inventory
 
 | # | Method | Path | Purpose |
 |---|---|---|---|
 | 1 | GET | `/external/projects` | List projects (filterable by `status=active\|archived\|all`) |
-| 2 | GET | `/external/projects/{id}/ad-upload-files` | List `AdUploadFile` metadata for a project |
-| 3 | GET | `/external/projects/{id}/orders/summary` | **NEW** Deduplicated orders/sales for TACoS |
-| 4 | GET | `/external/projects/{id}/business-summary` | **NEW** Business dashboard (traffic + cost/profit) |
+| 2 | GET | `/external/projects/{id}/orders/summary` | Deduplicated orders/sales for TACoS |
+| 3 | GET | `/external/projects/{id}/business-summary` | Business dashboard (traffic + cost/profit) |
+| 4 | GET | `/external/projects/{id}/sku-info` | SKU master data (pricing, dimensions, carton specs) |
+| 5 | GET | `/external/projects/{id}/replenishment-analysis` | **NEW** Inventory health + DMS + replenishment (see §6) |
 
 ### 1.2 Row data (10 report types)
 
@@ -257,7 +258,153 @@ Returns business dashboard data: traffic quality (PV, sessions, CVR) aggregated 
 
 ---
 
-## 6. Error conventions (shared)
+## 6. Replenishment Analysis — `GET /external/projects/{id}/replenishment-analysis`
+
+Returns a per-SKU inventory-health + replenishment analysis with age-bucket
+breakdown from the latest FBA inventory snapshot, combined with computed DMS
+(sales velocity at 30/14/7/3 day windows), weighted DMS, sellable days,
+replenishment timeline, and risk classification.
+
+A single endpoint that external BI tools or agent orchestrators can call to
+get a unified inventory signal without re-computing DMS or reconciling
+separate stock/sales tables.
+
+### 6.1 Query parameters
+
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `project_id` | ✅ | — | Path parameter; project ID (≥1) |
+| `country` | ❌ | `US` | ISO-2 country code |
+| `keyword` | ❌ | — | Filter by SKU or ASIN (substring, case-insensitive) |
+| `risk_status` | ❌ | — | Filter: `断货风险` / `短期断货` / `长期断货` / `健康库存` / `滞销` / `严重滞销` / `待补数据` |
+| `in_transit_only` | ❌ | `false` | Only SKUs with in-transit qty > 0 |
+| `report_date` | ❌ | — | Business date for historical snapshot (`YYYY-MM-DD`). Uses the latest inventory snapshot on or before this date and anchors all calculations to it. Default: today. |
+| `page` | ❌ | `1` | Page number (1-based) |
+| `page_size` | ❌ | `50` | Items per page (max 200) |
+
+### 6.2 Core logic
+
+1. Load active SKUs from `SkuRecord` (is_active=true) + `InventoryReplenishmentSetting`
+2. Query latest `inventory_report` snapshot → `InventorySnapshotRow` → SUM `available_qty` + age buckets by SKU
+3. Query `AnalysisSalesOrderRow` → compute DMS at 30/14/7/3 days
+4. Compute weighted DMS = base DMS × (1 + safety_factor)
+5. Compute:
+   - `sellable_days` = available_inventory / weighted_dms
+   - `sellout_date` = today + sellable_days
+   - `replenishment_order_date` = sellout_date_with_transit − (production_lead_days + shipping_days)
+   - `estimated_replenishment_quantity` = (production_lead_days + shipping_days) × weighted_dms
+6. Classify risk status per SKU
+
+### 6.3 Response shape (200)
+
+```json
+{
+  "page": 1,
+  "page_size": 50,
+  "total": 12,
+  "has_next": false,
+  "summary": {
+    "sku_count": 12,
+    "out_of_stock_risk_count": 2,
+    "healthy_count": 7,
+    "slow_moving_count": 1,
+    "pending_data_count": 2,
+    "total_available_inventory": 8450,
+    "total_in_transit_quantity": 3200
+  },
+  "items": [
+    {
+      "project_id": 1,
+      "project_name": "MyProject",
+      "sku": "SKU-001",
+      "country": "US",
+      "asin": "B0000001",
+      "product_name": "Product A",
+      "available_inventory": 500,
+      "in_transit_quantity": 200,
+      "dms_30": 15.5,
+      "dms_14": 16.2,
+      "dms_7": 14.8,
+      "dms_3": 12.1,
+      "base_dms": 15.3,
+      "safety_factor": 0.2,
+      "weighted_dms": 18.36,
+      "sellable_days": 27.23,
+      "sellout_date": "2026-08-27",
+      "sellout_date_with_transit": "2026-09-17",
+      "production_lead_days": 30,
+      "shipping_days": 15,
+      "replenishment_order_date": "2026-08-03",
+      "warehouse_entry_date": "2026-08-10",
+      "shipment_order_date": "2026-09-02",
+      "estimated_replenishment_quantity": 826,
+      "risk_status": "健康库存",
+      "risk_anchor_date": "2026-09-17",
+      "age_0_90_qty": 300,
+      "age_91_180_qty": 150,
+      "age_181_270_qty": 50,
+      "age_271_365_qty": 0,
+      "age_365_plus_qty": 0,
+      "recommended_action": null
+    }
+  ]
+}
+```
+
+### 6.4 Field reference (`items[]`)
+
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `sku` | string | ❌ | SKU identifier |
+| `asin` | string | ✅ | Amazon ASIN |
+| `product_name` | string | ✅ | Product display name |
+| `available_inventory` | int | ❌ | FBA available quantity (latest snapshot) |
+| `in_transit_quantity` | int | ❌ | In-transit quantity from shipment schedules |
+| `dms_30` | float | ✅ | Daily sales over last 30 days |
+| `dms_14` | float | ✅ | Daily sales over last 14 days |
+| `dms_7` | float | ✅ | Daily sales over last 7 days |
+| `dms_3` | float | ✅ | Daily sales over last ~3 days (recent, lagged) |
+| `base_dms` | float | ✅ | Weighted average of the four DMS windows |
+| `weighted_dms` | float | ✅ | `base_dms × (1 + safety_factor)` — the effective sell rate used for replenishment |
+| `sellable_days` | float | ✅ | `available_inventory / weighted_dms` |
+| `sellout_date` | string | ✅ | Date when stock is predicted to run out (without transit) |
+| `sellout_date_with_transit` | string | ✅ | Date when stock + transit is predicted to run out |
+| `production_lead_days` | int | ❌ | Manufacturing lead time (from settings or default) |
+| `shipping_days` | int | ❌ | Shipping time (from settings or default) |
+| `replenishment_order_date` | string | ✅ | Recommended date to place the replenishment order |
+| `warehouse_entry_date` | string | ✅ | Estimated warehouse entry date (order + 7 days) |
+| `shipment_order_date` | string | ✅ | Estimated shipment departure date |
+| `estimated_replenishment_quantity` | int | ✅ | Recommended replenishment qty (≈ lead_demand × weighted_dms) |
+| `risk_status` | string | ❌ | One of: `断货风险`, `短期断货`, `长期断货`, `健康库存`, `滞销`, `严重滞销`, `待补数据` |
+| `age_0_90_qty` | int | ❌ | Inventory aged 0–90 days (default 0) |
+| `age_91_180_qty` | int | ❌ | Inventory aged 91–180 days |
+| `age_181_270_qty` | int | ❌ | Inventory aged 181–270 days |
+| `age_271_365_qty` | int | ❌ | Inventory aged 271–365 days |
+| `age_365_plus_qty` | int | ❌ | Inventory aged >365 days |
+| `recommended_action` | string | ✅ | FBA's recommended action (e.g. `Return`, `Liquidate`; null if none) |
+
+### 6.5 Example calls
+
+```bash
+# All SKUs for project 1 in US (page 1, default page_size=50)
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis?country=US'
+
+# Filter by SKU
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis?country=US&keyword=SKU-'
+
+# Only out-of-stock risk SKUs, page 2
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis?country=US&risk_status=%E6%96%AD%E8%B4%A7%E9%A3%8E%E9%99%A9&page=2'
+
+# Only SKUs with in-transit stock
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis?country=US&in_transit_only=true'
+
+# Historical snapshot as of July 15, 2026
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis?report_date=2026-07-15'
+```
+
+---
+
+## 7. Error conventions (shared)
 
 | HTTP | Condition |
 |------|-----------|
@@ -313,7 +460,7 @@ other_sku_units_7d, other_sku_orders_7d, other_sku_sales_7d
 
 ---
 
-## 5. Example calls
+## 6. Example calls
 
 ```bash
 # Latest 14 days of campaign rows for project 1 in US
@@ -325,28 +472,25 @@ curl 'http://localhost:8100/api/v1/external/projects/1/ad-campaigns?period=custo
 # Top 50 search terms by spend, ascending date order
 curl 'http://localhost:8100/api/v1/external/projects/1/ad-search-terms?period=28d&country=US&order_by=spend&order_dir=desc&limit=50'
 
-# List all uploaded files for a project (current version only)
-curl 'http://localhost:8100/api/v1/external/projects/1/ad-upload-files?country=US'
-
-# Include file version history
-curl 'http://localhost:8100/api/v1/external/projects/1/ad-upload-files?include_history=true'
-
 # List active projects
 curl 'http://localhost:8100/api/v1/external/projects'
+
+# Replenishment analysis for project 1 US
+curl 'http://localhost:8100/api/v1/external/projects/1/replenishment-analysis'
 ```
 
 ---
 
-## 6. Implementation notes (for backend maintainers)
+## 8. Implementation notes (for backend maintainers)
 
-### 6.1 Version selection
+### 8.1 Version selection
 
 When multiple `AdUploadFile` rows match the (project, country, report_type,
 period) tuple, the endpoint picks the one with `max(version)` then
 `max(updated_at)`. Older versions are reachable via
 `/ad-upload-files?include_history=true` only.
 
-### 6.2 Period overlap formula
+### 8.2 Period overlap formula
 
 ```
 AdUploadFile.period_start_date <= :date_to
@@ -355,26 +499,26 @@ AND AdUploadFile.period_end_date >= :date_from
 
 Mirrors the pattern in `backend/app/services/product/sources.py:91-105`.
 
-### 6.3 Only `success` + `recognized` files
+### 8.3 Only `success` + `recognized` files
 
 Row queries filter on `ingestion_status='success'` and
 `recognition_status='recognized'`. Failed / pending files are skipped
 silently.
 
-### 6.4 Read replica
+### 8.4 Read replica
 
 Row endpoints use `Depends(get_read_db_session)` — read traffic goes to
 the configured replica (`database_read_url`) when available.
 
-### 6.5 No `raw_row` JSON
+### 8.5 No `raw_row` JSON
 
-The 9 row schemas deliberately exclude `raw_row` to keep payloads small
+The row schemas deliberately exclude `raw_row` to keep payloads small
 and predictable. P1 may add `?include_raw=true` if BI teams need the
 original CSV columns.
 
 ---
 
-## 7. Roadmap (P1+)
+## 9. Roadmap (P1+)
 
 - **API key authentication** — `X-API-Key` header + `external_api_keys`
   table with `scope`/`expires_at`.

@@ -43,6 +43,14 @@ class InventoryReplenishmentListItem(BaseModel):
     risk_status: str
     risk_anchor_date: str | None = None
 
+    # ── Age bucket (from FBA inventory snapshot) ──
+    age_0_90_qty: int = 0
+    age_91_180_qty: int = 0
+    age_181_270_qty: int = 0
+    age_271_365_qty: int = 0
+    age_365_plus_qty: int = 0
+    recommended_action: str | None = None
+
 
 class InventoryReplenishmentListResponse(BaseModel):
     items: list[InventoryReplenishmentListItem]
@@ -153,6 +161,7 @@ class InventorySnapshotOption(BaseModel):
 
 class CalendarRowItem(BaseModel):
     """Single SKU row for calendar/gantt view."""
+
     project_id: int
     project_name: str
     sku: str
@@ -195,6 +204,7 @@ class SeasonalReplenishmentListItem(BaseModel):
     - 风险状态**不判定**（``risk_status`` 字段不存在）
     - 售卖截止锚点 = ``to_date`` + sellable_days（不是 ``date.today()``）
     """
+
     project_id: int
     project_name: str
     sku: str
@@ -228,6 +238,7 @@ class SeasonalReplenishmentListResponse(BaseModel):
     ``out_of_stock_risk_count`` / ``slow_moving_count`` / ``pending_data_count``
     固定返回 0，前端不应展示对应统计卡。
     """
+
     items: list[SeasonalReplenishmentListItem]
     summary: InventoryReplenishmentSummary
     page: int

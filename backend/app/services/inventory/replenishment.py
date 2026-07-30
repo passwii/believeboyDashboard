@@ -2,6 +2,7 @@
 
 Business logic for inventory replenishment analysis.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -53,6 +54,19 @@ class _BaseSkuRow:
     sku: str
     asin: str | None
     country: str
+
+
+@dataclass
+class _InventorySnapshot:
+    """Age-bucket snapshot from ``InventorySnapshotRow``, keyed by SKU."""
+
+    available_qty: int = 0
+    age_0_90_qty: int = 0
+    age_91_180_qty: int = 0
+    age_181_270_qty: int = 0
+    age_271_365_qty: int = 0
+    age_365_plus_qty: int = 0
+    recommended_action: str | None = None
 
 
 def _normalize_text(value: str | None, *, max_length: int | None = None) -> str | None:
@@ -194,35 +208,58 @@ def _load_settings_map(
     return {(row.sku, row.country): row for row in rows}
 
 
-def _load_inventory_map(db: Session, project_id: int, country: str) -> dict[str, int]:
-    source = (
-        db.execute(
-            select(AnalysisSourceFile)
-            .where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.report_type == "inventory_report",
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.is_current.is_(True),
-            )
-            .order_by(AnalysisSourceFile.id.desc())
-            .limit(1)
-        )
-        .scalars()
-        .first()
+def _load_inventory_map(
+    db: Session, project_id: int, country: str, report_date: date | None = None
+) -> dict[str, _InventorySnapshot]:
+    from app.services.inventory_analysis_service import _get_inventory_source
+
+    source = _get_inventory_source(
+        db,
+        project_id=project_id,
+        country=country,
+        report_date=report_date,
     )
     if source is None:
         return {}
     rows = db.execute(
         select(
             InventorySnapshotRow.sku,
-            func.coalesce(func.sum(InventorySnapshotRow.available_qty), 0),
+            func.coalesce(func.sum(InventorySnapshotRow.available_qty), 0).label(
+                "available_qty"
+            ),
+            func.coalesce(func.sum(InventorySnapshotRow.age_0_90_qty), 0).label(
+                "age_0_90_qty"
+            ),
+            func.coalesce(func.sum(InventorySnapshotRow.age_91_180_qty), 0).label(
+                "age_91_180_qty"
+            ),
+            func.coalesce(func.sum(InventorySnapshotRow.age_181_270_qty), 0).label(
+                "age_181_270_qty"
+            ),
+            func.coalesce(func.sum(InventorySnapshotRow.age_271_365_qty), 0).label(
+                "age_271_365_qty"
+            ),
+            func.coalesce(func.sum(InventorySnapshotRow.age_365_plus_qty), 0).label(
+                "age_365_plus_qty"
+            ),
+            func.max(InventorySnapshotRow.recommended_action).label(
+                "recommended_action"
+            ),
         )
         .where(InventorySnapshotRow.source_file_id == source.id)
         .group_by(InventorySnapshotRow.sku)
     ).all()
     return {
-        _normalize_text(sku, max_length=128) or "": int(quantity or 0)
-        for sku, quantity in rows
+        (_normalize_text(sku, max_length=128) or ""): _InventorySnapshot(
+            available_qty=int(available_qty or 0),
+            age_0_90_qty=int(age_0_90_qty or 0),
+            age_91_180_qty=int(age_91_180_qty or 0),
+            age_181_270_qty=int(age_181_270_qty or 0),
+            age_271_365_qty=int(age_271_365_qty or 0),
+            age_365_plus_qty=int(age_365_plus_qty or 0),
+            recommended_action=str(recommended_action) if recommended_action else None,
+        )
+        for sku, available_qty, age_0_90_qty, age_91_180_qty, age_181_270_qty, age_271_365_qty, age_365_plus_qty, recommended_action in rows
         if _normalize_text(sku, max_length=128)
     }
 
@@ -335,8 +372,10 @@ def _load_sales_dms_map(
         )
         .where(
             *counted_sales_where(
-                project_id=project_id, country=country,
-                date_from=since, date_to=window_end,
+                project_id=project_id,
+                country=country,
+                date_from=since,
+                date_to=window_end,
             )
         )
         .group_by(AnalysisSalesOrderRow.sku)
@@ -440,6 +479,7 @@ class _SeasonalDmsRow:
     每个字段都是 ``units_ordered / window_days`` 的 Decimal。
     ``None`` 表示该窗口内没有任何销量记录（与现有 _load_sales_dms_map 行为一致）。
     """
+
     sku: str
     dms_90: Decimal | None
     dms_30: Decimal | None
@@ -476,7 +516,9 @@ def _normalize_seasonal_weighted_dms(
         (dms_14, SEASONAL_WEIGHT_14),
         (dms_7, SEASONAL_WEIGHT_7),
     ]
-    available = [(value, weight) for value, weight in weighted_windows if value is not None]
+    available = [
+        (value, weight) for value, weight in weighted_windows if value is not None
+    ]
     if not available:
         return None
     total_weight = sum((weight for _, weight in available), Decimal("0"))
@@ -672,7 +714,8 @@ def list_seasonal_replenishment_analysis(
             setting.asin if setting and setting.asin else base_row.asin,
             max_length=64,
         )
-        available_inventory = int(inventory_map.get(base_row.sku, 0))
+        snap = inventory_map.get(base_row.sku)
+        available_inventory = snap.available_qty if snap else 0
         in_transit_quantity = int(in_transit_map.get(base_row.sku, 0))
         dms_row = dms_map.get(base_row.sku)
 
@@ -769,13 +812,9 @@ def list_seasonal_replenishment_analysis(
         # 前端不会展示对应的统计卡，避免误导
         "sku_count": len(rows),
         "out_of_stock_risk_count": 0,
-        "healthy_count": sum(
-            1 for item in rows if item["weighted_dms"] is not None
-        ),
+        "healthy_count": sum(1 for item in rows if item["weighted_dms"] is not None),
         "slow_moving_count": 0,
-        "pending_data_count": sum(
-            1 for item in rows if item["weighted_dms"] is None
-        ),
+        "pending_data_count": sum(1 for item in rows if item["weighted_dms"] is None),
         "total_available_inventory": sum(
             int(item["available_inventory"]) for item in rows
         ),
@@ -814,8 +853,7 @@ def list_snapshot_options(
     current_ids: set[int] = set()
     if rows:
         current_rows = db.execute(
-            select(AnalysisSourceFile.id)
-            .where(
+            select(AnalysisSourceFile.id).where(
                 AnalysisSourceFile.project_id == project_id,
                 AnalysisSourceFile.report_type == "inventory_report",
                 AnalysisSourceFile.country == country,
@@ -856,13 +894,16 @@ def list_inventory_replenishment_analysis(
     in_transit_only: bool,
     page: int,
     page_size: int,
+    report_date: date | None = None,
 ) -> tuple[list[dict[str, object]], dict[str, int], int, bool]:
     project = _get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
-    today = date.today()
+    today = report_date if report_date is not None else date.today()
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
-    inventory_map = _load_inventory_map(db, project.id, normalized_country)
+    inventory_map = _load_inventory_map(
+        db, project.id, normalized_country, report_date=report_date
+    )
     in_transit_map = _load_in_transit_map(db, project.id, normalized_country)
     product_name_map = _load_product_name_map(
         db, project.id, [row.sku for row in base_rows]
@@ -888,7 +929,8 @@ def list_inventory_replenishment_analysis(
         asin = _normalize_text(
             setting.asin if setting and setting.asin else base_row.asin, max_length=64
         )
-        available_inventory = int(inventory_map.get(base_row.sku, 0))
+        snap = inventory_map.get(base_row.sku)
+        available_inventory = snap.available_qty if snap else 0
         in_transit_quantity = int(in_transit_map.get(base_row.sku, 0))
         dms_30 = dms_30_map.get(base_row.sku)
         dms_14 = dms_14_map.get(base_row.sku)
@@ -1000,6 +1042,13 @@ def list_inventory_replenishment_analysis(
                 "estimated_replenishment_quantity": estimated_replenishment_quantity,
                 "risk_status": risk,
                 "risk_anchor_date": risk_anchor_date,
+                # ── Age bucket (from FBA inventory snapshot) ──
+                "age_0_90_qty": snap.age_0_90_qty if snap else 0,
+                "age_91_180_qty": snap.age_91_180_qty if snap else 0,
+                "age_181_270_qty": snap.age_181_270_qty if snap else 0,
+                "age_271_365_qty": snap.age_271_365_qty if snap else 0,
+                "age_365_plus_qty": snap.age_365_plus_qty if snap else 0,
+                "recommended_action": snap.recommended_action if snap else None,
             }
         )
 
