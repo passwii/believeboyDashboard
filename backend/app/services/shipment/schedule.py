@@ -24,6 +24,7 @@ from app.schemas.shipment_schedule import (
 )
 from app.utils.country import normalize_country
 from app.services.shipment.item import replace_shipment_schedule_items
+from app.services.shipment.sku_sort import natural_sku_sort_key
 from app.services.shipment.summary import (
     refresh_shipment_sku_summary,
     sync_first_leg_cost_from_shipment_summary,
@@ -210,7 +211,7 @@ def get_shipment_schedule_detail(
     row = _get_schedule_or_404(db, schedule_id)
     sku_count = len(row.items)
     total_quantity = sum(int(item.quantity) for item in row.items)
-    row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+    row.items.sort(key=lambda item: (item.item_date or date.min, natural_sku_sort_key(item.sku), item.id))
     return row, sku_count, total_quantity
 
 
@@ -625,7 +626,7 @@ def calculate_shipment_schedule_costs(
     refresh_shipment_sku_summary(db)
     sync_first_leg_cost_from_shipment_summary(db, project_id=row.project_id)
     db.refresh(row)
-    row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+    row.items.sort(key=lambda item: (item.item_date or date.min, natural_sku_sort_key(item.sku), item.id))
     sku_count = len(row.items)
     total_quantity = total_quantity_whole
     return row, sku_count, total_quantity
@@ -702,7 +703,7 @@ def list_shipment_fba_box_details(
     # 构建结果
     result: list[dict[str, object]] = []
     for row in ordered_rows:
-        row.items.sort(key=lambda item: (item.item_date or date.min, item.sku, item.id))
+        row.items.sort(key=lambda item: (item.item_date or date.min, natural_sku_sort_key(item.sku), item.id))
         for item in row.items:
             product = product_map.get(
                 (str(row.project_name_snapshot), str(row.country), str(item.sku))
