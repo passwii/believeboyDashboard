@@ -283,12 +283,16 @@ def _load_in_transit_map(
     )
     if report_date is not None:
         # Historical: reconstruct "was in transit as of report_date".
-        # Don't filter by current shipment_status (it reflects today).
-        # Instead: existed before report_date AND not yet received.
+        # A shipment counts as in-transit if it existed before report_date
+        # AND had not been received yet:
+        #   - status != 'completed' (still in_transit / draft), OR
+        #   - actual_inbound_date > report_date (completed, but after the query date)
+        # Note: completed + actual_inbound_date=NULL is correctly excluded
+        # (both OR branches evaluate to false/NULL).
         stmt = stmt.where(
             func.date(ShipmentSchedule.created_at) <= report_date,
             or_(
-                ShipmentSchedule.actual_inbound_date.is_(None),
+                ShipmentSchedule.shipment_status != "completed",
                 ShipmentSchedule.actual_inbound_date > report_date,
             ),
         )
