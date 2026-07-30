@@ -2,16 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { BarChart3, RefreshCcw, Sparkles, TrendingUp, Users } from 'lucide-react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { DashboardStats } from '@/lib/crm/types'
 import { StatCard } from '@/components/ui/stat-card'
@@ -24,14 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { FunnelChart, type FunnelStage } from '@/components/ui/funnel-chart'
 
-// 线索漏斗状态 → 中文标签 + 柱色
-const FUNNEL_META: { key: string; label: string; color: string }[] = [
-  { key: 'new', label: '新建', color: '#38bdf8' },
-  { key: 'contacting', label: '联系中', color: '#818cf8' },
-  { key: 'qualified', label: '已确认', color: '#a78bfa' },
-  { key: 'converted', label: '已转化', color: '#34d399' },
-  { key: 'discarded', label: '已弃置', color: '#94a3b8' },
+// 漏斗主体（4 档成功路径：新建 → 联系中 → 已确认 → 已转化）
+// 「已弃置」是反面信号，不进漏斗主体，在右上角单独展示
+const FUNNEL_MAIN: { key: string; label: string; gradient: { offset: number; color: string }[] }[] = [
+  { key: 'new', label: '新建', gradient: [{ offset: 0, color: '#38bdf8' }, { offset: 1, color: '#0ea5e9' }] },
+  { key: 'contacting', label: '联系中', gradient: [{ offset: 0, color: '#818cf8' }, { offset: 1, color: '#6366f1' }] },
+  { key: 'qualified', label: '已确认', gradient: [{ offset: 0, color: '#a78bfa' }, { offset: 1, color: '#8b5cf6' }] },
+  { key: 'converted', label: '已转化', gradient: [{ offset: 0, color: '#34d399' }, { offset: 1, color: '#10b981' }] },
 ]
 
 export default function CrmDashboardPage() {
@@ -57,11 +48,13 @@ export default function CrmDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const funnelData = FUNNEL_META.map((m) => ({
+  const funnelData: FunnelStage[] = FUNNEL_MAIN.map((m) => ({
     label: m.label,
     value: stats?.leadFunnel[m.key] ?? 0,
-    color: m.color,
+    gradient: m.gradient,
   }))
+
+  const discarded = stats?.leadFunnel.discarded ?? 0
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -120,36 +113,32 @@ export default function CrmDashboardPage() {
       {/* 线索漏斗 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">线索漏斗</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">线索漏斗</CardTitle>
+            {discarded > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-0.5 text-xs text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                本期弃置 {discarded}
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData} margin={{ top: 12, right: 8, left: -16, bottom: 8 }}>
-                <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
-                <XAxis
-                  dataKey="label"
-                  axisLine={false}
-                  tickLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 12, fill: '#71717a' }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tickMargin={8}
-                  tick={{ fontSize: 11, fill: '#71717a' }}
-                  allowDecimals={false}
-                />
-                <Tooltip cursor={{ fill: 'rgba(148,163,184,0.12)' }} />
-                <Bar dataKey="value" name="线索数" radius={[4, 4, 0, 0]}>
-                  {funnelData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {funnelData.some((d) => d.value > 0) ? (
+            <FunnelChart
+              data={funnelData}
+              className="mx-auto w-full max-w-3xl"
+              color="var(--chart-1)"
+              edges="curved"
+              grid
+              layers={3}
+              orientation="horizontal"
+            />
+          ) : (
+            <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+              {loading ? '加载中…' : '暂无漏斗数据'}
+            </div>
+          )}
         </CardContent>
       </Card>
 
