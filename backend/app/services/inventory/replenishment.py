@@ -12,7 +12,7 @@ from typing import Any
 import warnings
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -264,8 +264,10 @@ def _load_inventory_map(
     }
 
 
-def _load_in_transit_map(db: Session, project_id: int, country: str) -> dict[str, int]:
-    rows = db.execute(
+def _load_in_transit_map(
+    db: Session, project_id: int, country: str, report_date: date | None = None
+) -> dict[str, int]:
+    stmt = (
         select(
             ShipmentScheduleItem.sku,
             func.coalesce(func.sum(ShipmentScheduleItem.quantity), 0),
@@ -277,10 +279,25 @@ def _load_in_transit_map(db: Session, project_id: int, country: str) -> dict[str
         .where(
             ShipmentSchedule.project_id == project_id,
             ShipmentSchedule.country == country,
+        )
+    )
+    if report_date is not None:
+        # Historical: reconstruct "was in transit as of report_date".
+        # Don't filter by current shipment_status (it reflects today).
+        # Instead: existed before report_date AND not yet received.
+        stmt = stmt.where(
+            func.date(ShipmentSchedule.created_at) <= report_date,
+            or_(
+                ShipmentSchedule.actual_inbound_date.is_(None),
+                ShipmentSchedule.actual_inbound_date > report_date,
+            ),
+        )
+    else:
+        # Current: use live status filter.
+        stmt = stmt.where(
             ShipmentSchedule.shipment_status.in_(IN_TRANSIT_STATUSES),
         )
-        .group_by(ShipmentScheduleItem.sku)
-    ).all()
+    rows = db.execute(stmt.group_by(ShipmentScheduleItem.sku)).all()
     return {
         _normalize_text(sku, max_length=128) or "": int(quantity or 0)
         for sku, quantity in rows
@@ -904,7 +921,9 @@ def list_inventory_replenishment_analysis(
     inventory_map = _load_inventory_map(
         db, project.id, normalized_country, report_date=report_date
     )
-    in_transit_map = _load_in_transit_map(db, project.id, normalized_country)
+    in_transit_map = _load_in_transit_map(
+        db, project.id, normalized_country, report_date=report_date
+    )
     product_name_map = _load_product_name_map(
         db, project.id, [row.sku for row in base_rows]
     )
