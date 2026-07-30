@@ -130,8 +130,7 @@ export default function CrmDashboardPage() {
               className="mx-auto w-full max-w-3xl"
               color="var(--chart-1)"
               edges="curved"
-              grid
-              layers={3}
+              layers={1}
               orientation="horizontal"
             />
           ) : (
