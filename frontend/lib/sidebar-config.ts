@@ -306,9 +306,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/crm/audit'],
       },
       { title: 'CRM 设置', url: '/dashboard/crm/settings', icon: IconMap.SettingsIcon },
-      { title: '招商面板', url: '/dashboard/crm/business-dev/overview', icon: IconMap.Store },
-      { title: '供应商管理', url: '/dashboard/crm/business-dev/suppliers', icon: IconMap.Truck },
-      { title: '招商报表', url: '/dashboard/crm/business-dev/reports', icon: IconMap.FileBarChart },
     ],
   },
 
