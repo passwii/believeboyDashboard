@@ -46,6 +46,7 @@ from app.schemas.crm import (
     LeadItem,
     LeadListResponse,
     LeadUpdate,
+    ValueScoresUpdate,
 )
 from app.services.crm import (
     audit_service,
@@ -57,6 +58,7 @@ from app.services.crm import (
     follow_up_service,
     lead_service,
     user_service,
+    value_score_service,
 )
 from app.services.crm.audit_service import CUSTOMER_FIELD_LABELS, LEAD_FIELD_LABELS
 from app.services.crm.lead_service import LeadAlreadyConverted
@@ -211,6 +213,65 @@ def update_customer(
     )
     db.commit()
     return item
+
+
+def _summarize_value_scores(
+    payload: dict, rating_changed: bool, new_rating: str | None
+) -> str:
+    labels = {
+        "score_scale": "体量",
+        "score_pay": "付费",
+        "score_fit": "匹配",
+        "score_coop": "合作",
+    }
+    parts = [f"{labels[k]}{v}" for k, v in payload.items() if v is not None]
+    head = "价值评分：" + " ".join(parts)
+    if rating_changed and new_rating is not None:
+        return f"{head} → 综合{new_rating}"
+    return f"{head}（评分待完善）"
+
+
+@router.patch("/customers/{customer_id}/value-scores", response_model=CustomerItem)
+def update_value_scores(
+    customer_id: int,
+    payload: ValueScoresUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    existing = customer_service.get_customer(db, customer_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    try:
+        cust, _old, rating_changed = value_score_service.update_scores(
+            db,
+            customer_id,
+            payload.model_dump(exclude_unset=True),
+            user_id=user_id,
+            commit=False,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if cust is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+        )
+    summary = _summarize_value_scores(
+        payload.model_dump(exclude_unset=True), rating_changed, cust.rating
+    )
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=customer_id,
+        action="update",
+        actor_id=user_id,
+        summary=summary,
+    )
+    db.commit()
+    return customer_service.get_customer(db, customer_id)
 
 
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)

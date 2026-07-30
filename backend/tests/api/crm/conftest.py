@@ -4,6 +4,7 @@
 故这里用 autouse 夹具 ``TRUNCATE ... RESTART IDENTITY CASCADE``（独立 committing
 session）在每个测试前清空 5 张 CRM 表，保证 scope/count 断言确定。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -30,7 +31,7 @@ def _clean_crm_tables(db_session):
     try:
         s.execute(
             text(
-                "truncate crm_follows, crm_opportunities, crm_contacts, "
+                "truncate crm_audit_logs, crm_follows, crm_opportunities, crm_contacts, "
                 "crm_leads, crm_customers restart identity cascade"
             )
         )
