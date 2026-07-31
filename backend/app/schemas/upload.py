@@ -10,19 +10,27 @@ class UploadResponse(BaseModel):
     size: int
 
 
-ProjectMatchStatus = Literal['unmatched', 'matched', 'conflict', 'manual']
+ProjectMatchStatus = Literal["unmatched", "matched", "conflict", "manual"]
 ReportUploadType = Literal[
-    'inventory_report',
-    'business_report',
-    'ad_product_report',
-    'ad_report',
-    'ad_search_term_report',
-    'sales_report',
-    'payment_report',
-    'return_report',
-    'unknown',
+    "inventory_report",
+    "inventory_ledger",
+    "business_report",
+    "ad_product_report",
+    "ad_report",
+    "ad_search_term_report",
+    "sales_report",
+    "payment_report",
+    "return_report",
+    "unknown",
 ]
-DateInputMode = Literal['single_manual', 'single_auto', 'single_detected', 'range_manual', 'range_auto', 'multi_auto']
+DateInputMode = Literal[
+    "single_manual",
+    "single_auto",
+    "single_detected",
+    "range_manual",
+    "range_auto",
+    "multi_auto",
+]
 
 
 class ReportProjectMatchSummary(BaseModel):
@@ -41,11 +49,15 @@ class ReportRecognitionResponse(BaseModel):
     report_type: ReportUploadType
     matched_columns: list[str]
     reason: str
-    status: Literal['recognized', 'unsupported', 'error']
-    country: str = 'US'
+    status: Literal["recognized", "unsupported", "error"]
+    country: str = "US"
     # Multi-country detection for European sales reports
-    detected_countries: list[str] = Field(default_factory=list, description="All countries detected in file")
-    primary_country: str | None = Field(default=None, description="Primary country for single-country files")
+    detected_countries: list[str] = Field(
+        default_factory=list, description="All countries detected in file"
+    )
+    primary_country: str | None = Field(
+        default=None, description="Primary country for single-country files"
+    )
     date_input_mode: DateInputMode
     detected_date: str | None = None
     detected_start_date: str | None = None
@@ -63,7 +75,7 @@ class ReportCommitRequest(BaseModel):
     report_date: str | None = None
     report_start_date: str | None = None
     report_end_date: str | None = None
-    country: str = 'US'
+    country: str = "US"
     use_period_dates: bool = False
     # True 时仅做识别校验 + 临时文件复制，不写入 analysis_source_files /
     # analysis_*_rows 表，不写 ReportUploadLog；用于产品分析手动核算/临时核算
@@ -73,9 +85,9 @@ class ReportCommitRequest(BaseModel):
 
 class ReportCommitResponse(BaseModel):
     report_type: ReportUploadType
-    status: Literal['saved', 'persisted', 'skipped']
+    status: Literal["saved", "persisted", "skipped"]
     project_name: str | None = None
-    country: str = 'US'
+    country: str = "US"
     report_date: str | None = None
     report_start_date: str | None = None
     report_end_date: str | None = None
@@ -89,7 +101,7 @@ class ReportCommitResponse(BaseModel):
 
 class ReportStatusCell(BaseModel):
     report_type: ReportUploadType
-    status: Literal['available', 'missing', 'saved_only']
+    status: Literal["available", "missing", "saved_only"]
     display_date: str | None = None
     report_start_date: str | None = None
     report_end_date: str | None = None
@@ -106,5 +118,5 @@ class ProjectReportStatusItem(BaseModel):
 
 
 class ReportStatusResponse(BaseModel):
-    country: str = 'US'
+    country: str = "US"
     items: list[ProjectReportStatusItem]
