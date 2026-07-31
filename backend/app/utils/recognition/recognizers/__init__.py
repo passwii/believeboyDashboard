@@ -1,4 +1,5 @@
 """Per-type recognizers for report files (no FastAPI/SQLAlchemy deps)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -45,7 +46,9 @@ def recognize_inventory_report(path: Path, country: str = "US") -> RecognitionRe
     if not detected_country:
         detected_country = _detect_country_from_currency(df)
     if detected_country and detected_country != country:
-        warnings_list.append(f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理")
+        warnings_list.append(
+            f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理"
+        )
 
     return RecognitionResult(
         report_type="inventory_report",
@@ -68,25 +71,35 @@ def recognize_sales_report(path: Path, country: str = "US") -> RecognitionResult
         raise ValueError(f"Sales report missing required columns: {missing}")
 
     from pandas import to_datetime
-    purchase_dates = to_datetime(df["purchase-date"], utc=True, errors="coerce").dropna()
+
+    purchase_dates = to_datetime(
+        df["purchase-date"], utc=True, errors="coerce"
+    ).dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not purchase_dates.empty:
         from zoneinfo import ZoneInfo
         from app.utils.recognition.patterns import COUNTRY_TIMEZONE
+
         tz = ZoneInfo(COUNTRY_TIMEZONE.get(country, "America/Los_Angeles"))
         local_dates = purchase_dates.dt.tz_convert(tz).dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
         detected_end_date = str(local_dates.max())
 
-    is_periodic = bool(detected_start_date and detected_end_date and detected_start_date != detected_end_date)
+    is_periodic = bool(
+        detected_start_date
+        and detected_end_date
+        and detected_start_date != detected_end_date
+    )
 
     warnings_list: list[str] = []
     detected_country = _detect_country_from_sales_channel(df)
     if not detected_country:
         detected_country = _detect_country_from_currency(df)
     if detected_country and detected_country != country:
-        warnings_list.append(f"文件内 sales-channel 为 {detected_country}，当前按所选站点 {country} 处理")
+        warnings_list.append(
+            f"文件内 sales-channel 为 {detected_country}，当前按所选站点 {country} 处理"
+        )
 
     return RecognitionResult(
         report_type="sales_report",
@@ -102,7 +115,9 @@ def recognize_sales_report(path: Path, country: str = "US") -> RecognitionResult
     )
 
 
-def recognize_business_report(path: Path, country: str = "US", original_filename: str = "") -> RecognitionResult:
+def recognize_business_report(
+    path: Path, country: str = "US", original_filename: str = ""
+) -> RecognitionResult:
     """Recognize business report (.csv with ASIN column)."""
     df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
     asin_column = next(
@@ -110,10 +125,10 @@ def recognize_business_report(path: Path, country: str = "US", original_filename
             column
             for column in [
                 "（子）asin",  # 中文界面: （子）ASIN
-                "(子)asin",    # 半角全角混用
-                "子asin",      # 无括号
-                "asin",        # 退化匹配（无子项标记）
-                "(child) asin",   # EN 界面: (Child) ASIN
+                "(子)asin",  # 半角全角混用
+                "子asin",  # 无括号
+                "asin",  # 退化匹配（无子项标记）
+                "(child) asin",  # EN 界面: (Child) ASIN
                 "(parent) asin",  # EN 界面: (Parent) ASIN,叶子 ASIN 缺失时的退化
             ]
             if column in df.columns
@@ -131,7 +146,9 @@ def recognize_business_report(path: Path, country: str = "US", original_filename
     # Detect country from sales amount currency symbol (€ for DE, £ for UK)
     detected_country = _detect_country_from_sales_amount_symbol(df)
     if detected_country and detected_country != country:
-        warnings_list.append(f"文件内销售额符号检测为 {detected_country}，当前按所选站点 {country} 处理")
+        warnings_list.append(
+            f"文件内销售额符号检测为 {detected_country}，当前按所选站点 {country} 处理"
+        )
 
     return RecognitionResult(
         report_type="business_report",
@@ -166,19 +183,25 @@ def recognize_payment_report(path: Path, country: str = "US") -> RecognitionResu
 
     # Extract date range from transaction timestamps
     date_col = next(
-        (c for c in df.columns if "date/time" in c.lower() or "transaction date" in c.lower()),
+        (
+            c
+            for c in df.columns
+            if "date/time" in c.lower() or "transaction date" in c.lower()
+        ),
         None,
     )
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if date_col:
         import re
+
         dates: list[str] = []
         for raw in df[date_col].dropna():
             text = str(raw).strip()
-            cleaned = re.sub(r'\s+(PST|PDT|GMT|UTC)\s*$', '', text, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s+(PST|PDT|GMT|UTC)\s*$", "", text, flags=re.IGNORECASE)
             try:
                 import pandas as pd
+
                 dt = pd.to_datetime(cleaned, errors="coerce")
                 if dt is not None and not pd.isna(dt):
                     dates.append(dt.strftime("%Y-%m-%d"))
@@ -195,15 +218,23 @@ def recognize_payment_report(path: Path, country: str = "US") -> RecognitionResu
 
     warnings_list: list[str] = []
     if detected_country and detected_country != country:
-        warnings_list.append(f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理")
+        warnings_list.append(
+            f"文件内检测到 {detected_country}，当前按所选站点 {country} 处理"
+        )
 
-    is_range = bool(detected_start_date and detected_end_date and detected_start_date != detected_end_date)
+    is_range = bool(
+        detected_start_date
+        and detected_end_date
+        and detected_start_date != detected_end_date
+    )
 
     return RecognitionResult(
         report_type="payment_report",
         matched_columns=["sku"],
         reason="命中付款报告表头与 sku 字段",
-        date_input_mode="range_auto" if is_range else ("single_auto" if detected_start_date else "single_manual"),
+        date_input_mode="range_auto"
+        if is_range
+        else ("single_auto" if detected_start_date else "single_manual"),
         detected_date=detected_end_date,
         detected_start_date=detected_start_date,
         detected_end_date=detected_end_date,
@@ -222,12 +253,14 @@ def recognize_return_report(path: Path, country: str = "US") -> RecognitionResul
         raise ValueError(f"Return report missing required columns: {missing}")
 
     from pandas import to_datetime
+
     return_dates = to_datetime(df["return-date"], utc=True, errors="coerce").dropna()
     detected_start_date: str | None = None
     detected_end_date: str | None = None
     if not return_dates.empty:
         from zoneinfo import ZoneInfo
         from app.utils.recognition.patterns import COUNTRY_TIMEZONE
+
         tz = ZoneInfo(COUNTRY_TIMEZONE.get(country, "America/Los_Angeles"))
         local_dates = return_dates.dt.tz_convert(tz).dt.strftime("%Y-%m-%d")
         detected_start_date = str(local_dates.min())
@@ -238,7 +271,9 @@ def recognize_return_report(path: Path, country: str = "US") -> RecognitionResul
         matched_columns=required,
         reason="命中 return-date / sku 字段",
         date_input_mode="multi_auto"
-        if detected_start_date and detected_end_date and detected_start_date != detected_end_date
+        if detected_start_date
+        and detected_end_date
+        and detected_start_date != detected_end_date
         else "single_detected",
         detected_date=detected_end_date,
         detected_start_date=detected_start_date,
@@ -247,6 +282,64 @@ def recognize_return_report(path: Path, country: str = "US") -> RecognitionResul
         country=country,
     )
 
+
+# ─── Inventory Ledger (Amazon Detailed Inventory Ledger, 22-col CSV) ─────────
+
+_INVENTORY_LEDGER_REQUIRED_COLUMNS = {
+    "date",
+    "msku",
+    "disposition",
+    "location",
+    "starting_warehouse_balance",
+    "ending_warehouse_balance",
+}
+
+
+def recognize_inventory_ledger(
+    path: Path, country: str = "US", original_filename: str = ""
+) -> RecognitionResult:
+    """Recognize Amazon Detailed Inventory Ledger CSV (22 columns)."""
+    import re
+    from datetime import datetime
+
+    df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+    missing = _INVENTORY_LEDGER_REQUIRED_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(f"Inventory ledger missing required columns: {missing}")
+
+    # Detect date range from Date column (MM/DD/YYYY format)
+    detected_start_date = None
+    detected_end_date = None
+    detected_date = None
+    try:
+        dates = df["date"].dropna().astype(str)
+        if not dates.empty:
+            parsed = dates.apply(lambda d: datetime.strptime(d.strip(), "%m/%d/%Y"))
+            min_d = parsed.min()
+            max_d = parsed.max()
+            detected_start_date = min_d.strftime("%Y-%m-%d")
+            detected_end_date = max_d.strftime("%Y-%m-%d")
+            detected_date = detected_start_date
+    except Exception:
+        pass
+
+    # Try to extract report_month from filename
+    if original_filename:
+        m = re.search(r"(\d{4})(\d{2})\d{2}", original_filename)
+        if m:
+            detected_date = f"{m.group(1)}-{m.group(2)}-01"
+
+    return RecognitionResult(
+        report_type="inventory_ledger",
+        matched_columns=sorted(_INVENTORY_LEDGER_REQUIRED_COLUMNS),
+        reason="命中 Amazon Detailed Inventory Ledger 22 列签名",
+        date_input_mode="range_auto" if detected_start_date else "single_manual",
+        detected_date=detected_date,
+        detected_start_date=detected_start_date,
+        detected_end_date=detected_end_date,
+        row_count_preview=len(df.index),
+        country=country,
+    )
 
 
 def recognize_file(
@@ -268,10 +361,7 @@ def recognize_file(
     try:
         if extension == ".txt":
             header = (
-                _read_text_with_encoding_fallback(path)
-                .splitlines()[0]
-                .strip()
-                .lower()
+                _read_text_with_encoding_fallback(path).splitlines()[0].strip().lower()
             )
             if "snapshot-date" in header and "\tsku\t" in header:
                 return recognize_inventory_report(path, normalized_country)
@@ -298,12 +388,26 @@ def recognize_file(
             if is_payment_report_by_columns(path):
                 return recognize_payment_report(path, normalized_country)
 
-            # 4. Check for business report (has child ASIN columns)
+            # 4. Check for inventory ledger (22-col Amazon Detailed Inventory Ledger)
+            #    Must check BEFORE business report because ledger also has "asin" column.
+            try:
+                df_ledger = _normalize_columns(
+                    _read_csv_with_encoding_fallback(path, sep=",")
+                )
+                if _INVENTORY_LEDGER_REQUIRED_COLUMNS <= set(df_ledger.columns):
+                    return recognize_inventory_ledger(
+                        path, normalized_country, original_filename
+                    )
+            except Exception:
+                pass
+
+            # 5. Check for business report (has child ASIN columns)
             try:
                 df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
                 asin_col = next(
                     (
-                        c for c in [
+                        c
+                        for c in [
                             "（子）asin",
                             "(子)asin",
                             "子asin",
@@ -316,7 +420,9 @@ def recognize_file(
                     None,
                 )
                 if asin_col:
-                    return recognize_business_report(path, normalized_country, original_filename)
+                    return recognize_business_report(
+                        path, normalized_country, original_filename
+                    )
             except Exception:
                 pass
 

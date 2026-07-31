@@ -24,7 +24,9 @@ from app.services.product.persistence import (
 from app.services.product.sales import persist_sales_report_by_purchase_date
 from app.services import project_service
 from app.services import upload_service
-from app.services.infra import invalidate_daily_analysis_cache as _invalidate_daily_analysis_cache
+from app.services.infra import (
+    invalidate_daily_analysis_cache as _invalidate_daily_analysis_cache,
+)
 from app.services.report_type_service import AD_PRODUCT_REPORT, normalize_report_type
 from app.utils.constants import SUPPORTED_REPORT_TYPES
 from app.utils.country import normalize_country as _normalize_country
@@ -58,7 +60,9 @@ def commit_report_upload(
 
     allowed_projects = {
         str(item.project_name)
-        for item in project_service.list_project_items(db, operator=operator, is_admin=is_admin)
+        for item in project_service.list_project_items(
+            db, operator=operator, is_admin=is_admin
+        )
     }
 
     if is_auto_commit:
@@ -85,17 +89,28 @@ def commit_report_upload(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
                 )
-            if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and auto_recognition.country != country:
+            if (
+                report_type
+                in {
+                    "sales_report",
+                    "inventory_report",
+                    "business_report",
+                    AD_PRODUCT_REPORT,
+                    "payment_report",
+                    "return_report",
+                }
+                and auto_recognition.country != country
+            ):
                 # 多站点销售报表 / 退货报表：跳过国家验证，后端会自动按站点拆分
                 is_multi_country_sales = (
-                    report_type == "sales_report" and
-                    auto_recognition.detected_countries and
-                    len(auto_recognition.detected_countries) > 1
+                    report_type == "sales_report"
+                    and auto_recognition.detected_countries
+                    and len(auto_recognition.detected_countries) > 1
                 )
                 is_multi_country_return = (
-                    report_type == "return_report" and
-                    auto_recognition.detected_countries and
-                    len(auto_recognition.detected_countries) > 1
+                    report_type == "return_report"
+                    and auto_recognition.detected_countries
+                    and len(auto_recognition.detected_countries) > 1
                 )
                 if not is_multi_country_sales and not is_multi_country_return:
                     raise HTTPException(
@@ -106,7 +121,10 @@ def commit_report_upload(
                         ),
                     )
             auto_project_match = auto_recognition.project_match
-            if auto_project_match.status != "matched" or not auto_project_match.project_name:
+            if (
+                auto_project_match.status != "matched"
+                or not auto_project_match.project_name
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail="文件未匹配到唯一项目，请先确认文件归属后再入库",
@@ -148,17 +166,28 @@ def commit_report_upload(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
                 )
-            if report_type in {"sales_report", "inventory_report", "business_report", AD_PRODUCT_REPORT, "payment_report", "return_report"} and recognition.country != country:
+            if (
+                report_type
+                in {
+                    "sales_report",
+                    "inventory_report",
+                    "business_report",
+                    AD_PRODUCT_REPORT,
+                    "payment_report",
+                    "return_report",
+                }
+                and recognition.country != country
+            ):
                 # 多站点销售/退货报表：跳过国家验证，后端会自动按站点拆分
                 is_multi_country_sales = (
-                    report_type == "sales_report" and
-                    recognition.detected_countries and
-                    len(recognition.detected_countries) > 1
+                    report_type == "sales_report"
+                    and recognition.detected_countries
+                    and len(recognition.detected_countries) > 1
                 )
                 is_multi_country_return = (
-                    report_type == "return_report" and
-                    recognition.detected_countries and
-                    len(recognition.detected_countries) > 1
+                    report_type == "return_report"
+                    and recognition.detected_countries
+                    and len(recognition.detected_countries) > 1
                 )
                 if not is_multi_country_sales and not is_multi_country_return:
                     raise HTTPException(
@@ -202,7 +231,7 @@ def commit_report_upload(
         end_d = (payload.report_end_date or "").strip()
         return ReportCommitResponse(
             report_type=report_type,
-            status='skipped',
+            status="skipped",
             project_name=project_name,
             country=country,
             report_date=(payload.report_date or "").strip() or None,
@@ -213,8 +242,8 @@ def commit_report_upload(
             persisted_source_id=None,
             persisted_table=None,
             message=(
-                f'已识别为报表（dry_run）：未写入 analysis_source_files。'
-                f'文件已暂存，临时文件 ID={file_meta["file_id"]}。'
+                f"已识别为报表（dry_run）：未写入 analysis_source_files。"
+                f"文件已暂存，临时文件 ID={file_meta['file_id']}。"
             ),
             duplicate_warnings=[],
         )
@@ -226,18 +255,27 @@ def commit_report_upload(
     duplicate_warnings = []
     if duplicates:
         from app.models import Project
+
         for dup in duplicates:
-            project = db.execute(
-                select(Project).where(Project.id == dup.project_id)
-            ).scalars().first()
-            project_name = project.project_name if project else f"project_id={dup.project_id}"
-            duplicate_warnings.append({
-                "project_name": project_name,
-                "report_type": dup.report_type,
-                "country": dup.country,
-                "period": f"{dup.period_start_date} ~ {dup.period_end_date}" if dup.period_start_date else "N/A",
-                "original_filename": dup.original_filename,
-            })
+            project = (
+                db.execute(select(Project).where(Project.id == dup.project_id))
+                .scalars()
+                .first()
+            )
+            project_name = (
+                project.project_name if project else f"project_id={dup.project_id}"
+            )
+            duplicate_warnings.append(
+                {
+                    "project_name": project_name,
+                    "report_type": dup.report_type,
+                    "country": dup.country,
+                    "period": f"{dup.period_start_date} ~ {dup.period_end_date}"
+                    if dup.period_start_date
+                    else "N/A",
+                    "original_filename": dup.original_filename,
+                }
+            )
 
     persisted_source_id: int | None = None
     persisted_table: str | None = None
@@ -271,16 +309,37 @@ def commit_report_upload(
         message = "库存报表已保存并写入库存源数据"
         project = _get_project_by_name(db, project_name)
         _invalidate_daily_analysis_cache(project.id)
+    elif report_type == "inventory_ledger":
+        # Amazon Detailed Inventory Ledger CSV → inventory_ledger_raw table
+        from app.services.inventory.ledger import ingest_ledger_csv
+
+        project = _get_project_by_name(db, project_name)
+        file_path = file_meta["file_path"]
+        with open(file_path, "rb") as f:
+            csv_content = f.read()
+        row_count = ingest_ledger_csv(
+            db,
+            project_id=project.id,
+            csv_content=csv_content,
+            filename=payload.original_filename or "",
+        )
+        response_status = "persisted"
+        message = f"库存盘点数据已入库（{row_count} 行）"
     elif report_type == "business_report":
         if payload.use_period_dates:
             start = (payload.report_start_date or "").strip()
             end = (payload.report_end_date or "").strip()
             if not start or not end:
-                raise HTTPException(status_code=422, detail="report_start_date and report_end_date are required")
+                raise HTTPException(
+                    status_code=422,
+                    detail="report_start_date and report_end_date are required",
+                )
             project = _get_project_by_name(db, project_name)
-            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
-            start_d = _parse_yyyy_mm_dd(start, 'report_start_date')
-            end_d = _parse_yyyy_mm_dd(end, 'report_end_date')
+            known_skus, known_asins = _load_project_product_mapping(
+                db, project.project_name, country
+            )
+            start_d = _parse_yyyy_mm_dd(start, "report_start_date")
+            end_d = _parse_yyyy_mm_dd(end, "report_end_date")
             outcome = _persist_one_source_file(
                 db,
                 project=project,
@@ -296,7 +355,9 @@ def commit_report_upload(
                 created_by=operator,
             )
             if not outcome.success:
-                raise HTTPException(status_code=400, detail=outcome.error_message or "业务报表入库失败")
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "业务报表入库失败"
+                )
             persisted_source_id = outcome.source_id
             persisted_table = "analysis_source_files"
             response_status = "persisted"
@@ -333,11 +394,16 @@ def commit_report_upload(
             start = (payload.report_start_date or "").strip()
             end = (payload.report_end_date or "").strip()
             if not start or not end:
-                raise HTTPException(status_code=422, detail="report_start_date and report_end_date are required")
+                raise HTTPException(
+                    status_code=422,
+                    detail="report_start_date and report_end_date are required",
+                )
             project = _get_project_by_name(db, project_name)
-            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
-            start_d = _parse_yyyy_mm_dd(start, 'report_start_date')
-            end_d = _parse_yyyy_mm_dd(end, 'report_end_date')
+            known_skus, known_asins = _load_project_product_mapping(
+                db, project.project_name, country
+            )
+            start_d = _parse_yyyy_mm_dd(start, "report_start_date")
+            end_d = _parse_yyyy_mm_dd(end, "report_end_date")
             outcome = _persist_one_source_file(
                 db,
                 project=project,
@@ -353,7 +419,9 @@ def commit_report_upload(
                 created_by=operator,
             )
             if not outcome.success:
-                raise HTTPException(status_code=400, detail=outcome.error_message or "广告报表入库失败")
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "广告报表入库失败"
+                )
             persisted_source_id = outcome.source_id
             persisted_table = "analysis_source_files"
             response_status = "persisted"
@@ -397,7 +465,9 @@ def commit_report_upload(
         if _rd:
             count_as_of_date = _parse_yyyy_mm_dd(_rd, "report_date")
         elif recognition and recognition.detected_date:
-            count_as_of_date = _parse_yyyy_mm_dd(recognition.detected_date, "report_date")
+            count_as_of_date = _parse_yyyy_mm_dd(
+                recognition.detected_date, "report_date"
+            )
         outcome = persist_sales_report_by_purchase_date(
             db,
             project_name=project_name,
@@ -432,9 +502,11 @@ def commit_report_upload(
             )
         if payload.use_period_dates:
             project = _get_project_by_name(db, project_name)
-            known_skus, known_asins = _load_project_product_mapping(db, project.project_name, country)
-            start_d = _parse_yyyy_mm_dd(start_date, 'report_start_date')
-            end_d = _parse_yyyy_mm_dd(end_date, 'report_end_date')
+            known_skus, known_asins = _load_project_product_mapping(
+                db, project.project_name, country
+            )
+            start_d = _parse_yyyy_mm_dd(start_date, "report_start_date")
+            end_d = _parse_yyyy_mm_dd(end_date, "report_end_date")
             outcome = _persist_one_source_file(
                 db,
                 project=project,
@@ -450,7 +522,9 @@ def commit_report_upload(
                 created_by=operator,
             )
             if not outcome.success:
-                raise HTTPException(status_code=400, detail=outcome.error_message or "付款报告入库失败")
+                raise HTTPException(
+                    status_code=400, detail=outcome.error_message or "付款报告入库失败"
+                )
             persisted_source_id = outcome.source_id
             persisted_table = "analysis_source_files"
             response_status = "persisted"
@@ -524,13 +598,18 @@ def commit_report_upload(
     # is detected by date-range fallback queries against analysis_source_files.
     # Period-mode uploads (use_period_dates=True) are also skipped since they
     # represent periodic data, not daily uploads.
-    _is_period_mode = getattr(payload, 'use_period_dates', False)
-    if response_status == "persisted" and report_type in {
-        "inventory_report",
-        "business_report",
-        "ad_product_report",
-        "return_report",
-    } and not _is_period_mode:
+    _is_period_mode = getattr(payload, "use_period_dates", False)
+    if (
+        response_status == "persisted"
+        and report_type
+        in {
+            "inventory_report",
+            "business_report",
+            "ad_product_report",
+            "return_report",
+        }
+        and not _is_period_mode
+    ):
         project = _get_project_by_name(db, project_name)
         write_report_upload_log(
             db,
@@ -592,9 +671,7 @@ def upsert_file_only_report_status(
 
     ReportUploadStatus.__table__.create(bind=db.get_bind(), checkfirst=True)
     project = _get_project_by_name(db, project_name)
-    target_date = _parse_yyyy_mm_dd(
-        report_date, "report_date"
-    )
+    target_date = _parse_yyyy_mm_dd(report_date, "report_date")
     row = (
         db.execute(
             select(ReportUploadStatus).where(

@@ -1,5 +1,6 @@
 export type ReportType =
   | 'inventory_report'
+  | 'inventory_ledger'
   | 'business_report'
   | 'ad_product_report'
   | 'ad_search_term_share_report'
@@ -144,6 +145,7 @@ export type UploadQueueItem = {
 export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
   'business_report',
   'inventory_report',
+  'inventory_ledger',
   'ad_product_report',
   'ad_search_term_share_report',
   'ad_budget_report',

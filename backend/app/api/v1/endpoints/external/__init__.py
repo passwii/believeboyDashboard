@@ -59,6 +59,9 @@ from app.api.v1.endpoints.external.projects import router as projects_router
 from app.api.v1.endpoints.external.replenishment_analysis import (
     router as replenishment_analysis_router,
 )
+from app.api.v1.endpoints.external.inventory_ledger import (
+    router as inventory_ledger_router,
+)
 from app.api.v1.endpoints.external.sku_info import router as sku_info_router
 
 
@@ -82,3 +85,4 @@ external_router.include_router(orders_summary_router)
 external_router.include_router(business_summary_router)
 external_router.include_router(replenishment_analysis_router)
 external_router.include_router(sku_info_router)
+external_router.include_router(inventory_ledger_router)

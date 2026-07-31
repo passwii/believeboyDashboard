@@ -32,6 +32,7 @@ from sqlalchemy import select, distinct
 @dataclass
 class RecognitionPayload:
     """Internal payload for recognition with project matching (backend-specific)."""
+
     report_type: str
     matched_columns: list[str]
     reason: str
@@ -84,7 +85,9 @@ def recognize_saved_report_upload(
     }
     normalized_country = _normalize_country(country)
 
-    result = recognize_file(path, country=normalized_country, original_filename=original_filename)
+    result = recognize_file(
+        path, country=normalized_country, original_filename=original_filename
+    )
 
     if result is None:
         return ReportRecognitionResponse(
@@ -125,12 +128,19 @@ def recognize_saved_report_upload(
             df = _normalize_columns(_read_csv_with_encoding_fallback(path))
             match_by = "sku"
             values = df[match_by].dropna().astype(str).tolist()
+        elif result.report_type == "inventory_ledger":
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+            match_by = "sku"
+            values = (
+                df["msku"].dropna().astype(str).tolist() if "msku" in df.columns else []
+            )
         elif result.report_type == "business_report":
             df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
             match_by = "asin"
             asin_col = next(
                 (
-                    c for c in [
+                    c
+                    for c in [
                         "（子）asin",
                         "(子)asin",
                         "子asin",
@@ -206,7 +216,8 @@ def recognize_saved_report_upload(
         detected_date=payload.detected_date,
         detected_start_date=payload.detected_start_date,
         detected_end_date=payload.detected_end_date,
-        project_match=payload.project_match or ReportProjectMatchSummary(status="manual"),
+        project_match=payload.project_match
+        or ReportProjectMatchSummary(status="manual"),
         row_count_preview=payload.row_count_preview,
         warnings=payload.warnings or [],
     )
@@ -234,28 +245,25 @@ def _detect_countries_in_return_file(db: Session, path: Path) -> list[str]:
     if "order-id" not in df.columns:
         return []
 
-    order_ids = (
-        df["order-id"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .unique()
-        .tolist()
-    )
+    order_ids = df["order-id"].dropna().astype(str).str.strip().unique().tolist()
     if not order_ids:
         return []
 
     limited_ids = order_ids[:200]
 
     # Primary: DB lookup — sales order rows carry the correct country
-    rows = db.execute(
-        select(distinct(AnalysisSalesOrderRow.country))
-        .join(
-            AnalysisSourceFile,
-            AnalysisSalesOrderRow.source_file_id == AnalysisSourceFile.id,
+    rows = (
+        db.execute(
+            select(distinct(AnalysisSalesOrderRow.country))
+            .join(
+                AnalysisSourceFile,
+                AnalysisSalesOrderRow.source_file_id == AnalysisSourceFile.id,
+            )
+            .where(AnalysisSalesOrderRow.amazon_order_id.in_(limited_ids))
         )
-        .where(AnalysisSalesOrderRow.amazon_order_id.in_(limited_ids))
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     countries = [c for c in rows if c in ("DE", "UK")]
     if countries:

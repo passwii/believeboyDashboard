@@ -35,6 +35,7 @@ from app.api.v1.endpoints.inventory_replenishment import (
 from app.api.v1.endpoints.inventory_replenishment_snapshots import (
     router as inventory_replenishment_snapshots_router,
 )
+from app.api.v1.endpoints.inventory_ledger import router as inventory_ledger_router
 from app.api.v1.endpoints.shipment_schedules import router as shipment_schedules_router
 from app.api.v1.endpoints.system_management import router as system_management_router
 from app.api.v1.endpoints.uploads import router as uploads_router
@@ -78,6 +79,9 @@ api_router.include_router(pricing_calculation_snapshots_router)
 api_router.include_router(shop_calculation_router)
 api_router.include_router(inventory_replenishment_router)
 api_router.include_router(inventory_replenishment_snapshots_router)
+api_router.include_router(
+    inventory_ledger_router, prefix="/inventory-ledger", tags=["inventory-ledger"]
+)
 api_router.include_router(shipment_schedules_router)
 api_router.include_router(ai_chat_router)
 api_router.include_router(ai_chat_v2_router)

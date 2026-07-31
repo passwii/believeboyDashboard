@@ -2,9 +2,11 @@
 
 Entry point: recognize_file()
 """
+
 from app.utils.recognition.recognizers import (
     recognize_file,
     recognize_inventory_report,
+    recognize_inventory_ledger,
     recognize_sales_report,
     recognize_business_report,
     recognize_payment_report,
