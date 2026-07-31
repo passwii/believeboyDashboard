@@ -290,8 +290,8 @@ _INVENTORY_LEDGER_REQUIRED_COLUMNS = {
     "msku",
     "disposition",
     "location",
-    "starting_warehouse_balance",
-    "ending_warehouse_balance",
+    "starting warehouse balance",
+    "ending warehouse balance",
 }
 
 
