@@ -22,6 +22,10 @@ CUSTOMER_FILTER_FIELDS: dict[str, str] = {
     "industry": "industry",
     "employeeCount": "employee_count",
     "annualRevenue": "annual_revenue",
+    "score_scale": "score_scale",
+    "score_pay": "score_pay",
+    "score_fit": "score_fit",
+    "score_coop": "score_coop",
 }
 
 LEAD_FILTER_FIELDS: dict[str, str] = {

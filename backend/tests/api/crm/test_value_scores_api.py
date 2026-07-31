@@ -1,5 +1,7 @@
 """P6a 价值评分端点集成测试（PATCH /customers/{id}/value-scores）。"""
 
+import json
+
 import pytest
 from sqlalchemy import text
 
@@ -108,3 +110,72 @@ def test_404_when_customer_missing(client, admin_headers):
         headers=admin_headers,
     )
     assert r.status_code == 404
+
+
+# ── Task 6：列表返回 score + filter 白名单 ──────────────────────────────────
+
+
+def test_list_customers_includes_scores(client, admin_headers):
+    cid = _mk(client, admin_headers)
+    client.patch(
+        f"/api/v1/crm/customers/{cid}/value-scores",
+        json={
+            "score_scale": "A",
+            "score_pay": "B",
+            "score_fit": "C",
+            "score_coop": "D",
+        },
+        headers=admin_headers,
+    )
+    body = client.get("/api/v1/crm/customers", headers=admin_headers).json()
+    item = next(i for i in body["items"] if i["id"] == cid)
+    assert item["score_scale"] == "A"
+    assert item["score_pay"] == "B"
+    assert item["score_fit"] == "C"
+    assert item["score_coop"] == "D"
+    # A B C D → (4+3+2+1)/4 = 2.5 → B
+    assert item["rating"] == "B"
+
+
+def test_filter_by_rating(client, admin_headers):
+    cid = _mk(client, admin_headers)
+    client.patch(
+        f"/api/v1/crm/customers/{cid}/value-scores",
+        json={
+            "score_scale": "A",
+            "score_pay": "A",
+            "score_fit": "A",
+            "score_coop": "A",
+        },
+        headers=admin_headers,
+    )
+    r = client.get(
+        "/api/v1/crm/customers",
+        params={"filters": json.dumps([{"field": "rating", "op": "eq", "value": "A"}])},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert cid in [i["id"] for i in r.json()["items"]]
+
+
+def test_filter_by_score_pay(client, admin_headers):
+    cid = _mk(client, admin_headers)
+    client.patch(
+        f"/api/v1/crm/customers/{cid}/value-scores",
+        json={
+            "score_scale": "A",
+            "score_pay": "A",
+            "score_fit": "A",
+            "score_coop": "A",
+        },
+        headers=admin_headers,
+    )
+    r = client.get(
+        "/api/v1/crm/customers",
+        params={
+            "filters": json.dumps([{"field": "score_pay", "op": "eq", "value": "A"}])
+        },
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    assert cid in [i["id"] for i in r.json()["items"]]
