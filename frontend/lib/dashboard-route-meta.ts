@@ -8,7 +8,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/operations/return-analysis', title: '退货分析' },
   { match: '/advertising/ad-analysis', title: '广告分析' },
   { match: '/supply-chain/weekly-product-analysis', title: '按周产品分析' },
-  { match: '/supply-chain/inventory-analysis', title: '库存分析' },
+  { match: '/operations/inventory-analysis', title: '库存分析' },
   { match: '/supply-chain/inventory-replenishment', title: '补货分析' },
   { match: '/supply-chain/seasonal-replenishment', title: '季节性补货分析' },
   { match: '/operations/project-goals', title: '目标管理' },

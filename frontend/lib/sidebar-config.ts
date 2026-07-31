@@ -175,6 +175,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
       { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
       { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
+      { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
     ],
   },
 
@@ -227,7 +228,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '按周产品分析', url: '/dashboard/supply-chain/weekly-product-analysis', icon: IconMap.BarChart3 },
       { title: '组合分析', url: '/dashboard/supply-chain/portfolio-overview', icon: IconMap.Layers },
       { title: 'SKU 信息', url: '/dashboard/supply-chain/sku-info', icon: IconMap.FileBarChart },
-      { title: '库存分析', url: '/dashboard/supply-chain/inventory-analysis', icon: IconMap.Warehouse },
       { title: '补货分析', url: '/dashboard/supply-chain/inventory-replenishment', icon: IconMap.Repeat2 },
       {
         title: '季节性补货分析',
