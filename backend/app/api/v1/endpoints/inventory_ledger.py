@@ -18,6 +18,7 @@ from app.schemas.inventory_ledger import (
     MonthlySnapshotResponse,
     MonthsResponse,
     ReceiptClustersResponse,
+    TrendResponse,
 )
 from app.services.inventory.ledger import (
     check_ledger_integrity,
@@ -27,6 +28,8 @@ from app.services.inventory.ledger import (
     get_sku_location_eom,
     get_sku_month_eom,
     get_sku_month_events,
+    get_trend,
+    parse_report_month,
     resolve_period,
 )
 
@@ -56,7 +59,7 @@ def list_months(
 @router.get("/snapshot", response_model=MonthlySnapshotResponse)
 def get_snapshot(
     project_id: int = Query(...),
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
@@ -71,14 +74,14 @@ def get_snapshot(
     prev_start: date | None = None
     prev_end: date | None = None
     if report_month:
-        prev_start, prev_end = _prev_period(report_month)
+        prev_start, prev_end = _prev_period(start)
 
     skus = get_sku_month_eom(db, project_id, start, end, prev_start, prev_end)
     disposition_summary = get_month_disposition_summary(db, project_id, start, end)
 
     integrity = None
     if report_month:
-        integrity = check_ledger_integrity(db, project_id, report_month)
+        integrity = check_ledger_integrity(db, project_id, start)
 
     total_qty = sum(s.qty_eom for s in skus)
     return MonthlySnapshotResponse(
@@ -94,7 +97,7 @@ def get_snapshot(
 @router.get("/events", response_model=EventsResponse)
 def get_events(
     project_id: int = Query(...),
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
@@ -112,7 +115,7 @@ def get_events(
 @router.get("/receipt-clusters", response_model=ReceiptClustersResponse)
 def get_clusters(
     project_id: int = Query(...),
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
@@ -130,7 +133,7 @@ def get_clusters(
 @router.get("/location-detail", response_model=LocationDetailResponse)
 def get_location_detail(
     project_id: int = Query(...),
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     msku: str | None = Query(None),
@@ -144,3 +147,14 @@ def get_location_detail(
 
     rows = get_sku_location_eom(db, project_id, start, end, msku=msku)
     return LocationDetailResponse(report_month=start, rows=rows)
+
+
+@router.get("/trend", response_model=TrendResponse)
+def get_trend_endpoint(
+    project_id: int = Query(...),
+    months: int = Query(6, ge=1, le=24, description="Number of recent months"),
+    db: Session = Depends(get_db_session),
+) -> TrendResponse:
+    """Multi-month aggregated trend: EOM qty, events, damaged pct per month."""
+    items = get_trend(db, project_id, months=months)
+    return TrendResponse(project_id=project_id, months=items)

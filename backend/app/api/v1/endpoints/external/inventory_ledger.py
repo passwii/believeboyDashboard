@@ -18,6 +18,7 @@ from app.schemas.inventory_ledger import (
     MonthlySnapshotResponse,
     MonthsResponse,
     ReceiptClustersResponse,
+    TrendResponse,
 )
 from app.services.inventory.ledger import (
     check_ledger_integrity,
@@ -26,6 +27,8 @@ from app.services.inventory.ledger import (
     get_receipt_clusters,
     get_sku_month_eom,
     get_sku_month_events,
+    get_trend,
+    parse_report_month,
     resolve_period,
 )
 
@@ -56,7 +59,7 @@ def ext_list_months(
 @router.get("/snapshot", response_model=MonthlySnapshotResponse)
 def ext_snapshot(
     project_id: int,
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_read_db_session),
@@ -70,14 +73,14 @@ def ext_snapshot(
     prev_start: date | None = None
     prev_end: date | None = None
     if report_month:
-        prev_start, prev_end = _prev_period(report_month)
+        prev_start, prev_end = _prev_period(start)
 
     skus = get_sku_month_eom(db, project_id, start, end, prev_start, prev_end)
     disposition_summary = get_month_disposition_summary(db, project_id, start, end)
 
     integrity = None
     if report_month:
-        integrity = check_ledger_integrity(db, project_id, report_month)
+        integrity = check_ledger_integrity(db, project_id, start)
 
     total_qty = sum(s.qty_eom for s in skus)
     return MonthlySnapshotResponse(
@@ -93,7 +96,7 @@ def ext_snapshot(
 @router.get("/events", response_model=EventsResponse)
 def ext_events(
     project_id: int,
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_read_db_session),
@@ -111,7 +114,7 @@ def ext_events(
 @router.get("/receipt-clusters", response_model=ReceiptClustersResponse)
 def ext_receipt_clusters(
     project_id: int,
-    report_month: date | None = Query(None),
+    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_read_db_session),
@@ -129,8 +132,23 @@ def ext_receipt_clusters(
 @router.get("/integrity", response_model=IntegrityCheckResult)
 def ext_integrity(
     project_id: int,
-    report_month: date = Query(...),
+    report_month: str = Query(..., description="YYYY-MM or YYYY-MM-DD"),
     db: Session = Depends(get_read_db_session),
 ) -> IntegrityCheckResult:
     """Cross-month integrity check."""
-    return check_ledger_integrity(db, project_id, report_month)
+    try:
+        month_date = parse_report_month(report_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return check_ledger_integrity(db, project_id, month_date)
+
+
+@router.get("/trend", response_model=TrendResponse)
+def ext_trend(
+    project_id: int,
+    months: int = Query(6, ge=1, le=24, description="Number of recent months"),
+    db: Session = Depends(get_read_db_session),
+) -> TrendResponse:
+    """Multi-month aggregated trend."""
+    items = get_trend(db, project_id, months=months)
+    return TrendResponse(project_id=project_id, months=items)

@@ -84,13 +84,34 @@ REQUIRED_COLUMNS = {
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def parse_report_month(value: str) -> date:
+    """Parse report_month from 'YYYY-MM' or 'YYYY-MM-DD' into a date (first of month)."""
+    value = value.strip()
+    # YYYY-MM format
+    m = re.match(r"^(\d{4})-(\d{2})$", value)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), 1)
+    # YYYY-MM-DD format — normalize to first of month
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", value)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), 1)
+    raise ValueError(
+        f"Invalid report_month format: '{value}'. Use YYYY-MM or YYYY-MM-DD."
+    )
+
+
 def resolve_period(
-    report_month: date | None, start_date: date | None, end_date: date | None
+    report_month: str | date | None, start_date: date | None, end_date: date | None
 ) -> tuple[date, date]:
-    """Resolve report_month or explicit date range into (start, end)."""
+    """Resolve report_month or explicit date range into (start, end).
+
+    report_month accepts 'YYYY-MM', 'YYYY-MM-DD', or a date object.
+    """
     if report_month and (start_date or end_date):
         raise ValueError("report_month and start_date/end_date are mutually exclusive")
     if report_month:
+        if isinstance(report_month, str):
+            report_month = parse_report_month(report_month)
         last_day = calendar.monthrange(report_month.year, report_month.month)[1]
         return report_month, date(report_month.year, report_month.month, last_day)
     if start_date and end_date:
@@ -530,6 +551,75 @@ def get_available_months(db: Session, project_id: int) -> list[date]:
         .order_by(InventoryLedgerRaw.report_month.desc())
     )
     return [r[0] for r in db.execute(stmt).all()]
+
+
+# ─── 9. get_trend ─────────────────────────────────────────────────────────────
+
+
+def get_trend(db: Session, project_id: int, months: int = 6) -> list[dict]:
+    """Multi-month aggregated trend: EOM qty, events, damaged pct per month."""
+    from app.schemas.inventory_ledger import TrendMonthItem
+
+    available = get_available_months(db, project_id)
+    # Take the most recent N months
+    target_months = available[:months]
+
+    results: list[TrendMonthItem] = []
+    for month_start in reversed(target_months):  # chronological order
+        last_day = calendar.monthrange(month_start.year, month_start.month)[1]
+        month_end = date(month_start.year, month_start.month, last_day)
+
+        # EOM totals via subquery
+        subq = _eom_subquery(db, project_id, month_start, month_end)
+        eom_stmt = select(
+            func.count(func.distinct(subq.c.msku)).label("sku_count"),
+            func.sum(subq.c.ending_balance).label("total_qty"),
+            func.sum(
+                case(
+                    (subq.c.disposition != "SELLABLE", subq.c.ending_balance),
+                    else_=0,
+                )
+            ).label("damaged_qty"),
+        ).where(subq.c.rn == 1, subq.c.ending_balance > 0)
+        eom_row = db.execute(eom_stmt).one()
+
+        # Event totals
+        evt_stmt = select(
+            func.sum(InventoryLedgerRaw.receipts).label("total_receipts"),
+            func.sum(InventoryLedgerRaw.customer_shipments).label("total_shipments"),
+            func.sum(InventoryLedgerRaw.customer_returns).label("total_returns"),
+            func.sum(InventoryLedgerRaw.damaged).label("total_damaged"),
+            func.sum(InventoryLedgerRaw.lost).label("total_lost"),
+            func.sum(InventoryLedgerRaw.disposed).label("total_disposed"),
+        ).where(
+            InventoryLedgerRaw.project_id == project_id,
+            InventoryLedgerRaw.date >= month_start,
+            InventoryLedgerRaw.date <= month_end,
+        )
+        evt_row = db.execute(evt_stmt).one()
+
+        total_qty = int(eom_row.total_qty or 0)
+        damaged_qty = int(eom_row.damaged_qty or 0)
+        damaged_pct = (
+            round(100.0 * damaged_qty / total_qty, 2) if total_qty > 0 else 0.0
+        )
+
+        results.append(
+            TrendMonthItem(
+                report_month=month_start.strftime("%Y-%m"),
+                sku_count=int(eom_row.sku_count or 0),
+                total_qty_eom=total_qty,
+                total_receipts=int(evt_row.total_receipts or 0),
+                total_shipments=int(evt_row.total_shipments or 0),
+                total_returns=int(evt_row.total_returns or 0),
+                total_damaged=int(evt_row.total_damaged or 0),
+                total_lost=int(evt_row.total_lost or 0),
+                total_disposed=int(evt_row.total_disposed or 0),
+                damaged_pct=damaged_pct,
+            )
+        )
+
+    return results
 
 
 # ─── 9. ingest_ledger_csv ─────────────────────────────────────────────────────

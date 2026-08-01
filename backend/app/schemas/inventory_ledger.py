@@ -125,3 +125,25 @@ class MonthsResponse(BaseModel):
 
     project_id: int
     months: list[date] = []
+
+
+class TrendMonthItem(BaseModel):
+    """Aggregated metrics for a single month in the trend."""
+
+    report_month: str  # YYYY-MM
+    sku_count: int = 0
+    total_qty_eom: int = 0
+    total_receipts: int = 0
+    total_shipments: int = 0
+    total_returns: int = 0
+    total_damaged: int = 0
+    total_lost: int = 0
+    total_disposed: int = 0
+    damaged_pct: float = 0.0
+
+
+class TrendResponse(BaseModel):
+    """Multi-month trend response."""
+
+    project_id: int
+    months: list[TrendMonthItem] = []
