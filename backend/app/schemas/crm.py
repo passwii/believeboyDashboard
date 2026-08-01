@@ -49,6 +49,42 @@ class CustomerUpdate(BaseModel):
     remark: str | None = None
 
 
+class CustomerSeaImportRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    short_name: str | None = None
+    industry: str | None = None
+    customer_type: str | None = None  # 工厂/贸易商/同行/其他
+    interested_service: str | None = None  # 代运营/AI运营/运营服务/其他
+    rating: str | None = None  # A/B/C/D；None → 默认 C
+    status: str | None = None  # active/lost/signed/on_hold；None → active
+    source: str | None = None  # referral/exhibition/online_ad/cold_call/other
+    address: str | None = None
+    website: str | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
+    remark: str | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
+
+
+class CustomerSeaImportRequest(BaseModel):
+    rows: list[CustomerSeaImportRow] = Field(min_length=1, max_length=1000)
+
+
+class CustomerSeaImportFailItem(BaseModel):
+    row: int
+    field: str | None = None
+    reason: str
+
+
+class CustomerSeaImportResult(BaseModel):
+    created: int
+    skipped_dupes: int
+    failed: list[CustomerSeaImportFailItem]
+
+
 class ValueScoresUpdate(BaseModel):
     """P6a 价值评分更新（部分更新：仅写入提供的维度）。
 

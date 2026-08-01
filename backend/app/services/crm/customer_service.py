@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmContact, CrmCustomer
 from app.schemas.crm import ContactCreate, CustomerCreate, CustomerUpdate
-from app.services.crm import contact_service
+from app.services.crm import audit_service, contact_service
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -284,3 +286,164 @@ def claim_from_sea(
         db.commit()
     db.refresh(cust)
     return get_customer(db, cust.id)
+
+
+# ── 公海批量导入 ─────────────────────────────────────────────────────────────
+_RATINGS = {"A", "B", "C", "D"}
+_STATUSES = {"active", "lost", "signed", "on_hold"}
+_SOURCES = {"referral", "exhibition", "online_ad", "cold_call", "other"}
+_CUSTOMER_TYPES = {"工厂", "贸易商", "同行", "其他"}
+_INTERESTED_SERVICES = {"代运营", "AI运营", "运营服务", "其他"}
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _norm_name(s: str | None) -> str:
+    return (s or "").strip()
+
+
+def _norm_phone(s: str | None) -> str:
+    return "".join(ch for ch in (s or "") if ch not in " -")
+
+
+def _is_email(s: str) -> bool:
+    return bool(_EMAIL_RE.match(s))
+
+
+def _is_duplicate(db: Session, name: str, phone_key: str) -> bool:
+    match_ids = [
+        r[0]
+        for r in db.execute(
+            select(CrmCustomer.id).where(
+                CrmCustomer.is_deleted.is_(False),
+                func.lower(func.trim(CrmCustomer.name)) == name.lower(),
+            )
+        ).all()
+    ]
+    if not match_ids:
+        return False
+    if not phone_key:
+        return True  # 仅按名字：同名即重复
+    phones = (
+        db.execute(
+            select(CrmContact.phone).where(CrmContact.customer_id.in_(match_ids))
+        )
+        .scalars()
+        .all()
+    )
+    return any(_norm_phone(p) == phone_key for p in phones if p)
+
+
+def import_customers_to_sea(
+    db: Session, rows: list, *, user_id: str | None, commit: bool = True
+) -> dict:
+    cur = _current_user_id(user_id)
+    created = 0
+    skipped_dupes = 0
+    failed: list[dict] = []
+    seen_keys: set[tuple[str, str]] = set()
+
+    for idx, row in enumerate(rows, start=1):
+        name = _norm_name(row.name)
+        if not name:
+            failed.append({"row": idx, "field": "name", "reason": "客户名必填"})
+            continue
+        if row.rating and row.rating not in _RATINGS:
+            failed.append(
+                {"row": idx, "field": "rating", "reason": f"等级无效：{row.rating}"}
+            )
+            continue
+        if row.status and row.status not in _STATUSES:
+            failed.append(
+                {"row": idx, "field": "status", "reason": f"状态无效：{row.status}"}
+            )
+            continue
+        if row.source and row.source not in _SOURCES:
+            failed.append(
+                {"row": idx, "field": "source", "reason": f"来源无效：{row.source}"}
+            )
+            continue
+        if row.customer_type and row.customer_type not in _CUSTOMER_TYPES:
+            failed.append(
+                {
+                    "row": idx,
+                    "field": "customer_type",
+                    "reason": f"对象类型无效：{row.customer_type}",
+                }
+            )
+            continue
+        if (
+            row.interested_service
+            and row.interested_service not in _INTERESTED_SERVICES
+        ):
+            failed.append(
+                {
+                    "row": idx,
+                    "field": "interested_service",
+                    "reason": f"意向服务无效：{row.interested_service}",
+                }
+            )
+            continue
+        if row.contact_email and not _is_email(row.contact_email):
+            failed.append(
+                {"row": idx, "field": "contact_email", "reason": "邮箱格式不正确"}
+            )
+            continue
+
+        phone_key = _norm_phone(row.contact_phone)
+        key = (name.lower(), phone_key)
+        if key in seen_keys:
+            skipped_dupes += 1
+            continue
+        if _is_duplicate(db, name, phone_key):
+            skipped_dupes += 1
+            seen_keys.add(key)
+            continue
+        seen_keys.add(key)
+
+        cust = CrmCustomer(
+            name=name,
+            short_name=row.short_name or None,
+            industry=row.industry or None,
+            customer_type=row.customer_type or None,
+            interested_service=row.interested_service or None,
+            rating=row.rating or "C",
+            status=row.status or "active",
+            source=row.source or None,
+            owner_id=None,  # 公海
+            address=row.address or None,
+            website=row.website or None,
+            annual_revenue=row.annual_revenue,
+            employee_count=row.employee_count,
+            remark=row.remark or None,
+            created_by=cur,
+        )
+        db.add(cust)
+        db.flush()
+
+        contact_name = _norm_name(row.contact_name)
+        if contact_name:
+            contact_service.create_contact(
+                db,
+                cust.id,
+                ContactCreate(
+                    name=contact_name,
+                    phone=row.contact_phone or None,
+                    email=row.contact_email or None,
+                    is_primary=True,
+                ),
+                commit=False,
+            )
+
+        audit_service.record_log(
+            db,
+            entity_type="customer",
+            entity_id=cust.id,
+            action="create",
+            actor_id=cur,
+            summary="公海导入",
+        )
+        created += 1
+
+    if commit:
+        db.commit()
+    return {"created": created, "skipped_dupes": skipped_dupes, "failed": failed}

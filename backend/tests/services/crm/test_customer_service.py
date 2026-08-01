@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmContact, CrmCustomer
-from app.schemas.crm import CustomerCreate, CustomerUpdate
+from app.schemas.crm import CustomerCreate, CustomerSeaImportRow, CustomerUpdate
 from app.services.crm.customer_service import (
     batch_move_to_sea,
     batch_transfer,
@@ -15,6 +15,7 @@ from app.services.crm.customer_service import (
     create_customer,
     delete_customer,
     get_customer,
+    import_customers_to_sea,
     list_customers,
     update_customer,
 )
@@ -299,3 +300,95 @@ class TestCreateWithContact:
             .all()
         )
         assert ct == []
+
+
+# ── 公海批量导入 ─────────────────────────────────────────────────────────────
+def _row(name="导入客户", **kw):
+    return CustomerSeaImportRow(name=name, **kw)
+
+
+class TestImportToSea:
+    def test_happy_path_creates_unowned_customers(self, db_session: Session):
+        rows = [_row("客户甲"), _row("客户乙", rating="A", status="signed")]
+        result = import_customers_to_sea(db_session, rows, user_id=ALICE)
+        assert result["created"] == 2
+        assert result["skipped_dupes"] == 0
+        assert result["failed"] == []
+        custs = (
+            db_session.execute(
+                select(CrmCustomer).where(CrmCustomer.name.in_(["客户甲", "客户乙"]))
+            )
+            .scalars()
+            .all()
+        )
+        assert len(custs) == 2
+        assert all(c.owner_id is None for c in custs)  # 落公海
+        assert all(c.created_by == ALICE for c in custs)
+
+    def test_import_creates_primary_contact(self, db_session: Session):
+        result = import_customers_to_sea(
+            db_session,
+            [_row("带联系人", contact_name="王五", contact_phone="13600000000")],
+            user_id=ALICE,
+        )
+        assert result["created"] == 1
+        cust = db_session.execute(
+            select(CrmCustomer).where(CrmCustomer.name == "带联系人")
+        ).scalar_one()
+        ct = db_session.execute(
+            select(CrmContact).where(CrmContact.customer_id == cust.id)
+        ).scalar_one()
+        assert ct.is_primary is True and ct.name == "王五"
+
+    def test_dedup_against_db_by_name_and_phone(self, db_session: Session):
+        existing = _seed_customer(db_session, name="已存在", owner_id=None)
+        _seed_contact(db_session, existing.id, name="联系人", phone="13500000000")
+        db_session.commit()
+        result = import_customers_to_sea(
+            db_session, [_row("已存在", contact_phone="135-0000-0000")], user_id=ALICE
+        )  # norm 后相同
+        assert result["created"] == 0
+        assert result["skipped_dupes"] == 1
+
+    def test_dedup_within_batch(self, db_session: Session):
+        result = import_customers_to_sea(
+            db_session, [_row("重复甲"), _row("重复甲"), _row("重复甲")], user_id=ALICE
+        )
+        assert result["created"] == 1
+        assert result["skipped_dupes"] == 2
+
+    def test_same_name_different_phone_not_dupe(self, db_session: Session):
+        existing = _seed_customer(db_session, name="同名公司", owner_id=None)
+        _seed_contact(db_session, existing.id, name="c", phone="111")
+        db_session.commit()
+        result = import_customers_to_sea(
+            db_session, [_row("同名公司", contact_phone="222")], user_id=ALICE
+        )  # 电话不同 → 新客户
+        assert result["created"] == 1
+        assert result["skipped_dupes"] == 0
+
+    def test_validation_failures_reported_not_inserted(self, db_session: Session):
+        rows = [
+            _row(""),  # 缺名
+            _row("坏等级", rating="X"),  # 等级非法
+            _row("坏邮箱", contact_name="c", contact_email="not-email"),  # 邮箱非法
+            _row("好客户"),  # 合法
+        ]
+        result = import_customers_to_sea(db_session, rows, user_id=ALICE)
+        assert result["created"] == 1
+        assert result["skipped_dupes"] == 0
+        assert len(result["failed"]) == 3
+        reasons = {(f["row"], f["field"]) for f in result["failed"]}
+        assert (1, "name") in reasons
+        assert (2, "rating") in reasons
+        assert (3, "contact_email") in reasons
+
+    def test_partial_success_single_commit(self, db_session: Session):
+        result = import_customers_to_sea(
+            db_session, [_row("成A"), _row(""), _row("成B")], user_id=ALICE
+        )
+        assert result["created"] == 2 and len(result["failed"]) == 1
+        cnt = db_session.execute(
+            select(func.count(CrmCustomer.id)).where(CrmCustomer.is_deleted.is_(False))
+        ).scalar_one()
+        assert cnt == 2
