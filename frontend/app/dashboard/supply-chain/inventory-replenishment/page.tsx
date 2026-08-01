@@ -126,6 +126,27 @@ type AnalysisRow = {
   estimated_replenishment_quantity: number | null
   risk_status: string
   risk_anchor_date: string | null
+  // v1.2 三段式产物（可选，向后兼容）
+  inventory_state?: string
+  replenishment_action?: string
+  signals?: {
+    sellable_days?: number | null
+    dms_3?: number | null
+    dms_7?: number | null
+    dms_14?: number | null
+    dms_30?: number | null
+    trend_ratio_7_30?: number | null
+    trend_ratio_3_7?: number | null
+    trend_label?: string | null
+    trend_momentum?: string | null
+    aging_share?: Record<string, number>
+    transit_ratio?: number | null
+    data_freshness_days?: number
+    confidence?: string
+    seasonal_factor?: number | null
+    seasonal_phase?: string | null
+    seasonal_source?: string | null
+  } | null
 }
 
 function rowKey(row: Pick<AnalysisRow, 'sku' | 'country'>): string {
@@ -731,6 +752,10 @@ export default function InventoryReplenishmentPage() {
         { header: '发货指令', key: 'shipment_order_date', width: 14 },
         { header: '预计数量', key: 'estimated_replenishment_quantity', width: 12 },
         { header: '风险状态', key: 'risk_status', width: 12 },
+        // v1.2 三段式（spec §5.1）
+        { header: '状态', key: 'inventory_state', width: 12 },
+        { header: '行动', key: 'replenishment_action', width: 14 },
+        { header: '季节性', key: 'signals.seasonal_phase', width: 12 },
       ] as const
 
       const selectedProjectName =
@@ -772,14 +797,18 @@ export default function InventoryReplenishmentPage() {
           row.shipment_order_date || '-',
           row.estimated_replenishment_quantity,
           row.risk_status,
+          // v1.2 三段式
+          row.inventory_state || '-',
+          row.replenishment_action || '-',
+          row.signals?.seasonal_phase || '-',
         ]
 
         // 显式遍历 1-21 列应用样式和边框：
         // 默认的 sheetRow.eachCell(cb) 会跳过 null 单元格，导致 dms_30 / weighted_dms /
         // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少边框。
         // 改成 for 循环 + getCell(col) 可以保证每个单元格都被处理（与 totalRow 的
-        // applyRowBorder(totalRow, 1, 21) 保持一致），且不改变原始数据（null 仍为 null）。
-        for (let col = 1; col <= 21; col++) {
+        // applyRowBorder(totalRow, 1, 24) 保持一致），且不改变原始数据（null 仍为 null）。
+        for (let col = 1; col <= 24; col++) {
           const cell = sheetRow.getCell(col)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
@@ -788,6 +817,7 @@ export default function InventoryReplenishmentPage() {
             // 产品名称列（col === 2）：单行显示，文本超出列宽时直接截断。
             // 完整品名以 cell.note 形式保留，鼠标悬停可看。
             // 其它列保留 wrapText 以防未来加长字段时溢出。
+            // v1.2 新增列（22=状态, 23=行动, 24=季节性）都是文本，左对齐 + wrapText。
             wrapText: col !== 2,
           }
           // 产品名称完整文本写到 cell.note，鼠标悬停可看（不论是否被列宽截断）。
@@ -833,7 +863,7 @@ export default function InventoryReplenishmentPage() {
       totalRow.getCell(11).value = tableTotals.weighted_dms
       totalRow.getCell(20).value = tableTotals.estimated_replenishment_quantity
       totalRow.getCell(21).value = `SKU: ${summary.sku_count}`
-      applyRowBorder(totalRow, 1, 21)
+      applyRowBorder(totalRow, 1, 24)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', wrapText: true }
