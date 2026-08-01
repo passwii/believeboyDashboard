@@ -953,6 +953,15 @@ def list_inventory_replenishment_analysis(
         RECENT_SALES_WINDOW_DAYS,
         lag_days=RECENT_SALES_LAG_DAYS,
     )
+    # v1.2 三段式/季节性：一次性取 4 主窗口 + 去年同期窗口的 DMS，供
+    # compute_seasonal_factor 使用（修复 NameError: seasonal_dms_map 未定义）。
+    seasonal_dms_map = _load_seasonal_dms_map(
+        db,
+        project.id,
+        normalized_country,
+        to_date=today,
+        compare_year_offset=1,
+    )
 
     keyword_text = (keyword or "").strip().lower()
     normalized_risk = (risk_status or "").strip()
