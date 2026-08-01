@@ -97,6 +97,12 @@ type Summary = {
   pending_data_count: number
   total_available_inventory: number
   total_in_transit_quantity: number
+  // v1.2: 三段式 state 计数
+  critical_count?: number
+  deteriorating_count?: number
+  watch_count?: number
+  healthy_count_v2?: number
+  unknown_count?: number
 }
 
 type AnalysisRow = {
@@ -196,6 +202,11 @@ const EMPTY_SUMMARY: Summary = {
   pending_data_count: 0,
   total_available_inventory: 0,
   total_in_transit_quantity: 0,
+  critical_count: 0,
+  deteriorating_count: 0,
+  watch_count: 0,
+  healthy_count_v2: 0,
+  unknown_count: 0,
 }
 
 function authHeaders(): Record<string, string> {
@@ -272,6 +283,86 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
   return (
     map[riskStatus] || {
       label: riskStatus,
+      className:
+        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+    }
+  )
+}
+
+// v1.2: 三段式产物的颜色映射
+function stateMeta(state: string | undefined): { label: string; className: string } {
+  const map: Record<string, { label: string; className: string }> = {
+    critical: {
+      label: '危险',
+      className:
+        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+    },
+    deteriorating: {
+      label: '趋势转差',
+      className:
+        'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300',
+    },
+    watch: {
+      label: '关注',
+      className:
+        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+    },
+    healthy: {
+      label: '健康',
+      className:
+        'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300',
+    },
+    unknown: {
+      label: '数据缺失',
+      className:
+        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+    },
+  }
+  return (
+    map[state ?? ''] || {
+      label: state ?? '—',
+      className:
+        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+    }
+  )
+}
+
+function actionMeta(action: string | undefined): { label: string; className: string } {
+  const map: Record<string, { label: string; className: string }> = {
+    REPLENISH_NOW: {
+      label: '紧急补货',
+      className:
+        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+    },
+    REPLENISH_NORMAL: {
+      label: '按计划补货',
+      className:
+        'border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300',
+    },
+    HOLD: {
+      label: '暂停补货',
+      className:
+        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+    },
+    REDUCE_PRICE: {
+      label: '降价清货',
+      className:
+        'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300',
+    },
+    REMOVE: {
+      label: '创建移除订单',
+      className:
+        'border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700 dark:border-fuchsia-900/80 dark:bg-fuchsia-950/50 dark:text-fuchsia-300',
+    },
+    NO_ACTION: {
+      label: '不动',
+      className:
+        'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
+    },
+  }
+  return (
+    map[action ?? ''] || {
+      label: action ?? '—',
       className:
         'border-border/70 bg-[hsl(var(--surface-soft))] text-muted-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:text-foreground/72',
     }
@@ -920,19 +1011,19 @@ export default function InventoryReplenishmentPage() {
   const statBarItems = [
     { label: 'SKU 总数', value: formatInt(summary.sku_count), highlight: false },
     {
-      label: '断货风险',
-      value: formatInt(summary.out_of_stock_risk_count),
-      highlight: summary.out_of_stock_risk_count > 0,
+      label: '危险',
+      value: formatInt(summary.critical_count ?? 0),
+      highlight: (summary.critical_count ?? 0) > 0,
+    },
+    {
+      label: '趋势转差',
+      value: formatInt(summary.deteriorating_count ?? 0),
+      highlight: (summary.deteriorating_count ?? 0) > 0,
     },
     { label: '总店铺库存', value: formatInt(summary.total_available_inventory), highlight: false },
     { label: '总在途库存', value: formatInt(summary.total_in_transit_quantity), highlight: false },
-    { label: '健康', value: formatInt(summary.healthy_count), highlight: false },
-    {
-      label: '滞销',
-      value: formatInt(summary.slow_moving_count),
-      highlight: summary.slow_moving_count > 0,
-    },
-    { label: '待补数据', value: formatInt(summary.pending_data_count), highlight: false },
+    { label: '健康', value: formatInt(summary.healthy_count_v2 ?? 0), highlight: false },
+    { label: '待补数据', value: formatInt(summary.unknown_count ?? 0), highlight: false },
   ]
 
   return (
@@ -1243,9 +1334,20 @@ export default function InventoryReplenishmentPage() {
                               发货指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               预计数量
+                            </TableHead>
+                            {/* v1.2: 三段式产物 */}
+                            <TableHead
+                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                            >
+                              状态
+                            </TableHead>
+                            <TableHead
+                              className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                            >
+                              行动
                             </TableHead>
                             <TableHead
                               className={`h-11 whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground last:border-r-0 dark:border-border/80 dark:text-foreground/72 ${STICKY_TOP_ROW} min-w-[104px]`}
@@ -1265,6 +1367,8 @@ export default function InventoryReplenishmentPage() {
                               const key = rowKey(row)
                               const edit = edits[key] || buildEditState(row)
                               const risk = riskMeta(row.risk_status)
+                              const invState = stateMeta(row.inventory_state)
+                              const action = actionMeta(row.replenishment_action)
                               return (
                                 <TableRow
                                   key={key}
@@ -1378,6 +1482,16 @@ export default function InventoryReplenishmentPage() {
                                     {formatInt(row.estimated_replenishment_quantity)}
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    <Badge variant="outline" className={invState.className}>
+                                      {invState.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
+                                    <Badge variant="outline" className={action.className}>
+                                      {action.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">
                                     <Badge variant="outline" className={risk.className}>
                                       {risk.label}
                                     </Badge>
@@ -1461,6 +1575,9 @@ export default function InventoryReplenishmentPage() {
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80 text-right">
                                 {formatInt(tableTotals.estimated_replenishment_quantity)}
                               </TableCell>
+                              {/* v1.2: 状态 / 行动总计空位（不计算总计） */}
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
                               <TableCell className="whitespace-nowrap border-b border-r border-border/70 px-3 py-2.5 align-middle text-[13px] text-foreground/88 last:border-r-0 dark:border-border/80 dark:text-foreground/80" />
                             </TableRow>
@@ -1483,18 +1600,28 @@ export default function InventoryReplenishmentPage() {
                   const key = rowKey(row)
                   const edit = edits[key] || buildEditState(row)
                   const risk = riskMeta(row.risk_status)
+                  const invState = stateMeta(row.inventory_state)
+                  const action = actionMeta(row.replenishment_action)
                   return (
                     <div key={key} className="dashboard-surface p-4 space-y-3">
-                      {/* 头部：SKU + 风险 */}
+                      {/* 头部：SKU + 状态 + 行动 */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-semibold text-sm text-foreground truncate">
                             {row.sku}
                           </span>
                         </div>
-                        <Badge variant="outline" className={cn('text-xs shrink-0', risk.className)}>
-                          {risk.label}
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Badge variant="outline" className={cn('text-xs', invState.className)}>
+                            {invState.label}
+                          </Badge>
+                          <Badge variant="outline" className={cn('text-xs', action.className)}>
+                            {action.label}
+                          </Badge>
+                          <Badge variant="outline" className={cn('text-xs', risk.className)}>
+                            {risk.label}
+                          </Badge>
+                        </div>
                       </div>
 
                       {/* 产品名称 */}
