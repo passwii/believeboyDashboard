@@ -65,6 +65,7 @@ from app.api.v1.endpoints.page_render import router as page_render_router
 from app.api.v1.endpoints.external import external_router
 from app.api.v1.endpoints.crm import router as crm_router
 from app.api.v1.endpoints.notifications import router as notifications_router
+from app.api.v1.endpoints.internal_jobs import router as internal_jobs_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -118,3 +119,4 @@ api_router.include_router(external_router)
 api_router.include_router(vat_invoices_router)
 api_router.include_router(crm_router)
 api_router.include_router(notifications_router)
+api_router.include_router(internal_jobs_router)

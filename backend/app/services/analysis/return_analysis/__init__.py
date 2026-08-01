@@ -3,6 +3,7 @@
 Extracted from return_analysis_service.py (phase 5 of backend refactor plan).
 All public functions remain importable from the legacy module for backward compatibility.
 """
+
 from __future__ import annotations
 
 from app.services.analysis.return_analysis.analysis import (
@@ -10,6 +11,9 @@ from app.services.analysis.return_analysis.analysis import (
     _build_summary_text,
     _safe_rate,
     build_return_analysis,
+    build_return_analysis_from_snapshot,
+    get_snapshot_last_computed_at,
+    is_snapshot_fresh_for_range,
 )
 from app.services.analysis.return_analysis.models import (
     _convert_to_us_date,

@@ -79,6 +79,7 @@ from app.models.report_upload_status import ReportUploadStatus
 from app.models.report_upload_log import ReportUploadLog
 from app.models.auto_report_upload_log import AutoReportUploadLog
 from app.models.return_analysis import ReturnAnalysisRecord, ReturnCustomerComment
+from app.models.analysis_return_aggregate import AnalysisReturnAggregate
 from app.models.digital_employee import (
     DigitalEmployee,
     DigitalEmployeeTask,
@@ -163,6 +164,7 @@ __all__ = [
     "AutoReportUploadLog",
     "ReturnAnalysisRecord",
     "ReturnCustomerComment",
+    "AnalysisReturnAggregate",
     "ProjectGoal",
     "MonthlyReport",
     "MonthlyReportTransaction",

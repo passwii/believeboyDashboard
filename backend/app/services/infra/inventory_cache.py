@@ -26,7 +26,12 @@ SKU_INFO_TTL = 300  # 5 minutes
 INVENTORY_ANALYSIS_KEY_PREFIX = _p("cache:inventory-analysis")
 INVENTORY_SNAPSHOT_OPTIONS_KEY_PREFIX = _p("cache:inventory-snapshot-options")
 INVENTORY_REPLENISHMENT_KEY_PREFIX = _p("cache:inventory-replenishment")
-RETURN_ANALYSIS_KEY_PREFIX = _p("cache:return-analysis")
+RETURN_ANALYSIS_KEY_PREFIX = _p("cache:return-analysis:v1")
+# BEL-373: v2 prefix for snapshot-or-fallback dual-path endpoint.
+# - v1 key still kept so old in-flight caches (5 min TTL) drain naturally.
+# - v2 includes a "source" segment so we can tell snapshot vs fallback responses
+#   apart in redis-monitor (debugging aid; cheap).
+RETURN_ANALYSIS_V2_KEY_PREFIX = _p("cache:return-analysis:v2")
 PLATFORM_REVENUE_KEY_PREFIX = _p("cache:platform-revenues")
 SKU_INFO_KEY_PREFIX = _p("cache:sku-info")
 
@@ -185,6 +190,55 @@ def invalidate_return_analysis_cache(project_id: int | None = None) -> int:
         pattern = f"{RETURN_ANALYSIS_KEY_PREFIX}:project:{project_id}:*"
     else:
         pattern = f"{RETURN_ANALYSIS_KEY_PREFIX}:*"
+    return cache_delete_pattern(pattern)
+
+
+# ── Return Analysis v2 (BEL-373 snapshot-or-fallback) ────────────────
+
+
+def get_return_analysis_v2_cache(
+    project_id: int,
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+) -> dict | None:
+    """v2 缓存键（包含 source 段以便 redis-monitor 区分路径）.
+
+    返回值带 ``_cache_source`` 字段, 值为 ``snapshot`` 或 ``fallback``.
+    调用方应忽略该字段, 直接喂给 ReturnAnalysisResponse.
+    """
+    key = (
+        f"{RETURN_ANALYSIS_V2_KEY_PREFIX}:project:{project_id}:country:{country}"
+        f":start:{start_date}:end:{end_date}:sku:{sku or 'all'}"
+    )
+    return cache_get(key)
+
+
+def set_return_analysis_v2_cache(
+    project_id: int,
+    country: str,
+    start_date: str,
+    end_date: str,
+    sku: str | None,
+    data: dict,
+    source: str,
+) -> None:
+    """v2 写缓存, ``source`` 是 ``snapshot`` / ``fallback`` 二选一."""
+    payload = dict(data)
+    payload["_cache_source"] = source
+    key = (
+        f"{RETURN_ANALYSIS_V2_KEY_PREFIX}:project:{project_id}:country:{country}"
+        f":start:{start_date}:end:{end_date}:sku:{sku or 'all'}"
+    )
+    cache_set(key, payload, RETURN_ANALYSIS_TTL)
+
+
+def invalidate_return_analysis_v2_cache(project_id: int | None = None) -> int:
+    if project_id:
+        pattern = f"{RETURN_ANALYSIS_V2_KEY_PREFIX}:project:{project_id}:*"
+    else:
+        pattern = f"{RETURN_ANALYSIS_V2_KEY_PREFIX}:*"
     return cache_delete_pattern(pattern)
 
 

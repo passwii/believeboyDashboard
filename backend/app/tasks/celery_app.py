@@ -48,6 +48,8 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.office_tick",
             "app.celery_tasks.crm_sea_reclaim",
             "app.celery_tasks.alert_detection",
+            # BEL-373：每日 03:00 UTC 刷新退货分析物化表
+            "app.celery_tasks.return_analysis_refresh",
         ],
     )
 
@@ -96,6 +98,11 @@ def _build_celery_app() -> Celery:
             "alert-detect": {
                 "task": "alert_detect",
                 "schedule": crontab(minute="*/15"),
+            },
+            # BEL-373：退货分析物化表每日 03:00 UTC 刷新（plan §2.4 拍板）
+            "return-analysis-refresh-daily": {
+                "task": "return_analysis.refresh_daily",
+                "schedule": crontab(hour=3, minute=0),
             },
         },
         # All timestamps in messages/results use project timezone.
