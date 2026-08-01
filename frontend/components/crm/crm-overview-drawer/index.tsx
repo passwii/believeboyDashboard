@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { CrmDetailCard } from '@/components/crm/crm-detail-card'
+import { CrmValueProfileCard } from '@/components/crm/crm-value-profile-card'
 import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
 import { CrmContactList } from '@/components/crm/crm-contact-list'
 import { CrmAuditTimeline } from '@/components/crm/crm-audit-timeline'
@@ -117,6 +118,11 @@ export function CrmOverviewDrawer<T extends object>({
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
             <TabsContent value="detail" className="mt-0">
+              {entityType === 'customer' && (
+                <div className="mb-4">
+                  <CrmValueProfileCard customer={data as any} />
+                </div>
+              )}
               <CrmDetailCard fields={fields} data={data as Record<string, unknown>} />
             </TabsContent>
 

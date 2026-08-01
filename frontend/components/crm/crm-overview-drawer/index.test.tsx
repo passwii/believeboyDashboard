@@ -5,6 +5,10 @@ import { NotificationsProvider } from '@/components/notifications'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 
+vi.mock('@/lib/crm/api/crm-client-provider', () => ({
+  useCrmClient: () => ({ updateValueScores: vi.fn() }),
+}))
+
 const customer: Customer = {
   id: 'c1',
   name: '测试客户',
