@@ -6,6 +6,8 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  CustomerSeaImportRow,
+  CustomerSeaImportResult,
   DashboardStats,
   Follow,
   FollowEntityType,
@@ -22,12 +24,14 @@ import {
   mapDashboardStats,
   mapFollow,
   mapFollowUpGroups,
+  mapImportResult,
   mapLead,
   mapUser,
   toContactPayload,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
+  toImportRowPayload,
   toLeadPayload,
   type AuditLogDto,
   type ContactDto,
@@ -185,6 +189,17 @@ export class HttpCrmClient implements CrmClient {
   }
   async claimFromSea(id: string): Promise<Customer> {
     return mapCustomer(await request<CustomerDto>(`/customers/${id}/claim`, { method: 'POST' }))
+  }
+  async importCustomersToSea(rows: CustomerSeaImportRow[]): Promise<CustomerSeaImportResult> {
+    const dto = await request<{
+      created: number
+      skipped_dupes: number
+      failed: Array<{ row: number; field?: string | null; reason: string }>
+    }>('/customers/import-sea', {
+      method: 'POST',
+      body: JSON.stringify({ rows: rows.map(toImportRowPayload) }),
+    })
+    return mapImportResult(dto)
   }
 
   // ===== Lead =====

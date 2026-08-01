@@ -6,6 +6,9 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  CustomerSeaImportFailItem,
+  CustomerSeaImportRow,
+  CustomerSeaImportResult,
   DashboardStats,
   Follow,
   FollowEntityType,
@@ -280,6 +283,62 @@ export class MockCrmClient implements CrmClient {
     this.state.customers.unshift(customer)
     persistState(this.state)
     return customer
+  }
+
+  async importCustomersToSea(rows: CustomerSeaImportRow[]): Promise<CustomerSeaImportResult> {
+    await this.delay('importCustomersToSea')
+    let created = 0
+    let skippedDupes = 0
+    const failed: CustomerSeaImportFailItem[] = []
+    const seen = new Set<string>()
+    const normPhone = (s?: string) => (s ?? '').replace(/[ -]/g, '')
+    rows.forEach((row, i) => {
+      const name = (row.name ?? '').trim()
+      if (!name) {
+        failed.push({ row: i + 1, field: 'name', reason: '客户名必填' })
+        return
+      }
+      const key = `${name.toLowerCase()}|${normPhone(row.contactPhone)}`
+      const dup =
+        seen.has(key) ||
+        this.state.customers.some(
+          (c) => c.name.trim().toLowerCase() === name.toLowerCase() && !c.ownerId
+        )
+      if (dup) {
+        skippedDupes += 1
+        seen.add(key)
+        return
+      }
+      seen.add(key)
+      const now = new Date().toISOString()
+      const imported: Customer = {
+        id: genId('c'),
+        name,
+        shortName: row.shortName,
+        industry: row.industry,
+        customerType: row.customerType,
+        interestedService: row.interestedService,
+        rating: (row.rating as Customer['rating']) ?? 'C',
+        status: (row.status as Customer['status']) ?? 'active',
+        source: (row.source as Customer['source']) ?? 'other',
+        ownerId: null,
+        contactName: row.contactName,
+        contactPhone: row.contactPhone,
+        contactEmail: row.contactEmail,
+        address: row.address,
+        website: row.website,
+        annualRevenue: row.annualRevenue,
+        employeeCount: row.employeeCount,
+        remark: row.remark,
+        createdBy: this.currentUserId,
+        createdAt: now,
+        updatedAt: now,
+      }
+      this.state.customers.unshift(imported)
+      created += 1
+    })
+    persistState(this.state)
+    return { created, skippedDupes, failed }
   }
 
   async updateCustomer(id: string, input: Partial<CustomerInput>): Promise<Customer> {

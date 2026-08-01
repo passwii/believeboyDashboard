@@ -35,3 +35,36 @@ export type CustomerInput = Omit<
 > & {
   ownerId?: string | null
 }
+
+
+/** 公海批量导入：单行（驼峰，前端态）。 */
+export interface CustomerSeaImportRow {
+  name: string
+  shortName?: string
+  industry?: string
+  customerType?: string
+  interestedService?: string
+  rating?: string
+  status?: string
+  source?: string
+  address?: string
+  website?: string
+  annualRevenue?: number
+  employeeCount?: number
+  remark?: string
+  contactName?: string
+  contactPhone?: string
+  contactEmail?: string
+}
+
+export interface CustomerSeaImportFailItem {
+  row: number
+  field?: string
+  reason: string
+}
+
+export interface CustomerSeaImportResult {
+  created: number
+  skippedDupes: number
+  failed: CustomerSeaImportFailItem[]
+}

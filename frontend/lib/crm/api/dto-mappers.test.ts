@@ -9,6 +9,7 @@ import {
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
+  toImportRowPayload,
   toLeadPayload,
   type CustomerDto,
   type FollowDto,
@@ -109,16 +110,33 @@ describe('mapUser', () => {
 })
 
 describe('入站映射', () => {
-  it('toCustomerPayload 剔除 undefined 与 contact 展示字段', () => {
+  it('toCustomerPayload 携带 contact 字段（修复丢失联系人）', () => {
     const p = toCustomerPayload({
-      name: 'x',
-      rating: 'B',
+      name: 'X',
+      contactName: '张三',
+      contactPhone: '138',
+      contactEmail: 'a@b.com',
+    })
+    expect(p.contact_name).toBe('张三')
+    expect(p.contact_phone).toBe('138')
+    expect(p.contact_email).toBe('a@b.com')
+  })
+  it('toImportRowPayload 驼峰转下划线并剔除 undefined', () => {
+    const p = toImportRowPayload({
+      name: '导入户',
+      rating: 'A',
       customerType: '工厂',
-      contactName: '不应入站',
-      shortName: undefined,
-    } as never)
-    expect(p).toEqual({ name: 'x', rating: 'B', customer_type: '工厂' })
-    expect(p).not.toHaveProperty('contact_name')
+      contactName: '李四',
+      annualRevenue: 1000,
+    })
+    expect(p).toEqual({
+      name: '导入户',
+      rating: 'A',
+      customer_type: '工厂',
+      contact_name: '李四',
+      annual_revenue: 1000,
+    })
+    expect(p).not.toHaveProperty('short_name')
   })
   it('toLeadPayload camel→snake', () => {
     const p = toLeadPayload({

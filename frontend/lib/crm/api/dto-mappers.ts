@@ -11,6 +11,8 @@ import type {
   ContactInput,
   Customer,
   CustomerInput,
+  CustomerSeaImportRow,
+  CustomerSeaImportResult,
   DashboardStats,
   Follow,
   FollowInput,
@@ -327,7 +329,7 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
   return out
 }
 
-/** 客户创建/更新入参。contact* 为展示字段（来自后端 join），不入站。 */
+/** 客户创建/更新入参。contact* 入站（后端建主联系人，修复丢失联系人 bug）。 */
 export function toCustomerPayload(input: Partial<CustomerInput>): Record<string, unknown> {
   return stripUndefined({
     name: input.name,
@@ -344,7 +346,45 @@ export function toCustomerPayload(input: Partial<CustomerInput>): Record<string,
     annual_revenue: input.annualRevenue,
     employee_count: input.employeeCount,
     remark: input.remark,
+    contact_name: input.contactName,
+    contact_phone: input.contactPhone,
+    contact_email: input.contactEmail,
   })
+}
+
+/** 公海导入单行入参（驼峰→下划线，剔 undefined）。 */
+export function toImportRowPayload(row: CustomerSeaImportRow): Record<string, unknown> {
+  return stripUndefined({
+    name: row.name,
+    short_name: row.shortName,
+    industry: row.industry,
+    customer_type: row.customerType,
+    interested_service: row.interestedService,
+    rating: row.rating,
+    status: row.status,
+    source: row.source,
+    address: row.address,
+    website: row.website,
+    annual_revenue: row.annualRevenue,
+    employee_count: row.employeeCount,
+    remark: row.remark,
+    contact_name: row.contactName,
+    contact_phone: row.contactPhone,
+    contact_email: row.contactEmail,
+  })
+}
+
+/** 导入结果 DTO（下划线）→ 前端（驼峰）。 */
+export function mapImportResult(dto: {
+  created: number
+  skipped_dupes: number
+  failed: Array<{ row: number; field?: string | null; reason: string }>
+}): CustomerSeaImportResult {
+  return {
+    created: dto.created,
+    skippedDupes: dto.skipped_dupes,
+    failed: dto.failed.map((f) => ({ row: f.row, field: f.field ?? undefined, reason: f.reason })),
+  }
 }
 
 /** 线索创建/更新入参。 */

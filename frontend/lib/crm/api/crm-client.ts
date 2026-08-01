@@ -13,6 +13,8 @@ import type {
   DashboardStats,
   AuditLog,
   AuditLogQuery,
+  CustomerSeaImportRow,
+  CustomerSeaImportResult,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -50,6 +52,7 @@ export interface CrmClient {
   batchTransferCustomers(ids: string[], toOwnerId: string): Promise<void>
   batchMoveToSea(ids: string[]): Promise<void>
   claimFromSea(id: string): Promise<Customer>
+  importCustomersToSea(rows: CustomerSeaImportRow[]): Promise<CustomerSeaImportResult>
 
   listLeads(params: ListParams): Promise<Paginated<Lead>>
   getLead(id: string): Promise<Lead>
