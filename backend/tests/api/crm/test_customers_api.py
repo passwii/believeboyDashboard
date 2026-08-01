@@ -182,3 +182,66 @@ def test_create_customer_with_contact_returns_contact(client, admin_headers):
     item = resp.json()
     assert item["contact_name"] == "李四"
     assert item["contact_phone"] == "13711112222"
+
+
+# ── 公海批量导入 ─────────────────────────────────────────────────────────────
+def test_import_sea_requires_auth(client):
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea", json={"rows": [{"name": "x"}]}
+    )
+    assert resp.status_code in (401, 403)
+
+
+def test_import_sea_happy_path(client, admin_headers, test_admin):
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea",
+        headers=admin_headers,
+        json={
+            "rows": [
+                {"name": "导入A", "rating": "A"},
+                {
+                    "name": "导入B",
+                    "contact_name": "联系人B",
+                    "contact_phone": "13800001111",
+                },
+            ]
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["created"] == 2
+    assert body["skipped_dupes"] == 0
+    assert body["failed"] == []
+    sea = client.get(
+        "/api/v1/crm/customers", headers=admin_headers, params={"scope": "sea"}
+    ).json()
+    names = {c["name"] for c in sea["items"]}
+    assert {"导入A", "导入B"} <= names
+    b = next(c for c in sea["items"] if c["name"] == "导入B")
+    assert b["contact_name"] == "联系人B"
+
+
+def test_import_sea_partial_and_dedupe(client, admin_headers):
+    client.post(
+        "/api/v1/crm/customers/import-sea",
+        headers=admin_headers,
+        json={"rows": [{"name": "重复户"}]},
+    )
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea",
+        headers=admin_headers,
+        json={"rows": [{"name": "重复户"}, {"name": ""}, {"name": "新户"}]},
+    )
+    body = resp.json()
+    assert body["created"] == 1  # 新户
+    assert body["skipped_dupes"] == 1  # 重复户
+    assert len(body["failed"]) == 1  # 缺名
+    assert body["failed"][0]["field"] == "name"
+
+
+def test_import_sea_over_1000_rows_rejected(client, admin_headers):
+    rows = [{"name": f"c{i}"} for i in range(1001)]
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea", headers=admin_headers, json={"rows": rows}
+    )
+    assert resp.status_code == 422

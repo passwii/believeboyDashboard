@@ -36,6 +36,8 @@ from app.schemas.crm import (
     CustomerCreate,
     CustomerItem,
     CustomerListResponse,
+    CustomerSeaImportRequest,
+    CustomerSeaImportResult,
     CustomerUpdate,
     CrmUserItem,
     DashboardStats,
@@ -172,6 +174,15 @@ def create_customer(
     )
     db.commit()
     return item
+
+
+@router.post("/customers/import-sea", response_model=CustomerSeaImportResult)
+def import_customers_to_sea(
+    payload: CustomerSeaImportRequest,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    return customer_service.import_customers_to_sea(db, payload.rows, user_id=user_id)
 
 
 @router.get("/customers/{customer_id}", response_model=CustomerItem)
