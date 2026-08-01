@@ -518,7 +518,111 @@ original CSV columns.
 
 ---
 
-## 9. Roadmap (P1+)
+## 9. Return Analysis — `GET /external/projects/{id}/return-analysis[-raw]`
+
+Two read-only endpoints exposing per-SKU return metrics and raw return events,
+served from the `analysis_return_aggregates` snapshot table (refreshed daily at
+03:00 UTC by Celery) with fallback to live computation.
+
+### 9.1 Aggregate endpoint
+
+```
+GET /api/v1/external/projects/{project_id}/return-analysis
+```
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `period` | string | yes | `7d\|14d\|30d\|60d\|90d\|this_month\|last_month\|ytd\|custom` |
+| `country` | string | yes | ISO-2 code (US, DE, UK, JP, …) |
+| `start_date` | date | custom only | `YYYY-MM-DD` |
+| `end_date` | date | custom only | `YYYY-MM-DD` |
+| `sku` | string | no | substring filter |
+| `min_return_rate` | float | no | only rows ≥ X% |
+| `risk_level` | string | no | `critical\|warning` |
+| `limit` | int | no | 1–500, default 50 |
+| `offset` | int | no | default 0 |
+| `order_by` | string | no | whitelist below |
+| `order_dir` | string | no | `asc\|desc`, default `desc` |
+
+**`order_by` whitelist**: `sku`, `return_count`, `return_quantity`,
+`sales_quantity`, `return_rate`, `wilson_lower`, `cycle_avg_days`, `risk_level`
+
+**Response shape**:
+
+```json
+{
+  "project_id": 1,
+  "country": "US",
+  "period": { "type": "relative", "value": "30d", "start_date": "…", "end_date": "…" },
+  "summary": {
+    "total_return_count": 287,
+    "total_return_quantity": 412,
+    "total_sales_quantity": 5840,
+    "overall_return_rate": 7.05,
+    "overall_risk_level": "warning",
+    "unique_skus": 23
+  },
+  "items": [
+    {
+      "sku": "SKU-001",
+      "asin": "B0000001",
+      "product_name": "Product A",
+      "return_count": 47,
+      "return_quantity": 68,
+      "sales_quantity": 520,
+      "return_rate": 13.08,
+      "wilson_lower": 10.12,
+      "cycle_avg_days": 12.4,
+      "reason_top1_display": "与描述不符",
+      "disposition_top1_display": "可售",
+      "dominant_fc_id": "PHX6",
+      "risk_level": "critical",
+      "risk_trend": "degrading"
+    }
+  ],
+  "pagination": { "limit": 50, "offset": 0, "total": 23 }
+}
+```
+
+### 9.2 Raw endpoint
+
+```
+GET /api/v1/external/projects/{project_id}/return-analysis-raw
+```
+
+Same query params (minus `risk_level` / `min_return_rate`). Returns individual
+return events.
+
+**`order_by` whitelist**: `return_date`, `sku`, `asin`, `quantity`,
+`fulfillment_center_id`, `reason`, `status`
+
+**Never returned** (enforced by Pydantic schema):
+- `customer_comments` — PII / free-form complaint text
+- `raw_row` — debug-only Amazon CSV blob
+
+### 9.3 Risk level semantics
+
+| Level | Condition |
+|---|---|
+| `no_data` | `sales_quantity < 15` (insufficient sample) |
+| `normal` | Wilson 95% lower bound < 6% |
+| `warning` | Wilson 95% lower bound ≥ 6% |
+| `critical` | Wilson 95% lower bound ≥ 10% |
+
+Wilson lower bound uses z=1.96 (95% confidence). Pre-computed by Celery into
+`analysis_return_aggregates.risk_level`.
+
+### 9.4 Implementation notes
+
+- Snapshot freshness: if `computed_at` > 25h old, endpoint falls back to live
+  `build_return_analysis()` computation.
+- Read replica: uses `Depends(get_read_db_session)`.
+- No application-layer auth (P0, consistent with all external endpoints).
+  Network isolation at gateway layer.
+
+---
+
+## 10. Roadmap (P1+)
 
 - **API key authentication** — `X-API-Key` header + `external_api_keys`
   table with `scope`/`expires_at`.

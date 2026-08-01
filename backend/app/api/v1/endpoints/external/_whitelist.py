@@ -14,6 +14,7 @@ Both whitelists are intentionally narrow — only columns that are useful for
 sorting in a BI tool are exposed. Names *not* in the whitelist return 400 so
 we never sort on JSON blobs or un-indexed text columns.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import ColumnElement, func
@@ -30,6 +31,8 @@ from app.models import (
     AdUploadSearchTermRow,
     AdUploadTargetRow,
     AdUploadTimeTrendRow,
+    AnalysisReturnAggregate,
+    AnalysisReturnRow,
 )
 from app.schemas.external.common import PeriodParseError
 
@@ -189,6 +192,26 @@ ROW_WHITELIST: dict[type, dict[str, InstrumentedAttribute]] = {
         invalid_clicks=AdUploadInvalidTrafficRow.invalid_clicks,
         invalid_click_rate=AdUploadInvalidTrafficRow.invalid_click_rate,
     ),
+    # ---------------------------------------------------------------------------
+    # BEL-374: Return Analysis raw row whitelist.
+    # 12 fields exposed; ``customer_comments`` + ``raw_row`` are intentionally
+    # NOT here so ``parse_order_by`` rejects them with 400 — defense-in-depth
+    # alongside the Pydantic schema drop.
+    # ---------------------------------------------------------------------------
+    AnalysisReturnRow: _whitelist(
+        id=AnalysisReturnRow.id,
+        return_date=AnalysisReturnRow.return_date,
+        order_id=AnalysisReturnRow.order_id,
+        sku=AnalysisReturnRow.sku,
+        asin=AnalysisReturnRow.asin,
+        product_name=AnalysisReturnRow.product_name,
+        quantity=AnalysisReturnRow.quantity,
+        fulfillment_center_id=AnalysisReturnRow.fulfillment_center_id,
+        detailed_disposition=AnalysisReturnRow.detailed_disposition,
+        reason=AnalysisReturnRow.reason,
+        status=AnalysisReturnRow.status,
+        original_return_datetime=AnalysisReturnRow.original_return_datetime,
+    ),
 }
 
 
@@ -283,16 +306,52 @@ AGG_WHITELIST: dict[type, dict[str, ColumnElement]] = {
         ad_asin=AdUploadPurchasedProductRow.ad_asin,
         purchased_asin=AdUploadPurchasedProductRow.purchased_asin,
         target_text=AdUploadPurchasedProductRow.target_text,
-        total_other_sku_units_7d=_sum(AdUploadPurchasedProductRow, "other_sku_units_7d"),
-        total_other_sku_orders_7d=_sum(AdUploadPurchasedProductRow, "other_sku_orders_7d"),
-        total_other_sku_sales_7d=_sum(AdUploadPurchasedProductRow, "other_sku_sales_7d"),
+        total_other_sku_units_7d=_sum(
+            AdUploadPurchasedProductRow, "other_sku_units_7d"
+        ),
+        total_other_sku_orders_7d=_sum(
+            AdUploadPurchasedProductRow, "other_sku_orders_7d"
+        ),
+        total_other_sku_sales_7d=_sum(
+            AdUploadPurchasedProductRow, "other_sku_sales_7d"
+        ),
     ),
     AdUploadInvalidTrafficRow: _agg_whitelist(
         campaign_name=AdUploadInvalidTrafficRow.campaign_name,
         total_impressions=_sum(AdUploadInvalidTrafficRow, "total_impressions"),
         total_clicks=_sum(AdUploadInvalidTrafficRow, "total_clicks"),
-        total_invalid_impressions=_sum(AdUploadInvalidTrafficRow, "invalid_impressions"),
+        total_invalid_impressions=_sum(
+            AdUploadInvalidTrafficRow, "invalid_impressions"
+        ),
         total_invalid_clicks=_sum(AdUploadInvalidTrafficRow, "invalid_clicks"),
+    ),
+    # ---------------------------------------------------------------------------
+    # BEL-374: Return Analysis aggregate whitelist.
+    # Because the per-SKU rollup is computed in Python (see
+    # ``return_analysis_query._collapse_to_per_sku``), the ``?order_by=``
+    # column name maps to a Python sort key rather than a SQLAlchemy
+    # ``ColumnElement``. The endpoint validates via
+    # ``parse_aggregate_order_by`` (separate helper) and sorts via
+    # ``list.sort(key=callable, reverse=...)``.
+    #
+    # We still populate ``AGG_WHITELIST`` with the matching
+    # ``InstrumentedAttribute`` so any tooling that walks the existing
+    # whitelist sees a consistent set of column names.
+    # ---------------------------------------------------------------------------
+    AnalysisReturnAggregate: _agg_whitelist(
+        sku=AnalysisReturnAggregate.sku,
+        return_count=AnalysisReturnAggregate.return_count,
+        return_quantity=AnalysisReturnAggregate.return_quantity,
+        sales_quantity=AnalysisReturnAggregate.sales_quantity,
+        return_rate=AnalysisReturnAggregate.return_rate,
+        wilson_lower=AnalysisReturnAggregate.wilson_lower,
+        cycle_avg_days=AnalysisReturnAggregate.cycle_avg_days,
+        cycle_min_days=AnalysisReturnAggregate.cycle_min_days,
+        cycle_max_days=AnalysisReturnAggregate.cycle_max_days,
+        reason_top1=AnalysisReturnAggregate.reason_top1,
+        disposition_top1=AnalysisReturnAggregate.disposition_top1,
+        dominant_fc_id=AnalysisReturnAggregate.dominant_fc_id,
+        risk_level=AnalysisReturnAggregate.risk_level,
     ),
 }
 
@@ -316,15 +375,81 @@ def parse_order_by(
     explicitly for aggregate endpoints.
     """
     if order_dir not in {"asc", "desc"}:
-        raise PeriodParseError(
-            f"order_dir must be 'asc' or 'desc', got {order_dir!r}"
-        )
+        raise PeriodParseError(f"order_dir must be 'asc' or 'desc', got {order_dir!r}")
 
     table_whitelist = (whitelist or ROW_WHITELIST).get(model, {})
     if order_by not in table_whitelist:
         allowed = sorted(table_whitelist.keys())
-        raise PeriodParseError(
-            f"order_by must be one of {allowed}, got {order_by!r}"
-        )
+        raise PeriodParseError(f"order_by must be one of {allowed}, got {order_by!r}")
+
+    return table_whitelist[order_by], order_dir
+
+
+# ---------------------------------------------------------------------------
+# BEL-374: Return Analysis aggregate sort keys.
+# Python-side callables (the rollup dicts are built in Python, see
+# ``return_analysis_query._collapse_to_per_sku``). The ``risk_level``
+# key uses a numeric rank so ``desc`` puts critical SKUs first.
+# ---------------------------------------------------------------------------
+
+
+_RISK_RANK_FOR_SORT = {"critical": 4, "warning": 3, "normal": 2, "no_data": 1}
+
+
+def _sort_key_numeric(field: str):
+    """Sort key that returns the int / float at ``field`` (None → 0)."""
+
+    def _key(row: dict):
+        v = row.get(field)
+        return v if v is not None else 0
+
+    return _key
+
+
+def _sort_key_risk_level(row: dict):
+    """Sort key for ``risk_level`` — higher rank first when desc."""
+    lvl = (row.get("risk_level") or "no_data").lower()
+    return _RISK_RANK_FOR_SORT.get(lvl, 0)
+
+
+AGG_SORT_KEYS: dict[type, dict[str, callable]] = {
+    AnalysisReturnAggregate: {
+        "sku": lambda r: r.get("sku") or "",
+        "return_count": _sort_key_numeric("return_count"),
+        "return_quantity": _sort_key_numeric("return_quantity"),
+        "sales_quantity": _sort_key_numeric("sales_quantity"),
+        "return_rate": _sort_key_numeric("return_rate"),
+        "wilson_lower": _sort_key_numeric("wilson_lower"),
+        "cycle_avg_days": _sort_key_numeric("cycle_avg_days"),
+        "cycle_min_days": _sort_key_numeric("cycle_min_days"),
+        "cycle_max_days": _sort_key_numeric("cycle_max_days"),
+        "reason_top1": lambda r: r.get("reason_top1") or "",
+        "disposition_top1": lambda r: r.get("disposition_top1") or "",
+        "dominant_fc_id": lambda r: r.get("dominant_fc_id") or "",
+        "risk_level": _sort_key_risk_level,
+    },
+}
+
+
+def parse_aggregate_order_by(
+    order_by: str,
+    order_dir: str,
+    *,
+    model: type,
+) -> tuple[callable, str]:
+    """Validate ``?order_by=`` + ``?order_dir=`` for a Python-sorted
+    aggregate endpoint (BEL-374). Returns ``(sort_callable, direction)``.
+
+    Raises ``PeriodParseError`` (same exception class as
+    :func:`parse_order_by`) so the endpoint can surface a 400 with a
+    consistent error shape.
+    """
+    if order_dir not in {"asc", "desc"}:
+        raise PeriodParseError(f"order_dir must be 'asc' or 'desc', got {order_dir!r}")
+
+    table_whitelist = AGG_SORT_KEYS.get(model, {})
+    if order_by not in table_whitelist:
+        allowed = sorted(table_whitelist.keys())
+        raise PeriodParseError(f"order_by must be one of {allowed}, got {order_by!r}")
 
     return table_whitelist[order_by], order_dir

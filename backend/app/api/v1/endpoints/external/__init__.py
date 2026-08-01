@@ -25,6 +25,10 @@ Endpoint layout:
 
   # Inventory & replenishment analysis.
   GET  /external/projects/{id}/replenishment-analysis
+
+  # Return analysis (BEL-374).
+  GET  /external/projects/{id}/return-analysis
+  GET  /external/projects/{id}/return-analysis-raw
 """
 
 from __future__ import annotations
@@ -59,6 +63,9 @@ from app.api.v1.endpoints.external.projects import router as projects_router
 from app.api.v1.endpoints.external.replenishment_analysis import (
     router as replenishment_analysis_router,
 )
+from app.api.v1.endpoints.external.return_analysis import (
+    router as return_analysis_router,
+)
 from app.api.v1.endpoints.external.inventory_ledger import (
     router as inventory_ledger_router,
 )
@@ -86,3 +93,4 @@ external_router.include_router(business_summary_router)
 external_router.include_router(replenishment_analysis_router)
 external_router.include_router(sku_info_router)
 external_router.include_router(inventory_ledger_router)
+external_router.include_router(return_analysis_router)
