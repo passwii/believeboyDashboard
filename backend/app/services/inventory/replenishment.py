@@ -27,6 +27,17 @@ from app.models import (
     ShipmentScheduleItem,
 )
 from app.services.sales_query import counted_sales_where
+from app.services.inventory.health_score import ItemInput
+from app.services.inventory.seasonal_factor import compute_seasonal_factor
+from app.services.inventory.state_action import (
+    compute_inventory_state,
+    compute_replenishment_action,
+    compute_seasonal_adjusted_sellable_days,
+    compute_signals,
+    compute_trend_label,
+    compute_trend_momentum,
+)
+from app.schemas.inventory_replenishment import InventorySignals
 
 from app.utils.text_utils import normalize_text, normalize_asin
 from app.utils.math_utils import decimal_to_float, round_decimal, round_decimal_to_int
@@ -1022,6 +1033,83 @@ def list_inventory_replenishment_analysis(
             else None
         )
 
+        # v1.2 三段式判定（spec §2.1-2.4）
+        seasonal_dms = seasonal_dms_map.get(base_row.sku)
+        dms_30_yoy = (
+            _decimal_to_float(seasonal_dms.dms_30_yoy) if seasonal_dms else None
+        )
+        dms_7_yoy = _decimal_to_float(seasonal_dms.dms_7_yoy) if seasonal_dms else None
+
+        seasonal_factor, seasonal_phase, seasonal_source = compute_seasonal_factor(
+            dms_30=_decimal_to_float(dms_30),
+            dms_7=_decimal_to_float(dms_7),
+            dms_30_yoy=dms_30_yoy,
+            dms_7_yoy=dms_7_yoy,
+        )
+
+        sellable_days_float = (
+            _decimal_to_float(_round_decimal(sellable_days, digits=2), digits=2)
+            if sellable_days is not None
+            else None
+        )
+        adjusted_sellable_days = compute_seasonal_adjusted_sellable_days(
+            sellable_days=sellable_days_float,
+            seasonal_factor=seasonal_factor,
+        )
+
+        trend_label = compute_trend_label(
+            _decimal_to_float(dms_7), _decimal_to_float(dms_30)
+        )
+        trend_momentum = compute_trend_momentum(
+            _decimal_to_float(dms_7),
+            _decimal_to_float(dms_14),
+            _decimal_to_float(dms_30),
+        )
+
+        item_input = ItemInput(
+            available_qty=available_inventory,
+            sellable_days=sellable_days_float,
+            dms_30=_decimal_to_float(dms_30),
+            dms_14=_decimal_to_float(dms_14),
+            dms_7=_decimal_to_float(dms_7),
+            dms_3=_decimal_to_float(dms_3),
+            age_0_90_qty=snap.age_0_90_qty if snap else 0,
+            age_91_180_qty=snap.age_91_180_qty if snap else 0,
+            age_181_270_qty=snap.age_181_270_qty if snap else 0,
+            age_271_365_qty=snap.age_271_365_qty if snap else 0,
+            age_365_plus_qty=snap.age_365_plus_qty if snap else 0,
+            in_transit_qty=in_transit_quantity,
+        )
+
+        inventory_state, critical_subtype = compute_inventory_state(
+            item_input, trend_label, adjusted_sellable_days
+        )
+
+        transit_ratio_value = (
+            in_transit_quantity / available_inventory
+            if available_inventory > 0
+            else 0.0
+        )
+        replenishment_action = compute_replenishment_action(
+            inventory_state,
+            critical_subtype,
+            trend_label,
+            transit_ratio_value,
+            seasonal_phase,
+        )
+
+        snapshot_age_days = 0  # TODO: 未来从 source.report_date 计算
+        signals_dict = compute_signals(
+            item_input,
+            trend_label,
+            trend_momentum,
+            snapshot_age_days,
+            seasonal_factor,
+            seasonal_phase,
+            seasonal_source,
+        )
+        signals_obj = InventorySignals(**signals_dict)
+
         if (
             keyword_text
             and keyword_text not in base_row.sku.lower()
@@ -1072,6 +1160,11 @@ def list_inventory_replenishment_analysis(
                 "age_271_365_qty": snap.age_271_365_qty if snap else 0,
                 "age_365_plus_qty": snap.age_365_plus_qty if snap else 0,
                 "recommended_action": snap.recommended_action if snap else None,
+                # v1.2: 三段式（spec §3.2）
+                "inventory_state": inventory_state,
+                "replenishment_action": replenishment_action,
+                "signals": signals_obj,
+                "_critical_subtype": critical_subtype,  # 用于 summary 计数，不返 API
             }
         )
 
@@ -1101,6 +1194,22 @@ def list_inventory_replenishment_analysis(
         ),
         "total_in_transit_quantity": sum(
             int(item["in_transit_quantity"]) for item in rows
+        ),
+        # v1.2: 三段式 state 计数（spec §3.2 summary 字段）
+        "critical_count": sum(
+            1 for item in rows if item.get("inventory_state") == "critical"
+        ),
+        "deteriorating_count": sum(
+            1 for item in rows if item.get("inventory_state") == "deteriorating"
+        ),
+        "watch_count": sum(
+            1 for item in rows if item.get("inventory_state") == "watch"
+        ),
+        "healthy_count_v2": sum(
+            1 for item in rows if item.get("inventory_state") == "healthy"
+        ),
+        "unknown_count": sum(
+            1 for item in rows if item.get("inventory_state") == "unknown"
         ),
     }
     total = len(rows)
