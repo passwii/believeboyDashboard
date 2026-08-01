@@ -4,6 +4,7 @@ import { requireUserSession } from '@/lib/auth/server'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson } from '@/lib/server/backend-api'
+import { degradedAIChatConfig } from '@/lib/server/ai-chat-config-defaults'
 import { getPromptPresetSummaries, getScenarioPresetSummaries } from '@/lib/server/ai-chat'
 
 export async function GET() {
@@ -17,22 +18,7 @@ export async function GET() {
   const apiKeyOrResponse = getBackendApiKeyOrFail()
   if (apiKeyOrResponse.error) {
     return NextResponse.json(
-      {
-        message: '缺少后端 API Key 配置',
-        providerConfigured: false,
-        webSearchConfigured: false,
-        models: [],
-        defaultModel: '',
-        premiumModels: [],
-        basicModels: [],
-        reasoningModels: [],
-        defaultReasoningEffort: 'medium',
-        timeoutSeconds: 90,
-        maxConversationTurns: 10,
-        webSearchMaxResults: 5,
-        ...promptPresets,
-        ...getScenarioPresetSummaries(),
-      },
+      degradedAIChatConfig('缺少后端 API Key 配置'),
       { status: 500 }
     )
   }
@@ -72,21 +58,9 @@ export async function GET() {
       ...getScenarioPresetSummaries(),
     })
   } catch (err) {
-    return NextResponse.json({
-      message: normalizeErrorMessage(err, '加载 AI 配置失败'),
-      providerConfigured: false,
-      webSearchConfigured: false,
-      models: [],
-      defaultModel: '',
-      premiumModels: [],
-      basicModels: [],
-      reasoningModels: [],
-      defaultReasoningEffort: 'medium',
-      timeoutSeconds: 90,
-      maxConversationTurns: 10,
-      webSearchMaxResults: 5,
-      ...promptPresets,
-      ...getScenarioPresetSummaries(),
-    })
+    return NextResponse.json(
+      degradedAIChatConfig(normalizeErrorMessage(err, '加载 AI 配置失败')),
+      { status: 500 }
+    )
   }
 }
