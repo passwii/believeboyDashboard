@@ -51,7 +51,7 @@ export async function buildFailureWorkbook(
   const sheet = wb.addWorksheet('导入失败明细')
   sheet.addRow([...HEADERS, '错因'])
   failed.forEach((f) => {
-    const src = (rows[f.row - 1] ?? {}) as Record<string, unknown>
+    const src = (rows[f.row - 1] ?? {}) as unknown as Record<string, unknown>
     const cells: unknown[] = CRM_IMPORT_COLUMNS.map((c) => src[c.field as string] ?? '')
     cells.push(f.reason)
     sheet.addRow(cells)
