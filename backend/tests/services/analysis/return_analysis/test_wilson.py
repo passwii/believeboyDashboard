@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from app.constants.return_thresholds import (
@@ -186,3 +188,42 @@ def test_plan_table_scenarios(
     else:
         risk, _ = compute_risk_level(return_qty, sales_qty)
         assert risk == expected_risk
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 3. 回归：returns > sales（跨期退货）不得触发 math domain error
+#    BEL-375 review 发现：真实数据里退货件数可能 > 同窗口销售件数
+#    （退货来自更早下单的订单），此时 p = successes/trials > 1，
+#    p*(1-p) 变负 → math.sqrt 抛 ValueError。修复后 clamp p ∈ [0,1]。
+# ──────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "successes,trials",
+    [
+        (10, 5),  # 退货是销量 2 倍（极端跨期）
+        (6, 5),  # 刚好溢出
+        (100, 3),  # 大溢出
+        (2, 1),  # 最小溢出
+    ],
+)
+def test_wilson_returns_exceed_sales_no_domain_error(
+    successes: int, trials: int
+) -> None:
+    """successes > trials 时不抛异常，返回有限非负值（clamp 到 p=1 的下界）。"""
+    result = wilson_lower_bound(successes, trials)
+    assert isinstance(result, float)
+    assert result >= 0.0
+    assert math.isfinite(result)
+    # clamp 到 p=1 后，下界应接近 100%（退货率爆表 → 保守给高下界）
+    # p=1 时 Wilson 下界 = 1/(1+z²/n) * 100，随 n 增大趋近 100
+    assert result <= 100.0
+
+
+def test_wilson_returns_exceed_sales_risk_level_critical() -> None:
+    """returns > sales 且 sales >= 15 门槛 → 应判 critical（退货率爆表）。"""
+    from app.utils.stats import compute_risk_level
+
+    risk, wilson = compute_risk_level(return_quantity=30, sales_quantity=20)
+    assert risk == "critical"
+    assert wilson > WILSON_CRITICAL_THRESHOLD

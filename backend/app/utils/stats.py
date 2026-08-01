@@ -33,13 +33,23 @@ def wilson_lower_bound(successes: int, trials: int, z: float = WILSON_Z) -> floa
 
     Raises:
         不抛异常, 边界情况返回 0.0
+
+    Note:
+        真实退货数据里 ``successes``（退货件数）可能 > ``trials``（同窗口
+        销售件数）——退货来自更早下单的订单。此时裸比例 p > 1，会让
+        ``p*(1-p)`` 变负、``math.sqrt`` 抛 ``ValueError: math domain error``。
+        Wilson 区间本质是二项比例置信区间，定义域 p ∈ [0,1]，故把 p
+        clamp 到 [0,1]：退货 > 销售时按 p=1 处理（下界接近 100%，保守
+        判为高风险）。再对 sqrt 参数取 max(0.0, ·) 兜底浮点误差。
     """
     if trials <= 0:
         return 0.0
-    p = successes / trials
+    # clamp 裸比例到 [0,1]：退货件数可能 > 销售件数（跨期退货），见 Note。
+    p = min(1.0, max(0.0, successes / trials))
     denom = 1 + z * z / trials
     center = (p + z * z / (2 * trials)) / denom
-    margin = z * math.sqrt(p * (1 - p) / trials + z * z / (4 * trials * trials)) / denom
+    radicand = p * (1 - p) / trials + z * z / (4 * trials * trials)
+    margin = z * math.sqrt(max(0.0, radicand)) / denom
     return max(0.0, (center - margin) * 100)
 
 
