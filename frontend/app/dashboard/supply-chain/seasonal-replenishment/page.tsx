@@ -117,11 +117,11 @@ function authHeaders(): Record<string, string> {
 }
 
 async function parseError(response: Response): Promise<string> {
+  const text = await response.text()
   try {
-    const payload = (await response.json()) as { detail?: string }
+    const payload = JSON.parse(text) as { detail?: string }
     return payload.detail || `请求失败 (${response.status})`
   } catch {
-    const text = await response.text()
     return text || `请求失败 (${response.status})`
   }
 }

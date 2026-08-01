@@ -104,11 +104,11 @@ function formatNumber(value: number): string {
 }
 
 async function parseError(response: Response): Promise<string> {
+  const text = await response.text()
   try {
-    const payload = (await response.json()) as { detail?: string; message?: string }
+    const payload = JSON.parse(text) as { detail?: string; message?: string }
     return payload.detail || payload.message || `请求失败 (${response.status})`
   } catch {
-    const text = await response.text()
     return text || `请求失败 (${response.status})`
   }
 }
