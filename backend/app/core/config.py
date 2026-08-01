@@ -57,6 +57,28 @@ class Settings(BaseSettings):
     replica_cooldown_seconds: int = Field(default=30, ge=1, le=600)
     api_key: str = Field(default="change-me", min_length=8)
     internal_ingest_token: str = Field(default="", min_length=0, max_length=256)
+
+    # ------------------------------------------------------------------
+    # External API P1 (BEL-377): application-layer auth / rate-limit / audit
+    # for the ``/api/v1/external/*`` namespace.
+    #
+    # Both enforcement flags default to OFF so deploying this code is a
+    # no-op for existing consumers (P0 had no app-layer auth; network
+    # isolation at the gateway is the backstop). Flip them on once every
+    # consumer holds a key from ``POST /api/v1/internal/api-keys``.
+    # ------------------------------------------------------------------
+    # Master switch: require a valid API key on every external route.
+    external_api_require_auth: bool = Field(default=False)
+    # Transition helper: while enforced, honour ``?skip_auth=true`` so
+    # stragglers keep working. Remove the bypass after the rollout window.
+    external_api_allow_skip_auth: bool = Field(default=True)
+    # Per-key (or per-IP fallback) rate limiting via slowapi.
+    external_api_rate_limit_enabled: bool = Field(default=False)
+    external_api_rate_limit: str = Field(default="60/minute", max_length=32)
+    # Audit-log every external request to ``external_api_audit_log``.
+    external_api_audit_enabled: bool = Field(default=True)
+    # Retention for external audit rows (Celery cleanup task).
+    external_api_audit_retention_days: int = Field(default=90, ge=1, le=3650)
     ai_chat_provider_base_url: str = Field(default="", max_length=500)
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)

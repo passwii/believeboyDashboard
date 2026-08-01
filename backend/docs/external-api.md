@@ -624,11 +624,100 @@ Wilson lower bound uses z=1.96 (95% confidence). Pre-computed by Celery into
 
 ## 10. Roadmap (P1+)
 
-- **API key authentication** — `X-API-Key` header + `external_api_keys`
-  table with `scope`/`expires_at`.
-- **Rate limiting** — `slowapi` per-key limits (default 60/min).
-- **Audit log** — async Celery task writes every call to
-  `external_api_audit`.
-- **`?include_raw=true`** — opt-in raw JSON passthrough.
-- **CSV / Parquet streaming** for large result sets.
+- ~~**API key authentication** — `X-API-Key` header + `external_api_keys`
+  table with `scope`/`expires_at`.~~ ✅ Done (BEL-377) — see §11.
+- ~~**Rate limiting** — `slowapi` per-key limits (default 60/min).~~
+  ✅ Done (BEL-377) — see §11.
+- ~~**Audit log** — every call written to `external_api_audit_log`
+  (middleware, 90-day Celery retention).~~ ✅ Done (BEL-377) — see §11.
+- **`?include_raw=true`** — opt-in raw JSON passthrough. (P2)
+- **CSV / Parquet streaming** for large result sets. (P2)
+- **Per-key scope restrictions** — currently every key has full read
+  access (`scope="read"`). (P2)
+- **Billing / metering** on top of the audit log. (P2)
+
+---
+
+## 11. Authentication & Rate Limiting (BEL-377)
+
+P0 relied on gateway-level network isolation only. P1 adds application-layer
+security on the `/api/v1/external/*` namespace. Both enforcement switches
+default to **off** so deploying the code never breaks existing consumers;
+flip them once every consumer holds a key.
+
+### 11.1 Feature flags (env vars)
+
+| Env var | Default | Effect |
+|---|---|---|
+| `EXTERNAL_API_REQUIRE_AUTH` | `false` | Require a valid API key on every external route. |
+| `EXTERNAL_API_ALLOW_SKIP_AUTH` | `true` | While enforcing, honour `?skip_auth=true` (transition bypass — remove after rollout). |
+| `EXTERNAL_API_RATE_LIMIT_ENABLED` | `false` | Enable per-key rate limiting. |
+| `EXTERNAL_API_RATE_LIMIT` | `60/minute` | slowapi limit expression. |
+| `EXTERNAL_API_AUDIT_ENABLED` | `true` | Write one audit row per external request. |
+| `EXTERNAL_API_AUDIT_RETENTION_DAYS` | `90` | Celery cleanup horizon. |
+
+### 11.2 Credentials
+
+Keys are created by an admin and the plaintext is returned **once**:
+
+```bash
+# Create (admin only — requires X-Is-Admin: true behind the dashboard proxy)
+curl -X POST "$API/api/v1/internal/api-keys" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Is-Admin: true' \
+  -d '{"label": "agent-prod"}'
+# → {"id": 1, "key_prefix": "bbx_ab12cd34", "plaintext_key": "bbx_...", ...}
+
+# List (no secrets returned)
+curl "$API/api/v1/internal/api-keys" -H 'X-Is-Admin: true'
+
+# Revoke
+curl -X POST "$API/api/v1/internal/api-keys/1/revoke" -H 'X-Is-Admin: true'
+```
+
+Only the SHA-256 hash is stored (`external_api_keys`); the plaintext cannot
+be retrieved later.
+
+### 11.3 Calling the external API
+
+Three equivalent ways to present a key (same precedence as the internal
+`require_api_key`):
+
+```bash
+# 1) X-API-Key header (preferred)
+curl "$API/api/v1/external/projects" -H 'X-API-Key: bbx_...'
+
+# 2) Authorization: Bearer
+curl "$API/api/v1/external/projects" -H 'Authorization: Bearer bbx_...'
+
+# 3) Query fallback (Vercel/edge strips auth headers but keeps query params)
+curl "$API/api/v1/external/projects?api_key=bbx_..."
+```
+
+The legacy master secret (`API_KEY` / `settings.api_key`) keeps working for
+backward compatibility. Responses when enforcing:
+
+| Condition | Status | `detail` |
+|---|---|---|
+| No key supplied | 401 | `Missing API key` |
+| Key not found / revoked | 401 | `Invalid API key` |
+| Key past `expires_at` | 401 | `API key expired` |
+| Over rate limit | 429 | `请求过于频繁，请稍后再试（…）` |
+
+### 11.4 Rate limiting
+
+Implemented with `slowapi` (in-memory storage, fails open — the gateway IP
+allowlist is the backstop). The limiter key is the validated DB key id
+(`apikey:<id>`), falling back to client IP for master-key / `?skip_auth` /
+anonymous traffic during the transition. Limits are per key, so one consumer
+cannot exhaust another's bucket.
+
+### 11.5 Audit log
+
+Every external request writes one row to `external_api_audit_log`
+(`method`, `path`, `api_key_id`, `status_code`, `latency_ms`, `ip_address`,
+`created_at`). `api_key_id` is null for master-key / skip / anonymous
+calls. The write is best-effort — an audit failure never breaks the request.
+A daily Celery task (`external_audit_cleanup`, 04:00) deletes rows older
+than `EXTERNAL_API_AUDIT_RETENTION_DAYS`.
 - **SQL endpoint** (low priority — only if BI team strongly requests).

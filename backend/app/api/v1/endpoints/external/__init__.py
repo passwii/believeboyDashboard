@@ -33,7 +33,12 @@ Endpoint layout:
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.api.external_security import (
+    require_external_api_key,
+    require_external_rate_limit,
+)
 
 from app.api.v1.endpoints.external.ad_budgets import router as ad_budgets_router
 from app.api.v1.endpoints.external.ad_campaigns import router as ad_campaigns_router
@@ -72,10 +77,20 @@ from app.api.v1.endpoints.external.inventory_ledger import (
 from app.api.v1.endpoints.external.sku_info import router as sku_info_router
 
 
-# P0 intentionally has no `dependencies=[Depends(protected)]` — authentication
-# and rate limiting are deferred to P1. Network-level isolation must be
-# enforced at the gateway (see docs/deployment/external-api-network-isolation.md).
-external_router = APIRouter(prefix="/external", tags=["external"])
+# BEL-377 (P1): application-layer auth + rate limiting now guard the whole
+# namespace. Both are feature-flagged (``external_api_require_auth`` /
+# ``external_api_rate_limit_enabled``, default off) so the rollout never
+# breaks existing consumers; network isolation at the gateway remains the
+# backstop. ``require_external_rate_limit`` also pulls in the auth dependency,
+# but we list both for clarity (FastAPI de-dupes the shared sub-dependency).
+external_router = APIRouter(
+    prefix="/external",
+    tags=["external"],
+    dependencies=[
+        Depends(require_external_api_key),
+        Depends(require_external_rate_limit),
+    ],
+)
 
 external_router.include_router(projects_router)
 external_router.include_router(ad_campaigns_router)
