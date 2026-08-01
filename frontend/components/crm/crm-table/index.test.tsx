@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 import type { Paginated } from '@/lib/crm/api/crm-client'
 import type { Customer } from '@/lib/crm/types'
 
@@ -7,6 +7,8 @@ const mockToggleSort = vi.fn()
 const mockSetPage = vi.fn()
 const mockSetPageSize = vi.fn()
 const mockRefresh = vi.fn()
+const mockSetKeyword = vi.fn()
+const mockSetFiltersAndPage = vi.fn()
 
 let mockUseCrmTableReturn = {
  data: undefined as Customer[] | undefined,
@@ -19,10 +21,12 @@ let mockUseCrmTableReturn = {
  sortOrder: undefined as 'asc' | 'desc' | undefined,
  keyword: '',
  filters: [],
- setPage: mockSetPage,
- setPageSize: mockSetPageSize,
- toggleSort: mockToggleSort,
- refresh: mockRefresh,
+  setPage: mockSetPage,
+  setPageSize: mockSetPageSize,
+  toggleSort: mockToggleSort,
+  refresh: mockRefresh,
+  setKeyword: mockSetKeyword,
+  setFiltersAndPage: mockSetFiltersAndPage,
 }
 
 vi.mock('@/components/crm/crm-table/use-crm-table', () => ({
@@ -81,15 +85,19 @@ beforeEach(() => {
  sortOrder: undefined,
  keyword: '',
  filters: [],
- setPage: mockSetPage,
- setPageSize: mockSetPageSize,
- toggleSort: mockToggleSort,
- refresh: mockRefresh,
+  setPage: mockSetPage,
+  setPageSize: mockSetPageSize,
+  toggleSort: mockToggleSort,
+  refresh: mockRefresh,
+  setKeyword: mockSetKeyword,
+  setFiltersAndPage: mockSetFiltersAndPage,
  }
- mockToggleSort.mockClear()
- mockSetPage.mockClear()
- mockSetPageSize.mockClear()
- mockRefresh.mockClear()
+  mockToggleSort.mockClear()
+  mockSetPage.mockClear()
+  mockSetPageSize.mockClear()
+  mockRefresh.mockClear()
+  mockSetKeyword.mockClear()
+  mockSetFiltersAndPage.mockClear()
 })
 
 describe('CrmTable · 渲染', () => {
@@ -419,13 +427,14 @@ describe('CrmTable · 分页', () => {
     expect(screen.getByText(/共 100 条/)).toBeInTheDocument()
   })
 
- it('total <= pageSize 时不显示分页', () => {
+ it('total <= pageSize 时显示计数但不显示跳页（仅 1 页）', () => {
  mockUseCrmTableReturn.data = sampleCustomers
  mockUseCrmTableReturn.total = 2
  render(
  <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
  )
- expect(screen.queryByText(/共 \d+ 条/)).not.toBeInTheDocument()
+ expect(screen.getByText(/共 2 条/)).toBeInTheDocument()
+ expect(screen.queryByLabelText('跳转到页码')).not.toBeInTheDocument()
  })
 
  it('点击下一页调用 setPage(page+1)', () => {
@@ -439,4 +448,92 @@ describe('CrmTable · 分页', () => {
  fireEvent.click(screen.getByRole('button', { name: /下一页/ }))
  expect(mockSetPage).toHaveBeenCalledWith(3)
  })
+})
+
+describe('CrmTable · 搜索框（searchable）', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('searchable 渲染搜索框，输入防抖后调用 setKeyword', () => {
+    vi.useFakeTimers()
+    mockUseCrmTableReturn.data = []
+    mockUseCrmTableReturn.keyword = ''
+    render(
+      <CrmTable
+        queryKey="x"
+        fetchPage={vi.fn()}
+        columns={sampleColumns}
+        rowKey="id"
+        searchable
+        searchPlaceholder="搜名"
+      />,
+    )
+    fireEvent.change(screen.getByPlaceholderText('搜名'), { target: { value: '甲' } })
+    expect(mockSetKeyword).not.toHaveBeenCalledWith('甲') // 未防抖完
+    act(() => {
+      vi.advanceTimersByTime(300)
+    })
+    expect(mockSetKeyword).toHaveBeenCalledWith('甲')
+  })
+
+  it('不传 searchable 时不渲染搜索框', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    expect(screen.queryByPlaceholderText(/搜索/)).not.toBeInTheDocument()
+  })
+})
+
+describe('CrmTable · 分页增强', () => {
+  it('每页条数 select 调用 setPageSize(number)', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    mockUseCrmTableReturn.total = 100
+    mockUseCrmTableReturn.pageSize = 20
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    fireEvent.change(screen.getByLabelText('每页条数'), { target: { value: '50' } })
+    expect(mockSetPageSize).toHaveBeenCalledWith(50)
+  })
+
+  it('首页按钮调用 setPage(1)、末页按钮调用 setPage(totalPages)', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    mockUseCrmTableReturn.total = 100
+    mockUseCrmTableReturn.page = 2
+    mockUseCrmTableReturn.pageSize = 20
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '首页' }))
+    expect(mockSetPage).toHaveBeenCalledWith(1)
+    fireEvent.click(screen.getByRole('button', { name: '末页' }))
+    expect(mockSetPage).toHaveBeenCalledWith(5) // 100 / 20 = 5 页
+  })
+
+  it('totalPages > 1 时显示跳页输入，输入合法页码点跳调用 setPage', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    mockUseCrmTableReturn.total = 100
+    mockUseCrmTableReturn.page = 1
+    mockUseCrmTableReturn.pageSize = 20
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    const jumpInput = screen.getByLabelText('跳转到页码')
+    fireEvent.change(jumpInput, { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: '跳' }))
+    expect(mockSetPage).toHaveBeenCalledWith(4)
+  })
+
+  it('跳页输入越界（>totalPages）不调用 setPage', () => {
+    mockUseCrmTableReturn.data = sampleCustomers
+    mockUseCrmTableReturn.total = 100
+    mockUseCrmTableReturn.page = 1
+    mockUseCrmTableReturn.pageSize = 20
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    fireEvent.change(screen.getByLabelText('跳转到页码'), { target: { value: '99' } })
+    fireEvent.click(screen.getByRole('button', { name: '跳' }))
+    expect(mockSetPage).not.toHaveBeenCalled()
+  })
 })

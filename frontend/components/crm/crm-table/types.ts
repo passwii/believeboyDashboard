@@ -43,6 +43,10 @@ export interface CrmTableProps<T> {
   refreshKey?: number
   /** 表头快捷筛选字段定义（P4 实用档）；不传则不渲染筛选行 */
   filterFields?: FilterFieldDef[]
+  /** 是否显示关键词搜索框（写入 URL keyword，hook 已支持） */
+  searchable?: boolean
+  /** 搜索框占位符 */
+  searchPlaceholder?: string
 }
 
 export interface CrmTableSelectionState {

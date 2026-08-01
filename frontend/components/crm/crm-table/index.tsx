@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from 'lucide-react'
 import { useCrmTable } from './use-crm-table'
+import { CrmSearchInput } from './crm-search-input'
 import type { CrmColumnDef, CrmTableProps, FilterCondition } from './types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -79,6 +80,35 @@ function SortIcon({ active, order }: { active: boolean; order?: 'asc' | 'desc' }
   return <ArrowUp className="ml-1 inline h-3 w-3" aria-hidden="true" data-testid="sort-asc" />
 }
 
+function PageJump({ totalPages, onJump }: { totalPages: number; onJump: (p: number) => void }) {
+  const [val, setVal] = useState('')
+  const commit = () => {
+    const n = Number.parseInt(val, 10)
+    if (Number.isFinite(n) && n >= 1 && n <= totalPages) onJump(n)
+    setVal('')
+  }
+  return (
+    <span className="ml-1 flex items-center gap-1">
+      <input
+        type="number"
+        min={1}
+        max={totalPages}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+        }}
+        aria-label="跳转到页码"
+        className="h-7 w-14 rounded-md border border-input bg-background px-1 text-sm"
+        placeholder="页码"
+      />
+      <Button variant="outline" size="sm" onClick={commit} disabled={!val}>
+        跳
+      </Button>
+    </span>
+  )
+}
+
 export function CrmTable<T extends { id?: string | number }>({
   queryKey,
   fetchPage,
@@ -92,6 +122,8 @@ export function CrmTable<T extends { id?: string | number }>({
   rowKey,
   refreshKey,
   filterFields = [],
+  searchable = false,
+  searchPlaceholder,
 }: CrmTableProps<T>) {
   const table = useCrmTable<T>({
     queryKey,
@@ -185,12 +217,18 @@ export function CrmTable<T extends { id?: string | number }>({
   }
 
   const totalPages = Math.max(1, Math.ceil(table.total / table.pageSize))
-  const showPagination = table.total > table.pageSize
 
   return (
     <div className="flex h-full flex-col">
-      {filterFields.length > 0 && (
+      {(searchable || filterFields.length > 0) && (
         <div className="mb-2 flex flex-wrap items-center gap-3">
+          {searchable && (
+            <CrmSearchInput
+              value={table.keyword}
+              onChange={table.setKeyword}
+              placeholder={searchPlaceholder}
+            />
+          )}
           {filterFields.map((f) => (
             <label key={f.key} className="flex items-center gap-1 text-sm">
               <span className="text-muted-foreground">{f.label}</span>
@@ -213,7 +251,7 @@ export function CrmTable<T extends { id?: string | number }>({
       )}
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/60">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {selectable && (
                 <TableHead className="w-10">
@@ -304,30 +342,43 @@ export function CrmTable<T extends { id?: string | number }>({
         </Table>
       </div>
 
-      {showPagination && (
-        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            共 {table.total} 条 · 第 {table.page} / {totalPages} 页
-          </span>
+      {table.total > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span>共 {table.total} 条</span>
+            <label className="flex items-center gap-1">
+              每页
+              <select
+                aria-label="每页条数"
+                value={table.pageSize}
+                onChange={(e) => table.setPageSize(Number(e.target.value))}
+                className="h-7 rounded-md border border-input bg-background px-1 text-sm"
+              >
+                {[20, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={table.page <= 1}
-              onClick={() => table.setPage(table.page - 1)}
-              aria-label="上一页"
-            >
+            <Button variant="outline" size="sm" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={table.page >= totalPages}
-              onClick={() => table.setPage(table.page + 1)}
-              aria-label="下一页"
-            >
+            <span className="px-1">
+              第 {table.page} / {totalPages} 页
+            </span>
+            <Button variant="outline" size="sm" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
               <ChevronRight className="h-4 w-4" />
             </Button>
+            <Button variant="outline" size="sm" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+            {totalPages > 1 && <PageJump totalPages={totalPages} onJump={table.setPage} />}
           </div>
         </div>
       )}
