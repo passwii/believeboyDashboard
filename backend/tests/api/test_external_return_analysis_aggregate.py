@@ -477,7 +477,7 @@ class TestReturnAnalysisAggregateWhitelist:
                 order_dir="sideways",
             )
         )
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == 422, resp.text
 
     def test_all_13_whitelisted_order_by_work(self, client, seeded_project):
         """Every field in AGG_SORT_KEYS[AnalysisReturnAggregate] should be
