@@ -16,7 +16,7 @@
 |---|------|------|
 | D1 | 数据策略 | **混合**：KPI + 图表接真实数据；invoices/billing/activity 用 mock |
 | D2 | V1/V2 切换 | **路由分离 + 互跳按钮**：`/dashboard`（v1）↔ `/dashboard/v2` |
-| D3 | 项目选择器 | **保留** ProjectSelect，放 v2 页面顶部 |
+| D3 | 项目选择器 | **v2 新增页面级 ProjectSelect**：含"全部项目"选项，默认全部（= v1 行为），选单项目则所有真实数据区块按该项目过滤。（注：v1 实际无页面级过滤，ProjectSelect 仅作 TopCountries 代表项目选择器） |
 | D4 | 实现方案 | **自包含 v2 模块**：不动 v1 逻辑，fetch 复制而非抽取 |
 | D5 | AppShell | **不引入**——v2 渲染在现有 `app/dashboard/layout.tsx` 内 |
 
@@ -55,7 +55,7 @@ frontend/
 | Billing Health | 保持 sample 原样 | 🔶 mock |
 | Activity Feed | 保持 sample 原样 | 🔶 mock |
 
-**页面顶部工具栏**：ProjectSelect（复用 v1 组件）+ 日期区间（沿用 v1 默认近 30 天逻辑）+ "返回旧版"按钮。
+**页面顶部工具栏**：页面级 ProjectSelect（v2 新增，含"全部项目"选项，默认全部）+ 日期区间（沿用 v1 默认近 7 天逻辑：yesterday-6 → yesterday，US 时区）+ "返回旧版"按钮。
 
 **标签语言**：真实数据区块用中文标签（销售额/订单量/广告花费/转化率），金额 `$` 前缀（美元结算）。Mock 区块保持 sample 英文原样——视觉上即可区分占位内容。
 
@@ -66,10 +66,12 @@ frontend/
 ```
 v2/page.tsx (client component)
 ├── useManagedProjects()          ← 复用 lib/hooks（非 v1 专属）
-├── ProjectSelect                 ← 复用 components/dashboard/console/project-select
-├── fetch daily-analysis API      ← 复制 v1 page 的 fetch 逻辑（同端点、同参数）
-│   ├── currentRows (近30天)
-│   └── comparisonRows (上一周期)
+├── ProjectSelect                 ← 复用 v1 组件，v2 页面级过滤（新增"全部项目"选项）
+├── fetch daily-analysis API      ← 复制 v1 page 的 fetch 逻辑（同端点 /daily-analysis/all）
+│   ├── selectedProjectId=null → project_ids=全部（= v1 行为）
+│   ├── selectedProjectId=N → project_ids=N
+│   ├── currentRows (近7天)
+│   └── comparisonRows (上一周期7天)
 ├── v2-stats        ← currentRows 汇总 + comparisonRows 算 delta
 ├── v2-revenue-chart ← dynamic import, ssr:false
 ├── v2-channel-chart ← dynamic import, ssr:false
@@ -119,7 +121,7 @@ v2/page.tsx (client component)
 
 **手动验证清单：**
 - [ ] 亮/暗两主题视觉正常
-- [ ] ProjectSelect 切换项目后真实数据区块刷新
+- [ ] ProjectSelect 默认"全部项目"时数据与 v1 一致；选单项目后真实数据区块刷新
 - [ ] v1 → v2 → v1 互跳正常
 - [ ] 移动端回退 1 列布局
 - [ ] fetch 失败时空态 + 重试按钮可用
