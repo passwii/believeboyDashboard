@@ -5,6 +5,31 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 
+class InventorySignals(BaseModel):
+    """inventory_state + action 决策依据的原始事实（透明度，spec §2.3）。
+
+    不进判定，作为响应体里的独立字段供前端/外部 agent 消费。
+    """
+
+    sellable_days: float | None = None
+    dms_3: float | None = None
+    dms_7: float | None = None
+    dms_14: float | None = None
+    dms_30: float | None = None
+    trend_ratio_7_30: float | None = None
+    trend_ratio_3_7: float | None = None
+    trend_label: str | None = None
+    trend_momentum: str | None = None
+    aging_share: dict[str, float] = Field(default_factory=dict)
+    transit_ratio: float | None = None
+    data_freshness_days: int = 0
+    confidence: str = "low"
+    # v1.2 季节性字段
+    seasonal_factor: float | None = None
+    seasonal_phase: str | None = None
+    seasonal_source: str | None = None
+
+
 class InventoryReplenishmentSummary(BaseModel):
     sku_count: int
     out_of_stock_risk_count: int
@@ -13,6 +38,12 @@ class InventoryReplenishmentSummary(BaseModel):
     pending_data_count: int
     total_available_inventory: int
     total_in_transit_quantity: int
+    # v1.2: 三段式 state 计数（与旧字段并存以保持 BI 兼容）
+    critical_count: int = 0
+    deteriorating_count: int = 0
+    watch_count: int = 0
+    healthy_count_v2: int = 0
+    unknown_count: int = 0
 
 
 class InventoryReplenishmentListItem(BaseModel):
@@ -42,6 +73,14 @@ class InventoryReplenishmentListItem(BaseModel):
     estimated_replenishment_quantity: int | None = None
     risk_status: str
     risk_anchor_date: str | None = None
+
+    # ── v1.2 三段式（spec §3.2） ──
+    # 判断维度
+    inventory_state: str = "unknown"  # critical/deteriorating/watch/healthy/unknown
+    # 动作维度
+    replenishment_action: str = "NO_ACTION"  # ReplenishmentAction 枚举值
+    # 透明度原始事实
+    signals: InventorySignals | None = None
 
     # ── Age bucket (from FBA inventory snapshot) ──
     age_0_90_qty: int = 0
