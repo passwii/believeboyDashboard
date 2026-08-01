@@ -158,11 +158,15 @@ PRD 的 7 个 SQL view 变成 7 个 service 函数。所有函数签名统一为
 | 5 | `get_receipt_clusters()` | v_receipt_clusters_v2 | 入库簇（date × location × SKU 集合） |
 | 6 | `get_sku_month_events()` | v_sku_month_events | SKU 事件汇总 |
 | 7 | `check_ledger_integrity()` | v_ledger_integrity | 跨月连续性校验 |
+| 8 | `get_available_months()` | — | 有数据的月份列表 |
+| 9 | `get_trend()` | — | 多月聚合趋势（EOM/事件/损坏占比） |
 
 **实现要点**：
 - Sparse Ledger 取月末：`func.row_number().over(partition_by=..., order_by=desc(date))` 取 rn=1
 - `check_ledger_integrity`：查两个月数据，对比 ending → starting 连续性
 - `get_receipt_clusters`：`func.string_agg(msku, ',' order by msku)` + `func.md5()` 生成 cluster_id
+- `get_trend`：遍历最近 N 个月，每月聚合 EOM 总量 + 事件 + 损坏占比
+- `parse_report_month`：接受 `YYYY-MM` 或 `YYYY-MM-DD` 字符串，统一转为月初 date
 - 入库函数 `ingest_ledger_csv()`：csv 模块解析 → bulk upsert
 
 ### 4.2 Schemas：`backend/app/schemas/inventory_ledger.py`
@@ -221,6 +225,22 @@ class MonthlySnapshotResponse(BaseModel):
     disposition_summary: list[DispositionSummary]
     skus: list[SkuMonthEom]
     integrity: IntegrityCheckResult
+
+class TrendMonthItem(BaseModel):
+    report_month: str  # YYYY-MM
+    sku_count: int
+    total_qty_eom: int
+    total_receipts: int
+    total_shipments: int
+    total_returns: int
+    total_damaged: int
+    total_lost: int
+    total_disposed: int
+    damaged_pct: float
+
+class TrendResponse(BaseModel):
+    project_id: int
+    months: list[TrendMonthItem]
 ```
 
 ## 5. 内部 API
@@ -235,10 +255,11 @@ class MonthlySnapshotResponse(BaseModel):
 | `/inventory-ledger/events` | GET | 同上 | SKU 事件流水 |
 | `/inventory-ledger/receipt-clusters` | GET | 同上 | 入库簇 |
 | `/inventory-ledger/location-detail` | GET | 同上 + `msku?` | 仓库级明细 |
+| `/inventory-ledger/trend` | GET | `project_id` + `months?` (默认 6, 1-24) | 多月聚合趋势 |
 
 **参数逻辑**：
-- 传 `report_month` → 后端自动算月末（`calendar.monthrange`），等价于 `start_date=月初, end_date=月末`
-- 传 `start_date + end_date` → 直接用
+- `report_month` 接受 `YYYY-MM`（如 `2026-07`）或 `YYYY-MM-DD`（如 `2026-07-01`），后端统一转为月初 → 自动算月末
+- 传 `start_date + end_date` → 直接用（精确到天）
 - 两者互斥，同时传报 400
 
 **注册**：`router.py` 加 `include_router(inventory_ledger_router, prefix="/inventory-ledger", tags=["inventory-ledger"])`
@@ -255,6 +276,7 @@ class MonthlySnapshotResponse(BaseModel):
 | `/external/projects/{project_id}/inventory-ledger/events` | GET | 同上 | 事件流水 |
 | `/external/projects/{project_id}/inventory-ledger/receipt-clusters` | GET | 同上 | 入库簇 |
 | `/external/projects/{project_id}/inventory-ledger/integrity` | GET | `report_month` | 完整性校验 |
+| `/external/projects/{project_id}/inventory-ledger/trend` | GET | `months?` (默认 6) | 多月聚合趋势 |
 
 响应 schema 复用内部 API 的 Pydantic model。注册到 `external/__init__.py` 的 `external_router`。
 
