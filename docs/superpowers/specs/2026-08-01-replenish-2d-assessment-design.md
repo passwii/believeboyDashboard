@@ -1,14 +1,20 @@
 # Replenish 二维评估（三段式：状态 + 行动 + 信号）设计文档
 
-> v1.1 · 2026-08-01 · BEL-369
-> 状态：方案 A（用户拍板）+ 季节性因子（v1.1 补充），待实施
+> v1.2 · 2026-08-01 · BEL-369
+> 状态：方案 A（用户拍板）+ 季节性因子（v1.2 简化版），待实施
 > 后续里程碑：C（预测式评估）独立 spec
 
-## 0. v1 → v1.1 变更记录
+## 0. v1.0 → v1.1 → v1.2 变更记录
 
+**v1.1 → v1.2（本次）：季节性 fallback 简化**
+- v1.1 设计三层 fallback：SKU YoY → 项目级平均 → neutral
+- v1.2 简化两层：**SKU YoY → 跳过**（大部分项目店铺没 YoY 数据，与其用项目平均污染判断，不如直接忽略季节性）
+- 移除：`project_seasonal_avg` 中位数计算 + 24h 缓存逻辑、_compute_project_seasonal_avg 函数、test_seasonal_factor.py 中所有 project_avg 相关 case
+- 影响面：从 v1.1 的 ~230 行后端减到 ~150 行后端；测试从 ~400 行减到 ~250 行
+
+**v1.0 → v1.1（已 commit `9bb1dd37`）**
 - 新增"季节性因子（seasonal_factor）"——基于 YoY DMS 数据**自动**计算每个 SKU 当前的旺季/淡季相位，**无需人工配置月度销售趋势**。
 - 范围调整：seasonal_replenishment 仍**不在本次改造内**（不动 seasonal endpoint），但**复用其已有的 YoY DMS 数据**给本 spec 用。
-- 影响面：增加 ~80 行（seasonal_factor.py 新建）+ signals 加 3 字段 + action 决策表增加季节性列。
 
 ## 1. 概述
 
@@ -194,13 +200,15 @@ if dms_7 and dms_14 and dms_30 and dms_30 > 0:
 
 **核心问题**：Amazon 销售有季节性（Prime Day / 圣诞 / 夏季户外 / 节庆礼品等）。同一个 DoH=30 在 7 月（旺季）比在 2 月（淡季）危险得多——因为旺季 dms 会更高，库存消耗更快。
 
-**但用户明确说不想手动指定月度销售趋势**——所以必须是**系统化自动**检测。原则：
+**但用户明确说不想手动指定月度销售趋势**——所以必须是**系统化自动**检测。
 
-- **每个 SKU 自己的"季节性基线"**——基于 YoY 数据自动学，不需要任何人工标注
-- **新 SKU 没历史 → 用项目级平均**——项目层面的所有 SKU 整体走势
-- **全新 SKU 没项目级基线 → 不做季节性调整**（seasonal_factor=1.0）
+**v1.2 简化原则**：
+- 现实里**大部分项目店铺没 YoY 数据**（新店铺 / 数据历史太短 / 跨境初期）——v1.1 设计的"项目级平均 fallback"在这种情况下被频繁触发，但项目平均会把老店铺 + 新店铺混在一起污染判断
+- **v1.2 简化**：没 SKU YoY 就**直接忽略季节性**（不做 fallback），signals.seasonal_phase = "unknown"
+- 每个 SKU 自己的"季节性基线"——基于 YoY 数据自动学，不需要任何人工标注
+- 不要 fallback 到项目级平均——避免污染；要么 SKU 自己有数据，要么不调整
 
-#### 2.4.1 seasonal_factor 算法
+#### 2.4.1 seasonal_factor 算法（v1.2 两层）
 
 ```python
 def compute_seasonal_factor(
@@ -208,13 +216,12 @@ def compute_seasonal_factor(
     dms_7: float | None,
     dms_30_yoy: float | None,
     dms_7_yoy: float | None,
-    project_seasonal_avg: float | None,
 ) -> tuple[float | None, str]:
     """返回 (seasonal_factor, source)。
-    source ∈ {"sku_yoy", "project_avg", "neutral"}。
+    source ∈ {"sku_yoy", "neutral"}。
     """
 
-    # 路线 1: SKU 自己的 YoY 比值（优先）
+    # 路线 1: SKU 自己的 YoY 比值
     ratios = []
     if dms_30 and dms_30_yoy and dms_30_yoy > 0:
         ratios.append(dms_30 / dms_30_yoy)
@@ -223,19 +230,21 @@ def compute_seasonal_factor(
 
     if ratios:
         factor = sum(ratios) / len(ratios)
+        # clamp 避免极端值
+        factor = max(0.3, min(3.0, factor))
         return (factor, "sku_yoy")
 
-    # 路线 2: 项目级平均（YoY 数据缺失时）
-    if project_seasonal_avg is not None and project_seasonal_avg > 0:
-        return (project_seasonal_avg, "project_avg")
-
-    # 路线 3: 不做调整
+    # 路线 2: 没 YoY 数据 → 跳过季节性调整（v1.2 决策）
     return (None, "neutral")
 ```
 
-**为什么取 dms_30_yoy 和 dms_7_yoy 两个**：30D 是稳定基线，7D 是近期抖动——两个综合可以过滤单窗口噪声。
+**为什么取 dms_30_yoy 和 dms_7_yoy 两个**：30D 是稳定基线，7D 是近期抖动——两个综合可以过滤单窗口噪声。如果只有一个窗口有值，用单个。
 
-**阈值 (project_seasonal_avg) 计算**：项目级所有 SKU 的 seasonal_factor 的中位数（避免被少数爆品或死货拉偏）——计算一次缓存 24 小时。
+**v1.2 移除 v1.1 的项目级平均**：理由
+- 大部分项目没 YoY，项目级平均会被频繁触发
+- 项目平均污染严重——老店铺旺季信号会误推到新店铺上
+- 不做 fallback 更简单：要么有数据就用，要么不用
+- 运营看到的"季节性"是 SKU 自己真正的相位，不被项目平均干扰
 
 #### 2.4.2 seasonal_phase 划分
 
@@ -256,28 +265,38 @@ SEASONAL_PHASE_THRESHOLDS = {
 
 ```python
 adjusted_sellable_days = sellable_days / seasonal_factor  # factor=1.3 → 缩水 23%
+# factor=None → adjusted = sellable_days（原值）
 ```
 
 判定表 §2.1 中所有 `sellable_days` 字样替换为 `adjusted_sellable_days`。原始 `sellable_days` 仍保留在 `signals` 里供运营对照。
 
-**action 判定**：用 `seasonal_phase` 作为辅助信号加进决策表（详见 §2.2.1）——旺季断货比淡季更急，淡季的"销量下降"不一定是真恶化（可能是季节性回落）。
+**action 判定**：用 `seasonal_phase` 作为辅助信号加进决策表（详见 §2.2）——旺季断货比淡季更急，淡季的"销量下降"不一定是真恶化（可能是季节性回落）。
+
+**未调整状态判定**（seasonal_phase = "unknown" 时）：
+- state 判定走原 sellable_days，不被季节性影响
+- action 决策表查 "其它" 行（peak/rising 之外的行）
+- signals.seasonal_phase = "unknown"、seasonal_factor = None、seasonal_source = "neutral"
 
 #### 2.4.4 为什么不需要人配置月度趋势
 
 - YoY 数据已经在 seasonal_replenishment 端点算过（`dms_30_yoy` 等），**直接复用**，不增加新计算
-- 项目级平均用中位数算一次（24h 缓存），不需手动
+- 没有"月度销售趋势表""淡旺季日历表"任何人工输入——**纯数据驱动**
+- 没 YoY 数据的项目（多数）直接跳过季节性——不影响主流程
 - 没有"月度销售趋势表""淡旺季日历表"任何人工输入——**纯数据驱动**
 
 #### 2.4.5 边界 case 与处理
 
-| 情况 | factor | phase | confidence |
-|---|---|---|---|
-| 新 SKU（< 12 月）| 用 project_avg | 同上 | medium |
-| 全新项目（无任何 SKU 有 12 月数据）| None | "unknown" | low |
-| dms_30_yoy 为 None 但 dms_30 > 0 | 用 dms_7_yoy 单点 | 同上 | medium |
-| dms_30_yoy=0（去年此时也不卖）| None → neutral | "unknown" | low |
-| factor=0 或负 | 视为异常 → None | "unknown" | low |
-| factor > 3（极旺）| clamp 到 3.0 | "peak" | high |
+| 情况 | factor | phase | confidence | 状态判定调整 |
+|---|---|---|---|---|
+| SKU 有 dms_30_yoy 和 dms_7_yoy | `avg(2 个比值)` | 按阈值定 | high | 走 adjusted_sellable_days |
+| 只有 dms_30_yoy（无 dms_7_yoy）| 单个比值 | 按阈值定 | medium | 走 adjusted_sellable_days |
+| 只有 dms_7_yoy（无 dms_30_yoy）| 单个比值 | 按阈值定 | medium | 走 adjusted_sellable_days |
+| 新 SKU（< 12 月历史）| None | "unknown" | low | **不调整**（v1.2 简化）|
+| 新项目（无任何 SKU 有 YoY）| None | "unknown" | low | **不调整**（v1.2 简化）|
+| dms_30_yoy=0（去年此时也不卖）| None → neutral | "unknown" | low | 不调整 |
+| factor > 3（极旺）| clamp 到 3.0 | "peak" | high | 走 adjusted_sellable_days |
+| factor < 0.3（极淡）| clamp 到 0.3 | "trough" | high | 走 adjusted_sellable_days |
+| factor=0 或负 | 视为异常 → None | "unknown" | low | 不调整 |
 
 ## 3. 数据库与 Schema
 
@@ -422,13 +441,14 @@ inventory_state + replenishment_action 判定逻辑。
 # backend/app/services/inventory/seasonal_factor.py
 """
 季节性因子计算。系统化、不需人工配置。
+v1.2 简化：只支持 SKU 自己的 YoY 路线，没数据则跳过。
 
 输入：dms_30 / dms_7 / dms_30_yoy / dms_7_yoy (单 SKU)
 输出：(seasonal_factor, seasonal_phase, source)
+source ∈ {"sku_yoy", "neutral"}
 
 依赖：
-- _load_seasonal_dms_map 已有（replenishment.py 内）
-- _compute_project_seasonal_avg 本模块新增（中位数 + 24h 缓存）
+- _load_seasonal_dms_map 已有（replenishment.py 内，复用）
 """
 
 SEASONAL_PHASE_THRESHOLDS = {
@@ -440,21 +460,18 @@ SEASONAL_PHASE_THRESHOLDS = {
 
 def compute_seasonal_factor(
     dms_30, dms_7, dms_30_yoy, dms_7_yoy,
-    project_seasonal_avg: float | None,
 ) -> tuple[float | None, str, str]:
-    """返回 (factor, phase, source)。"""
-    ...
-
-def _compute_project_seasonal_avg(
-    db, project_id, country,
-) -> float | None:
-    """项目级所有 SKU seasonal_factor 的中位数。"""
-    # 1. 查所有 SKU 的 dms_30 / dms_30_yoy
-    # 2. 算每个 SKU 的 factor（如果可能）
-    # 3. 取中位数
-    # 4. cache 24h（key: project:{id}:seasonal_avg）
+    """返回 (factor, phase, source)。
+    v1.2 简化：仅 SKU YoY 路线，没数据返 (None, 'unknown', 'neutral')。
+    """
     ...
 ```
+
+**简化优势（v1.2）**：
+- 不需要额外的 SQL 查询（项目级平均需要查所有 SKU）
+- 不需要缓存层（24h 缓存逻辑 + 失效）
+- 没有项目级污染问题（老店铺 + 新店铺混在一起）
+- 代码量减少 ~30%，测试减少 ~40%
 
 ## 5. 前端改动
 
@@ -508,19 +525,21 @@ def _compute_project_seasonal_avg(
 - `test_signals_confidence_high` —— 数据齐全 + 快照新
 - `test_signals_confidence_low` —— dms_30 缺失
 
-**新增** `backend/tests/services/inventory/test_seasonal_factor.py`（v1.1）：
+**新增** `backend/tests/services/inventory/test_seasonal_factor.py`（v1.2 简化版）：
 
 - `test_factor_from_sku_yoy` —— dms_30=2.0, dms_30_yoy=1.0 → factor=2.0, source='sku_yoy'
 - `test_factor_average_of_two_yoy_ratios` —— 30D 和 7D 比值取平均
-- `test_factor_fallback_to_project_avg` —— SKU 没 yoy，用项目级
-- `test_factor_neutral_when_no_history` —— SKU + 项目都没 yoy → None, source='neutral'
+- `test_factor_from_single_yoy` —— 只有 dms_30_yoy（无 dms_7_yoy）→ 单个比值
+- `test_factor_neutral_when_no_yoy` —— SKU 没 yoy → None, source='neutral'（**v1.2 不 fallback 到项目**）
+- `test_factor_zero_yoy_returns_neutral` —— yoy=0 → None, source='neutral'
 - `test_phase_peak` —— factor > 1.3 → 'peak'
 - `test_phase_rising` —— 1.1 < factor ≤ 1.3 → 'rising'
 - `test_phase_neutral` —— 0.9 ≤ factor ≤ 1.1 → 'neutral'
 - `test_phase_falling` —— 0.7 ≤ factor < 0.9 → 'falling'
 - `test_phase_trough` —— factor < 0.7 → 'trough'
-- `test_factor_clamp_when_extreme` —— factor=5.0 → clamp 到 3.0
-- `test_factor_handles_zero_yoy` —— yoy=0 → None, source='neutral'
+- `test_factor_clamp_to_3_when_extreme` —— factor=5.0 → clamp 到 3.0
+- `test_factor_clamp_to_03_when_extreme_low` —— factor=0.1 → clamp 到 0.3
+- `test_phase_unknown_when_factor_is_none` —— factor=None → phase='unknown'
 - `test_action_hold_for_deteriorating_in_trough_phase` —— 季节性下行场景
 - `test_action_replenish_normal_for_critical_in_peak_phase` —— 旺季补货加注
 
@@ -573,20 +592,20 @@ def _compute_project_seasonal_avg(
   - 前端：移除"行动"/"趋势"列，回退到只显示 `risk_status` emoji
 - **回退时间**：1 个工作日内完成（不涉及数据库）
 
-## 8. 影响面汇总（v1.1 含季节性）
+## 8. 影响面汇总（v1.2 简化后）
 
 | 范围 | 改动文件 | 改动量 |
 |---|---|---|
-| 后端服务 | `state_action.py`（新建）+ `seasonal_factor.py`（新建）+ `replenishment.py`（增函数 + 多查一次 YoY SQL） | ~230 行新增 |
+| 后端服务 | `state_action.py`（新建）+ `seasonal_factor.py`（新建，更小）+ `replenishment.py`（增函数 + 多查一次 YoY SQL） | ~150 行新增（比 v1.1 少 80 行） |
 | 后端 schema | `inventory_replenishment.py`（加字段含 seasonal 3 个） | ~40 行 |
 | 后端 API | `replenishment_analysis.py`（无改动，schema 自动） + `inventory_replenishment.py` 内部端点 | 0 行（schema 透传） |
-| 后端测试 | `test_state_action.py`（新建）+ `test_seasonal_factor.py`（新建）+ `test_seasonal_integration.py`（新建）+ `test_three_segment.py`（新建） | ~400 行新增 |
+| 后端测试 | `test_state_action.py`（新建）+ `test_seasonal_factor.py`（新建，更小）+ `test_seasonal_integration.py`（新建）+ `test_three_segment.py`（新建） | ~250 行新增（比 v1.1 少 150 行） |
 | 前端页面 | `inventory-replenishment/page.tsx`（加 3 列含季节性 + 行色 + Excel） | ~100 行 |
 | 前端 schema 类型 | `api-generated/api.d.ts`（regen） | 自动 |
 | 数据库 | 无 | 0 |
 | 现有单测 | `test_health_score.py`（保留不动） | 0 |
 | 库存分析页面 | 不动 | 0 |
-| Seasonal replenishment endpoint/页面 | 不动 | 0 |
+| Seasonal replenishment endpoint/页面 | 不动（仅复用其 YoY SQL 数据） | 0 |
 
 ## 9. 关键决策记录
 
@@ -603,11 +622,12 @@ def _compute_project_seasonal_avg(
 | D9 | trend_momentum 用双比值差 | 比 dms_3/dms_7 噪声小，比单比值稳定 |
 | D10 | 不加 REPLENISH_HALF | YAGNI；half-quantity 是 quantity 调整不是 action 扩展 |
 | D11 | 前端加 Excel 列扩展 | 已有 vitest 模式，无需新基建 |
-| D12 (v1.1) | 季节性因子用 YoY 自动算，**不**人工配置月度趋势 | YoY 数据已在 seasonal_replenishment 端点算过，直接复用；新 SKU 用项目级平均；全新 SKU 不调整 |
+| D12 (v1.1) | 季节性因子用 YoY 自动算，**不**人工配置月度趋势 | YoY 数据已在 seasonal_replenishment 端点算过，直接复用 |
 | D13 (v1.1) | seasonal_factor 范围 [0.3, 3.0] clamp | 极端值避免 state 判定跳变 |
 | D14 (v1.1) | state 判定用 adjusted_sellable_days（除以 seasonal_factor） | 旺季 DoH 30 与淡季 DoH 30 不等价；季节性调整让阈值自适应 |
 | D15 (v1.1) | action 表增加 seasonal_phase 列 | 旺季断货升级、淡季趋势下降 HOLD（避免误杀） |
 | D16 (v1.1) | seasonal_endpoint 本身**不动** | A4 决策不判 risk；本次只是复用其数据 |
+| D17 (v1.2) | **没 YoY 数据直接跳过季节性，不 fallback 到项目级平均** | 现实里大部分项目店铺没 YoY，项目级平均会被频繁触发、且老店铺+新店铺混在一起污染判断（用户拍板） |
 
 ## 10. 后续（不本 spec 范围）
 
@@ -618,8 +638,8 @@ def _compute_project_seasonal_avg(
 ## 11. 验收标准（Definition of Done）
 
 - [ ] `test_state_action.py` 15 个测试全绿
-- [ ] `test_seasonal_factor.py` 12 个测试全绿（v1.1）
-- [ ] `test_seasonal_integration.py` 3 个测试全绿（v1.1）
+- [ ] `test_seasonal_factor.py` 13 个测试全绿（v1.2 简化版）
+- [ ] `test_seasonal_integration.py` 3 个测试全绿（v1.2）
 - [ ] `test_three_segment.py` 4 个测试全绿
 - [ ] `test_health_score.py` 既有 14 个测试保留全绿
 - [ ] 外部 API `/api/v1/external/projects/{id}/replenishment-analysis` 响应包含 `inventory_state` / `replenishment_action` / `signals` 3 个新字段族（signals 含 `seasonal_factor` / `seasonal_phase` / `seasonal_source`）
@@ -628,6 +648,5 @@ def _compute_project_seasonal_avg(
 - [ ] 前端 `inventory-replenishment` 页面新增"行动"列 + "趋势"列 + "季节性"列，行色按 action 渲染
 - [ ] Excel 导出新增 3 列（行动 / 趋势 / 季节性）
 - [ ] pnpm lint / pnpm build / pnpm test 全过
-- [ ] 部署后真实项目抽查：1 个 deteriorating SKU、1 个 critical SKU、1 个 healthy SKU、1 个旺季 SKU、1 个淡季 SKU 验证显示正确
-- [ ] 项目级 `seasonal_avg` 缓存 24h 生效（不重复算）
+- [ ] 部署后真实项目抽查：1 个 deteriorating SKU、1 个 critical SKU、1 个 healthy SKU、1 个有 YoY 数据的 SKU（旺季）、1 个无 YoY 数据 SKU（确认 seasonal_phase=unknown 不影响主流程）验证显示正确
 - [ ] `git deploy` 推送命中 `backend/` 触发 VPS 自动部署（前端 Vercel 自动）
