@@ -72,3 +72,68 @@ describe('ApiError (P5-11)', () => {
     expect(e.name).toBe('ApiError')
   })
 })
+
+describe('HttpCrmClient.updateValueScores (P6a)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  let client: HttpCrmClient
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: 7,
+        name: 'X',
+        rating: 'A',
+        score_scale: 'A',
+        score_pay: 'A',
+        score_fit: 'A',
+        score_coop: 'A',
+        owner_id: 'u1',
+        owner_name: null,
+        contact_name: null,
+        contact_phone: null,
+        contact_email: null,
+        contact_wechat: null,
+        address: null,
+        website: null,
+        annual_revenue: null,
+        employee_count: null,
+        remark: null,
+        last_follow_at: null,
+        next_follow_at: null,
+        created_by: 'u1',
+        created_at: '',
+        updated_at: '',
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    client = new HttpCrmClient()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+  it('PATCH /customers/{id}/value-scores with body', async () => {
+    await client.updateValueScores('7', {
+      score_scale: 'A',
+      score_pay: 'A',
+      score_fit: 'A',
+      score_coop: 'A',
+    })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/customers/7/value-scores')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({
+      score_scale: 'A',
+      score_pay: 'A',
+      score_fit: 'A',
+      score_coop: 'A',
+    })
+  })
+  it('partial body sends only provided', async () => {
+    await client.updateValueScores('7', { score_scale: 'A', score_pay: 'B' })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      score_scale: 'A',
+      score_pay: 'B',
+    })
+  })
+})

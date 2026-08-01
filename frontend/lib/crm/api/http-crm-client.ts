@@ -16,6 +16,7 @@ import type {
   Lead,
   LeadInput,
   User,
+  ValueScoresInput,
 } from '@/lib/crm/types'
 import {
   mapAuditLog,
@@ -169,6 +170,14 @@ export class HttpCrmClient implements CrmClient {
       await request<CustomerDto>(`/customers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(toCustomerPayload(input)),
+      })
+    )
+  }
+  async updateValueScores(id: string, input: ValueScoresInput): Promise<Customer> {
+    return mapCustomer(
+      await request<CustomerDto>(`/customers/${id}/value-scores`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
       })
     )
   }

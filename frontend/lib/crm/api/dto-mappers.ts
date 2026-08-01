@@ -32,6 +32,10 @@ export interface CustomerDto {
   customer_type?: string | null
   interested_service?: string | null
   rating: string
+  score_scale?: string | null
+  score_pay?: string | null
+  score_fit?: string | null
+  score_coop?: string | null
   status: string
   source?: string | null
   owner_id?: string | null
@@ -172,6 +176,10 @@ export function mapCustomer(dto: CustomerDto): Customer {
     customerType: dto.customer_type ?? undefined,
     interestedService: dto.interested_service ?? undefined,
     rating: dto.rating as Customer['rating'],
+    scoreScale: (dto.score_scale as Customer['scoreScale']) ?? null,
+    scorePay: (dto.score_pay as Customer['scorePay']) ?? null,
+    scoreFit: (dto.score_fit as Customer['scoreFit']) ?? null,
+    scoreCoop: (dto.score_coop as Customer['scoreCoop']) ?? null,
     status: dto.status as Customer['status'],
     source: (dto.source ?? 'other') as Customer['source'],
     ownerId: dto.owner_id ?? null,

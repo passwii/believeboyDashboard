@@ -10,6 +10,10 @@ export interface Customer {
   customerType?: string
   interestedService?: string
   rating: CustomerRating
+  scoreScale?: CustomerRating | null
+  scorePay?: CustomerRating | null
+  scoreFit?: CustomerRating | null
+  scoreCoop?: CustomerRating | null
   status: CustomerStatus
   source: CustomerSource
   ownerId: string | null
@@ -68,3 +72,9 @@ export interface CustomerSeaImportResult {
   skippedDupes: number
   failed: CustomerSeaImportFailItem[]
 }
+
+
+/** P6a 价值评分部分更新入参（蛇形 key，与后端 ValueScoresUpdate 一致）。 */
+export type ValueScoresInput = Partial<
+  Record<'score_scale' | 'score_pay' | 'score_fit' | 'score_coop', CustomerRating | null>
+>

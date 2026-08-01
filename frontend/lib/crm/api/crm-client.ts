@@ -15,6 +15,7 @@ import type {
   AuditLogQuery,
   CustomerSeaImportRow,
   CustomerSeaImportResult,
+  ValueScoresInput,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -48,6 +49,7 @@ export interface CrmClient {
   getCustomer(id: string): Promise<Customer>
   createCustomer(input: CustomerInput): Promise<Customer>
   updateCustomer(id: string, input: Partial<CustomerInput>): Promise<Customer>
+  updateValueScores(id: string, input: ValueScoresInput): Promise<Customer>
   deleteCustomer(id: string): Promise<void>
   batchTransferCustomers(ids: string[], toOwnerId: string): Promise<void>
   batchMoveToSea(ids: string[]): Promise<void>

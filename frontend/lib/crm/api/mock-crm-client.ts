@@ -18,7 +18,9 @@ import type {
   Lead,
   LeadInput,
   User,
+  ValueScoresInput,
 } from '@/lib/crm/types'
+import { computeRating } from '@/lib/crm/constants/value-score'
 import {
   CUSTOMERS_FIXTURE,
   LEADS_FIXTURE,
@@ -354,6 +356,32 @@ export class MockCrmClient implements CrmClient {
       ...prev,
       ...input,
       ownerName: input.ownerId !== undefined ? owner?.name : prev.ownerName,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.customers[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  async updateValueScores(id: string, input: ValueScoresInput): Promise<Customer> {
+    await this.delay('updateValueScores')
+    const idx = this.state.customers.findIndex((c) => c.id === id)
+    if (idx === -1) throw new Error(`客户不存在: ${id}`)
+    const prev = this.state.customers[idx]
+    const scores = {
+      score_scale: input.score_scale ?? prev.scoreScale ?? null,
+      score_pay: input.score_pay ?? prev.scorePay ?? null,
+      score_fit: input.score_fit ?? prev.scoreFit ?? null,
+      score_coop: input.score_coop ?? prev.scoreCoop ?? null,
+    }
+    const newRating = computeRating(scores)
+    const updated: Customer = {
+      ...prev,
+      scoreScale: scores.score_scale,
+      scorePay: scores.score_pay,
+      scoreFit: scores.score_fit,
+      scoreCoop: scores.score_coop,
+      rating: newRating ?? prev.rating,
       updatedAt: new Date().toISOString(),
     }
     this.state.customers[idx] = updated
