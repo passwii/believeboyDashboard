@@ -1,8 +1,14 @@
 # Replenish 二维评估（三段式：状态 + 行动 + 信号）设计文档
 
-> v1 · 2026-08-01 · BEL-369
-> 状态：方案 A（用户拍板），待实施
+> v1.1 · 2026-08-01 · BEL-369
+> 状态：方案 A（用户拍板）+ 季节性因子（v1.1 补充），待实施
 > 后续里程碑：C（预测式评估）独立 spec
+
+## 0. v1 → v1.1 变更记录
+
+- 新增"季节性因子（seasonal_factor）"——基于 YoY DMS 数据**自动**计算每个 SKU 当前的旺季/淡季相位，**无需人工配置月度销售趋势**。
+- 范围调整：seasonal_replenishment 仍**不在本次改造内**（不动 seasonal endpoint），但**复用其已有的 YoY DMS 数据**给本 spec 用。
+- 影响面：增加 ~80 行（seasonal_factor.py 新建）+ signals 加 3 字段 + action 决策表增加季节性列。
 
 ## 1. 概述
 
@@ -12,8 +18,8 @@
 
 | 现有 | 升级后 |
 |---|---|
-| `risk_status` = 单字符串（"长期断货"/"短期断货"/"健康库存"/"滞销"...8 个值） | `inventory_state`（5 个互斥状态）+ `replenishment_action`（6 个互斥行动）+ `signals`（透明原始数据） |
-| 判定只用 `risk_anchor_date - today`（单维度） | state 综合 DOH + dms_30 + 库龄；action 在 state 之上叠加 trend + 在途；signals 给运营完整证据 |
+| `risk_status` = 单字符串（"长期断货"/"短期断货"/"健康库存"/"滞销"...8 个值） | `inventory_state`（5 个互斥状态）+ `replenishment_action`（6 个互斥行动）+ `signals`（透明原始数据，含季节性因子） |
+| 判定只用 `risk_anchor_date - today`（单维度） | state 综合 DOH + dms_30 + 库龄 + **季节性因子**；action 在 state 之上叠加 trend + 在途 + **季节性相位** |
 | `health_score.py` 5 轴 + 两层判定（已存在但未对外） | 复用 5 轴作为内部评分；对外只暴露三段式产物；内部评分仅用于 confidence / reason 排序 |
 
 ### 1.2 三个产物的边界
@@ -38,18 +44,19 @@
 ### 1.3 不在范围
 
 - ❌ **不**改 `inventory_analysis_service.py`（inventory-analysis 页面）——它走 `recommended_action` 翻译不走 risk_status
-- ❌ **不**改 seasonal_replenishment——按 A4 决策不判 risk；本次升级不动 seasonal
+- ❌ **不**改 seasonal_replenishment endpoint / 季节性补货页面——A4 决策不判 risk；本次升级**不动 seasonal** 的 endpoint 和页面
+- ✅ **但** seasonal_replenishment 已有的 YoY DMS 数据 (`dms_30_yoy` / `dms_7_yoy` / ...) **可复用**——本次新建 `seasonal_factor.py` 直接消费这些字段，**不需要新增数据源**。
 - ❌ **不**改前端 inventory-analysis 页面——它不是这次 review 的目标
 - ❌ **不**改现有 5 轴评分代码（`health_score.py`）——只复用，不重构
-- ✅ **改** `InventoryReplenishmentListItem` schema（加 3 个新字段族）
-- ✅ **改** `list_inventory_replenishment_analysis` 服务函数（接入三段式）
-- ✅ **改** 前端 `inventory-replenishment/page.tsx`（新列 + 颜色映射）
+- ✅ **改** `InventoryReplenishmentListItem` schema（加 3 个新字段族 + 季节性 3 个字段）
+- ✅ **改** `list_inventory_replenishment_analysis` 服务函数（接入三段式 + 季节性）
+- ✅ **改** 前端 `inventory-replenishment/page.tsx`（新列 + 颜色映射 + 季节性提示）
 
 ## 2. 详细设计
 
 ### 2.1 产物 1：`inventory_state`（5 个互斥状态）
 
-**判定逻辑**（按顺序短路）：
+**判定逻辑**（按顺序短路）。表中 `sellable_days` 字样均为 **seasonal-adjusted sellable_days**（见 §2.4）——即 `sellable_days / seasonal_factor`。原始 sellable_days 保留在 `signals.sellable_days` 供对照。
 
 | 优先级 | 条件 | state |
 |---|---|---|
@@ -95,28 +102,38 @@ STATE_EMOJI = {
 
 ### 2.2 产物 2：`replenishment_action`（6 个互斥行动）
 
-**判定顺序关键**：先算 `trend_label`（`_score_trend`），再算 `inventory_state`（用 trend_label + DoH + 库龄），最后算 `replenishment_action`（用 state + trend_label + transit_ratio）。三者**严格分阶段**，不存在"用 action 反过来影响 state"的循环。
+**判定顺序关键**：先算 `trend_label`（`_score_trend`）和 `seasonal_factor`（§2.4），再算 `inventory_state`（用 trend_label + 季节性调整后的 DoH + 库龄），最后算 `replenishment_action`（用 state + trend_label + transit_ratio + seasonal_phase）。三者**严格分阶段**，不存在"用 action 反过来影响 state"的循环。
 
 `trend_label` 复用现有 `_score_trend` 的 4 档语义：`上升 (>=1.5)` / `稳定 (0.9-1.5)` / `轻微下降 (0.7-0.9)` / `下降明显 (<0.7)`。`replenishment_action` 决策表里 `trend_label` 取这 4 个值的简化二分：**上升 | 稳定/上升 | 下降**（"上升"与"稳定"归一类——都属于"该补的判断不变"；"轻微下降"+"下降明显"归"下降"类——都属于"该降价的判断不变"，二者力度不同由 signals.trend_momentum 区分）。
 
+`seasonal_phase` 在决策表里取 5 档语义：`peak` / `rising` / `neutral` / `falling` / `trough` / `unknown`。**重要**：`rising`/`peak` 强化补货；`falling`/`trough` 抑制补货（避免在淡季初误判为恶化）。
+
 **decision table 命中规则**（行匹配：第一行命中即返回；表按优先级排序）：
 
-| # | state | trend_label | 在途/可售 | action |
-|---|---|---|---|---|
-| 1 | `critical` (DoH<14) | 任意 | 任意 | `REPLENISH_NOW` |
-| 2 | `critical` (库龄 365+) | 任意 | 任意 | `REMOVE` |
-| 3 | `critical` (DoH>120 慢销) | 下降 | 任意 | `REDUCE_PRICE` |
-| 4 | `critical` (DoH>120 慢销) | 稳定/上升 | > 3 | `REDUCE_PRICE` |
-| 5 | `critical` (DoH>120 慢销) | 稳定/上升 | ≤ 3 | `HOLD` |
-| 6 | `critical` (DoH 14-30 在卖) | 上升 | 任意 | `REPLENISH_NORMAL` |
-| 7 | `critical` (DoH 14-30 在卖) | 下降 | 任意 | `HOLD` |
-| 8 | `deteriorating` | 下降 | 任意 | `REDUCE_PRICE` |
-| 9 | `deteriorating` | 稳定/上升 | 任意 | `HOLD` |
-| 10 | `watch` | 任意 | 任意 | `NO_ACTION` |
-| 11 | `healthy` | 任意 | 任意 | `NO_ACTION` |
-| 12 | `unknown` | 任意 | 任意 | `NO_ACTION` |
+| # | state | trend_label | 在途/可售 | seasonal_phase | action |
+|---|---|---|---|---|---|
+| 1 | `critical` (DoH<14) | 任意 | 任意 | peak/rising | `REPLENISH_NOW` + 旺季标记 |
+| 2 | `critical` (DoH<14) | 任意 | 任意 | 其它 | `REPLENISH_NOW` |
+| 3 | `critical` (库龄 365+) | 任意 | 任意 | 任意 | `REMOVE` |
+| 4 | `critical` (DoH>120 慢销) | 下降 | 任意 | 任意 | `REDUCE_PRICE` |
+| 5 | `critical` (DoH>120 慢销) | 稳定/上升 | > 3 | 任意 | `REDUCE_PRICE` |
+| 6 | `critical` (DoH>120 慢销) | 稳定/上升 | ≤ 3 | falling/trough | `HOLD` （可能是淡季引发的存量上升） |
+| 7 | `critical` (DoH>120 慢销) | 稳定/上升 | ≤ 3 | 其它 | `HOLD` |
+| 8 | `critical` (DoH 14-30 在卖) | 上升 | 任意 | peak/rising | `REPLENISH_NORMAL` + 旺季加注 |
+| 9 | `critical` (DoH 14-30 在卖) | 上升 | 任意 | 其它 | `REPLENISH_NORMAL` |
+| 10 | `critical` (DoH 14-30 在卖) | 下降 | 任意 | peak/rising | `REPLENISH_NORMAL` （旺季"下降"可能是补货跟进问题，不是需求弱化） |
+| 11 | `critical` (DoH 14-30 在卖) | 下降 | 任意 | 其它 | `HOLD` |
+| 12 | `deteriorating` | 下降 | 任意 | falling/trough | `HOLD` （可能是淡季引发的趋势下降，不是真恶化） |
+| 13 | `deteriorating` | 下降 | 任意 | 其它 | `REDUCE_PRICE` |
+| 14 | `deteriorating` | 稳定/上升 | 任意 | 任意 | `HOLD` |
+| 15 | `watch` | 任意 | 任意 | 任意 | `NO_ACTION` |
+| 16 | `healthy` | 任意 | 任意 | 任意 | `NO_ACTION` |
+| 17 | `unknown` | 任意 | 任意 | 任意 | `NO_ACTION` |
 
-> **critical 行细分**：critical 由多种条件触发（P1 断货 / P2 14-30 在卖 / P3-P5 库龄 / P6 死货），不同 critical 触发不同 action。表里用 `state + (DoH/库龄细化) + trend_label + 在途` 区分。代码层用 `compute_critical_subtype()` 辅助函数返回 `'shortage' | 'aging' | 'overstock'` 三个子类型，再查表——避免决策表行过多。
+> **critical 行细分**：critical 由多种条件触发（P1 断货 / P2 14-30 在卖 / P3-P5 库龄 / P6 死货），不同 critical 触发不同 action。表里用 `state + (DoH/库龄细化) + trend_label + 在途 + seasonal_phase` 区分。代码层用 `compute_critical_subtype()` 辅助函数返回 `'shortage' | 'aging' | 'overstock'` 三个子类型，再查表——避免决策表行过多。
+> **季节性覆盖说明**：
+> - `peak/rising` 场景下 `critical (DoH<14)` → 补货量上浮 30%（旺季断货损失远大于补货成本），标记 `_urgent: True` 进 signals。
+> - `falling/trough` 场景下 `deteriorating + 下降` → 不去 REDUCE_PRICE，避免误杀（可能是季节性回落而非真恶化）。
 
 **action 枚举**：
 ```python
@@ -144,12 +161,16 @@ class InventorySignals(BaseModel):
     dms_30: float | None
     trend_ratio_7_30: float | None   # dms_7 / dms_30
     trend_ratio_3_7: float | None    # 短期抖动
-    trend_label: str | None          # "上升" | "稳定" | "下降明显"
+    trend_label: str | None          # "上升" | "稳定" | "轻微下降" | "下降明显"
     trend_momentum: str | None       # "accelerating" | "decelerating" | "stable"
     aging_share: dict[str, float]    # {"0_90": 0.7, "91_180": 0.2, ...}
     transit_ratio: float | None      # 在途/可售
     data_freshness_days: int         # 快照距今天数
     confidence: str                  # "high" | "medium" | "low"
+    # NEW v1.1: 季节性因子（见 §2.4）
+    seasonal_factor: float | None    # YoY 比值；1.0=常态，>1=旺季，<1=淡季
+    seasonal_phase: str | None       # "peak" | "rising" | "neutral" | "falling" | "trough" | "unknown"
+    seasonal_source: str | None      # "sku_yoy" | "project_avg" | "neutral"
 ```
 
 **`trend_momentum` 算法**（用户问题 3 拍板：用双比值差）：
@@ -168,6 +189,95 @@ if dms_7 and dms_14 and dms_30 and dms_30 > 0:
 - `high`: dms_30 存在 + 库龄分档齐全 + 快照 ≤ 1 天
 - `medium`: dms_30 存在但库龄缺失一项 / 快照 2-3 天
 - `low`: dms_30 缺失 / 快照 > 3 天 / 大量数据缺失
+
+### 2.4 季节性因子（v1.1 新增）——全自动，无人工配置
+
+**核心问题**：Amazon 销售有季节性（Prime Day / 圣诞 / 夏季户外 / 节庆礼品等）。同一个 DoH=30 在 7 月（旺季）比在 2 月（淡季）危险得多——因为旺季 dms 会更高，库存消耗更快。
+
+**但用户明确说不想手动指定月度销售趋势**——所以必须是**系统化自动**检测。原则：
+
+- **每个 SKU 自己的"季节性基线"**——基于 YoY 数据自动学，不需要任何人工标注
+- **新 SKU 没历史 → 用项目级平均**——项目层面的所有 SKU 整体走势
+- **全新 SKU 没项目级基线 → 不做季节性调整**（seasonal_factor=1.0）
+
+#### 2.4.1 seasonal_factor 算法
+
+```python
+def compute_seasonal_factor(
+    dms_30: float | None,
+    dms_7: float | None,
+    dms_30_yoy: float | None,
+    dms_7_yoy: float | None,
+    project_seasonal_avg: float | None,
+) -> tuple[float | None, str]:
+    """返回 (seasonal_factor, source)。
+    source ∈ {"sku_yoy", "project_avg", "neutral"}。
+    """
+
+    # 路线 1: SKU 自己的 YoY 比值（优先）
+    ratios = []
+    if dms_30 and dms_30_yoy and dms_30_yoy > 0:
+        ratios.append(dms_30 / dms_30_yoy)
+    if dms_7 and dms_7_yoy and dms_7_yoy > 0:
+        ratios.append(dms_7 / dms_7_yoy)
+
+    if ratios:
+        factor = sum(ratios) / len(ratios)
+        return (factor, "sku_yoy")
+
+    # 路线 2: 项目级平均（YoY 数据缺失时）
+    if project_seasonal_avg is not None and project_seasonal_avg > 0:
+        return (project_seasonal_avg, "project_avg")
+
+    # 路线 3: 不做调整
+    return (None, "neutral")
+```
+
+**为什么取 dms_30_yoy 和 dms_7_yoy 两个**：30D 是稳定基线，7D 是近期抖动——两个综合可以过滤单窗口噪声。
+
+**阈值 (project_seasonal_avg) 计算**：项目级所有 SKU 的 seasonal_factor 的中位数（避免被少数爆品或死货拉偏）——计算一次缓存 24 小时。
+
+#### 2.4.2 seasonal_phase 划分
+
+```python
+SEASONAL_PHASE_THRESHOLDS = {
+    "peak":    1.3,   # factor > 1.3 → 旺季（同期销量比去年高 30%+）
+    "rising":  1.1,   # 1.1 < factor ≤ 1.3 → 向旺季走
+    "neutral": 0.9,   # 0.9 ≤ factor ≤ 1.1 → 常态
+    "falling": 0.7,   # 0.7 ≤ factor < 0.9 → 向淡季走
+    "trough":  None,  # factor < 0.7 → 淡季
+}
+# factor=None → "unknown"
+```
+
+#### 2.4.3 如何应用到判定
+
+**state 判定**：用 **seasonal-adjusted sellable_days**（以下简写 `adjusted_sellable_days`）替代原始 `sellable_days`：
+
+```python
+adjusted_sellable_days = sellable_days / seasonal_factor  # factor=1.3 → 缩水 23%
+```
+
+判定表 §2.1 中所有 `sellable_days` 字样替换为 `adjusted_sellable_days`。原始 `sellable_days` 仍保留在 `signals` 里供运营对照。
+
+**action 判定**：用 `seasonal_phase` 作为辅助信号加进决策表（详见 §2.2.1）——旺季断货比淡季更急，淡季的"销量下降"不一定是真恶化（可能是季节性回落）。
+
+#### 2.4.4 为什么不需要人配置月度趋势
+
+- YoY 数据已经在 seasonal_replenishment 端点算过（`dms_30_yoy` 等），**直接复用**，不增加新计算
+- 项目级平均用中位数算一次（24h 缓存），不需手动
+- 没有"月度销售趋势表""淡旺季日历表"任何人工输入——**纯数据驱动**
+
+#### 2.4.5 边界 case 与处理
+
+| 情况 | factor | phase | confidence |
+|---|---|---|---|
+| 新 SKU（< 12 月）| 用 project_avg | 同上 | medium |
+| 全新项目（无任何 SKU 有 12 月数据）| None | "unknown" | low |
+| dms_30_yoy 为 None 但 dms_30 > 0 | 用 dms_7_yoy 单点 | 同上 | medium |
+| dms_30_yoy=0（去年此时也不卖）| None → neutral | "unknown" | low |
+| factor=0 或负 | 视为异常 → None | "unknown" | low |
+| factor > 3（极旺）| clamp 到 3.0 | "peak" | high |
 
 ## 3. 数据库与 Schema
 
@@ -237,18 +347,27 @@ def compute_trend_label(dms_7, dms_30) -> str:
     """复用 health_score._score_trend 语义，返回 上升/稳定/轻微下降/下降明显 之一。"""
     ...
 
-def compute_inventory_state(item: ItemInput, trend_label: str) -> tuple[str, str | None]:
+def compute_seasonal_adjusted_sellable_days(
+    sellable_days: float | None,
+    seasonal_factor: float | None,
+) -> float | None:
+    """sellable_days / seasonal_factor；factor=None 返原值。"""
+    ...
+
+def compute_inventory_state(item: ItemInput, trend_label: str, adjusted_sellable_days: float | None) -> tuple[str, str | None]:
     """返回 (state, critical_subtype_or_None)。critical_subtype 仅当 state=='critical' 时返回 'shortage'|'aging'|'overstock'，其他返回 None。"""
     ...
 
 def compute_replenishment_action(
-    state: str, critical_subtype: str | None, trend_label: str, transit_ratio: float
+    state: str, critical_subtype: str | None, trend_label: str, transit_ratio: float,
+    seasonal_phase: str | None,
 ) -> str:
     """返回 ReplenishmentAction 枚举值。"""
     ...
 
 def compute_signals(item: ItemInput, trend_label: str, trend_momentum: str,
-                    snapshot_age_days: int) -> InventorySignals:
+                    snapshot_age_days: int, seasonal_factor: float | None,
+                    seasonal_phase: str | None, seasonal_source: str | None) -> InventorySignals:
     """返回 InventorySignals dataclass / schema。"""
     ...
 
@@ -257,7 +376,14 @@ def compute_trend_momentum(dms_7, dms_14, dms_30) -> str:
     ...
 ```
 
-**主函数改动**：在每个 SKU row 拼装时（line ~1100），调用上面 3 个函数，把结果塞进 `InventoryReplenishmentListItem`。
+**主函数改动**：在每个 SKU row 拼装时（line ~1100），按顺序调用：
+1. `seasonal_factor.compute_seasonal_factor()` （§4.4）→ seasonal_factor + source
+2. `state_action.compute_seasonal_adjusted_sellable_days()` → adjusted_sellable_days
+3. `state_action.compute_trend_label()` + `compute_inventory_state()` → state + critical_subtype
+4. `state_action.compute_replenishment_action()` → action
+5. `state_action.compute_signals()` → InventorySignals
+
+**SQL 改动**：replenishment.py 主函数多查 1 个 `_load_seasonal_dms_map`（复用 seasonal_replenishment 已有的 SQL，见 §4.4）。
 
 **`_classify_risk` 不删除**：保留供 summary 统计的旧字段映射使用（兼容）。
 
@@ -278,7 +404,7 @@ def compute_trend_momentum(dms_7, dms_14, dms_30) -> str:
 """
 inventory_state + replenishment_action 判定逻辑。
 
-输入：ItemInput（与 health_score.ItemInput 复用）+ trend_label + transit_ratio
+输入：ItemInput（与 health_score.ItemInput 复用）+ trend_label + transit_ratio + seasonal_phase
 输出：(inventory_state, replenishment_action, signals_dict)
 """
 ```
@@ -288,6 +414,48 @@ inventory_state + replenishment_action 判定逻辑。
 - 后续 C（预测式）方案可复用 `inventory_state` 函数
 - 测试独立——state_action_test.py 单独维护 case
 
+### 4.4 新建模块 `backend/app/services/inventory/seasonal_factor.py`（v1.1 新增）
+
+独立的季节性因子计算模块。**复用** seasonal_replenishment 已有的 `_load_seasonal_dms_map` SQL（不重写），再加项目级平均缓存。
+
+```python
+# backend/app/services/inventory/seasonal_factor.py
+"""
+季节性因子计算。系统化、不需人工配置。
+
+输入：dms_30 / dms_7 / dms_30_yoy / dms_7_yoy (单 SKU)
+输出：(seasonal_factor, seasonal_phase, source)
+
+依赖：
+- _load_seasonal_dms_map 已有（replenishment.py 内）
+- _compute_project_seasonal_avg 本模块新增（中位数 + 24h 缓存）
+"""
+
+SEASONAL_PHASE_THRESHOLDS = {
+    "peak": 1.3,
+    "rising": 1.1,
+    "neutral_low": 0.9,
+    "falling": 0.7,
+}
+
+def compute_seasonal_factor(
+    dms_30, dms_7, dms_30_yoy, dms_7_yoy,
+    project_seasonal_avg: float | None,
+) -> tuple[float | None, str, str]:
+    """返回 (factor, phase, source)。"""
+    ...
+
+def _compute_project_seasonal_avg(
+    db, project_id, country,
+) -> float | None:
+    """项目级所有 SKU seasonal_factor 的中位数。"""
+    # 1. 查所有 SKU 的 dms_30 / dms_30_yoy
+    # 2. 算每个 SKU 的 factor（如果可能）
+    # 3. 取中位数
+    # 4. cache 24h（key: project:{id}:seasonal_avg）
+    ...
+```
+
 ## 5. 前端改动
 
 ### 5.1 `frontend/app/dashboard/supply-chain/inventory-replenishment/page.tsx`
@@ -296,7 +464,8 @@ inventory_state + replenishment_action 判定逻辑。
 - 保留"风险状态"列（key=`risk_status`），语义不变（显示 emoji）
 - **新增**"行动"列（key=`replenishment_action`）：显示 `REPLENISH_NOW` / `REDUCE_PRICE` / `HOLD` 等，带颜色映射
 - **新增**"趋势"列（key=`signals.trend_momentum`）：显示 `↑加速上升` / `↑稳定` / `↓加速下降` / `↓减速下降` / `→平稳`
-- 表格默认列宽调整：风险状态 -2，行动 +10，趋势 +10
+- **新增**"季节性"列（key=`signals.seasonal_phase`）：显示 `🔥旺季` / `↗向旺季` / `→常态` / `↘向淡季` / `❄️淡季` / `?未知`——附加 hover tooltip 显示 `seasonal_factor` 数值
+- 表格默认列宽调整：风险状态 -2，行动 +10，趋势 +10，季节性 +10
 
 **改动 2：行背景色（按 action 主导，state 辅助）**
 - `REPLENISH_NOW` / `REMOVE`: 红底
@@ -307,7 +476,7 @@ inventory_state + replenishment_action 判定逻辑。
 - 额外装饰（与背景色可叠加）：`inventory_state == deteriorating` 的行加左侧边框轮廓（橙色）
 
 **改动 3：Excel 导出**
-- 增加 2 列：`行动`、`趋势`
+- 增加 3 列：`行动`、`趋势`、`季节性`（factor + phase）
 - summary 行的 critical_count / deteriorating_count 单独统计
 
 ### 5.2 不改
@@ -339,7 +508,29 @@ inventory_state + replenishment_action 判定逻辑。
 - `test_signals_confidence_high` —— 数据齐全 + 快照新
 - `test_signals_confidence_low` —— dms_30 缺失
 
+**新增** `backend/tests/services/inventory/test_seasonal_factor.py`（v1.1）：
+
+- `test_factor_from_sku_yoy` —— dms_30=2.0, dms_30_yoy=1.0 → factor=2.0, source='sku_yoy'
+- `test_factor_average_of_two_yoy_ratios` —— 30D 和 7D 比值取平均
+- `test_factor_fallback_to_project_avg` —— SKU 没 yoy，用项目级
+- `test_factor_neutral_when_no_history` —— SKU + 项目都没 yoy → None, source='neutral'
+- `test_phase_peak` —— factor > 1.3 → 'peak'
+- `test_phase_rising` —— 1.1 < factor ≤ 1.3 → 'rising'
+- `test_phase_neutral` —— 0.9 ≤ factor ≤ 1.1 → 'neutral'
+- `test_phase_falling` —— 0.7 ≤ factor < 0.9 → 'falling'
+- `test_phase_trough` —— factor < 0.7 → 'trough'
+- `test_factor_clamp_when_extreme` —— factor=5.0 → clamp 到 3.0
+- `test_factor_handles_zero_yoy` —— yoy=0 → None, source='neutral'
+- `test_action_hold_for_deteriorating_in_trough_phase` —— 季节性下行场景
+- `test_action_replenish_normal_for_critical_in_peak_phase` —— 旺季补货加注
+
 **保留**既有 `test_health_score.py` 14 个测试（不动）。
+
+**新增** `backend/tests/services/inventory/test_seasonal_integration.py`（v1.1）：
+
+- `test_state_uses_adjusted_sellable_days_in_peak` —— 旺季 DoH 30 划归 critical (因 30 / 1.3 ≈ 23)
+- `test_state_uses_adjusted_sellable_days_in_trough` —— 淡季 DoH 90 仍为 healthy (因 90 / 0.7 ≈ 128)
+- `test_action_phase_affects_decision` —— 同 state 不同 phase 不同 action
 
 ### 6.2 API 集成测试
 
@@ -382,20 +573,20 @@ inventory_state + replenishment_action 判定逻辑。
   - 前端：移除"行动"/"趋势"列，回退到只显示 `risk_status` emoji
 - **回退时间**：1 个工作日内完成（不涉及数据库）
 
-## 8. 影响面汇总
+## 8. 影响面汇总（v1.1 含季节性）
 
 | 范围 | 改动文件 | 改动量 |
 |---|---|---|
-| 后端服务 | `state_action.py`（新建）+ `replenishment.py`（增函数） | ~150 行新增 |
-| 后端 schema | `inventory_replenishment.py`（加字段） | ~30 行 |
+| 后端服务 | `state_action.py`（新建）+ `seasonal_factor.py`（新建）+ `replenishment.py`（增函数 + 多查一次 YoY SQL） | ~230 行新增 |
+| 后端 schema | `inventory_replenishment.py`（加字段含 seasonal 3 个） | ~40 行 |
 | 后端 API | `replenishment_analysis.py`（无改动，schema 自动） + `inventory_replenishment.py` 内部端点 | 0 行（schema 透传） |
-| 后端测试 | `test_state_action.py`（新建）+ `test_three_segment.py`（新建） | ~250 行新增 |
-| 前端页面 | `inventory-replenishment/page.tsx`（加 2 列 + 行色 + Excel） | ~80 行 |
+| 后端测试 | `test_state_action.py`（新建）+ `test_seasonal_factor.py`（新建）+ `test_seasonal_integration.py`（新建）+ `test_three_segment.py`（新建） | ~400 行新增 |
+| 前端页面 | `inventory-replenishment/page.tsx`（加 3 列含季节性 + 行色 + Excel） | ~100 行 |
 | 前端 schema 类型 | `api-generated/api.d.ts`（regen） | 自动 |
 | 数据库 | 无 | 0 |
 | 现有单测 | `test_health_score.py`（保留不动） | 0 |
 | 库存分析页面 | 不动 | 0 |
-| Seasonal replenishment | 不动 | 0 |
+| Seasonal replenishment endpoint/页面 | 不动 | 0 |
 
 ## 9. 关键决策记录
 
@@ -412,6 +603,11 @@ inventory_state + replenishment_action 判定逻辑。
 | D9 | trend_momentum 用双比值差 | 比 dms_3/dms_7 噪声小，比单比值稳定 |
 | D10 | 不加 REPLENISH_HALF | YAGNI；half-quantity 是 quantity 调整不是 action 扩展 |
 | D11 | 前端加 Excel 列扩展 | 已有 vitest 模式，无需新基建 |
+| D12 (v1.1) | 季节性因子用 YoY 自动算，**不**人工配置月度趋势 | YoY 数据已在 seasonal_replenishment 端点算过，直接复用；新 SKU 用项目级平均；全新 SKU 不调整 |
+| D13 (v1.1) | seasonal_factor 范围 [0.3, 3.0] clamp | 极端值避免 state 判定跳变 |
+| D14 (v1.1) | state 判定用 adjusted_sellable_days（除以 seasonal_factor） | 旺季 DoH 30 与淡季 DoH 30 不等价；季节性调整让阈值自适应 |
+| D15 (v1.1) | action 表增加 seasonal_phase 列 | 旺季断货升级、淡季趋势下降 HOLD（避免误杀） |
+| D16 (v1.1) | seasonal_endpoint 本身**不动** | A4 决策不判 risk；本次只是复用其数据 |
 
 ## 10. 后续（不本 spec 范围）
 
@@ -421,14 +617,17 @@ inventory_state + replenishment_action 判定逻辑。
 
 ## 11. 验收标准（Definition of Done）
 
-- [ ] `test_state_action.py` 13 个测试全绿
+- [ ] `test_state_action.py` 15 个测试全绿
+- [ ] `test_seasonal_factor.py` 12 个测试全绿（v1.1）
+- [ ] `test_seasonal_integration.py` 3 个测试全绿（v1.1）
 - [ ] `test_three_segment.py` 4 个测试全绿
 - [ ] `test_health_score.py` 既有 14 个测试保留全绿
-- [ ] 外部 API `/api/v1/external/projects/{id}/replenishment-analysis` 响应包含 `inventory_state` / `replenishment_action` / `signals` 3 个新字段族
+- [ ] 外部 API `/api/v1/external/projects/{id}/replenishment-analysis` 响应包含 `inventory_state` / `replenishment_action` / `signals` 3 个新字段族（signals 含 `seasonal_factor` / `seasonal_phase` / `seasonal_source`）
 - [ ] 内部 API `/api/v1/inventory-replenishment` 同上
 - [ ] summary `critical_count` / `deteriorating_count` / `watch_count` / `healthy_count` / `unknown_count` 数字正确（手动抽查 5 个项目）
-- [ ] 前端 `inventory-replenishment` 页面新增"行动"列 + "趋势"列，行色按 action 渲染
-- [ ] Excel 导出新增 2 列
+- [ ] 前端 `inventory-replenishment` 页面新增"行动"列 + "趋势"列 + "季节性"列，行色按 action 渲染
+- [ ] Excel 导出新增 3 列（行动 / 趋势 / 季节性）
 - [ ] pnpm lint / pnpm build / pnpm test 全过
-- [ ] 部署后真实项目抽查：1 个 deteriorating SKU、1 个 critical SKU、1 个 healthy SKU 验证显示正确
+- [ ] 部署后真实项目抽查：1 个 deteriorating SKU、1 个 critical SKU、1 个 healthy SKU、1 个旺季 SKU、1 个淡季 SKU 验证显示正确
+- [ ] 项目级 `seasonal_avg` 缓存 24h 生效（不重复算）
 - [ ] `git deploy` 推送命中 `backend/` 触发 VPS 自动部署（前端 Vercel 自动）
