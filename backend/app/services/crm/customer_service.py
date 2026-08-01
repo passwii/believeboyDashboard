@@ -6,7 +6,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmContact, CrmCustomer
-from app.schemas.crm import CustomerCreate, CustomerUpdate
+from app.schemas.crm import ContactCreate, CustomerCreate, CustomerUpdate
+from app.services.crm import contact_service
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -162,11 +163,28 @@ def create_customer(
     db: Session, payload: CustomerCreate, *, user_id: str | None, commit: bool = True
 ):
     cur = _current_user_id(user_id)
-    cust = CrmCustomer(**payload.model_dump(exclude_unset=True), created_by=cur)
+    data = payload.model_dump(exclude_unset=True)
+    # 联系人字段不属于 CrmCustomer 列，先弹出，避免传给模型构造器报错
+    contact_name = (data.pop("contact_name", None) or "").strip() or None
+    contact_phone = data.pop("contact_phone", None)
+    contact_email = data.pop("contact_email", None)
+    cust = CrmCustomer(**data, created_by=cur)
     if cust.owner_id is None and cur is not None:
         cust.owner_id = cur  # 默认归创建人
     db.add(cust)
     db.flush()
+    if contact_name:
+        contact_service.create_contact(
+            db,
+            cust.id,
+            ContactCreate(
+                name=contact_name,
+                phone=contact_phone or None,
+                email=contact_email or None,
+                is_primary=True,
+            ),
+            commit=False,
+        )
     if commit:
         db.commit()
     db.refresh(cust)

@@ -26,6 +26,10 @@ class CustomerCreate(BaseModel):
     annual_revenue: float | None = None
     employee_count: int | None = None
     remark: str | None = None
+    # 联系人（contact_name 非空 → 建主联系人；phone/email 附带）
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
 
 
 class CustomerUpdate(BaseModel):

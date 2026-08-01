@@ -1,8 +1,9 @@
 """customer_service TDD tests — CRUD / scope / batch / sea / primary contact join."""
+
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmContact, CrmCustomer
@@ -25,6 +26,7 @@ CAROL = "33333333-3333-3333-3333-333333333333"
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 def _clean_crm_tables(db_session):
@@ -49,14 +51,18 @@ def _clean_crm_tables(db_session):
     yield
 
 
-def _seed_customer(db: Session, name: str = "Acme", owner_id: str | None = ALICE, **kw) -> CrmCustomer:
+def _seed_customer(
+    db: Session, name: str = "Acme", owner_id: str | None = ALICE, **kw
+) -> CrmCustomer:
     c = CrmCustomer(name=name, owner_id=owner_id, created_by=owner_id, **kw)
     db.add(c)
     db.flush()
     return c
 
 
-def _seed_contact(db: Session, customer_id: int, name: str, is_primary: bool = False, **kw) -> CrmContact:
+def _seed_contact(
+    db: Session, customer_id: int, name: str, is_primary: bool = False, **kw
+) -> CrmContact:
     ct = CrmContact(customer_id=customer_id, name=name, is_primary=is_primary, **kw)
     db.add(ct)
     db.flush()
@@ -64,6 +70,7 @@ def _seed_contact(db: Session, customer_id: int, name: str, is_primary: bool = F
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
+
 
 class TestCreate:
     def test_create_returns_item_with_owner_default(self, db_session: Session):
@@ -128,6 +135,7 @@ class TestDelete:
 
 # ── scope ────────────────────────────────────────────────────────────────────
 
+
 class TestScope:
     def test_scope_mine(self, db_session: Session):
         _seed_customer(db_session, name="Mine", owner_id=ALICE)
@@ -152,12 +160,15 @@ class TestScope:
 
     def test_keyword_filter(self, db_session: Session):
         _seed_customer(db_session, name="UniqueXYZ")
-        items, total = list_customers(db_session, user_id=None, scope="all", keyword="UniqueXYZ")
+        items, total = list_customers(
+            db_session, user_id=None, scope="all", keyword="UniqueXYZ"
+        )
         assert total == 1
         assert items[0].name == "UniqueXYZ"
 
 
 # ── batch ────────────────────────────────────────────────────────────────────
+
 
 class TestBatch:
     def test_batch_transfer(self, db_session: Session):
@@ -178,6 +189,7 @@ class TestBatch:
 
 # ── claim from sea ───────────────────────────────────────────────────────────
 
+
 class TestClaim:
     def test_claim_success(self, db_session: Session):
         c = _seed_customer(db_session, name="SeaCo", owner_id=None)
@@ -196,8 +208,11 @@ class TestClaim:
 
 # ── owner_name join（UUID 类型匹配后应能正常解析）────────────────────────────
 
+
 class TestOwnerNameJoin:
-    def test_owner_name_resolves_from_user_accounts(self, db_session: Session, test_admin: dict):
+    def test_owner_name_resolves_from_user_accounts(
+        self, db_session: Session, test_admin: dict
+    ):
         admin_id = str(test_admin["id"])
         c = _seed_customer(db_session, name="NamedOwner", owner_id=admin_id)
         item = get_customer(db_session, c.id)
@@ -208,11 +223,18 @@ class TestOwnerNameJoin:
 
 # ── primary contact join ─────────────────────────────────────────────────────
 
+
 class TestPrimaryContactJoin:
     def test_primary_contact_fields(self, db_session: Session):
         c = _seed_customer(db_session, name="WithContact")
-        _seed_contact(db_session, c.id, name="Primary", is_primary=True,
-                      phone="123", email="p@x.com")
+        _seed_contact(
+            db_session,
+            c.id,
+            name="Primary",
+            is_primary=True,
+            phone="123",
+            email="p@x.com",
+        )
         _seed_contact(db_session, c.id, name="Secondary", is_primary=False)
         item = get_customer(db_session, c.id)
         assert item.contact_name == "Primary"
@@ -235,6 +257,45 @@ class TestPrimaryContactJoin:
     def test_list_includes_contact(self, db_session: Session):
         c = _seed_customer(db_session, name="ListContact")
         _seed_contact(db_session, c.id, name="LC", is_primary=True, phone="999")
-        items, _ = list_customers(db_session, user_id=None, scope="all", keyword="ListContact")
+        items, _ = list_customers(
+            db_session, user_id=None, scope="all", keyword="ListContact"
+        )
         assert items[0].contact_name == "LC"
         assert items[0].contact_phone == "999"
+
+
+# ── 新建客户带联系人（修复丢失联系人 bug）────────────────────────────────────
+class TestCreateWithContact:
+    def test_create_with_contact_builds_primary_contact(self, db_session: Session):
+        payload = CustomerCreate(
+            name="带联系人公司",
+            contact_name="张三",
+            contact_phone="13800000000",
+            contact_email="zhang@example.com",
+        )
+        item = create_customer(db_session, payload, user_id=ALICE)
+        assert item.contact_name == "张三"
+        assert item.contact_phone == "13800000000"
+        ct = (
+            db_session.execute(
+                select(CrmContact).where(CrmContact.customer_id == item.id)
+            )
+            .scalars()
+            .all()
+        )
+        assert len(ct) == 1
+        assert ct[0].is_primary is True
+        assert ct[0].name == "张三"
+
+    def test_create_without_contact_name_creates_no_contact(self, db_session: Session):
+        # 只有电话没有联系人姓名 → 不建联系人（contact_name 驱动）
+        payload = CustomerCreate(name="无联系人", contact_phone="13900000000")
+        item = create_customer(db_session, payload, user_id=ALICE)
+        ct = (
+            db_session.execute(
+                select(CrmContact).where(CrmContact.customer_id == item.id)
+            )
+            .scalars()
+            .all()
+        )
+        assert ct == []
