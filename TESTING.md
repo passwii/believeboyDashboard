@@ -253,6 +253,23 @@ def test_xxx(client, operator_headers, db_session):
 
 参见 plan §路线图 **R1 / R2**：
 
+### Discovery Crawl（全页面体检）
+
+```bash
+# 跑全量 78 页体检（真登录 + 采集 console/network errors + 截图 + 报告）
+pnpm test:ui -- tests/crawl/discovery.spec.ts --project=chromium
+
+# 报告输出：
+#   test-results/crawl-report.md   ← 人读（按 ❌/⚠️/✅ 分组 + 加载耗时排序）
+#   test-results/crawl-report.json ← 程序读
+#   test-results/crawl/*.png       ← 每页截图
+```
+
+- **用途**：拿到陌生系统 / 大版本更新后第一步跑，快速发现“哪些页面打不开 / 报错 / 接口 4xx-5xx / 加载慢”。
+- **报告解读**：❌ = 有 console error / pageerror / 5xx（前端 bug 或后端契约问题）；⚠️ = 有 warning / 4xx / 空白页（可能是权限问题或数据缺失）；✅ = 干净。
+- **后续**：报告里的 ❌ 列表 = 写 functional test 的优先级输入。按“高风险页面优先”原则，让 agent 或人工针对具体页面写 functional smoke。
+- **路由列表**：硬编码在 `tests/crawl/discovery.spec.ts` 的 `ROUTES` 数组里。新增页面后手动加一行（或重跑 `find app/dashboard -name page.tsx | sed ...` 重新生成）。
+
 - 在 `backend/scripts/agent_testing/matrices/` 新建数据驱动的矩阵声明。
 - 用 `@pytest.mark.parametrize` 遍历。
 - 不要把矩阵写进 conftest；conftest 只放"如何登录、如何取数据库"的原语。
