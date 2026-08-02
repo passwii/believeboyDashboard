@@ -320,6 +320,26 @@ class TestReturnAnalysisAggregateContract:
         sku_b = next(r for r in body["data"] if r["sku"] == "BEL-374-B")
         assert sku_b["risk_level"] == "critical"
 
+    def test_sales_quantity_uses_max_for_cumulative(self, client, seeded_project):
+        """BEL-376: snapshot 行 sales_quantity 是 cumulative 的；消费者应取 max 而非 sum。
+        固定数据：BEL-374-A 有 2 天 daily snapshot，sales_quantity=100 (cumulative)。
+        当前 buggy += 会输出 200；修复后 max 应输出 100。
+        """
+        resp = client.get(
+            _aggregate_url(
+                seeded_project,
+                period="7d",
+                country="US",
+                order_by="sku",
+                order_dir="asc",
+            )
+        )
+        body = resp.json()
+        sku_a = next(r for r in body["data"] if r["sku"] == "BEL-374-A")
+        assert sku_a["sales_quantity"] == 100, (
+            f"sales_quantity must be max across rows (cumulative), got {sku_a['sales_quantity']}"
+        )
+
     def test_summary_counts_match(self, client, seeded_project):
         resp = client.get(
             _aggregate_url(

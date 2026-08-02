@@ -59,7 +59,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisReturnAggregate, AnalysisReturnRow
-from app.utils.stats import wilson_lower_bound
+from app.utils.stats import wilson_lower_bound, compute_risk_level
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +202,9 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
         agg = by_sku[sku]
         agg["return_count"] += r["return_count"]
         agg["return_quantity"] += r["return_quantity"]
-        agg["sales_quantity"] += r["sales_quantity"]
+        # BEL-376: snapshot sales_quantity 是 cumulative-through-date,
+        # 跨天多行时取 max（最后一个 row 的累计值就是 total through window end）
+        agg["sales_quantity"] = max(agg["sales_quantity"], r["sales_quantity"])
 
         # Weighted cycle avg: weight by return_quantity (matches the
         # internal endpoint math).
@@ -246,6 +248,9 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
     for sku, agg in by_sku.items():
         rq = agg["return_quantity"]
         sq = agg["sales_quantity"]
+        # BEL-376: risk_level 从 rolled totals 重算（与 internal endpoint 一致），
+        # 不再取“worst across daily rows”——后者在 cumulative 语义下无意义。
+        risk_level, _ = compute_risk_level(rq, sq)
         cycle_avg = (
             round(agg["_cycle_weighted_sum"] / rq, 2)
             if rq > 0 and agg["_cycle_weighted_sum"] > 0
@@ -265,7 +270,7 @@ def _collapse_to_per_sku(rows: Iterable[dict]) -> list[dict]:
                 "reason_top1": agg["_reason_top1"],
                 "disposition_top1": agg["_disposition_top1"],
                 "dominant_fc_id": agg["_dominant_fc_id"],
-                "risk_level": agg["_risk_worst"],
+                "risk_level": risk_level,
             }
         )
     return out
