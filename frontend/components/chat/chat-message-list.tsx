@@ -1,14 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Brain, Bot, Check, Globe, RefreshCw, Sparkles, User, X } from 'lucide-react'
+import { Brain, Bot, Check, Globe, Hash, RefreshCw, Sparkles, User, X } from 'lucide-react'
 import gsap from 'gsap'
 import { AIChatMessageContent } from '@/components/ai-chat-message-content'
 import { AIChatSearchSources } from '@/components/ai-chat-search-sources'
 import { TypingIndicator } from './typing-indicator'
 import { MessageActions } from './message-actions'
+import { TokenFooter } from './token-footer'
 import type { ChatMessage } from './types'
 import type { SearchSource } from '@/lib/api/ai-chat'
+import type { StreamUsage } from '@/lib/api/ai-chat-stream-v2'
+import { formatTokenCount } from '@/lib/format/token-count'
 
 interface ChatMessageListProps {
   messages: ChatMessage[]
@@ -27,32 +30,10 @@ interface ChatMessageListProps {
   onRetry?: () => void
   /** In-flight web-search status for the latest assistant turn. */
   pendingSearchState?: { searching: boolean; sources: SearchSource[] } | null
+  /** In-flight token usage deltas from `message_delta` events (live streaming counter). */
+  pendingUsage?: StreamUsage | null
   /** True when any message in this conversation used web search. */
   usedWebSearch?: boolean
-}
-
-function formatDuration(ms?: number | null): string {
-  if (!ms || ms <= 0) return ''
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
-}
-
-function TokenFooter({ message }: { message: ChatMessage }) {
-  if (!message.tokenUsage && !message.durationMs) return null
-  const parts: string[] = []
-  if (message.tokenUsage) {
-    parts.push(
-      `prompt ${message.tokenUsage.prompt} · completion ${message.tokenUsage.completion} · total ${message.tokenUsage.total}`
-    )
-  }
-  if (message.durationMs) {
-    parts.push(formatDuration(message.durationMs))
-  }
-  return (
-    <div className="mt-1.5 flex items-center gap-1 px-1 text-[10px] text-[#5a5a5f]">
-      <span>{parts.join(' · ')}</span>
-    </div>
-  )
 }
 
 function ThinkingBlock({ content }: { content: string }) {
@@ -148,6 +129,7 @@ export function ChatMessageList({
   streamError,
   onRetry,
   pendingSearchState,
+  pendingUsage,
   usedWebSearch = false,
 }: ChatMessageListProps) {
   // GSAP entrance animation for new messages
@@ -299,7 +281,9 @@ export function ChatMessageList({
                 )}
 
               {/* Token / duration footer */}
-              {msg.role === 'assistant' && !msg.streaming && <TokenFooter message={msg} />}
+              {msg.role === 'assistant' && !msg.streaming && (
+                <TokenFooter tokenUsage={msg.tokenUsage} durationMs={msg.durationMs} />
+              )}
 
               {/* Streaming indicator */}
               {msg.streaming && msg.content && (
@@ -320,6 +304,16 @@ export function ChatMessageList({
                   <span className="hidden sm:inline">
                     {msg.searchSources && msg.searchSources.length > 0 ? '搜索中...' : '生成中...'}
                   </span>
+                  {/* Live token counter (arrives via `message_delta` events mid-stream). */}
+                  {pendingUsage && (pendingUsage.total_tokens > 0 || pendingUsage.prompt_tokens > 0) && (
+                    <span
+                      className="ml-1 hidden items-center gap-0.5 rounded-md border border-white/[0.06] bg-white/[0.03] px-1 py-0.5 text-[10px] font-medium text-[#8a8a8f] sm:inline-flex"
+                      aria-label={`当前累计 ${formatTokenCount(pendingUsage.total_tokens)} tokens`}
+                    >
+                      <Hash className="size-2.5 text-[#5a5a5f]" aria-hidden />
+                      <span>{formatTokenCount(pendingUsage.total_tokens)}</span>
+                    </span>
+                  )}
                 </span>
               )}
 

@@ -47,6 +47,10 @@ function toClientConversation(server: ServerConversation): Conversation {
     createdAt: new Date(server.created_at).getTime(),
     updatedAt: new Date(server.updated_at).getTime(),
     messageCount: 0,
+    // 后端已累计：ui 显示累计 token 总量（在侧边栏小 chip）
+    totalTokens: server.total_tokens,
+    totalPromptTokens: server.total_prompt_tokens,
+    totalCompletionTokens: server.total_completion_tokens,
   }
 }
 
@@ -206,6 +210,7 @@ export function AIChatWindow({
     error: streamHookError,
     toolState,
     pendingSources,
+    pendingUsage,
   } = useChatStreamV2(activeServerIdRef, streamCallbacksRef)
 
   // Surface stream-hook errors as a transient banner.
@@ -915,6 +920,7 @@ export function AIChatWindow({
                 pendingSearchState={
                   toolState ? { searching: toolState.searching, sources: pendingSources } : null
                 }
+                pendingUsage={pendingUsage}
                 usedWebSearch={usedWebSearch}
                 onRetry={
                   messages.length >= 2 && isStreaming === false

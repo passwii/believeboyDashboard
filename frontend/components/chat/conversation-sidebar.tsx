@@ -14,7 +14,9 @@ import {
   Search,
   Sparkles,
   History,
+  Hash,
 } from 'lucide-react'
+import { formatTokenCount } from '@/lib/format/token-count'
 import type { Conversation } from './types'
 
 interface ConversationSidebarProps {
@@ -282,10 +284,24 @@ export function ConversationSidebar({
               <>
                 <div className="flex-1 min-w-0">
                   <span className="block text-[13px] font-medium truncate pr-1">{conv.title}</span>
-                  {conv.messageCount > 0 && (
-                    <span className="text-[10px] text-[#5a5a5f] mt-0.5 block">
-                      {conv.messageCount} 条消息
-                    </span>
+                  {(conv.messageCount > 0 || (conv.totalTokens ?? 0) > 0) && (
+                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[#5a5a5f]">
+                      {(conv.totalTokens ?? 0) > 0 && (
+                        <span
+                          className="inline-flex items-center gap-0.5"
+                          aria-label={`累计 ${formatTokenCount(conv.totalTokens)} tokens`}
+                        >
+                          <Hash className="size-2.5" aria-hidden />
+                          <span>{formatTokenCount(conv.totalTokens)}</span>
+                        </span>
+                      )}
+                      {(conv.totalTokens ?? 0) > 0 && conv.messageCount > 0 && (
+                        <span className="text-[#3a3a3f]" aria-hidden>·</span>
+                      )}
+                      {conv.messageCount > 0 && (
+                        <span>{conv.messageCount} 条消息</span>
+                      )}
+                    </div>
                   )}
                 </div>
                 {hoveredId === conv.id && (
