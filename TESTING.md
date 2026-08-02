@@ -14,8 +14,15 @@
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 2 · Playwright E2E（端到端真实浏览器鉴权 + UI 流程）         │
-│   → backend/scripts/agent_testing/README.md                      │
-│   → 鉴权核心：backend/scripts/agent_testing/auth.py               │
+│   · Python (pytest + agent)                                       │
+│     → backend/scripts/agent_testing/README.md                    │
+│     → 鉴权核心：backend/scripts/agent_testing/auth.py             │
+│   · TypeScript (frontend/tests)                                   │
+│     → smoke 例：frontend/tests/ai-chat/smoke.spec.ts              │
+│     → 该 spec 内联了 NextAuth credentials REST 流（参见 spec      │
+│       顶部 JSDoc 的「Auth pattern」段落，与 Python 模式一致）；   │
+│       仓库其他前端 spec 也都内联，因为 Playwright 1.59.1 加载    │
+│       跨文件 Node built-in 模块时存在 quirk。                    │
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 1 · pytest 单元 / 集成（FastAPI TestClient + 真实 DB）      │
@@ -34,20 +41,22 @@
 
 ---
 
-## 本地服务（mac / brew）按需启停
+## 本地服务（mac / brew）
 
-> **省资源原则：** 本地是 mac 开发机时，Postgres / Redis 用 `brew services` 管，
-> **跑测试前启动、测完关闭**，不要常驻后台吃内存。下面命令按需取用。
+> **当前状态（BEL-376 起）：** 本地 Postgres（brew `postgresql@18`）**常驻运行**——主库
+> `BLF` 是一份**生产数据快照**，用于通过本地 backend 做真实的读写 / 外部 API 集成测试
+> （见下方「本地生产快照库」一节）。因此旧的「跑测试前启动、测完关闭」省资源原则
+> **不再适用于 DB**；Redis 仍可按需启停（仅 Celery 定时报告 / AI 摘要等后台任务需要）。
 
-### 1. 启动（跑测试前）
+### 1. 启动（若 DB 未在跑）
 
 ```bash
-# PostgreSQL（应用 schema + 测试库 BLF_test 都建在本地 PG 上）
-brew services start postgresql@16     # 版本按本机 brew 装的实际大版本号调整
+# PostgreSQL（主库 BLF=生产快照 + 测试库 BLF_test 都建在本地 PG 上；BEL-376 起常驻）
+brew services start postgresql@18     # 版本按本机 brew 装的实际大版本号调整（当前 @18）
 # 确认在监听
 pg_isready                          # 期望 → /tmp:5432 - accepting connections
 
-# Redis（Celery broker：定时报告 / AI 摘要等后台任务依赖）
+# Redis（Celery broker：定时报告 / AI 摘要等后台任务依赖；纯读写测试可不起）
 brew services start redis
 # 确认在监听
 redis-cli ping                      # 期望 → PONG
@@ -61,8 +70,8 @@ redis-cli ping                      # 期望 → PONG
 ### 2. 关闭（测完释放资源）
 
 ```bash
-brew services stop postgresql@16
-brew services stop redis
+brew services stop redis            # Redis 可停
+brew services stop postgresql@18    # BEL-376 起 DB 常驻，一般不再停（停了本地 backend 连不上）
 # 想看当前在跑哪些 brew 服务
 brew services list
 ```
@@ -73,9 +82,48 @@ brew services list
 pg_isready && redis-cli ping        # 两者都通 → 直接跑测试即可
 ```
 
-> 注意：本地 PG 的 `DATABASE_URL` / `TEST_DATABASE_URL` 不在 `backend/.env`，
-> 而是从 shell 环境变量或运行时注入；`.env` 只放 R2 / API_KEY / 密码等。
-> 连哪个库以 `psql -l` 列出的本地库为准（主库一般为 `BLF`，测试库为 `BLF_test`）。
+> 注意（BEL-376 更新）：`backend/.env` 现已**直接写入** `DATABASE_URL`，指向本地生产快照
+> `postgresql+psycopg://damon:<pw>@localhost:5432/BLF`（旧值曾误指向死端口 `55432`，已修正为 `5432`）。
+> `TEST_DATABASE_URL` 仍在 `backend/.env.test`（gitignored）→ `BLF_test`，供自动化 pytest 隔离用。
+> 连哪个库以 `psql -l` 列出的本地库为准（主库 `BLF`=生产快照，测试库 `BLF_test`）。
+
+---
+
+## 本地生产快照库（BEL-376）— 集成 / 手动读写测试
+
+> **定位：** `BLF` 是从 VPS 生产库 `pg_dump` 下来、恢复到本地的**真实数据快照**（brew PG，
+> 端口 5432，常驻）。用途是**通过本地 backend 对真实数据做读写 / 外部 API 集成测试**，
+> 不必在 VPS 上操作。**与自动化 pytest 的 `BLF_test` 隔离机制互不影响**——pytest 仍走
+> `TEST_DATABASE_URL`→`BLF_test`（见上方架构分层），生产快照只用于手动 / 集成验证。
+
+### 起本地 backend 测外部 API
+
+`backend/.env` 的 `DATABASE_URL` 已指向本地 `BLF`，直接起即可（外部 API 无鉴权，P0 网关隔离）：
+
+```bash
+cd backend && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100
+# 另开终端调用（示例：项目 1 的美国站广告 + 补货分析）
+curl 'http://127.0.0.1:8100/api/v1/external/projects/1/ad-campaigns?period=custom&start_date=2026-07-01&end_date=2026-07-30&country=US&limit=5'
+curl 'http://127.0.0.1:8100/api/v1/external/projects/1/replenishment-analysis?country=US&page_size=5'
+```
+
+端点目录与参数见 [`backend/docs/external-api.md`](backend/docs/external-api.md)。
+
+### 刷新快照（拉最新生产数据）
+
+VPS 磁盘紧张，用**流式** `pg_dump` 经 SSH 直写本地（不落 VPS 盘），再 `pg_restore` 覆盖本地 `BLF`：
+
+```bash
+# 1. 流式备份到本地（密码从 VPS 的 backend/.env 取）
+ssh root@145.79.143.98 'export PGPASSWORD=$(grep -E "^DATABASE_URL=" /root/believeboyDashboard/backend/.env | sed -E "s#.*://damon:([^@]+)@.*#\1#"); pg_dump -U damon -h localhost -Fc --no-owner --no-privileges BLF' > ~/db_backups/BLF_prod_$(date +%Y%m%d).dump
+# 2. 旧库改名留底 → 重建 → 恢复
+psql -d postgres -c 'ALTER DATABASE "BLF" RENAME TO "BLF_prev_'$(date +%Y%m%d)'";'
+psql -d postgres -c 'CREATE DATABASE "BLF" OWNER damon ENCODING '"'"'UTF8'"'"';'
+pg_restore -U damon -d BLF -j 4 --no-owner --no-privileges ~/db_backups/BLF_prod_$(date +%Y%m%d).dump
+```
+
+> 恢复后的库比生产 `pg_database_size` 小很多属正常——生产含多年表膨胀（bloat），新恢复的库是紧凑的，数据一致。
+> 首次切换留下的旧本地 dev 库名为 `BLF_local_prev_*`，确认无用后可 `DROP DATABASE` 清理。
 
 ---
 
@@ -146,6 +194,8 @@ Playwright E2E (Layer 2):
 
 ### 加一个 Playwright E2E 测试
 
+#### Python (backend agent)
+
 ```python
 # backend/scripts/agent_testing/test_xxx.py
 from scripts.agent_testing.auth import login_as
@@ -159,6 +209,32 @@ def test_xxx(page):
 - **复用** `page` / `browser` fixture（agent_testing/conftest.py）。
 - **不要**自己写 `page.locator("#email").fill(...)`——用 `login_as`。
 - 会话失效？设 `AGENT_TEST_REFRESH_AUTH=1` 重跑一次。
+
+#### TypeScript (frontend)
+
+```ts
+// frontend/tests/<area>/<name>.spec.ts
+import { expect, test } from '@playwright/test'
+
+// 内联 NextAuth credentials REST 登录（参考 backend/scripts/agent_testing/auth.py）。
+// 复制粘贴很常见——每个 spec 都内联是因为 Playwright 1.59.1 加载跨文件 Node
+// built-in 模块时存在 quirk。读取 backend/.env.test 的 TEST_USER_EMAIL/
+// TEST_USER_PASSWORD（gitignored）来跑真实登录。
+
+test('AI chat sends a message and renders token footer', async ({ page }) => {
+  await loginAsUser(page)                         // 真 NextAuth 走 backend 账号
+  await page.route('**/api/ai-chat/config', (r) => // 干掉 LLM 网关，用确定性 mock
+    r.fulfill({ json: aiChatConfigFixture })
+  )
+  await page.goto('/dashboard/ai/chat')
+  // ... 断言
+})
+```
+
+- **账号来源**：`backend/.env.test`（gitignored）里的 `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`（用户的真实 dev 账号）。也可用 seed 测试账号 `TEST_OPERATOR_EMAIL` 等（需要后端连 test DB）。详细 env var 名称见 `backend/scripts/agent_testing/conftest.py`。
+- **mock AI chat APIs** 保持 spec 快、可重现（真 LLM 又慢又费钱又 flaky）。`page.route('**/api/ai-chat/**')` 拦截 + `route.fulfill({ json })` 返 mock。**不要** mock `/api/auth/**`——让 NextAuth 走真流。
+- 会话失效？设 `E2E_REFRESH_AUTH=1 pnpm test:ui -- tests/<area>/<name>.spec.ts` 重跑一次。
+- 跑：`pnpm test:ui -- tests/<area>/<name>.spec.ts`（前提：后端起 + dev frontend 起，或 `pnpm dev` 由 playwright.config.ts 的 webServer 自启）。
 
 ### 加一个 pytest DB 测试
 
