@@ -145,6 +145,7 @@ export default function InventoryLedgerPage() {
   const [projectId, setProjectId] = useUrlParam<string>('project_id', '')
   const [month, setMonth] = useUrlParam<string>('month', '')
   const [months, setMonths] = useState<string[]>([])
+  const [monthsLoaded, setMonthsLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('snapshot')
 
@@ -168,6 +169,7 @@ export default function InventoryLedgerPage() {
   // Load months when project changes
   useEffect(() => {
     if (!projectId) return
+    setMonthsLoaded(false)
     fetch(`${API_BASE}/inventory-ledger/months?project_id=${projectId}`)
       .then((r) => r.json())
       .then((data) => {
@@ -177,6 +179,7 @@ export default function InventoryLedgerPage() {
         }
       })
       .catch(() => setMonths([]))
+      .finally(() => setMonthsLoaded(true))
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load data when month changes
@@ -274,7 +277,7 @@ export default function InventoryLedgerPage() {
       )}
 
       {/* Empty state */}
-      {!loading && !snapshot && projectId && month && (
+      {!loading && !snapshot && projectId && monthsLoaded && (month || months.length === 0) && (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
           <Clock4 className="h-8 w-8" />
           <p className="text-sm font-medium">暂无盘点数据</p>
