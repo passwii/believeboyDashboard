@@ -70,11 +70,6 @@ class AIChatMessageUpdate(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
 
 
-class MessageCreateResponse(BaseModel):
-    user_message: MessageItem
-    assistant_message: MessageItem
-
-
 class AIChatConfigResponse(BaseModel):
     provider_configured: bool
     web_search_configured: bool
