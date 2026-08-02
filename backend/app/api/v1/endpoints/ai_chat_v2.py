@@ -280,6 +280,8 @@ async def _finalize_db(
             prompt_tokens=usage.input_tokens if usage else 0,
             completion_tokens=usage.output_tokens if usage else 0,
             total_tokens=usage.total_tokens if usage else 0,
+            # [BEL-379.B5] 落库 agent 执行时长；历史回放 + TokenFooter Timer chip 均从此读
+            duration_ms=stream_result.duration_ms,
         )
         conversation.updated_at = datetime.now(timezone.utc)
         db.commit()
@@ -327,7 +329,7 @@ async def _finalize_db(
                 "completion_tokens": conversation.total_completion_tokens,
                 "total_tokens": conversation.total_tokens,
             },
-            "duration_ms": None,
+            "duration_ms": stream_result.duration_ms,
             "title_regenerated": title_regenerated,
         }
 

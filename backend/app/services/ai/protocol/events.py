@@ -5,6 +5,7 @@ discriminated union 写法正确(官方用 PropertyInfo,我们用 Field,语义�
 
 对应 V2 spec §5(协议事件定义)。
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
@@ -15,6 +16,7 @@ from app.services.ai.protocol.errors import ProtocolError
 
 
 # ── content blocks ──
+
 
 class TextBlock(BaseModel):
     type: Literal["text"] = "text"
@@ -33,6 +35,7 @@ class ToolUseBlock(BaseModel):
 
 class ToolResultBlock(BaseModel):
     """工具返回结果(本仓库扩展,Anthropic 官方不显式发)。"""
+
     type: Literal["tool_result"] = "tool_result"
     tool_use_id: str
     content: str
@@ -46,6 +49,7 @@ ContentBlock = Annotated[
 
 
 # ── deltas ──
+
 
 class TextDelta(BaseModel):
     type: Literal["text_delta"] = "text_delta"
@@ -69,6 +73,7 @@ Delta = Annotated[
 
 
 # ── events ──
+
 
 class Usage(BaseModel):
     input_tokens: int = 0
@@ -127,11 +132,16 @@ class StreamResult(BaseModel):
     持久化(content / search sources / usage)+ 自动标题,然后合成客户端 done 事件。
     对应 2026-07-21 集成计划 Phase 1(Option B:runner=执行器,endpoint=业务 owner)。
     """
+
     type: Literal["stream_result"] = "stream_result"
     full_text: str
     search_source_cards: list[dict[str, Any]] | None = None
     search_time_range: str | None = None
     usage: Usage = Field(default_factory=Usage)
+    # [BEL-379.B5] agent 执行时长(毫秒),由 StreamRunner 测量并携带,
+    # 供 _finalize_db 写入 ai_messages.duration_ms(历史回放可见)与 done 事件。
+    # None 表示测量失败(防御性,正常路径总会有值)。
+    duration_ms: int | None = None
 
 
 ProtocolEvent = Annotated[

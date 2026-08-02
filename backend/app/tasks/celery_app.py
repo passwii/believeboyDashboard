@@ -52,6 +52,8 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.return_analysis_refresh",
             # BEL-377：external API 审计日志 90 天保留清理
             "app.celery_tasks.external_audit_cleanup",
+            # BEL-379：每日 03:15 CST 刷新 ai_chat token 用量聚合快照
+            "app.celery_tasks.ai_chat_token_usage_refresh",
         ],
     )
 
@@ -86,6 +88,8 @@ def _build_celery_app() -> Celery:
             "alert_detect": {"queue": "default"},
             # BEL-377：external API 审计日志保留清理：default 队列（每日一次短任务）
             "external_audit_cleanup": {"queue": "default"},
+            # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
+            "ai_chat_token_usage.refresh_daily": {"queue": "default"},
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={
@@ -112,6 +116,12 @@ def _build_celery_app() -> Celery:
             "external-audit-cleanup": {
                 "task": "external_audit_cleanup",
                 "schedule": crontab(hour=4, minute=0),
+            },
+            # BEL-379：ai_chat token 用量每日 03:15 CST（Asia/Shanghai 时区下）刷新快照，
+            # 错开 return-analysis 03:00 与 external-audit 04:00 的整点并发。
+            "ai-chat-token-usage-refresh-daily": {
+                "task": "ai_chat_token_usage.refresh_daily",
+                "schedule": crontab(hour=3, minute=15),
             },
         },
         # All timestamps in messages/results use project timezone.
