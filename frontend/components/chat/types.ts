@@ -67,6 +67,11 @@ export interface Conversation {
   createdAt: number
   updatedAt?: number
   messageCount: number
+  /** 会话累计 token 总用量（来自后端 `ai_conversations.total_tokens`）。为 0 时不展示。 */
+  totalTokens?: number
+  /** 会话累计 prompt / completion token（来自后端）。用于侧边栏 hover 展开细节。 */
+  totalPromptTokens?: number
+  totalCompletionTokens?: number
 }
 
 export interface AIChatWindowProps {
