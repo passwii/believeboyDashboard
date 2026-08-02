@@ -5,7 +5,6 @@ SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -19,7 +18,6 @@ from app.schemas.ai_chat import (
     ConversationItem,
     ConversationTitleRegenerateResponse,
     MessageCreate,
-    MessageCreateResponse,
     MessageItem,
 )
 from app.services import ai as ai_chat_service
@@ -241,88 +239,6 @@ def update_message_endpoint(
     db.commit()
     db.refresh(message)
     return serialize_message(message)
-
-
-@router.post(
-    "/conversations/{conversation_id}/messages", response_model=MessageCreateResponse
-)
-def create_message(
-    conversation_id: int,
-    payload: MessageCreate,
-    db: Session = Depends(get_primary_db_session),
-    settings: Settings = Depends(get_settings),
-    user_id: int | None = Depends(_get_request_user_id),
-) -> MessageCreateResponse:
-    ai_chat_service.ensure_tables(db)
-    conversation = ai_chat_service.get_conversation_or_404(db, conversation_id, user_id)
-
-    user_content = payload.content.strip()
-    if not user_content:
-        raise HTTPException(status_code=400, detail="消息内容不能为空")
-
-    history_rows = ai_chat_service.list_messages(db, conversation_id, user_id)
-    web_search_context = None
-    search_source_cards: list[dict[str, Any]] = []
-    search_time_range: str | None = None
-    if payload.enable_web_search:
-        web_search_payload = ai_chat_service.request_web_search(settings, user_content)
-        web_search_context = ai_chat_service.format_web_search_context(
-            web_search_payload, user_content
-        )
-        search_source_cards = ai_chat_service.build_search_source_cards(
-            web_search_payload
-        )
-        search_time_range = web_search_payload.get(
-            "time_range"
-        ) or ai_chat_service.detect_time_range_from_query(user_content)
-
-    llm_config = ai_chat_service.build_llm_config(
-        settings=settings,
-        model=payload.model,
-        system_prompt=payload.system_prompt,
-        reasoning_effort=payload.reasoning_effort,
-    )
-    if payload.attached_file_content:
-        file_context = (
-            f"\n\n【用户附加文件：{payload.attached_file_name or 'file'}】\n"
-            f"{payload.attached_file_content.strip()}\n"
-            f"请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
-        )
-        llm_config.system_prompt = llm_config.system_prompt + file_context
-
-    assistant_content = ai_chat_service.generate_assistant_content(
-        llm_config=llm_config,
-        messages=history_rows,
-        user_content=user_content,
-        web_search_context=web_search_context,
-    )
-    if not history_rows:
-        generated_title = ai_chat_service.generate_conversation_title(
-            settings, user_content, assistant_content
-        )
-        if generated_title:
-            conversation.title = generated_title
-
-    user_row = ai_chat_service.append_message(db, conversation_id, "user", user_content)
-    assistant_row = ai_chat_service.append_message(
-        db,
-        conversation_id,
-        "assistant",
-        assistant_content,
-        search_sources=search_source_cards,
-        search_time_range=search_time_range,
-        # [BEL-379] 落库 model 供按模型聚合；payload.model 为空时回退 'unknown'。
-        model=(payload.model or "unknown"),
-    )
-    conversation.updated_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(user_row)
-    db.refresh(assistant_row)
-
-    return MessageCreateResponse(
-        user_message=serialize_message(user_row),
-        assistant_message=serialize_message(assistant_row),
-    )
 
 
 def _prepare_conversation_turn(

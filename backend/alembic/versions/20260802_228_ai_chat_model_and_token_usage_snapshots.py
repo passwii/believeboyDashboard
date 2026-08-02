@@ -8,7 +8,8 @@ BEL-379 token-usage 统计层（前端 Seth 已落地 UI，本迁移提供数据
 
 1. ``ai_messages.model`` 列：当前 model 只在 SSE 事件中传给客户端、未落库，
    无法按 model 聚合。新增 nullable String(64)，backfill 已有行为 'unknown'。
-   新写入（V1 create_message / V2 _prepare_conversation_turn）从
+   新写入由 V2 ``_prepare_conversation_turn``（``ai_chat_v2._first_request_stream``
+   调用，详见 ``api/v1/endpoints/ai_chat_v2.py:117``）从
    ``payload.model or 'unknown'`` 写入。**不**加单独索引 —— Celery 任务按
    ``created_at`` 范围扫 + GROUP BY model，单列索引收益低、写放大高。
 

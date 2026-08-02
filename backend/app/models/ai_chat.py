@@ -87,7 +87,8 @@ class AIMessage(Base):
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # [BEL-379] 模型标识：聚合按 (user × data_date × model) 切分；'unknown' 为历史 backfill 哨兵。
-    # 写入路径：V1 create_message / V2 _prepare_conversation_turn 从 payload.model 注入。
+    # 写入路径：V2 ``_prepare_conversation_turn``（``ai_chat_v2._first_request_stream``）
+    # 从 ``payload.model`` 注入；V1 非流式 POST 端点已随 BEL-379.B3-a 删除。
     model: Mapped[str] = mapped_column(
         String(64), nullable=False, default="unknown", server_default="unknown"
     )
