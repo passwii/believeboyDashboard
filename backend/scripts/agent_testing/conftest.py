@@ -51,7 +51,13 @@ def _require(name: str) -> str:
 # `scripts/seed_test_accounts.py` (run `scripts/setup_test_db.py` once). To
 # exercise these E2E tests against the test DB, start the backend with
 # TEST_DATABASE_URL set to that DB and seed the accounts there.
-TEST_ACCOUNTS = {
+#
+# `user` is OPTIONAL: only included when both TEST_USER_EMAIL and
+# TEST_USER_PASSWORD are set in backend/.env.test. This lets frontend
+# Playwright E2E (frontend/tests/helpers/auth.ts) reuse a real account
+# when the dev backend has it, without forcing every Python test to
+# require those env vars. See docs/E2E-TESTING.md.
+TEST_ACCOUNTS: dict[str, dict[str, str]] = {
     "admin": {
         "email": os.getenv("TEST_ADMIN_EMAIL", "test_admin@believeboy.com"),
         "password": _require("TEST_ADMIN_PASSWORD"),
@@ -65,6 +71,10 @@ TEST_ACCOUNTS = {
         "password": _require("TEST_BUSINESSDEV_PASSWORD"),
     },
 }
+_user_email = os.getenv("TEST_USER_EMAIL")
+_user_password = os.getenv("TEST_USER_PASSWORD")
+if _user_email and _user_password:
+    TEST_ACCOUNTS["user"] = {"email": _user_email, "password": _user_password}
 
 
 @pytest.fixture(scope="session")
