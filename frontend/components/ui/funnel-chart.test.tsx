@@ -46,4 +46,17 @@ describe("FunnelChart", () => {
     const style = container.firstElementChild?.getAttribute("style") ?? "";
     expect(style).toMatch(/1\s*\/\s*1\.8/);
   });
+
+  it("非空数据时即使容器尚未测量也立即渲染漏斗（SSR 不空白）", () => {
+    const data = [
+      { label: "A", value: 100 },
+      { label: "B", value: 60 },
+      { label: "C", value: 30 },
+      { label: "D", value: 10 },
+    ];
+    // ResizeObserverStub 不回写尺寸，模拟 SSR / 首屏未测量场景；
+    // 标称尺寸兜底应让漏斗 svg 立即出现，而非空白等测量后再弹出。
+    const { container } = render(<FunnelChart data={data} />);
+    expect(container.querySelector("svg")).not.toBeNull();
+  });
 });

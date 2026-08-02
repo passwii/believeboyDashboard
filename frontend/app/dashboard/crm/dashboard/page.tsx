@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { FunnelChart } from '@/components/ui/funnel-chart'
-import { buildLeadFunnelStages, leadConversionRate } from '@/lib/crm/method/lead-funnel'
+import { buildLeadFunnelStages, leadConversionRate, leadFunnelStepRates } from '@/lib/crm/method/lead-funnel'
 
 /** 数字紧凑显示：12400 → "1.2万"，小数字原样。 */
 const compact = (v: number) => new Intl.NumberFormat('zh-CN', { notation: 'compact' }).format(v)
@@ -130,16 +130,46 @@ export default function CrmDashboardPage() {
         </CardHeader>
         <CardContent>
           {funnelTotal > 0 ? (
-            <FunnelChart
-              data={funnelStages}
-              className="mx-auto w-full max-w-3xl"
-              color="var(--chart-1)"
-              edges="curved"
-              layers={3}
-              orientation="horizontal"
-              grid
-              formatValue={compact}
-            />
+            <>
+              <FunnelChart
+                data={funnelStages}
+                className="mx-auto w-full max-w-3xl"
+                color="var(--chart-1)"
+                edges="curved"
+                layers={2}
+                orientation="horizontal"
+                formatValue={compact}
+              />
+              {/* 逐级转化率：相邻阶段的流转效率，定位漏斗卡点 */}
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {leadFunnelStepRates(funnelStages).map((rate, i) => {
+                  const from = funnelStages[i]?.label ?? ''
+                  const to = funnelStages[i + 1]?.label ?? ''
+                  const pct = rate === null ? 0 : Math.round(rate * 100)
+                  return (
+                    <div
+                      key={`${from}-${to}`}
+                      className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-muted-foreground">
+                          {from} → {to}
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          {rate === null ? '—' : `${(rate * 100).toFixed(1)}%`}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-emerald-500/70 transition-[width] duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           ) : (
             <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
               {loading ? '加载中…' : '暂无漏斗数据'}

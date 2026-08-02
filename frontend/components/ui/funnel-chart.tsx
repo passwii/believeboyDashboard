@@ -729,7 +729,12 @@ export function FunnelChart({
   const n = data.length
   const norms = data.map((d) => d.value / max)
   const horiz = orientation === 'horizontal'
-  const { w: W, h: H } = sz
+  // SSR / 首屏尚未测量时，用与 aspectRatio 一致的标称尺寸先行渲染，避免漏斗区
+  // 空白一闪再弹出（用户反馈"效果非常差"的主因）；挂载后 ResizeObserver 会立即
+  // 校正为真实像素尺寸。初始客户端状态与 SSR 一致（同取标称值），无 hydration 失配。
+  const nominal = horiz ? { w: 660, h: 300 } : { w: 300, h: 540 }
+  const W = sz.w > 0 ? sz.w : nominal.w
+  const H = sz.h > 0 ? sz.h : nominal.h
 
   const totalGap = gap * (n - 1)
   const segW = (W - (horiz ? totalGap : 0)) / n

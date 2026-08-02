@@ -50,3 +50,19 @@ export function leadConversionRate(counts: LeadFunnelCounts): number | null {
   if (total === 0) return null
   return (counts.converted ?? 0) / total
 }
+
+
+/**
+ * 相邻阶段的逐级转化率：第 i 项 = stages[i+1].value / stages[i].value。
+ * 返回长度 = stages.length - 1；前档值为 0 时该项为 null（调用方展示为 "—"）。
+ * 用于定位漏斗卡点：哪一级流转效率最低。
+ */
+export function leadFunnelStepRates(stages: FunnelStage[]): (number | null)[] {
+  const rates: (number | null)[] = []
+  for (let i = 0; i < stages.length - 1; i++) {
+    const from = stages[i]?.value ?? 0
+    const to = stages[i + 1]?.value ?? 0
+    rates.push(from > 0 ? to / from : null)
+  }
+  return rates
+}

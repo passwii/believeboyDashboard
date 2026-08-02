@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildLeadFunnelStages, leadConversionRate } from './lead-funnel'
+import { buildLeadFunnelStages, leadConversionRate, leadFunnelStepRates } from './lead-funnel'
 
 describe('buildLeadFunnelStages（累计转化漏斗）', () => {
   it('各层按累计口径计算：每层 = 该阶段及以上之和', () => {
@@ -53,5 +53,30 @@ describe('leadConversionRate（整体转化率）', () => {
   it('总量为 0 时返回 null', () => {
     expect(leadConversionRate({})).toBeNull()
     expect(leadConversionRate({ discarded: 3 })).toBeNull()
+  })
+})
+
+describe('leadFunnelStepRates（逐级转化率）', () => {
+  it('逐项 = 后档 / 前档', () => {
+    const stages = buildLeadFunnelStages({ new: 18, contacting: 14, qualified: 9, converted: 4 })
+    // 累计档：[45, 27, 13, 4] → [27/45, 13/27, 4/13]
+    const rates = leadFunnelStepRates(stages)
+    expect(rates).toHaveLength(3)
+    expect(rates[0]).toBeCloseTo(27 / 45)
+    expect(rates[1]).toBeCloseTo(13 / 27)
+    expect(rates[2]).toBeCloseTo(4 / 13)
+  })
+
+  it('前档为 0 时该项为 null', () => {
+    const rates = leadFunnelStepRates([
+      { label: 'A', value: 0 },
+      { label: 'B', value: 5 },
+    ])
+    expect(rates).toEqual([null])
+  })
+
+  it('单档或空档返回空数组', () => {
+    expect(leadFunnelStepRates([])).toEqual([])
+    expect(leadFunnelStepRates([{ label: 'A', value: 10 }])).toEqual([])
   })
 })
