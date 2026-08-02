@@ -107,3 +107,39 @@ def trigger_return_analysis_refresh(
         rows_written=total_rows,
         projects=max_projects,
     )
+
+
+# BEL-376: One-shot full-history rebuild endpoint.
+# Use this ONCE after deploying the cumulative-sales fix — wipes the table
+# and re-runs _refresh_one_day for every day from the earliest raw return
+# to yesterday. Takes ~3-5 minutes for 90 days × 14 projects on prod.
+
+
+@router.post(
+    "/return-analysis-rebuild",
+    dependencies=[Depends(_require_admin)],
+)
+def trigger_return_analysis_rebuild() -> dict:
+    """BEL-376: 全量重建 analysis_return_aggregates（一次性 backfill）。
+
+    - 删表 → 重建。从最早的 raw return_date 跑到昨天。
+    - 耗时约 3-5 分钟（90 天 × 14 项目）。
+    - 使用 BEL-376 修复后的累计语义重算 snapshot。
+    - 完成后端点的 sales_quantity / return_rate / wilson_lower 全部正确。
+    """
+    from app.celery_tasks.return_analysis_rebuild import rebuild_full_snapshot
+
+    db = SessionLocal()
+    try:
+        result = rebuild_full_snapshot(db)
+    finally:
+        db.close()
+
+    logger.info(
+        "手动触发 return-analysis-rebuild: range=%s..%s rows=%d projects=%d",
+        result["range_start"],
+        result["range_end"],
+        result["rows_written"],
+        result["projects_touched"],
+    )
+    return result
