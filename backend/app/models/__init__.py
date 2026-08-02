@@ -50,7 +50,7 @@ from app.models.category_research import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
-from app.models.ai_chat import AIConversation, AIMessage
+from app.models.ai_chat import AIConversation, AIMessage, AIChatTokenUsageSnapshot
 from app.models.ai_insight import AIInsight, InsightStatus, InsightType
 from app.models.commission_record import CommissionRecord
 from app.models.commission_project_month import CommissionProjectMonth
@@ -139,6 +139,7 @@ __all__ = [
     "R2DeleteFailure",
     "AIConversation",
     "AIMessage",
+    "AIChatTokenUsageSnapshot",
     "AIInsight",
     "InsightStatus",
     "InsightType",

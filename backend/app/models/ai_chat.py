@@ -1,6 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -76,8 +86,46 @@ class AIMessage(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # [BEL-379] 模型标识：聚合按 (user × data_date × model) 切分；'unknown' 为历史 backfill 哨兵。
+    # 写入路径：V1 create_message / V2 _prepare_conversation_turn 从 payload.model 注入。
+    model: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="unknown", server_default="unknown"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     conversation: Mapped[AIConversation] = relationship(back_populates="messages")
+
+
+class AIChatTokenUsageSnapshot(Base):
+    """AI Chat token 用量每日聚合快照（BEL-379 统计层）。
+
+    每日 03:15 CST 由 ``app.celery_tasks.ai_chat_token_usage_refresh.refresh_daily``
+    按 ``(user_id, data_date, model)`` 增量 upsert 写入；供
+    ``GET /api/v1/ai/usage/stats`` 端点消费，避免在线实时聚合。
+
+    设计要点：
+    - 主键 id INTEGER（与 alert_rule.py / analysis_return_aggregates 屋风一致）
+    - 唯一键 (user_id, data_date, model) —— Celery 重跑幂等
+    - data_date 为 CST(Asia/Shanghai) 日期，与 Celery beat timezone 对齐
+    - 不做 user_id 外键（与 ai_conversations.user_id 一致，避免耦合）
+    - conversation_count 为「当日 distinct conv」；区间求和时为上界
+      （同一 conv 跨多日会被多次计入），stats 端点有字段语义注释
+    """
+
+    __tablename__ = "ai_chat_token_usage_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    data_date = mapped_column(Date, nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conversation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    data_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

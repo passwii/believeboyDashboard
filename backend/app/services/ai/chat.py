@@ -42,9 +42,7 @@ def list_conversations(db: Session, user_id: int | None) -> list[AIConversation]
     return list(db.execute(stmt).scalars().all())
 
 
-def create_conversation(
-    db: Session, title: str | None, user_id: int
-) -> AIConversation:
+def create_conversation(db: Session, title: str | None, user_id: int) -> AIConversation:
     """创建归属于 user_id 的会话。user_id 由 endpoint 从 X-User-Id 注入。"""
     normalized_title = (title or "").strip() or DEFAULT_CONVERSATION_TITLE
     row = AIConversation(user_id=user_id, title=normalized_title)
@@ -125,11 +123,15 @@ def append_message(
     content: str,
     search_sources: list[dict[str, Any]] | None = None,
     search_time_range: str | None = None,
+    model: str | None = None,
 ) -> AIMessage:
     """追加一条消息。
 
     [BEL-81.B] `search_time_range` 透传至 `AIMessage.search_time_range`，
     供历史回放时按时间范围渲染 chip。允许 `None`（老消息 / 无搜索场景）。
+
+    [BEL-379] `model` 透传至 `AIMessage.model`，供 Celery 每日按
+    (user × data_date × model) 聚合 token 用量；未传则落 `'unknown'`。
     """
     row = AIMessage(
         conversation_id=conversation_id,
@@ -139,6 +141,7 @@ def append_message(
         if search_sources
         else None,
         search_time_range=search_time_range,
+        model=model or "unknown",
     )
     db.add(row)
     return row
@@ -196,9 +199,16 @@ def normalize_generated_title(value: str) -> str:
 
     first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
     normalized = first_line.strip(" \"'`\u201c\u201d\u2018\u2019")
-    for prefix in ("\u6807\u9898\uff1a", "\u6807\u9898:", "\u4f1a\u8bdd\u6807\u9898\uff1a", "\u4f1a\u8bdd\u6807\u9898:"):
+    for prefix in (
+        "\u6807\u9898\uff1a",
+        "\u6807\u9898:",
+        "\u4f1a\u8bdd\u6807\u9898\uff1a",
+        "\u4f1a\u8bdd\u6807\u9898:",
+    ):
         if normalized.startswith(prefix):
-            normalized = normalized[len(prefix):].strip(" \"'`\u201c\u201d\u2018\u2019")
+            normalized = normalized[len(prefix) :].strip(
+                " \"'`\u201c\u201d\u2018\u2019"
+            )
             break
 
     return normalized[:40].strip()

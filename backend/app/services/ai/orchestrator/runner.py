@@ -9,6 +9,7 @@
 对应 V2 spec §6.2、§9(agent.iter node 模型)。
 Spike 验证:openSourceProjects/ai-app-layer-spike/spike/runner.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,9 +20,15 @@ from typing import Any, AsyncGenerator
 
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
-    PartStartEvent, PartDeltaEvent, PartEndEvent,
-    TextPart, ThinkingPart, ToolCallPart, ToolReturnPart,
-    TextPartDelta, ThinkingPartDelta,
+    PartStartEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+    TextPartDelta,
+    ThinkingPartDelta,
 )
 
 from app.services.ai.observability.logger import log_stream_event
@@ -30,11 +37,23 @@ from app.services.ai.orchestrator.stream_bus import RedisStreamBus
 from app.services.ai.protocol.encoder import encode_sse
 from app.services.ai.protocol.errors import ErrorCode, ProtocolError
 from app.services.ai.protocol.events import (
-    ContentBlockStart, ContentBlockDelta, ContentBlockStop,
-    ErrorEvent, MessageDelta, MessageStart, MessageStop,
-    ProtocolEvent, StreamResult, TextBlock, TextDelta,
-    ThinkingBlock, ThinkingDelta, ToolUseBlock, ToolResultBlock,
-    Usage, validate_event,
+    ContentBlockStart,
+    ContentBlockDelta,
+    ContentBlockStop,
+    ErrorEvent,
+    MessageDelta,
+    MessageStart,
+    MessageStop,
+    ProtocolEvent,
+    StreamResult,
+    TextBlock,
+    TextDelta,
+    ThinkingBlock,
+    ThinkingDelta,
+    ToolUseBlock,
+    ToolResultBlock,
+    Usage,
+    validate_event,
 )
 from app.services.ai.search import extract_search_meta_from_messages
 
@@ -43,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 class CancelledError(Exception):
     """用户主动取消时使用。"""
+
     pass
 
 
@@ -81,13 +101,25 @@ class StreamRunner:
             return
 
         try:
-            await self._bus.add(conv_id, MessageStart(
-                message_id=message_id, model=model_name, created_at=created_at,
-            ))
+            await self._bus.add(
+                conv_id,
+                MessageStart(
+                    message_id=message_id,
+                    model=model_name,
+                    created_at=created_at,
+                ),
+            )
+
+            # [BEL-379.B5] agent 执行时长起点：包住下面的 agent.iter 流。
+            # 用 monotonic 避免 wall-clock 调整干扰（ntp 跳变等）。
+            import time as _time
+
+            _agent_start = _time.monotonic()
 
             text_parts: list[str] = []
             async with agent.iter(
-                user_prompt, message_history=message_history or [],
+                user_prompt,
+                message_history=message_history or [],
             ) as agent_run:
                 async for node in agent_run:
                     if not await self._cancel.is_live(conv_id):
@@ -112,19 +144,29 @@ class StreamRunner:
                                     await self._bus.add(conv_id, mapped)
 
             usage = _extract_usage(agent_run)
-            await self._bus.add(conv_id, MessageDelta(usage=usage, stop_reason="end_turn"))
+
+            # [BEL-379.B5] agent 执行时长落点：含流式迭代全程。
+            _agent_duration_ms = max(0, int((_time.monotonic() - _agent_start) * 1000))
+
+            await self._bus.add(
+                conv_id, MessageDelta(usage=usage, stop_reason="end_turn")
+            )
 
             # Phase 1.2:业务载荷(供 endpoint 持久化,不转发客户端)。
             # source cards / time_range 从最终消息列表还原(工具结果未被截断)。
             source_cards, time_range, _query = extract_search_meta_from_messages(
                 agent_run.result.all_messages()
             )
-            await self._bus.add(conv_id, StreamResult(
-                full_text="".join(text_parts).strip(),
-                search_source_cards=source_cards,
-                search_time_range=time_range,
-                usage=usage,
-            ))
+            await self._bus.add(
+                conv_id,
+                StreamResult(
+                    full_text="".join(text_parts).strip(),
+                    search_source_cards=source_cards,
+                    search_time_range=time_range,
+                    usage=usage,
+                    duration_ms=_agent_duration_ms,
+                ),
+            )
 
         except CancelledError:
             await self._emit_cancelled(conv_id)
@@ -133,7 +175,9 @@ class StreamRunner:
         except Exception as exc:
             logger.exception("Stream %s crashed: %s", conv_id, exc)
             error = classify_error(exc)
-            log_stream_event(conv_id, "error", code=error.code.value, message=error.message)
+            log_stream_event(
+                conv_id, "error", code=error.code.value, message=error.message
+            )
             await self._bus.add(conv_id, ErrorEvent(error=error))
 
         finally:
@@ -144,9 +188,12 @@ class StreamRunner:
         """发 cancelled error + message_stop + 关流。"""
         logger.info("Stream %s cancelled by user", conv_id)
         log_stream_event(conv_id, "cancelled")
-        await self._bus.add(conv_id, ErrorEvent(
-            error=ProtocolError(code=ErrorCode.CANCELLED, message="用户取消")
-        ))
+        await self._bus.add(
+            conv_id,
+            ErrorEvent(
+                error=ProtocolError(code=ErrorCode.CANCELLED, message="用户取消")
+            ),
+        )
         await self._bus.add(conv_id, MessageStop())
         await self._bus.stop(conv_id)
 
@@ -185,6 +232,7 @@ class StreamRunner:
 
 # ── node event → ProtocolEvent 映射 ──
 
+
 def _map_node_event(event: Any) -> ProtocolEvent | list[ProtocolEvent] | None:
     """把 pydantic-ai node stream event 映射为 ProtocolEvent。对应 spec §9.3。"""
     if isinstance(event, PartStartEvent):
@@ -219,9 +267,13 @@ def _map_node_event(event: Any) -> ProtocolEvent | list[ProtocolEvent] | None:
     if isinstance(event, PartDeltaEvent):
         delta = event.delta
         if isinstance(delta, TextPartDelta) and delta.content_delta:
-            return ContentBlockDelta(index=event.index, delta=TextDelta(text=delta.content_delta))
+            return ContentBlockDelta(
+                index=event.index, delta=TextDelta(text=delta.content_delta)
+            )
         if isinstance(delta, ThinkingPartDelta) and delta.content_delta:
-            return ContentBlockDelta(index=event.index, delta=ThinkingDelta(text=delta.content_delta))
+            return ContentBlockDelta(
+                index=event.index, delta=ThinkingDelta(text=delta.content_delta)
+            )
         return None
 
     if isinstance(event, PartEndEvent):

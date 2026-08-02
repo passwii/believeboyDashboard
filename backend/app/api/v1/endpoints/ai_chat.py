@@ -2,6 +2,7 @@
 AI Chat Endpoints — 瘦化的 endpoint 层。
 SSE 流式事件编码逻辑已迁移至 app.services.ai.stream_utils。
 """
+
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -67,7 +68,9 @@ def get_ai_config(settings: Settings = Depends(get_settings)) -> AIChatConfigRes
         basic_models=basic_visible,
         reasoning_models=reasoning_visible,
         default_reasoning_effort=(
-            ai_chat_service.normalize_reasoning_effort(settings.ai_chat_default_reasoning_effort)
+            ai_chat_service.normalize_reasoning_effort(
+                settings.ai_chat_default_reasoning_effort
+            )
             or "medium"
         ),
         timeout_seconds=settings.ai_chat_timeout_seconds,
@@ -85,8 +88,10 @@ def list_conversations(
     rows = ai_chat_service.list_conversations(db, user_id)
     return [
         ConversationItem(
-            id=row.id, title=row.title,
-            created_at=row.created_at, updated_at=row.updated_at,
+            id=row.id,
+            title=row.title,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
             total_prompt_tokens=row.total_prompt_tokens,
             total_completion_tokens=row.total_completion_tokens,
             total_tokens=row.total_tokens,
@@ -107,7 +112,9 @@ def create_conversation(
     row = ai_chat_service.create_conversation(db, payload.title, user_id)
     db.commit()
     db.refresh(row)
-    return ConversationItem(id=row.id, title=row.title, created_at=row.created_at, updated_at=row.updated_at)
+    return ConversationItem(
+        id=row.id, title=row.title, created_at=row.created_at, updated_at=row.updated_at
+    )
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
@@ -136,10 +143,15 @@ def update_conversation(
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
-    return ConversationItem(id=row.id, title=row.title, created_at=row.created_at, updated_at=row.updated_at)
+    return ConversationItem(
+        id=row.id, title=row.title, created_at=row.created_at, updated_at=row.updated_at
+    )
 
 
-@router.post("/conversations/{conversation_id}/regenerate-title", response_model=ConversationTitleRegenerateResponse)
+@router.post(
+    "/conversations/{conversation_id}/regenerate-title",
+    response_model=ConversationTitleRegenerateResponse,
+)
 def regenerate_conversation_title(
     conversation_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -157,14 +169,18 @@ def regenerate_conversation_title(
         db.refresh(conversation)
     return ConversationTitleRegenerateResponse(
         conversation=ConversationItem(
-            id=conversation.id, title=conversation.title,
-            created_at=conversation.created_at, updated_at=conversation.updated_at,
+            id=conversation.id,
+            title=conversation.title,
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at,
         ),
         regenerated=regenerated,
     )
 
 
-@router.get("/conversations/{conversation_id}/messages", response_model=list[MessageItem])
+@router.get(
+    "/conversations/{conversation_id}/messages", response_model=list[MessageItem]
+)
 def list_messages(
     conversation_id: int,
     db: Session = Depends(get_read_db_session),
@@ -175,7 +191,9 @@ def list_messages(
     return [serialize_message(row) for row in rows]
 
 
-@router.delete("/conversations/{conversation_id}/messages/{message_id}", status_code=204)
+@router.delete(
+    "/conversations/{conversation_id}/messages/{message_id}", status_code=204
+)
 def delete_message_endpoint(
     conversation_id: int,
     message_id: int,
@@ -184,12 +202,16 @@ def delete_message_endpoint(
 ) -> None:
     """硬删单条 AIMessage（与 delete_conversation 对齐：不引入软删字段）。"""
     ai_chat_service.ensure_tables(db)
-    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id, user_id)
+    message = ai_chat_service.get_message_or_404(
+        db, conversation_id, message_id, user_id
+    )
     ai_chat_service.delete_message(db, message)
     db.commit()
 
 
-@router.patch("/conversations/{conversation_id}/messages/{message_id}", response_model=MessageItem)
+@router.patch(
+    "/conversations/{conversation_id}/messages/{message_id}", response_model=MessageItem
+)
 def update_message_endpoint(
     conversation_id: int,
     message_id: int,
@@ -203,7 +225,9 @@ def update_message_endpoint(
     统一返回 400。
     """
     ai_chat_service.ensure_tables(db)
-    message = ai_chat_service.get_message_or_404(db, conversation_id, message_id, user_id)
+    message = ai_chat_service.get_message_or_404(
+        db, conversation_id, message_id, user_id
+    )
     if message.role != "user":
         raise HTTPException(status_code=400, detail="只能编辑用户消息")
 
@@ -219,7 +243,9 @@ def update_message_endpoint(
     return serialize_message(message)
 
 
-@router.post("/conversations/{conversation_id}/messages", response_model=MessageCreateResponse)
+@router.post(
+    "/conversations/{conversation_id}/messages", response_model=MessageCreateResponse
+)
 def create_message(
     conversation_id: int,
     payload: MessageCreate,
@@ -240,16 +266,21 @@ def create_message(
     search_time_range: str | None = None
     if payload.enable_web_search:
         web_search_payload = ai_chat_service.request_web_search(settings, user_content)
-        web_search_context = ai_chat_service.format_web_search_context(web_search_payload, user_content)
-        search_source_cards = ai_chat_service.build_search_source_cards(web_search_payload)
-        search_time_range = (
-            web_search_payload.get("time_range")
-            or ai_chat_service.detect_time_range_from_query(user_content)
+        web_search_context = ai_chat_service.format_web_search_context(
+            web_search_payload, user_content
         )
+        search_source_cards = ai_chat_service.build_search_source_cards(
+            web_search_payload
+        )
+        search_time_range = web_search_payload.get(
+            "time_range"
+        ) or ai_chat_service.detect_time_range_from_query(user_content)
 
     llm_config = ai_chat_service.build_llm_config(
-        settings=settings, model=payload.model,
-        system_prompt=payload.system_prompt, reasoning_effort=payload.reasoning_effort,
+        settings=settings,
+        model=payload.model,
+        system_prompt=payload.system_prompt,
+        reasoning_effort=payload.reasoning_effort,
     )
     if payload.attached_file_content:
         file_context = (
@@ -260,11 +291,15 @@ def create_message(
         llm_config.system_prompt = llm_config.system_prompt + file_context
 
     assistant_content = ai_chat_service.generate_assistant_content(
-        llm_config=llm_config, messages=history_rows,
-        user_content=user_content, web_search_context=web_search_context,
+        llm_config=llm_config,
+        messages=history_rows,
+        user_content=user_content,
+        web_search_context=web_search_context,
     )
     if not history_rows:
-        generated_title = ai_chat_service.generate_conversation_title(settings, user_content, assistant_content)
+        generated_title = ai_chat_service.generate_conversation_title(
+            settings, user_content, assistant_content
+        )
         if generated_title:
             conversation.title = generated_title
 
@@ -276,6 +311,8 @@ def create_message(
         assistant_content,
         search_sources=search_source_cards,
         search_time_range=search_time_range,
+        # [BEL-379] 落库 model 供按模型聚合；payload.model 为空时回退 'unknown'。
+        model=(payload.model or "unknown"),
     )
     conversation.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -312,11 +349,16 @@ def _prepare_conversation_turn(
         if len(history) < 2:
             raise HTTPException(status_code=400, detail="没有可重新生成的消息")
         if payload.target_message_id is not None:
-            target_idx = next((i for i, r in enumerate(history) if r.id == payload.target_message_id), None)
+            target_idx = next(
+                (i for i, r in enumerate(history) if r.id == payload.target_message_id),
+                None,
+            )
             if target_idx is None:
                 raise HTTPException(status_code=404, detail="指定的消息不存在")
             if target_idx == 0 or history[target_idx - 1].role != "user":
-                raise HTTPException(status_code=400, detail="指定消息的前一条不是用户消息，无法重新生成")
+                raise HTTPException(
+                    status_code=400, detail="指定消息的前一条不是用户消息，无法重新生成"
+                )
             target_assistant = history[target_idx]
             target_user = history[target_idx - 1]
             context_messages = history[: target_idx - 1]
@@ -325,20 +367,38 @@ def _prepare_conversation_turn(
             last_assistant = history[-1]
             last_user = history[-2]
             if last_assistant.role != "assistant" or last_user.role != "user":
-                raise HTTPException(status_code=400, detail="当前会话末尾消息不支持重新生成")
+                raise HTTPException(
+                    status_code=400, detail="当前会话末尾消息不支持重新生成"
+                )
             context_messages = history[:-2]
             user_content = last_user.content.strip()
             target_assistant = last_assistant
         user_row = history[-2]
         db.delete(target_assistant)
         db.flush()
-        assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
+        assistant_row = ai_chat_service.append_message(
+            db,
+            conversation_id,
+            "assistant",
+            "",
+            # [BEL-379] regenerate 路径：用当前 payload.model
+            model=(payload.model or "unknown"),
+        )
     else:
         if not user_content:
             raise HTTPException(status_code=400, detail="消息内容不能为空")
         context_messages = history
-        user_row = ai_chat_service.append_message(db, conversation_id, "user", user_content)
-        assistant_row = ai_chat_service.append_message(db, conversation_id, "assistant", "")
+        user_row = ai_chat_service.append_message(
+            db, conversation_id, "user", user_content
+        )
+        assistant_row = ai_chat_service.append_message(
+            db,
+            conversation_id,
+            "assistant",
+            "",
+            # [BEL-379] 落库 model 供按模型聚合
+            model=(payload.model or "unknown"),
+        )
         target_assistant = None
     db.flush()
 
@@ -350,14 +410,16 @@ def _prepare_conversation_turn(
         prompt_messages.append({"role": m.role, "content": m.content})
     prompt_messages.append({"role": "user", "content": user_content})
     if payload.attached_file_content:
-        prompt_messages.append({
-            "role": "system",
-            "content": (
-                f"【用户附加文件：{payload.attached_file_name or 'file'}】\n"
-                f"{payload.attached_file_content.strip()}\n"
-                "请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
-            ),
-        })
+        prompt_messages.append(
+            {
+                "role": "system",
+                "content": (
+                    f"【用户附加文件：{payload.attached_file_name or 'file'}】\n"
+                    f"{payload.attached_file_content.strip()}\n"
+                    "请根据上述附加文件内容回答用户问题。如果用户没有明确提问，请先总结文件的主要内容。"
+                ),
+            }
+        )
 
     return prompt_messages, context_messages, user_row, assistant_row, target_assistant
 
@@ -391,33 +453,47 @@ def _prompt_messages_to_pydantic_ai_args(prompt_messages: list[dict]) -> tuple:
         # 没有 user 消息？防御性 fallback：把整个 list 当 message_history，user_prompt 留空
         last_user_idx = len(prompt_messages)
 
-    user_prompt_content = prompt_messages[last_user_idx].get("content", "") if last_user_idx < len(prompt_messages) else ""
+    user_prompt_content = (
+        prompt_messages[last_user_idx].get("content", "")
+        if last_user_idx < len(prompt_messages)
+        else ""
+    )
 
     # post-user 注入：把最后一条 user 之后追加的 system 消息（如 attached_file 提示）
     # 折叠到 user_prompt 前缀，避免被 `prompt_messages[:last_user_idx]` 切片丢掉。
     # 详见 Phase 1 PR review fix：Kilo 指出 `_prompt_messages_to_pydantic_ai_args` 漏传 attached_file。
     post_user_prefixes: list[str] = []
-    for m in prompt_messages[last_user_idx + 1:]:
+    for m in prompt_messages[last_user_idx + 1 :]:
         if m.get("role") == "system":
             content = m.get("content")
             if content:
                 post_user_prefixes.append(content)
     if post_user_prefixes:
         prefix = "\n\n".join(post_user_prefixes)
-        user_prompt_content = f"{prefix}\n\n{user_prompt_content}" if user_prompt_content else prefix
+        user_prompt_content = (
+            f"{prefix}\n\n{user_prompt_content}" if user_prompt_content else prefix
+        )
 
-    user_prompt: str = user_prompt_content if isinstance(user_prompt_content, str) else str(user_prompt_content)
+    user_prompt: str = (
+        user_prompt_content
+        if isinstance(user_prompt_content, str)
+        else str(user_prompt_content)
+    )
 
     message_history: list = []
     for m in prompt_messages[:last_user_idx]:
         role = m.get("role")
         content = m.get("content", "")
         if role == "user":
-            message_history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+            message_history.append(
+                ModelRequest(parts=[UserPromptPart(content=content)])
+            )
         elif role == "assistant":
             message_history.append(ModelResponse(parts=[TextPart(content=content)]))
         elif role == "system":
-            message_history.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
+            message_history.append(
+                ModelRequest(parts=[SystemPromptPart(content=content)])
+            )
         # else: 未知 role 跳过
 
     return user_prompt, message_history
