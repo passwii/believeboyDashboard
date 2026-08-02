@@ -172,3 +172,264 @@ def test_refresh_one_day_writes_one_row_per_sku() -> None:
     assert db.commit.call_count == 1
     # 应调用一次 db.execute() （一次 INSERT 含所有 aggregate rows）
     assert db.execute.call_count >= 1
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# BEL-376: cumulative-sales integration test (real DB)
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def cumulative_test_project(db_session):
+    """Create a fresh project + return row + multi-day sales rows for cumulative test."""
+    from app.models import (
+        AnalysisReturnRow,
+        AnalysisSalesOrderRow,
+        AnalysisSourceFile,
+        Project,
+    )
+
+    pid_marker = date.today().isoformat()
+    project = Project(
+        project_name=f"BEL-376 cum test {pid_marker}",
+        sort_order=0,
+        is_active=False,
+    )
+    db_session.add(project)
+    db_session.flush()
+    pid = project.id
+
+    target = date(2026, 6, 15)
+
+    sf = AnalysisSourceFile(
+        report_type="return_report",
+        is_current=True,
+        project_id=pid,
+        country="US",
+        upload_file_id=f"BEL376-test-{pid}",
+        upload_file_path=f"return_report/{pid}/test.csv",
+        original_filename=f"return_report_{pid}.csv",
+        stored_filename=f"return_report_{pid}.csv",
+        logical_filename=f"return_report_{pid}.csv",
+        storage_key=f"return_report/{pid}/test.csv",
+        file_size_bytes=1024,
+        file_sha256="deadbeef",
+        period_start_date=date(2026, 6, 10),
+        period_end_date=target,
+        snapshot_at=None,
+        version=1,
+        ingestion_status="success",
+    )
+    db_session.add(sf)
+    db_session.flush()
+
+    # Sales source file (sales_order_rows.source_file_id is NOT NULL)
+    sf_sales = AnalysisSourceFile(
+        report_type="sales_report",
+        is_current=True,
+        project_id=pid,
+        country="US",
+        upload_file_id=f"BEL376-sales-{pid}",
+        upload_file_path=f"sales_report/{pid}/test.csv",
+        original_filename=f"sales_report_{pid}.csv",
+        stored_filename=f"sales_report_{pid}.csv",
+        logical_filename=f"sales_report_{pid}.csv",
+        storage_key=f"sales_report/{pid}/test.csv",
+        file_size_bytes=1024,
+        file_sha256="deadbeef",
+        period_start_date=date(2026, 5, 27),
+        period_end_date=date(2026, 6, 1),
+        snapshot_at=None,
+        version=1,
+        ingestion_status="success",
+    )
+    db_session.add(sf_sales)
+    db_session.flush()
+
+    # 5 days of sales BEFORE target_date, 20 units/day = 100 units prior
+    from datetime import datetime, timezone, timedelta
+
+    _pt = timezone(timedelta(hours=-7))  # Pacific Time offset
+    for i in range(1, 6):
+        _d = target.replace(day=i)
+        _d_utc = datetime(_d.year, _d.month, _d.day, 12, 0, 0, tzinfo=timezone.utc)
+        db_session.add(
+            AnalysisSalesOrderRow(
+                project_id=pid,
+                country="US",
+                source_file_id=sf_sales.id,
+                source_row_no=i,
+                amazon_order_id=f"BEL376-ORDER-PRI-{i}",
+                purchase_at_utc=_d_utc,
+                purchase_at_pt=_d_utc.astimezone(_pt).replace(tzinfo=None),
+                purchase_date_pt=_d,
+                sku="SKU-CUM",  # 必须与 return row.sku 对得上
+                quantity=20,
+                is_counted_sales=True,
+                order_status="Shipped",
+            )
+        )
+    # 1 day of sales ON target_date, 50 units
+    _d_utc = datetime(
+        target.year, target.month, target.day, 12, 0, 0, tzinfo=timezone.utc
+    )
+    db_session.add(
+        AnalysisSalesOrderRow(
+            project_id=pid,
+            country="US",
+            source_file_id=sf_sales.id,
+            source_row_no=6,
+            amazon_order_id="BEL376-ORDER-TARGET",
+            purchase_at_utc=_d_utc,
+            purchase_at_pt=_d_utc.astimezone(_pt).replace(tzinfo=None),
+            purchase_date_pt=target,
+            sku="SKU-CUM",  # 必须与 return row.sku 对得上
+            quantity=50,
+            is_counted_sales=True,
+            order_status="Shipped",
+        )
+    )
+    # 1 return on target_date: 5 units
+    db_session.add(
+        AnalysisReturnRow(
+            project_id=pid,
+            country="US",
+            source_file_id=sf.id,
+            source_row_no=1,
+            return_date=target,
+            sku="SKU-CUM",
+            order_id="ORDER-CUM",
+            quantity=5,
+            detailed_disposition="SELLABLE",
+            reason="OTHER",
+            status="Unit returned to inventory",
+            original_return_datetime="2026-06-15T00:00:00",
+        )
+    )
+    db_session.commit()
+
+    from sqlalchemy import text as _t
+
+    cnt = db_session.execute(
+        _t("SELECT COUNT(*) FROM analysis_sales_order_rows WHERE project_id=:p"),
+        {"p": pid},
+    ).scalar()
+    print("FIXTURE: sales rows persisted for pid", pid, ":", cnt)
+    cnt2 = db_session.execute(
+        _t("SELECT COUNT(*) FROM analysis_return_rows WHERE project_id=:p"), {"p": pid}
+    ).scalar()
+    print("FIXTURE: return rows persisted for pid", pid, ":", cnt2)
+    cnt3 = db_session.execute(
+        _t("SELECT COUNT(*) FROM analysis_source_files WHERE project_id=:p"), {"p": pid}
+    ).scalar()
+    print("FIXTURE: source files persisted for pid", pid, ":", cnt3)
+
+    try:
+        yield pid
+    finally:
+        # cleanup FK order: snapshot → return_rows → sales → source_files → projects
+        from sqlalchemy import text
+
+        db_session.expire_all()
+        db_session.execute(
+            text("DELETE FROM analysis_return_aggregates WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(
+            text("DELETE FROM analysis_return_rows WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(
+            text("DELETE FROM analysis_sales_order_rows WHERE project_id = :pid"),
+            {"pid": pid},
+        )
+        db_session.execute(
+            text(
+                "DELETE FROM analysis_source_files WHERE id IN (SELECT id FROM analysis_source_files WHERE project_id = :pid)"
+            ),
+            {"pid": pid},
+        )
+        db_session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": pid})
+        db_session.commit()
+
+
+def test_refresh_one_day_writes_cumulative_sales(cumulative_test_project, db_session):
+    """BEL-376: sales_quantity 应为 target_date 之前（含当日）所有销量的累计（=150），而不是仅当日（=50）。"""
+    from app.celery_tasks.return_analysis_refresh import _refresh_one_day
+    from app.models import AnalysisReturnAggregate
+
+    target = date(2026, 6, 15)
+    _refresh_one_day(db_session, target_date=target)
+
+    row = (
+        db_session.query(AnalysisReturnAggregate)
+        .filter_by(
+            project_id=cumulative_test_project,
+            sku="SKU-CUM",
+            data_date=target,
+        )
+        .first()
+    )
+    assert row is not None, "snapshot row should exist after refresh"
+    assert row.sales_quantity == 150, (
+        f"expected cumulative sales 150 (5 days * 20 + target 50), got {row.sales_quantity}"
+    )
+    assert row.return_quantity == 5
+    assert row.data_version == 2, (
+        f"expected data_version=2 (BEL-376 mark), got {row.data_version}"
+    )
+
+
+def test_refresh_one_day_excludes_cancelled_sales(cumulative_test_project, db_session):
+    """BEL-376: Cancelled/Pending 订单应被排除（与 counted_sales_where 一致）。"""
+    from app.celery_tasks.return_analysis_refresh import _refresh_one_day
+    from app.models import AnalysisReturnAggregate, AnalysisSalesOrderRow
+    from sqlalchemy import text
+
+    pid = cumulative_test_project
+    target = date(2026, 6, 15)
+
+    # Add 10 cancelled + 10 pending sales on target_date → 应被排除
+    # Need source_file_id: look up the sales source file we created in fixture
+    sf_sales_id = db_session.execute(
+        text(
+            "SELECT id FROM analysis_source_files WHERE project_id = :pid AND report_type = 'sales_report' LIMIT 1"
+        ),
+        {"pid": pid},
+    ).scalar()
+    from datetime import datetime, timezone, timedelta as _td
+
+    _pt = timezone(_td(hours=-7))
+    _d_utc = datetime(
+        target.year, target.month, target.day, 12, 0, 0, tzinfo=timezone.utc
+    )
+    for i in range(2):
+        for status in ("Cancelled", "Pending"):
+            db_session.add(
+                AnalysisSalesOrderRow(
+                    project_id=pid,
+                    country="US",
+                    source_file_id=sf_sales_id,
+                    source_row_no=100 + i,
+                    amazon_order_id=f"BEL376-{status}-{i}",
+                    purchase_at_utc=_d_utc,
+                    purchase_at_pt=_d_utc.astimezone(_pt).replace(tzinfo=None),
+                    purchase_date_pt=target,
+                    sku="SKU-CUM",
+                    quantity=10,
+                    is_counted_sales=True,
+                    order_status=status,
+                )
+            )
+    db_session.commit()
+
+    _refresh_one_day(db_session, target_date=target)
+
+    row = (
+        db_session.query(AnalysisReturnAggregate)
+        .filter_by(project_id=pid, sku="SKU-CUM", data_date=target)
+        .first()
+    )
+    assert row.sales_quantity == 150, (
+        f"cancelled/pending should be excluded; got sales_quantity={row.sales_quantity}"
+    )

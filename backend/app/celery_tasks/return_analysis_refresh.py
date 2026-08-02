@@ -135,17 +135,21 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
             continue
 
         # 3) 拉同日 sales rows
+        # BEL-376: sales_quantity 改为"截至 target_date 累计销量"（cumulative）。
+        # 原错误使用 == 当日，导致 snapshot 系统性低估销量、退货率虚高。
+        # 与 counted_sales_where 一致：排除 Cancelled/Pending + is_counted_sales=true。
         sales_rows = (
             db.query(
                 AnalysisSalesOrderRow.sku,
-                AnalysisSalesOrderRow.purchase_date_pt,
                 AnalysisSalesOrderRow.quantity,
             )
             .filter(
                 AnalysisSalesOrderRow.project_id == project_id,
                 AnalysisSalesOrderRow.country == country,
-                AnalysisSalesOrderRow.purchase_date_pt == target_date,
+                AnalysisSalesOrderRow.purchase_date_pt <= target_date,
                 AnalysisSalesOrderRow.is_counted_sales == True,
+                AnalysisSalesOrderRow.order_status != "Cancelled",
+                AnalysisSalesOrderRow.order_status != "Pending",
             )
             .all()
         )
@@ -231,7 +235,7 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
                     "dominant_fc_id": dominant_fc_id,
                     "risk_level": risk_level,
                     "wilson_lower": round(wilson_lower, 3) if wilson_lower else None,
-                    "data_version": 1,
+                    "data_version": 2,  # BEL-376: cumulative-sales semantics (was 1 = same-day)
                     "computed_at": datetime.now(timezone.utc),
                 }
             )
