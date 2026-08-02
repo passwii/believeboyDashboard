@@ -505,6 +505,26 @@ export interface paths {
         patch: operations["update_conversation_api_v1_ai_conversations__conversation_id__patch"];
         trace?: never;
     };
+    "/api/v1/ai/conversations/{conversation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Stream V2
+         * @description V2 取消:GETDEL live_key,跨 worker 生效。
+         */
+        post: operations["cancel_stream_v2_api_v1_ai_conversations__conversation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/conversations/{conversation_id}/messages": {
         parameters: {
             query?: never;
@@ -515,8 +535,7 @@ export interface paths {
         /** List Messages */
         get: operations["list_messages_api_v1_ai_conversations__conversation_id__messages_get"];
         put?: never;
-        /** Create Message */
-        post: operations["create_message_api_v1_ai_conversations__conversation_id__messages_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -533,20 +552,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Stream Message
-         * @description SSE 流式对话端点。
+         * Stream Message V2
+         * @description V2 SSE 流式对话端点。
          *
-         *     [BEL-80 follow-up] 取消支持：
-         *     - 注册 `threading.Event` 到 `cancel_registry`；前端通过
-         *       `POST /conversations/{id}/stream/cancel` 设事件，后端
-         *       LLM 循环下一次迭代时检测到后立刻 `return`，
-         *       `with httpx.Client(...)` 退出关闭连接，节省 token。
-         *     - 进程级注册：多 worker 部署需要 sticky session 或 Redis
-         *       广播，本 PR 暂不处理。
-         *     - 数据库 session 仍走 FastAPI Depends（BEL-66 sync handler
-         *       模式）：LLM 取消只关 httpx，不动 DB session 生命周期。
+         *     架构:agent 在后台 asyncio.Task 中执行,事件经 Redis Stream 中转,
+         *     本端点仅订阅 + 编码 SSE。执行与 HTTP 交付完全解耦。
+         *
+         *     重连:客户端传 Last-Event-ID header,从该 ID 之后续传。
          */
-        post: operations["stream_message_api_v1_ai_conversations__conversation_id__messages_stream_post"];
+        post: operations["stream_message_v2_api_v1_ai_conversations__conversation_id__messages_stream_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -597,32 +611,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/ai/conversations/{conversation_id}/stream/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Cancel Stream
-         * @description 请求取消正在进行的流式生成。
-         *
-         *     - 校验 conv 归属，避免跨用户取消。
-         *     - 通过 `cancel_registry` 设 event；
-         *       `event_stream()` 在下一次 LLM 迭代时检测到并终止。
-         *     - 进程级：只在同一个 worker 进程内有效（multi-worker
-         *       部署需要 sticky session 或 Redis，本 PR 暂不处理）。
-         */
-        post: operations["cancel_stream_api_v1_ai_conversations__conversation_id__stream_cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/ai/upload": {
         parameters: {
             query?: never;
@@ -634,6 +622,26 @@ export interface paths {
         put?: never;
         /** Upload File For Ai */
         post: operations["upload_file_for_ai_api_v1_ai_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/usage/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Chat Usage Stats
+         * @description 当前用户的 token 用量统计（读 ai_chat_token_usage_snapshots 物化表）。
+         */
+        get: operations["get_ai_chat_usage_stats_api_v1_ai_usage_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1140,6 +1148,417 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/crm/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Audit Logs
+         * @description 审计日志查询（仅管理员）。
+         *
+         *     P5-9: 支持 entity_types + entity_ids 多值过滤（前端客户抽屉同时查
+         *     客户审计 + 客户下所有联系人审计）。
+         */
+        get: operations["list_audit_logs_api_v1_crm_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/contacts/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Contact */
+        delete: operations["delete_contact_api_v1_crm_contacts__contact_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Contact */
+        patch: operations["update_contact_api_v1_crm_contacts__contact_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Customers */
+        get: operations["list_customers_api_v1_crm_customers_get"];
+        put?: never;
+        /** Create Customer */
+        post: operations["create_customer_api_v1_crm_customers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/batch-move-sea": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Move To Sea */
+        post: operations["batch_move_to_sea_api_v1_crm_customers_batch_move_sea_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/batch-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Transfer */
+        post: operations["batch_transfer_api_v1_crm_customers_batch_transfer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Customers
+         * @description 按当前 scope/keyword 导出客户清单为 CSV（不分页，导出全部命中）。
+         */
+        get: operations["export_customers_api_v1_crm_customers_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/import-sea": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Customers To Sea */
+        post: operations["import_customers_to_sea_api_v1_crm_customers_import_sea_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/{customer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Customer */
+        get: operations["get_customer_api_v1_crm_customers__customer_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Customer */
+        delete: operations["delete_customer_api_v1_crm_customers__customer_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Customer */
+        patch: operations["update_customer_api_v1_crm_customers__customer_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/customers/{customer_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim From Sea */
+        post: operations["claim_from_sea_api_v1_crm_customers__customer_id__claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/{customer_id}/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Contacts */
+        get: operations["list_contacts_api_v1_crm_customers__customer_id__contacts_get"];
+        put?: never;
+        /** Create Contact */
+        post: operations["create_contact_api_v1_crm_customers__customer_id__contacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/customers/{customer_id}/value-scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Value Scores */
+        patch: operations["update_value_scores_api_v1_crm_customers__customer_id__value_scores_patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/dashboard/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dashboard Stats */
+        get: operations["get_dashboard_stats_api_v1_crm_dashboard_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/follow-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Follow Ups */
+        get: operations["list_follow_ups_api_v1_crm_follow_ups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Follows */
+        get: operations["list_follows_api_v1_crm_follows_get"];
+        put?: never;
+        /** Create Follow */
+        post: operations["create_follow_api_v1_crm_follows_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Leads */
+        get: operations["list_leads_api_v1_crm_leads_get"];
+        put?: never;
+        /** Create Lead */
+        post: operations["create_lead_api_v1_crm_leads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads/batch-move-pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Move Leads To Pool */
+        post: operations["batch_move_leads_to_pool_api_v1_crm_leads_batch_move_pool_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads/batch-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch Transfer Leads */
+        post: operations["batch_transfer_leads_api_v1_crm_leads_batch_transfer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Leads
+         * @description 按当前 scope/keyword 导出线索清单为 CSV（不分页，导出全部命中）。
+         */
+        get: operations["export_leads_api_v1_crm_leads_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads/{lead_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Lead */
+        get: operations["get_lead_api_v1_crm_leads__lead_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Lead */
+        patch: operations["update_lead_api_v1_crm_leads__lead_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/leads/{lead_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Lead From Pool */
+        post: operations["claim_lead_from_pool_api_v1_crm_leads__lead_id__claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/leads/{lead_id}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Convert Lead */
+        post: operations["convert_lead_api_v1_crm_leads__lead_id__convert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Users */
+        get: operations["list_users_api_v1_crm_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User */
+        get: operations["get_user_api_v1_crm_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/daily-analysis": {
         parameters: {
             query?: never;
@@ -1232,6 +1651,23 @@ export interface paths {
         put?: never;
         /** Create Employee Endpoint */
         post: operations["create_employee_endpoint_api_v1_digital_employees_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/digital-employees/office/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Office Stream */
+        get: operations["office_stream_api_v1_digital_employees_office_stream_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1467,6 +1903,774 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/external/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Projects */
+        get: operations["get_external_projects_api_v1_external_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-budget-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Budget Raw Alias */
+        get: operations["get_external_ad_budget_raw_alias_api_v1_external_projects__project_id__ad_budget_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Budget Aggregate */
+        get: operations["get_external_ad_budget_aggregate_api_v1_external_projects__project_id__ad_budgets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-budgets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Budget Raw */
+        get: operations["get_external_ad_budget_raw_api_v1_external_projects__project_id__ad_budgets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-campaign-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Campaign Raw Alias */
+        get: operations["get_external_ad_campaign_raw_alias_api_v1_external_projects__project_id__ad_campaign_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Campaign Aggregate */
+        get: operations["get_external_ad_campaign_aggregate_api_v1_external_projects__project_id__ad_campaigns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-campaigns-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Campaign Raw */
+        get: operations["get_external_ad_campaign_raw_api_v1_external_projects__project_id__ad_campaigns_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-invalid-traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Invalid Traffic Aggregate */
+        get: operations["get_external_ad_invalid_traffic_aggregate_api_v1_external_projects__project_id__ad_invalid_traffic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-invalid-traffic-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Invalid Traffic Raw */
+        get: operations["get_external_ad_invalid_traffic_raw_api_v1_external_projects__project_id__ad_invalid_traffic_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-placement-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Placement Raw Alias */
+        get: operations["get_external_ad_placement_raw_alias_api_v1_external_projects__project_id__ad_placement_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-placements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Placement Aggregate */
+        get: operations["get_external_ad_placement_aggregate_api_v1_external_projects__project_id__ad_placements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-placements-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Placement Raw */
+        get: operations["get_external_ad_placement_raw_api_v1_external_projects__project_id__ad_placements_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-promoted-product-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Promoted Product Raw Alias */
+        get: operations["get_external_ad_promoted_product_raw_alias_api_v1_external_projects__project_id__ad_promoted_product_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-promoted-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Promoted Product Aggregate */
+        get: operations["get_external_ad_promoted_product_aggregate_api_v1_external_projects__project_id__ad_promoted_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-promoted-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Promoted Product Raw */
+        get: operations["get_external_ad_promoted_product_raw_api_v1_external_projects__project_id__ad_promoted_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-purchased-product-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Purchased Product Raw Alias */
+        get: operations["get_external_ad_purchased_product_raw_alias_api_v1_external_projects__project_id__ad_purchased_product_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-purchased-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Purchased Product Aggregate */
+        get: operations["get_external_ad_purchased_product_aggregate_api_v1_external_projects__project_id__ad_purchased_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-purchased-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Purchased Product Raw */
+        get: operations["get_external_ad_purchased_product_raw_api_v1_external_projects__project_id__ad_purchased_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-term-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Raw Alias */
+        get: operations["get_external_ad_search_term_raw_alias_api_v1_external_projects__project_id__ad_search_term_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-term-share-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Share Raw Alias */
+        get: operations["get_external_ad_search_term_share_raw_alias_api_v1_external_projects__project_id__ad_search_term_share_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-term-shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Share Aggregate */
+        get: operations["get_external_ad_search_term_share_aggregate_api_v1_external_projects__project_id__ad_search_term_shares_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-term-shares-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Share Raw */
+        get: operations["get_external_ad_search_term_share_raw_api_v1_external_projects__project_id__ad_search_term_shares_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Aggregate */
+        get: operations["get_external_ad_search_term_aggregate_api_v1_external_projects__project_id__ad_search_terms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-search-terms-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Search Term Raw */
+        get: operations["get_external_ad_search_term_raw_api_v1_external_projects__project_id__ad_search_terms_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-target-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Target Raw Alias */
+        get: operations["get_external_ad_target_raw_alias_api_v1_external_projects__project_id__ad_target_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Target Aggregate */
+        get: operations["get_external_ad_target_aggregate_api_v1_external_projects__project_id__ad_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-targets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Target Raw */
+        get: operations["get_external_ad_target_raw_api_v1_external_projects__project_id__ad_targets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-time-trend-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Time Trend Raw Alias */
+        get: operations["get_external_ad_time_trend_raw_alias_api_v1_external_projects__project_id__ad_time_trend_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-time-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Time Trend Aggregate */
+        get: operations["get_external_ad_time_trend_aggregate_api_v1_external_projects__project_id__ad_time_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/ad-time-trends-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Ad Time Trend Raw */
+        get: operations["get_external_ad_time_trend_raw_api_v1_external_projects__project_id__ad_time_trends_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/business-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Business Summary */
+        get: operations["get_external_business_summary_api_v1_external_projects__project_id__business_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext Events
+         * @description SKU event flow.
+         */
+        get: operations["ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext Integrity
+         * @description Cross-month integrity check.
+         */
+        get: operations["ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext List Months
+         * @description List months with ledger data.
+         */
+        get: operations["ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/receipt-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext Receipt Clusters
+         * @description Receipt clusters.
+         */
+        get: operations["ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext Snapshot
+         * @description Monthly/period snapshot.
+         */
+        get: operations["ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/inventory-ledger/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ext Trend
+         * @description Multi-month aggregated trend.
+         */
+        get: operations["ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/orders/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Orders Summary */
+        get: operations["get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/replenishment-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Replenishment analysis with age-bucket breakdown and DMS
+         * @description Per-SKU inventory-health + replenishment analysis. Each item includes:
+         *       - **Stock**: available_inventory, in_transit_quantity, age buckets
+         *       - **Sales velocity**: DMS at 30/14/7/3 days, weighted DMS
+         *       - **Sell-through**: sellable_days, sellout_date (with/without transit)
+         *       - **Replenishment**: production_lead_days, shipping_days, estimated_replenishment_quantity
+         *       - **Risk**: risk_status (断货风险 / 健康库存 / 滞销 / 待补数据)
+         *       - **Age bucket**: age_0_90_qty … age_365_plus_qty, recommended_action
+         */
+        get: operations["get_external_replenishment_analysis_api_v1_external_projects__project_id__replenishment_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/return-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return Analysis aggregate (per-SKU rollup from snapshot)
+         * @description Per-SKU rollup of return metrics within the requested window.
+         *     Reads from the ``analysis_return_aggregates`` snapshot, so the
+         *     ``risk_level`` and ``wilson_lower`` values reflect the Celery
+         *     nightly pre-aggregation (not live computation).
+         *
+         *     Each row carries 12 fields:
+         *       - **Counts**: return_count, return_quantity, sales_quantity
+         *       - **Rates**: return_rate (%), wilson_lower (%)
+         *       - **Cycle**: cycle_avg_days / cycle_min_days / cycle_max_days
+         *       - **Top reasons**: reason_top1, disposition_top1, dominant_fc_id
+         *       - **Risk**: risk_level (critical / warning / normal / no_data)
+         *
+         *     Use ``?risk_level=critical`` to surface at-risk SKUs only.
+         *     Use ``?min_return_rate=5.0`` to set a rate threshold.
+         *     Use ``?sku=SKU-001`` for substring match.
+         */
+        get: operations["get_external_return_analysis_aggregate_api_v1_external_projects__project_id__return_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/return-analysis-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Return Analysis raw events (Pydantic-stripped of sensitive fields)
+         * @description Raw ``analysis_return_rows`` events within the requested window.
+         *     Sensitive fields are **never** returned:
+         *       - ``customer_comments`` — PII / free-form complaint text
+         *       - ``raw_row``           — debug-only JSON blob
+         *       - ``fnsku``             — internal Amazon LPN
+         *       - ``license_plate_number`` — internal LPN
+         *
+         *     Use ``?order_by=`` to sort by any of the 12 whitelisted columns.
+         */
+        get: operations["get_external_return_analysis_raw_api_v1_external_projects__project_id__return_analysis_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/sku-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Sku Info */
+        get: operations["get_external_sku_info_api_v1_external_projects__project_id__sku_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1683,6 +2887,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Api Keys */
+        get: operations["list_api_keys_api_v1_internal_api_keys_get"];
+        put?: never;
+        /** Create Api Key */
+        post: operations["create_api_key_api_v1_internal_api_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/api-keys/{key_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Api Key */
+        post: operations["revoke_api_key_api_v1_internal_api_keys__key_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/jobs/return-analysis-refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Return Analysis Refresh
+         * @description 手动刷新退货分析物化表.
+         *
+         *     默认只跑 target_date（或昨天）；backfill_days > 1 时连同前 N-1 天一起重跑。
+         *     所有日期一次性 commit，便于回填场景。
+         */
+        post: operations["trigger_return_analysis_refresh_api_v1_internal_jobs_return_analysis_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory-analysis": {
         parameters: {
             query?: never;
@@ -1692,6 +2954,126 @@ export interface paths {
         };
         /** Get Inventory Analysis */
         get: operations["get_inventory_analysis_api_v1_inventory_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description SKU event flow for the period.
+         */
+        get: operations["get_events_api_v1_inventory_ledger_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/location-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Location Detail
+         * @description Warehouse-level detail, optionally filtered by SKU.
+         */
+        get: operations["get_location_detail_api_v1_inventory_ledger_location_detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Months
+         * @description List months that have ledger data for this project.
+         */
+        get: operations["list_months_api_v1_inventory_ledger_months_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/receipt-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Clusters
+         * @description Receipt clusters for the period.
+         */
+        get: operations["get_clusters_api_v1_inventory_ledger_receipt_clusters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Snapshot
+         * @description Monthly/period snapshot: SKU EOM + disposition summary + integrity.
+         */
+        get: operations["get_snapshot_api_v1_inventory_ledger_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trend Endpoint
+         * @description Multi-month aggregated trend: EOM qty, events, damaged pct per month.
+         */
+        get: operations["get_trend_endpoint_api_v1_inventory_ledger_trend_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2118,6 +3500,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notifications */
+        get: operations["list_notifications_api_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Read */
+        post: operations["mark_all_read_api_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread Count */
+        get: operations["unread_count_api_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Notification */
+        delete: operations["delete_notification_api_v1_notifications__notification_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Read */
+        post: operations["mark_read_api_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/order-info/export": {
         parameters: {
             query?: never;
@@ -2161,6 +3628,27 @@ export interface paths {
         };
         /** List Orders */
         get: operations["list_orders_api_v1_order_info_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/order-info/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Overview
+         * @description 一次返回 列表 + 顶部统计（不含 filter_options）。前端筛选/翻页/排序用这个，
+         *     取代原先并行的 /list + /stats 两请求。
+         */
+        get: operations["get_overview_api_v1_order_info_overview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2219,8 +3707,80 @@ export interface paths {
         /**
          * Update Order
          * @description FBM 订单补录/编辑（carrier / tracking_no / shipped_at / updated_by）。
+         *
+         *     - admin：可编辑任意店铺的订单
+         *     - operator：仅可编辑"运营关联"店铺的订单（受 _ensure_project_access_for_orders 约束）
+         *     - 写入成功后落 operation_audit_log（action=order_info.update）
          */
         patch: operations["update_order_api_v1_order_info__order_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/page-render/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["history_api_v1_page_render_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-render/public/{page_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Page */
+        get: operations["public_page_api_v1_page_render_public__page_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-render/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload */
+        post: operations["upload_api_v1_page_render_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/page-render/{page_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Page */
+        delete: operations["delete_page_api_v1_page_render__page_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/platform-revenues": {
@@ -2295,6 +3855,75 @@ export interface paths {
         head?: never;
         /** Update Platform Revenue */
         patch: operations["update_platform_revenue_api_v1_platform_revenues__revenue_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/pricing-calculation-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pricing Calculation Snapshots
+         * @description 按 (project, country) 列出历史快照
+         */
+        get: operations["list_pricing_calculation_snapshots_api_v1_pricing_calculation_snapshots_get"];
+        put?: never;
+        /**
+         * Create Pricing Calculation Snapshot
+         * @description 创建定价历史快照
+         *
+         *     从 ``store_sku_pricing_snapshots`` 读取 ``(project_id, country)`` 当前态，
+         *     复制为新的快照（append-only）。原表不受影响。
+         */
+        post: operations["create_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-calculation-snapshots/{snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pricing Calculation Snapshot Detail */
+        get: operations["get_pricing_calculation_snapshot_detail_api_v1_pricing_calculation_snapshots__snapshot_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Pricing Calculation Snapshot
+         * @description 删除快照（级联删除 items，仅管理员）
+         */
+        delete: operations["delete_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots__snapshot_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Pricing Calculation Snapshot
+         * @description 更新快照名称或备注（仅管理员）
+         */
+        patch: operations["update_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots__snapshot_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/pricing-calculation-snapshots/{snapshot_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pricing Calculation Snapshot Items */
+        get: operations["get_pricing_calculation_snapshot_items_api_v1_pricing_calculation_snapshots__snapshot_id__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/pricing-calculation/eu-quote": {
@@ -3000,6 +4629,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/report-reconciliation/reports/{report_id}/csv-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Transaction Csv
+         * @description Upload or replace the settlement transaction CSV (raw source) for a report.
+         *
+         *     The new file is stored in R2 and the report's transaction_file_id is updated.
+         *     Access is scoped to the operator's own projects (see download-csv).
+         */
+        post: operations["upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-reconciliation/reports/{report_id}/download-csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Reconciliation Csv
+         * @description Download the settlement transaction CSV (raw source) for a report via R2 proxy.
+         *
+         *     Access is scoped to the operator's own projects: an operator can only
+         *     download CSVs for projects they own (project_operator / assistant_operator),
+         *     mirroring the visibility rule of /projects/manage. Admins can access all.
+         */
+        get: operations["download_reconciliation_csv_api_v1_report_reconciliation_reports__report_id__download_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/report-reconciliation/reports/{report_id}/download-pdf": {
         parameters: {
             query?: never;
@@ -3125,6 +4801,12 @@ export interface paths {
         /**
          * Get Return Analysis
          * @description 获取退货分析数据
+         *
+         *     BEL-373 双段式架构（plan §3.2）：
+         *     1. Redis v2 缓存（5 分钟 TTL）→ 命中直接返回
+         *     2. 缓存未命中 → 查 snapshot 是否新鲜（25h 阈值）
+         *        - 新鲜：build_return_analysis_from_snapshot() 走物化表
+         *        - 不新鲜：fallback 到 build_return_analysis() 现场跑
          */
         get: operations["get_return_analysis_api_v1_return_analysis_get"];
         put?: never;
@@ -3180,6 +4862,23 @@ export interface paths {
         get: operations["get_scheduled_report_ledger_api_v1_scheduled_reports_ledger_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scheduled-reports/ledger/{ledger_key}/ai-summary/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Scheduled Report Ai Summary */
+        post: operations["regenerate_scheduled_report_ai_summary_api_v1_scheduled_reports_ledger__ledger_key__ai_summary_regenerate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3317,6 +5016,40 @@ export interface paths {
         /** Create Shipment Schedule */
         post: operations["create_shipment_schedule_api_v1_shipment_schedules_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipment-schedules/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Shipment Batches */
+        get: operations["list_shipment_batches_api_v1_shipment_schedules_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipment-schedules/batches/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Hide Shipment Batch */
+        delete: operations["hide_shipment_batch_api_v1_shipment_schedules_batches_hidden_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4360,6 +6093,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/vat-entities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Vat Entities */
+        get: operations["list_vat_entities_api_v1_vat_entities_get"];
+        put?: never;
+        /** Create Vat Entity */
+        post: operations["create_vat_entity_api_v1_vat_entities_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vat-entities/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Vat Entity */
+        delete: operations["delete_vat_entity_api_v1_vat_entities__entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Vat Entity */
+        patch: operations["update_vat_entity_api_v1_vat_entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/vat-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Vat Invoices */
+        get: operations["list_vat_invoices_api_v1_vat_invoices_get"];
+        put?: never;
+        /** Create Vat Invoice */
+        post: operations["create_vat_invoice_api_v1_vat_invoices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vat-invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Vat Invoice */
+        get: operations["get_vat_invoice_api_v1_vat_invoices__invoice_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vat-invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Vat Invoice Pdf */
+        get: operations["get_vat_invoice_pdf_api_v1_vat_invoices__invoice_id__pdf_get"];
+        put?: never;
+        /** Upload Vat Invoice Pdf */
+        post: operations["upload_vat_invoice_pdf_api_v1_vat_invoices__invoice_id__pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vat-invoices/{invoice_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Vat Invoice */
+        post: operations["void_vat_invoice_api_v1_vat_invoices__invoice_id__void_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4408,6 +6247,125 @@ export interface components {
         AIChatMessageUpdate: {
             /** Content */
             content: string;
+        };
+        /** AIChatUsageDailyPoint */
+        AIChatUsageDailyPoint: {
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Message Count
+             * @default 0
+             */
+            message_count: number;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+        };
+        /** AIChatUsageModelSummary */
+        AIChatUsageModelSummary: {
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Message Count
+             * @default 0
+             */
+            message_count: number;
+            /** Model */
+            model: string;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+        };
+        /**
+         * AIChatUsageSnapshotFreshness
+         * @description 最近一次 Celery 写入的元信息，供前端判断数据新鲜度。
+         */
+        AIChatUsageSnapshotFreshness: {
+            /** Latest Computed At */
+            latest_computed_at?: string | null;
+            /** Latest Data Date */
+            latest_data_date?: string | null;
+        };
+        /** AIChatUsageStatsResponse */
+        AIChatUsageStatsResponse: {
+            /** By Model */
+            by_model: components["schemas"]["AIChatUsageModelSummary"][];
+            /** Daily */
+            daily: components["schemas"]["AIChatUsageDailyPoint"][];
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * Range
+             * @enum {string}
+             */
+            range: "7d" | "30d" | "90d";
+            snapshot_freshness: components["schemas"]["AIChatUsageSnapshotFreshness"];
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            totals: components["schemas"]["AIChatUsageTotals"];
+        };
+        /**
+         * AIChatUsageTotals
+         * @description 区间求和。``conversation_count`` 为上界，见模块 docstring。
+         */
+        AIChatUsageTotals: {
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /**
+             * Conversation Count
+             * @description ∑ 每日 distinct-conv；单日 = 真实 distinct，跨日为上界。前端展示时避免暗示「不重复会话数」。
+             * @default 0
+             */
+            conversation_count: number;
+            /**
+             * Message Count
+             * @default 0
+             */
+            message_count: number;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
         };
         /** AIFileUploadResponse */
         AIFileUploadResponse: {
@@ -4659,6 +6617,1256 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** AdBudgetAggregateResponse */
+        AdBudgetAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdBudgetAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdBudgetAggregateRow */
+        AdBudgetAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Budget */
+            budget?: number | null;
+            /**
+             * Budget Utilization Rate
+             * @default 0
+             */
+            budget_utilization_rate: number;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Missed Clicks Max
+             * @default 0
+             */
+            missed_clicks_max: number;
+            /**
+             * Missed Clicks Min
+             * @default 0
+             */
+            missed_clicks_min: number;
+            /**
+             * Missed Impressions Max
+             * @default 0
+             */
+            missed_impressions_max: number;
+            /**
+             * Missed Impressions Min
+             * @default 0
+             */
+            missed_impressions_min: number;
+            /**
+             * Missed Sales Max
+             * @default 0
+             */
+            missed_sales_max: number;
+            /**
+             * Missed Sales Min
+             * @default 0
+             */
+            missed_sales_min: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /** Status */
+            status?: string | null;
+            /** Suggested Budget */
+            suggested_budget?: number | null;
+        };
+        /** AdBudgetRawRow */
+        AdBudgetRawRow: {
+            /** Acos */
+            acos: number;
+            /** Budget */
+            budget: number;
+            /** Budget Utilization Rate */
+            budget_utilization_rate: number;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Missed Clicks Max */
+            missed_clicks_max: number;
+            /** Missed Clicks Min */
+            missed_clicks_min: number;
+            /** Missed Impressions Max */
+            missed_impressions_max: number;
+            /** Missed Impressions Min */
+            missed_impressions_min: number;
+            /** Missed Sales Max */
+            missed_sales_max: number;
+            /** Missed Sales Min */
+            missed_sales_min: number;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Status */
+            status?: string | null;
+            /** Suggested Budget */
+            suggested_budget: number;
+        };
+        /** AdCampaignAggregateResponse */
+        AdCampaignAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdCampaignAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /**
+         * AdCampaignAggregateRow
+         * @description Aggregate by ``campaign_name``.
+         */
+        AdCampaignAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Bidding Strategy */
+            bidding_strategy?: string | null;
+            /** Budget */
+            budget?: number | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Campaign Type */
+            campaign_type?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /** Portfolio Name */
+            portfolio_name?: string | null;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /** Status */
+            status?: string | null;
+            /** Targeting Type */
+            targeting_type?: string | null;
+        };
+        /** AdCampaignRawRow */
+        AdCampaignRawRow: {
+            /** Acos */
+            acos: number;
+            /** Bidding Strategy */
+            bidding_strategy?: string | null;
+            /** Budget */
+            budget: number;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Campaign Type */
+            campaign_type?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ctr */
+            ctr: number;
+            /** Id */
+            id: number;
+            /** Impressions */
+            impressions: number;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Portfolio Name */
+            portfolio_name?: string | null;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Status */
+            status?: string | null;
+            /** Targeting Type */
+            targeting_type?: string | null;
+        };
+        /** AdInvalidTrafficAggregateResponse */
+        AdInvalidTrafficAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdInvalidTrafficAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdInvalidTrafficAggregateRow */
+        AdInvalidTrafficAggregateRow: {
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Invalid Click Rate
+             * @default 0
+             */
+            invalid_click_rate: number;
+            /**
+             * Invalid Clicks
+             * @default 0
+             */
+            invalid_clicks: number;
+            /**
+             * Invalid Impression Rate
+             * @default 0
+             */
+            invalid_impression_rate: number;
+            /**
+             * Invalid Impressions
+             * @default 0
+             */
+            invalid_impressions: number;
+            /** Status */
+            status?: string | null;
+            /**
+             * Total Clicks
+             * @default 0
+             */
+            total_clicks: number;
+            /**
+             * Total Impressions
+             * @default 0
+             */
+            total_impressions: number;
+            /**
+             * Valid Clicks
+             * @default 0
+             */
+            valid_clicks: number;
+            /**
+             * Valid Impressions
+             * @default 0
+             */
+            valid_impressions: number;
+        };
+        /** AdInvalidTrafficRawRow */
+        AdInvalidTrafficRawRow: {
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Invalid Click Rate */
+            invalid_click_rate: number;
+            /** Invalid Clicks */
+            invalid_clicks: number;
+            /** Invalid Impression Rate */
+            invalid_impression_rate: number;
+            /** Invalid Impressions */
+            invalid_impressions: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Source File Id */
+            source_file_id: number;
+            /** Status */
+            status?: string | null;
+            /** Total Clicks */
+            total_clicks: number;
+            /** Total Impressions */
+            total_impressions: number;
+            /** Valid Clicks */
+            valid_clicks: number;
+            /** Valid Impressions */
+            valid_impressions: number;
+        };
+        /** AdPlacementAggregateResponse */
+        AdPlacementAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPlacementAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdPlacementAggregateRow */
+        AdPlacementAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Bidding Strategy */
+            bidding_strategy?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /** Placement */
+            placement?: string | null;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /**
+             * Units 7D
+             * @default 0
+             */
+            units_7d: number;
+        };
+        /** AdPlacementRawRow */
+        AdPlacementRawRow: {
+            /** Acos */
+            acos: number;
+            /** Bidding Strategy */
+            bidding_strategy?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Impressions */
+            impressions: number;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Placement */
+            placement?: string | null;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Units 7D */
+            units_7d: number;
+        };
+        /** AdPromotedProductAggregateResponse */
+        AdPromotedProductAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPromotedProductAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdPromotedProductAggregateRow */
+        AdPromotedProductAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Ad Asin */
+            ad_asin?: string | null;
+            /** Ad Sku */
+            ad_sku?: string | null;
+            /**
+             * Ad Sku Sales 7D
+             * @default 0
+             */
+            ad_sku_sales_7d: number;
+            /**
+             * Ad Sku Units 7D
+             * @default 0
+             */
+            ad_sku_units_7d: number;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Other Sku Sales 7D
+             * @default 0
+             */
+            other_sku_sales_7d: number;
+            /**
+             * Other Sku Units 7D
+             * @default 0
+             */
+            other_sku_units_7d: number;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /** Scope Status */
+            scope_status?: string | null;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /**
+             * Units 7D
+             * @default 0
+             */
+            units_7d: number;
+        };
+        /** AdPromotedProductRawRow */
+        AdPromotedProductRawRow: {
+            /** Acos */
+            acos: number;
+            /** Ad Asin */
+            ad_asin?: string | null;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Ad Sku */
+            ad_sku?: string | null;
+            /** Ad Sku Sales 7D */
+            ad_sku_sales_7d: number;
+            /** Ad Sku Units 7D */
+            ad_sku_units_7d: number;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ctr */
+            ctr: number;
+            /** Cvr 7D */
+            cvr_7d: number;
+            /** Id */
+            id: number;
+            /** Impressions */
+            impressions: number;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Other Sku Sales 7D */
+            other_sku_sales_7d: number;
+            /** Other Sku Units 7D */
+            other_sku_units_7d: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Scope Status */
+            scope_status: string;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Units 7D */
+            units_7d: number;
+        };
+        /** AdPurchasedProductAggregateResponse */
+        AdPurchasedProductAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPurchasedProductAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdPurchasedProductAggregateRow */
+        AdPurchasedProductAggregateRow: {
+            /** Ad Asin */
+            ad_asin?: string | null;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Ad Sku */
+            ad_sku?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Match Type */
+            match_type?: string | null;
+            /**
+             * Other Sku Orders 7D
+             * @default 0
+             */
+            other_sku_orders_7d: number;
+            /**
+             * Other Sku Sales 7D
+             * @default 0
+             */
+            other_sku_sales_7d: number;
+            /**
+             * Other Sku Units 7D
+             * @default 0
+             */
+            other_sku_units_7d: number;
+            /** Purchased Asin */
+            purchased_asin?: string | null;
+            /** Target Text */
+            target_text?: string | null;
+        };
+        /** AdPurchasedProductRawRow */
+        AdPurchasedProductRawRow: {
+            /** Ad Asin */
+            ad_asin?: string | null;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Ad Sku */
+            ad_sku?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Match Type */
+            match_type?: string | null;
+            /** Other Sku Orders 7D */
+            other_sku_orders_7d: number;
+            /** Other Sku Sales 7D */
+            other_sku_sales_7d: number;
+            /** Other Sku Units 7D */
+            other_sku_units_7d: number;
+            /** Purchased Asin */
+            purchased_asin?: string | null;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Source File Id */
+            source_file_id: number;
+            /** Target Text */
+            target_text?: string | null;
+        };
+        /** AdSearchTermAggregateResponse */
+        AdSearchTermAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdSearchTermAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /**
+         * AdSearchTermAggregateRow
+         * @description Aggregate by ``(search_term, targeting_type, match_type)`` —
+         *     see ``services/external/ad_targeting.py`` for ``targeting_type`` semantics.
+         */
+        AdSearchTermAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /** Search Term */
+            search_term?: string | null;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /** Targeting Type */
+            targeting_type?: string | null;
+        };
+        /** AdSearchTermRawRow */
+        AdSearchTermRawRow: {
+            /** Acos */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ctr */
+            ctr: number;
+            /** Cvr 7D */
+            cvr_7d: number;
+            /** Id */
+            id: number;
+            /** Impressions */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Search Term */
+            search_term?: string | null;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Targeting Type */
+            targeting_type?: string | null;
+        };
+        /** AdSearchTermShareAggregateResponse */
+        AdSearchTermShareAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdSearchTermShareAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdSearchTermShareAggregateRow */
+        AdSearchTermShareAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impression Rank
+             * @default 0
+             */
+            impression_rank: number;
+            /**
+             * Impression Share
+             * @default 0
+             */
+            impression_share: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /** Search Term */
+            search_term?: string | null;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /** Target Text */
+            target_text?: string | null;
+        };
+        /** AdSearchTermShareRawRow */
+        AdSearchTermShareRawRow: {
+            /** Acos */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ctr */
+            ctr: number;
+            /** Cvr 7D */
+            cvr_7d: number;
+            /** Id */
+            id: number;
+            /** Impression Rank */
+            impression_rank: number;
+            /** Impression Share */
+            impression_share: number;
+            /** Impressions */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Search Term */
+            search_term?: string | null;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Target Text */
+            target_text?: string | null;
+        };
+        /** AdTargetAggregateResponse */
+        AdTargetAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdTargetAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /** AdTargetAggregateRow */
+        AdTargetAggregateRow: {
+            /**
+             * Acos
+             * @default 0
+             */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /**
+             * Ctr
+             * @default 0
+             */
+            ctr: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Impressions
+             * @default 0
+             */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Roas
+             * @default 0
+             */
+            roas: number;
+            /**
+             * Sales 7D
+             * @default 0
+             */
+            sales_7d: number;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+            /** Target Text */
+            target_text?: string | null;
+            /**
+             * Top Of Search Impression Share
+             * @default 0
+             */
+            top_of_search_impression_share: number;
+            /**
+             * Units 7D
+             * @default 0
+             */
+            units_7d: number;
+        };
+        /** AdTargetRawRow */
+        AdTargetRawRow: {
+            /** Acos */
+            acos: number;
+            /** Ad Group Name */
+            ad_group_name?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ctr */
+            ctr: number;
+            /** Cvr 7D */
+            cvr_7d: number;
+            /** Id */
+            id: number;
+            /** Impressions */
+            impressions: number;
+            /** Match Type */
+            match_type?: string | null;
+            /** Orders 7D */
+            orders_7d: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Roas */
+            roas: number;
+            /** Sales 7D */
+            sales_7d: number;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+            /** Target Text */
+            target_text?: string | null;
+            /** Top Of Search Impression Share */
+            top_of_search_impression_share: number;
+            /** Units 7D */
+            units_7d: number;
+        };
+        /** AdTimeTrendAggregateResponse */
+        AdTimeTrendAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdTimeTrendAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["AggregateSummary"];
+        };
+        /**
+         * AdTimeTrendAggregateRow
+         * @description Aggregate by ``report_end_date`` (one row per day).
+         */
+        AdTimeTrendAggregateRow: {
+            /**
+             * Clicks
+             * @default 0
+             */
+            clicks: number;
+            /** Country */
+            country?: string | null;
+            /**
+             * Cpc
+             * @default 0
+             */
+            cpc: number;
+            /** Currency */
+            currency?: string | null;
+            /** Report End Date */
+            report_end_date: string;
+            /**
+             * Spend
+             * @default 0
+             */
+            spend: number;
+        };
+        /** AdTimeTrendRawRow */
+        AdTimeTrendRawRow: {
+            /** Clicks */
+            clicks: number;
+            /** Country */
+            country?: string | null;
+            /** Cpc */
+            cpc: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency?: string | null;
+            /** Id */
+            id: number;
+            /** Raw Row */
+            raw_row: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report End Date
+             * Format: date
+             */
+            report_end_date: string;
+            /**
+             * Report Start Date
+             * Format: date
+             */
+            report_start_date: string;
+            /** Source File Id */
+            source_file_id: number;
+            /** Spend */
+            spend: number;
+        };
         /** AdUploadCommitRequest */
         AdUploadCommitRequest: {
             /**
@@ -4703,7 +7911,7 @@ export interface components {
              * Ingestion Status
              * @enum {string}
              */
-            ingestion_status: "pending" | "saved" | "failed" | "skipped";
+            ingestion_status: "pending" | "saved" | "failed" | "success" | "skipped";
             /** Is Current */
             is_current: boolean;
             /** Message */
@@ -4795,7 +8003,7 @@ export interface components {
              * Ingestion Status
              * @enum {string}
              */
-            ingestion_status: "pending" | "saved" | "failed" | "skipped";
+            ingestion_status: "pending" | "saved" | "failed" | "success" | "skipped";
             /** Is Current */
             is_current: boolean;
             /** Original Filename */
@@ -4838,6 +8046,27 @@ export interface components {
             country: string;
             /** Items */
             items: components["schemas"]["AdUploadStatusItem"][];
+        };
+        /**
+         * AggregateSummary
+         * @description Top-level totals across all aggregated rows in the response.
+         *
+         *     ``overall_acos`` / ``overall_roas`` are weighted: the same formula
+         *     applied to the *total* spend / sales, not an average of per-row rates.
+         */
+        AggregateSummary: {
+            /** Overall Acos */
+            overall_acos: number;
+            /** Overall Roas */
+            overall_roas: number;
+            /** Total Orders */
+            total_orders: number;
+            /** Total Rows */
+            total_rows: number;
+            /** Total Sales */
+            total_sales: number;
+            /** Total Spend */
+            total_spend: number;
         };
         /** AlertEventItem */
         AlertEventItem: {
@@ -5129,6 +8358,106 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** ApiKeyCreateRequest */
+        ApiKeyCreateRequest: {
+            /**
+             * Expires At
+             * @description ISO 过期时间；null = 永不过期
+             */
+            expires_at?: string | null;
+            /**
+             * Label
+             * @description 人类可读标识
+             */
+            label: string;
+            /**
+             * Scope
+             * @default read
+             */
+            scope: string;
+        };
+        /** ApiKeyCreateResponse */
+        ApiKeyCreateResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Id */
+            id: number;
+            /** Key Prefix */
+            key_prefix: string;
+            /** Label */
+            label: string;
+            /** Plaintext Key */
+            plaintext_key: string;
+            /** Scope */
+            scope: string;
+        };
+        /** ApiKeyItem */
+        ApiKeyItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Id */
+            id: number;
+            /** Is Revoked */
+            is_revoked: boolean;
+            /** Key Prefix */
+            key_prefix: string;
+            /** Label */
+            label: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Scope */
+            scope: string;
+        };
+        /** ApiKeyRevokeResponse */
+        ApiKeyRevokeResponse: {
+            /** Id */
+            id: number;
+            /** Is Revoked */
+            is_revoked: boolean;
+        };
+        /** AuditLogItem */
+        AuditLogItem: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id?: string | null;
+            /** Actor Name */
+            actor_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: number;
+            /** Entity Type */
+            entity_type: string;
+            /** Id */
+            id: number;
+            /** Summary */
+            summary?: string | null;
+        };
+        /** AuditLogListResponse */
+        AuditLogListResponse: {
+            /** Items */
+            items: components["schemas"]["AuditLogItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** AutoReconcileRequest */
         AutoReconcileRequest: {
             /**
@@ -5150,6 +8479,11 @@ export interface components {
             country: string;
             /** Has Summary Pdf */
             has_summary_pdf: boolean;
+            /**
+             * Has Transaction Csv
+             * @default false
+             */
+            has_transaction_csv: boolean;
             /**
              * Pdf File Missing
              * @default false
@@ -5180,6 +8514,11 @@ export interface components {
             report_month: string;
             /** Status */
             status: string;
+            /**
+             * Transaction Csv Missing
+             * @default false
+             */
+            transaction_csv_missing: boolean;
         };
         /** AvailableReportsResponse */
         AvailableReportsResponse: {
@@ -5331,6 +8670,18 @@ export interface components {
              */
             sku_record_ids: number[];
         };
+        /** BatchIdsRequest */
+        BatchIdsRequest: {
+            /** Ids */
+            ids: number[];
+        };
+        /** BatchTransferRequest */
+        BatchTransferRequest: {
+            /** Ids */
+            ids: number[];
+            /** To Owner Id */
+            to_owner_id: string;
+        };
         /**
          * BatchUpdateFactoryInfoRequest
          * @description 批量更新产品属性请求
@@ -5371,10 +8722,7 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Marketplace
@@ -5384,26 +8732,17 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -5413,10 +8752,7 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -5426,47 +8762,36 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /**
-             * Excel File
-             * Format: binary
-             */
+            /** Excel File */
             excel_file: string;
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
+        };
+        /** Body_upload_api_v1_page_render_upload_post */
+        Body_upload_api_v1_page_render_upload_post: {
+            /** File */
+            file: string;
+            /** Title */
+            title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** File Type */
             file_type: string;
@@ -5475,55 +8800,176 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
-            /** Report Id Form */
-            report_id_form?: number | null;
+            /** Report Id */
+            report_id?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
+        };
+        /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
+        Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
+            /** Csv File */
+            csv_file: string;
+        };
+        /**
+         * BusinessSummaryAggregate
+         * @description Aggregate totals across all ASINs.
+         */
+        BusinessSummaryAggregate: {
+            /**
+             * Overall Cvr
+             * @default 0
+             */
+            overall_cvr: number;
+            /**
+             * Overall Profit Rate
+             * @default 0
+             */
+            overall_profit_rate: number;
+            /**
+             * Total Asins
+             * @default 0
+             */
+            total_asins: number;
+            /**
+             * Total Cost
+             * @default 0
+             */
+            total_cost: number;
+            /**
+             * Total Page Views
+             * @default 0
+             */
+            total_page_views: number;
+            /**
+             * Total Profit
+             * @default 0
+             */
+            total_profit: number;
+            /**
+             * Total Sales Amount
+             * @default 0
+             */
+            total_sales_amount: number;
+            /**
+             * Total Sessions
+             * @default 0
+             */
+            total_sessions: number;
+            /**
+             * Total Units Ordered
+             * @default 0
+             */
+            total_units_ordered: number;
+        };
+        /**
+         * BusinessSummaryDetailRow
+         * @description Merged detail row: business metrics + shop calculation.
+         */
+        BusinessSummaryDetailRow: {
+            /** Asin */
+            asin: string;
+            /**
+             * Breakeven Units
+             * @default 0
+             */
+            breakeven_units: number;
+            /**
+             * Cost Total
+             * @default 0
+             */
+            cost_total: number;
+            /**
+             * Cvr
+             * @default 0
+             */
+            cvr: number;
+            /**
+             * Ordered Sales Amount
+             * @default 0
+             */
+            ordered_sales_amount: number;
+            /**
+             * Page Views
+             * @default 0
+             */
+            page_views: number;
+            /**
+             * Profit
+             * @default 0
+             */
+            profit: number;
+            /**
+             * Profit Rate
+             * @default 0
+             */
+            profit_rate: number;
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+            /**
+             * Units Ordered
+             * @default 0
+             */
+            units_ordered: number;
+        };
+        /**
+         * BusinessSummaryResponse
+         * @description Response wrapper for GET /external/projects/{project_id}/business-summary.
+         */
+        BusinessSummaryResponse: {
+            aggregate: components["schemas"]["BusinessSummaryAggregate"];
+            /** Country */
+            country: string;
+            /** Detail */
+            detail?: components["schemas"]["BusinessSummaryDetailRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["BusinessSummaryAggregate"];
+        };
+        /** CSVUploadResponse */
+        CSVUploadResponse: {
+            /** Csv File Id */
+            csv_file_id: string;
+            /** Csv File Path */
+            csv_file_path: string;
+            /** Message */
+            message: string;
+            /** Original Filename */
+            original_filename: string;
+            /** Report Id */
+            report_id: number;
+            /** Size */
+            size: number;
         };
         /** CalculationPeriodItem */
         CalculationPeriodItem: {
@@ -6719,6 +10165,74 @@ export interface components {
             /** Review Policy Violations */
             review_policy_violations?: number | null;
         };
+        /** ContactCreate */
+        ContactCreate: {
+            /** Email */
+            email?: string | null;
+            /**
+             * Is Primary
+             * @default false
+             */
+            is_primary: boolean;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Wechat */
+            wechat?: string | null;
+        };
+        /** ContactItem */
+        ContactItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Id */
+            customer_id: number;
+            /** Email */
+            email?: string | null;
+            /** Id */
+            id: number;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Title */
+            title?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Wechat */
+            wechat?: string | null;
+        };
+        /** ContactUpdate */
+        ContactUpdate: {
+            /** Email */
+            email?: string | null;
+            /** Is Primary */
+            is_primary?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Wechat */
+            wechat?: string | null;
+        };
         /** ConversationCreate */
         ConversationCreate: {
             /** Title */
@@ -6762,6 +10276,22 @@ export interface components {
             /** Regenerated */
             regenerated: boolean;
         };
+        /** ConvertLeadRequest */
+        ConvertLeadRequest: {
+            /** Name */
+            name?: string | null;
+            /** Rating */
+            rating?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Source */
+            source?: string | null;
+        };
+        /** ConvertLeadResponse */
+        ConvertLeadResponse: {
+            customer: components["schemas"]["CustomerItem"];
+            lead: components["schemas"]["LeadItem"];
+        };
         /** CreateJobRequest */
         CreateJobRequest: {
             /** File Id */
@@ -6790,6 +10320,13 @@ export interface components {
             summary_pdf_file_id?: string | null;
             /** Transaction File Id */
             transaction_file_id: string;
+        };
+        /** CreatePricingCalculationSnapshotRequest */
+        CreatePricingCalculationSnapshotRequest: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /** CreateProductAnalysisReportRequest */
         CreateProductAnalysisReportRequest: {
@@ -6844,6 +10381,22 @@ export interface components {
         CreateUserResponse: {
             item: components["schemas"]["UserItem"];
         };
+        /** CrmUserItem */
+        CrmUserItem: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Role Type */
+            role_type?: string | null;
+        };
         /** CurrentInventorySnapshotResponse */
         CurrentInventorySnapshotResponse: {
             /** Rows */
@@ -6851,6 +10404,49 @@ export interface components {
                 [key: string]: unknown;
             }[];
             source: components["schemas"]["AnalysisSourceFileItem"];
+        };
+        /** CustomerCreate */
+        CustomerCreate: {
+            /** Address */
+            address?: string | null;
+            /** Annual Revenue */
+            annual_revenue?: number | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Employee Count */
+            employee_count?: number | null;
+            /** Industry */
+            industry?: string | null;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name: string;
+            /** Owner Id */
+            owner_id?: string | null;
+            /**
+             * Rating
+             * @default C
+             */
+            rating: string;
+            /** Remark */
+            remark?: string | null;
+            /** Short Name */
+            short_name?: string | null;
+            /** Source */
+            source?: string | null;
+            /**
+             * Status
+             * @default active
+             */
+            status: string;
+            /** Website */
+            website?: string | null;
         };
         /**
          * CustomerFeedbackItem
@@ -6869,6 +10465,173 @@ export interface components {
             return_date: string;
             /** Sku */
             sku: string;
+        };
+        /** CustomerItem */
+        CustomerItem: {
+            /** Address */
+            address?: string | null;
+            /** Annual Revenue */
+            annual_revenue?: number | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Contact Wechat */
+            contact_wechat?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Employee Count */
+            employee_count?: number | null;
+            /** Id */
+            id: number;
+            /** Industry */
+            industry?: string | null;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Last Follow At */
+            last_follow_at?: string | null;
+            /** Name */
+            name: string;
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Rating */
+            rating: string;
+            /** Remark */
+            remark?: string | null;
+            /** Score Coop */
+            score_coop?: string | null;
+            /** Score Fit */
+            score_fit?: string | null;
+            /** Score Pay */
+            score_pay?: string | null;
+            /** Score Scale */
+            score_scale?: string | null;
+            /** Short Name */
+            short_name?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Website */
+            website?: string | null;
+        };
+        /** CustomerListResponse */
+        CustomerListResponse: {
+            /** Items */
+            items: components["schemas"]["CustomerItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** CustomerSeaImportFailItem */
+        CustomerSeaImportFailItem: {
+            /** Field */
+            field?: string | null;
+            /** Reason */
+            reason: string;
+            /** Row */
+            row: number;
+        };
+        /** CustomerSeaImportRequest */
+        CustomerSeaImportRequest: {
+            /** Rows */
+            rows: components["schemas"]["CustomerSeaImportRow"][];
+        };
+        /** CustomerSeaImportResult */
+        CustomerSeaImportResult: {
+            /** Created */
+            created: number;
+            /** Failed */
+            failed: components["schemas"]["CustomerSeaImportFailItem"][];
+            /** Skipped Dupes */
+            skipped_dupes: number;
+        };
+        /** CustomerSeaImportRow */
+        CustomerSeaImportRow: {
+            /** Address */
+            address?: string | null;
+            /** Annual Revenue */
+            annual_revenue?: number | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Employee Count */
+            employee_count?: number | null;
+            /** Industry */
+            industry?: string | null;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name: string;
+            /** Rating */
+            rating?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Short Name */
+            short_name?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Website */
+            website?: string | null;
+        };
+        /** CustomerUpdate */
+        CustomerUpdate: {
+            /** Address */
+            address?: string | null;
+            /** Annual Revenue */
+            annual_revenue?: number | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Employee Count */
+            employee_count?: number | null;
+            /** Industry */
+            industry?: string | null;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Rating */
+            rating?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Short Name */
+            short_name?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Website */
+            website?: string | null;
         };
         /**
          * DailyAnalysisAllCountriesResponse
@@ -7073,6 +10836,26 @@ export interface components {
             units_ordered: number;
         };
         /**
+         * DashboardStats
+         * @description CRM 数据看板聚合结果。
+         */
+        DashboardStats: {
+            follow_activity?: components["schemas"]["FollowActivity"];
+            /**
+             * Lead Funnel
+             * @default {}
+             */
+            lead_funnel: {
+                [key: string]: number;
+            };
+            new_this_month?: components["schemas"]["NewThisMonth"];
+            /**
+             * Per Owner
+             * @default []
+             */
+            per_owner: components["schemas"]["OwnerPerformance"][];
+        };
+        /**
          * DataLifecycleStatus
          * @enum {string}
          */
@@ -7136,13 +10919,25 @@ export interface components {
         DeliveryLogItem: {
             /** Ai Summary */
             ai_summary?: string | null;
+            /** Ai Summary Error */
+            ai_summary_error?: string | null;
+            /** Ai Summary Model */
+            ai_summary_model?: string | null;
+            /**
+             * Ai Summary Status
+             * @default pending
+             * @enum {string}
+             */
+            ai_summary_status: "pending" | "generating" | "done" | "failed";
+            /** Ai Summary Updated At */
+            ai_summary_updated_at?: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
             /** Email */
-            email: string;
+            email: string | null;
             /** Error Message */
             error_message: string | null;
             /** Frequency */
@@ -7380,6 +11175,18 @@ export interface components {
             total_quantity: number;
         };
         /**
+         * DispositionSummary
+         * @description Disposition breakdown for a period.
+         */
+        DispositionSummary: {
+            /** Disposition */
+            disposition: string;
+            /** Pct Of Total */
+            pct_of_total: number;
+            /** Qty Eom */
+            qty_eom: number;
+        };
+        /**
          * EmployeeStatusSchema
          * @enum {string}
          */
@@ -7389,6 +11196,22 @@ export interface components {
          * @enum {string}
          */
         EmployeeTypeSchema: "auto_report_upload" | "scheduled_job" | "rpa_bot" | "ai_agent" | "monitoring" | "database" | "custom";
+        /**
+         * EventsResponse
+         * @description SKU event flow response.
+         */
+        EventsResponse: {
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Skus
+             * @default []
+             */
+            skus: components["schemas"]["SkuMonthEvents"][];
+        };
         /** ExchangeRateCreate */
         ExchangeRateCreate: {
             /** Currency */
@@ -7532,6 +11355,70 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * ExternalSkuInfoItem
+         * @description Public-facing SKU descriptor returned by ``GET /external/projects/{id}/sku-info``.
+         *
+         *     Exposes product identity, pricing, dimensions, and carton specs.
+         *     Internal fields (id, sort_order, source_file, factory_info JSON, R2 keys,
+         *     uploaded_by) are intentionally omitted.
+         */
+        ExternalSkuInfoItem: {
+            /** Asin */
+            asin: string;
+            /** Carton Height Cm */
+            carton_height_cm: number;
+            /** Carton Length Cm */
+            carton_length_cm: number;
+            /** Carton Weight Kg */
+            carton_weight_kg: number;
+            /** Carton Width Cm */
+            carton_width_cm: number;
+            /** Country */
+            country: string;
+            /** Currency */
+            currency: string;
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb: number;
+            /** Fnsku */
+            fnsku?: string | null;
+            /** Fob Unit Cost */
+            fob_unit_cost: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Package Height Cm */
+            package_height_cm: number;
+            /** Package Length Cm */
+            package_length_cm: number;
+            /** Package Width Cm */
+            package_width_cm: number;
+            /** Product Image Url */
+            product_image_url?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Sku */
+            sku: string;
+            /** Units Per Carton */
+            units_per_carton: number;
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /**
+         * ExternalSkuInfoResponse
+         * @description Paginated wrapper for the SKU info list endpoint.
+         */
+        ExternalSkuInfoResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["ExternalSkuInfoItem"][];
+            /** Has Next */
+            has_next: boolean;
+            /** Project Id */
+            project_id: number;
+            /** Total */
+            total?: number | null;
+        };
         /** FilterOption */
         FilterOption: {
             /** Label */
@@ -7570,6 +11457,124 @@ export interface components {
         FnskuLabelsResponse: {
             /** Sku Records */
             sku_records: components["schemas"]["SkuRecordFnskuLabelItem"][];
+        };
+        /**
+         * FollowActivity
+         * @description 跟进活跃度。
+         */
+        FollowActivity: {
+            /**
+             * Follow Count 7D
+             * @default 0
+             */
+            follow_count_7d: number;
+        };
+        /** FollowCreate */
+        FollowCreate: {
+            /** Content */
+            content: string;
+            /** Entity Id */
+            entity_id: number;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "customer" | "lead" | "opportunity";
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /**
+             * Type
+             * @default note
+             */
+            type: string;
+        };
+        /** FollowItem */
+        FollowItem: {
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Entity Id */
+            entity_id: number;
+            /** Entity Type */
+            entity_type: string;
+            /** Id */
+            id: number;
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /** Type */
+            type: string;
+        };
+        /** FollowUpGroups */
+        FollowUpGroups: {
+            /**
+             * Overdue
+             * @default []
+             */
+            overdue: components["schemas"]["FollowUpItem"][];
+            /**
+             * Overdue Count
+             * @default 0
+             */
+            overdue_count: number;
+            /**
+             * This Week
+             * @default []
+             */
+            this_week: components["schemas"]["FollowUpItem"][];
+            /**
+             * Today
+             * @default []
+             */
+            today: components["schemas"]["FollowUpItem"][];
+            /**
+             * Total Count
+             * @default 0
+             */
+            total_count: number;
+        };
+        /**
+         * FollowUpItem
+         * @description 一条待跟进记录（客户或线索），按 next_follow_at 归入逾期/今日/本周。
+         */
+        FollowUpItem: {
+            /** Entity Id */
+            entity_id: number;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "customer" | "lead";
+            /** Intent */
+            intent?: string | null;
+            /** Last Follow At */
+            last_follow_at?: string | null;
+            /** Last Follow Content */
+            last_follow_content?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Next Follow At
+             * Format: date-time
+             */
+            next_follow_at: string;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Rating */
+            rating?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Subtitle */
+            subtitle?: string | null;
         };
         /**
          * FulfillmentCenterItem
@@ -7633,6 +11638,8 @@ export interface components {
             database_replica: string;
             /** Redis */
             redis: string;
+            /** Redis Memory */
+            redis_memory?: string | null;
             /** Status */
             status: string;
             /** Timestamp */
@@ -7646,11 +11653,19 @@ export interface components {
             current_step?: string | null;
             /** Message */
             message?: string | null;
+            /** Metadata Json */
+            metadata_json?: {
+                [key: string]: unknown;
+            } | null;
             /** Progress Percent */
             progress_percent?: number | null;
             status?: components["schemas"]["TaskStatusSchema"] | null;
             /** Task Id */
             task_id?: string | null;
+            /** Task Name */
+            task_name?: string | null;
+            /** Task Type */
+            task_type?: string | null;
         };
         /** HeartbeatResponse */
         HeartbeatResponse: {
@@ -8214,6 +12229,52 @@ export interface components {
             /** Shipping Performance Fields */
             shipping_performance_fields: components["schemas"]["InspectionTemplateField"][];
         };
+        /**
+         * IntegrityCheckResult
+         * @description Cross-month ledger integrity check result.
+         */
+        IntegrityCheckResult: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Mismatch Count */
+            mismatch_count: number;
+            /**
+             * Mismatches
+             * @default []
+             */
+            mismatches: components["schemas"]["IntegrityMismatch"][];
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OK" | "MISMATCH" | "PENDING";
+        };
+        /**
+         * IntegrityMismatch
+         * @description A single cross-month continuity mismatch.
+         */
+        IntegrityMismatch: {
+            /** Curr Starting */
+            curr_starting: number;
+            /** Diff */
+            diff: number;
+            /** Disposition */
+            disposition: string;
+            /** Location */
+            location: string;
+            /** Msku */
+            msku: string;
+            /** Prev Ending */
+            prev_ending: number;
+        };
         /** InventoryAnalysisItem */
         InventoryAnalysisItem: {
             /** Age 0 90 Qty */
@@ -8234,6 +12295,8 @@ export interface components {
             available_qty: number;
             /** Country */
             country: string;
+            /** Product Name */
+            product_name?: string | null;
             /** Project Id */
             project_id: number;
             /** Project Name */
@@ -8242,6 +12305,13 @@ export interface components {
             recommended_action?: string | null;
             /** Recommended Action Label */
             recommended_action_label: string;
+            /**
+             * Shipment Quantities
+             * @default {}
+             */
+            shipment_quantities: {
+                [key: string]: number;
+            };
             /** Sku */
             sku: string;
             /** Stock Status */
@@ -8261,6 +12331,18 @@ export interface components {
             project_name: string;
             /** Report Date */
             report_date?: string | null;
+            /**
+             * Shipment Column Totals
+             * @default {}
+             */
+            shipment_column_totals: {
+                [key: string]: number;
+            };
+            /**
+             * Shipment Columns
+             * @default []
+             */
+            shipment_columns: components["schemas"]["ShipmentColumn"][];
             summary: components["schemas"]["InventoryAnalysisSummary"];
         };
         /** InventoryAnalysisSummary */
@@ -8290,6 +12372,31 @@ export interface components {
         };
         /** InventoryReplenishmentListItem */
         InventoryReplenishmentListItem: {
+            /**
+             * Age 0 90 Qty
+             * @default 0
+             */
+            age_0_90_qty: number;
+            /**
+             * Age 181 270 Qty
+             * @default 0
+             */
+            age_181_270_qty: number;
+            /**
+             * Age 271 365 Qty
+             * @default 0
+             */
+            age_271_365_qty: number;
+            /**
+             * Age 365 Plus Qty
+             * @default 0
+             */
+            age_365_plus_qty: number;
+            /**
+             * Age 91 180 Qty
+             * @default 0
+             */
+            age_91_180_qty: number;
             /** Asin */
             asin?: string | null;
             /** Available Inventory */
@@ -8310,6 +12417,11 @@ export interface components {
             estimated_replenishment_quantity?: number | null;
             /** In Transit Quantity */
             in_transit_quantity: number;
+            /**
+             * Inventory State
+             * @default unknown
+             */
+            inventory_state: string;
             /** Product Name */
             product_name?: string | null;
             /** Production Lead Days */
@@ -8318,6 +12430,13 @@ export interface components {
             project_id: number;
             /** Project Name */
             project_name: string;
+            /** Recommended Action */
+            recommended_action?: string | null;
+            /**
+             * Replenishment Action
+             * @default NO_ACTION
+             */
+            replenishment_action: string;
             /** Replenishment Order Date */
             replenishment_order_date?: string | null;
             /** Risk Anchor Date */
@@ -8336,6 +12455,7 @@ export interface components {
             shipment_order_date?: string | null;
             /** Shipping Days */
             shipping_days: number;
+            signals?: components["schemas"]["InventorySignals"] | null;
             /** Sku */
             sku: string;
             /** Warehouse Entry Date */
@@ -8561,8 +12681,23 @@ export interface components {
         };
         /** InventoryReplenishmentSummary */
         InventoryReplenishmentSummary: {
+            /**
+             * Critical Count
+             * @default 0
+             */
+            critical_count: number;
+            /**
+             * Deteriorating Count
+             * @default 0
+             */
+            deteriorating_count: number;
             /** Healthy Count */
             healthy_count: number;
+            /**
+             * Healthy Count V2
+             * @default 0
+             */
+            healthy_count_v2: number;
             /** Out Of Stock Risk Count */
             out_of_stock_risk_count: number;
             /** Pending Data Count */
@@ -8575,6 +12710,64 @@ export interface components {
             total_available_inventory: number;
             /** Total In Transit Quantity */
             total_in_transit_quantity: number;
+            /**
+             * Unknown Count
+             * @default 0
+             */
+            unknown_count: number;
+            /**
+             * Watch Count
+             * @default 0
+             */
+            watch_count: number;
+        };
+        /**
+         * InventorySignals
+         * @description inventory_state + action 决策依据的原始事实（透明度，spec §2.3）。
+         *
+         *     不进判定，作为响应体里的独立字段供前端/外部 agent 消费。
+         */
+        InventorySignals: {
+            /** Aging Share */
+            aging_share?: {
+                [key: string]: number;
+            };
+            /**
+             * Confidence
+             * @default low
+             */
+            confidence: string;
+            /**
+             * Data Freshness Days
+             * @default 0
+             */
+            data_freshness_days: number;
+            /** Dms 14 */
+            dms_14?: number | null;
+            /** Dms 3 */
+            dms_3?: number | null;
+            /** Dms 30 */
+            dms_30?: number | null;
+            /** Dms 7 */
+            dms_7?: number | null;
+            /** Seasonal Factor */
+            seasonal_factor?: number | null;
+            /** Seasonal Phase */
+            seasonal_phase?: string | null;
+            /** Seasonal Source */
+            seasonal_source?: string | null;
+            /** Sellable Days */
+            sellable_days?: number | null;
+            /** Transit Ratio */
+            transit_ratio?: number | null;
+            /** Trend Label */
+            trend_label?: string | null;
+            /** Trend Momentum */
+            trend_momentum?: string | null;
+            /** Trend Ratio 3 7 */
+            trend_ratio_3_7?: number | null;
+            /** Trend Ratio 7 30 */
+            trend_ratio_7_30?: number | null;
         };
         /** InventorySnapshotOption */
         InventorySnapshotOption: {
@@ -8646,16 +12839,160 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "pending" | "running" | "success" | "failed";
+        /** LeadCreate */
+        LeadCreate: {
+            /** Company */
+            company?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Expected Amount */
+            expected_amount?: number | null;
+            /** Expected Close Date */
+            expected_close_date?: string | null;
+            /**
+             * Intent
+             * @default medium
+             */
+            intent: string;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name: string;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Source */
+            source?: string | null;
+            /**
+             * Status
+             * @default new
+             */
+            status: string;
+            /** Wechat */
+            wechat?: string | null;
+        };
+        /** LeadItem */
+        LeadItem: {
+            /** Company */
+            company?: string | null;
+            /** Converted At */
+            converted_at?: string | null;
+            /** Converted To Customer Id */
+            converted_to_customer_id?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Expected Amount */
+            expected_amount?: number | null;
+            /** Expected Close Date */
+            expected_close_date?: string | null;
+            /** Id */
+            id: number;
+            /** Intent */
+            intent: string;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name: string;
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Wechat */
+            wechat?: string | null;
+        };
+        /** LeadListResponse */
+        LeadListResponse: {
+            /** Items */
+            items: components["schemas"]["LeadItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** LeadUpdate */
+        LeadUpdate: {
+            /** Company */
+            company?: string | null;
+            /** Customer Type */
+            customer_type?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Expected Amount */
+            expected_amount?: number | null;
+            /** Expected Close Date */
+            expected_close_date?: string | null;
+            /** Intent */
+            intent?: string | null;
+            /** Interested Service */
+            interested_service?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Remark */
+            remark?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Wechat */
+            wechat?: string | null;
+        };
         /** LedgerItem */
         LedgerItem: {
             /** Ai Summary */
             ai_summary?: string | null;
+            /** Ai Summary Error */
+            ai_summary_error?: string | null;
+            /** Ai Summary Model */
+            ai_summary_model?: string | null;
+            /**
+             * Ai Summary Status
+             * @default pending
+             * @enum {string}
+             */
+            ai_summary_status: "pending" | "generating" | "done" | "failed";
+            /** Ai Summary Updated At */
+            ai_summary_updated_at?: string | null;
             /** Can Resend */
             can_resend: boolean;
             /** Country */
             country: string;
             /** Email */
-            email: string;
+            email: string | null;
             /** Error Message */
             error_message?: string | null;
             /**
@@ -8707,6 +13044,22 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** LedgerRegenerateSummaryResponse */
+        LedgerRegenerateSummaryResponse: {
+            /** Delivery Log Id */
+            delivery_log_id?: number | null;
+            /** Ledger Key */
+            ledger_key: string;
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "generating" | "done" | "failed";
+            /** Success */
+            success: boolean;
+        };
         /** LedgerResendResponse */
         LedgerResendResponse: {
             /** Delivery Log Id */
@@ -8732,6 +13085,38 @@ export interface components {
             resendable: number;
             /** Sent */
             sent: number;
+        };
+        /**
+         * LocationDetail
+         * @description SKU × Location × Disposition end-of-period detail.
+         */
+        LocationDetail: {
+            /** Disposition */
+            disposition: string;
+            /** Location */
+            location: string;
+            /** Msku */
+            msku: string;
+            /** Qty Eom */
+            qty_eom: number;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * LocationDetailResponse
+         * @description Location detail response.
+         */
+        LocationDetailResponse: {
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["LocationDetail"][];
         };
         /**
          * LogLevelSchema
@@ -8827,11 +13212,6 @@ export interface components {
             system_prompt: string;
             /** Target Message Id */
             target_message_id?: number | null;
-        };
-        /** MessageCreateResponse */
-        MessageCreateResponse: {
-            assistant_message: components["schemas"]["MessageItem"];
-            user_message: components["schemas"]["MessageItem"];
         };
         /** MessageItem */
         MessageItem: {
@@ -9171,6 +13551,103 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * MonthlySnapshotResponse
+         * @description Full monthly snapshot: SKU EOM + disposition summary + integrity.
+         */
+        MonthlySnapshotResponse: {
+            /**
+             * Disposition Summary
+             * @default []
+             */
+            disposition_summary: components["schemas"]["DispositionSummary"][];
+            integrity?: components["schemas"]["IntegrityCheckResult"] | null;
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /** Sku Count */
+            sku_count: number;
+            /**
+             * Skus
+             * @default []
+             */
+            skus: components["schemas"]["SkuMonthEom"][];
+            /** Total Qty */
+            total_qty: number;
+        };
+        /**
+         * MonthsResponse
+         * @description Available months list.
+         */
+        MonthsResponse: {
+            /**
+             * Months
+             * @default []
+             */
+            months: string[];
+            /** Project Id */
+            project_id: number;
+        };
+        /**
+         * NewThisMonth
+         * @description 本月新增（Asia/Shanghai 口径）。
+         */
+        NewThisMonth: {
+            /**
+             * Converted Count
+             * @default 0
+             */
+            converted_count: number;
+            /**
+             * New Customers
+             * @default 0
+             */
+            new_customers: number;
+            /**
+             * New Leads
+             * @default 0
+             */
+            new_leads: number;
+        };
+        /** NotificationItem */
+        NotificationItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: number;
+            /** Message */
+            message?: string | null;
+            /** Read */
+            read: boolean;
+            /** Read At */
+            read_at?: string | null;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+            /** User Id */
+            user_id: number;
+        };
+        /** NotificationListResponse */
+        NotificationListResponse: {
+            /** Items */
+            items: components["schemas"]["NotificationItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
         /** OperationAuditClientActionRequest */
         OperationAuditClientActionRequest: {
             /** Action */
@@ -9344,20 +13821,6 @@ export interface components {
             filename: string;
         };
         /**
-         * OrderInfoUpdate
-         * @description FBM 订单补录/编辑请求体。所有字段可选，未传入则不改。
-         */
-        OrderInfoUpdate: {
-            /** Carrier */
-            carrier?: string | null;
-            /** Shipped At */
-            shipped_at?: string | null;
-            /** Tracking No */
-            tracking_no?: string | null;
-            /** Updated By */
-            updated_by?: string | null;
-        };
-        /**
          * OrderInfoFilterOptions
          * @description 筛选器下拉选项（项目 / 订单状态 / 订单类型 / 国家 / 币种）
          */
@@ -9384,6 +13847,8 @@ export interface components {
             asin?: string | null;
             /** Brand Name */
             brand_name?: string | null;
+            /** Carrier */
+            carrier?: string | null;
             /** City */
             city?: string | null;
             /** Country */
@@ -9404,16 +13869,6 @@ export interface components {
             item_price: number;
             /** Order Status */
             order_status: string;
-            /** Carrier */
-            carrier?: string | null;
-            /** Shipped At */
-            shipped_at?: string | null;
-            /** Tracking No */
-            tracking_no?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-            /** Updated By */
-            updated_by?: string | null;
             /** Postal Code */
             postal_code?: string | null;
             /** Product Name */
@@ -9432,6 +13887,8 @@ export interface components {
             quantity: number;
             /** Ship Service Level */
             ship_service_level?: string | null;
+            /** Shipped At */
+            shipped_at?: string;
             /** Shipping Price */
             shipping_price: number;
             /** Sku */
@@ -9440,6 +13897,12 @@ export interface components {
             source_file_id: number;
             /** State */
             state?: string | null;
+            /** Tracking No */
+            tracking_no?: string | null;
+            /** Updated At */
+            updated_at?: string;
+            /** Updated By */
+            updated_by?: string | null;
         };
         /** OrderInfoListResponse */
         OrderInfoListResponse: {
@@ -9449,6 +13912,24 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * OrderInfoOverview
+         * @description 一次请求返回：列表 + 顶部统计（不含 filter_options）。
+         *
+         *     供筛选 / 翻页 / 排序复用：前端每次条件变化只需这一个请求，
+         *     取代原先并行的 /list + /stats 两请求（消除并行重复过滤的 CPU/内存峰值）。
+         */
+        OrderInfoOverview: {
+            /** Items */
+            items: components["schemas"]["OrderInfoItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            stats: components["schemas"]["OrderInfoStats"];
             /** Total */
             total: number;
         };
@@ -9501,6 +13982,124 @@ export interface components {
              */
             total_quantity: number;
         };
+        /**
+         * OrderInfoUpdate
+         * @description FBM 订单补录/编辑请求体。所有字段可选，未传入则不改。
+         *
+         *     与 sku_info.SkuRecordUpdate 风格一致，使用 model_dump(exclude_unset=True) 做增量更新。
+         */
+        OrderInfoUpdate: {
+            /** Carrier */
+            carrier?: string | null;
+            /** Shipped At */
+            shipped_at?: string | null;
+            /** Tracking No */
+            tracking_no?: string | null;
+            /** Updated By */
+            updated_by?: string | null;
+        };
+        /**
+         * OrdersSummaryAggregateRow
+         * @description Aggregated orders summary (when aggregate=true).
+         */
+        OrdersSummaryAggregateRow: {
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Fba Orders
+             * @default 0
+             */
+            fba_orders: number;
+            /**
+             * Fbm Orders
+             * @default 0
+             */
+            fbm_orders: number;
+            /**
+             * Total Orders
+             * @default 0
+             */
+            total_orders: number;
+            /**
+             * Total Quantity
+             * @default 0
+             */
+            total_quantity: number;
+            /**
+             * Total Sales Amount
+             * @default 0
+             */
+            total_sales_amount: number;
+        };
+        /**
+         * OrdersSummaryResponse
+         * @description Response wrapper for GET /external/projects/{project_id}/orders/summary.
+         */
+        OrdersSummaryResponse: {
+            aggregate?: components["schemas"]["OrdersSummaryAggregateRow"] | null;
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["OrdersSummaryRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary?: components["schemas"]["OrdersSummaryAggregateRow"] | null;
+        };
+        /**
+         * OrdersSummaryRow
+         * @description Single row in the orders summary — aggregated by order (deduplicated).
+         */
+        OrdersSummaryRow: {
+            /** Amazon Order Id */
+            amazon_order_id: string;
+            /** Asin */
+            asin?: string | null;
+            /** Country */
+            country: string;
+            /** Currency */
+            currency?: string | null;
+            /** Fulfillment Channel */
+            fulfillment_channel: string;
+            /** Fulfillment Label */
+            fulfillment_label: string;
+            /** Is Counted Sales */
+            is_counted_sales: boolean;
+            /** Item Price */
+            item_price: number;
+            /** Order Status */
+            order_status: string;
+            /** Product Name */
+            product_name?: string | null;
+            /** Purchase Date Pt */
+            purchase_date_pt: string;
+            /** Quantity */
+            quantity: number;
+            /** Shipping Price */
+            shipping_price: number;
+            /** Sku */
+            sku?: string | null;
+        };
+        /**
+         * OwnerPerformance
+         * @description 每销售业绩（按负责人分组）。
+         */
+        OwnerPerformance: {
+            /**
+             * Converted This Month
+             * @default 0
+             */
+            converted_this_month: number;
+            /**
+             * Customer Count
+             * @default 0
+             */
+            customer_count: number;
+            /** Owner Id */
+            owner_id: string;
+            /** Owner Name */
+            owner_name?: string | null;
+        };
         /** PDFUploadResponse */
         PDFUploadResponse: {
             /** Message */
@@ -9515,6 +14114,27 @@ export interface components {
             report_id: number;
             /** Size */
             size: number;
+        };
+        /** PageRenderHistoryResponse */
+        PageRenderHistoryResponse: {
+            /** Items */
+            items: components["schemas"]["UploadedPageResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * PageRenderPublicResponse
+         * @description Metadata returned by the public read endpoint (no content, no owner info).
+         */
+        PageRenderPublicResponse: {
+            /** Id */
+            id: string;
+            /** Public Url */
+            public_url: string;
+            /** Source Format */
+            source_format: string;
+            /** Title */
+            title: string;
         };
         /**
          * ParseContextRequest
@@ -9640,6 +14260,31 @@ export interface components {
             period_start_date: string;
             /** Source Id */
             source_id: number;
+        };
+        /**
+         * PeriodInfo
+         * @description Resolved period metadata embedded in every v1.0 aggregate / raw response.
+         *
+         *     * ``type`` — ``"relative"`` (convenience alias) or ``"custom"``
+         *     * ``value`` — the original alias (``"14d"``, ``"this_month"``) or
+         *       the literal string ``"custom"``
+         *     * ``start_date`` / ``end_date`` — resolved calendar dates
+         */
+        PeriodInfo: {
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: string;
         };
         /** PlatformRevenueAttachment */
         PlatformRevenueAttachment: {
@@ -10346,6 +14991,127 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** PricingCalculationSnapshotDetail */
+        PricingCalculationSnapshotDetail: {
+            /** Country */
+            country: string;
+            /** Created At */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Items */
+            items: components["schemas"]["ShopCalculationItem"][];
+            /** Name */
+            name?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Row Count */
+            row_count: number;
+            /**
+             * Snapshot Date
+             * Format: date-time
+             */
+            snapshot_date: string;
+            summary: components["schemas"]["PricingCalculationSnapshotSummary"];
+        };
+        /**
+         * PricingCalculationSnapshotItemsResponse
+         * @description 快照明细接口响应。
+         *
+         *     ``items`` 形状与 ``/api/v1/shop-calculation`` 列表保持完全一致，前端可直接按
+         *     ``ShopCalculationItem`` 类型消费。
+         */
+        PricingCalculationSnapshotItemsResponse: {
+            /**
+             * Has Next
+             * @default false
+             */
+            has_next: boolean;
+            /** Items */
+            items: components["schemas"]["ShopCalculationItem"][];
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 200
+             */
+            page_size: number;
+            /** Row Count */
+            row_count: number;
+            /**
+             * Snapshot Date
+             * Format: date-time
+             */
+            snapshot_date: string;
+            /** Snapshot Description */
+            snapshot_description?: string | null;
+            /** Snapshot Id */
+            snapshot_id: number;
+            /** Snapshot Name */
+            snapshot_name?: string | null;
+            summary: components["schemas"]["PricingCalculationSnapshotSummary"];
+            /** Total */
+            total: number;
+        };
+        /** PricingCalculationSnapshotListItem */
+        PricingCalculationSnapshotListItem: {
+            /** Country */
+            country: string;
+            /** Created At */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Name */
+            name?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Row Count */
+            row_count: number;
+            /**
+             * Snapshot Date
+             * Format: date-time
+             */
+            snapshot_date: string;
+            summary: components["schemas"]["PricingCalculationSnapshotSummary"];
+        };
+        /** PricingCalculationSnapshotSummary */
+        PricingCalculationSnapshotSummary: {
+            /**
+             * Calculated
+             * @default 0
+             */
+            calculated: number;
+            /**
+             * Passrate
+             * @default 0
+             */
+            passRate: number;
+            /**
+             * Profitable
+             * @default 0
+             */
+            profitable: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
         /** PricingCalculationWeight */
         PricingCalculationWeight: {
             /** Chargeable Weight Lb */
@@ -10681,6 +15447,11 @@ export interface components {
             project_tier?: string | null;
             /** Store Address */
             store_address?: string | null;
+            /**
+             * Vat Enabled
+             * @default false
+             */
+            vat_enabled: boolean;
         };
         /**
          * ProjectGoalCreate
@@ -10774,41 +15545,6 @@ export interface components {
             /** Target Amount */
             target_amount: number;
         };
-        /** ProjectItem */
-        ProjectItem: {
-            /** Assistant Operator */
-            assistant_operator?: string | null;
-            /** Brand Name */
-            brand_name?: string | null;
-            /** Commission Basis */
-            commission_basis?: string | null;
-            /** Commission Rate */
-            commission_rate?: number | null;
-            /**
-             * Has Context
-             * @default false
-             */
-            has_context: boolean;
-            /** Id */
-            id: number;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /** Name */
-            name: string;
-            /** Project Operator */
-            project_operator?: string | null;
-            /** Project Tier */
-            project_tier?: string | null;
-            /** Sort Order */
-            sort_order: number;
-            /** Source File */
-            source_file?: string | null;
-            /** Store Address */
-            store_address?: string | null;
-        };
         /** ProjectOption */
         ProjectOption: {
             /** Id */
@@ -10880,6 +15616,165 @@ export interface components {
             project_tier?: string | null;
             /** Store Address */
             store_address?: string | null;
+            /** Vat Enabled */
+            vat_enabled?: boolean | null;
+        };
+        /** RawResponse[AdBudgetRawRow] */
+        RawResponse_AdBudgetRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdBudgetRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdCampaignRawRow] */
+        RawResponse_AdCampaignRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdCampaignRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdInvalidTrafficRawRow] */
+        RawResponse_AdInvalidTrafficRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdInvalidTrafficRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdPlacementRawRow] */
+        RawResponse_AdPlacementRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPlacementRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdPromotedProductRawRow] */
+        RawResponse_AdPromotedProductRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPromotedProductRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdPurchasedProductRawRow] */
+        RawResponse_AdPurchasedProductRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdPurchasedProductRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdSearchTermRawRow] */
+        RawResponse_AdSearchTermRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdSearchTermRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdSearchTermShareRawRow] */
+        RawResponse_AdSearchTermShareRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdSearchTermShareRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdTargetRawRow] */
+        RawResponse_AdTargetRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdTargetRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /** RawResponse[AdTimeTrendRawRow] */
+        RawResponse_AdTimeTrendRawRow_: {
+            /** Country */
+            country: string;
+            /** Data */
+            data: components["schemas"]["AdTimeTrendRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["RawSummary"];
+        };
+        /**
+         * RawSummary
+         * @description Top-level metadata for a raw response — total row count + date range.
+         */
+        RawSummary: {
+            /** Date Range */
+            date_range?: string[];
+            /** Total Rows */
+            total_rows: number;
+        };
+        /**
+         * ReceiptCluster
+         * @description A receipt cluster: same date + location receiving multiple SKUs.
+         */
+        ReceiptCluster: {
+            /** Cluster Id */
+            cluster_id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Location */
+            location: string;
+            /** Sku Count */
+            sku_count: number;
+            /** Sku Set */
+            sku_set: string;
+            /** Total Qty */
+            total_qty: number;
+        };
+        /**
+         * ReceiptClustersResponse
+         * @description Receipt clusters response.
+         */
+        ReceiptClustersResponse: {
+            /**
+             * Clusters
+             * @default []
+             */
+            clusters: components["schemas"]["ReceiptCluster"][];
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
         };
         /** RecentSystemStatusItem */
         RecentSystemStatusItem: {
@@ -11076,7 +15971,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Temp File Id */
             temp_file_id: string;
             /**
@@ -11118,7 +16013,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /**
              * Status
              * @enum {string}
@@ -11184,7 +16079,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Row Count Preview */
             row_count_preview?: number | null;
             /**
@@ -11213,7 +16108,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Source Table */
             source_table?: string | null;
             /**
@@ -11248,6 +16143,226 @@ export interface components {
             report_type: string;
             /** Status Source */
             status_source?: string | null;
+        };
+        /**
+         * ReturnAnalysisAggregateResponse
+         * @description Wrapper for the aggregate endpoint.
+         */
+        ReturnAnalysisAggregateResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data?: components["schemas"]["ReturnAnalysisAggregateRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            summary: components["schemas"]["ReturnAnalysisAggregateSummary"];
+        };
+        /**
+         * ReturnAnalysisAggregateRow
+         * @description Per-SKU rollup from ``analysis_return_aggregates``.
+         *
+         *     Snapshot is daily grain: the endpoint collapses the per-day rows to a
+         *     single per-SKU rollup across the requested ``period``.
+         *
+         *     Fields mirror the AGG_WHITELIST contract in
+         *     ``backend/app/api/v1/endpoints/external/_whitelist.py`` — adding a
+         *     field here **requires** extending that whitelist, and vice versa.
+         */
+        ReturnAnalysisAggregateRow: {
+            /** Cycle Avg Days */
+            cycle_avg_days?: number | null;
+            /** Cycle Max Days */
+            cycle_max_days?: number | null;
+            /** Cycle Min Days */
+            cycle_min_days?: number | null;
+            /** Disposition Top1 */
+            disposition_top1?: string | null;
+            /** Dominant Fc Id */
+            dominant_fc_id?: string | null;
+            /** Reason Top1 */
+            reason_top1?: string | null;
+            /**
+             * Return Count
+             * @default 0
+             */
+            return_count: number;
+            /**
+             * Return Quantity
+             * @default 0
+             */
+            return_quantity: number;
+            /**
+             * Return Rate
+             * @default 0
+             */
+            return_rate: number;
+            /**
+             * Risk Level
+             * @default normal
+             */
+            risk_level: string;
+            /**
+             * Sales Quantity
+             * @default 0
+             */
+            sales_quantity: number;
+            /** Sku */
+            sku?: string | null;
+            /**
+             * Wilson Lower
+             * @default 0
+             */
+            wilson_lower: number;
+        };
+        /**
+         * ReturnAnalysisAggregateSummary
+         * @description Top-level totals across all returned SKU rollups.
+         *
+         *     Mirrors the internal ``ReturnAnalysisSummary`` (without the
+         *     per-distribution rows that drive the dashboard): external callers
+         *     get the same headline numbers, stripped of any privacy-sensitive
+         *     fields.
+         */
+        ReturnAnalysisAggregateSummary: {
+            /**
+             * Critical Sku Count
+             * @default 0
+             */
+            critical_sku_count: number;
+            /**
+             * Overall Return Rate
+             * @default 0
+             */
+            overall_return_rate: number;
+            /**
+             * Overall Risk Level
+             * @default no_data
+             */
+            overall_risk_level: string;
+            /**
+             * Total Return Count
+             * @default 0
+             */
+            total_return_count: number;
+            /**
+             * Total Return Quantity
+             * @default 0
+             */
+            total_return_quantity: number;
+            /**
+             * Total Rows
+             * @default 0
+             */
+            total_rows: number;
+            /**
+             * Total Sales Quantity
+             * @default 0
+             */
+            total_sales_quantity: number;
+            /**
+             * Warning Sku Count
+             * @default 0
+             */
+            warning_sku_count: number;
+        };
+        /**
+         * ReturnAnalysisRawResponse
+         * @description Wrapper for the raw endpoint.
+         *
+         *     No project_name / summary_text — raw endpoint exposes the row list
+         *     + the date range; BI tools handle their own summaries.
+         */
+        ReturnAnalysisRawResponse: {
+            /** Country */
+            country: string;
+            /** Data */
+            data?: components["schemas"]["ReturnAnalysisRawRow"][];
+            period: components["schemas"]["PeriodInfo"];
+            /** Project Id */
+            project_id: number;
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ReturnAnalysisRawRow
+         * @description Per-event raw row from ``analysis_return_rows``.
+         *
+         *     Fields mirror the ROW_WHITELIST contract in
+         *     ``backend/app/api/v1/endpoints/external/_whitelist.py`` — adding a
+         *     field here **requires** extending that whitelist, and vice versa.
+         *
+         *     Explicitly excluded:
+         *
+         *     * ``customer_comments`` — PII / free-form complaint text (永远不返回)
+         *     * ``raw_row``           — debug-only blob (Amazon CSV verbatim)
+         *     * ``fnsku``             — internal Amazon fulfillment identifier (no
+         *       analytic value to external callers; trim surface)
+         *     * ``license_plate_number`` — internal LPN; same rationale
+         */
+        ReturnAnalysisRawRow: {
+            /** Asin */
+            asin?: string | null;
+            /** Detailed Disposition */
+            detailed_disposition: string;
+            /** Fulfillment Center Id */
+            fulfillment_center_id?: string | null;
+            /** Id */
+            id: number;
+            /** Order Id */
+            order_id: string;
+            /** Original Return Datetime */
+            original_return_datetime: string;
+            /** Product Name */
+            product_name?: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Reason */
+            reason: string;
+            /** Return Date */
+            return_date: string;
+            /** Sku */
+            sku: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * ReturnAnalysisRefreshRequest
+         * @description 手动触发退货分析物化表刷新请求.
+         */
+        ReturnAnalysisRefreshRequest: {
+            /**
+             * Backfill Days
+             * @description 回填天数 (含 target_date)，范围 1~90。默认 1 = 只跑 target_date。
+             * @default 1
+             */
+            backfill_days: number;
+            /**
+             * Target Date
+             * @description ISO date (YYYY-MM-DD)。None = 跑昨天。
+             */
+            target_date?: string | null;
+        };
+        /**
+         * ReturnAnalysisRefreshResponse
+         * @description 手动触发响应.
+         */
+        ReturnAnalysisRefreshResponse: {
+            /** Backfill Days */
+            backfill_days: number;
+            /**
+             * Note
+             * @default snapshot 已被覆盖，endpoint 25h 内会读到最新
+             */
+            note: string;
+            /** Projects */
+            projects: number;
+            /** Rows Written */
+            rows_written: number;
+            /** Target Date */
+            target_date: string;
         };
         /**
          * ReturnAnalysisResponse
@@ -11494,6 +16609,30 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** ShipmentBatchHiddenDeleteRequest */
+        ShipmentBatchHiddenDeleteRequest: {
+            /** Country */
+            country: string;
+            /** Project Id */
+            project_id: number;
+            /** Shipment Batch */
+            shipment_batch: string;
+        };
+        /** ShipmentColumn */
+        ShipmentColumn: {
+            /** Eta Date */
+            eta_date?: string | null;
+            /** Etd Date */
+            etd_date?: string | null;
+            /** Forwarder Name */
+            forwarder_name?: string | null;
+            /** Label */
+            label: string;
+            /** Shipment No */
+            shipment_no: string;
+            /** Shipping Method */
+            shipping_method?: string | null;
+        };
         /** ShipmentCostCalculateRequest */
         ShipmentCostCalculateRequest: {
             /** Logistics Unit Price */
@@ -11630,6 +16769,8 @@ export interface components {
             project_id: number;
             /** Remark */
             remark?: string | null;
+            /** Shipment Batch */
+            shipment_batch?: string | null;
             /** Shipment No */
             shipment_no: string;
             /** Shipment Status */
@@ -11673,6 +16814,8 @@ export interface components {
             project_name: string;
             /** Remark */
             remark?: string | null;
+            /** Shipment Batch */
+            shipment_batch?: string | null;
             /** Shipment No */
             shipment_no: string;
             /** Shipment Status */
@@ -11780,6 +16923,8 @@ export interface components {
             project_name: string;
             /** Remark */
             remark?: string | null;
+            /** Shipment Batch */
+            shipment_batch?: string | null;
             /** Shipment No */
             shipment_no: string;
             /** Shipment Status */
@@ -11847,6 +16992,8 @@ export interface components {
             project_id: number;
             /** Remark */
             remark?: string | null;
+            /** Shipment Batch */
+            shipment_batch?: string | null;
             /** Shipment No */
             shipment_no: string;
             /** Shipment Status */
@@ -12238,6 +17385,97 @@ export interface components {
             product_weight_lb: number;
             /** Product Weight Oz */
             product_weight_oz: number;
+        };
+        /**
+         * SkuMonthEom
+         * @description Per-SKU end-of-period inventory summary.
+         */
+        SkuMonthEom: {
+            /** Change */
+            change?: number | null;
+            /**
+             * Damaged Qty
+             * @default 0
+             */
+            damaged_qty: number;
+            /** Msku */
+            msku: string;
+            /** Prev Qty Eom */
+            prev_qty_eom?: number | null;
+            /** Qty Eom */
+            qty_eom: number;
+            /**
+             * Sellable Qty
+             * @default 0
+             */
+            sellable_qty: number;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * SkuMonthEvents
+         * @description Per-SKU event totals for a period.
+         */
+        SkuMonthEvents: {
+            /** Msku */
+            msku: string;
+            /**
+             * Net Change
+             * @default 0
+             */
+            net_change: number;
+            /** Title */
+            title?: string | null;
+            /**
+             * Total Damaged
+             * @default 0
+             */
+            total_damaged: number;
+            /**
+             * Total Disposed
+             * @default 0
+             */
+            total_disposed: number;
+            /**
+             * Total Found
+             * @default 0
+             */
+            total_found: number;
+            /**
+             * Total Lost
+             * @default 0
+             */
+            total_lost: number;
+            /**
+             * Total Other
+             * @default 0
+             */
+            total_other: number;
+            /**
+             * Total Receipts
+             * @default 0
+             */
+            total_receipts: number;
+            /**
+             * Total Returns
+             * @default 0
+             */
+            total_returns: number;
+            /**
+             * Total Shipments
+             * @default 0
+             */
+            total_shipments: number;
+            /**
+             * Total Transfer
+             * @default 0
+             */
+            total_transfer: number;
+            /**
+             * Total Vendor Returns
+             * @default 0
+             */
+            total_vendor_returns: number;
         };
         /**
          * SkuProductImageDeleteResponse
@@ -12952,6 +18190,72 @@ export interface components {
             /** Success */
             success: boolean;
         };
+        /**
+         * TrendMonthItem
+         * @description Aggregated metrics for a single month in the trend.
+         */
+        TrendMonthItem: {
+            /**
+             * Damaged Pct
+             * @default 0
+             */
+            damaged_pct: number;
+            /** Report Month */
+            report_month: string;
+            /**
+             * Sku Count
+             * @default 0
+             */
+            sku_count: number;
+            /**
+             * Total Damaged
+             * @default 0
+             */
+            total_damaged: number;
+            /**
+             * Total Disposed
+             * @default 0
+             */
+            total_disposed: number;
+            /**
+             * Total Lost
+             * @default 0
+             */
+            total_lost: number;
+            /**
+             * Total Qty Eom
+             * @default 0
+             */
+            total_qty_eom: number;
+            /**
+             * Total Receipts
+             * @default 0
+             */
+            total_receipts: number;
+            /**
+             * Total Returns
+             * @default 0
+             */
+            total_returns: number;
+            /**
+             * Total Shipments
+             * @default 0
+             */
+            total_shipments: number;
+        };
+        /**
+         * TrendResponse
+         * @description Multi-month trend response.
+         */
+        TrendResponse: {
+            /**
+             * Months
+             * @default []
+             */
+            months: components["schemas"]["TrendMonthItem"][];
+            /** Project Id */
+            project_id: number;
+        };
         /** TriggerDetectionResponse */
         TriggerDetectionResponse: {
             /** Events Created */
@@ -12967,10 +18271,20 @@ export interface components {
             frequency: string;
             /** Message */
             message: string;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
             /** Subscriptions Affected */
             subscriptions_affected: number;
             /** Success */
             success: boolean;
+        };
+        /** UnreadCountResponse */
+        UnreadCountResponse: {
+            /** Count */
+            count: number;
         };
         /** UpdateCommissionPaymentStatusRequest */
         UpdateCommissionPaymentStatusRequest: {
@@ -13007,6 +18321,13 @@ export interface components {
             updated_at: string;
             /** Updated By */
             updated_by?: string | null;
+        };
+        /** UpdatePricingCalculationSnapshotRequest */
+        UpdatePricingCalculationSnapshotRequest: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /** UpdateSnapshotRequest */
         UpdateSnapshotRequest: {
@@ -13080,6 +18401,29 @@ export interface components {
             original_filename: string;
             /** Size */
             size: number;
+        };
+        /**
+         * UploadedPageResponse
+         * @description Owner-facing record (used by upload response + history list).
+         */
+        UploadedPageResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** File Size */
+            file_size: number;
+            /** Id */
+            id: string;
+            /** Original Filename */
+            original_filename: string;
+            /** Public Url */
+            public_url: string;
+            /** Source Format */
+            source_format: string;
+            /** Title */
+            title: string;
         };
         /** UpsertCommissionRatioOverrideItem */
         UpsertCommissionRatioOverrideItem: {
@@ -13190,12 +18534,359 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * ValueScoresUpdate
+         * @description P6a 价值评分更新（部分更新：仅写入提供的维度）。
+         *
+         *     写入后若 4 维全非空 → 后端重算 rating；任一空 → rating 不动。
+         */
+        ValueScoresUpdate: {
+            /** Score Coop */
+            score_coop?: ("A" | "B" | "C" | "D") | null;
+            /** Score Fit */
+            score_fit?: ("A" | "B" | "C" | "D") | null;
+            /** Score Pay */
+            score_pay?: ("A" | "B" | "C" | "D") | null;
+            /** Score Scale */
+            score_scale?: ("A" | "B" | "C" | "D") | null;
+        };
+        /** VatBuyerIn */
+        VatBuyerIn: {
+            /**
+             * Address Line
+             * @default
+             */
+            address_line: string;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
+            /** Name */
+            name: string;
+            /**
+             * Postal Code
+             * @default
+             */
+            postal_code: string;
+        };
+        /** VatEntityCreate */
+        VatEntityCreate: {
+            /**
+             * Address Line
+             * @default
+             */
+            address_line: string;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /** Company Name */
+            company_name: string;
+            /** Country */
+            country: string;
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Postal Code
+             * @default
+             */
+            postal_code: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Vat Id
+             * @default
+             */
+            vat_id: string;
+        };
+        /** VatEntityResponse */
+        VatEntityResponse: {
+            /**
+             * Address Line
+             * @default
+             */
+            address_line: string;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /** Company Name */
+            company_name: string;
+            /** Country */
+            country: string;
+            /** Created At */
+            created_at: unknown;
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /** Id */
+            id: number;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Postal Code
+             * @default
+             */
+            postal_code: string;
+            /** Project Id */
+            project_id: number;
+            /** Updated At */
+            updated_at: unknown;
+            /**
+             * Vat Id
+             * @default
+             */
+            vat_id: string;
+        };
+        /** VatEntityUpdate */
+        VatEntityUpdate: {
+            /** Address Line */
+            address_line?: string | null;
+            /** City */
+            city?: string | null;
+            /** Company Name */
+            company_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Vat Id */
+            vat_id?: string | null;
+        };
+        /** VatInvoiceCreate */
+        VatInvoiceCreate: {
+            buyer: components["schemas"]["VatBuyerIn"];
+            /** Currency */
+            currency: string;
+            /**
+             * Invoice Date
+             * Format: date
+             */
+            invoice_date: string;
+            /** Lines */
+            lines: components["schemas"]["VatInvoiceLineIn"][];
+            /**
+             * Order Id
+             * @default
+             */
+            order_id: string;
+            /** Project Id */
+            project_id: number;
+            /** Seller Entity Id */
+            seller_entity_id?: number | null;
+            /**
+             * Shipping Incl Vat
+             * @default 0
+             */
+            shipping_incl_vat: number | string;
+            /**
+             * Status
+             * @default draft
+             */
+            status: string;
+        };
+        /** VatInvoiceLineIn */
+        VatInvoiceLineIn: {
+            /**
+             * Asin
+             * @default
+             */
+            asin: string;
+            /** Description */
+            description: string;
+            /**
+             * Qty
+             * @default 1
+             */
+            qty: number;
+            /** Unit Price Incl Vat */
+            unit_price_incl_vat: number | string;
+            /** Vat Rate */
+            vat_rate: number | string;
+        };
+        /** VatInvoiceLineResponse */
+        VatInvoiceLineResponse: {
+            /**
+             * Asin
+             * @default
+             */
+            asin: string;
+            /** Description */
+            description: string;
+            /** Id */
+            id: number;
+            /** Line Excl */
+            line_excl: string;
+            /** Line Incl */
+            line_incl: string;
+            /** Line No */
+            line_no: number;
+            /** Line Vat */
+            line_vat: string;
+            /**
+             * Qty
+             * @default 1
+             */
+            qty: number;
+            /** Unit Price Incl Vat */
+            unit_price_incl_vat: string;
+            /** Vat Rate */
+            vat_rate: string;
+        };
+        /** VatInvoiceListItem */
+        VatInvoiceListItem: {
+            /** Buyer Name */
+            buyer_name: string;
+            /** Created At */
+            created_at: unknown;
+            /** Currency */
+            currency: string;
+            /** Has Pdf */
+            has_pdf: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Invoice Date
+             * Format: date
+             */
+            invoice_date: string;
+            /** Invoice No */
+            invoice_no: string;
+            /** Order Id */
+            order_id: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Project Name
+             * @default
+             */
+            project_name: string;
+            /** Status */
+            status: string;
+            /** Subtotal Excl */
+            subtotal_excl: string;
+            /** Total Incl */
+            total_incl: string;
+            /** Total Vat */
+            total_vat: string;
+            /** Updated At */
+            updated_at: unknown;
+        };
+        /** VatInvoicePdfUploadRequest */
+        VatInvoicePdfUploadRequest: {
+            /** Filename */
+            filename: string;
+            /** Pdf Base64 */
+            pdf_base64: string;
+        };
+        /** VatInvoicePdfUploadResponse */
+        VatInvoicePdfUploadResponse: {
+            /** Id */
+            id: number;
+            /** Invoice No */
+            invoice_no: string;
+            /** R2 Key */
+            r2_key: string;
+            /** R2 Url */
+            r2_url: string;
+            /** Status */
+            status: string;
+        };
+        /** VatInvoiceResponse */
+        VatInvoiceResponse: {
+            /** Buyer */
+            buyer: {
+                [key: string]: unknown;
+            };
+            /** Created At */
+            created_at: unknown;
+            /** Created By */
+            created_by: string | null;
+            /** Currency */
+            currency: string;
+            /** Id */
+            id: number;
+            /**
+             * Invoice Date
+             * Format: date
+             */
+            invoice_date: string;
+            /** Invoice No */
+            invoice_no: string;
+            /** Lines */
+            lines: components["schemas"]["VatInvoiceLineResponse"][];
+            /** Order Id */
+            order_id: string;
+            /** Project Id */
+            project_id: number;
+            /** R2 Key */
+            r2_key: string | null;
+            /** R2 Url */
+            r2_url: string | null;
+            /** Seller Entity Id */
+            seller_entity_id: number | null;
+            /** Seller Snapshot */
+            seller_snapshot: {
+                [key: string]: unknown;
+            };
+            /** Shipping Incl Vat */
+            shipping_incl_vat: string;
+            /** Status */
+            status: string;
+            /** Subtotal Excl */
+            subtotal_excl: string;
+            /** Summary By Rate */
+            summary_by_rate: unknown[];
+            /** Total Incl */
+            total_incl: string;
+            /** Total Vat */
+            total_vat: string;
+            /** Updated At */
+            updated_at: unknown;
+            /** Void Reason */
+            void_reason: string | null;
+        };
+        /** VatInvoiceVoidRequest */
+        VatInvoiceVoidRequest: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
         };
         /**
          * WeekdayItem
@@ -13258,6 +18949,20 @@ export interface components {
             week_end_date: string;
             /** Week Start Date */
             week_start_date: string;
+        };
+        /**
+         * ProjectItem
+         * @description Minimal project descriptor returned by ``GET /external/projects``.
+         *
+         *     Only ``project_id`` and ``project_name`` are exposed. Country / status /
+         *     timestamps live in the project resource and can be fetched via the
+         *     internal ``/projects`` endpoint when needed.
+         */
+        app__schemas__external__projects__ProjectItem: {
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
         };
         /** SubscriptionCreate */
         app__schemas__notification__SubscriptionCreate: {
@@ -13337,6 +19042,46 @@ export interface components {
             /** Test Recipients */
             test_recipients?: string[] | null;
         };
+        /** ProjectItem */
+        app__schemas__project__ProjectItem: {
+            /** Assistant Operator */
+            assistant_operator?: string | null;
+            /** Brand Name */
+            brand_name?: string | null;
+            /** Commission Basis */
+            commission_basis?: string | null;
+            /** Commission Rate */
+            commission_rate?: number | null;
+            /**
+             * Has Context
+             * @default false
+             */
+            has_context: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Project Operator */
+            project_operator?: string | null;
+            /** Project Tier */
+            project_tier?: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Source File */
+            source_file?: string | null;
+            /** Store Address */
+            store_address?: string | null;
+            /**
+             * Vat Enabled
+             * @default false
+             */
+            vat_enabled: boolean;
+        };
         /** SubscriptionCreate */
         app__schemas__scheduled_report__SubscriptionCreate: {
             /**
@@ -13373,9 +19118,9 @@ export interface components {
             dispatch_weekday?: number | null;
             /**
              * Email
-             * @description 接收报告的邮箱地址
+             * @description 接收报告的邮箱地址；留空则不发送邮件，仅生成报告
              */
-            email: string;
+            email?: string | null;
             /** Frequency */
             frequency: string;
             /**
@@ -13411,7 +19156,7 @@ export interface components {
             /** Dispatch Weekday */
             dispatch_weekday?: number | null;
             /** Email */
-            email: string;
+            email: string | null;
             /** Enabled */
             enabled: boolean;
             /** Frequency */
@@ -13514,10 +19259,12 @@ export interface operations {
                 date_to?: string | null;
                 campaign?: string | null;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13557,10 +19304,12 @@ export interface operations {
                 sku?: string | null;
                 search_term?: string | null;
                 placement?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13596,10 +19345,12 @@ export interface operations {
                 country?: string;
                 date_from?: string | null;
                 date_to?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13638,10 +19389,12 @@ export interface operations {
                 campaign?: string | null;
                 sku?: string | null;
                 placement?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13679,10 +19432,12 @@ export interface operations {
                 date_to?: string | null;
                 campaign?: string | null;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13721,10 +19476,12 @@ export interface operations {
                 campaign?: string | null;
                 sku?: string | null;
                 purchased_asin?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13763,10 +19520,12 @@ export interface operations {
                 campaign?: string | null;
                 search_term?: string | null;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13805,10 +19564,12 @@ export interface operations {
                 campaign?: string | null;
                 target_text?: string | null;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13844,10 +19605,12 @@ export interface operations {
                 country?: string;
                 date_from?: string | null;
                 date_to?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13885,10 +19648,12 @@ export interface operations {
                 date_to?: string | null;
                 campaign?: string | null;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13919,10 +19684,13 @@ export interface operations {
     };
     commit_ad_upload_endpoint_api_v1_ad_upload_commit_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -13957,10 +19725,13 @@ export interface operations {
     };
     recognize_ad_upload_api_v1_ad_upload_recognize_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -14001,10 +19772,12 @@ export interface operations {
                 report_type?: string | null;
                 report_date?: string | null;
                 limit?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -14042,9 +19815,11 @@ export interface operations {
                 insight_type?: string | null;
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14078,9 +19853,11 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: number | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -14111,9 +19888,12 @@ export interface operations {
     };
     generate_insight_api_v1_ai_insights_generate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14152,9 +19932,11 @@ export interface operations {
             query: {
                 project_id: number;
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14190,9 +19972,11 @@ export interface operations {
                 project_id?: number | null;
                 is_active?: boolean | null;
                 insight_type?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14224,9 +20008,12 @@ export interface operations {
     };
     create_insight_schedule_api_v1_ai_insights_schedules_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14262,9 +20049,12 @@ export interface operations {
     };
     delete_insight_schedule_api_v1_ai_insights_schedules__schedule_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14298,9 +20088,12 @@ export interface operations {
     };
     update_insight_schedule_api_v1_ai_insights_schedules__schedule_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14338,9 +20131,12 @@ export interface operations {
     };
     run_insight_schedule_now_api_v1_ai_insights_schedules__schedule_id__run_now_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14374,9 +20170,12 @@ export interface operations {
     };
     toggle_insight_schedule_api_v1_ai_insights_schedules__schedule_id__toggle_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14410,9 +20209,12 @@ export interface operations {
     };
     get_insight_api_v1_ai_insights__insight_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14446,9 +20248,12 @@ export interface operations {
     };
     update_insight_api_v1_ai_insights__insight_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14486,9 +20291,12 @@ export interface operations {
     };
     delete_insight_api_v1_ai_insights__insight_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14522,9 +20330,12 @@ export interface operations {
     };
     retry_insight_api_v1_ai_insights__insight_id__retry_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14558,9 +20369,12 @@ export interface operations {
     };
     stream_insight_api_v1_ai_insights__insight_id__stream_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -14594,9 +20408,12 @@ export interface operations {
     };
     get_ai_config_api_v1_ai_config_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -14625,9 +20442,12 @@ export interface operations {
     };
     list_conversations_api_v1_ai_conversations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path?: never;
@@ -14657,9 +20477,12 @@ export interface operations {
     };
     create_conversation_api_v1_ai_conversations_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path?: never;
@@ -14693,9 +20516,12 @@ export interface operations {
     };
     delete_conversation_api_v1_ai_conversations__conversation_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14725,9 +20551,12 @@ export interface operations {
     };
     update_conversation_api_v1_ai_conversations__conversation_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14761,11 +20590,51 @@ export interface operations {
             };
         };
     };
-    list_messages_api_v1_ai_conversations__conversation_id__messages_get: {
+    cancel_stream_v2_api_v1_ai_conversations__conversation_id__cancel_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                conversation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_messages_api_v1_ai_conversations__conversation_id__messages_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14795,49 +20664,15 @@ export interface operations {
             };
         };
     };
-    create_message_api_v1_ai_conversations__conversation_id__messages_post: {
+    stream_message_v2_api_v1_ai_conversations__conversation_id__messages_stream_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
+                "Last-Event-ID"?: string | null;
                 "X-API-Key"?: string | null;
-                "X-User-Id"?: string | null;
-            };
-            path: {
-                conversation_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MessageCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageCreateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_message_api_v1_ai_conversations__conversation_id__messages_stream_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14873,9 +20708,12 @@ export interface operations {
     };
     delete_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14906,9 +20744,12 @@ export interface operations {
     };
     update_message_endpoint_api_v1_ai_conversations__conversation_id__messages__message_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14945,9 +20786,12 @@ export interface operations {
     };
     regenerate_conversation_title_api_v1_ai_conversations__conversation_id__regenerate_title_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path: {
@@ -14977,43 +20821,14 @@ export interface operations {
             };
         };
     };
-    cancel_stream_api_v1_ai_conversations__conversation_id__stream_cancel_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-API-Key"?: string | null;
-                "X-User-Id"?: string | null;
-            };
-            path: {
-                conversation_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     upload_file_for_ai_api_v1_ai_upload_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15044,12 +20859,52 @@ export interface operations {
             };
         };
     };
+    get_ai_chat_usage_stats_api_v1_ai_usage_stats_get: {
+        parameters: {
+            query?: {
+                /** @description 7d / 30d / 90d */
+                range?: "7d" | "30d" | "90d";
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIChatUsageStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     trigger_detection_api_v1_alerts_detect_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15086,10 +20941,12 @@ export interface operations {
                 status?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15120,10 +20977,13 @@ export interface operations {
     };
     acknowledge_event_api_v1_alerts_events__event_id__acknowledge_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15156,10 +21016,13 @@ export interface operations {
     };
     resolve_event_api_v1_alerts_events__event_id__resolve_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15192,9 +21055,12 @@ export interface operations {
     };
     list_metric_options_api_v1_alerts_metrics_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15223,11 +21089,14 @@ export interface operations {
     };
     get_preferences_api_v1_alerts_preferences_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15258,11 +21127,14 @@ export interface operations {
     };
     update_preferences_api_v1_alerts_preferences_patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15301,10 +21173,12 @@ export interface operations {
                 project_id?: number | null;
                 metric?: string | null;
                 is_active?: boolean | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15335,10 +21209,13 @@ export interface operations {
     };
     create_rule_api_v1_alerts_rules_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15373,10 +21250,13 @@ export interface operations {
     };
     delete_rule_api_v1_alerts_rules__rule_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15407,10 +21287,13 @@ export interface operations {
     };
     update_rule_api_v1_alerts_rules__rule_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15449,9 +21332,11 @@ export interface operations {
         parameters: {
             query?: {
                 project_id?: number | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15546,9 +21431,12 @@ export interface operations {
     };
     check_backup_health_api_v1_backups_health_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15579,9 +21467,12 @@ export interface operations {
     };
     get_backup_info_api_v1_backups_info_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Is-Admin"?: boolean;
             };
             path?: never;
@@ -15614,9 +21505,11 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Is-Admin"?: boolean;
             };
             path?: never;
@@ -15646,9 +21539,12 @@ export interface operations {
     };
     get_backup_status_api_v1_backups_status_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Is-Admin"?: boolean;
             };
             path?: never;
@@ -15678,10 +21574,13 @@ export interface operations {
     };
     trigger_backup_endpoint_api_v1_backups_trigger_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Is-Admin"?: boolean;
             };
             path?: never;
@@ -15715,9 +21614,12 @@ export interface operations {
     };
     verify_backup_endpoint_api_v1_backups_verify_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Is-Admin"?: boolean;
             };
             path?: never;
@@ -15752,9 +21654,11 @@ export interface operations {
                 category_keyword_en?: string | null;
                 current_only?: boolean;
                 include_history?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15783,9 +21687,12 @@ export interface operations {
     };
     import_category_research_dataset_endpoint_api_v1_category_research_datasets_import_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15824,9 +21731,11 @@ export interface operations {
                 marketplace?: string | null;
                 category_keyword_en?: string | null;
                 include_history?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -15858,9 +21767,11 @@ export interface operations {
             query?: {
                 price_band_standard?: string | null;
                 price_band_breaks?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15893,9 +21804,12 @@ export interface operations {
     };
     upsert_category_research_manual_dimensions_api_v1_category_research_datasets__dataset_id__dimensions_manual_upsert_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15932,9 +21846,12 @@ export interface operations {
     };
     list_category_research_exports_api_v1_category_research_datasets__dataset_id__exports_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -15970,9 +21887,11 @@ export interface operations {
             query?: {
                 price_band_standard?: string | null;
                 price_band_breaks?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16008,9 +21927,11 @@ export interface operations {
         parameters: {
             query?: {
                 months?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16051,9 +21972,11 @@ export interface operations {
                 price_band?: string | null;
                 price_band_standard?: string | null;
                 price_band_breaks?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16086,9 +22009,12 @@ export interface operations {
     };
     recompute_category_research_dataset_api_v1_category_research_datasets__dataset_id__recompute_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16123,9 +22049,11 @@ export interface operations {
         parameters: {
             query: {
                 asin: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16156,6 +22084,1200 @@ export interface operations {
             };
         };
     };
+    list_audit_logs_api_v1_crm_audit_logs_get: {
+        parameters: {
+            query?: {
+                entity_type?: string | null;
+                entity_id?: number | null;
+                entity_types?: string[] | null;
+                entity_ids?: number[] | null;
+                actor_id?: string | null;
+                action?: string | null;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_contact_api_v1_crm_contacts__contact_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_contact_api_v1_crm_contacts__contact_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_customers_api_v1_crm_customers_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                keyword?: string | null;
+                filters?: string | null;
+                page?: number;
+                page_size?: number;
+                sort_by?: string;
+                sort_order?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_customer_api_v1_crm_customers_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_move_to_sea_api_v1_crm_customers_batch_move_sea_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchIdsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_transfer_api_v1_crm_customers_batch_transfer_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_customers_api_v1_crm_customers_export_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                keyword?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_customers_to_sea_api_v1_crm_customers_import_sea_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerSeaImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSeaImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_customer_api_v1_crm_customers__customer_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_customer_api_v1_crm_customers__customer_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_customer_api_v1_crm_customers__customer_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_from_sea_api_v1_crm_customers__customer_id__claim_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_contacts_api_v1_crm_customers__customer_id__contacts_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_contact_api_v1_crm_customers__customer_id__contacts_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_value_scores_api_v1_crm_customers__customer_id__value_scores_patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValueScoresUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_stats_api_v1_crm_dashboard_stats_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardStats"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_follow_ups_api_v1_crm_follow_ups_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpGroups"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_follows_api_v1_crm_follows_get: {
+        parameters: {
+            query: {
+                entity_type: string;
+                entity_id: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_follow_api_v1_crm_follows_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_leads_api_v1_crm_leads_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                keyword?: string | null;
+                filters?: string | null;
+                page?: number;
+                page_size?: number;
+                sort_by?: string;
+                sort_order?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_lead_api_v1_crm_leads_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_move_leads_to_pool_api_v1_crm_leads_batch_move_pool_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchIdsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_transfer_leads_api_v1_crm_leads_batch_transfer_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_leads_api_v1_crm_leads_export_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                keyword?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lead_api_v1_crm_leads__lead_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                lead_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_lead_api_v1_crm_leads__lead_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                lead_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_lead_from_pool_api_v1_crm_leads__lead_id__claim_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                lead_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    convert_lead_api_v1_crm_leads__lead_id__convert_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                lead_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConvertLeadRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConvertLeadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_crm_users_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmUserItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_api_v1_crm_users__user_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrmUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_daily_analysis_api_v1_daily_analysis_get: {
         parameters: {
             query: {
@@ -16165,10 +23287,12 @@ export interface operations {
                 country?: string;
                 sku?: string | null;
                 no_cache?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16206,10 +23330,12 @@ export interface operations {
                 end_date: string;
                 country?: string;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16244,10 +23370,12 @@ export interface operations {
                 project_id: number;
                 start_date: string;
                 end_date: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -16281,9 +23409,11 @@ export interface operations {
             query?: {
                 country?: string;
                 days?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 project_id: number;
@@ -16317,9 +23447,11 @@ export interface operations {
             query?: {
                 status?: string | null;
                 employee_type?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16348,9 +23480,12 @@ export interface operations {
     };
     create_employee_endpoint_api_v1_digital_employees_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16368,6 +23503,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DigitalEmployeeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    office_stream_api_v1_digital_employees_office_stream_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -16416,9 +23585,12 @@ export interface operations {
     };
     get_employee_endpoint_api_v1_digital_employees__employee_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16449,9 +23621,12 @@ export interface operations {
     };
     delete_employee_endpoint_api_v1_digital_employees__employee_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16521,9 +23696,11 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16554,9 +23731,12 @@ export interface operations {
     };
     update_status_api_v1_digital_employees__employee_id__status_patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16594,9 +23774,11 @@ export interface operations {
             query?: {
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16627,9 +23809,12 @@ export interface operations {
     };
     get_task_endpoint_api_v1_digital_employees__employee_id__tasks__task_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16664,9 +23849,11 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 employee_id: number;
@@ -16703,9 +23890,11 @@ export interface operations {
                 year_month?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16734,9 +23923,12 @@ export interface operations {
     };
     create_exchange_rate_api_v1_exchange_rates_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16769,9 +23961,12 @@ export interface operations {
     };
     get_exchange_rate_options_api_v1_exchange_rates_options_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16803,9 +23998,11 @@ export interface operations {
             query: {
                 currency: string;
                 year_month?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16834,9 +24031,12 @@ export interface operations {
     };
     upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -16869,9 +24069,12 @@ export interface operations {
     };
     get_exchange_rate_api_v1_exchange_rates__exchange_rate_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 exchange_rate_id: number;
@@ -16902,9 +24105,12 @@ export interface operations {
     };
     update_exchange_rate_api_v1_exchange_rates__exchange_rate_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 exchange_rate_id: number;
@@ -16939,9 +24145,12 @@ export interface operations {
     };
     delete_exchange_rate_api_v1_exchange_rates__exchange_rate_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 exchange_rate_id: number;
@@ -16968,11 +24177,1620 @@ export interface operations {
             };
         };
     };
-    health_api_v1_health_get: {
+    get_external_projects_api_v1_external_projects_get: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__external__projects__ProjectItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_budget_raw_alias_api_v1_external_projects__project_id__ad_budget_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdBudgetRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_budget_aggregate_api_v1_external_projects__project_id__ad_budgets_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdBudgetAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_budget_raw_api_v1_external_projects__project_id__ad_budgets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdBudgetRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_campaign_raw_alias_api_v1_external_projects__project_id__ad_campaign_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdCampaignRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_campaign_aggregate_api_v1_external_projects__project_id__ad_campaigns_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdCampaignAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_campaign_raw_api_v1_external_projects__project_id__ad_campaigns_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdCampaignRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_invalid_traffic_aggregate_api_v1_external_projects__project_id__ad_invalid_traffic_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdInvalidTrafficAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_invalid_traffic_raw_api_v1_external_projects__project_id__ad_invalid_traffic_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdInvalidTrafficRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_placement_raw_alias_api_v1_external_projects__project_id__ad_placement_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPlacementRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_placement_aggregate_api_v1_external_projects__project_id__ad_placements_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdPlacementAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_placement_raw_api_v1_external_projects__project_id__ad_placements_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPlacementRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_promoted_product_raw_alias_api_v1_external_projects__project_id__ad_promoted_product_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPromotedProductRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_promoted_product_aggregate_api_v1_external_projects__project_id__ad_promoted_products_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdPromotedProductAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_promoted_product_raw_api_v1_external_projects__project_id__ad_promoted_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPromotedProductRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_purchased_product_raw_alias_api_v1_external_projects__project_id__ad_purchased_product_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPurchasedProductRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_purchased_product_aggregate_api_v1_external_projects__project_id__ad_purchased_products_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdPurchasedProductAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_purchased_product_raw_api_v1_external_projects__project_id__ad_purchased_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdPurchasedProductRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_raw_alias_api_v1_external_projects__project_id__ad_search_term_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdSearchTermRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_share_raw_alias_api_v1_external_projects__project_id__ad_search_term_share_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdSearchTermShareRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_share_aggregate_api_v1_external_projects__project_id__ad_search_term_shares_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSearchTermShareAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_share_raw_api_v1_external_projects__project_id__ad_search_term_shares_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdSearchTermShareRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_aggregate_api_v1_external_projects__project_id__ad_search_terms_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSearchTermAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_search_term_raw_api_v1_external_projects__project_id__ad_search_terms_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdSearchTermRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_target_raw_alias_api_v1_external_projects__project_id__ad_target_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdTargetRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_target_aggregate_api_v1_external_projects__project_id__ad_targets_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdTargetAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_target_raw_api_v1_external_projects__project_id__ad_targets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdTargetRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_time_trend_raw_alias_api_v1_external_projects__project_id__ad_time_trend_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdTimeTrendRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_time_trend_aggregate_api_v1_external_projects__project_id__ad_time_trends_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdTimeTrendAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_ad_time_trend_raw_api_v1_external_projects__project_id__ad_time_trends_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawResponse_AdTimeTrendRawRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_business_summary_api_v1_external_projects__project_id__business_summary_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrityCheckResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptClustersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlySnapshotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get: {
+        parameters: {
+            query?: {
+                /** @description Number of recent months */
+                months?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                include_cancelled?: boolean;
+                include_pending?: boolean;
+                aggregate?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrdersSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_replenishment_analysis_api_v1_external_projects__project_id__replenishment_analysis_get: {
+        parameters: {
+            query?: {
+                /** @description ISO-2 country code */
+                country?: string;
+                /** @description Filter by SKU or ASIN (substring match, case-insensitive) */
+                keyword?: string | null;
+                /** @description Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据 */
+                risk_status?: string | null;
+                /** @description Only SKUs with in-transit quantity > 0 */
+                in_transit_only?: boolean;
+                /** @description Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today. */
+                report_date?: string | null;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Items per page (max 200) */
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Project ID */
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryReplenishmentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_return_analysis_aggregate_api_v1_external_projects__project_id__return_analysis_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                /** @description Optional SKU substring filter (case-insensitive) */
+                sku?: string | null;
+                /** @description Filter: return_rate >= value (percent) */
+                min_return_rate?: number | null;
+                /** @description Filter: critical / warning / normal / no_data */
+                risk_level?: string | null;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnAnalysisAggregateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_return_analysis_raw_api_v1_external_projects__project_id__return_analysis_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnAnalysisRawResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_sku_info_api_v1_external_projects__project_id__sku_info_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                is_active?: boolean;
+                sku?: string;
+                limit?: number;
+                offset?: number;
+                include_total?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalSkuInfoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    health_api_v1_health_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17048,10 +25866,12 @@ export interface operations {
                 project_id?: number | null;
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17085,9 +25905,11 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17116,9 +25938,12 @@ export interface operations {
     };
     get_current_period_api_v1_inspections_periods_current_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17147,10 +25972,13 @@ export interface operations {
     };
     get_period_overview_api_v1_inspections_periods__period_id__overview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17183,10 +26011,13 @@ export interface operations {
     };
     get_report_api_v1_inspections_periods__period_id__projects__project_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17220,10 +26051,13 @@ export interface operations {
     };
     create_or_update_report_api_v1_inspections_periods__period_id__projects__project_id__post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17261,10 +26095,13 @@ export interface operations {
     };
     update_report_api_v1_inspections_periods__period_id__projects__project_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17302,10 +26139,13 @@ export interface operations {
     };
     submit_report_api_v1_inspections_periods__period_id__projects__project_id__submit_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17341,10 +26181,12 @@ export interface operations {
         parameters: {
             query?: {
                 report_id?: number | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17379,10 +26221,13 @@ export interface operations {
     };
     delete_screenshot_api_v1_inspections_screenshots__screenshot_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17413,9 +26258,12 @@ export interface operations {
     };
     get_template_api_v1_inspections_template_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17442,6 +26290,142 @@ export interface operations {
             };
         };
     };
+    list_api_keys_api_v1_internal_api_keys_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_api_key_api_v1_internal_api_keys_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_api_key_api_v1_internal_api_keys__key_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyRevokeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_return_analysis_refresh_api_v1_internal_jobs_return_analysis_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnAnalysisRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnAnalysisRefreshResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_inventory_analysis_api_v1_inventory_analysis_get: {
         parameters: {
             query: {
@@ -17449,10 +26433,12 @@ export interface operations {
                 country?: string;
                 /** @description 筛选特定业务日期的库存数据，格式: YYYY-MM-DD */
                 report_date?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17481,6 +26467,235 @@ export interface operations {
             };
         };
     };
+    get_events_api_v1_inventory_ledger_events_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_location_detail_api_v1_inventory_ledger_location_detail_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                msku?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_months_api_v1_inventory_ledger_months_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_clusters_api_v1_inventory_ledger_receipt_clusters_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptClustersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_snapshot_api_v1_inventory_ledger_snapshot_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description YYYY-MM or YYYY-MM-DD */
+                report_month?: string | null;
+                start_date?: string | null;
+                end_date?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlySnapshotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trend_endpoint_api_v1_inventory_ledger_trend_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description Number of recent months */
+                months?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_inventory_replenishment_analysis_endpoint_api_v1_inventory_replenishment_analysis_get: {
         parameters: {
             query: {
@@ -17491,10 +26706,12 @@ export interface operations {
                 in_transit_only?: boolean;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17533,10 +26750,12 @@ export interface operations {
                 date_to?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17569,10 +26788,12 @@ export interface operations {
         parameters: {
             query?: {
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17613,10 +26834,12 @@ export interface operations {
             query: {
                 project_id: number;
                 sku: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17652,9 +26875,11 @@ export interface operations {
                 country?: string;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17686,10 +26911,12 @@ export interface operations {
             query: {
                 project_id: number;
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17724,9 +26951,12 @@ export interface operations {
     };
     get_snapshot_endpoint_api_v1_inventory_replenishment_snapshots__snapshot_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 snapshot_id: number;
@@ -17757,10 +26987,13 @@ export interface operations {
     };
     delete_snapshot_endpoint_api_v1_inventory_replenishment_snapshots__snapshot_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17795,10 +27028,13 @@ export interface operations {
     };
     update_snapshot_endpoint_api_v1_inventory_replenishment_snapshots__snapshot_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17841,9 +27077,11 @@ export interface operations {
                 in_transit_only?: boolean;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 snapshot_id: number;
@@ -17877,9 +27115,11 @@ export interface operations {
             query: {
                 project_id: number;
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -17908,9 +27148,12 @@ export interface operations {
     };
     create_job_api_v1_jobs_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -17945,9 +27188,12 @@ export interface operations {
     };
     get_job_api_v1_jobs__job_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 job_id: number;
@@ -17978,9 +27224,12 @@ export interface operations {
     };
     download_job_result_api_v1_jobs__job_id__result_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 job_id: number;
@@ -18016,9 +27265,11 @@ export interface operations {
                 country?: string | null;
                 month?: string | null;
                 include_history?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18047,9 +27298,12 @@ export interface operations {
     };
     create_monthly_report_api_v1_monthly_reports_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18090,10 +27344,12 @@ export interface operations {
                 start_month?: string | null;
                 end_month?: string | null;
                 fill_missing?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18128,10 +27384,12 @@ export interface operations {
                 project_id: number;
                 country?: string;
                 report_month: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18166,10 +27424,12 @@ export interface operations {
                 project_id: number;
                 country?: string;
                 report_month: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18206,10 +27466,12 @@ export interface operations {
                 start_month?: string | null;
                 end_month?: string | null;
                 fill_missing?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18240,9 +27502,12 @@ export interface operations {
     };
     get_monthly_report_task_api_v1_monthly_reports_tasks__task_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 task_id: number;
@@ -18273,9 +27538,12 @@ export interface operations {
     };
     download_monthly_report_task_result_api_v1_monthly_reports_tasks__task_id__result_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18308,9 +27576,12 @@ export interface operations {
     };
     get_monthly_report_detail_api_v1_monthly_reports__report_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 report_id: number;
@@ -18341,9 +27612,12 @@ export interface operations {
     };
     download_monthly_report_export_api_v1_monthly_reports__report_id__export_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18378,10 +27652,12 @@ export interface operations {
         parameters: {
             query: {
                 project_id: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18412,11 +27688,14 @@ export interface operations {
     };
     create_subscription_endpoint_api_v1_notification_settings_subscriptions_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18451,10 +27730,13 @@ export interface operations {
     };
     update_subscription_endpoint_api_v1_notification_settings_subscriptions__subscription_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18491,10 +27773,13 @@ export interface operations {
     };
     delete_subscription_endpoint_api_v1_notification_settings_subscriptions__subscription_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18525,9 +27810,12 @@ export interface operations {
     };
     test_subscription_email_api_v1_notification_settings_subscriptions__subscription_id__test_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18562,12 +27850,196 @@ export interface operations {
             };
         };
     };
+    list_notifications_api_v1_notifications_get: {
+        parameters: {
+            query?: {
+                type?: string | null;
+                read?: boolean | null;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_read_api_v1_notifications_read_all_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unread_count_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_notification_api_v1_notifications__notification_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_api_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_orders_api_v1_order_info_export_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18602,10 +28074,13 @@ export interface operations {
     };
     get_filter_options_api_v1_order_info_filter_options_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18651,10 +28126,12 @@ export interface operations {
                 page_size?: number;
                 sort_by?: string;
                 sort_dir?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18670,6 +28147,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderInfoListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_v1_order_info_overview_get: {
+        parameters: {
+            query?: {
+                project_ids?: number[] | null;
+                fulfillment_channels?: string[] | null;
+                order_statuses?: string[] | null;
+                countries?: string[] | null;
+                currencies?: string[] | null;
+                sku_keyword?: string | null;
+                order_id_keyword?: string | null;
+                asin_keyword?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                page_size?: number;
+                sort_by?: string;
+                sort_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderInfoOverview"];
                 };
             };
             /** @description Validation Error */
@@ -18700,10 +28228,12 @@ export interface operations {
                 page_size?: number;
                 sort_by?: string;
                 sort_dir?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18745,10 +28275,12 @@ export interface operations {
                 asin_keyword?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18779,12 +28311,15 @@ export interface operations {
     };
     update_order_api_v1_order_info__order_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
-                "X-Operator"?: string | null;
                 "X-Is-Admin"?: boolean;
-                "X-API-Key"?: string;
-                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path: {
                 order_id: number;
@@ -18817,6 +28352,157 @@ export interface operations {
             };
         };
     };
+    history_api_v1_page_render_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRenderHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_page_api_v1_page_render_public__page_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageRenderPublicResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_api_v1_page_render_upload_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_api_v1_page_render_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedPageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_page_api_v1_page_render__page_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path: {
+                page_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_platform_revenues_api_v1_platform_revenues_get: {
         parameters: {
             query?: {
@@ -18827,10 +28513,12 @@ export interface operations {
                 currency?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18861,10 +28549,13 @@ export interface operations {
     };
     create_platform_revenue_api_v1_platform_revenues_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18899,10 +28590,13 @@ export interface operations {
     };
     get_project_countries_api_v1_platform_revenues_project_countries__project_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -18937,9 +28631,12 @@ export interface operations {
     };
     upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -18974,10 +28671,13 @@ export interface operations {
     };
     get_platform_revenue_api_v1_platform_revenues__revenue_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19010,10 +28710,13 @@ export interface operations {
     };
     delete_platform_revenue_api_v1_platform_revenues__revenue_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19044,10 +28747,13 @@ export interface operations {
     };
     update_platform_revenue_api_v1_platform_revenues__revenue_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19082,11 +28788,247 @@ export interface operations {
             };
         };
     };
-    calculate_pricing_eu_quote_api_v1_pricing_calculation_eu_quote_post: {
+    list_pricing_calculation_snapshots_api_v1_pricing_calculation_snapshots_get: {
         parameters: {
-            query?: never;
+            query: {
+                project_id: number;
+                country?: string;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingCalculationSnapshotListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots_post: {
+        parameters: {
+            query: {
+                project_id: number;
+                country?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreatePricingCalculationSnapshotRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingCalculationSnapshotDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pricing_calculation_snapshot_detail_api_v1_pricing_calculation_snapshots__snapshot_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                snapshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingCalculationSnapshotDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots__snapshot_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                snapshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots__snapshot_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                snapshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePricingCalculationSnapshotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingCalculationSnapshotListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pricing_calculation_snapshot_items_api_v1_pricing_calculation_snapshots__snapshot_id__items_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                snapshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingCalculationSnapshotItemsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calculate_pricing_eu_quote_api_v1_pricing_calculation_eu_quote_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19121,9 +29063,12 @@ export interface operations {
     };
     calculate_pricing_fbm_quote_api_v1_pricing_calculation_fbm_quote_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19158,9 +29103,12 @@ export interface operations {
     };
     calculate_pricing_quote_api_v1_pricing_calculation_quote_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19195,9 +29143,12 @@ export interface operations {
     };
     calculate_pricing_reverse_cost_api_v1_pricing_calculation_reverse_cost_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19232,9 +29183,12 @@ export interface operations {
     };
     calculate_pricing_reverse_quote_api_v1_pricing_calculation_reverse_quote_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19278,9 +29232,11 @@ export interface operations {
                 country?: string | null;
                 /** @description 按产品名/创建人模糊搜索（大小写不敏感，命中 product_name 或 created_by） */
                 keyword?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -19312,9 +29268,12 @@ export interface operations {
     };
     delete_pricing_run_endpoint_api_v1_pricing_calculation_runs__run_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -19346,9 +29305,12 @@ export interface operations {
     };
     recalculate_pricing_run_api_v1_pricing_calculation_runs__run_id__recalculate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -19382,9 +29344,12 @@ export interface operations {
     };
     create_product_analysis_report_api_v1_product_analysis_reports_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19419,9 +29384,12 @@ export interface operations {
     };
     get_product_analysis_task_api_v1_product_analysis_reports_tasks__task_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 task_id: number;
@@ -19452,9 +29420,12 @@ export interface operations {
     };
     download_product_analysis_task_result_api_v1_product_analysis_reports_tasks__task_id__result_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19487,10 +29458,13 @@ export interface operations {
     };
     check_product_calculation_data_api_v1_product_analysis_calculation_check_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19525,10 +29499,13 @@ export interface operations {
     };
     preview_product_calculation_api_v1_product_analysis_calculation_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19563,10 +29540,13 @@ export interface operations {
     };
     run_product_calculation_api_v1_product_analysis_calculation_run_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19606,9 +29586,11 @@ export interface operations {
                 country?: string;
                 start_date?: string | null;
                 end_date?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -19642,9 +29624,11 @@ export interface operations {
                 start_date?: string | null;
                 end_date?: string | null;
                 current_only?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -19677,9 +29661,11 @@ export interface operations {
                 country?: string;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 pt1_id: number;
@@ -19717,9 +29703,11 @@ export interface operations {
                 period_end_date?: string | null;
                 current_only?: boolean;
                 include_history?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -19748,10 +29736,13 @@ export interface operations {
     };
     upload_product_analysis_sources_api_v1_product_analysis_sources_upload_file_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19790,9 +29781,11 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 include_excluded?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 source_id: number;
@@ -19828,10 +29821,12 @@ export interface operations {
                 country?: string;
                 period_start_date: string;
                 period_end_date: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19868,10 +29863,12 @@ export interface operations {
                 start_date?: string | null;
                 end_date?: string | null;
                 current_only?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19908,10 +29905,12 @@ export interface operations {
                 start_date?: string | null;
                 end_date?: string | null;
                 current_only?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19948,10 +29947,12 @@ export interface operations {
                 year?: number;
                 goal_type?: string | null;
                 metric_type?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -19982,10 +29983,13 @@ export interface operations {
     };
     create_project_goal_api_v1_project_goals_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20025,10 +30029,12 @@ export interface operations {
                 country?: string;
                 year?: number;
                 metric_type?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20059,10 +30065,13 @@ export interface operations {
     };
     get_project_goal_api_v1_project_goals__goal_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20095,10 +30104,13 @@ export interface operations {
     };
     update_project_goal_api_v1_project_goals__goal_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20135,10 +30147,13 @@ export interface operations {
     };
     delete_project_goal_api_v1_project_goals__goal_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20169,9 +30184,12 @@ export interface operations {
     };
     list_projects_api_v1_projects_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20202,10 +30220,13 @@ export interface operations {
     };
     create_project_api_v1_projects_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20224,7 +30245,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectItem"];
+                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -20242,10 +30263,12 @@ export interface operations {
         parameters: {
             query?: {
                 show_inactive?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20260,7 +30283,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectItem"][];
+                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"][];
                 };
             };
             /** @description Validation Error */
@@ -20276,9 +30299,12 @@ export interface operations {
     };
     list_project_operator_options_api_v1_projects_operator_options_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20309,10 +30335,13 @@ export interface operations {
     };
     update_project_api_v1_projects__project_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20333,7 +30362,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectItem"];
+                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -20349,10 +30378,13 @@ export interface operations {
     };
     get_project_context_endpoint_api_v1_projects__project_id__context_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20385,10 +30417,13 @@ export interface operations {
     };
     update_project_context_endpoint_api_v1_projects__project_id__context_patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20425,9 +30460,12 @@ export interface operations {
     };
     parse_project_context_endpoint_api_v1_projects__project_id__context_parse_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 project_id: number;
@@ -20462,10 +30500,13 @@ export interface operations {
     };
     move_project_api_v1_projects__project_id__move__direction__post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20483,7 +30524,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectItem"];
+                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -20499,9 +30540,12 @@ export interface operations {
     };
     perform_auto_reconcile_api_v1_report_reconciliation_auto_reconcile_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20540,9 +30584,11 @@ export interface operations {
                 project_id?: number | null;
                 country?: string | null;
                 month?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -20575,9 +30621,11 @@ export interface operations {
                 project_id?: number | null;
                 month?: string | null;
                 limit?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -20609,9 +30657,11 @@ export interface operations {
             query?: {
                 tolerance?: number;
                 report_id?: number | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -20644,11 +30694,96 @@ export interface operations {
             };
         };
     };
-    download_reconciliation_pdf_api_v1_report_reconciliation_reports__report_id__download_pdf_get: {
+    upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CSVUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_reconciliation_csv_api_v1_report_reconciliation_reports__report_id__download_csv_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_reconciliation_pdf_api_v1_report_reconciliation_reports__report_id__download_pdf_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 report_id: number;
@@ -20679,9 +30814,12 @@ export interface operations {
     };
     export_pt3_data_api_v1_report_reconciliation_reports__report_id__export_pt3_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 report_id: number;
@@ -20712,9 +30850,12 @@ export interface operations {
     };
     upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20751,10 +30892,13 @@ export interface operations {
     };
     commit_report_upload_endpoint_api_v1_report_upload_commit_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20789,10 +30933,13 @@ export interface operations {
     };
     recognize_report_upload_api_v1_report_upload_recognize_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20830,10 +30977,12 @@ export interface operations {
             query?: {
                 report_date?: string | null;
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20870,10 +31019,12 @@ export interface operations {
                 end_date: string;
                 country?: string;
                 sku?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20908,10 +31059,12 @@ export interface operations {
                 /** @description YYYY-MM-DD */
                 report_date: string;
                 country?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20946,11 +31099,13 @@ export interface operations {
                 status_filter?: string | null;
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -20990,10 +31145,12 @@ export interface operations {
                 email?: string | null;
                 limit?: number;
                 offset?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21022,14 +31179,56 @@ export interface operations {
             };
         };
     };
+    regenerate_scheduled_report_ai_summary_api_v1_scheduled_reports_ledger__ledger_key__ai_summary_regenerate_post: {
+        parameters: {
+            query?: {
+                ai_model?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Is-Admin"?: boolean;
+            };
+            path: {
+                ledger_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerRegenerateSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     resend_scheduled_report_ledger_entry_api_v1_scheduled_reports_ledger__ledger_key__resend_post: {
         parameters: {
             query?: {
                 force?: boolean;
                 ai_model?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: boolean;
@@ -21065,11 +31264,13 @@ export interface operations {
         parameters: {
             query?: {
                 frequency?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21100,11 +31301,14 @@ export interface operations {
     };
     create_subscription_endpoint_api_v1_scheduled_reports_subscriptions_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21139,11 +31343,14 @@ export interface operations {
     };
     update_subscription_endpoint_api_v1_scheduled_reports_subscriptions__subscription_id__put: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21180,11 +31387,14 @@ export interface operations {
     };
     delete_subscription_endpoint_api_v1_scheduled_reports_subscriptions__subscription_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-User-Id"?: string | null;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21215,10 +31425,13 @@ export interface operations {
     };
     test_email_api_v1_scheduled_reports_test_email_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21255,9 +31468,11 @@ export interface operations {
         parameters: {
             query?: {
                 frequency?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: boolean;
@@ -21301,10 +31516,12 @@ export interface operations {
                 keyword?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21350,10 +31567,12 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 include_total?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21384,9 +31603,12 @@ export interface operations {
     };
     create_shipment_schedule_api_v1_shipment_schedules_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21419,6 +31641,86 @@ export interface operations {
             };
         };
     };
+    list_shipment_batches_api_v1_shipment_schedules_batches_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                country: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string[];
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hide_shipment_batch_api_v1_shipment_schedules_batches_hidden_delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipmentBatchHiddenDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     summarize_shipment_schedule_costs_api_v1_shipment_schedules_cost_summary_get: {
         parameters: {
             query?: {
@@ -21429,10 +31731,12 @@ export interface operations {
                 shipment_no?: string[] | null;
                 created_date_from?: string | null;
                 created_date_to?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21465,10 +31769,12 @@ export interface operations {
         parameters: {
             query: {
                 shipment_no: string[];
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21499,9 +31805,12 @@ export interface operations {
     };
     import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21544,10 +31853,12 @@ export interface operations {
                 shipment_no?: string[] | null;
                 created_date_from?: string | null;
                 created_date_to?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21578,10 +31889,13 @@ export interface operations {
     };
     get_shipment_schedule_detail_api_v1_shipment_schedules__schedule_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21614,10 +31928,13 @@ export interface operations {
     };
     delete_shipment_schedule_api_v1_shipment_schedules__schedule_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21648,10 +31965,13 @@ export interface operations {
     };
     update_shipment_schedule_api_v1_shipment_schedules__schedule_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21688,10 +32008,13 @@ export interface operations {
     };
     calculate_shipment_schedule_costs_api_v1_shipment_schedules__schedule_id__costs_calculate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21728,9 +32051,12 @@ export interface operations {
     };
     import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21773,9 +32099,11 @@ export interface operations {
                 country?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -21804,9 +32132,12 @@ export interface operations {
     };
     create_or_update_shop_calculation_api_v1_shop_calculation_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21841,9 +32172,12 @@ export interface operations {
     };
     delete_shop_calculation_api_v1_shop_calculation__item_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 item_id: number;
@@ -21881,9 +32215,11 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 include_total?: boolean;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -21915,9 +32251,12 @@ export interface operations {
     };
     create_or_update_sku_record_api_v1_sku_info_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -21952,9 +32291,12 @@ export interface operations {
     };
     parse_factory_info_endpoint_api_v1_sku_info_batch_parse_factory_info_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -21987,9 +32329,12 @@ export interface operations {
     };
     batch_update_factory_info_endpoint_api_v1_sku_info_batch_update_factory_info_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22026,9 +32371,11 @@ export interface operations {
         parameters: {
             query?: {
                 import_mode?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22070,9 +32417,11 @@ export interface operations {
                 country?: string | null;
                 is_active?: boolean | null;
                 export_type?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-Is-Admin"?: string | null;
@@ -22104,9 +32453,12 @@ export interface operations {
     };
     batch_download_fnsku_labels_api_v1_sku_info_fnsku_labels_batch_download_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22141,9 +32493,12 @@ export interface operations {
     };
     get_fnsku_labels_by_skus_api_v1_sku_info_fnsku_labels_by_skus_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -22176,9 +32531,12 @@ export interface operations {
     };
     import_default_blf_basic_info_api_v1_sku_info_import_blf_basic_info_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22211,9 +32569,11 @@ export interface operations {
         parameters: {
             query?: {
                 import_mode?: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22248,9 +32608,12 @@ export interface operations {
     };
     recalculate_first_leg_costs_endpoint_api_v1_sku_info_recalculate_first_leg_costs_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22289,9 +32652,11 @@ export interface operations {
                 project_id?: number | null;
                 sku?: string | null;
                 country?: string | null;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22324,9 +32689,12 @@ export interface operations {
     };
     delete_sku_record_endpoint_api_v1_sku_info__sku_record_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22357,9 +32725,12 @@ export interface operations {
     };
     update_sku_record_api_v1_sku_info__sku_record_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22396,9 +32767,12 @@ export interface operations {
     };
     upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22435,9 +32809,12 @@ export interface operations {
     };
     download_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_download_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 sku_record_id: number;
@@ -22468,9 +32845,12 @@ export interface operations {
     };
     move_sku_record_api_v1_sku_info__sku_record_id__move_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22507,9 +32887,12 @@ export interface operations {
     };
     upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22546,9 +32929,12 @@ export interface operations {
     };
     delete_product_image_api_v1_sku_info__sku_record_id__product_image_delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22588,9 +32974,11 @@ export interface operations {
                 country?: string | null;
                 page?: number;
                 page_size?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -22619,9 +33007,12 @@ export interface operations {
     };
     create_or_update_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -22658,9 +33049,11 @@ export interface operations {
         parameters: {
             query: {
                 calculation_type: string;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 project_id: number;
@@ -22692,9 +33085,12 @@ export interface operations {
     };
     delete_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__snapshot_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path: {
                 snapshot_id: number;
@@ -23473,9 +33869,11 @@ export interface operations {
         parameters: {
             query?: {
                 stale_after_seconds?: number;
+                api_key?: string | null;
             };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path?: never;
@@ -23505,9 +33903,12 @@ export interface operations {
     };
     heartbeat_api_v1_system_management_presence_heartbeat_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
                 "X-User-Name"?: string | null;
                 "X-User-Email"?: string | null;
@@ -23543,9 +33944,12 @@ export interface operations {
     };
     get_profile_api_v1_system_management_profile_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
             };
             path?: never;
@@ -23575,9 +33979,12 @@ export interface operations {
     };
     update_profile_api_v1_system_management_profile_patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
@@ -23613,9 +34020,12 @@ export interface operations {
     };
     upload_avatar_api_v1_system_management_profile_avatar_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
@@ -23651,9 +34061,12 @@ export interface operations {
     };
     delete_avatar_api_v1_system_management_profile_avatar_delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-User-Id"?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
@@ -23685,9 +34098,12 @@ export interface operations {
     };
     list_users_api_v1_system_management_users_get: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -23718,9 +34134,12 @@ export interface operations {
     };
     create_user_api_v1_system_management_users_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -23755,9 +34174,12 @@ export interface operations {
     };
     delete_user_api_v1_system_management_users__user_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -23788,9 +34210,12 @@ export interface operations {
     };
     update_user_api_v1_system_management_users__user_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -23827,9 +34252,12 @@ export interface operations {
     };
     revoke_user_sessions_api_v1_system_management_users__user_id__revoke_sessions_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
                 "X-Operator"?: string | null;
                 "X-User-Name"?: string | null;
             };
@@ -23864,9 +34292,12 @@ export interface operations {
     };
     upload_file_api_v1_uploads_post: {
         parameters: {
-            query?: never;
+            query?: {
+                api_key?: string | null;
+            };
             header?: {
                 "X-API-Key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -23884,6 +34315,414 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_vat_entities_api_v1_vat_entities_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatEntityResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_vat_entity_api_v1_vat_entities_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatEntityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatEntityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_vat_entity_api_v1_vat_entities__entity_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_vat_entity_api_v1_vat_entities__entity_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                entity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatEntityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatEntityResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_vat_invoices_api_v1_vat_invoices_get: {
+        parameters: {
+            query?: {
+                project_id?: number | null;
+                status?: string | null;
+                q?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatInvoiceListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_vat_invoice_api_v1_vat_invoices_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatInvoiceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatInvoiceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vat_invoice_api_v1_vat_invoices__invoice_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatInvoiceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vat_invoice_pdf_api_v1_vat_invoices__invoice_id__pdf_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_vat_invoice_pdf_api_v1_vat_invoices__invoice_id__pdf_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatInvoicePdfUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatInvoicePdfUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    void_vat_invoice_api_v1_vat_invoices__invoice_id__void_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatInvoiceVoidRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatInvoiceResponse"];
                 };
             };
             /** @description Validation Error */
