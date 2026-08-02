@@ -189,10 +189,18 @@ const CUSTOMER_STATUSES: readonly CustomerStatus[] = [
   'on_hold',
 ]
 const RATINGS: readonly CustomerRating[] = ['A', 'B', 'B', 'B', 'C', 'C', 'D']
+// 金字塔权重（4:3:2:1:1）：让状态快照本身就是健康的漏斗形——
+// 新线索最多、逐级递减。旧权重 contacting×2 会让"联系中"比"新线索"
+// 还多，快照漏斗第二级反而变宽。
 const LEAD_STATUSES: readonly LeadStatus[] = [
+  'new',
+  'new',
+  'new',
   'new',
   'contacting',
   'contacting',
+  'contacting',
+  'qualified',
   'qualified',
   'converted',
   'discarded',
