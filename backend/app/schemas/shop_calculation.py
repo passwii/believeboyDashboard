@@ -6,9 +6,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-InboundPlacementMode = Literal['single_destination', 'amazon_optimized_split']
-AccountingType = Literal['profit_calc', 'eu_accounting']
-Country = Literal['US', 'DE', 'UK']
+InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
+AccountingType = Literal["profit_calc", "eu_accounting"]
+Country = Literal["US", "DE", "UK"]
 
 
 class ShopCalculationDimensions(BaseModel):
@@ -59,13 +59,14 @@ class ShopCalculationProfit(BaseModel):
 
 class ShopCalculationItem(BaseModel):
     """店铺测算详情"""
+
     id: int
     project_id: int
     project_name: str
     sku: str
     asin: str | None = None
     country: Country
-    accounting_type: AccountingType = 'profit_calc'
+    accounting_type: AccountingType = "profit_calc"
 
     # 尺寸信息
     package_length_cm: float
@@ -116,18 +117,22 @@ class ShopCalculationItem(BaseModel):
     notes: str | None = None
     # 操作人
     created_by: str | None = None
+    # append-only 时间序列字段（BEL-378）
+    observed_at: datetime
+    source: str = "manual"
     created_at: datetime
     updated_at: datetime
 
 
 class ShopCalculationCreateRequest(BaseModel):
     """创建/更新店铺测算的请求"""
+
     project_id: int
     project_name: str
     sku: str
     asin: str | None = None
     country: Country
-    accounting_type: AccountingType = 'profit_calc'
+    accounting_type: AccountingType = "profit_calc"
 
     # 尺寸信息
     package_length_cm: float
@@ -207,10 +212,15 @@ class ShopCalculationCreateRequest(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     # 备注
     notes: str | None = None
+    # append-only 写入来源（BEL-378）：manual / agent_listing_pull / external_api
+    source: str = "manual"
+    # 可选写入时刻（Agent 补录历史价时用）；不传则后端取 now()
+    observed_at: datetime | None = None
 
 
 class ShopCalculationListResponse(BaseModel):
     """店铺测算列表响应"""
+
     items: list[ShopCalculationItem]
     total: int
     page: int

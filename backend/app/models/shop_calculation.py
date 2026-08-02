@@ -14,7 +14,7 @@ class ShopCalculation(Base):
     每个 (project_id, sku, country) 组合只有一条最新记录（upsert 策略）。
     """
 
-    __tablename__ = 'shop_calculation'
+    __tablename__ = "shop_calculation"
 
     id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer, "sqlite"),
@@ -28,8 +28,12 @@ class ShopCalculation(Base):
     asin: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # 国家站点 + 测算类型
-    country: Mapped[str] = mapped_column(String(10), nullable=False, server_default='US', index=True)
-    accounting_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default='profit_calc')
+    country: Mapped[str] = mapped_column(
+        String(10), nullable=False, server_default="US", index=True
+    )
+    accounting_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="profit_calc"
+    )
 
     # 尺寸信息
     package_length_cm: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
@@ -38,17 +42,27 @@ class ShopCalculation(Base):
     weight_kg: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     # 成本信息
-    fob_product_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    fob_product_cost_rmb: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
     first_leg_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     ddp_cost_rmb: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     ddp_cost_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
     # 销售参数
     sale_price_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    advertising_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0.120000')
-    return_loss_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False, server_default='0.040000')
-    storage_months: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, server_default='1.00')
-    inbound_placement_mode: Mapped[str] = mapped_column(String(32), nullable=False, server_default='single_destination')
+    advertising_rate: Mapped[Decimal] = mapped_column(
+        Numeric(8, 6), nullable=False, server_default="0.120000"
+    )
+    return_loss_rate: Mapped[Decimal] = mapped_column(
+        Numeric(8, 6), nullable=False, server_default="0.040000"
+    )
+    storage_months: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), nullable=False, server_default="1.00"
+    )
+    inbound_placement_mode: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="single_destination"
+    )
 
     # 汇率
     usd_to_rmb_rate: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
@@ -64,45 +78,73 @@ class ShopCalculation(Base):
     longest_side_in: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     middle_side_in: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     shortest_side_in: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    length_plus_girth_in: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    length_plus_girth_in: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False
+    )
     volume_cubic_in: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     volume_cubic_ft: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
 
     # 重量详情
     product_weight_lb: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     product_weight_oz: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    dimensional_weight_lb: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    chargeable_weight_lb: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    chargeable_weight_oz: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    dimensional_weight_lb: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False
+    )
+    chargeable_weight_lb: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False
+    )
+    chargeable_weight_oz: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False
+    )
     chargeable_weight_rule: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # 费用规则标签
     fulfillment_fee_rule_label: Mapped[str] = mapped_column(String(128), nullable=False)
-    inbound_config_fee_rule_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    inbound_config_fee_rule_label: Mapped[str] = mapped_column(
+        String(128), nullable=False
+    )
     storage_fee_rule_label: Mapped[str] = mapped_column(String(128), nullable=False)
 
     # 费用详情
     referral_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     advertising_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     return_loss_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    fba_fulfillment_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
-    inbound_config_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    fba_fulfillment_fee_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
+    inbound_config_fee_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False
+    )
     storage_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     total_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     # EU 手动填写费用
-    delivery_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
-    inbound_config_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
-    storage_fee_manual_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
-    platform_fee_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
+    delivery_fee_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    inbound_config_fee_manual_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    storage_fee_manual_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    platform_fee_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
 
     # 利润详情
     payout_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     profit_rate: Mapped[Decimal] = mapped_column(Numeric(8, 6), nullable=False)
     # EU VAT
-    vat_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, server_default='0.00')
-    profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 6), nullable=True)
+    vat_usd: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0.00"
+    )
+    profit_after_vat_usd: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2), nullable=True
+    )
+    profit_after_vat_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(8, 6), nullable=True
+    )
 
     # 警告信息
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
@@ -111,8 +153,29 @@ class ShopCalculation(Base):
     # 操作人
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # 原始快照来源
-    snapshot_source_id: Mapped[int | None] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    snapshot_source_id: Mapped[int | None] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), nullable=True
+    )
+    # append-only 时间序列字段（BEL-378）
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        server_default="manual",
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )

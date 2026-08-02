@@ -3,6 +3,7 @@
 Aggregates AnalysisBusinessRow by ASIN and joins with ShopCalculation
 for cost/profit/breakeven data.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -58,18 +59,15 @@ def _select_business_file_ids(
         .subquery()
     )
 
-    stmt = (
-        select(AnalysisSourceFile.id)
-        .join(
-            latest_versions,
-            and_(
-                AnalysisSourceFile.project_id == latest_versions.c.project_id,
-                AnalysisSourceFile.report_type == latest_versions.c.report_type,
-                AnalysisSourceFile.country == latest_versions.c.country,
-                AnalysisSourceFile.report_date == latest_versions.c.report_date,
-                AnalysisSourceFile.version == latest_versions.c.max_version,
-            ),
-        )
+    stmt = select(AnalysisSourceFile.id).join(
+        latest_versions,
+        and_(
+            AnalysisSourceFile.project_id == latest_versions.c.project_id,
+            AnalysisSourceFile.report_type == latest_versions.c.report_type,
+            AnalysisSourceFile.country == latest_versions.c.country,
+            AnalysisSourceFile.report_date == latest_versions.c.report_date,
+            AnalysisSourceFile.version == latest_versions.c.max_version,
+        ),
     )
 
     return list(db.execute(stmt).scalars().all())
@@ -92,6 +90,9 @@ def _get_shop_calculation_map(
             ShopCalculation.project_id == project_id,
             ShopCalculation.country == country,
             ShopCalculation.asin.in_(asins),
+            # BEL-378 append-only：排除软删行；同 ASIN 多行历史由下方
+            # "按 updated_at desc 取首行" 的去重逻辑取最新一条
+            ShopCalculation.deleted_at.is_(None),
         )
         .order_by(ShopCalculation.asin, ShopCalculation.updated_at.desc())
     )
@@ -123,10 +124,16 @@ def aggregate_business_summary(
     stmt = (
         select(
             AnalysisBusinessRow.asin,
-            func.coalesce(func.sum(AnalysisBusinessRow.page_views), 0).label("page_views"),
+            func.coalesce(func.sum(AnalysisBusinessRow.page_views), 0).label(
+                "page_views"
+            ),
             func.coalesce(func.sum(AnalysisBusinessRow.sessions), 0).label("sessions"),
-            func.coalesce(func.sum(AnalysisBusinessRow.units_ordered), 0).label("units_ordered"),
-            func.coalesce(func.sum(AnalysisBusinessRow.ordered_sales_amount), 0).label("ordered_sales_amount"),
+            func.coalesce(func.sum(AnalysisBusinessRow.units_ordered), 0).label(
+                "units_ordered"
+            ),
+            func.coalesce(func.sum(AnalysisBusinessRow.ordered_sales_amount), 0).label(
+                "ordered_sales_amount"
+            ),
         )
         .where(
             AnalysisBusinessRow.source_file_id.in_(file_ids),
@@ -140,7 +147,9 @@ def aggregate_business_summary(
 
     # Collect ASINs for ShopCalculation lookup
     asins = [r.asin for r in agg_rows if r.asin]
-    shop_map = _get_shop_calculation_map(db, project_id=project_id, country=country, asins=asins)
+    shop_map = _get_shop_calculation_map(
+        db, project_id=project_id, country=country, asins=asins
+    )
 
     # Build response rows
     result: List[BusinessSummaryAggregateRow] = []
@@ -151,25 +160,39 @@ def aggregate_business_summary(
         units = int(r.units_ordered or 0)
         sales = Decimal(str(r.ordered_sales_amount or 0))
 
-        cvr = round_ratio(safe_ratio(Decimal(units), Decimal(sessions))) if sessions else 0.0
+        cvr = (
+            round_ratio(safe_ratio(Decimal(units), Decimal(sessions)))
+            if sessions
+            else 0.0
+        )
 
         shop = shop_map.get(asin)
         if shop:
             cost_total = round_money(
-                (shop.fob_product_cost_rmb + shop.first_leg_cost_rmb) / shop.usd_to_rmb_rate
+                (shop.fob_product_cost_rmb + shop.first_leg_cost_rmb)
+                / shop.usd_to_rmb_rate
                 if shop.usd_to_rmb_rate
                 else Decimal("0")
             )
             profit = round_money(shop.profit_usd)
             profit_rate = round_ratio(shop.profit_rate * 100)  # convert to percent
-            breakeven_units = int(
-                safe_ratio(
-                    (shop.fob_product_cost_rmb + shop.first_leg_cost_rmb) / shop.usd_to_rmb_rate,
-                    shop.sale_price_usd - shop.referral_fee_usd - shop.fba_fulfillment_fee_usd
-                    - shop.advertising_fee_usd - shop.return_loss_usd - shop.inbound_config_fee_usd
-                    - shop.storage_fee_usd,
+            breakeven_units = (
+                int(
+                    safe_ratio(
+                        (shop.fob_product_cost_rmb + shop.first_leg_cost_rmb)
+                        / shop.usd_to_rmb_rate,
+                        shop.sale_price_usd
+                        - shop.referral_fee_usd
+                        - shop.fba_fulfillment_fee_usd
+                        - shop.advertising_fee_usd
+                        - shop.return_loss_usd
+                        - shop.inbound_config_fee_usd
+                        - shop.storage_fee_usd,
+                    )
                 )
-            ) if shop.sale_price_usd else 0
+                if shop.sale_price_usd
+                else 0
+            )
         else:
             cost_total = 0.0
             profit = 0.0
@@ -211,6 +234,12 @@ def build_business_summary(rows: List[BusinessSummaryAggregateRow]) -> dict:
         "total_sales_amount": round_money(total_sales),
         "total_cost": round_money(total_cost),
         "total_profit": round_money(total_profit),
-        "overall_cvr": round_ratio(safe_ratio(Decimal(total_units), Decimal(total_sessions))) if total_sessions else 0.0,
-        "overall_profit_rate": round_ratio(safe_ratio(total_profit, total_sales) * 100) if total_sales else 0.0,
+        "overall_cvr": round_ratio(
+            safe_ratio(Decimal(total_units), Decimal(total_sessions))
+        )
+        if total_sessions
+        else 0.0,
+        "overall_profit_rate": round_ratio(safe_ratio(total_profit, total_sales) * 100)
+        if total_sales
+        else 0.0,
     }
