@@ -2,28 +2,37 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, get_request_operator, protected
+from app.core.config import get_settings
 from app.schemas.backup import (
+    BackupDeleteResponse,
+    BackupDownloadUrlResponse,
     BackupInfoResponse,
     BackupRecordItem,
     BackupRecordListResponse,
+    BackupRestoreCommandResponse,
     BackupStatusSummary,
     BackupTriggerRequest,
     BackupTriggerResponse,
     BackupVerifyResponse,
 )
+from app.models.backup_record import BackupRecord
 from app.services.backup_service import (
+    enqueue_backup,
     get_backup_records,
     get_backup_status_summary,
+    get_r2_download_url,
     get_raw_backup_info,
     is_backup_configured,
     is_pgbackrest_available,
-    trigger_backup,
     verify_backups,
 )
+from app.services.r2_service import try_delete_file_from_r2
 
 router = APIRouter(prefix="/backups", tags=["备份管理"], dependencies=[Depends(protected)])
 
@@ -88,7 +97,7 @@ def trigger_backup_endpoint(
         except (ValueError, TypeError):
             pass
 
-    record, message = trigger_backup(db, data.backup_type, user_id)
+    record, message = enqueue_backup(db, data.backup_type, user_id)
 
     return BackupTriggerResponse(
         id=record.id,
@@ -130,3 +139,69 @@ def check_backup_health() -> dict:
         return {"status": "unconfigured", "message": msg}
 
     return {"status": "ready", "message": msg}
+
+
+@router.get("/{record_id}", response_model=BackupRecordItem)
+def get_backup_record(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupRecordItem:
+    """单条备份记录详情（含 phase / R2 字段），供前端轮询。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    return BackupRecordItem.model_validate(record)
+
+
+@router.get("/{record_id}/download-url", response_model=BackupDownloadUrlResponse)
+def get_backup_download_url(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupDownloadUrlResponse:
+    """生成 R2 临时下载链接（presigned，1h 有效）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    try:
+        url = get_r2_download_url(get_settings(), record)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return BackupDownloadUrlResponse(url=url)
+
+
+@router.get("/{record_id}/restore-command", response_model=BackupRestoreCommandResponse)
+def get_backup_restore_command(
+    record_id: int,
+    target_time: str | None = None,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupRestoreCommandResponse:
+    """生成可复制的 pgbackrest restore 命令文本（不执行）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    if not record.backup_set_name:
+        raise HTTPException(status_code=400, detail="该备份无 pgbackrest set，无法生成恢复命令")
+    command = f"pgbackrest restore --stanza=blf --set={record.backup_set_name}"
+    if target_time:
+        command += f" --type=time --target={target_time} --target-action=pause"
+    return BackupRestoreCommandResponse(command=command, set_name=record.backup_set_name)
+
+
+@router.delete("/{record_id}", response_model=BackupDeleteResponse)
+def delete_backup(
+    record_id: int,
+    db: Session = Depends(get_db_session),
+    _: bool = Depends(require_admin),
+) -> BackupDeleteResponse:
+    """软删备份记录 + 删除 R2 对象（记录行保留，写 r2_deleted_at）。"""
+    record = db.get(BackupRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="备份记录不存在")
+    if record.r2_key:
+        try_delete_file_from_r2(get_settings(), record.r2_key)
+    record.r2_deleted_at = datetime.now()
+    db.commit()
+    return BackupDeleteResponse(id=record_id, deleted=True)

@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tarfile
+import tempfile
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.celery_tasks.backup import run_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus, BackupType
+from app.services.r2_service import check_file_exists, generate_presigned_url, upload_file_to_r2
+
+# pgbackrest 本地备份仓库根目录（backup set 目录在 {base}/{set_name}/）。
+PG_BACKUP_BASE = Path("/var/lib/pgbackrest/backup/blf")
 
 
 def _run_pgbackrest(args: list[str], timeout: int = 3600) -> tuple[int, str, str]:
@@ -50,11 +57,68 @@ def _get_pgbackrest_info() -> tuple[bool, str, list[dict]]:
         return True, stdout, []
 
 
+def _run_pgbackrest_backup(backup_type: str) -> tuple[int, str, str]:
+    """Worker 内执行一次 pgbackrest backup，返回 (returncode, stdout, stderr)。"""
+    backup_args = [
+        "backup",
+        "--stanza=blf",
+        f"--type={backup_type}",
+        "--log-level-console=info",
+        "--log-level-file=info",
+        "--log-path=/var/log/pgbackrest",
+    ]
+    return _run_pgbackrest(backup_args, timeout=7200)
+
+
+def _archive_to_tar_gz(set_name: str, record_id: int) -> Path:
+    """把单次 backup set 目录打成 {tmp}/{record_id}.tar.gz，返回路径。"""
+    src = PG_BACKUP_BASE / set_name
+    if not src.is_dir():
+        raise FileNotFoundError(f"backup set not found: {src}")
+    tar_path = Path(tempfile.gettempdir()) / f"{record_id}.tar.gz"
+    with tarfile.open(tar_path, "w:gz") as tar:
+        tar.add(src, arcname=set_name)
+    return tar_path
+
+
+def _upload_to_r2(settings: Settings, record: BackupRecord, tar_path: Path) -> dict:
+    """上传 tar.gz 到 R2（修正 M1 的 key 结构），写回 record 的 R2 字段，返回 upload 结果。
+
+    幂等：若 record.r2_key 已存在且 R2 上确有该对象，跳过重复上传。
+    """
+    if record.r2_key and check_file_exists(settings, record.r2_key):
+        return {
+            "key": record.r2_key,
+            "url": record.r2_url,
+            "bucket": record.r2_bucket,
+            "size": record.compressed_size_bytes,
+        }
+    date = record.started_at.strftime("%Y-%m-%d")
+    filename = f"blf_{date}_{record.backup_type}_{record.id}.tar.gz"
+    with tar_path.open("rb") as fh:
+        result = upload_file_to_r2(
+            settings, fh, filename=filename, project_slug="db-backups", file_type="pgbackrest"
+        )
+    record.r2_key = result["key"]
+    record.r2_url = result["url"]
+    record.r2_bucket = result["bucket"]
+    record.compressed_size_bytes = result["size"]
+    return result
+
+
+def get_r2_download_url(settings: Settings, record: BackupRecord) -> str:
+    """生成 R2 临时下载链接（presigned，1h 有效）。"""
+    if not record.r2_key:
+        raise ValueError("该备份尚未上传 R2")
+    return generate_presigned_url(settings, record.r2_key, expires_in=3600)
+
+
 def enqueue_backup(
     db: Session,
     backup_type: str,
     user_id: int | None = None,
     settings: Settings | None = None,
+    triggered_by: str = "manual",
 ) -> tuple[BackupRecord, str]:
     """API 端入口: INSERT backup_records + 入队 Celery task (§3.1 P0-1).
 
@@ -70,7 +134,7 @@ def enqueue_backup(
         backup_type=backup_type,
         status=BackupStatus.PENDING.value,
         phase="pending",
-        triggered_by="manual",
+        triggered_by=triggered_by,
         started_at=datetime.now(),
         created_by=user_id,
     )

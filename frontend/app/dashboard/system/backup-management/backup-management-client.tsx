@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,16 @@ type BackupRecord = {
   id: number
   backup_type: string
   status: BackupStatus
+  phase: string
+  triggered_by: string
+  retry_count: number
+  backup_set_name: string | null
+  r2_key: string | null
+  r2_url: string | null
+  r2_bucket: string | null
+  r2_uploaded_at: string | null
+  r2_deleted_at: string | null
+  compressed_size_bytes: number | null
   started_at: string
   completed_at: string | null
   size_bytes: number | null
@@ -93,6 +103,33 @@ const TYPE_LABELS: Record<string, string> = {
   wal_archive: 'WAL 归档',
 }
 
+const PHASE_LABELS: Record<string, string> = {
+  pending: '排队中',
+  pgbackrest_running: '执行 pgBackRest',
+  compressing: '打包中',
+  r2_uploading: '上传 R2',
+  completed: '完成',
+  failed: '失败',
+}
+
+const PHASE_BAR_COLORS: Record<string, string> = {
+  pending: 'bg-slate-400',
+  pgbackrest_running: 'bg-blue-500',
+  compressing: 'bg-purple-500',
+  r2_uploading: 'bg-cyan-500',
+  completed: 'bg-emerald-500',
+  failed: 'bg-red-500',
+}
+
+const PHASE_PROGRESS: Record<string, number> = {
+  pending: 10,
+  pgbackrest_running: 40,
+  compressing: 65,
+  r2_uploading: 85,
+  completed: 100,
+  failed: 100,
+}
+
 function formatBytes(bytes: number | null): string {
   if (!bytes) return '-'
   if (bytes < 1024) return `${bytes} B`
@@ -125,6 +162,92 @@ function formatDatetime(datetimeStr: string | null): string {
   })
 }
 
+function BackupRecordDetail({
+  record,
+  onDownload,
+  onRestore,
+  onDelete,
+}: {
+  record: BackupRecord
+  onDownload: (r: BackupRecord) => void
+  onRestore: (r: BackupRecord) => void
+  onDelete: (r: BackupRecord) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-4 text-sm">
+        <div>
+          <p className="text-muted-foreground">R2 Key</p>
+          <p className="font-mono text-xs break-all">{record.r2_key || '-'}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">R2 Bucket</p>
+          <p className="font-medium">{record.r2_bucket || '-'}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">压缩后大小</p>
+          <p className="font-medium">{formatBytes(record.compressed_size_bytes)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">上传时间</p>
+          <p className="font-medium">{formatDatetime(record.r2_uploaded_at)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">备份集</p>
+          <p className="font-mono text-xs">{record.backup_set_name || '-'}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">重试次数</p>
+          <p className="font-medium">{record.retry_count}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">已从 R2 删除</p>
+          <p className="font-medium">{record.r2_deleted_at ? formatDatetime(record.r2_deleted_at) : '否'}</p>
+        </div>
+      </div>
+      {record.error_message && (
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md p-2">
+          {record.error_message}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!record.r2_key || !!record.r2_deleted_at}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDownload(record)
+          }}
+        >
+          下载
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!record.backup_set_name}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRestore(record)
+          }}
+        >
+          恢复命令
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(record)
+          }}
+        >
+          删除
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function BackupManagementClient() {
   const { data: session } = useSession()
   const { notify } = useNotifications()
@@ -137,33 +260,44 @@ export function BackupManagementClient() {
   const [showTriggerDialog, setShowTriggerDialog] = useState(false)
   const [selectedType, setSelectedType] = useState<BackupType>('full')
   const [activeTab, setActiveTab] = useState('records')
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [restoreCommand, setRestoreCommand] = useState<string | null>(null)
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false)
+
+  const loadData = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true)
+    try {
+      const [statusRes, recordsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/backups/status`),
+        fetch(`${API_BASE}/api/v1/backups/records?limit=50`),
+      ])
+
+      if (statusRes.ok) {
+        setStatusSummary(await statusRes.json())
+      }
+
+      if (recordsRes.ok) {
+        const data = await recordsRes.json()
+        setRecords(data.items || [])
+      }
+    } catch (e) {
+      console.error('Failed to load backup data:', e)
+    } finally {
+      if (showSpinner) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      try {
-        const [statusRes, recordsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/backups/status`),
-          fetch(`${API_BASE}/api/v1/backups/records?limit=50`),
-        ])
-
-        if (statusRes.ok) {
-          const data = await statusRes.json()
-          setStatusSummary(data)
-        }
-
-        if (recordsRes.ok) {
-          const data = await recordsRes.json()
-          setRecords(data.items || [])
-        }
-      } catch (e) {
-        console.error('Failed to load backup data:', e)
-      } finally {
-        setLoading(false)
-      }
-    }
     void loadData()
-  }, [])
+  }, [loadData])
+
+  // 3s 轮询：存在 pending / running 记录时才启动，全部终态后停止
+  const hasActiveBackup = records.some((r) => r.status === 'pending' || r.status === 'running')
+  useEffect(() => {
+    if (!hasActiveBackup) return
+    const timer = setInterval(() => void loadData(false), 3000)
+    return () => clearInterval(timer)
+  }, [hasActiveBackup, loadData])
 
   const handleTriggerBackup = async () => {
     setTriggering(true)
@@ -204,6 +338,45 @@ export function BackupManagementClient() {
       notify({ type: 'success', title: data.message || '验证完成' })
     } catch (e) {
       notify({ type: 'error', title: '验证失败' })
+    }
+  }
+
+  const handleDownload = async (record: BackupRecord) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/backups/${record.id}/download-url`)
+      if (!res.ok) throw new Error('download url failed')
+      const { url } = await res.json()
+      window.open(url, '_blank')
+    } catch {
+      notify({ type: 'error', title: '获取下载链接失败' })
+    }
+  }
+
+  const handleRestoreCommand = async (record: BackupRecord) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/backups/${record.id}/restore-command`)
+      if (!res.ok) throw new Error('restore command failed')
+      const { command } = await res.json()
+      setRestoreCommand(command)
+      setShowRestoreDialog(true)
+    } catch {
+      notify({ type: 'error', title: '生成恢复命令失败' })
+    }
+  }
+
+  const handleDeleteBackup = async (record: BackupRecord) => {
+    const confirmed = await confirm({
+      title: `确定删除备份 #${record.id}？将同时删除 R2 上的备份文件`,
+      variant: 'destructive',
+    })
+    if (!confirmed) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/backups/${record.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('delete failed')
+      notify({ type: 'success', title: '备份已删除' })
+      void loadData(false)
+    } catch {
+      notify({ type: 'error', title: '删除失败' })
     }
   }
 
@@ -394,27 +567,68 @@ export function BackupManagementClient() {
                       <th className="text-left py-3 px-4 font-medium">完成时间</th>
                       <th className="text-left py-3 px-4 font-medium">大小</th>
                       <th className="text-left py-3 px-4 font-medium">耗时</th>
+                      <th className="text-left py-3 px-4 font-medium">触发</th>
                     </tr>
                   </thead>
                   <tbody>
                     {records.map((record) => (
-                      <tr key={record.id} className="border-b border-border/30">
-                        <td className="py-3 px-4 text-muted-foreground">#{record.id}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline">
-                            {TYPE_LABELS[record.backup_type] || record.backup_type}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge className={STATUS_COLORS[record.status as BackupStatus]}>
-                            {STATUS_LABELS[record.status as BackupStatus]}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">{formatDatetime(record.started_at)}</td>
-                        <td className="py-3 px-4">{formatDatetime(record.completed_at)}</td>
-                        <td className="py-3 px-4">{formatBytes(record.size_bytes)}</td>
-                        <td className="py-3 px-4">{formatDuration(record.duration_seconds)}</td>
-                      </tr>
+                      <Fragment key={record.id}>
+                        <tr
+                          className="border-b border-border/30 cursor-pointer hover:bg-muted/40 transition-colors"
+                          onClick={() => setExpandedId(expandedId === record.id ? null : record.id)}
+                        >
+                          <td className="py-3 px-4 text-muted-foreground">#{record.id}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">
+                              {TYPE_LABELS[record.backup_type] || record.backup_type}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="space-y-1">
+                              <Badge className={STATUS_COLORS[record.status as BackupStatus]}>
+                                {STATUS_LABELS[record.status as BackupStatus]}
+                              </Badge>
+                              {(record.status === 'pending' || record.status === 'running') && (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className={cn(
+                                        'h-full rounded-full transition-all duration-500',
+                                        PHASE_BAR_COLORS[record.phase] || 'bg-slate-400'
+                                      )}
+                                      style={{ width: `${PHASE_PROGRESS[record.phase] ?? 10}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {PHASE_LABELS[record.phase] || record.phase}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">{formatDatetime(record.started_at)}</td>
+                          <td className="py-3 px-4">{formatDatetime(record.completed_at)}</td>
+                          <td className="py-3 px-4">{formatBytes(record.size_bytes)}</td>
+                          <td className="py-3 px-4">{formatDuration(record.duration_seconds)}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">
+                              {record.triggered_by === 'auto' ? '自动' : '手动'}
+                            </Badge>
+                          </td>
+                        </tr>
+                        {expandedId === record.id && (
+                          <tr className="border-b border-border/30 bg-muted/30">
+                            <td colSpan={8} className="px-6 py-4">
+                              <BackupRecordDetail
+                                record={record}
+                                onDownload={handleDownload}
+                                onRestore={handleRestoreCommand}
+                                onDelete={handleDeleteBackup}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -499,6 +713,33 @@ export function BackupManagementClient() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restore Command Preview Dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>恢复命令预览</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-md p-3">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>此操作会覆盖目标数据库，生产环境执行前请先在测试环境验证。命令仅供复制，本页不会执行。</span>
+            </div>
+            <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto whitespace-pre-wrap break-all">
+              {restoreCommand}
+            </pre>
+            <Button
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard?.writeText(restoreCommand || '')
+                notify({ type: 'success', title: '已复制到剪贴板' })
+              }}
+            >
+              复制命令
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

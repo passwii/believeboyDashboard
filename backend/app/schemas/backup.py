@@ -32,6 +32,16 @@ class BackupRecordItem(BaseModel):
     error_message: str | None = None
     backup_info: str | None = None
     created_by: int | None = None
+    phase: str = "pending"
+    triggered_by: str = "manual"
+    retry_count: int = 0
+    backup_set_name: str | None = None
+    r2_key: str | None = None
+    r2_url: str | None = None
+    r2_bucket: str | None = None
+    r2_uploaded_at: datetime | None = None
+    r2_deleted_at: datetime | None = None
+    compressed_size_bytes: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -64,3 +74,20 @@ class BackupVerifyResponse(BaseModel):
     success: bool
     message: str
     verified_at: datetime
+
+
+class BackupDownloadUrlResponse(BaseModel):
+    """R2 presigned 下载链接。"""
+    url: str
+
+
+class BackupRestoreCommandResponse(BaseModel):
+    """pgbackrest restore 命令预览（不执行）。"""
+    command: str
+    set_name: str
+
+
+class BackupDeleteResponse(BaseModel):
+    """软删备份记录结果。"""
+    id: int
+    deleted: bool

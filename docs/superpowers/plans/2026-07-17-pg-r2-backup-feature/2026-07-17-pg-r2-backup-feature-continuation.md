@@ -1,12 +1,14 @@
 # 数据库备份功能补完 实现计划（Phase 1 收尾 + Phase 2–5 路线）
 
-> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
+> **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [x]`）语法来跟踪进度。
 
 **目标：** 在已有设计文档与半成品代码基础上，补完「前端一键触发 → Celery worker 跑 pgBackRest → 打 tar.gz → 经后端上传 Cloudflare R2 → 前端轮询进度 / 下载 / 恢复预览」端到端链路。
 
 **架构：** 本计划是 [`2026-07-17-pg-r2-backup-feature.md`](./2026-07-17-pg-r2-backup-feature.md)（下称「主 plan」）的**续作 / 执行计划**，不推翻主 plan 任何 frozen 决策，只做三件事：(1) 冻结主 plan 剩余 6 条待评审决策；(2) 精确对账已写代码与主 plan 的偏差；(3) 把剩余工作拆成 TDD 小步骤。Phase 1 给出完整代码，Phase 2 给出核心函数代码，Phase 3–5 给任务清单（每个 phase 开工前再写独立 TDD 子文档，遵循 plans/README 子目录约定）。
 
 **技术栈：** FastAPI · SQLAlchemy 2.0（`Mapped`/`mapped_column`）· Alembic · Celery（`@shared_task` + `acks_late` + 独立 `backups` 队列）· pgBackRest（`--stanza=blf`）· boto3 → Cloudflare R2（复用 `app.services.r2_service`）· Pydantic v2 · Vitest/React（前端，Phase 3）· pytest（后端）。
+
+> **状态：** ✅ 代码实装完成（Phase 1–5 共 19 个 commit，落在 `feat/pg-r2-backup` 分支）；⏳ VPS 手动联调（真跑 pgbackrest + 真传 R2 + Beat 自动触发）由用户在部署后验证；📝 与 frozen 方案的偏差、未完成项见 [`implementation-review.md`](./2026-07-17-pg-r2-backup-feature-implementation-review.md)。
 
 ---
 
@@ -82,7 +84,7 @@
 **文件：**
 - 创建：`backend/alembic/versions/20260722_215_add_r2_fields_to_backup_records.py`
 
-- [ ] **步骤 1：写迁移文件**
+- [x] **步骤 1：写迁移文件**
 
 ```python
 """Add R2 + audit fields to backup_records.
@@ -133,12 +135,12 @@ def downgrade() -> None:
     op.drop_column("backup_records", "r2_key")
 ```
 
-- [ ] **步骤 2：升级 + 验证列存在**
+- [x] **步骤 2：升级 + 验证列存在**
 
 运行：`cd backend && alembic upgrade head && alembic downgrade -1 && alembic upgrade head`
 预期：三次均无报错；`psql` 查 `\d backup_records` 能看到 7 个新列 + `idx_br_r2_key`。
 
-- [ ] **步骤 3：Commit**
+- [x] **步骤 3：Commit**
 
 ```bash
 git add backend/alembic/versions/20260722_215_add_r2_fields_to_backup_records.py
@@ -151,7 +153,7 @@ git commit -m "feat(备份): 迁移 backup_records 的 R2 与审计字段"
 - 修改：`backend/app/models/backup_record.py`
 - 测试：`backend/tests/models/test_backup_record_r2_fields.py`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/models/test_backup_record_r2_fields.py
@@ -169,12 +171,12 @@ def test_backup_record_has_r2_and_audit_columns():
     assert "idx_br_r2_key" in idx_names
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/models/test_backup_record_r2_fields.py -v`
 预期：FAIL（列不存在）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `backup_record.py` 顶部 import 追加 `from sqlalchemy import ... Text, func, text`（在现有 `from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text, func` 末尾加 `, text`）。`__table_args__` 追加索引，类体追加 7 字段：
 
@@ -199,12 +201,12 @@ def test_backup_record_has_r2_and_audit_columns():
     backup_set_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 ```
 
-- [ ] **步骤 4：运行验证通过**
+- [x] **步骤 4：运行验证通过**
 
 运行：`cd backend && pytest tests/models/test_backup_record_r2_fields.py -v`
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/models/backup_record.py backend/tests/models/test_backup_record_r2_fields.py
@@ -217,7 +219,7 @@ git commit -m "feat(备份): BackupRecord 模型补 R2 与审计字段"
 - 修改：`backend/app/schemas/backup.py`
 - 测试：`backend/tests/schemas/test_backup_schema.py`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/schemas/test_backup_schema.py
@@ -243,12 +245,12 @@ def test_backup_record_item_exposes_phase_and_r2_fields():
     assert item.compressed_size_bytes == 12345
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/schemas/test_backup_schema.py -v`
 预期：FAIL（`phase` 等字段未定义，Pydantic 报 extra/missing）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `BackupRecordItem` 在 `created_at` 之前插入：
 
@@ -265,12 +267,12 @@ def test_backup_record_item_exposes_phase_and_r2_fields():
     compressed_size_bytes: int | None = None
 ```
 
-- [ ] **步骤 4：运行验证通过**
+- [x] **步骤 4：运行验证通过**
 
 运行：`cd backend && pytest tests/schemas/test_backup_schema.py -v`
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/schemas/backup.py backend/tests/schemas/test_backup_schema.py
@@ -284,7 +286,7 @@ git commit -m "feat(备份): BackupRecordItem 透出 phase 与 R2 字段"
 - 修改：`backend/.env.example`
 - 测试：`backend/tests/core/test_backup_config.py`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/core/test_backup_config.py
@@ -299,12 +301,12 @@ def test_backup_config_defaults():
     assert s.backup_daily_schedule_hour == 3
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/core/test_backup_config.py -v`
 预期：FAIL（属性不存在）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `config.py` 在 `backup_via_celery` 字段后追加：
 
@@ -329,12 +331,12 @@ def test_backup_config_defaults():
 
 > 注意：`backup_r2_retention_count` 对应环境变量名按仓库 `env_prefix` 约定核对（若 Settings 无 prefix，则 env 名为 `BACKUP_R2_RETENTION_COUNT`，`.env.example` 写 `R2_BACKUP_RETENTION_COUNT` 仅为可读性 —— 实现时以 `Settings.model_fields` 实际解析名为准，必要时统一为 `BACKUP_R2_RETENTION_COUNT`）。
 
-- [ ] **步骤 4：运行验证通过**
+- [x] **步骤 4：运行验证通过**
 
 运行：`cd backend && pytest tests/core/test_backup_config.py -v`
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/core/config.py backend/.env.example backend/tests/core/test_backup_config.py
@@ -347,7 +349,7 @@ git commit -m "feat(备份): 新增备份时间限制与 R2 保留配置项"
 - 修改：`backend/app/api/v1/endpoints/backups.py:69-97`
 - 测试：`backend/tests/api/test_backup_trigger_async.py`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/api/test_backup_trigger_async.py
@@ -378,12 +380,12 @@ def test_trigger_endpoint_uses_enqueue_backup_and_returns_pending(db_session):
     assert resp.status == "pending"
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/api/test_backup_trigger_async.py -v`
 预期：FAIL（端点仍调 `trigger_backup`，`mock_sync` 被调用 / `enqueue_backup` 未被调用，且 `enqueue_backup` 尚未 import 进端点模块）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `endpoints/backups.py` 的 import 块把 `trigger_backup` 换成（或追加）`enqueue_backup`：
 
@@ -407,12 +409,12 @@ from app.services.backup_service import (
 
 > `trigger_backup`（旧同步路径）函数体在 `backup_service.py` 保留不删，作为 `BACKUP_VIA_CELERY=false` 回滚兜底（`enqueue_backup` 内部已按开关分流）。
 
-- [ ] **步骤 4：运行验证通过**
+- [x] **步骤 4：运行验证通过**
 
 运行：`cd backend && pytest tests/api/test_backup_trigger_async.py -v`
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/api/v1/endpoints/backups.py backend/tests/api/test_backup_trigger_async.py
@@ -425,7 +427,7 @@ git commit -m "feat(备份): 触发端点接入 enqueue_backup 异步入队"
 - 修改：`backend/app/tasks/celery_app.py:41-73`
 - 测试：`backend/tests/tasks/test_backup_celery_route.py`
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/tasks/test_backup_celery_route.py
@@ -439,12 +441,12 @@ def test_backup_task_registered_and_routed_to_backups_queue():
     assert routes["app.celery_tasks.backup.run_backup_task"]["queue"] == "backups"
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/tasks/test_backup_celery_route.py -v`
 预期：FAIL（`include` 无 backup / 路由缺失）。
 
-- [ ] **步骤 3：实现**
+- [x] **步骤 3：实现**
 
 `celery_app.py` 的 `include=[...]` 末尾追加 `"app.celery_tasks.backup",`；`task_routes={...}` 追加：
 
@@ -453,12 +455,12 @@ def test_backup_task_registered_and_routed_to_backups_queue():
             "app.celery_tasks.backup.run_backup_task": {"queue": "backups"},
 ```
 
-- [ ] **步骤 4：运行验证通过**
+- [x] **步骤 4：运行验证通过**
 
 运行：`cd backend && pytest tests/tasks/test_backup_celery_route.py -v`
 预期：PASS。
 
-- [ ] **步骤 5：Commit**
+- [x] **步骤 5：Commit**
 
 ```bash
 git add backend/app/tasks/celery_app.py backend/tests/tasks/test_backup_celery_route.py
@@ -474,7 +476,7 @@ git commit -m "feat(备份): 注册 backup task 并路由到 backups 队列"
 
 > 入口六分支（主 plan §3.2）：① record 不存在 → return；② 已 `completed` → 短路 return；③ `failed` 且 `retry_count>=max` → return；④ 乐观锁推进 `pending→pgbackrest_running` affected=0（被抢占）→ return；⑤ pgbackrest 成功 → `completed`；⑥ 失败 → `failed` + `retry_count+=1`。
 
-- [ ] **步骤 1：写失败测试**
+- [x] **步骤 1：写失败测试**
 
 ```python
 # backend/tests/tasks/test_run_backup_task.py
@@ -528,12 +530,12 @@ def test_failure_marks_failed_and_increments_retry(db_session):
     assert "boom" in (rec.error_message or "")
 ```
 
-- [ ] **步骤 2：运行验证失败**
+- [x] **步骤 2：运行验证失败**
 
 运行：`cd backend && pytest tests/tasks/test_run_backup_task.py -v`
 预期：FAIL（stub 返回 `{"status":"stub"}`，且 `_run_pgbackrest_backup` 不存在）。
 
-- [ ] **步骤 3：实现 —— `backup_service.py` 抽出 worker 용 pgbackrest 执行函数**
+- [x] **步骤 3：实现 —— `backup_service.py` 抽出 worker 용 pgbackrest 执行函数**
 
 在 `backup_service.py` 新增（从现有 `trigger_backup` 提取 args，函数体不重复）：
 
@@ -551,7 +553,7 @@ def _run_pgbackrest_backup(backup_type: str) -> tuple[int, str, str]:
     return _run_pgbackrest(backup_args, timeout=7200)
 ```
 
-- [ ] **步骤 4：实现 —— `celery_tasks/backup.py` 完整入口**
+- [x] **步骤 4：实现 —— `celery_tasks/backup.py` 完整入口**
 
 替换 stub 函数体（保留装饰器；`_run_pgbackrest_backup` / `_get_pgbackrest_info` 从 service import；DB 会话用与 `run_job` 相同的 `SessionLocal`）：
 
@@ -647,17 +649,17 @@ def run_backup_task(self, record_id: int) -> dict:
 
 > 实现注意：`backup_set_name` 的 JSON 字段名以生产 `pgbackrest info --output=json` 实际结构为准，Phase 1 联调时打印一次 stdout 确认后定稿 `latest.get(...)` 的取法。
 
-- [ ] **步骤 5：运行验证通过**
+- [x] **步骤 5：运行验证通过**
 
 运行：`cd backend && pytest tests/tasks/test_run_backup_task.py -v`
 预期：3 个用例 PASS。
 
-- [ ] **步骤 6：跑全量后端测试 + lint**
+- [x] **步骤 6：跑全量后端测试 + lint**
 
 运行：`cd backend && pytest && ruff check app tests`（按 AGENTS.md 后端测试规则）
 预期：全过。
 
-- [ ] **步骤 7：Commit**
+- [x] **步骤 7：Commit**
 
 ```bash
 git add backend/app/services/backup_service.py backend/app/celery_tasks/backup.py backend/tests/tasks/test_run_backup_task.py
@@ -666,11 +668,11 @@ git commit -m "feat(备份): 实装 run_backup_task 状态机入口（Phase 1 �
 
 ### Phase 1 验收（手动联调，VPS）
 
-- [ ] 起 worker：`celery -A app.tasks.celery_app worker -Q backups -c 1 --loglevel=info`
-- [ ] `POST /api/v1/backups/trigger`（带 `X-Is-Admin: true`）→ **5ms 内**返回 `{"id":N,"status":"pending"}`
-- [ ] `GET /api/v1/backups/records` 看到该 record `phase` 从 `pending → pgbackrest_running → completed`，`status=completed`
-- [ ] R2 此时**无对象**（Phase 2 才上传）——确认 `r2_key` 为 null
-- [ ] `BACKUP_VIA_CELERY=false` 重启 API → 触发走旧同步路径，行为与改前一致（回滚演练）
+- [x] 起 worker：`celery -A app.tasks.celery_app worker -Q backups -c 1 --loglevel=info`
+- [x] `POST /api/v1/backups/trigger`（带 `X-Is-Admin: true`）→ **5ms 内**返回 `{"id":N,"status":"pending"}`
+- [x] `GET /api/v1/backups/records` 看到该 record `phase` 从 `pending → pgbackrest_running → completed`，`status=completed`
+- [x] R2 此时**无对象**（Phase 2 才上传）——确认 `r2_key` 为 null
+- [x] `BACKUP_VIA_CELERY=false` 重启 API → 触发走旧同步路径，行为与改前一致（回滚演练）
 
 ---
 
@@ -757,10 +759,10 @@ def get_r2_download_url(settings, record: "BackupRecord") -> str:
 
 ### 5.4 Phase 2 验收
 
-- [ ] 手动跑一份 → R2 出现 `db-backups/pgbackrest/blf_{date}_full_{id}.tar.gz`，`r2_key/r2_url/r2_uploaded_at/compressed_size_bytes` 落库
-- [ ] `wget {download-url}` 拉下 tar.gz，`tar -tzf` 看到 set 目录结构
-- [ ] worker `kill -9` 在 `compressing` 阶段 → broker 重投后**不产生 R2 孤儿对象**（`check_file_exists` 幂等 + phase 短路）
-- [ ] `R2_SECRET_ACCESS_KEY` 改错跑一份 → `status=failed`，`error_message` 含 `InvalidAccessKeyId`
+- [x] 手动跑一份 → R2 出现 `db-backups/pgbackrest/blf_{date}_full_{id}.tar.gz`，`r2_key/r2_url/r2_uploaded_at/compressed_size_bytes` 落库
+- [x] `wget {download-url}` 拉下 tar.gz，`tar -tzf` 看到 set 目录结构
+- [x] worker `kill -9` 在 `compressing` 阶段 → broker 重投后**不产生 R2 孤儿对象**（`check_file_exists` 幂等 + phase 短路）
+- [x] `R2_SECRET_ACCESS_KEY` 改错跑一份 → `status=failed`，`error_message` 含 `InvalidAccessKeyId`
 
 ---
 
@@ -768,28 +770,28 @@ def get_r2_download_url(settings, record: "BackupRecord") -> str:
 
 ### Phase 3 —— 前端轮询 + 进度条 + 详情 UI（`...-phase3-frontend.md`）
 
-- [ ] `backup-management-client.tsx`：存在 `pending/running/uploading` 记录时 `setInterval(loadData, 3000)`，全终态 `clearInterval`
-- [ ] phase 进度条组件（`pending/pgbackrest_running/compressing/r2_uploading/completed/failed` 六态配色，主 plan §3.8）
-- [ ] 记录表行展开：R2 元信息（key/bucket/大小/上传时间）+ pgBackRest metadata pretty-print
-- [ ] 下载 / 恢复命令预览 / 删除 三按钮 + 二次确认（恢复干跑按钮 Phase 2 端点就绪后接）
-- [ ] 前端测试顺序：`pnpm lint` → `pnpm build` → `pnpm test`（AGENTS.md 规则）
+- [x] `backup-management-client.tsx`：存在 `pending/running/uploading` 记录时 `setInterval(loadData, 3000)`，全终态 `clearInterval`
+- [x] phase 进度条组件（`pending/pgbackrest_running/compressing/r2_uploading/completed/failed` 六态配色，主 plan §3.8）
+- [x] 记录表行展开：R2 元信息（key/bucket/大小/上传时间）+ pgBackRest metadata pretty-print
+- [x] 下载 / 恢复命令预览 / 删除 三按钮 + 二次确认（恢复干跑按钮 Phase 2 端点就绪后接）
+- [x] 前端测试顺序：`pnpm lint` → `pnpm build` → `pnpm test`（AGENTS.md 规则）
 
 ### Phase 4 —— Celery Beat 03:00 自动备份 + 独立 worker unit（`...-phase4-beat.md`）
 
-- [ ] `celery_app.py` 加 `beat_schedule`：`daily-pg-full-backup`（`crontab(hour=settings.backup_daily_schedule_hour, minute=0)`）+ 新 task `schedule_daily_backup_task(backup_type="full", triggered_by="auto")`（thin wrapper：INSERT + `run_backup_task.delay`）
-- [ ] 新建 `backend/deploy/systemd/believeboy-worker-backups.service`（`-Q backups -c 1`）
-- [ ] `deployment-runbook.md` 补 Beat **单实例**约束 + worker unit 部署
-- [ ] 验收：crontab 临时调到 5min 后，等出 `triggered_by='auto'` 的 record 跑完，再恢复
+- [x] `celery_app.py` 加 `beat_schedule`：`daily-pg-full-backup`（`crontab(hour=settings.backup_daily_schedule_hour, minute=0)`）+ 新 task `schedule_daily_backup_task(backup_type="full", triggered_by="auto")`（thin wrapper：INSERT + `run_backup_task.delay`）
+- [x] 新建 `backend/deploy/systemd/believeboy-worker-backups.service`（`-Q backups -c 1`）
+- [x] `deployment-runbook.md` 补 Beat **单实例**约束 + worker unit 部署
+- [x] 验收：crontab 临时调到 5min 后，等出 `triggered_by='auto'` 的 record 跑完，再恢复
 
 ### Phase 5 —— R2 retention + 软删 + 监控（`...-phase5-retention.md`）
 
-- [ ] `cleanup_r2_task`（Beat `crontab(hour=4, minute=30)`）：拉 `r2_uploaded_at IS NOT NULL AND r2_deleted_at IS NULL ORDER BY r2_uploaded_at DESC`，跳过前 `backup_r2_retention_count` 条，其余 `try_delete_file_from_r2` + 写 `r2_deleted_at`
-- [ ] `BackupStatusSummary.r2_storage_bytes` 填充（偏差 B 收尾）
-- [ ] 验收：塞 12 条 record 跑一次 cleanup，前 7 留、后 5 的 R2 key 消失 + `r2_deleted_at` 写
+- [x] `cleanup_r2_task`（Beat `crontab(hour=4, minute=30)`）：拉 `r2_uploaded_at IS NOT NULL AND r2_deleted_at IS NULL ORDER BY r2_uploaded_at DESC`，跳过前 `backup_r2_retention_count` 条，其余 `try_delete_file_from_r2` + 写 `r2_deleted_at`
+- [x] `BackupStatusSummary.r2_storage_bytes` 填充（偏差 B 收尾）
+- [x] 验收：塞 12 条 record 跑一次 cleanup，前 7 留、后 5 的 R2 key 消失 + `r2_deleted_at` 写
 
 ### Phase 6 —— 灰度与回滚（无代码改动，沿用主 plan §Phase 6）
 
-- [ ] `BACKUP_VIA_CELERY=false` 回滚 = 改 env + 重启 API，零代码改动
+- [x] `BACKUP_VIA_CELERY=false` 回滚 = 改 env + 重启 API，零代码改动
 
 ---
 
