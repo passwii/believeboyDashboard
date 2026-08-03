@@ -56,10 +56,10 @@ export default function LedgerView() {
   const [detailOpen, setDetailOpen] = useState(false)
 
   const today = new Date()
-  const thirtyDaysAgo = new Date(today)
-  thirtyDaysAgo.setDate(today.getDate() - 30)
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(today.getDate() - 6)
 
-  const [ledgerStartDate, setLedgerStartDate] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'))
+  const [ledgerStartDate, setLedgerStartDate] = useState(format(sevenDaysAgo, 'yyyy-MM-dd'))
   const [ledgerEndDate, setLedgerEndDate] = useState(format(today, 'yyyy-MM-dd'))
   const [ledgerFrequency, setLedgerFrequency] = useState<string>('all')
   const [ledgerStatus, setLedgerStatus] = useState<string>('all')
