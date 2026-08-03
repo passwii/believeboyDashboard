@@ -250,7 +250,7 @@ def recompute_pt1_for_period(
     }
 
 
-def run_product_calculation_from_history(
+def run_product_analysis_from_history(
     db: Session,
     *,
     project_id: int,
@@ -415,7 +415,7 @@ def run_product_calculation_from_history(
     }
 
 
-def preview_product_calculation_from_files(
+def preview_product_analysis_from_files(
     db: Session,
     *,
     project_id: int,
@@ -428,12 +428,12 @@ def preview_product_calculation_from_files(
 ) -> dict[str, Any]:
     """月度 SKU 预览：直接从临时文件构造 DataFrame 跑核算，不写 DB。
 
-    与 run_product_calculation_from_history 的区别：
+    与 run_product_analysis_from_history 的区别：
     - 跳过 _list_history_weekly_period_sources（DB 查询源文件）
     - 直接用传入的 temp file path 调 _build_*_df_from_file
     - 永不调用 persist_product_analysis_pt1_calculation（即使日期是单整周）
 
-    返回结构与 run_product_calculation_from_history 完全一致（persisted: false），
+    返回结构与 run_product_analysis_from_history 完全一致（persisted: false），
     前端可以直接喂给 exportProductAnalysisToExcel。
     """
     project = db.get(Project, project_id)

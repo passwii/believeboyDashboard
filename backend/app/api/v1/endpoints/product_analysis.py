@@ -15,11 +15,11 @@ from app.schemas.product_analysis_source import (
     AnalysisSourceRowsResponse,
     CurrentInventorySnapshotResponse,
     ProductAnalysisWeeklyRecomputeResponse,
-    ProductCalculationCheckRequest,
-    ProductCalculationCheckResponse,
-    ProductCalculationPreviewRequest,
-    ProductCalculationRunRequest,
-    ProductCalculationRunResponse,
+    ProductAnalysisCheckRequest,
+    ProductAnalysisCheckResponse,
+    ProductAnalysisPreviewRequest,
+    ProductAnalysisRunRequest,
+    ProductAnalysisRunResponse,
 )
 from app.schemas.product_analysis import (
     UploadProductAnalysisSourcesRequest,
@@ -28,12 +28,12 @@ from app.schemas.product_analysis import (
 )
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.product.analysis import (
-    check_product_calculation_data_availability,
+    check_product_analysis_data_availability,
     list_weekly_product_analysis_from_details,
-    preview_product_calculation_from_files,
+    preview_product_analysis_from_files,
     recompute_pt1_for_period,
     recompute_weekly_product_analysis_from_history,
-    run_product_calculation_from_history,
+    run_product_analysis_from_history,
 )
 from app.services.product.persistence import persist_product_analysis_sources
 from app.services.product.sources import (
@@ -651,9 +651,9 @@ def recompute_product_analysis_weekly(
     return payload
 
 
-@router.post("/product-analysis/calculation/check", response_model=ProductCalculationCheckResponse)
-def check_product_calculation_data(
-    body: ProductCalculationCheckRequest,
+@router.post("/product-analysis/calculation/check", response_model=ProductAnalysisCheckResponse)
+def check_product_analysis_data(
+    body: ProductAnalysisCheckRequest,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
@@ -665,7 +665,7 @@ def check_product_calculation_data(
         is_admin=bool(is_admin),
     )
     normalized_country = _normalize_country(body.country)
-    result = check_product_calculation_data_availability(
+    result = check_product_analysis_data_availability(
         db,
         project_id=body.project_id,
         country=normalized_country,
@@ -675,9 +675,9 @@ def check_product_calculation_data(
     return result
 
 
-@router.post("/product-analysis/calculation/run", response_model=ProductCalculationRunResponse)
-def run_product_calculation(
-    body: ProductCalculationRunRequest,
+@router.post("/product-analysis/calculation/run", response_model=ProductAnalysisRunResponse)
+def run_product_analysis(
+    body: ProductAnalysisRunRequest,
     request: Request,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
@@ -691,7 +691,7 @@ def run_product_calculation(
     )
     normalized_country = _normalize_country(body.country)
     try:
-        result = run_product_calculation_from_history(
+        result = run_product_analysis_from_history(
             db,
             project_id=body.project_id,
             country=normalized_country,
@@ -729,9 +729,9 @@ def run_product_calculation(
     return result
 
 
-@router.post("/product-analysis/calculation/preview", response_model=ProductCalculationRunResponse)
-def preview_product_calculation(
-    body: ProductCalculationPreviewRequest,
+@router.post("/product-analysis/calculation/preview", response_model=ProductAnalysisRunResponse)
+def preview_product_analysis(
+    body: ProductAnalysisPreviewRequest,
     request: Request,
     settings: Settings = Depends(_get_settings),
     db: Session = Depends(get_primary_db_session),
@@ -778,7 +778,7 @@ def preview_product_calculation(
         )
 
     try:
-        result = preview_product_calculation_from_files(
+        result = preview_product_analysis_from_files(
             db,
             project_id=body.project_id,
             country=normalized_country,

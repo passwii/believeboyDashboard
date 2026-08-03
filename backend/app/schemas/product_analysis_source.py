@@ -88,14 +88,14 @@ class ProductAnalysisWeeklyRecomputeResponse(BaseModel):
 from datetime import date as _date
 
 
-class ProductCalculationCheckRequest(BaseModel):
+class ProductAnalysisCheckRequest(BaseModel):
     project_id: int
     country: str = "US"
     start_date: _date
     end_date: _date
 
 
-class ProductCalculationRunRequest(BaseModel):
+class ProductAnalysisRunRequest(BaseModel):
     project_id: int
     country: str = "US"
     start_date: _date
@@ -103,7 +103,7 @@ class ProductCalculationRunRequest(BaseModel):
     current_only: bool = True
 
 
-class ProductCalculationPreviewRequest(BaseModel):
+class ProductAnalysisPreviewRequest(BaseModel):
     """月度 SKU 临时核算请求体。
 
     三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的
@@ -150,7 +150,7 @@ class WeeklyAvailabilityItem(BaseModel):
     payment_objective_empty_dates: list[str] = []
 
 
-class ProductCalculationCheckResponse(BaseModel):
+class ProductAnalysisCheckResponse(BaseModel):
     business_report_missing: list[str]
     ad_report_missing: list[str]
     inventory_missing: list[str]
@@ -178,7 +178,7 @@ class CalculationPeriodItem(BaseModel):
     version: int | None = None
 
 
-class ProductCalculationRunResponse(BaseModel):
+class ProductAnalysisRunResponse(BaseModel):
     project_id: int
     project_name: str
     country: str

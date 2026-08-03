@@ -20088,6 +20088,826 @@
         "title": "MonthsResponse",
         "type": "object"
       },
+      "NewProductCalculationCreateRequest": {
+        "description": "创建/更新新品核算的请求（2026-08-03 由 StoreSkuPricingSnapshotCreateRequest 改名）",
+        "properties": {
+          "advertising_fee_usd": {
+            "title": "Advertising Fee Usd",
+            "type": "number"
+          },
+          "advertising_rate": {
+            "title": "Advertising Rate",
+            "type": "number"
+          },
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "calculation_type": {
+            "default": "profit_calc",
+            "enum": [
+              "profit_calc",
+              "profit_reverse",
+              "eu_accounting"
+            ],
+            "title": "Calculation Type",
+            "type": "string"
+          },
+          "chargeable_weight_lb": {
+            "title": "Chargeable Weight Lb",
+            "type": "number"
+          },
+          "chargeable_weight_oz": {
+            "title": "Chargeable Weight Oz",
+            "type": "number"
+          },
+          "chargeable_weight_rule": {
+            "title": "Chargeable Weight Rule",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "ddp_cost_rmb": {
+            "title": "Ddp Cost Rmb",
+            "type": "number"
+          },
+          "ddp_cost_usd": {
+            "title": "Ddp Cost Usd",
+            "type": "number"
+          },
+          "delivery_fee_usd": {
+            "default": 0.0,
+            "title": "Delivery Fee Usd",
+            "type": "number"
+          },
+          "dimensional_weight_lb": {
+            "title": "Dimensional Weight Lb",
+            "type": "number"
+          },
+          "fba_fulfillment_fee_usd": {
+            "title": "Fba Fulfillment Fee Usd",
+            "type": "number"
+          },
+          "first_leg_cost_rmb": {
+            "title": "First Leg Cost Rmb",
+            "type": "number"
+          },
+          "fob_product_cost_rmb": {
+            "title": "Fob Product Cost Rmb",
+            "type": "number"
+          },
+          "fulfillment_fee_rule_label": {
+            "title": "Fulfillment Fee Rule Label",
+            "type": "string"
+          },
+          "inbound_config_fee_manual_usd": {
+            "default": 0.0,
+            "title": "Inbound Config Fee Manual Usd",
+            "type": "number"
+          },
+          "inbound_config_fee_rule_label": {
+            "title": "Inbound Config Fee Rule Label",
+            "type": "string"
+          },
+          "inbound_config_fee_usd": {
+            "title": "Inbound Config Fee Usd",
+            "type": "number"
+          },
+          "inbound_placement_mode": {
+            "enum": [
+              "single_destination",
+              "amazon_optimized_split"
+            ],
+            "title": "Inbound Placement Mode",
+            "type": "string"
+          },
+          "length_plus_girth_in": {
+            "title": "Length Plus Girth In",
+            "type": "number"
+          },
+          "longest_side_in": {
+            "title": "Longest Side In",
+            "type": "number"
+          },
+          "middle_side_in": {
+            "title": "Middle Side In",
+            "type": "number"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "package_height_cm": {
+            "title": "Package Height Cm",
+            "type": "number"
+          },
+          "package_length_cm": {
+            "title": "Package Length Cm",
+            "type": "number"
+          },
+          "package_width_cm": {
+            "title": "Package Width Cm",
+            "type": "number"
+          },
+          "payout_usd": {
+            "title": "Payout Usd",
+            "type": "number"
+          },
+          "price_band": {
+            "title": "Price Band",
+            "type": "string"
+          },
+          "price_band_label": {
+            "title": "Price Band Label",
+            "type": "string"
+          },
+          "product_weight_lb": {
+            "title": "Product Weight Lb",
+            "type": "number"
+          },
+          "product_weight_oz": {
+            "title": "Product Weight Oz",
+            "type": "number"
+          },
+          "profit_after_vat_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit After Vat Rate"
+          },
+          "profit_after_vat_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit After Vat Usd"
+          },
+          "profit_rate": {
+            "title": "Profit Rate",
+            "type": "number"
+          },
+          "profit_usd": {
+            "title": "Profit Usd",
+            "type": "number"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "referral_fee_usd": {
+            "title": "Referral Fee Usd",
+            "type": "number"
+          },
+          "return_loss_rate": {
+            "title": "Return Loss Rate",
+            "type": "number"
+          },
+          "return_loss_usd": {
+            "title": "Return Loss Usd",
+            "type": "number"
+          },
+          "sale_price_usd": {
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "shortest_side_in": {
+            "title": "Shortest Side In",
+            "type": "number"
+          },
+          "size_tier": {
+            "title": "Size Tier",
+            "type": "string"
+          },
+          "size_tier_label": {
+            "title": "Size Tier Label",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "storage_fee_manual_usd": {
+            "default": 0.0,
+            "title": "Storage Fee Manual Usd",
+            "type": "number"
+          },
+          "storage_fee_rule_label": {
+            "title": "Storage Fee Rule Label",
+            "type": "string"
+          },
+          "storage_fee_usd": {
+            "title": "Storage Fee Usd",
+            "type": "number"
+          },
+          "storage_months": {
+            "title": "Storage Months",
+            "type": "number"
+          },
+          "target_profit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Profit Rate"
+          },
+          "total_fee_usd": {
+            "title": "Total Fee Usd",
+            "type": "number"
+          },
+          "usd_to_rmb_rate": {
+            "title": "Usd To Rmb Rate",
+            "type": "number"
+          },
+          "usd_to_rmb_rate_source": {
+            "title": "Usd To Rmb Rate Source",
+            "type": "string"
+          },
+          "vat_usd": {
+            "default": 0.0,
+            "title": "Vat Usd",
+            "type": "number"
+          },
+          "volume_cubic_ft": {
+            "title": "Volume Cubic Ft",
+            "type": "number"
+          },
+          "volume_cubic_in": {
+            "title": "Volume Cubic In",
+            "type": "number"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "weight_kg": {
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "sku",
+          "package_length_cm",
+          "package_width_cm",
+          "package_height_cm",
+          "weight_kg",
+          "fob_product_cost_rmb",
+          "first_leg_cost_rmb",
+          "ddp_cost_rmb",
+          "ddp_cost_usd",
+          "sale_price_usd",
+          "advertising_rate",
+          "return_loss_rate",
+          "storage_months",
+          "inbound_placement_mode",
+          "usd_to_rmb_rate",
+          "usd_to_rmb_rate_source",
+          "size_tier",
+          "size_tier_label",
+          "price_band",
+          "price_band_label",
+          "longest_side_in",
+          "middle_side_in",
+          "shortest_side_in",
+          "length_plus_girth_in",
+          "volume_cubic_in",
+          "volume_cubic_ft",
+          "product_weight_lb",
+          "product_weight_oz",
+          "dimensional_weight_lb",
+          "chargeable_weight_lb",
+          "chargeable_weight_oz",
+          "chargeable_weight_rule",
+          "fulfillment_fee_rule_label",
+          "inbound_config_fee_rule_label",
+          "storage_fee_rule_label",
+          "referral_fee_usd",
+          "advertising_fee_usd",
+          "return_loss_usd",
+          "fba_fulfillment_fee_usd",
+          "inbound_config_fee_usd",
+          "storage_fee_usd",
+          "total_fee_usd",
+          "payout_usd",
+          "profit_usd",
+          "profit_rate"
+        ],
+        "title": "NewProductCalculationCreateRequest",
+        "type": "object"
+      },
+      "NewProductCalculationDimensions": {
+        "properties": {
+          "length_plus_girth_in": {
+            "title": "Length Plus Girth In",
+            "type": "number"
+          },
+          "longest_side_in": {
+            "title": "Longest Side In",
+            "type": "number"
+          },
+          "middle_side_in": {
+            "title": "Middle Side In",
+            "type": "number"
+          },
+          "shortest_side_in": {
+            "title": "Shortest Side In",
+            "type": "number"
+          },
+          "volume_cubic_ft": {
+            "title": "Volume Cubic Ft",
+            "type": "number"
+          },
+          "volume_cubic_in": {
+            "title": "Volume Cubic In",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longest_side_in",
+          "middle_side_in",
+          "shortest_side_in",
+          "length_plus_girth_in",
+          "volume_cubic_in",
+          "volume_cubic_ft"
+        ],
+        "title": "NewProductCalculationDimensions",
+        "type": "object"
+      },
+      "NewProductCalculationFees": {
+        "properties": {
+          "advertising_fee_usd": {
+            "title": "Advertising Fee Usd",
+            "type": "number"
+          },
+          "delivery_fee_usd": {
+            "default": 0.0,
+            "title": "Delivery Fee Usd",
+            "type": "number"
+          },
+          "fba_fulfillment_fee_usd": {
+            "title": "Fba Fulfillment Fee Usd",
+            "type": "number"
+          },
+          "inbound_config_fee_manual_usd": {
+            "default": 0.0,
+            "title": "Inbound Config Fee Manual Usd",
+            "type": "number"
+          },
+          "inbound_config_fee_usd": {
+            "title": "Inbound Config Fee Usd",
+            "type": "number"
+          },
+          "referral_fee_usd": {
+            "title": "Referral Fee Usd",
+            "type": "number"
+          },
+          "return_loss_usd": {
+            "title": "Return Loss Usd",
+            "type": "number"
+          },
+          "storage_fee_manual_usd": {
+            "default": 0.0,
+            "title": "Storage Fee Manual Usd",
+            "type": "number"
+          },
+          "storage_fee_usd": {
+            "title": "Storage Fee Usd",
+            "type": "number"
+          },
+          "total_fee_usd": {
+            "title": "Total Fee Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "referral_fee_usd",
+          "advertising_fee_usd",
+          "return_loss_usd",
+          "fba_fulfillment_fee_usd",
+          "inbound_config_fee_usd",
+          "storage_fee_usd",
+          "total_fee_usd"
+        ],
+        "title": "NewProductCalculationFees",
+        "type": "object"
+      },
+      "NewProductCalculationItem": {
+        "description": "新品核算详情（2026-08-03 由 StoreSkuPricingSnapshotItem 改名）",
+        "properties": {
+          "advertising_rate": {
+            "title": "Advertising Rate",
+            "type": "number"
+          },
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "calculation_type": {
+            "default": "profit_calc",
+            "enum": [
+              "profit_calc",
+              "profit_reverse",
+              "eu_accounting"
+            ],
+            "title": "Calculation Type",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "ddp_cost_rmb": {
+            "title": "Ddp Cost Rmb",
+            "type": "number"
+          },
+          "ddp_cost_usd": {
+            "title": "Ddp Cost Usd",
+            "type": "number"
+          },
+          "dimensions": {
+            "$ref": "#/components/schemas/NewProductCalculationDimensions"
+          },
+          "fees": {
+            "$ref": "#/components/schemas/NewProductCalculationFees"
+          },
+          "first_leg_cost_rmb": {
+            "title": "First Leg Cost Rmb",
+            "type": "number"
+          },
+          "fob_product_cost_rmb": {
+            "title": "Fob Product Cost Rmb",
+            "type": "number"
+          },
+          "fulfillment_fee_rule_label": {
+            "title": "Fulfillment Fee Rule Label",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "inbound_config_fee_rule_label": {
+            "title": "Inbound Config Fee Rule Label",
+            "type": "string"
+          },
+          "inbound_placement_mode": {
+            "enum": [
+              "single_destination",
+              "amazon_optimized_split"
+            ],
+            "title": "Inbound Placement Mode",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "package_height_cm": {
+            "title": "Package Height Cm",
+            "type": "number"
+          },
+          "package_length_cm": {
+            "title": "Package Length Cm",
+            "type": "number"
+          },
+          "package_width_cm": {
+            "title": "Package Width Cm",
+            "type": "number"
+          },
+          "price_band": {
+            "title": "Price Band",
+            "type": "string"
+          },
+          "price_band_label": {
+            "title": "Price Band Label",
+            "type": "string"
+          },
+          "profit": {
+            "$ref": "#/components/schemas/NewProductCalculationProfit"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "return_loss_rate": {
+            "title": "Return Loss Rate",
+            "type": "number"
+          },
+          "sale_price_usd": {
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "size_tier": {
+            "title": "Size Tier",
+            "type": "string"
+          },
+          "size_tier_label": {
+            "title": "Size Tier Label",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "storage_fee_rule_label": {
+            "title": "Storage Fee Rule Label",
+            "type": "string"
+          },
+          "storage_months": {
+            "title": "Storage Months",
+            "type": "number"
+          },
+          "target_profit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Profit Rate"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usd_to_rmb_rate": {
+            "title": "Usd To Rmb Rate",
+            "type": "number"
+          },
+          "usd_to_rmb_rate_source": {
+            "title": "Usd To Rmb Rate Source",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "weight_kg": {
+            "title": "Weight Kg",
+            "type": "number"
+          },
+          "weights": {
+            "$ref": "#/components/schemas/NewProductCalculationWeight"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "sku",
+          "package_length_cm",
+          "package_width_cm",
+          "package_height_cm",
+          "weight_kg",
+          "fob_product_cost_rmb",
+          "first_leg_cost_rmb",
+          "ddp_cost_rmb",
+          "ddp_cost_usd",
+          "sale_price_usd",
+          "advertising_rate",
+          "return_loss_rate",
+          "storage_months",
+          "inbound_placement_mode",
+          "usd_to_rmb_rate",
+          "usd_to_rmb_rate_source",
+          "size_tier",
+          "size_tier_label",
+          "price_band",
+          "price_band_label",
+          "fulfillment_fee_rule_label",
+          "inbound_config_fee_rule_label",
+          "storage_fee_rule_label",
+          "dimensions",
+          "weights",
+          "fees",
+          "profit",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "NewProductCalculationItem",
+        "type": "object"
+      },
+      "NewProductCalculationListResponse": {
+        "description": "新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NewProductCalculationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "NewProductCalculationListResponse",
+        "type": "object"
+      },
+      "NewProductCalculationProfit": {
+        "properties": {
+          "ddp_cost_rmb": {
+            "title": "Ddp Cost Rmb",
+            "type": "number"
+          },
+          "ddp_cost_usd": {
+            "title": "Ddp Cost Usd",
+            "type": "number"
+          },
+          "payout_usd": {
+            "title": "Payout Usd",
+            "type": "number"
+          },
+          "profit_after_vat_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit After Vat Rate"
+          },
+          "profit_after_vat_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit After Vat Usd"
+          },
+          "profit_rate": {
+            "title": "Profit Rate",
+            "type": "number"
+          },
+          "profit_usd": {
+            "title": "Profit Usd",
+            "type": "number"
+          },
+          "vat_usd": {
+            "default": 0.0,
+            "title": "Vat Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ddp_cost_rmb",
+          "ddp_cost_usd",
+          "payout_usd",
+          "profit_usd",
+          "profit_rate"
+        ],
+        "title": "NewProductCalculationProfit",
+        "type": "object"
+      },
+      "NewProductCalculationWeight": {
+        "properties": {
+          "chargeable_weight_lb": {
+            "title": "Chargeable Weight Lb",
+            "type": "number"
+          },
+          "chargeable_weight_oz": {
+            "title": "Chargeable Weight Oz",
+            "type": "number"
+          },
+          "chargeable_weight_rule": {
+            "title": "Chargeable Weight Rule",
+            "type": "string"
+          },
+          "dimensional_weight_lb": {
+            "title": "Dimensional Weight Lb",
+            "type": "number"
+          },
+          "product_weight_lb": {
+            "title": "Product Weight Lb",
+            "type": "number"
+          },
+          "product_weight_oz": {
+            "title": "Product Weight Oz",
+            "type": "number"
+          }
+        },
+        "required": [
+          "product_weight_lb",
+          "product_weight_oz",
+          "dimensional_weight_lb",
+          "chargeable_weight_lb",
+          "chargeable_weight_oz",
+          "chargeable_weight_rule"
+        ],
+        "title": "NewProductCalculationWeight",
+        "type": "object"
+      },
       "NewThisMonth": {
         "description": "本月新增（Asia/Shanghai 口径）。",
         "properties": {
@@ -24027,6 +24847,206 @@
         "title": "PricingCalculationWeight",
         "type": "object"
       },
+      "ProductAnalysisCheckRequest": {
+        "properties": {
+          "country": {
+            "default": "US",
+            "title": "Country",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "ProductAnalysisCheckRequest",
+        "type": "object"
+      },
+      "ProductAnalysisCheckResponse": {
+        "properties": {
+          "ad_period_info": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PeriodCoverageInfoItem"
+            },
+            "title": "Ad Period Info",
+            "type": "array"
+          },
+          "ad_periodic_only_missing": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ad Periodic Only Missing",
+            "type": "array"
+          },
+          "ad_report_missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ad Report Missing",
+            "type": "array"
+          },
+          "business_period_info": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PeriodCoverageInfoItem"
+            },
+            "title": "Business Period Info",
+            "type": "array"
+          },
+          "business_periodic_only_missing": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Periodic Only Missing",
+            "type": "array"
+          },
+          "business_report_missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Report Missing",
+            "type": "array"
+          },
+          "has_minimum_data": {
+            "title": "Has Minimum Data",
+            "type": "boolean"
+          },
+          "inventory_missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inventory Missing",
+            "type": "array"
+          },
+          "payment_daily_covered_dates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Payment Daily Covered Dates",
+            "type": "array"
+          },
+          "payment_full_period_covered": {
+            "title": "Payment Full Period Covered",
+            "type": "boolean"
+          },
+          "payment_objective_empty_dates": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Payment Objective Empty Dates",
+            "type": "array"
+          },
+          "payment_periods_overlapping": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentPeriodOverlapItem"
+            },
+            "title": "Payment Periods Overlapping",
+            "type": "array"
+          },
+          "weekly_availability": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WeeklyAvailabilityItem"
+            },
+            "title": "Weekly Availability",
+            "type": "array"
+          }
+        },
+        "required": [
+          "business_report_missing",
+          "ad_report_missing",
+          "inventory_missing",
+          "payment_periods_overlapping",
+          "payment_full_period_covered",
+          "payment_daily_covered_dates",
+          "has_minimum_data"
+        ],
+        "title": "ProductAnalysisCheckResponse",
+        "type": "object"
+      },
+      "ProductAnalysisPreviewRequest": {
+        "description": "月度 SKU 临时核算请求体。\n\n三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的\n临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'\n或 '_report_upload_tmp' 下找到物理文件路径直读。",
+        "properties": {
+          "ad_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ad Temp File Id"
+          },
+          "business_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Temp File Id"
+          },
+          "country": {
+            "default": "US",
+            "title": "Country",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "payment_temp_file_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Temp File Id"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "ProductAnalysisPreviewRequest",
+        "type": "object"
+      },
       "ProductAnalysisReportResponse": {
         "properties": {
           "created_at": {
@@ -24077,6 +25097,77 @@
           "created_at"
         ],
         "title": "ProductAnalysisReportResponse",
+        "type": "object"
+      },
+      "ProductAnalysisRunRequest": {
+        "properties": {
+          "country": {
+            "default": "US",
+            "title": "Country",
+            "type": "string"
+          },
+          "current_only": {
+            "default": true,
+            "title": "Current Only",
+            "type": "boolean"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "ProductAnalysisRunRequest",
+        "type": "object"
+      },
+      "ProductAnalysisRunResponse": {
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/CalculationPeriodItem"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "total_periods": {
+            "title": "Total Periods",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "country",
+          "total_periods",
+          "periods"
+        ],
+        "title": "ProductAnalysisRunResponse",
         "type": "object"
       },
       "ProductAnalysisTaskStatusResponse": {
@@ -24269,277 +25360,6 @@
           "periods"
         ],
         "title": "ProductAnalysisWeeklyRecomputeResponse",
-        "type": "object"
-      },
-      "ProductCalculationCheckRequest": {
-        "properties": {
-          "country": {
-            "default": "US",
-            "title": "Country",
-            "type": "string"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "project_id",
-          "start_date",
-          "end_date"
-        ],
-        "title": "ProductCalculationCheckRequest",
-        "type": "object"
-      },
-      "ProductCalculationCheckResponse": {
-        "properties": {
-          "ad_period_info": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/PeriodCoverageInfoItem"
-            },
-            "title": "Ad Period Info",
-            "type": "array"
-          },
-          "ad_periodic_only_missing": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Ad Periodic Only Missing",
-            "type": "array"
-          },
-          "ad_report_missing": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Ad Report Missing",
-            "type": "array"
-          },
-          "business_period_info": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/PeriodCoverageInfoItem"
-            },
-            "title": "Business Period Info",
-            "type": "array"
-          },
-          "business_periodic_only_missing": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Business Periodic Only Missing",
-            "type": "array"
-          },
-          "business_report_missing": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Business Report Missing",
-            "type": "array"
-          },
-          "has_minimum_data": {
-            "title": "Has Minimum Data",
-            "type": "boolean"
-          },
-          "inventory_missing": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Inventory Missing",
-            "type": "array"
-          },
-          "payment_daily_covered_dates": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Payment Daily Covered Dates",
-            "type": "array"
-          },
-          "payment_full_period_covered": {
-            "title": "Payment Full Period Covered",
-            "type": "boolean"
-          },
-          "payment_objective_empty_dates": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Payment Objective Empty Dates",
-            "type": "array"
-          },
-          "payment_periods_overlapping": {
-            "items": {
-              "$ref": "#/components/schemas/PaymentPeriodOverlapItem"
-            },
-            "title": "Payment Periods Overlapping",
-            "type": "array"
-          },
-          "weekly_availability": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/WeeklyAvailabilityItem"
-            },
-            "title": "Weekly Availability",
-            "type": "array"
-          }
-        },
-        "required": [
-          "business_report_missing",
-          "ad_report_missing",
-          "inventory_missing",
-          "payment_periods_overlapping",
-          "payment_full_period_covered",
-          "payment_daily_covered_dates",
-          "has_minimum_data"
-        ],
-        "title": "ProductCalculationCheckResponse",
-        "type": "object"
-      },
-      "ProductCalculationPreviewRequest": {
-        "description": "月度 SKU 临时核算请求体。\n\n三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的\n临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'\n或 '_report_upload_tmp' 下找到物理文件路径直读。",
-        "properties": {
-          "ad_temp_file_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ad Temp File Id"
-          },
-          "business_temp_file_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Business Temp File Id"
-          },
-          "country": {
-            "default": "US",
-            "title": "Country",
-            "type": "string"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "payment_temp_file_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment Temp File Id"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "project_id",
-          "start_date",
-          "end_date"
-        ],
-        "title": "ProductCalculationPreviewRequest",
-        "type": "object"
-      },
-      "ProductCalculationRunRequest": {
-        "properties": {
-          "country": {
-            "default": "US",
-            "title": "Country",
-            "type": "string"
-          },
-          "current_only": {
-            "default": true,
-            "title": "Current Only",
-            "type": "boolean"
-          },
-          "end_date": {
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "start_date": {
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "project_id",
-          "start_date",
-          "end_date"
-        ],
-        "title": "ProductCalculationRunRequest",
-        "type": "object"
-      },
-      "ProductCalculationRunResponse": {
-        "properties": {
-          "country": {
-            "title": "Country",
-            "type": "string"
-          },
-          "periods": {
-            "items": {
-              "$ref": "#/components/schemas/CalculationPeriodItem"
-            },
-            "title": "Periods",
-            "type": "array"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "project_name": {
-            "title": "Project Name",
-            "type": "string"
-          },
-          "total_periods": {
-            "title": "Total Periods",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "project_id",
-          "project_name",
-          "country",
-          "total_periods",
-          "periods"
-        ],
-        "title": "ProductCalculationRunResponse",
         "type": "object"
       },
       "ProfileResponse": {
@@ -29572,6 +30392,18 @@
             ],
             "title": "Notes"
           },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
           "package_height_cm": {
             "title": "Package Height Cm",
             "type": "number"
@@ -29677,6 +30509,11 @@
           },
           "sku": {
             "title": "Sku",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
             "type": "string"
           },
           "storage_fee_manual_usd": {
@@ -29992,6 +30829,11 @@
             ],
             "title": "Notes"
           },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
           "package_height_cm": {
             "title": "Package Height Cm",
             "type": "number"
@@ -30041,6 +30883,11 @@
           },
           "sku": {
             "title": "Sku",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
             "type": "string"
           },
           "storage_fee_rule_label": {
@@ -30111,6 +30958,7 @@
           "weights",
           "fees",
           "profit",
+          "observed_at",
           "created_at",
           "updated_at"
         ],
@@ -31526,826 +32374,6 @@
           "status"
         ],
         "title": "StatusUpdateRequest",
-        "type": "object"
-      },
-      "StoreSkuPricingDimensions": {
-        "properties": {
-          "length_plus_girth_in": {
-            "title": "Length Plus Girth In",
-            "type": "number"
-          },
-          "longest_side_in": {
-            "title": "Longest Side In",
-            "type": "number"
-          },
-          "middle_side_in": {
-            "title": "Middle Side In",
-            "type": "number"
-          },
-          "shortest_side_in": {
-            "title": "Shortest Side In",
-            "type": "number"
-          },
-          "volume_cubic_ft": {
-            "title": "Volume Cubic Ft",
-            "type": "number"
-          },
-          "volume_cubic_in": {
-            "title": "Volume Cubic In",
-            "type": "number"
-          }
-        },
-        "required": [
-          "longest_side_in",
-          "middle_side_in",
-          "shortest_side_in",
-          "length_plus_girth_in",
-          "volume_cubic_in",
-          "volume_cubic_ft"
-        ],
-        "title": "StoreSkuPricingDimensions",
-        "type": "object"
-      },
-      "StoreSkuPricingFees": {
-        "properties": {
-          "advertising_fee_usd": {
-            "title": "Advertising Fee Usd",
-            "type": "number"
-          },
-          "delivery_fee_usd": {
-            "default": 0.0,
-            "title": "Delivery Fee Usd",
-            "type": "number"
-          },
-          "fba_fulfillment_fee_usd": {
-            "title": "Fba Fulfillment Fee Usd",
-            "type": "number"
-          },
-          "inbound_config_fee_manual_usd": {
-            "default": 0.0,
-            "title": "Inbound Config Fee Manual Usd",
-            "type": "number"
-          },
-          "inbound_config_fee_usd": {
-            "title": "Inbound Config Fee Usd",
-            "type": "number"
-          },
-          "referral_fee_usd": {
-            "title": "Referral Fee Usd",
-            "type": "number"
-          },
-          "return_loss_usd": {
-            "title": "Return Loss Usd",
-            "type": "number"
-          },
-          "storage_fee_manual_usd": {
-            "default": 0.0,
-            "title": "Storage Fee Manual Usd",
-            "type": "number"
-          },
-          "storage_fee_usd": {
-            "title": "Storage Fee Usd",
-            "type": "number"
-          },
-          "total_fee_usd": {
-            "title": "Total Fee Usd",
-            "type": "number"
-          }
-        },
-        "required": [
-          "referral_fee_usd",
-          "advertising_fee_usd",
-          "return_loss_usd",
-          "fba_fulfillment_fee_usd",
-          "inbound_config_fee_usd",
-          "storage_fee_usd",
-          "total_fee_usd"
-        ],
-        "title": "StoreSkuPricingFees",
-        "type": "object"
-      },
-      "StoreSkuPricingProfit": {
-        "properties": {
-          "ddp_cost_rmb": {
-            "title": "Ddp Cost Rmb",
-            "type": "number"
-          },
-          "ddp_cost_usd": {
-            "title": "Ddp Cost Usd",
-            "type": "number"
-          },
-          "payout_usd": {
-            "title": "Payout Usd",
-            "type": "number"
-          },
-          "profit_after_vat_rate": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profit After Vat Rate"
-          },
-          "profit_after_vat_usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profit After Vat Usd"
-          },
-          "profit_rate": {
-            "title": "Profit Rate",
-            "type": "number"
-          },
-          "profit_usd": {
-            "title": "Profit Usd",
-            "type": "number"
-          },
-          "vat_usd": {
-            "default": 0.0,
-            "title": "Vat Usd",
-            "type": "number"
-          }
-        },
-        "required": [
-          "ddp_cost_rmb",
-          "ddp_cost_usd",
-          "payout_usd",
-          "profit_usd",
-          "profit_rate"
-        ],
-        "title": "StoreSkuPricingProfit",
-        "type": "object"
-      },
-      "StoreSkuPricingSnapshotCreateRequest": {
-        "description": "创建/更新店铺 SKU 核算快照的请求",
-        "properties": {
-          "advertising_fee_usd": {
-            "title": "Advertising Fee Usd",
-            "type": "number"
-          },
-          "advertising_rate": {
-            "title": "Advertising Rate",
-            "type": "number"
-          },
-          "asin": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Asin"
-          },
-          "calculation_type": {
-            "default": "profit_calc",
-            "enum": [
-              "profit_calc",
-              "profit_reverse",
-              "eu_accounting"
-            ],
-            "title": "Calculation Type",
-            "type": "string"
-          },
-          "chargeable_weight_lb": {
-            "title": "Chargeable Weight Lb",
-            "type": "number"
-          },
-          "chargeable_weight_oz": {
-            "title": "Chargeable Weight Oz",
-            "type": "number"
-          },
-          "chargeable_weight_rule": {
-            "title": "Chargeable Weight Rule",
-            "type": "string"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "ddp_cost_rmb": {
-            "title": "Ddp Cost Rmb",
-            "type": "number"
-          },
-          "ddp_cost_usd": {
-            "title": "Ddp Cost Usd",
-            "type": "number"
-          },
-          "delivery_fee_usd": {
-            "default": 0.0,
-            "title": "Delivery Fee Usd",
-            "type": "number"
-          },
-          "dimensional_weight_lb": {
-            "title": "Dimensional Weight Lb",
-            "type": "number"
-          },
-          "fba_fulfillment_fee_usd": {
-            "title": "Fba Fulfillment Fee Usd",
-            "type": "number"
-          },
-          "first_leg_cost_rmb": {
-            "title": "First Leg Cost Rmb",
-            "type": "number"
-          },
-          "fob_product_cost_rmb": {
-            "title": "Fob Product Cost Rmb",
-            "type": "number"
-          },
-          "fulfillment_fee_rule_label": {
-            "title": "Fulfillment Fee Rule Label",
-            "type": "string"
-          },
-          "inbound_config_fee_manual_usd": {
-            "default": 0.0,
-            "title": "Inbound Config Fee Manual Usd",
-            "type": "number"
-          },
-          "inbound_config_fee_rule_label": {
-            "title": "Inbound Config Fee Rule Label",
-            "type": "string"
-          },
-          "inbound_config_fee_usd": {
-            "title": "Inbound Config Fee Usd",
-            "type": "number"
-          },
-          "inbound_placement_mode": {
-            "enum": [
-              "single_destination",
-              "amazon_optimized_split"
-            ],
-            "title": "Inbound Placement Mode",
-            "type": "string"
-          },
-          "length_plus_girth_in": {
-            "title": "Length Plus Girth In",
-            "type": "number"
-          },
-          "longest_side_in": {
-            "title": "Longest Side In",
-            "type": "number"
-          },
-          "middle_side_in": {
-            "title": "Middle Side In",
-            "type": "number"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "package_height_cm": {
-            "title": "Package Height Cm",
-            "type": "number"
-          },
-          "package_length_cm": {
-            "title": "Package Length Cm",
-            "type": "number"
-          },
-          "package_width_cm": {
-            "title": "Package Width Cm",
-            "type": "number"
-          },
-          "payout_usd": {
-            "title": "Payout Usd",
-            "type": "number"
-          },
-          "price_band": {
-            "title": "Price Band",
-            "type": "string"
-          },
-          "price_band_label": {
-            "title": "Price Band Label",
-            "type": "string"
-          },
-          "product_weight_lb": {
-            "title": "Product Weight Lb",
-            "type": "number"
-          },
-          "product_weight_oz": {
-            "title": "Product Weight Oz",
-            "type": "number"
-          },
-          "profit_after_vat_rate": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profit After Vat Rate"
-          },
-          "profit_after_vat_usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profit After Vat Usd"
-          },
-          "profit_rate": {
-            "title": "Profit Rate",
-            "type": "number"
-          },
-          "profit_usd": {
-            "title": "Profit Usd",
-            "type": "number"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "project_name": {
-            "title": "Project Name",
-            "type": "string"
-          },
-          "referral_fee_usd": {
-            "title": "Referral Fee Usd",
-            "type": "number"
-          },
-          "return_loss_rate": {
-            "title": "Return Loss Rate",
-            "type": "number"
-          },
-          "return_loss_usd": {
-            "title": "Return Loss Usd",
-            "type": "number"
-          },
-          "sale_price_usd": {
-            "title": "Sale Price Usd",
-            "type": "number"
-          },
-          "shortest_side_in": {
-            "title": "Shortest Side In",
-            "type": "number"
-          },
-          "size_tier": {
-            "title": "Size Tier",
-            "type": "string"
-          },
-          "size_tier_label": {
-            "title": "Size Tier Label",
-            "type": "string"
-          },
-          "sku": {
-            "title": "Sku",
-            "type": "string"
-          },
-          "storage_fee_manual_usd": {
-            "default": 0.0,
-            "title": "Storage Fee Manual Usd",
-            "type": "number"
-          },
-          "storage_fee_rule_label": {
-            "title": "Storage Fee Rule Label",
-            "type": "string"
-          },
-          "storage_fee_usd": {
-            "title": "Storage Fee Usd",
-            "type": "number"
-          },
-          "storage_months": {
-            "title": "Storage Months",
-            "type": "number"
-          },
-          "target_profit_rate": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Profit Rate"
-          },
-          "total_fee_usd": {
-            "title": "Total Fee Usd",
-            "type": "number"
-          },
-          "usd_to_rmb_rate": {
-            "title": "Usd To Rmb Rate",
-            "type": "number"
-          },
-          "usd_to_rmb_rate_source": {
-            "title": "Usd To Rmb Rate Source",
-            "type": "string"
-          },
-          "vat_usd": {
-            "default": 0.0,
-            "title": "Vat Usd",
-            "type": "number"
-          },
-          "volume_cubic_ft": {
-            "title": "Volume Cubic Ft",
-            "type": "number"
-          },
-          "volume_cubic_in": {
-            "title": "Volume Cubic In",
-            "type": "number"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
-          },
-          "weight_kg": {
-            "title": "Weight Kg",
-            "type": "number"
-          }
-        },
-        "required": [
-          "project_id",
-          "project_name",
-          "sku",
-          "package_length_cm",
-          "package_width_cm",
-          "package_height_cm",
-          "weight_kg",
-          "fob_product_cost_rmb",
-          "first_leg_cost_rmb",
-          "ddp_cost_rmb",
-          "ddp_cost_usd",
-          "sale_price_usd",
-          "advertising_rate",
-          "return_loss_rate",
-          "storage_months",
-          "inbound_placement_mode",
-          "usd_to_rmb_rate",
-          "usd_to_rmb_rate_source",
-          "size_tier",
-          "size_tier_label",
-          "price_band",
-          "price_band_label",
-          "longest_side_in",
-          "middle_side_in",
-          "shortest_side_in",
-          "length_plus_girth_in",
-          "volume_cubic_in",
-          "volume_cubic_ft",
-          "product_weight_lb",
-          "product_weight_oz",
-          "dimensional_weight_lb",
-          "chargeable_weight_lb",
-          "chargeable_weight_oz",
-          "chargeable_weight_rule",
-          "fulfillment_fee_rule_label",
-          "inbound_config_fee_rule_label",
-          "storage_fee_rule_label",
-          "referral_fee_usd",
-          "advertising_fee_usd",
-          "return_loss_usd",
-          "fba_fulfillment_fee_usd",
-          "inbound_config_fee_usd",
-          "storage_fee_usd",
-          "total_fee_usd",
-          "payout_usd",
-          "profit_usd",
-          "profit_rate"
-        ],
-        "title": "StoreSkuPricingSnapshotCreateRequest",
-        "type": "object"
-      },
-      "StoreSkuPricingSnapshotItem": {
-        "description": "店铺 SKU 核算快照详情",
-        "properties": {
-          "advertising_rate": {
-            "title": "Advertising Rate",
-            "type": "number"
-          },
-          "asin": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Asin"
-          },
-          "calculation_type": {
-            "default": "profit_calc",
-            "enum": [
-              "profit_calc",
-              "profit_reverse",
-              "eu_accounting"
-            ],
-            "title": "Calculation Type",
-            "type": "string"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "created_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By"
-          },
-          "ddp_cost_rmb": {
-            "title": "Ddp Cost Rmb",
-            "type": "number"
-          },
-          "ddp_cost_usd": {
-            "title": "Ddp Cost Usd",
-            "type": "number"
-          },
-          "dimensions": {
-            "$ref": "#/components/schemas/StoreSkuPricingDimensions"
-          },
-          "fees": {
-            "$ref": "#/components/schemas/StoreSkuPricingFees"
-          },
-          "first_leg_cost_rmb": {
-            "title": "First Leg Cost Rmb",
-            "type": "number"
-          },
-          "fob_product_cost_rmb": {
-            "title": "Fob Product Cost Rmb",
-            "type": "number"
-          },
-          "fulfillment_fee_rule_label": {
-            "title": "Fulfillment Fee Rule Label",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "inbound_config_fee_rule_label": {
-            "title": "Inbound Config Fee Rule Label",
-            "type": "string"
-          },
-          "inbound_placement_mode": {
-            "enum": [
-              "single_destination",
-              "amazon_optimized_split"
-            ],
-            "title": "Inbound Placement Mode",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "package_height_cm": {
-            "title": "Package Height Cm",
-            "type": "number"
-          },
-          "package_length_cm": {
-            "title": "Package Length Cm",
-            "type": "number"
-          },
-          "package_width_cm": {
-            "title": "Package Width Cm",
-            "type": "number"
-          },
-          "price_band": {
-            "title": "Price Band",
-            "type": "string"
-          },
-          "price_band_label": {
-            "title": "Price Band Label",
-            "type": "string"
-          },
-          "profit": {
-            "$ref": "#/components/schemas/StoreSkuPricingProfit"
-          },
-          "project_id": {
-            "title": "Project Id",
-            "type": "integer"
-          },
-          "project_name": {
-            "title": "Project Name",
-            "type": "string"
-          },
-          "return_loss_rate": {
-            "title": "Return Loss Rate",
-            "type": "number"
-          },
-          "sale_price_usd": {
-            "title": "Sale Price Usd",
-            "type": "number"
-          },
-          "size_tier": {
-            "title": "Size Tier",
-            "type": "string"
-          },
-          "size_tier_label": {
-            "title": "Size Tier Label",
-            "type": "string"
-          },
-          "sku": {
-            "title": "Sku",
-            "type": "string"
-          },
-          "storage_fee_rule_label": {
-            "title": "Storage Fee Rule Label",
-            "type": "string"
-          },
-          "storage_months": {
-            "title": "Storage Months",
-            "type": "number"
-          },
-          "target_profit_rate": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Profit Rate"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "usd_to_rmb_rate": {
-            "title": "Usd To Rmb Rate",
-            "type": "number"
-          },
-          "usd_to_rmb_rate_source": {
-            "title": "Usd To Rmb Rate Source",
-            "type": "string"
-          },
-          "warnings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warnings",
-            "type": "array"
-          },
-          "weight_kg": {
-            "title": "Weight Kg",
-            "type": "number"
-          },
-          "weights": {
-            "$ref": "#/components/schemas/StoreSkuPricingWeight"
-          }
-        },
-        "required": [
-          "id",
-          "project_id",
-          "project_name",
-          "sku",
-          "package_length_cm",
-          "package_width_cm",
-          "package_height_cm",
-          "weight_kg",
-          "fob_product_cost_rmb",
-          "first_leg_cost_rmb",
-          "ddp_cost_rmb",
-          "ddp_cost_usd",
-          "sale_price_usd",
-          "advertising_rate",
-          "return_loss_rate",
-          "storage_months",
-          "inbound_placement_mode",
-          "usd_to_rmb_rate",
-          "usd_to_rmb_rate_source",
-          "size_tier",
-          "size_tier_label",
-          "price_band",
-          "price_band_label",
-          "fulfillment_fee_rule_label",
-          "inbound_config_fee_rule_label",
-          "storage_fee_rule_label",
-          "dimensions",
-          "weights",
-          "fees",
-          "profit",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "StoreSkuPricingSnapshotItem",
-        "type": "object"
-      },
-      "StoreSkuPricingSnapshotListResponse": {
-        "description": "店铺 SKU 核算快照列表响应",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/StoreSkuPricingSnapshotItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "page": {
-            "title": "Page",
-            "type": "integer"
-          },
-          "page_size": {
-            "title": "Page Size",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "StoreSkuPricingSnapshotListResponse",
-        "type": "object"
-      },
-      "StoreSkuPricingWeight": {
-        "properties": {
-          "chargeable_weight_lb": {
-            "title": "Chargeable Weight Lb",
-            "type": "number"
-          },
-          "chargeable_weight_oz": {
-            "title": "Chargeable Weight Oz",
-            "type": "number"
-          },
-          "chargeable_weight_rule": {
-            "title": "Chargeable Weight Rule",
-            "type": "string"
-          },
-          "dimensional_weight_lb": {
-            "title": "Dimensional Weight Lb",
-            "type": "number"
-          },
-          "product_weight_lb": {
-            "title": "Product Weight Lb",
-            "type": "number"
-          },
-          "product_weight_oz": {
-            "title": "Product Weight Oz",
-            "type": "number"
-          }
-        },
-        "required": [
-          "product_weight_lb",
-          "product_weight_oz",
-          "dimensional_weight_lb",
-          "chargeable_weight_lb",
-          "chargeable_weight_oz",
-          "chargeable_weight_rule"
-        ],
-        "title": "StoreSkuPricingWeight",
         "type": "object"
       },
       "TableHealthStatus": {
@@ -58084,6 +58112,52 @@
         ]
       }
     },
+    "/api/v1/internal/jobs/return-analysis-rebuild": {
+      "post": {
+        "description": "BEL-376: 全量重建 analysis_return_aggregates（一次性 backfill）。\n\n- 删表 → 重建。从最早的 raw return_date 跑到昨天。\n- 耗时约 3-5 分钟（90 天 × 14 项目）。\n- 使用 BEL-376 修复后的累计语义重算 snapshot。\n- 完成后端点的 sales_quantity / return_rate / wilson_lower 全部正确。",
+        "operationId": "trigger_return_analysis_rebuild_api_v1_internal_jobs_return_analysis_rebuild_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Trigger Return Analysis Rebuild Api V1 Internal Jobs Return Analysis Rebuild Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Return Analysis Rebuild",
+        "tags": [
+          "internal-jobs"
+        ]
+      }
+    },
     "/api/v1/internal/jobs/return-analysis-refresh": {
       "post": {
         "description": "手动刷新退货分析物化表.\n\n默认只跑 target_date（或昨天）；backfill_days > 1 时连同前 N-1 天一起重跑。\n所有日期一次性 commit，便于回填场景。",
@@ -62312,6 +62386,475 @@
           }
         },
         "summary": "Download Monthly Report Export"
+      }
+    },
+    "/api/v1/new-product-calculations": {
+      "get": {
+        "description": "获取新品核算列表（2026-08-03 由 /store-sku-pricing-snapshots 改名）",
+        "operationId": "list_new_product_calculations_api_v1_new_product_calculations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "calculation_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Calculation Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewProductCalculationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List New Product Calculations",
+        "tags": [
+          "new-product-calculations"
+        ]
+      },
+      "post": {
+        "description": "创建或更新新品核算（2026-08-03 改名）",
+        "operationId": "create_or_update_new_product_calculation_api_v1_new_product_calculations_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewProductCalculationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewProductCalculationItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Or Update New Product Calculation",
+        "tags": [
+          "new-product-calculations"
+        ]
+      }
+    },
+    "/api/v1/new-product-calculations/{project_id}/{sku}": {
+      "get": {
+        "description": "获取单个新品核算（2026-08-03 改名）",
+        "operationId": "get_new_product_calculation_api_v1_new_product_calculations__project_id___sku__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "calculation_type",
+            "required": false,
+            "schema": {
+              "default": "profit_calc",
+              "title": "Calculation Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewProductCalculationItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get New Product Calculation",
+        "tags": [
+          "new-product-calculations"
+        ]
+      }
+    },
+    "/api/v1/new-product-calculations/{snapshot_id}": {
+      "delete": {
+        "description": "删除新品核算（2026-08-03 改名）",
+        "operationId": "delete_new_product_calculation_api_v1_new_product_calculations__snapshot_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete New Product Calculation",
+        "tags": [
+          "new-product-calculations"
+        ]
       }
     },
     "/api/v1/notification-settings/subscriptions": {
@@ -66820,7 +67363,7 @@
         "summary": "List Pricing Calculation Snapshots"
       },
       "post": {
-        "description": "创建定价历史快照\n\n从 ``store_sku_pricing_snapshots`` 读取 ``(project_id, country)`` 当前态，\n复制为新的快照（append-only）。原表不受影响。",
+        "description": "创建定价历史快照\n\n从 ``shop_calculation`` 读取 ``(project_id, country)`` 当前态，\n复制为新的快照（append-only）。原表不受影响。\n（2026-08-03 注：历史读源是已弃用的 ``store_sku_pricing_snapshots``/现 ``new_product_calculations``，\n Phase A 后改为 ``shop_calculation``。）",
         "operationId": "create_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots_post",
         "parameters": [
           {
@@ -68800,7 +69343,7 @@
     },
     "/api/v1/product-analysis/calculation/check": {
       "post": {
-        "operationId": "check_product_calculation_data_api_v1_product_analysis_calculation_check_post",
+        "operationId": "check_product_analysis_data_api_v1_product_analysis_calculation_check_post",
         "parameters": [
           {
             "in": "query",
@@ -68897,7 +69440,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductCalculationCheckRequest"
+                "$ref": "#/components/schemas/ProductAnalysisCheckRequest"
               }
             }
           },
@@ -68908,7 +69451,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProductCalculationCheckResponse"
+                  "$ref": "#/components/schemas/ProductAnalysisCheckResponse"
                 }
               }
             },
@@ -68925,13 +69468,13 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Check Product Calculation Data"
+        "summary": "Check Product Analysis Data"
       }
     },
     "/api/v1/product-analysis/calculation/preview": {
       "post": {
         "description": "月度 SKU 临时核算（不入库）。\n\n三类报告的 temp_file_id 必须已通过各自的 recognize 端点识别成功并落盘。\n端点会直读 temp file 路径构造 DataFrame 跑核算，**永不调用 persist_* 写库**。\n返回的 periods 全部为 `persisted=False, preview=True`。",
-        "operationId": "preview_product_calculation_api_v1_product_analysis_calculation_preview_post",
+        "operationId": "preview_product_analysis_api_v1_product_analysis_calculation_preview_post",
         "parameters": [
           {
             "in": "query",
@@ -69028,7 +69571,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductCalculationPreviewRequest"
+                "$ref": "#/components/schemas/ProductAnalysisPreviewRequest"
               }
             }
           },
@@ -69039,7 +69582,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProductCalculationRunResponse"
+                  "$ref": "#/components/schemas/ProductAnalysisRunResponse"
                 }
               }
             },
@@ -69056,12 +69599,12 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Preview Product Calculation"
+        "summary": "Preview Product Analysis"
       }
     },
     "/api/v1/product-analysis/calculation/run": {
       "post": {
-        "operationId": "run_product_calculation_api_v1_product_analysis_calculation_run_post",
+        "operationId": "run_product_analysis_api_v1_product_analysis_calculation_run_post",
         "parameters": [
           {
             "in": "query",
@@ -69158,7 +69701,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductCalculationRunRequest"
+                "$ref": "#/components/schemas/ProductAnalysisRunRequest"
               }
             }
           },
@@ -69169,7 +69712,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProductCalculationRunResponse"
+                  "$ref": "#/components/schemas/ProductAnalysisRunResponse"
                 }
               }
             },
@@ -69186,7 +69729,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Run Product Calculation"
+        "summary": "Run Product Analysis"
       }
     },
     "/api/v1/product-analysis/inventory/current": {
@@ -78172,7 +78715,7 @@
     },
     "/api/v1/shop-calculation": {
       "get": {
-        "description": "获取店铺测算列表",
+        "description": "获取店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）",
         "operationId": "list_shop_calculation_api_v1_shop_calculation_get",
         "parameters": [
           {
@@ -78307,8 +78850,8 @@
         "summary": "List Shop Calculation"
       },
       "post": {
-        "description": "创建或更新店铺测算（upsert）",
-        "operationId": "create_or_update_shop_calculation_api_v1_shop_calculation_post",
+        "description": "新增一条店铺核算记录（append-only，带 observed_at + source）",
+        "operationId": "create_shop_calculation_api_v1_shop_calculation_post",
         "parameters": [
           {
             "in": "query",
@@ -78423,12 +78966,153 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Or Update Shop Calculation"
+        "summary": "Create Shop Calculation"
+      }
+    },
+    "/api/v1/shop-calculation/history": {
+      "get": {
+        "description": "获取店铺核算历史时间线（append-only，按 observed_at 倒序）。\n\nBEL-378：每次写入（手动 / Agent / 外部 API）都新增一行，本端点返回全部历史，\n供「看某 SKU 价格随时间变化」消费。",
+        "operationId": "list_shop_calculation_history_api_v1_shop_calculation_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "按 SKU 筛选",
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "按 SKU 筛选",
+              "title": "Sku"
+            }
+          },
+          {
+            "description": "按国家筛选（如 US, DE, UK）",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "按国家筛选（如 US, DE, UK）",
+              "title": "Country"
+            }
+          },
+          {
+            "description": "是否包含已软删行（审计用）",
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "是否包含已软删行（审计用）",
+              "title": "Include Deleted",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ShopCalculationItem"
+                  },
+                  "title": "Response List Shop Calculation History Api V1 Shop Calculation History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shop Calculation History"
       }
     },
     "/api/v1/shop-calculation/{item_id}": {
       "delete": {
-        "description": "删除店铺测算",
+        "description": "软删除店铺核算（按 SKU 组：移除该 SKU 全部有效行，历史保留可恢复）",
         "operationId": "delete_shop_calculation_api_v1_shop_calculation__item_id__delete",
         "parameters": [
           {
@@ -80977,467 +81661,6 @@
           }
         },
         "summary": "Upload Product Image"
-      }
-    },
-    "/api/v1/store-sku-pricing-snapshots": {
-      "get": {
-        "description": "获取店铺 SKU 核算快照列表",
-        "operationId": "list_store_sku_pricing_snapshots_api_v1_store_sku_pricing_snapshots_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "project_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "minimum": 1,
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "calculation_type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^(profit_calc|profit_reverse|eu_accounting)$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Calculation Type"
-            }
-          },
-          {
-            "description": "按国家筛选（如 US, DE, UK）",
-            "in": "query",
-            "name": "country",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "按国家筛选（如 US, DE, UK）",
-              "title": "Country"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1,
-              "title": "Page",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "page_size",
-            "required": false,
-            "schema": {
-              "default": 200,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoreSkuPricingSnapshotListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Store Sku Pricing Snapshots"
-      },
-      "post": {
-        "description": "创建或更新店铺 SKU 核算快照（upsert）",
-        "operationId": "create_or_update_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Operator",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Operator"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-User-Name",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Name"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StoreSkuPricingSnapshotCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoreSkuPricingSnapshotItem"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Or Update Store Sku Pricing Snapshot"
-      }
-    },
-    "/api/v1/store-sku-pricing-snapshots/{project_id}/{sku}": {
-      "get": {
-        "description": "获取单个店铺 SKU 核算快照",
-        "operationId": "get_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__project_id___sku__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "sku",
-            "required": true,
-            "schema": {
-              "title": "Sku",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "calculation_type",
-            "required": true,
-            "schema": {
-              "pattern": "^(profit_calc|profit_reverse)$",
-              "title": "Calculation Type",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoreSkuPricingSnapshotItem"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Store Sku Pricing Snapshot"
-      }
-    },
-    "/api/v1/store-sku-pricing-snapshots/{snapshot_id}": {
-      "delete": {
-        "description": "删除店铺 SKU 核算快照",
-        "operationId": "delete_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__snapshot_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "snapshot_id",
-            "required": true,
-            "schema": {
-              "title": "Snapshot Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Store Sku Pricing Snapshot"
       }
     },
     "/api/v1/system-management/audit-logs": {

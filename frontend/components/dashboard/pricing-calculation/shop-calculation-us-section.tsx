@@ -777,7 +777,7 @@ export function ShopCalculationUsSection({
 
       await logClientOperation({
         action: 'pricing_calculation.us_store_table.export',
-        targetType: 'store_sku_pricing_snapshot',
+        targetType: 'new_product_calculation',
         targetId: selectedProjectId ?? undefined,
         after: {
           project_id: selectedProjectId,

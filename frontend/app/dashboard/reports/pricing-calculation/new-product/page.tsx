@@ -230,7 +230,7 @@ type ListResponse = {
 }
 
 // 店铺 SKU 核算快照类型
-type StoreSkuPricingSnapshotItem = {
+type NewProductCalculationSnapshotItem = {
   id: number
   project_id: number
   project_name: string
@@ -299,8 +299,8 @@ type StoreSkuPricingSnapshotItem = {
   competitor_url?: string | null
 }
 
-type StoreSkuPricingSnapshotListResponse = {
-  items: StoreSkuPricingSnapshotItem[]
+type NewProductCalculationSnapshotListResponse = {
+  items: NewProductCalculationSnapshotItem[]
   total: number
   page: number
   page_size: number
@@ -474,7 +474,7 @@ function buildSnapshotPayload(
   result: PricingCalculationRunItem,
   calculationType: 'profit-calc' | 'profit-reverse',
   projectId: number
-): StoreSkuPricingSnapshotItem {
+): NewProductCalculationSnapshotItem {
   return {
     id: 0, // 后端会自动生成
     project_id: projectId,
@@ -523,7 +523,7 @@ function buildSnapshotPayload(
 }
 
 // 将快照转换为计算结果格式（用于前端显示）
-function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): PricingCalculationRunItem {
+function convertSnapshotToResult(snapshot: NewProductCalculationSnapshotItem): PricingCalculationRunItem {
   return {
     id: snapshot.id,
     country: snapshot.country ?? '',
@@ -572,9 +572,9 @@ function convertSnapshotToResult(snapshot: StoreSkuPricingSnapshotItem): Pricing
 
 // 保存店铺 SKU 核算快照
 async function requestSaveStoreSkuSnapshot(
-  payload: StoreSkuPricingSnapshotItem
-): Promise<StoreSkuPricingSnapshotItem> {
-  const response = await fetch(`${API_BASE}/api/v1/store-sku-pricing-snapshots`, {
+  payload: NewProductCalculationSnapshotItem
+): Promise<NewProductCalculationSnapshotItem> {
+  const response = await fetch(`${API_BASE}/api/v1/new-product-calculations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1994,7 +1994,7 @@ export default function PricingCalculationPage() {
         setStoreSkus(items)
 
         // 加载已保存的快照（根据当前核算模式过滤）
-        let snapshotsMap: Record<string, StoreSkuPricingSnapshotItem> = {}
+        let snapshotsMap: Record<string, NewProductCalculationSnapshotItem> = {}
         if (selectedProject?.id) {
           try {
             const snapshotSearch = new URLSearchParams({
@@ -2005,12 +2005,12 @@ export default function PricingCalculationPage() {
               page_size: '200',
             })
             const snapshotResponse = await fetch(
-              `${API_BASE}/api/v1/store-sku-pricing-snapshots?${snapshotSearch.toString()}`,
+              `${API_BASE}/api/v1/new-product-calculations?${snapshotSearch.toString()}`,
               { cache: 'no-store' }
             )
             if (snapshotResponse.ok) {
               const snapshotPayload =
-                (await snapshotResponse.json()) as StoreSkuPricingSnapshotListResponse
+                (await snapshotResponse.json()) as NewProductCalculationSnapshotListResponse
               snapshotPayload.items.forEach((snapshot) => {
                 snapshotsMap[`${snapshot.sku}_${snapshot.calculation_type}`] = snapshot
               })
@@ -2348,7 +2348,7 @@ export default function PricingCalculationPage() {
       )
       await logClientOperation({
         action: 'pricing_calculation.store_table.export',
-        targetType: 'store_sku_pricing_snapshot',
+        targetType: 'new_product_calculation',
         targetId: selectedProject?.id,
         after: {
           project_id: selectedProject?.id ?? null,

@@ -16,11 +16,11 @@ from app.services.product._internal import (
     _is_single_full_week as _is_single_full_week,
 )
 from app.services.product.analysis import (
-    check_product_calculation_data_availability,
+    check_product_analysis_data_availability,
     list_weekly_product_analysis_from_details,
     recompute_pt1_for_period,
     recompute_weekly_product_analysis_from_history,
-    run_product_calculation_from_history,
+    run_product_analysis_from_history,
 )
 from app.services.product.persistence import (
     SourcePersistOutcome,

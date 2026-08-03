@@ -10,7 +10,7 @@ function authHeaders(): Record<string, string> {
 }
 ```
 
-该函数在 5 处 fetch 调用中被使用（lines 1176, 1257, 1290, 1365, 1681），但始终返回空对象。对比 `product-calculation-panel.tsx:397-398` 中正确传递了 `X-Is-Admin` 头：
+该函数在 5 处 fetch 调用中被使用（lines 1176, 1257, 1290, 1365, 1681），但始终返回空对象。对比 `product-analysis-panel.tsx:397-398` 中正确传递了 `X-Is-Admin` 头：
 
 ```ts
 const authHeaders: Record<string, string> = {}
@@ -19,7 +19,7 @@ if (isAdmin) authHeaders['X-Is-Admin'] = 'true'
 
 不过，前端 proxy 层（`/api/backend/*`）会自动通过 NextAuth session 注入认证信息，**安全性和功能不受影响**。主要问题是代码风格不一致，且如果将来某天后端开始要求前端显式传递 `X-Is-Admin`，这里会静默失效。
 
-**建议**: 要么删除这个函数（如果所有 API 调用都不需要额外头），要么对齐到 `product-calculation-panel` 的写法，按需传递 `X-Is-Admin`。
+**建议**: 要么删除这个函数（如果所有 API 调用都不需要额外头），要么对齐到 `product-analysis-panel` 的写法，按需传递 `X-Is-Admin`。
 
 ---
 

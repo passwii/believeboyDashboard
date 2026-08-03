@@ -18,7 +18,7 @@ from app.utils.constants import PERIODIC_REPORT_TYPES
 AD_INCLUDED_PRODUCT_SCOPE = 'included_product'
 
 
-def check_product_calculation_data_availability(
+def check_product_analysis_data_availability(
     db: Session,
     *,
     project_id: int,

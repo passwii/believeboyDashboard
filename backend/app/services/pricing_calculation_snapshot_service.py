@@ -2,13 +2,15 @@
 
 提供店铺定价历史快照的创建 / 列表 / 详情 / 更新 / 删除。
 
-数据源：``shop_calculation``（US + EU 统一 upsert 表，shop-calculation 页面
-"测算"按钮的实际写入目标）。注意：旧表 ``store_sku_pricing_snapshots`` 在
-shop-calculation 页面迁到 ``/api/v1/shop-calculation`` 之后已不再被写入，
+数据源：``shop_calculation``（US + EU 统一表，shop-calculation 页面
+"测算"按钮的实际写入目标）。注意：旧表 ``store_sku_pricing_snapshots``（2026-08-03
+迁移 230 已重命名为 ``new_product_calculations``，类名 ``NewProductCalculation``）
+在 shop-calculation 页面迁到 ``/api/v1/shop-calculation`` 之后已不再被写入，
 仍保留历史数据但不是当前态来源。
 
 append-only 模式：每次创建新增 header + items，旧快照不被覆盖。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -36,6 +38,7 @@ from app.schemas.shop_calculation import (
     ShopCalculationItem,
 )
 from app.utils.text_utils import normalize_text
+from app.services import shop_calculation_service
 
 
 # ── Summary helpers ──────────────────────────────────────────────────────────
@@ -51,26 +54,32 @@ def _compute_summary(items: list[ShopCalculation]) -> dict[str, Any]:
     total = len(items)
     profitable = 0
     for row in items:
-        profit = row.profit_after_vat_usd if row.profit_after_vat_usd is not None else row.profit_usd
+        profit = (
+            row.profit_after_vat_usd
+            if row.profit_after_vat_usd is not None
+            else row.profit_usd
+        )
         if profit is not None and profit >= 0:
             profitable += 1
     pass_rate = (profitable / total * 100.0) if total > 0 else 0.0
     return {
-        'total': total,
-        'calculated': total,
-        'profitable': profitable,
-        'passRate': pass_rate,
+        "total": total,
+        "calculated": total,
+        "profitable": profitable,
+        "passRate": pass_rate,
     }
 
 
-def _summary_from_dict(data: dict[str, Any] | None) -> PricingCalculationSnapshotSummary:
+def _summary_from_dict(
+    data: dict[str, Any] | None,
+) -> PricingCalculationSnapshotSummary:
     if not data:
         return PricingCalculationSnapshotSummary()
     return PricingCalculationSnapshotSummary(
-        total=int(data.get('total', 0) or 0),
-        calculated=int(data.get('calculated', 0) or 0),
-        profitable=int(data.get('profitable', 0) or 0),
-        passRate=float(data.get('passRate', 0.0) or 0.0),
+        total=int(data.get("total", 0) or 0),
+        calculated=int(data.get("calculated", 0) or 0),
+        profitable=int(data.get("profitable", 0) or 0),
+        passRate=float(data.get("passRate", 0.0) or 0.0),
     )
 
 
@@ -96,20 +105,25 @@ def create_snapshot(
     HTTPException 404
         项目下没有可快照的 SKU 记录时
     """
-    # 读取当前态行（shop_calculation 是 US+EU 统一表，按 country 过滤）
-    current_rows = db.execute(
-        select(ShopCalculation)
-        .where(
-            ShopCalculation.project_id == project_id,
-            ShopCalculation.country == country,
+    # 读取「当前态」行（shop_calculation 改 append-only 后，取每 SKU 最新有效行；
+    # latest_stmt 已含软删过滤。仍按 country 过滤、按 sku 排序）
+    current_rows = (
+        db.execute(
+            shop_calculation_service.latest_stmt()
+            .where(
+                ShopCalculation.project_id == project_id,
+                ShopCalculation.country == country,
+            )
+            .order_by(ShopCalculation.sku.asc())
         )
-        .order_by(ShopCalculation.sku.asc())
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not current_rows:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f'项目 {project_id} 在 {country} 站点下没有可快照的核算记录',
+            detail=f"项目 {project_id} 在 {country} 站点下没有可快照的核算记录",
         )
 
     project_name = current_rows[0].project_name
@@ -249,7 +263,7 @@ def list_snapshots(
             description=row.description,
             row_count=row.row_count,
             created_by=row.created_by,
-            created_at=row.created_at.isoformat() if row.created_at else '',
+            created_at=row.created_at.isoformat() if row.created_at else "",
             summary=_summary_from_dict(row.summary_json),
         )
         for row in rows
@@ -285,7 +299,7 @@ def get_snapshot_detail(
         description=row.description,
         row_count=row.row_count,
         created_by=row.created_by,
-        created_at=row.created_at.isoformat() if row.created_at else '',
+        created_at=row.created_at.isoformat() if row.created_at else "",
         summary=_summary_from_dict(row.summary_json),
         items=[_snapshot_item_to_dto(item) for item in items],
     )
@@ -339,14 +353,16 @@ def update_snapshot(
     """更新快照名称或备注（仅管理员可调用，由 endpoint 层校验）"""
     row = db.get(PricingCalculationSnapshot, snapshot_id)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='快照不存在')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快照不存在")
 
     if name is not None:
         row.name = normalize_text(name, max_length=255) if name else None
     if description is not None:
         row.description = description.strip() if description else None
     if operator:
-        row.created_by = normalize_text(operator, max_length=255) if operator else row.created_by
+        row.created_by = (
+            normalize_text(operator, max_length=255) if operator else row.created_by
+        )
 
     db.commit()
     db.refresh(row)
@@ -360,7 +376,7 @@ def update_snapshot(
         description=row.description,
         row_count=row.row_count,
         created_by=row.created_by,
-        created_at=row.created_at.isoformat() if row.created_at else '',
+        created_at=row.created_at.isoformat() if row.created_at else "",
         summary=_summary_from_dict(row.summary_json),
     )
 
@@ -393,10 +409,10 @@ def _snapshot_item_to_dto(item: PricingCalculationSnapshotItem) -> ShopCalculati
         sku=item.sku,
         asin=item.asin,
         # 'US' / 'DE' / 'UK' 之一；如果旧数据存了 'us' 等小写，强制大写
-        country=item.country.upper() if item.country else 'US',  # type: ignore[arg-type]
+        country=item.country.upper() if item.country else "US",  # type: ignore[arg-type]
         # snapshot items 表的 calculation_type 列实际存的是 ShopCalculation.accounting_type
         # 的值（'profit_calc' / 'eu_accounting'），所以可以直接映射
-        accounting_type=item.calculation_type or 'profit_calc',  # type: ignore[arg-type]
+        accounting_type=item.calculation_type or "profit_calc",  # type: ignore[arg-type]
         package_length_cm=float(item.package_length_cm),
         package_width_cm=float(item.package_width_cm),
         package_height_cm=float(item.package_height_cm),
@@ -455,13 +471,20 @@ def _snapshot_item_to_dto(item: PricingCalculationSnapshotItem) -> ShopCalculati
             profit_usd=float(item.profit_usd),
             profit_rate=float(item.profit_rate),
             vat_usd=float(item.vat_usd),
-            profit_after_vat_usd=float(item.profit_after_vat_usd) if item.profit_after_vat_usd is not None else None,
-            profit_after_vat_rate=float(item.profit_after_vat_rate) if item.profit_after_vat_rate is not None else None,
+            profit_after_vat_usd=float(item.profit_after_vat_usd)
+            if item.profit_after_vat_usd is not None
+            else None,
+            profit_after_vat_rate=float(item.profit_after_vat_rate)
+            if item.profit_after_vat_rate is not None
+            else None,
         ),
         warnings=item.warnings_json or [],
         notes=item.notes,
         # items 表没存 created_by / created_at / updated_at；返回 None 让前端用快照 header 的时间
         created_by=None,
+        # BEL-378：快照回放无独立 observed_at/source，用快照创建时刻 + 'manual' 兜底
+        observed_at=item.created_at,
+        source="manual",
         created_at=item.created_at,
         updated_at=item.created_at,
     )

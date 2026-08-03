@@ -2922,6 +2922,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/jobs/return-analysis-rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Return Analysis Rebuild
+         * @description BEL-376: 全量重建 analysis_return_aggregates（一次性 backfill）。
+         *
+         *     - 删表 → 重建。从最早的 raw return_date 跑到昨天。
+         *     - 耗时约 3-5 分钟（90 天 × 14 项目）。
+         *     - 使用 BEL-376 修复后的累计语义重算 snapshot。
+         *     - 完成后端点的 sales_quantity / return_rate / wilson_lower 全部正确。
+         */
+        post: operations["trigger_return_analysis_rebuild_api_v1_internal_jobs_return_analysis_rebuild_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/jobs/return-analysis-refresh": {
         parameters: {
             query?: never;
@@ -3447,6 +3472,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/new-product-calculations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List New Product Calculations
+         * @description 获取新品核算列表（2026-08-03 由 /store-sku-pricing-snapshots 改名）
+         */
+        get: operations["list_new_product_calculations_api_v1_new_product_calculations_get"];
+        put?: never;
+        /**
+         * Create Or Update New Product Calculation
+         * @description 创建或更新新品核算（2026-08-03 改名）
+         */
+        post: operations["create_or_update_new_product_calculation_api_v1_new_product_calculations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/new-product-calculations/{project_id}/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get New Product Calculation
+         * @description 获取单个新品核算（2026-08-03 改名）
+         */
+        get: operations["get_new_product_calculation_api_v1_new_product_calculations__project_id___sku__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/new-product-calculations/{snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete New Product Calculation
+         * @description 删除新品核算（2026-08-03 改名）
+         */
+        delete: operations["delete_new_product_calculation_api_v1_new_product_calculations__snapshot_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notification-settings/subscriptions": {
         parameters: {
             query?: never;
@@ -3874,8 +3963,10 @@ export interface paths {
          * Create Pricing Calculation Snapshot
          * @description 创建定价历史快照
          *
-         *     从 ``store_sku_pricing_snapshots`` 读取 ``(project_id, country)`` 当前态，
+         *     从 ``shop_calculation`` 读取 ``(project_id, country)`` 当前态，
          *     复制为新的快照（append-only）。原表不受影响。
+         *     （2026-08-03 注：历史读源是已弃用的 ``store_sku_pricing_snapshots``/现 ``new_product_calculations``，
+         *      Phase A 后改为 ``shop_calculation``。）
          */
         post: operations["create_pricing_calculation_snapshot_api_v1_pricing_calculation_snapshots_post"];
         delete?: never;
@@ -4128,8 +4219,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Check Product Calculation Data */
-        post: operations["check_product_calculation_data_api_v1_product_analysis_calculation_check_post"];
+        /** Check Product Analysis Data */
+        post: operations["check_product_analysis_data_api_v1_product_analysis_calculation_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4146,14 +4237,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Preview Product Calculation
+         * Preview Product Analysis
          * @description 月度 SKU 临时核算（不入库）。
          *
          *     三类报告的 temp_file_id 必须已通过各自的 recognize 端点识别成功并落盘。
          *     端点会直读 temp file 路径构造 DataFrame 跑核算，**永不调用 persist_* 写库**。
          *     返回的 periods 全部为 `persisted=False, preview=True`。
          */
-        post: operations["preview_product_calculation_api_v1_product_analysis_calculation_preview_post"];
+        post: operations["preview_product_analysis_api_v1_product_analysis_calculation_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4169,8 +4260,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Run Product Calculation */
-        post: operations["run_product_calculation_api_v1_product_analysis_calculation_run_post"];
+        /** Run Product Analysis */
+        post: operations["run_product_analysis_api_v1_product_analysis_calculation_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5185,15 +5276,38 @@ export interface paths {
         };
         /**
          * List Shop Calculation
-         * @description 获取店铺测算列表
+         * @description 获取店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）
          */
         get: operations["list_shop_calculation_api_v1_shop_calculation_get"];
         put?: never;
         /**
-         * Create Or Update Shop Calculation
-         * @description 创建或更新店铺测算（upsert）
+         * Create Shop Calculation
+         * @description 新增一条店铺核算记录（append-only，带 observed_at + source）
          */
-        post: operations["create_or_update_shop_calculation_api_v1_shop_calculation_post"];
+        post: operations["create_shop_calculation_api_v1_shop_calculation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shop-calculation/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shop Calculation History
+         * @description 获取店铺核算历史时间线（append-only，按 observed_at 倒序）。
+         *
+         *     BEL-378：每次写入（手动 / Agent / 外部 API）都新增一行，本端点返回全部历史，
+         *     供「看某 SKU 价格随时间变化」消费。
+         */
+        get: operations["list_shop_calculation_history_api_v1_shop_calculation_history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5212,7 +5326,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Shop Calculation
-         * @description 删除店铺测算
+         * @description 软删除店铺核算（按 SKU 组：移除该 SKU 全部有效行，历史保留可恢复）
          */
         delete: operations["delete_shop_calculation_api_v1_shop_calculation__item_id__delete"];
         options?: never;
@@ -5524,70 +5638,6 @@ export interface paths {
          * @description 删除指定 SKU 的产品图（清空 R2 对象 + DB 字段）。
          */
         delete: operations["delete_product_image_api_v1_sku_info__sku_record_id__product_image_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/store-sku-pricing-snapshots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Store Sku Pricing Snapshots
-         * @description 获取店铺 SKU 核算快照列表
-         */
-        get: operations["list_store_sku_pricing_snapshots_api_v1_store_sku_pricing_snapshots_get"];
-        put?: never;
-        /**
-         * Create Or Update Store Sku Pricing Snapshot
-         * @description 创建或更新店铺 SKU 核算快照（upsert）
-         */
-        post: operations["create_or_update_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/store-sku-pricing-snapshots/{project_id}/{sku}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Store Sku Pricing Snapshot
-         * @description 获取单个店铺 SKU 核算快照
-         */
-        get: operations["get_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__project_id___sku__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/store-sku-pricing-snapshots/{snapshot_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Store Sku Pricing Snapshot
-         * @description 删除店铺 SKU 核算快照
-         */
-        delete: operations["delete_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__snapshot_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -13591,6 +13641,340 @@ export interface components {
             project_id: number;
         };
         /**
+         * NewProductCalculationCreateRequest
+         * @description 创建/更新新品核算的请求（2026-08-03 由 StoreSkuPricingSnapshotCreateRequest 改名）
+         */
+        NewProductCalculationCreateRequest: {
+            /** Advertising Fee Usd */
+            advertising_fee_usd: number;
+            /** Advertising Rate */
+            advertising_rate: number;
+            /** Asin */
+            asin?: string | null;
+            /**
+             * Calculation Type
+             * @default profit_calc
+             * @enum {string}
+             */
+            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
+            /** Chargeable Weight Lb */
+            chargeable_weight_lb: number;
+            /** Chargeable Weight Oz */
+            chargeable_weight_oz: number;
+            /** Chargeable Weight Rule */
+            chargeable_weight_rule: string;
+            /** Country */
+            country?: string | null;
+            /** Ddp Cost Rmb */
+            ddp_cost_rmb: number;
+            /** Ddp Cost Usd */
+            ddp_cost_usd: number;
+            /**
+             * Delivery Fee Usd
+             * @default 0
+             */
+            delivery_fee_usd: number;
+            /** Dimensional Weight Lb */
+            dimensional_weight_lb: number;
+            /** Fba Fulfillment Fee Usd */
+            fba_fulfillment_fee_usd: number;
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb: number;
+            /** Fob Product Cost Rmb */
+            fob_product_cost_rmb: number;
+            /** Fulfillment Fee Rule Label */
+            fulfillment_fee_rule_label: string;
+            /**
+             * Inbound Config Fee Manual Usd
+             * @default 0
+             */
+            inbound_config_fee_manual_usd: number;
+            /** Inbound Config Fee Rule Label */
+            inbound_config_fee_rule_label: string;
+            /** Inbound Config Fee Usd */
+            inbound_config_fee_usd: number;
+            /**
+             * Inbound Placement Mode
+             * @enum {string}
+             */
+            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
+            /** Length Plus Girth In */
+            length_plus_girth_in: number;
+            /** Longest Side In */
+            longest_side_in: number;
+            /** Middle Side In */
+            middle_side_in: number;
+            /** Notes */
+            notes?: string | null;
+            /** Package Height Cm */
+            package_height_cm: number;
+            /** Package Length Cm */
+            package_length_cm: number;
+            /** Package Width Cm */
+            package_width_cm: number;
+            /** Payout Usd */
+            payout_usd: number;
+            /** Price Band */
+            price_band: string;
+            /** Price Band Label */
+            price_band_label: string;
+            /** Product Weight Lb */
+            product_weight_lb: number;
+            /** Product Weight Oz */
+            product_weight_oz: number;
+            /** Profit After Vat Rate */
+            profit_after_vat_rate?: number | null;
+            /** Profit After Vat Usd */
+            profit_after_vat_usd?: number | null;
+            /** Profit Rate */
+            profit_rate: number;
+            /** Profit Usd */
+            profit_usd: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Referral Fee Usd */
+            referral_fee_usd: number;
+            /** Return Loss Rate */
+            return_loss_rate: number;
+            /** Return Loss Usd */
+            return_loss_usd: number;
+            /** Sale Price Usd */
+            sale_price_usd: number;
+            /** Shortest Side In */
+            shortest_side_in: number;
+            /** Size Tier */
+            size_tier: string;
+            /** Size Tier Label */
+            size_tier_label: string;
+            /** Sku */
+            sku: string;
+            /**
+             * Storage Fee Manual Usd
+             * @default 0
+             */
+            storage_fee_manual_usd: number;
+            /** Storage Fee Rule Label */
+            storage_fee_rule_label: string;
+            /** Storage Fee Usd */
+            storage_fee_usd: number;
+            /** Storage Months */
+            storage_months: number;
+            /** Target Profit Rate */
+            target_profit_rate?: number | null;
+            /** Total Fee Usd */
+            total_fee_usd: number;
+            /** Usd To Rmb Rate */
+            usd_to_rmb_rate: number;
+            /** Usd To Rmb Rate Source */
+            usd_to_rmb_rate_source: string;
+            /**
+             * Vat Usd
+             * @default 0
+             */
+            vat_usd: number;
+            /** Volume Cubic Ft */
+            volume_cubic_ft: number;
+            /** Volume Cubic In */
+            volume_cubic_in: number;
+            /** Warnings */
+            warnings?: string[];
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /** NewProductCalculationDimensions */
+        NewProductCalculationDimensions: {
+            /** Length Plus Girth In */
+            length_plus_girth_in: number;
+            /** Longest Side In */
+            longest_side_in: number;
+            /** Middle Side In */
+            middle_side_in: number;
+            /** Shortest Side In */
+            shortest_side_in: number;
+            /** Volume Cubic Ft */
+            volume_cubic_ft: number;
+            /** Volume Cubic In */
+            volume_cubic_in: number;
+        };
+        /** NewProductCalculationFees */
+        NewProductCalculationFees: {
+            /** Advertising Fee Usd */
+            advertising_fee_usd: number;
+            /**
+             * Delivery Fee Usd
+             * @default 0
+             */
+            delivery_fee_usd: number;
+            /** Fba Fulfillment Fee Usd */
+            fba_fulfillment_fee_usd: number;
+            /**
+             * Inbound Config Fee Manual Usd
+             * @default 0
+             */
+            inbound_config_fee_manual_usd: number;
+            /** Inbound Config Fee Usd */
+            inbound_config_fee_usd: number;
+            /** Referral Fee Usd */
+            referral_fee_usd: number;
+            /** Return Loss Usd */
+            return_loss_usd: number;
+            /**
+             * Storage Fee Manual Usd
+             * @default 0
+             */
+            storage_fee_manual_usd: number;
+            /** Storage Fee Usd */
+            storage_fee_usd: number;
+            /** Total Fee Usd */
+            total_fee_usd: number;
+        };
+        /**
+         * NewProductCalculationItem
+         * @description 新品核算详情（2026-08-03 由 StoreSkuPricingSnapshotItem 改名）
+         */
+        NewProductCalculationItem: {
+            /** Advertising Rate */
+            advertising_rate: number;
+            /** Asin */
+            asin?: string | null;
+            /**
+             * Calculation Type
+             * @default profit_calc
+             * @enum {string}
+             */
+            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
+            /** Country */
+            country?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Ddp Cost Rmb */
+            ddp_cost_rmb: number;
+            /** Ddp Cost Usd */
+            ddp_cost_usd: number;
+            dimensions: components["schemas"]["NewProductCalculationDimensions"];
+            fees: components["schemas"]["NewProductCalculationFees"];
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb: number;
+            /** Fob Product Cost Rmb */
+            fob_product_cost_rmb: number;
+            /** Fulfillment Fee Rule Label */
+            fulfillment_fee_rule_label: string;
+            /** Id */
+            id: number;
+            /** Inbound Config Fee Rule Label */
+            inbound_config_fee_rule_label: string;
+            /**
+             * Inbound Placement Mode
+             * @enum {string}
+             */
+            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
+            /** Notes */
+            notes?: string | null;
+            /** Package Height Cm */
+            package_height_cm: number;
+            /** Package Length Cm */
+            package_length_cm: number;
+            /** Package Width Cm */
+            package_width_cm: number;
+            /** Price Band */
+            price_band: string;
+            /** Price Band Label */
+            price_band_label: string;
+            profit: components["schemas"]["NewProductCalculationProfit"];
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Return Loss Rate */
+            return_loss_rate: number;
+            /** Sale Price Usd */
+            sale_price_usd: number;
+            /** Size Tier */
+            size_tier: string;
+            /** Size Tier Label */
+            size_tier_label: string;
+            /** Sku */
+            sku: string;
+            /** Storage Fee Rule Label */
+            storage_fee_rule_label: string;
+            /** Storage Months */
+            storage_months: number;
+            /** Target Profit Rate */
+            target_profit_rate?: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Usd To Rmb Rate */
+            usd_to_rmb_rate: number;
+            /** Usd To Rmb Rate Source */
+            usd_to_rmb_rate_source: string;
+            /** Warnings */
+            warnings?: string[];
+            /** Weight Kg */
+            weight_kg: number;
+            weights: components["schemas"]["NewProductCalculationWeight"];
+        };
+        /**
+         * NewProductCalculationListResponse
+         * @description 新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）
+         */
+        NewProductCalculationListResponse: {
+            /** Items */
+            items: components["schemas"]["NewProductCalculationItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** NewProductCalculationProfit */
+        NewProductCalculationProfit: {
+            /** Ddp Cost Rmb */
+            ddp_cost_rmb: number;
+            /** Ddp Cost Usd */
+            ddp_cost_usd: number;
+            /** Payout Usd */
+            payout_usd: number;
+            /** Profit After Vat Rate */
+            profit_after_vat_rate?: number | null;
+            /** Profit After Vat Usd */
+            profit_after_vat_usd?: number | null;
+            /** Profit Rate */
+            profit_rate: number;
+            /** Profit Usd */
+            profit_usd: number;
+            /**
+             * Vat Usd
+             * @default 0
+             */
+            vat_usd: number;
+        };
+        /** NewProductCalculationWeight */
+        NewProductCalculationWeight: {
+            /** Chargeable Weight Lb */
+            chargeable_weight_lb: number;
+            /** Chargeable Weight Oz */
+            chargeable_weight_oz: number;
+            /** Chargeable Weight Rule */
+            chargeable_weight_rule: string;
+            /** Dimensional Weight Lb */
+            dimensional_weight_lb: number;
+            /** Product Weight Lb */
+            product_weight_lb: number;
+            /** Product Weight Oz */
+            product_weight_oz: number;
+        };
+        /**
          * NewThisMonth
          * @description 本月新增（Asia/Shanghai 口径）。
          */
@@ -15127,6 +15511,106 @@ export interface components {
             /** Product Weight Oz */
             product_weight_oz: number;
         };
+        /** ProductAnalysisCheckRequest */
+        ProductAnalysisCheckRequest: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /** ProductAnalysisCheckResponse */
+        ProductAnalysisCheckResponse: {
+            /**
+             * Ad Period Info
+             * @default []
+             */
+            ad_period_info: components["schemas"]["PeriodCoverageInfoItem"][];
+            /**
+             * Ad Periodic Only Missing
+             * @default []
+             */
+            ad_periodic_only_missing: string[];
+            /** Ad Report Missing */
+            ad_report_missing: string[];
+            /**
+             * Business Period Info
+             * @default []
+             */
+            business_period_info: components["schemas"]["PeriodCoverageInfoItem"][];
+            /**
+             * Business Periodic Only Missing
+             * @default []
+             */
+            business_periodic_only_missing: string[];
+            /** Business Report Missing */
+            business_report_missing: string[];
+            /** Has Minimum Data */
+            has_minimum_data: boolean;
+            /** Inventory Missing */
+            inventory_missing: string[];
+            /** Payment Daily Covered Dates */
+            payment_daily_covered_dates: string[];
+            /** Payment Full Period Covered */
+            payment_full_period_covered: boolean;
+            /**
+             * Payment Objective Empty Dates
+             * @default []
+             */
+            payment_objective_empty_dates: string[];
+            /** Payment Periods Overlapping */
+            payment_periods_overlapping: components["schemas"]["PaymentPeriodOverlapItem"][];
+            /**
+             * Weekly Availability
+             * @default []
+             */
+            weekly_availability: components["schemas"]["WeeklyAvailabilityItem"][];
+        };
+        /**
+         * ProductAnalysisPreviewRequest
+         * @description 月度 SKU 临时核算请求体。
+         *
+         *     三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的
+         *     临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'
+         *     或 '_report_upload_tmp' 下找到物理文件路径直读。
+         */
+        ProductAnalysisPreviewRequest: {
+            /** Ad Temp File Id */
+            ad_temp_file_id?: string | null;
+            /** Business Temp File Id */
+            business_temp_file_id?: string | null;
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Payment Temp File Id */
+            payment_temp_file_id?: string | null;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
         /** ProductAnalysisReportResponse */
         ProductAnalysisReportResponse: {
             /** Created At */
@@ -15138,6 +15622,44 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** Status Endpoint */
             status_endpoint?: string | null;
+        };
+        /** ProductAnalysisRunRequest */
+        ProductAnalysisRunRequest: {
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * Current Only
+             * @default true
+             */
+            current_only: boolean;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /** ProductAnalysisRunResponse */
+        ProductAnalysisRunResponse: {
+            /** Country */
+            country: string;
+            /** Periods */
+            periods: components["schemas"]["CalculationPeriodItem"][];
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /** Total Periods */
+            total_periods: number;
         };
         /** ProductAnalysisTaskStatusResponse */
         ProductAnalysisTaskStatusResponse: {
@@ -15212,144 +15734,6 @@ export interface components {
             recomputed: number;
             /** Skipped */
             skipped: number;
-        };
-        /** ProductCalculationCheckRequest */
-        ProductCalculationCheckRequest: {
-            /**
-             * Country
-             * @default US
-             */
-            country: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-            /** Project Id */
-            project_id: number;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-        };
-        /** ProductCalculationCheckResponse */
-        ProductCalculationCheckResponse: {
-            /**
-             * Ad Period Info
-             * @default []
-             */
-            ad_period_info: components["schemas"]["PeriodCoverageInfoItem"][];
-            /**
-             * Ad Periodic Only Missing
-             * @default []
-             */
-            ad_periodic_only_missing: string[];
-            /** Ad Report Missing */
-            ad_report_missing: string[];
-            /**
-             * Business Period Info
-             * @default []
-             */
-            business_period_info: components["schemas"]["PeriodCoverageInfoItem"][];
-            /**
-             * Business Periodic Only Missing
-             * @default []
-             */
-            business_periodic_only_missing: string[];
-            /** Business Report Missing */
-            business_report_missing: string[];
-            /** Has Minimum Data */
-            has_minimum_data: boolean;
-            /** Inventory Missing */
-            inventory_missing: string[];
-            /** Payment Daily Covered Dates */
-            payment_daily_covered_dates: string[];
-            /** Payment Full Period Covered */
-            payment_full_period_covered: boolean;
-            /**
-             * Payment Objective Empty Dates
-             * @default []
-             */
-            payment_objective_empty_dates: string[];
-            /** Payment Periods Overlapping */
-            payment_periods_overlapping: components["schemas"]["PaymentPeriodOverlapItem"][];
-            /**
-             * Weekly Availability
-             * @default []
-             */
-            weekly_availability: components["schemas"]["WeeklyAvailabilityItem"][];
-        };
-        /**
-         * ProductCalculationPreviewRequest
-         * @description 月度 SKU 临时核算请求体。
-         *
-         *     三类报告的 temp_file_id 由前端先调 recognize 端点拿到（本地缓存的
-         *     临时文件），后端用 temp_file_id 在 settings.upload_root / '_ad_upload_tmp'
-         *     或 '_report_upload_tmp' 下找到物理文件路径直读。
-         */
-        ProductCalculationPreviewRequest: {
-            /** Ad Temp File Id */
-            ad_temp_file_id?: string | null;
-            /** Business Temp File Id */
-            business_temp_file_id?: string | null;
-            /**
-             * Country
-             * @default US
-             */
-            country: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-            /** Payment Temp File Id */
-            payment_temp_file_id?: string | null;
-            /** Project Id */
-            project_id: number;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-        };
-        /** ProductCalculationRunRequest */
-        ProductCalculationRunRequest: {
-            /**
-             * Country
-             * @default US
-             */
-            country: string;
-            /**
-             * Current Only
-             * @default true
-             */
-            current_only: boolean;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-            /** Project Id */
-            project_id: number;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-        };
-        /** ProductCalculationRunResponse */
-        ProductCalculationRunResponse: {
-            /** Country */
-            country: string;
-            /** Periods */
-            periods: components["schemas"]["CalculationPeriodItem"][];
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-            /** Total Periods */
-            total_periods: number;
         };
         /**
          * ProfileResponse
@@ -17109,6 +17493,8 @@ export interface components {
             middle_side_in: number;
             /** Notes */
             notes?: string | null;
+            /** Observed At */
+            observed_at?: string | null;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -17158,6 +17544,11 @@ export interface components {
             size_tier_label: string;
             /** Sku */
             sku: string;
+            /**
+             * Source
+             * @default manual
+             */
+            source: string;
             /**
              * Storage Fee Manual Usd
              * @default 0
@@ -17291,6 +17682,11 @@ export interface components {
             inbound_placement_mode: "single_destination" | "amazon_optimized_split";
             /** Notes */
             notes?: string | null;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -17316,6 +17712,11 @@ export interface components {
             size_tier_label: string;
             /** Sku */
             sku: string;
+            /**
+             * Source
+             * @default manual
+             */
+            source: string;
             /** Storage Fee Rule Label */
             storage_fee_rule_label: string;
             /** Storage Months */
@@ -17815,340 +18216,6 @@ export interface components {
         /** StatusUpdateRequest */
         StatusUpdateRequest: {
             status: components["schemas"]["EmployeeStatusSchema"];
-        };
-        /** StoreSkuPricingDimensions */
-        StoreSkuPricingDimensions: {
-            /** Length Plus Girth In */
-            length_plus_girth_in: number;
-            /** Longest Side In */
-            longest_side_in: number;
-            /** Middle Side In */
-            middle_side_in: number;
-            /** Shortest Side In */
-            shortest_side_in: number;
-            /** Volume Cubic Ft */
-            volume_cubic_ft: number;
-            /** Volume Cubic In */
-            volume_cubic_in: number;
-        };
-        /** StoreSkuPricingFees */
-        StoreSkuPricingFees: {
-            /** Advertising Fee Usd */
-            advertising_fee_usd: number;
-            /**
-             * Delivery Fee Usd
-             * @default 0
-             */
-            delivery_fee_usd: number;
-            /** Fba Fulfillment Fee Usd */
-            fba_fulfillment_fee_usd: number;
-            /**
-             * Inbound Config Fee Manual Usd
-             * @default 0
-             */
-            inbound_config_fee_manual_usd: number;
-            /** Inbound Config Fee Usd */
-            inbound_config_fee_usd: number;
-            /** Referral Fee Usd */
-            referral_fee_usd: number;
-            /** Return Loss Usd */
-            return_loss_usd: number;
-            /**
-             * Storage Fee Manual Usd
-             * @default 0
-             */
-            storage_fee_manual_usd: number;
-            /** Storage Fee Usd */
-            storage_fee_usd: number;
-            /** Total Fee Usd */
-            total_fee_usd: number;
-        };
-        /** StoreSkuPricingProfit */
-        StoreSkuPricingProfit: {
-            /** Ddp Cost Rmb */
-            ddp_cost_rmb: number;
-            /** Ddp Cost Usd */
-            ddp_cost_usd: number;
-            /** Payout Usd */
-            payout_usd: number;
-            /** Profit After Vat Rate */
-            profit_after_vat_rate?: number | null;
-            /** Profit After Vat Usd */
-            profit_after_vat_usd?: number | null;
-            /** Profit Rate */
-            profit_rate: number;
-            /** Profit Usd */
-            profit_usd: number;
-            /**
-             * Vat Usd
-             * @default 0
-             */
-            vat_usd: number;
-        };
-        /**
-         * StoreSkuPricingSnapshotCreateRequest
-         * @description 创建/更新店铺 SKU 核算快照的请求
-         */
-        StoreSkuPricingSnapshotCreateRequest: {
-            /** Advertising Fee Usd */
-            advertising_fee_usd: number;
-            /** Advertising Rate */
-            advertising_rate: number;
-            /** Asin */
-            asin?: string | null;
-            /**
-             * Calculation Type
-             * @default profit_calc
-             * @enum {string}
-             */
-            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
-            /** Chargeable Weight Lb */
-            chargeable_weight_lb: number;
-            /** Chargeable Weight Oz */
-            chargeable_weight_oz: number;
-            /** Chargeable Weight Rule */
-            chargeable_weight_rule: string;
-            /** Country */
-            country?: string | null;
-            /** Ddp Cost Rmb */
-            ddp_cost_rmb: number;
-            /** Ddp Cost Usd */
-            ddp_cost_usd: number;
-            /**
-             * Delivery Fee Usd
-             * @default 0
-             */
-            delivery_fee_usd: number;
-            /** Dimensional Weight Lb */
-            dimensional_weight_lb: number;
-            /** Fba Fulfillment Fee Usd */
-            fba_fulfillment_fee_usd: number;
-            /** First Leg Cost Rmb */
-            first_leg_cost_rmb: number;
-            /** Fob Product Cost Rmb */
-            fob_product_cost_rmb: number;
-            /** Fulfillment Fee Rule Label */
-            fulfillment_fee_rule_label: string;
-            /**
-             * Inbound Config Fee Manual Usd
-             * @default 0
-             */
-            inbound_config_fee_manual_usd: number;
-            /** Inbound Config Fee Rule Label */
-            inbound_config_fee_rule_label: string;
-            /** Inbound Config Fee Usd */
-            inbound_config_fee_usd: number;
-            /**
-             * Inbound Placement Mode
-             * @enum {string}
-             */
-            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
-            /** Length Plus Girth In */
-            length_plus_girth_in: number;
-            /** Longest Side In */
-            longest_side_in: number;
-            /** Middle Side In */
-            middle_side_in: number;
-            /** Notes */
-            notes?: string | null;
-            /** Package Height Cm */
-            package_height_cm: number;
-            /** Package Length Cm */
-            package_length_cm: number;
-            /** Package Width Cm */
-            package_width_cm: number;
-            /** Payout Usd */
-            payout_usd: number;
-            /** Price Band */
-            price_band: string;
-            /** Price Band Label */
-            price_band_label: string;
-            /** Product Weight Lb */
-            product_weight_lb: number;
-            /** Product Weight Oz */
-            product_weight_oz: number;
-            /** Profit After Vat Rate */
-            profit_after_vat_rate?: number | null;
-            /** Profit After Vat Usd */
-            profit_after_vat_usd?: number | null;
-            /** Profit Rate */
-            profit_rate: number;
-            /** Profit Usd */
-            profit_usd: number;
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-            /** Referral Fee Usd */
-            referral_fee_usd: number;
-            /** Return Loss Rate */
-            return_loss_rate: number;
-            /** Return Loss Usd */
-            return_loss_usd: number;
-            /** Sale Price Usd */
-            sale_price_usd: number;
-            /** Shortest Side In */
-            shortest_side_in: number;
-            /** Size Tier */
-            size_tier: string;
-            /** Size Tier Label */
-            size_tier_label: string;
-            /** Sku */
-            sku: string;
-            /**
-             * Storage Fee Manual Usd
-             * @default 0
-             */
-            storage_fee_manual_usd: number;
-            /** Storage Fee Rule Label */
-            storage_fee_rule_label: string;
-            /** Storage Fee Usd */
-            storage_fee_usd: number;
-            /** Storage Months */
-            storage_months: number;
-            /** Target Profit Rate */
-            target_profit_rate?: number | null;
-            /** Total Fee Usd */
-            total_fee_usd: number;
-            /** Usd To Rmb Rate */
-            usd_to_rmb_rate: number;
-            /** Usd To Rmb Rate Source */
-            usd_to_rmb_rate_source: string;
-            /**
-             * Vat Usd
-             * @default 0
-             */
-            vat_usd: number;
-            /** Volume Cubic Ft */
-            volume_cubic_ft: number;
-            /** Volume Cubic In */
-            volume_cubic_in: number;
-            /** Warnings */
-            warnings?: string[];
-            /** Weight Kg */
-            weight_kg: number;
-        };
-        /**
-         * StoreSkuPricingSnapshotItem
-         * @description 店铺 SKU 核算快照详情
-         */
-        StoreSkuPricingSnapshotItem: {
-            /** Advertising Rate */
-            advertising_rate: number;
-            /** Asin */
-            asin?: string | null;
-            /**
-             * Calculation Type
-             * @default profit_calc
-             * @enum {string}
-             */
-            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
-            /** Country */
-            country?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Created By */
-            created_by?: string | null;
-            /** Ddp Cost Rmb */
-            ddp_cost_rmb: number;
-            /** Ddp Cost Usd */
-            ddp_cost_usd: number;
-            dimensions: components["schemas"]["StoreSkuPricingDimensions"];
-            fees: components["schemas"]["StoreSkuPricingFees"];
-            /** First Leg Cost Rmb */
-            first_leg_cost_rmb: number;
-            /** Fob Product Cost Rmb */
-            fob_product_cost_rmb: number;
-            /** Fulfillment Fee Rule Label */
-            fulfillment_fee_rule_label: string;
-            /** Id */
-            id: number;
-            /** Inbound Config Fee Rule Label */
-            inbound_config_fee_rule_label: string;
-            /**
-             * Inbound Placement Mode
-             * @enum {string}
-             */
-            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
-            /** Notes */
-            notes?: string | null;
-            /** Package Height Cm */
-            package_height_cm: number;
-            /** Package Length Cm */
-            package_length_cm: number;
-            /** Package Width Cm */
-            package_width_cm: number;
-            /** Price Band */
-            price_band: string;
-            /** Price Band Label */
-            price_band_label: string;
-            profit: components["schemas"]["StoreSkuPricingProfit"];
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-            /** Return Loss Rate */
-            return_loss_rate: number;
-            /** Sale Price Usd */
-            sale_price_usd: number;
-            /** Size Tier */
-            size_tier: string;
-            /** Size Tier Label */
-            size_tier_label: string;
-            /** Sku */
-            sku: string;
-            /** Storage Fee Rule Label */
-            storage_fee_rule_label: string;
-            /** Storage Months */
-            storage_months: number;
-            /** Target Profit Rate */
-            target_profit_rate?: number | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Usd To Rmb Rate */
-            usd_to_rmb_rate: number;
-            /** Usd To Rmb Rate Source */
-            usd_to_rmb_rate_source: string;
-            /** Warnings */
-            warnings?: string[];
-            /** Weight Kg */
-            weight_kg: number;
-            weights: components["schemas"]["StoreSkuPricingWeight"];
-        };
-        /**
-         * StoreSkuPricingSnapshotListResponse
-         * @description 店铺 SKU 核算快照列表响应
-         */
-        StoreSkuPricingSnapshotListResponse: {
-            /** Items */
-            items: components["schemas"]["StoreSkuPricingSnapshotItem"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
-        /** StoreSkuPricingWeight */
-        StoreSkuPricingWeight: {
-            /** Chargeable Weight Lb */
-            chargeable_weight_lb: number;
-            /** Chargeable Weight Oz */
-            chargeable_weight_oz: number;
-            /** Chargeable Weight Rule */
-            chargeable_weight_rule: string;
-            /** Dimensional Weight Lb */
-            dimensional_weight_lb: number;
-            /** Product Weight Lb */
-            product_weight_lb: number;
-            /** Product Weight Oz */
-            product_weight_oz: number;
         };
         /**
          * TableHealthStatus
@@ -26391,6 +26458,39 @@ export interface operations {
             };
         };
     };
+    trigger_return_analysis_rebuild_api_v1_internal_jobs_return_analysis_rebuild_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     trigger_return_analysis_refresh_api_v1_internal_jobs_return_analysis_refresh_post: {
         parameters: {
             query?: never;
@@ -27636,6 +27736,157 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_new_product_calculations_api_v1_new_product_calculations_get: {
+        parameters: {
+            query?: {
+                project_id?: number | null;
+                calculation_type?: string | null;
+                country?: string | null;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewProductCalculationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_or_update_new_product_calculation_api_v1_new_product_calculations_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewProductCalculationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewProductCalculationItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_new_product_calculation_api_v1_new_product_calculations__project_id___sku__get: {
+        parameters: {
+            query?: {
+                calculation_type?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewProductCalculationItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_new_product_calculation_api_v1_new_product_calculations__snapshot_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                snapshot_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -29456,7 +29707,7 @@ export interface operations {
             };
         };
     };
-    check_product_calculation_data_api_v1_product_analysis_calculation_check_post: {
+    check_product_analysis_data_api_v1_product_analysis_calculation_check_post: {
         parameters: {
             query?: {
                 api_key?: string | null;
@@ -29473,7 +29724,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProductCalculationCheckRequest"];
+                "application/json": components["schemas"]["ProductAnalysisCheckRequest"];
             };
         };
         responses: {
@@ -29483,7 +29734,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductCalculationCheckResponse"];
+                    "application/json": components["schemas"]["ProductAnalysisCheckResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29497,7 +29748,7 @@ export interface operations {
             };
         };
     };
-    preview_product_calculation_api_v1_product_analysis_calculation_preview_post: {
+    preview_product_analysis_api_v1_product_analysis_calculation_preview_post: {
         parameters: {
             query?: {
                 api_key?: string | null;
@@ -29514,7 +29765,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProductCalculationPreviewRequest"];
+                "application/json": components["schemas"]["ProductAnalysisPreviewRequest"];
             };
         };
         responses: {
@@ -29524,7 +29775,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductCalculationRunResponse"];
+                    "application/json": components["schemas"]["ProductAnalysisRunResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29538,7 +29789,7 @@ export interface operations {
             };
         };
     };
-    run_product_calculation_api_v1_product_analysis_calculation_run_post: {
+    run_product_analysis_api_v1_product_analysis_calculation_run_post: {
         parameters: {
             query?: {
                 api_key?: string | null;
@@ -29555,7 +29806,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProductCalculationRunRequest"];
+                "application/json": components["schemas"]["ProductAnalysisRunRequest"];
             };
         };
         responses: {
@@ -29565,7 +29816,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductCalculationRunResponse"];
+                    "application/json": components["schemas"]["ProductAnalysisRunResponse"];
                 };
             };
             /** @description Validation Error */
@@ -32130,7 +32381,7 @@ export interface operations {
             };
         };
     };
-    create_or_update_shop_calculation_api_v1_shop_calculation_post: {
+    create_shop_calculation_api_v1_shop_calculation_post: {
         parameters: {
             query?: {
                 api_key?: string | null;
@@ -32157,6 +32408,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShopCalculationItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_shop_calculation_history_api_v1_shop_calculation_history_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description 按 SKU 筛选 */
+                sku?: string | null;
+                /** @description 按国家筛选（如 US, DE, UK） */
+                country?: string | null;
+                /** @description 是否包含已软删行（审计用） */
+                include_deleted?: boolean;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopCalculationItem"][];
                 };
             };
             /** @description Validation Error */
@@ -32953,158 +33245,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SkuProductImageDeleteResponse"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_store_sku_pricing_snapshots_api_v1_store_sku_pricing_snapshots_get: {
-        parameters: {
-            query?: {
-                project_id?: number | null;
-                calculation_type?: string | null;
-                /** @description 按国家筛选（如 US, DE, UK） */
-                country?: string | null;
-                page?: number;
-                page_size?: number;
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StoreSkuPricingSnapshotListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_or_update_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots_post: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Operator"?: string | null;
-                "X-User-Name"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StoreSkuPricingSnapshotCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StoreSkuPricingSnapshotItem"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__project_id___sku__get: {
-        parameters: {
-            query: {
-                calculation_type: string;
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-            };
-            path: {
-                project_id: number;
-                sku: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StoreSkuPricingSnapshotItem"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_store_sku_pricing_snapshot_api_v1_store_sku_pricing_snapshots__snapshot_id__delete: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-            };
-            path: {
-                snapshot_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

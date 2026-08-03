@@ -14,8 +14,8 @@ from app.api.v1.endpoints.sku_info import router as sku_info_router
 from app.api.v1.endpoints.pricing_calculation import (
     router as pricing_calculation_router,
 )
-from app.api.v1.endpoints.store_sku_pricing_snapshots import (
-    router as store_sku_pricing_snapshots_router,
+from app.api.v1.endpoints.new_product_calculations import (
+    router as new_product_calculations_router,
 )
 from app.api.v1.endpoints.pricing_calculation_snapshots import (
     router as pricing_calculation_snapshots_router,
@@ -77,7 +77,7 @@ api_router.include_router(order_info_router)
 api_router.include_router(projects_router)
 api_router.include_router(sku_info_router)
 api_router.include_router(pricing_calculation_router)
-api_router.include_router(store_sku_pricing_snapshots_router)
+api_router.include_router(new_product_calculations_router)
 api_router.include_router(pricing_calculation_snapshots_router)
 api_router.include_router(shop_calculation_router)
 api_router.include_router(inventory_replenishment_router)

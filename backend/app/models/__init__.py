@@ -66,7 +66,7 @@ from app.models.inventory_replenishment_snapshot import (
 )
 from app.models.inventory_ledger import InventoryLedgerRaw
 from app.models.pricing_calculation import PricingCalculationRun
-from app.models.store_sku_pricing_snapshot import StoreSkuPricingSnapshot
+from app.models.new_product_calculation import NewProductCalculation
 from app.models.pricing_calculation_snapshot import (
     PricingCalculationSnapshot,
     PricingCalculationSnapshotItem,
@@ -154,7 +154,7 @@ __all__ = [
     "InventoryReplenishmentSnapshot",
     "InventoryReplenishmentSnapshotItem",
     "PricingCalculationRun",
-    "StoreSkuPricingSnapshot",
+    "NewProductCalculation",
     "PricingCalculationSnapshot",
     "PricingCalculationSnapshotItem",
     "ShopCalculation",
