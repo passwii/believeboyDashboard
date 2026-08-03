@@ -1,6 +1,10 @@
 """External API — inventory ledger endpoints.
 
 No auth (network isolation at gateway). project_id in path.
+
+Period input contract (BEL-370 P1 #4):
+  Every call MUST supply ``?period=<value>``. See
+  ``backend/docs/inventory-ledger-api.md`` for the full grammar.
 """
 
 from __future__ import annotations
@@ -31,8 +35,6 @@ from app.services.inventory.ledger import (
     get_sku_month_eom,
     get_sku_month_events,
     get_trend,
-    parse_report_month,
-    resolve_period,
 )
 
 router = APIRouter(
@@ -49,38 +51,56 @@ def _prev_period(report_month: date) -> tuple[date, date]:
     return prev, date(prev.year, prev.month, last_day)
 
 
-@router.get("/months", response_model=MonthsResponse)
+@router.get(
+    "/months",
+    response_model=MonthsResponse,
+    summary="List months with ledger data",
+    description=(
+        "Returns YYYY-MM-DD strings (always the 1st of the month) for every "
+        "month that has any rows in the project's inventory_ledger_raw table."
+    ),
+)
 def ext_list_months(
     project_id: int,
     db: Session = Depends(get_read_db_session),
 ) -> MonthsResponse:
-    """List months with ledger data."""
     months = get_available_months(db, project_id)
     return MonthsResponse(project_id=project_id, months=months)
 
 
-@router.get("/snapshot", response_model=MonthlySnapshotResponse)
+@router.get(
+    "/snapshot",
+    response_model=MonthlySnapshotResponse,
+    summary="Monthly snapshot — SKU EOM, disposition summary, integrity",
+    description=(
+        "Returns the end-of-period inventory snapshot for a project. Runs "
+        "the cross-month integrity check when the resolved period is a full "
+        "calendar month; partial windows skip it.\n\n"
+        "Period values: see ``backend/docs/inventory-ledger-api.md``."
+    ),
+)
 def ext_snapshot(
     project_id: int,
-    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
-    period: str | None = Query(
-        default=None,
+    period: str = Query(
+        ...,
         description=(
-            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
-            "last_month/ytd/custom. Mutually exclusive with report_month "
-            "and start_date/end_date."
+            "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``."
         ),
     ),
-    start_date: date | None = Query(None),
-    end_date: date | None = Query(None),
+    start_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
     db: Session = Depends(get_read_db_session),
 ) -> MonthlySnapshotResponse:
-    """Monthly/period snapshot."""
     start, end, report_month = resolve_period_inputs(
-        report_month,
+        period,
         start_date,
         end_date,
-        period,
     )
 
     prev_start: date | None = None
@@ -106,124 +126,139 @@ def ext_snapshot(
     )
 
 
-@router.get("/events", response_model=EventsResponse)
+@router.get(
+    "/events",
+    response_model=EventsResponse,
+    summary="SKU event flow for the period",
+    description=(
+        "Returns per-SKU totals of every ledger event column summed across "
+        "the resolved period window.\n\n"
+        "Period values: see ``backend/docs/inventory-ledger-api.md``."
+    ),
+)
 def ext_events(
     project_id: int,
-    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
-    period: str | None = Query(
-        default=None,
+    period: str = Query(
+        ...,
         description=(
-            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
-            "last_month/ytd/custom. Mutually exclusive with report_month "
-            "and start_date/end_date."
+            "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``."
         ),
     ),
-    start_date: date | None = Query(None),
-    end_date: date | None = Query(None),
+    start_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
     db: Session = Depends(get_read_db_session),
 ) -> EventsResponse:
-    """SKU event flow."""
     start, end, _report_month = resolve_period_inputs(
-        report_month,
+        period,
         start_date,
         end_date,
-        period,
     )
 
     skus = get_sku_month_events(db, project_id, start, end)
     return EventsResponse(report_month=start, skus=skus)
 
 
-@router.get("/receipt-clusters", response_model=ReceiptClustersResponse)
+@router.get(
+    "/receipt-clusters",
+    response_model=ReceiptClustersResponse,
+    summary="Receipt clusters for the period",
+    description=(
+        "Groups inventory receipts by (date, warehouse) — useful for "
+        "spotting shipments that arrived together.\n\n"
+        "Period values: see ``backend/docs/inventory-ledger-api.md``."
+    ),
+)
 def ext_receipt_clusters(
     project_id: int,
-    report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
-    period: str | None = Query(
-        default=None,
+    period: str = Query(
+        ...,
         description=(
-            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
-            "last_month/ytd/custom. Mutually exclusive with report_month "
-            "and start_date/end_date."
+            "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``."
         ),
     ),
-    start_date: date | None = Query(None),
-    end_date: date | None = Query(None),
+    start_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
     db: Session = Depends(get_read_db_session),
 ) -> ReceiptClustersResponse:
-    """Receipt clusters."""
     start, end, _report_month = resolve_period_inputs(
-        report_month,
+        period,
         start_date,
         end_date,
-        period,
     )
 
     clusters = get_receipt_clusters(db, project_id, start, end)
     return ReceiptClustersResponse(report_month=start, clusters=clusters)
 
 
-@router.get("/integrity", response_model=IntegrityCheckResult)
+@router.get(
+    "/integrity",
+    response_model=IntegrityCheckResult,
+    summary="Cross-month integrity check",
+    description=(
+        "Returns the cross-month continuity check (last month's ending "
+        "balance vs. this month's starting balance, per SKU × location × "
+        "disposition). Status is one of ``OK``, ``MISMATCH``, or "
+        "``PENDING`` (no prior month data available).\n\n"
+        "Only full-calendar-month period values make sense here "
+        "(``last_month``, ``this_month``, ``ytd`` cross-year, "
+        "``YYYY-MM``, ``YYYY-MM-DD``). Partial windows (7d/30d/custom "
+        "spanning multiple months) return 400 — use ``last_month`` for "
+        "the typical 'reconcile last full month' flow."
+    ),
+)
 def ext_integrity(
     project_id: int,
-    report_month: str | None = Query(
-        default=None,
-        description="YYYY-MM or YYYY-MM-DD",
-    ),
-    period: str | None = Query(
-        default=None,
+    period: str = Query(
+        ...,
         description=(
-            "Convenience period alias. Only full-month aliases "
-            "(this_month / last_month / ytd) make sense for integrity. "
-            "Mutually exclusive with report_month."
+            "REQUIRED. Must resolve to a full calendar month (last_month, "
+            "this_month, ytd, YYYY-MM, YYYY-MM-DD). See "
+            "``backend/docs/inventory-ledger-api.md``."
         ),
     ),
     db: Session = Depends(get_read_db_session),
 ) -> IntegrityCheckResult:
-    """Cross-month integrity check.
-
-    Accepts either ``report_month`` (explicit YYYY-MM-DD) or ``period``
-    (convenience alias — only full-month aliases resolve to a single
-    ``report_month`` for the integrity check; partial-month aliases
-    return 400).
-    """
-    if not report_month and not period:
+    """Cross-month integrity check for a full calendar month."""
+    start, end, report_month_date = resolve_period_inputs(
+        period,
+        None,
+        None,
+    )
+    if report_month_date is None:
         raise HTTPException(
             status_code=400,
-            detail="Either report_month or period is required",
+            detail=(
+                f"period={period!r} does not resolve to a full calendar "
+                "month; integrity check requires a complete ledger "
+                "partition (use last_month, this_month, ytd, YYYY-MM, or "
+                "YYYY-MM-DD)"
+            ),
         )
-    if report_month and period:
-        raise HTTPException(
-            status_code=400,
-            detail="report_month and period are mutually exclusive",
-        )
-    if report_month:
-        try:
-            month_date = parse_report_month(report_month)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    else:
-        # period path: resolve via the shared helper, ignoring start/end
-        # (integrity is always a single-month check).
-        _start, _end, report_month_date = resolve_period_inputs(
-            report_month=None,
-            start_date=None,
-            end_date=None,
-            period=period,
-        )
-        if report_month_date is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"period={period!r} does not resolve to a full "
-                    "calendar month; use report_month for non-full-month "
-                    "integrity checks"
-                ),
-            )
-        month_date = report_month_date
-    return check_ledger_integrity(db, project_id, month_date)
+    return check_ledger_integrity(db, project_id, report_month_date)
 
 
-@router.get("/trend", response_model=TrendResponse)
+@router.get(
+    "/trend",
+    response_model=TrendResponse,
+    summary="Multi-month trend",
+    description=(
+        "Aggregates the last N months (default 6, max 24) into a single "
+        "trend series. Independent of the ``?period=`` convention "
+        "(driven by ``?months=N``)."
+    ),
+)
 def ext_trend(
     project_id: int,
     months: int = Query(6, ge=1, le=24, description="Number of recent months"),

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date
+import re
 
 from app.schemas.external.common import PeriodInfo, PeriodParseError
 
@@ -131,6 +132,32 @@ def _shift_days(d: date, delta_days: int) -> date:
     return d + timedelta(days=delta_days)
 
 
+# Matches ``YYYY-MM`` or ``YYYY-MM-DD``. Day component (if present) is
+# ignored by the resolver — it always returns the full calendar month.
+_MONTH_ALIAS_RE = re.compile(r"^(\d{4})-(\d{2})(?:-\d{2})?$")
+
+
+def _try_resolve_month_alias(period: str) -> tuple[date, date] | None:
+    """Resolve a ``YYYY-MM`` / ``YYYY-MM-DD`` value to ``(month_first, month_last)``.
+
+    Returns ``None`` if ``period`` is not a month-shaped string — the caller
+    falls through to the regular alias / ``custom`` handling.
+
+    Any day component (when present) is intentionally ignored: the returned
+    window is always the full calendar month, since inventory ledger is
+    always partitioned by month (``report_month`` is the 1st of the month).
+    """
+    m = _MONTH_ALIAS_RE.match(period)
+    if not m:
+        return None
+    year = int(m.group(1))
+    month = int(m.group(2))
+    if not 1 <= month <= 12:
+        return None  # let the PERIOD_ALIASES check surface this as 400
+    last_day = monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last_day)
+
+
 def _full_previous_month(today: date) -> tuple[date, date]:
     """Return (first day, last day) of the calendar month preceding ``today``."""
     if today.month == 1:
@@ -169,9 +196,24 @@ def parse_period(
         raise PeriodParseError("period is required")
 
     period = period.strip().lower()
+
+    # Month aliases (YYYY-MM or YYYY-MM-DD) — handled BEFORE the
+    # PERIOD_ALIASES set check so month strings don't fall into
+    # "unknown alias". Invalid month strings (e.g. month=13) return
+    # ``None`` from the regex resolver and fall through to the
+    # PERIOD_ALIASES check below, which surfaces them as 400.
+    month_window = _try_resolve_month_alias(period)
+    if month_window is not None:
+        if start_date or end_date:
+            raise PeriodParseError(
+                "period cannot be combined with start_date / end_date"
+            )
+        return month_window
+
     if period not in PERIOD_ALIASES:
         raise PeriodParseError(
-            f"period must be one of {sorted(PERIOD_ALIASES)}, got {period!r}"
+            f"period must be one of {sorted(PERIOD_ALIASES)} or a "
+            f"YYYY-MM[-DD] month string, got {period!r}"
         )
 
     if period == "custom":

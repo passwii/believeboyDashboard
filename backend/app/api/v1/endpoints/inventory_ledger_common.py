@@ -26,72 +26,62 @@ def last_day_of_month(d: date) -> date:
 
 
 def resolve_period_inputs(
-    report_month: str | None,
+    period: str | None,
     start_date: date | None,
     end_date: date | None,
-    period: str | None,
     *,
     today: date | None = None,
 ) -> tuple[date, date, date | None]:
-    """Resolve the (start, end, report_month_for_integrity) triple.
+    """Resolve the (start, end, report_month_for_integrity) triple from the
+    single ``period`` query param + optional companions.
 
-    Precedence (mutually exclusive):
-      1. ``period`` — parsed via :func:`app.utils.period.parse_period_v2`
-         (handles its own validation)
-      2. ``report_month`` / ``start_date`` + ``end_date`` — legacy, via
-         :func:`app.services.inventory.ledger.resolve_period`
+    The inventory-ledger API exposes **one** period-input convention — every
+    call must supply ``?period=<value>``. ``start_date`` / ``end_date`` are
+    ONLY accepted as companions of ``period=custom`` (so callers can pick
+    any arbitrary date range). For any other period value, providing
+    ``start_date`` / ``end_date`` is a 400 — keeps the surface small so
+    agents don't drift into multiple calling patterns.
 
     ``report_month_for_integrity`` semantics:
-      - Set to the resolved date when caller passed explicit ``report_month``
-        (preserves existing behaviour — integrity runs on the full month)
       - Set to the first day of the resolved month when ``period`` resolves
-        to a FULL calendar month (``start.day == 1`` and ``end`` is last day)
-      - ``None`` otherwise (no integrity, matches existing range-mode behaviour)
+        to a FULL calendar month (``last_month``, ``this_month``, ``ytd``
+        cross-year degenerate, ``YYYY-MM``, ``YYYY-MM-DD``, etc.)
+      - ``None`` for partial windows (``7d`` / ``30d`` / ``custom`` etc.) —
+        integrity check is meaningless when the window doesn't align with
+        a single ledger partition
+
+    Raises ``HTTPException(400)`` on:
+      - ``period`` missing or empty
+      - Unknown / malformed period alias
+      - ``start_date`` / ``end_date`` given with non-custom period
 
     ``today`` is injected explicitly so unit tests can pin the clock to a
     known date without monkey-patching ``date.today()`` (which breaks
     ``timedelta`` arithmetic). Defaults to T-1.
-
-    Raises ``HTTPException(400)`` on validation failure.
     """
+    if not period:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "period is required (use an alias like 'last_month', a "
+                "relative window like '30d', or a YYYY-MM month string)"
+            ),
+        )
     if today is None:
         today = date.today() - timedelta(days=1)
-    if period:
-        # Mutual exclusion with any explicit date param
-        if report_month or start_date or end_date:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "period cannot be combined with report_month / "
-                    "start_date / end_date"
-                ),
-            )
-        try:
-            info = parse_period_v2(
-                period,
-                None,
-                None,
-                today=today,
-            )
-        except PeriodParseError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        # Full-calendar-month detection — integrity only makes sense here
-        report_month_for_integrity: date | None = None
-        if info.start_date.day == 1 and info.end_date == last_day_of_month(
-            info.end_date
-        ):
-            report_month_for_integrity = info.end_date.replace(day=1)
-        return info.start_date, info.end_date, report_month_for_integrity
-
-    # Legacy path — preserve existing behaviour.
-    # Import resolve_period lazily to avoid pulling the inventory service
-    # package at module-import time (which would cascade into Settings
-    # instantiation and break unit tests without a DATABASE_URL env var).
-    from app.services.inventory.ledger import resolve_period
 
     try:
-        start, end = resolve_period(report_month, start_date, end_date)
-    except ValueError as exc:
+        info = parse_period_v2(
+            period,
+            start_date.isoformat() if start_date else None,
+            end_date.isoformat() if end_date else None,
+            today=today,
+        )
+    except PeriodParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return start, end, start if report_month else None
+
+    # Full-calendar-month detection — integrity only makes sense here
+    report_month_for_integrity: date | None = None
+    if info.start_date.day == 1 and info.end_date == last_day_of_month(info.end_date):
+        report_month_for_integrity = info.end_date.replace(day=1)
+    return info.start_date, info.end_date, report_month_for_integrity
