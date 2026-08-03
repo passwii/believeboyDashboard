@@ -188,7 +188,7 @@ export default function InventoryLedgerPage() {
     setLoading(true)
     try {
       const base = `${API_BASE}/inventory-ledger`
-      const params = `project_id=${projectId}&report_month=${month}`
+      const params = `project_id=${projectId}&period=${month}`
 
       const [snapRes, evtRes, clustRes, locRes] = await Promise.all([
         fetch(`${base}/snapshot?${params}`).then((r) => r.json()),
