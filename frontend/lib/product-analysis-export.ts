@@ -281,7 +281,7 @@ export interface ExportProductAnalysisOptions {
 export async function exportProductAnalysisToExcel(
   opts: ExportProductAnalysisOptions
 ): Promise<void> {
-  const { periods, projectName, country, startDate, endDate, fileNamePrefix = '产品核算' } = opts
+  const { periods, projectName, country, startDate, endDate, fileNamePrefix = '产品分析核算' } = opts
 
   if (periods.length === 0) return
 

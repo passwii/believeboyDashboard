@@ -23,10 +23,10 @@ from app.services.product.analysis import (
     _list_recomputable_weekly_period_sources,
     list_weekly_product_analysis_from_details,
     _list_history_weekly_period_sources,
-    check_product_calculation_data_availability,
+    check_product_analysis_data_availability,
     recompute_weekly_product_analysis_from_history,
     recompute_pt1_for_period,
-    run_product_calculation_from_history,
+    run_product_analysis_from_history,
 )
 
 __all__ = [
@@ -35,8 +35,8 @@ __all__ = [
     '_list_recomputable_weekly_period_sources',
     'list_weekly_product_analysis_from_details',
     '_list_history_weekly_period_sources',
-    'check_product_calculation_data_availability',
+    'check_product_analysis_data_availability',
     'recompute_weekly_product_analysis_from_history',
     'recompute_pt1_for_period',
-    'run_product_calculation_from_history',
+    'run_product_analysis_from_history',
 ]

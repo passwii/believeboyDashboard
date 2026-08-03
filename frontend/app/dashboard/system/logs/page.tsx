@@ -325,7 +325,7 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   report_upload: '报表入库',
   report_upload_temp_file: '报表临时文件',
   pricing_calculation_run: '定价测算',
-  store_sku_pricing_snapshot: '店铺 SKU 核算快照',
+  new_product_calculation: '店铺 SKU 核算快照',
   product_analysis_weekly: '周报分析',
 }
 

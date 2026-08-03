@@ -618,11 +618,11 @@ const DETAIL_DISPLAY_COLUMNS = [
   { key: '利润率', label: '利润率', fmt: 'percent' as const },
 ]
 
-interface ProductCalculationPanelProps {
+interface ProductAnalysisPanelProps {
   session: ReturnType<typeof useSession>['data']
 }
 
-export default function ProductCalculationPanel({ session }: ProductCalculationPanelProps) {
+export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelProps) {
   const isAdmin = Boolean(session?.user?.isAdmin)
   const currentOperator = (
     session?.user?.operatorNameZh ||

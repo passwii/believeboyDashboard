@@ -6,16 +6,16 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import StoreSkuPricingSnapshot
-from app.schemas.store_sku_pricing_snapshot import (
-    StoreSkuPricingSnapshotCreateRequest,
-    StoreSkuPricingSnapshotItem,
+from app.models.new_product_calculation import NewProductCalculation
+from app.schemas.new_product_calculation import (
+    NewProductCalculationCreateRequest,
+    NewProductCalculationItem,
 )
 
 
-def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
-    """将数据库模型转换为 API 响应"""
-    return StoreSkuPricingSnapshotItem(
+def _to_item(row: NewProductCalculation) -> NewProductCalculationItem:
+    """将数据库模型转换为 API 响应（2026-08-03 由 _to_item(StoreSkuPricingSnapshot) 改名）"""
+    return NewProductCalculationItem(
         id=row.id,
         project_id=row.project_id,
         project_name=row.project_name,
@@ -32,7 +32,9 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
         ddp_cost_rmb=float(row.ddp_cost_rmb),
         ddp_cost_usd=float(row.ddp_cost_usd),
         sale_price_usd=float(row.sale_price_usd),
-        target_profit_rate=float(row.target_profit_rate) if row.target_profit_rate is not None else None,
+        target_profit_rate=float(row.target_profit_rate)
+        if row.target_profit_rate is not None
+        else None,
         advertising_rate=float(row.advertising_rate),
         return_loss_rate=float(row.return_loss_rate),
         storage_months=float(row.storage_months),
@@ -47,42 +49,53 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
         inbound_config_fee_rule_label=row.inbound_config_fee_rule_label,
         storage_fee_rule_label=row.storage_fee_rule_label,
         dimensions={
-            'longest_side_in': float(row.longest_side_in),
-            'middle_side_in': float(row.middle_side_in),
-            'shortest_side_in': float(row.shortest_side_in),
-            'length_plus_girth_in': float(row.length_plus_girth_in),
-            'volume_cubic_in': float(row.volume_cubic_in),
-            'volume_cubic_ft': float(row.volume_cubic_ft),
+            "longest_side_in": float(row.longest_side_in),
+            "middle_side_in": float(row.middle_side_in),
+            "shortest_side_in": float(row.shortest_side_in),
+            "length_plus_girth_in": float(row.length_plus_girth_in),
+            "volume_cubic_in": float(row.volume_cubic_in),
+            "volume_cubic_ft": float(row.volume_cubic_ft),
         },
         weights={
-            'product_weight_lb': float(row.product_weight_lb),
-            'product_weight_oz': float(row.product_weight_oz),
-            'dimensional_weight_lb': float(row.dimensional_weight_lb),
-            'chargeable_weight_lb': float(row.chargeable_weight_lb),
-            'chargeable_weight_oz': float(row.chargeable_weight_oz),
-            'chargeable_weight_rule': row.chargeable_weight_rule,
+            "product_weight_lb": float(row.product_weight_lb),
+            "product_weight_oz": float(row.product_weight_oz),
+            "dimensional_weight_lb": float(row.dimensional_weight_lb),
+            "chargeable_weight_lb": float(row.chargeable_weight_lb),
+            "chargeable_weight_oz": float(row.chargeable_weight_oz),
+            "chargeable_weight_rule": row.chargeable_weight_rule,
         },
         fees={
-            'referral_fee_usd': float(row.referral_fee_usd),
-            'advertising_fee_usd': float(row.advertising_fee_usd),
-            'return_loss_usd': float(row.return_loss_usd),
-            'fba_fulfillment_fee_usd': float(row.fba_fulfillment_fee_usd),
-            'inbound_config_fee_usd': float(row.inbound_config_fee_usd),
-            'storage_fee_usd': float(row.storage_fee_usd),
-            'total_fee_usd': float(row.total_fee_usd),
-            'delivery_fee_usd': float(getattr(row, 'delivery_fee_usd', Decimal('0')) or Decimal('0')),
-            'inbound_config_fee_manual_usd': float(getattr(row, 'inbound_config_fee_manual_usd', Decimal('0')) or Decimal('0')),
-            'storage_fee_manual_usd': float(getattr(row, 'storage_fee_manual_usd', Decimal('0')) or Decimal('0')),
+            "referral_fee_usd": float(row.referral_fee_usd),
+            "advertising_fee_usd": float(row.advertising_fee_usd),
+            "return_loss_usd": float(row.return_loss_usd),
+            "fba_fulfillment_fee_usd": float(row.fba_fulfillment_fee_usd),
+            "inbound_config_fee_usd": float(row.inbound_config_fee_usd),
+            "storage_fee_usd": float(row.storage_fee_usd),
+            "total_fee_usd": float(row.total_fee_usd),
+            "delivery_fee_usd": float(
+                getattr(row, "delivery_fee_usd", Decimal("0")) or Decimal("0")
+            ),
+            "inbound_config_fee_manual_usd": float(
+                getattr(row, "inbound_config_fee_manual_usd", Decimal("0"))
+                or Decimal("0")
+            ),
+            "storage_fee_manual_usd": float(
+                getattr(row, "storage_fee_manual_usd", Decimal("0")) or Decimal("0")
+            ),
         },
         profit={
-            'ddp_cost_rmb': float(row.ddp_cost_rmb),
-            'ddp_cost_usd': float(row.ddp_cost_usd),
-            'payout_usd': float(row.payout_usd),
-            'profit_usd': float(row.profit_usd),
-            'profit_rate': float(row.profit_rate),
-            'vat_usd': float(getattr(row, 'vat_usd', Decimal('0')) or Decimal('0')),
-            'profit_after_vat_usd': float(row.profit_after_vat_usd) if row.profit_after_vat_usd is not None else None,
-            'profit_after_vat_rate': float(row.profit_after_vat_rate) if row.profit_after_vat_rate is not None else None,
+            "ddp_cost_rmb": float(row.ddp_cost_rmb),
+            "ddp_cost_usd": float(row.ddp_cost_usd),
+            "payout_usd": float(row.payout_usd),
+            "profit_usd": float(row.profit_usd),
+            "profit_rate": float(row.profit_rate),
+            "vat_usd": float(getattr(row, "vat_usd", Decimal("0")) or Decimal("0")),
+            "profit_after_vat_usd": float(row.profit_after_vat_usd)
+            if row.profit_after_vat_usd is not None
+            else None,
+            "profit_after_vat_rate": float(row.profit_after_vat_rate)
+            if row.profit_after_vat_rate is not None
+            else None,
         },
         warnings=row.warnings_json or [],
         notes=row.notes,
@@ -94,28 +107,26 @@ def _to_item(row: StoreSkuPricingSnapshot) -> StoreSkuPricingSnapshotItem:
 
 def upsert_snapshot(
     db: Session,
-    payload: StoreSkuPricingSnapshotCreateRequest,
+    payload: NewProductCalculationCreateRequest,
     *,
     operator: str | None = None,
-) -> StoreSkuPricingSnapshotItem:
-    """创建或更新店铺 SKU 核算快照（upsert）"""
-    # 查询是否已存在相同 project_id + sku + calculation_type 的记录
+) -> NewProductCalculationItem:
+    """创建或更新新品核算快照（upsert，2026-08-03 由 upsert_snapshot(StoreSkuPricingSnapshot) 改名）
+    按 (project_id, sku, calculation_type) 唯一键"""
     existing = db.execute(
-        select(StoreSkuPricingSnapshot).where(
-            StoreSkuPricingSnapshot.project_id == payload.project_id,
-            StoreSkuPricingSnapshot.sku == payload.sku,
-            StoreSkuPricingSnapshot.calculation_type == payload.calculation_type,
+        select(NewProductCalculation).where(
+            NewProductCalculation.project_id == payload.project_id,
+            NewProductCalculation.sku == payload.sku,
+            NewProductCalculation.calculation_type == payload.calculation_type,
         )
     ).scalar_one_or_none()
 
     if existing:
-        # 更新现有记录
         _update_snapshot(existing, payload, operator)
         db.flush()
         db.refresh(existing)
         return _to_item(existing)
     else:
-        # 创建新记录
         row = _create_snapshot(payload, operator)
         db.add(row)
         db.flush()
@@ -124,11 +135,10 @@ def upsert_snapshot(
 
 
 def _create_snapshot(
-    payload: StoreSkuPricingSnapshotCreateRequest,
+    payload: NewProductCalculationCreateRequest,
     operator: str | None,
-) -> StoreSkuPricingSnapshot:
-    """创建新的快照记录"""
-    return StoreSkuPricingSnapshot(
+) -> NewProductCalculation:
+    return NewProductCalculation(
         project_id=payload.project_id,
         project_name=payload.project_name,
         sku=payload.sku,
@@ -144,7 +154,9 @@ def _create_snapshot(
         ddp_cost_rmb=Decimal(str(payload.ddp_cost_rmb)),
         ddp_cost_usd=Decimal(str(payload.ddp_cost_usd)),
         sale_price_usd=Decimal(str(payload.sale_price_usd)),
-        target_profit_rate=Decimal(str(payload.target_profit_rate)) if payload.target_profit_rate is not None else None,
+        target_profit_rate=Decimal(str(payload.target_profit_rate))
+        if payload.target_profit_rate is not None
+        else None,
         advertising_rate=Decimal(str(payload.advertising_rate)),
         return_loss_rate=Decimal(str(payload.return_loss_rate)),
         storage_months=Decimal(str(payload.storage_months)),
@@ -181,23 +193,28 @@ def _create_snapshot(
         profit_usd=Decimal(str(payload.profit_usd)),
         profit_rate=Decimal(str(payload.profit_rate)),
         delivery_fee_usd=Decimal(str(payload.delivery_fee_usd)),
-        inbound_config_fee_manual_usd=Decimal(str(payload.inbound_config_fee_manual_usd)),
+        inbound_config_fee_manual_usd=Decimal(
+            str(payload.inbound_config_fee_manual_usd)
+        ),
         storage_fee_manual_usd=Decimal(str(payload.storage_fee_manual_usd)),
         vat_usd=Decimal(str(payload.vat_usd)),
-        profit_after_vat_usd=Decimal(str(payload.profit_after_vat_usd)) if payload.profit_after_vat_usd is not None else None,
-        profit_after_vat_rate=Decimal(str(payload.profit_after_vat_rate)) if payload.profit_after_vat_rate is not None else None,
+        profit_after_vat_usd=Decimal(str(payload.profit_after_vat_usd))
+        if payload.profit_after_vat_usd is not None
+        else None,
+        profit_after_vat_rate=Decimal(str(payload.profit_after_vat_rate))
+        if payload.profit_after_vat_rate is not None
+        else None,
         warnings_json=payload.warnings,
         notes=payload.notes,
-        created_by=(operator or '').strip() or None,
+        created_by=(operator or "").strip() or None,
     )
 
 
 def _update_snapshot(
-    existing: StoreSkuPricingSnapshot,
-    payload: StoreSkuPricingSnapshotCreateRequest,
+    existing: NewProductCalculation,
+    payload: NewProductCalculationCreateRequest,
     operator: str | None,
 ) -> None:
-    """更新现有快照记录"""
     existing.asin = payload.asin
     existing.country = payload.country
     existing.package_length_cm = Decimal(str(payload.package_length_cm))
@@ -209,7 +226,11 @@ def _update_snapshot(
     existing.ddp_cost_rmb = Decimal(str(payload.ddp_cost_rmb))
     existing.ddp_cost_usd = Decimal(str(payload.ddp_cost_usd))
     existing.sale_price_usd = Decimal(str(payload.sale_price_usd))
-    existing.target_profit_rate = Decimal(str(payload.target_profit_rate)) if payload.target_profit_rate is not None else None
+    existing.target_profit_rate = (
+        Decimal(str(payload.target_profit_rate))
+        if payload.target_profit_rate is not None
+        else None
+    )
     existing.advertising_rate = Decimal(str(payload.advertising_rate))
     existing.return_loss_rate = Decimal(str(payload.return_loss_rate))
     existing.storage_months = Decimal(str(payload.storage_months))
@@ -246,15 +267,25 @@ def _update_snapshot(
     existing.profit_usd = Decimal(str(payload.profit_usd))
     existing.profit_rate = Decimal(str(payload.profit_rate))
     existing.delivery_fee_usd = Decimal(str(payload.delivery_fee_usd))
-    existing.inbound_config_fee_manual_usd = Decimal(str(payload.inbound_config_fee_manual_usd))
+    existing.inbound_config_fee_manual_usd = Decimal(
+        str(payload.inbound_config_fee_manual_usd)
+    )
     existing.storage_fee_manual_usd = Decimal(str(payload.storage_fee_manual_usd))
     existing.vat_usd = Decimal(str(payload.vat_usd))
-    existing.profit_after_vat_usd = Decimal(str(payload.profit_after_vat_usd)) if payload.profit_after_vat_usd is not None else None
-    existing.profit_after_vat_rate = Decimal(str(payload.profit_after_vat_rate)) if payload.profit_after_vat_rate is not None else None
+    existing.profit_after_vat_usd = (
+        Decimal(str(payload.profit_after_vat_usd))
+        if payload.profit_after_vat_usd is not None
+        else None
+    )
+    existing.profit_after_vat_rate = (
+        Decimal(str(payload.profit_after_vat_rate))
+        if payload.profit_after_vat_rate is not None
+        else None
+    )
     existing.warnings_json = payload.warnings
     existing.notes = payload.notes
     if operator:
-        existing.created_by = (operator or '').strip() or None
+        existing.created_by = (operator or "").strip() or None
 
 
 def list_snapshots(
@@ -265,30 +296,36 @@ def list_snapshots(
     country: str | None = None,
     page: int = 1,
     page_size: int = 200,
-) -> tuple[list[StoreSkuPricingSnapshotItem], int]:
-    """查询店铺 SKU 核算快照列表"""
+) -> tuple[list[NewProductCalculationItem], int]:
+    """查询新品核算快照列表（2026-08-03 改名）"""
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 500)
 
-    stmt = select(StoreSkuPricingSnapshot)
+    stmt = select(NewProductCalculation)
 
     if project_id is not None:
-        stmt = stmt.where(StoreSkuPricingSnapshot.project_id == project_id)
+        stmt = stmt.where(NewProductCalculation.project_id == project_id)
     if calculation_type is not None:
-        stmt = stmt.where(StoreSkuPricingSnapshot.calculation_type == calculation_type)
+        stmt = stmt.where(NewProductCalculation.calculation_type == calculation_type)
     if country is not None:
-        stmt = stmt.where(StoreSkuPricingSnapshot.country == country)
+        stmt = stmt.where(NewProductCalculation.country == country)
 
     # 统计总数
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = int(db.execute(count_stmt).scalar_one() or 0)
 
     # 分页查询
-    rows = db.execute(
-        stmt.order_by(StoreSkuPricingSnapshot.updated_at.desc(), StoreSkuPricingSnapshot.id.desc())
-        .offset((safe_page - 1) * safe_page_size)
-        .limit(safe_page_size)
-    ).scalars().all()
+    rows = (
+        db.execute(
+            stmt.order_by(
+                NewProductCalculation.updated_at.desc(), NewProductCalculation.id.desc()
+            )
+            .offset((safe_page - 1) * safe_page_size)
+            .limit(safe_page_size)
+        )
+        .scalars()
+        .all()
+    )
 
     return [_to_item(row) for row in rows], total
 
@@ -298,13 +335,13 @@ def get_snapshot(
     project_id: int,
     sku: str,
     calculation_type: str,
-) -> StoreSkuPricingSnapshotItem | None:
-    """获取单个店铺 SKU 核算快照"""
+) -> NewProductCalculationItem | None:
+    """获取单个新品核算快照（2026-08-03 改名）"""
     row = db.execute(
-        select(StoreSkuPricingSnapshot).where(
-            StoreSkuPricingSnapshot.project_id == project_id,
-            StoreSkuPricingSnapshot.sku == sku,
-            StoreSkuPricingSnapshot.calculation_type == calculation_type,
+        select(NewProductCalculation).where(
+            NewProductCalculation.project_id == project_id,
+            NewProductCalculation.sku == sku,
+            NewProductCalculation.calculation_type == calculation_type,
         )
     ).scalar_one_or_none()
 
@@ -312,8 +349,8 @@ def get_snapshot(
 
 
 def delete_snapshot(db: Session, snapshot_id: int) -> bool:
-    """删除店铺 SKU 核算快照"""
-    row = db.get(StoreSkuPricingSnapshot, snapshot_id)
+    """删除新品核算快照（2026-08-03 改名）"""
+    row = db.get(NewProductCalculation, snapshot_id)
     if row is None:
         return False
     db.delete(row)

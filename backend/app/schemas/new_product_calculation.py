@@ -6,11 +6,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-InboundPlacementMode = Literal['single_destination', 'amazon_optimized_split']
-CalculationType = Literal['profit_calc', 'profit_reverse', 'eu_accounting']
+InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
+CalculationType = Literal["profit_calc", "profit_reverse", "eu_accounting"]
 
 
-class StoreSkuPricingDimensions(BaseModel):
+class NewProductCalculationDimensions(BaseModel):
     longest_side_in: float
     middle_side_in: float
     shortest_side_in: float
@@ -19,7 +19,7 @@ class StoreSkuPricingDimensions(BaseModel):
     volume_cubic_ft: float
 
 
-class StoreSkuPricingWeight(BaseModel):
+class NewProductCalculationWeight(BaseModel):
     product_weight_lb: float
     product_weight_oz: float
     dimensional_weight_lb: float
@@ -28,7 +28,7 @@ class StoreSkuPricingWeight(BaseModel):
     chargeable_weight_rule: str
 
 
-class StoreSkuPricingFees(BaseModel):
+class NewProductCalculationFees(BaseModel):
     referral_fee_usd: float
     advertising_fee_usd: float
     return_loss_usd: float
@@ -42,7 +42,7 @@ class StoreSkuPricingFees(BaseModel):
     storage_fee_manual_usd: float = 0.0
 
 
-class StoreSkuPricingProfit(BaseModel):
+class NewProductCalculationProfit(BaseModel):
     ddp_cost_rmb: float
     ddp_cost_usd: float
     payout_usd: float
@@ -54,28 +54,29 @@ class StoreSkuPricingProfit(BaseModel):
     profit_after_vat_rate: float | None = None
 
 
-class StoreSkuPricingSnapshotItem(BaseModel):
-    """店铺 SKU 核算快照详情"""
+class NewProductCalculationItem(BaseModel):
+    """新品核算详情（2026-08-03 由 StoreSkuPricingSnapshotItem 改名）"""
+
     id: int
     project_id: int
     project_name: str
     sku: str
     asin: str | None = None
     country: str | None = None
-    calculation_type: CalculationType = 'profit_calc'
-    
+    calculation_type: CalculationType = "profit_calc"
+
     # 尺寸信息
     package_length_cm: float
     package_width_cm: float
     package_height_cm: float
     weight_kg: float
-    
+
     # 成本信息
     fob_product_cost_rmb: float
     first_leg_cost_rmb: float
     ddp_cost_rmb: float
     ddp_cost_usd: float
-    
+
     # 销售参数
     sale_price_usd: float
     target_profit_rate: float | None = None
@@ -83,11 +84,11 @@ class StoreSkuPricingSnapshotItem(BaseModel):
     return_loss_rate: float
     storage_months: float
     inbound_placement_mode: InboundPlacementMode
-    
+
     # 汇率
     usd_to_rmb_rate: float
     usd_to_rmb_rate_source: str
-    
+
     # 尺寸等级和售价带
     size_tier: str
     size_tier_label: str
@@ -100,14 +101,14 @@ class StoreSkuPricingSnapshotItem(BaseModel):
     storage_fee_rule_label: str
 
     # 尺寸详情
-    dimensions: StoreSkuPricingDimensions
+    dimensions: NewProductCalculationDimensions
     # 重量详情
-    weights: StoreSkuPricingWeight
+    weights: NewProductCalculationWeight
     # 费用详情
-    fees: StoreSkuPricingFees
+    fees: NewProductCalculationFees
     # 利润详情
-    profit: StoreSkuPricingProfit
-    
+    profit: NewProductCalculationProfit
+
     # 警告信息
     warnings: list[str] = Field(default_factory=list)
     # 备注
@@ -118,27 +119,28 @@ class StoreSkuPricingSnapshotItem(BaseModel):
     updated_at: datetime
 
 
-class StoreSkuPricingSnapshotCreateRequest(BaseModel):
-    """创建/更新店铺 SKU 核算快照的请求"""
+class NewProductCalculationCreateRequest(BaseModel):
+    """创建/更新新品核算的请求（2026-08-03 由 StoreSkuPricingSnapshotCreateRequest 改名）"""
+
     project_id: int
     project_name: str
     sku: str
     asin: str | None = None
     country: str | None = None
-    calculation_type: CalculationType = 'profit_calc'
-    
+    calculation_type: CalculationType = "profit_calc"
+
     # 尺寸信息
     package_length_cm: float
     package_width_cm: float
     package_height_cm: float
     weight_kg: float
-    
+
     # 成本信息
     fob_product_cost_rmb: float
     first_leg_cost_rmb: float
     ddp_cost_rmb: float
     ddp_cost_usd: float
-    
+
     # 销售参数
     sale_price_usd: float
     target_profit_rate: float | None = None
@@ -146,17 +148,17 @@ class StoreSkuPricingSnapshotCreateRequest(BaseModel):
     return_loss_rate: float
     storage_months: float
     inbound_placement_mode: InboundPlacementMode
-    
+
     # 汇率
     usd_to_rmb_rate: float
     usd_to_rmb_rate_source: str
-    
+
     # 尺寸等级和售价带
     size_tier: str
     size_tier_label: str
     price_band: str
     price_band_label: str
-    
+
     # 尺寸详情
     longest_side_in: float
     middle_side_in: float
@@ -164,7 +166,7 @@ class StoreSkuPricingSnapshotCreateRequest(BaseModel):
     length_plus_girth_in: float
     volume_cubic_in: float
     volume_cubic_ft: float
-    
+
     # 重量详情
     product_weight_lb: float
     product_weight_oz: float
@@ -172,12 +174,12 @@ class StoreSkuPricingSnapshotCreateRequest(BaseModel):
     chargeable_weight_lb: float
     chargeable_weight_oz: float
     chargeable_weight_rule: str
-    
+
     # 费用规则标签
     fulfillment_fee_rule_label: str
     inbound_config_fee_rule_label: str
     storage_fee_rule_label: str
-    
+
     # 费用详情
     referral_fee_usd: float
     advertising_fee_usd: float
@@ -206,9 +208,10 @@ class StoreSkuPricingSnapshotCreateRequest(BaseModel):
     notes: str | None = None
 
 
-class StoreSkuPricingSnapshotListResponse(BaseModel):
-    """店铺 SKU 核算快照列表响应"""
-    items: list[StoreSkuPricingSnapshotItem]
+class NewProductCalculationListResponse(BaseModel):
+    """新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）"""
+
+    items: list[NewProductCalculationItem]
     total: int
     page: int
     page_size: int

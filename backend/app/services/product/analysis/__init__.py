@@ -22,13 +22,13 @@ from app.services.product.analysis.period_sources import (
     _list_history_weekly_period_sources,
 )
 from app.services.product.analysis.data_availability import (
-    check_product_calculation_data_availability,
+    check_product_analysis_data_availability,
 )
 from app.services.product.analysis.recompute import (
     recompute_weekly_product_analysis_from_history,
     recompute_pt1_for_period,
-    run_product_calculation_from_history,
-    preview_product_calculation_from_files,
+    run_product_analysis_from_history,
+    preview_product_analysis_from_files,
 )
 
 __all__ = [
@@ -41,10 +41,10 @@ __all__ = [
     'list_weekly_product_analysis_from_details',
     '_list_history_weekly_period_sources',
     # Data Availability
-    'check_product_calculation_data_availability',
+    'check_product_analysis_data_availability',
     # Recompute
     'recompute_weekly_product_analysis_from_history',
     'recompute_pt1_for_period',
-    'run_product_calculation_from_history',
-    'preview_product_calculation_from_files',
+    'run_product_analysis_from_history',
+    'preview_product_analysis_from_files',
 ]

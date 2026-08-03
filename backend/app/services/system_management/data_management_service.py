@@ -1,6 +1,7 @@
 """
 System Management 数据管理服务。
 """
+
 from datetime import datetime, timedelta
 
 from sqlalchemy import MetaData, Table, func, inspect, select, text
@@ -64,7 +65,7 @@ TABLE_NAME_CN_MAP: dict[str, str] = {
     "shipment_schedule_items": "发货计划明细",
     "shipment_schedules": "发货计划",
     "shipment_sku_summaries": "发货SKU汇总",
-    "store_sku_pricing_snapshots": "店铺SKU定价快照",
+    "new_product_calculations": "新品核算",
     "system_management_data_state": "系统数据状态",
     "user_accounts": "用户账户",
     "user_presence": "用户在线状态",
@@ -132,7 +133,12 @@ def _load_data_state(
     except ValueError:
         status = DataLifecycleStatus.active.value
 
-    return status, row.get("note"), row.get("updated_by"), _to_iso(row.get("updated_at"))
+    return (
+        status,
+        row.get("note"),
+        row.get("updated_by"),
+        _to_iso(row.get("updated_at")),
+    )
 
 
 def _check_database(db: Session) -> tuple[bool, str]:
@@ -213,7 +219,9 @@ def _collect_table_statuses(db: Session) -> tuple[list[dict], int, int]:
     return statuses, total_rows, stale_tables
 
 
-def _collect_recent_statuses(db: Session, data_status: str, checked_at: str) -> list[dict]:
+def _collect_recent_statuses(
+    db: Session, data_status: str, checked_at: str
+) -> list[dict]:
     items: list[dict] = [
         {
             "source": "data-status",
@@ -289,7 +297,12 @@ def set_data_status(
                 updated_at = :updated_at
             """
         ),
-        {"status": normalized_status, "note": note, "updated_by": updated_by, "updated_at": now},
+        {
+            "status": normalized_status,
+            "note": note,
+            "updated_by": updated_by,
+            "updated_at": now,
+        },
     )
     db.commit()
 

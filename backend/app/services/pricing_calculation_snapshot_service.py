@@ -2,9 +2,10 @@
 
 提供店铺定价历史快照的创建 / 列表 / 详情 / 更新 / 删除。
 
-数据源：``shop_calculation``（US + EU 统一 upsert 表，shop-calculation 页面
-"测算"按钮的实际写入目标）。注意：旧表 ``store_sku_pricing_snapshots`` 在
-shop-calculation 页面迁到 ``/api/v1/shop-calculation`` 之后已不再被写入，
+数据源：``shop_calculation``（US + EU 统一表，shop-calculation 页面
+"测算"按钮的实际写入目标）。注意：旧表 ``store_sku_pricing_snapshots``（2026-08-03
+迁移 230 已重命名为 ``new_product_calculations``，类名 ``NewProductCalculation``）
+在 shop-calculation 页面迁到 ``/api/v1/shop-calculation`` 之后已不再被写入，
 仍保留历史数据但不是当前态来源。
 
 append-only 模式：每次创建新增 header + items，旧快照不被覆盖。
