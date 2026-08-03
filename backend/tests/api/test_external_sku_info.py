@@ -98,6 +98,7 @@ class TestSkuInfoContract:
                 "units_per_carton",
                 "is_active",
                 "product_image_url",
+                "marketplace_url",
             }
             assert set(item.keys()) == expected_keys
 
@@ -193,3 +194,79 @@ class TestSkuInfoFiltering:
         assert body["country"] == "US"
         for item in body["data"]:
             assert item["country"] == "US"
+
+
+class TestMarketplaceUrl:
+    """``marketplace_url`` is derived from (country, asin) on the backend.
+
+    Self-seeding: creates temporary SkuRecord rows (unique SKU names) and
+    deletes them on teardown, so these tests never depend on pre-existing
+    data in the test DB.
+    """
+
+    @pytest.fixture
+    def seeded_skus(self, db_session) -> list[SkuRecord]:
+        project = _first_project(db_session)
+        if project is None:
+            pytest.skip("no project in test DB")
+        rows = [
+            SkuRecord(
+                project_id=project.id,
+                project_name=project.project_name,
+                sku="TST-MKTURL-US-001",
+                asin="B0TESTURL01",
+                fnsku="X0TESTURL01",
+                product_name="marketplace url test US",
+                country="US",
+                currency="CNY",
+            ),
+            SkuRecord(
+                project_id=project.id,
+                project_name=project.project_name,
+                sku="TST-MKTURL-DE-001",
+                asin="B0TESTURL02",
+                fnsku="X0TESTURL02",
+                product_name="marketplace url test DE",
+                country="DE",
+                currency="EUR",
+            ),
+        ]
+        db_session.add_all(rows)
+        db_session.commit()
+        try:
+            yield rows
+        finally:
+            for row in rows:
+                db_session.delete(row)
+            db_session.commit()
+
+    def test_url_matches_country_domain(self, client, db_session, seeded_skus):
+        """US row → amazon.com, DE row → amazon.de (endpoint-level check).
+
+        Unknown-country and empty-ASIN null paths are covered by
+        tests/utils/test_marketplace_url.py (the DB's CHECK constraint on
+        product_costs.country only allows real marketplaces).
+        """
+        project = _first_project(db_session)
+        resp = client.get(_sku_url(project.id, sku="TST-MKTURL", limit="100"))
+        assert resp.status_code == 200, resp.text
+        items = {i["sku"]: i for i in resp.json()["data"]}
+
+        assert "TST-MKTURL-US-001" in items
+        assert items["TST-MKTURL-US-001"]["marketplace_url"] == (
+            "https://www.amazon.com/dp/B0TESTURL01"
+        )
+        assert items["TST-MKTURL-DE-001"]["marketplace_url"] == (
+            "https://www.amazon.de/dp/B0TESTURL02"
+        )
+
+    def test_country_filter_still_returns_url(self, client, db_session, seeded_skus):
+        """Filtering by country=US keeps the URL intact."""
+        project = _first_project(db_session)
+        resp = client.get(
+            _sku_url(project.id, country="US", sku="TST-MKTURL-US", limit="100")
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert len(data) == 1
+        assert data[0]["marketplace_url"] == "https://www.amazon.com/dp/B0TESTURL01"

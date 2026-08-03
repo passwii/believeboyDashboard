@@ -88,6 +88,7 @@ export type ProductCostItem = {
   product_image_uploaded_at?: string | null
   product_image_uploaded_by?: string | null
   historical_first_leg_cost_rmb?: number | null
+  marketplace_url?: string | null
 }
 
 type ProductCostsPage = {
@@ -282,6 +283,23 @@ function FilterFieldSkeleton() {
       <Skeleton className="h-4 w-16" />
       <Skeleton className="h-10 w-full" />
     </div>
+  )
+}
+
+/** ASIN 展示：有 marketplace_url 时渲染为对应 Amazon 站点外链，否则纯文本。 */
+function AsinLink({ row }: { row: ProductCostItem }) {
+  if (!row.asin) return <>-</>
+  if (!row.marketplace_url) return <>{row.asin}</>
+  return (
+    <a
+      href={row.marketplace_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={row.marketplace_url}
+      className="text-primary underline-offset-2 hover:underline"
+    >
+      {row.asin} ↗
+    </a>
   )
 }
 
@@ -1184,7 +1202,7 @@ export default function SkuInfoPage() {
                                       }
                                     />
                                   ) : (
-                                    row.asin || '-'
+                                    <AsinLink row={row} />
                                   )}
                                 </span>
                                 <span>
@@ -1464,7 +1482,7 @@ export default function SkuInfoPage() {
                                       }
                                     />
                                   ) : (
-                                    row.asin || '-'
+                                    <AsinLink row={row} />
                                   )}
                                 </span>
                                 <span>
@@ -1733,7 +1751,7 @@ export default function SkuInfoPage() {
                               <div>
                                 <div className="font-medium">{row.sku}</div>
                                 <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
-                                  <span>ASIN: {row.asin || '-'}</span>
+                                  <span>ASIN: <AsinLink row={row} /></span>
                                   <span>FNSKU: {row.fnsku || '-'}</span>
                                 </div>
                               </div>
@@ -1925,7 +1943,7 @@ export default function SkuInfoPage() {
                               <div>
                                 <div className="font-medium">{row.sku}</div>
                                 <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
-                                  <span>ASIN: {row.asin || '-'}</span>
+                                  <span>ASIN: <AsinLink row={row} /></span>
                                   <span>FNSKU: {row.fnsku || '-'}</span>
                                 </div>
                               </div>

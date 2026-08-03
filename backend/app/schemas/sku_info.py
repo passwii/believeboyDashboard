@@ -37,6 +37,10 @@ class SkuRecordItem(BaseModel):
     product_image_thumbnail_r2_url: str | None = None
     product_image_uploaded_at: datetime | None = None
     product_image_uploaded_by: str | None = None
+    # Canonical Amazon product-detail URL derived from (country, asin) via
+    # app.utils.marketplace_url.build_marketplace_url; None when the country
+    # is empty or not a known marketplace.
+    marketplace_url: str | None = None
 
 
 class SkuRecordsPage(BaseModel):
@@ -139,10 +143,10 @@ class SkuRecordFirstLegRecalculateResponse(BaseModel):
 
 class BatchUpdateFactoryInfoRequest(BaseModel):
     """批量更新产品属性请求"""
+
     sku_ids: list[int] = Field(..., min_length=1, description="SKU 记录 ID 列表")
     sku_factory_info: dict[str, str] | None = Field(
-        default=None,
-        description="产品属性字典，传入 null 表示清除属性"
+        default=None, description="产品属性字典，传入 null 表示清除属性"
     )
 
     model_config = {"extra": "forbid"}
@@ -150,18 +154,21 @@ class BatchUpdateFactoryInfoRequest(BaseModel):
 
 class BatchUpdateFactoryInfoResponse(BaseModel):
     """批量更新产品属性响应"""
+
     updated: int = Field(..., description="更新记录数")
     sku_ids: list[int] = Field(..., description="已更新的 SKU ID 列表")
 
 
 class GetFnskuLabelsBySkusRequest(BaseModel):
     """通过 SKU 列表获取 FNSKU 标签信息的请求"""
+
     project_name: str = Field(..., min_length=1, description="项目名称")
     skus: list[str] = Field(..., min_length=1, description="SKU 列表")
 
 
 class SkuRecordFnskuLabelItem(BaseModel):
     """SKU 记录的 FNSKU 标签信息"""
+
     id: int
     sku: str
     fnsku_label_r2_key: str | None = None
@@ -169,24 +176,30 @@ class SkuRecordFnskuLabelItem(BaseModel):
 
 class FnskuLabelsResponse(BaseModel):
     """通过 SKU 列表获取 FNSKU 标签信息的响应"""
+
     sku_records: list[SkuRecordFnskuLabelItem]
 
 
 class ParseFactoryInfoRequest(BaseModel):
     """解析产品属性请求"""
-    description: str = Field(..., min_length=1, max_length=2000, description="自然语言描述")
+
+    description: str = Field(
+        ..., min_length=1, max_length=2000, description="自然语言描述"
+    )
 
     model_config = {"extra": "forbid"}
 
 
 class ParseFactoryInfoResponse(BaseModel):
     """解析产品属性响应"""
+
     result: dict[str, str] = Field(default_factory=dict, description="解析后的键值对")
     raw: str = Field(..., description="原始 AI 输出")
 
 
 class FnskuLabelUploadResponse(BaseModel):
     """FNSKU 标签上传响应"""
+
     sku_record_id: int
     fnsku_label_r2_key: str
     fnsku_label_r2_url: str
@@ -197,7 +210,10 @@ class FnskuLabelUploadResponse(BaseModel):
 
 class BatchFnskuLabelDownloadRequest(BaseModel):
     """批量下载 FNSKU 标签请求"""
-    sku_record_ids: list[int] = Field(..., min_length=1, max_length=500, description="SKU 记录 ID 列表")
+
+    sku_record_ids: list[int] = Field(
+        ..., min_length=1, max_length=500, description="SKU 记录 ID 列表"
+    )
 
 
 class SkuProductImageUploadResponse(BaseModel):

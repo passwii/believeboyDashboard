@@ -43,6 +43,11 @@ class ExternalSkuInfoItem(BaseModel):
     # Product image (public URL only, no internal R2 key)
     product_image_url: str | None = None
 
+    # Canonical Amazon product-detail URL derived from (country, asin) via
+    # app.utils.marketplace_url.build_marketplace_url; None when the country
+    # is empty or not a known marketplace.
+    marketplace_url: str | None = None
+
 
 class ExternalSkuInfoResponse(BaseModel):
     """Paginated wrapper for the SKU info list endpoint."""

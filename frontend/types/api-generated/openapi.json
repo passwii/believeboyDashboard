@@ -13640,6 +13640,17 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "marketplace_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketplace Url"
+          },
           "package_height_cm": {
             "title": "Package Height Cm",
             "type": "number"
@@ -31806,6 +31817,17 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "marketplace_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketplace Url"
           },
           "package_height_cm": {
             "title": "Package Height Cm",
@@ -55190,7 +55212,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/events": {
       "get": {
-        "description": "SKU event flow.",
+        "description": "Returns per-SKU totals of every ledger event column summed across the resolved period window.\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get",
         "parameters": [
           {
@@ -55203,24 +55225,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -55234,10 +55250,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -55251,6 +55269,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -55277,7 +55296,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext Events",
+        "summary": "SKU event flow for the period",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -55286,7 +55305,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/integrity": {
       "get": {
-        "description": "Cross-month integrity check.",
+        "description": "Returns the cross-month continuity check (last month's ending balance vs. this month's starting balance, per SKU × location × disposition). Status is one of ``OK``, ``MISMATCH``, or ``PENDING`` (no prior month data available).\n\nOnly full-calendar-month period values make sense here (``last_month``, ``this_month``, ``ytd`` cross-year, ``YYYY-MM``, ``YYYY-MM-DD``). Partial windows (7d/30d/custom spanning multiple months) return 400 — use ``last_month`` for the typical 'reconcile last full month' flow.",
         "operationId": "ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get",
         "parameters": [
           {
@@ -55299,13 +55318,13 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
+            "name": "period",
             "required": true,
             "schema": {
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month",
+              "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
               "type": "string"
             }
           }
@@ -55332,7 +55351,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext Integrity",
+        "summary": "Cross-month integrity check",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -55341,7 +55360,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/months": {
       "get": {
-        "description": "List months with ledger data.",
+        "description": "Returns YYYY-MM-DD strings (always the 1st of the month) for every month that has any rows in the project's inventory_ledger_raw table.",
         "operationId": "ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get",
         "parameters": [
           {
@@ -55376,7 +55395,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext List Months",
+        "summary": "List months with ledger data",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -55385,7 +55404,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/receipt-clusters": {
       "get": {
-        "description": "Receipt clusters.",
+        "description": "Groups inventory receipts by (date, warehouse) — useful for spotting shipments that arrived together.\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get",
         "parameters": [
           {
@@ -55398,24 +55417,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -55429,10 +55442,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -55446,6 +55461,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -55472,7 +55488,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext Receipt Clusters",
+        "summary": "Receipt clusters for the period",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -55481,7 +55497,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/snapshot": {
       "get": {
-        "description": "Monthly/period snapshot.",
+        "description": "Returns the end-of-period inventory snapshot for a project. Runs the cross-month integrity check when the resolved period is a full calendar month; partial windows skip it.\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get",
         "parameters": [
           {
@@ -55494,24 +55510,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -55525,10 +55535,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -55542,6 +55554,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -55568,7 +55581,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext Snapshot",
+        "summary": "Monthly snapshot — SKU EOM, disposition summary, integrity",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -55577,7 +55590,7 @@
     },
     "/api/v1/external/projects/{project_id}/inventory-ledger/trend": {
       "get": {
-        "description": "Multi-month aggregated trend.",
+        "description": "Aggregates the last N months (default 6, max 24) into a single trend series. Independent of the ``?period=`` convention (driven by ``?months=N``).",
         "operationId": "ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get",
         "parameters": [
           {
@@ -55626,7 +55639,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Ext Trend",
+        "summary": "Multi-month trend",
         "tags": [
           "external",
           "external-inventory-ledger"
@@ -58373,7 +58386,7 @@
     },
     "/api/v1/inventory-ledger/events": {
       "get": {
-        "description": "SKU event flow for the period.",
+        "description": "Returns per-SKU totals of every ledger event column (receipts, shipments, returns, damaged, lost, disposed, found, vendor_returns, transfer, other) summed across the resolved period window.\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "get_events_api_v1_inventory_ledger_events_get",
         "parameters": [
           {
@@ -58386,24 +58399,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -58417,10 +58424,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -58434,6 +58443,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           },
@@ -58508,7 +58518,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Events",
+        "summary": "SKU event flow for the period",
         "tags": [
           "inventory-ledger"
         ]
@@ -58516,7 +58526,7 @@
     },
     "/api/v1/inventory-ledger/location-detail": {
       "get": {
-        "description": "Warehouse-level detail, optionally filtered by SKU.",
+        "description": "Returns the end-of-period SKU × warehouse × disposition breakdown — useful for investigating WHERE inventory sits. Optionally filtered by a single ``msku``.\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "get_location_detail_api_v1_inventory_ledger_location_detail_get",
         "parameters": [
           {
@@ -58529,24 +58539,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -58560,10 +58564,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -58577,10 +58583,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           },
           {
+            "description": "Optional SKU filter — returns rows for this MSKU only.",
             "in": "query",
             "name": "msku",
             "required": false,
@@ -58593,6 +58601,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional SKU filter — returns rows for this MSKU only.",
               "title": "Msku"
             }
           },
@@ -58667,7 +58676,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Location Detail",
+        "summary": "Warehouse-level detail (SKU × Location × Disposition)",
         "tags": [
           "inventory-ledger"
         ]
@@ -58675,7 +58684,7 @@
     },
     "/api/v1/inventory-ledger/months": {
       "get": {
-        "description": "List months that have ledger data for this project.",
+        "description": "Returns YYYY-MM-DD strings (always the 1st of the month) for every month that has any rows in the project's inventory_ledger_raw table. Use these values directly as the ``period`` query parameter for the other endpoints — e.g. ``period=2026-01-01`` means 'January 2026'.",
         "operationId": "list_months_api_v1_inventory_ledger_months_get",
         "parameters": [
           {
@@ -58758,7 +58767,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Months",
+        "summary": "List months with ledger data",
         "tags": [
           "inventory-ledger"
         ]
@@ -58766,7 +58775,7 @@
     },
     "/api/v1/inventory-ledger/receipt-clusters": {
       "get": {
-        "description": "Receipt clusters for the period.",
+        "description": "Groups inventory receipts by (date, warehouse) — useful for spotting shipments that arrived together (same day, same location).\n\nPeriod values: see ``backend/docs/inventory-ledger-api.md``.",
         "operationId": "get_clusters_api_v1_inventory_ledger_receipt_clusters_get",
         "parameters": [
           {
@@ -58779,24 +58788,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -58810,10 +58813,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -58827,6 +58832,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           },
@@ -58901,7 +58907,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Clusters",
+        "summary": "Receipt clusters for the period",
         "tags": [
           "inventory-ledger"
         ]
@@ -58909,7 +58915,7 @@
     },
     "/api/v1/inventory-ledger/snapshot": {
       "get": {
-        "description": "Monthly/period snapshot: SKU EOM + disposition summary + integrity.",
+        "description": "Returns the end-of-period inventory snapshot for a project: one row per SKU with totals broken down by disposition (SELLABLE / CUSTOMER_DAMAGED / etc.). Runs the cross-month integrity check when the resolved ``period`` is a full calendar month (e.g. ``last_month``, ``2026-01``); partial windows (7d/30d/custom) skip the integrity check since it's meaningless without a complete ledger partition.\n\nPeriod values: 7d / 14d / 28d / 30d / 60d / 90d / this_month / last_month / ytd / custom / YYYY-MM / YYYY-MM-DD. See ``backend/docs/inventory-ledger-api.md`` for the full grammar.",
         "operationId": "get_snapshot_api_v1_inventory_ledger_snapshot_get",
         "parameters": [
           {
@@ -58922,24 +58928,18 @@
             }
           },
           {
-            "description": "YYYY-MM or YYYY-MM-DD",
+            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. Examples: ``last_month``, ``30d``, ``2026-01``.",
             "in": "query",
-            "name": "report_month",
-            "required": false,
+            "name": "period",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "YYYY-MM or YYYY-MM-DD",
-              "title": "Report Month"
+              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. Examples: ``last_month``, ``30d``, ``2026-01``.",
+              "title": "Period",
+              "type": "string"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only. Ignored (→ 400) for any other period value.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -58953,10 +58953,12 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only. Ignored (→ 400) for any other period value.",
               "title": "Start Date"
             }
           },
           {
+            "description": "Companion for ``period=custom`` only. Ignored (→ 400) for any other period value.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -58970,6 +58972,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Companion for ``period=custom`` only. Ignored (→ 400) for any other period value.",
               "title": "End Date"
             }
           },
@@ -59044,7 +59047,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Snapshot",
+        "summary": "Monthly snapshot — SKU EOM, disposition summary, integrity",
         "tags": [
           "inventory-ledger"
         ]
@@ -59052,7 +59055,7 @@
     },
     "/api/v1/inventory-ledger/trend": {
       "get": {
-        "description": "Multi-month aggregated trend: EOM qty, events, damaged pct per month.",
+        "description": "Aggregates the last N months (default 6, max 24) into a single trend series — one row per month with EOM qty, event totals, and damaged-qty percentage. Independent of the ``?period=`` convention (driven by its own ``?months=N`` count parameter).",
         "operationId": "get_trend_endpoint_api_v1_inventory_ledger_trend_get",
         "parameters": [
           {
@@ -59149,7 +59152,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Trend Endpoint",
+        "summary": "Multi-month trend (EOM qty, events, damaged %)",
         "tags": [
           "inventory-ledger"
         ]
