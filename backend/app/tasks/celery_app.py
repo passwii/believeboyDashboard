@@ -126,6 +126,19 @@ def _build_celery_app() -> Celery:
                 "task": "ai_chat_token_usage.refresh_daily",
                 "schedule": crontab(hour=3, minute=15),
             },
+            # 数据库备份调度（§3.6 / §3.7）：
+            # - daily-pg-full-backup: 每天 backup_daily_schedule_hour:00（默认 03:00）全量备份
+            # - r2-backup-cleanup: 每天 04:30 跑 R2 保留清理（排在自动备份之后）
+            # beat 必须单实例（systemd 约束），run_backup_task 的乐观锁兜底多实例误启。
+            "daily-pg-full-backup": {
+                "task": "app.celery_tasks.backup.schedule_daily_backup_task",
+                "schedule": crontab(hour=settings.backup_daily_schedule_hour, minute=0),
+                "kwargs": {"backup_type": "full", "triggered_by": "auto"},
+            },
+            "r2-backup-cleanup": {
+                "task": "app.celery_tasks.backup.cleanup_r2_task",
+                "schedule": crontab(hour=4, minute=30),
+            },
         },
         # All timestamps in messages/results use project timezone.
         timezone="Asia/Shanghai",
@@ -148,21 +161,6 @@ def _build_celery_app() -> Celery:
         # line so journald grep can pivot on `[<task_id>] [<task_name>]`
         # without re-joining multi-line records.
         worker_task_log_format="[%(processName)s] [%(levelname)s] %(task_name)s[%(task_id)s]: %(message)s",
-        # 数据库备份调度（§3.6 / §3.7）：
-        # - daily-pg-full-backup: 每天 backup_daily_schedule_hour:00（默认 03:00）全量备份
-        # - r2-backup-cleanup: 每天 04:30 跑 R2 保留清理（排在自动备份之后）
-        # beat 必须单实例（systemd 约束），run_backup_task 的乐观锁兜底多实例误启。
-        beat_schedule={
-            "daily-pg-full-backup": {
-                "task": "app.celery_tasks.backup.schedule_daily_backup_task",
-                "schedule": crontab(hour=settings.backup_daily_schedule_hour, minute=0),
-                "kwargs": {"backup_type": "full", "triggered_by": "auto"},
-            },
-            "r2-backup-cleanup": {
-                "task": "app.celery_tasks.backup.cleanup_r2_task",
-                "schedule": crontab(hour=4, minute=30),
-            },
-        },
     )
 
     return app
