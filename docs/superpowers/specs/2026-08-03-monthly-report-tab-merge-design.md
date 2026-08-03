@@ -1,7 +1,7 @@
 # Monthly Report Tab 合并设计 — 制作报表 + 财务报表统一入口
 
 **Date**: 2026-08-03
-**Status**: Design (awaiting user approval)
+**Status**: Implemented
 **Scope**: 纯前端改造,不涉及后端 / 数据库 / API
 **Skill**: brainstorming → writing-plans → implementation
 
