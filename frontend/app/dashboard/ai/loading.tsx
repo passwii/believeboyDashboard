@@ -1,5 +1,5 @@
-import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { SimplePageLoading } from '@/components/dashboard/page-skeletons'
 
-export default function Loading() {
-  return <DashboardPageLoading />
+export default function AiLoading() {
+  return <SimplePageLoading />
 }
