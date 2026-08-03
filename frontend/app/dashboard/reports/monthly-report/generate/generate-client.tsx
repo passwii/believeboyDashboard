@@ -284,7 +284,7 @@ function normalizePersistenceStatus(value: unknown): PersistenceSyncState['statu
   return 'idle'
 }
 
-export default function MonthlyReportClient() {
+export default function GenerateTab() {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
   const currentOperator = (
