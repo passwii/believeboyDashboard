@@ -12,6 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session, protected
+from app.api.v1.endpoints.inventory_ledger_common import (
+    resolve_period_inputs,
+)
 from app.schemas.inventory_ledger import (
     EventsResponse,
     LocationDetailResponse,
@@ -60,28 +63,38 @@ def list_months(
 def get_snapshot(
     project_id: int = Query(...),
     report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
+    period: str | None = Query(
+        default=None,
+        description=(
+            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
+            "last_month/ytd/custom. Mutually exclusive with report_month "
+            "and start_date/end_date."
+        ),
+    ),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
 ) -> MonthlySnapshotResponse:
     """Monthly/period snapshot: SKU EOM + disposition summary + integrity."""
-    try:
-        start, end = resolve_period(report_month, start_date, end_date)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    start, end, report_month = resolve_period_inputs(
+        report_month,
+        start_date,
+        end_date,
+        period,
+    )
 
     # MoM comparison only for report_month mode
     prev_start: date | None = None
     prev_end: date | None = None
     if report_month:
-        prev_start, prev_end = _prev_period(start)
+        prev_start, prev_end = _prev_period(report_month)
 
     skus = get_sku_month_eom(db, project_id, start, end, prev_start, prev_end)
     disposition_summary = get_month_disposition_summary(db, project_id, start, end)
 
     integrity = None
     if report_month:
-        integrity = check_ledger_integrity(db, project_id, start)
+        integrity = check_ledger_integrity(db, project_id, report_month)
 
     total_qty = sum(s.qty_eom for s in skus)
     return MonthlySnapshotResponse(
@@ -98,15 +111,25 @@ def get_snapshot(
 def get_events(
     project_id: int = Query(...),
     report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
+    period: str | None = Query(
+        default=None,
+        description=(
+            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
+            "last_month/ytd/custom. Mutually exclusive with report_month "
+            "and start_date/end_date."
+        ),
+    ),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
 ) -> EventsResponse:
     """SKU event flow for the period."""
-    try:
-        start, end = resolve_period(report_month, start_date, end_date)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    start, end, _report_month = resolve_period_inputs(
+        report_month,
+        start_date,
+        end_date,
+        period,
+    )
 
     skus = get_sku_month_events(db, project_id, start, end)
     return EventsResponse(report_month=start, skus=skus)
@@ -116,15 +139,25 @@ def get_events(
 def get_clusters(
     project_id: int = Query(...),
     report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
+    period: str | None = Query(
+        default=None,
+        description=(
+            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
+            "last_month/ytd/custom. Mutually exclusive with report_month "
+            "and start_date/end_date."
+        ),
+    ),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     db: Session = Depends(get_db_session),
 ) -> ReceiptClustersResponse:
     """Receipt clusters for the period."""
-    try:
-        start, end = resolve_period(report_month, start_date, end_date)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    start, end, _report_month = resolve_period_inputs(
+        report_month,
+        start_date,
+        end_date,
+        period,
+    )
 
     clusters = get_receipt_clusters(db, project_id, start, end)
     return ReceiptClustersResponse(report_month=start, clusters=clusters)
@@ -134,16 +167,26 @@ def get_clusters(
 def get_location_detail(
     project_id: int = Query(...),
     report_month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD"),
+    period: str | None = Query(
+        default=None,
+        description=(
+            "Convenience period alias: 7d/14d/28d/30d/60d/90d/this_month/"
+            "last_month/ytd/custom. Mutually exclusive with report_month "
+            "and start_date/end_date."
+        ),
+    ),
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     msku: str | None = Query(None),
     db: Session = Depends(get_db_session),
 ) -> LocationDetailResponse:
     """Warehouse-level detail, optionally filtered by SKU."""
-    try:
-        start, end = resolve_period(report_month, start_date, end_date)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    start, end, _report_month = resolve_period_inputs(
+        report_month,
+        start_date,
+        end_date,
+        period,
+    )
 
     rows = get_sku_location_eom(db, project_id, start, end, msku=msku)
     return LocationDetailResponse(report_month=start, rows=rows)
