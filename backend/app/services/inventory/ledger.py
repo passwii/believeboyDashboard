@@ -482,34 +482,45 @@ def check_ledger_integrity(
     for r in db.execute(prev_stmt).all():
         prev_map[(r.msku, r.location, r.disposition)] = int(r.prev_ending or 0)
 
-    # Current month first-day starting balances
-    curr_last_day = calendar.monthrange(report_month.year, report_month.month)[1]
-    curr_end = date(report_month.year, report_month.month, curr_last_day)
-    curr_subq = _eom_subquery(db, project_id, report_month, curr_end)
-
-    # Get the earliest rows (starting_balance) for current month
-    curr_first_stmt = select(
-        InventoryLedgerRaw.msku,
-        InventoryLedgerRaw.location,
-        InventoryLedgerRaw.disposition,
-        InventoryLedgerRaw.starting_balance,
-    ).where(
-        InventoryLedgerRaw.project_id == project_id,
-        InventoryLedgerRaw.report_month == report_month,
-        InventoryLedgerRaw.date
-        == (
-            select(func.min(InventoryLedgerRaw.date))
-            .where(
-                InventoryLedgerRaw.project_id == project_id,
-                InventoryLedgerRaw.report_month == report_month,
-                InventoryLedgerRaw.msku == InventoryLedgerRaw.msku,
-                InventoryLedgerRaw.location == InventoryLedgerRaw.location,
-                InventoryLedgerRaw.disposition == InventoryLedgerRaw.disposition,
-            )
-            .correlate(InventoryLedgerRaw)
-            .scalar_subquery()
-        ),
+    # Current month first-day starting balances.
+    #
+    # BEL-417 P0 fix: the previous implementation matched rows via
+    # ``date = (SELECT min(date) WHERE ...)`` with ``.correlate()`` — the
+    # correlated subquery collapsed into the outer query and lifted ``min()``
+    # into the outer WHERE, which Postgres rejects with
+    # ``GroupingError: aggregate functions are not allowed in WHERE``.
+    # Every ``/snapshot`` call for a full month where the project already had
+    # the previous month's data 500'd (and white-screened the frontend page).
+    #
+    # Replacement mirrors ``_eom_subquery``: ROW_NUMBER partitioned by the
+    # natural group key, ordered ASCending, take rn == 1 — the earliest row
+    # per (msku, location, disposition) carries the month's starting balance.
+    first_rn = (
+        func.row_number()
+        .over(
+            partition_by=[
+                InventoryLedgerRaw.msku,
+                InventoryLedgerRaw.location,
+                InventoryLedgerRaw.disposition,
+            ],
+            order_by=InventoryLedgerRaw.date.asc(),
+        )
+        .label("rn")
     )
+    curr_first_subq = (
+        select(InventoryLedgerRaw, first_rn)
+        .where(
+            InventoryLedgerRaw.project_id == project_id,
+            InventoryLedgerRaw.report_month == report_month,
+        )
+        .subquery()
+    )
+    curr_first_stmt = select(
+        curr_first_subq.c.msku,
+        curr_first_subq.c.location,
+        curr_first_subq.c.disposition,
+        curr_first_subq.c.starting_balance,
+    ).where(curr_first_subq.c.rn == 1)
 
     mismatches: list[IntegrityMismatch] = []
     for r in db.execute(curr_first_stmt).all():

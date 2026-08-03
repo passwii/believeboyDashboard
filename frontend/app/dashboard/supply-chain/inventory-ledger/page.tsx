@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -40,6 +40,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { cn } from '@/lib/utils'
+import { fetchLedgerJson } from './ledger-load'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -147,6 +148,13 @@ export default function InventoryLedgerPage() {
   const [months, setMonths] = useState<string[]>([])
   const [monthsLoaded, setMonthsLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
+  // BEL-417 iteration 1: surfaced load errors instead of silent failure —
+  // a backend 500 used to white-screen the page (error body stored as data,
+  // then `snapshot.skus.reduce(...)` threw) or fake "暂无盘点数据".
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // Race guard: bumped on every loadData call; stale responses (user switched
+  // project/month quickly) are dropped instead of overwriting fresh data.
+  const loadSeq = useRef(0)
   const [activeTab, setActiveTab] = useState('snapshot')
 
   // Data states
@@ -170,40 +178,66 @@ export default function InventoryLedgerPage() {
   useEffect(() => {
     if (!projectId) return
     setMonthsLoaded(false)
-    fetch(`${API_BASE}/inventory-ledger/months?project_id=${projectId}`)
-      .then((r) => r.json())
+    fetchLedgerJson<{ months?: string[] }>(
+      `${API_BASE}/inventory-ledger/months?project_id=${projectId}`,
+    )
       .then((data) => {
-        setMonths(data.months || [])
-        if (!month && data.months?.length > 0) {
-          setMonth(data.months[0])
+        const list = data.months ?? []
+        setMonths(list)
+        if (!month && list.length > 0) {
+          setMonth(list[0])
         }
       })
-      .catch(() => setMonths([]))
+      .catch((err) => {
+        setMonths([])
+        setLoadError(err instanceof Error ? err.message : '月份列表加载失败')
+      })
       .finally(() => setMonthsLoaded(true))
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load data when month changes
   const loadData = useCallback(async () => {
     if (!projectId || !month) return
+    const seq = ++loadSeq.current
     setLoading(true)
+    setLoadError(null)
     try {
       const base = `${API_BASE}/inventory-ledger`
       const params = `project_id=${projectId}&period=${month}`
 
-      const [snapRes, evtRes, clustRes, locRes] = await Promise.all([
-        fetch(`${base}/snapshot?${params}`).then((r) => r.json()),
-        fetch(`${base}/events?${params}`).then((r) => r.json()),
-        fetch(`${base}/receipt-clusters?${params}`).then((r) => r.json()),
-        fetch(`${base}/location-detail?${params}`).then((r) => r.json()),
+      // allSettled: one failing endpoint must not take down the other three
+      // tabs' data (a single 500 used to lose everything).
+      const [snapRes, evtRes, clustRes, locRes] = await Promise.allSettled([
+        fetchLedgerJson<SnapshotResponse>(`${base}/snapshot?${params}`),
+        fetchLedgerJson<EventsResponse>(`${base}/events?${params}`),
+        fetchLedgerJson<ClustersResponse>(`${base}/receipt-clusters?${params}`),
+        fetchLedgerJson<LocationDetailResponse>(`${base}/location-detail?${params}`),
       ])
-      setSnapshot(snapRes)
-      setEvents(evtRes)
-      setClusters(clustRes)
-      setLocationDetail(locRes)
-    } catch {
-      // silently fail — empty states will show
+      // Race guard: drop results from a stale request.
+      if (seq !== loadSeq.current) return
+
+      setSnapshot(snapRes.status === 'fulfilled' ? snapRes.value : null)
+      setEvents(evtRes.status === 'fulfilled' ? evtRes.value : null)
+      setClusters(clustRes.status === 'fulfilled' ? clustRes.value : null)
+      setLocationDetail(locRes.status === 'fulfilled' ? locRes.value : null)
+
+      const failures = [snapRes, evtRes, clustRes, locRes].filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      )
+      if (failures.length > 0) {
+        const firstReason = failures[0].reason
+        const firstMsg =
+          firstReason instanceof Error ? firstReason.message : '加载失败'
+        setLoadError(
+          failures.length === 4 ? firstMsg : `部分数据加载失败：${firstMsg}`,
+        )
+      }
+    } catch (err) {
+      if (seq === loadSeq.current) {
+        setLoadError(err instanceof Error ? err.message : '加载失败')
+      }
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [projectId, month])
 
@@ -268,6 +302,20 @@ export default function InventoryLedgerPage() {
       {/* Integrity badge */}
       {snapshot?.integrity && <IntegrityBadge integrity={snapshot.integrity} />}
 
+      {/* Load error banner (BEL-417 iteration 1): real error + retry instead
+          of a silent failure that looked like "no data". */}
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadData}>
+            重试
+          </Button>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && !snapshot && (
         <div className="space-y-3">
@@ -277,7 +325,7 @@ export default function InventoryLedgerPage() {
       )}
 
       {/* Empty state */}
-      {!loading && !snapshot && projectId && monthsLoaded && (month || months.length === 0) && (
+      {!loading && !snapshot && !loadError && projectId && monthsLoaded && (month || months.length === 0) && (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
           <Clock4 className="h-8 w-8" />
           <p className="text-sm font-medium">暂无盘点数据</p>
@@ -299,10 +347,13 @@ export default function InventoryLedgerPage() {
             <SnapshotTab snapshot={snapshot} />
           </TabsContent>
           <TabsContent value="events">
-            <EventsTab events={events} />
+            <EventsTab events={events} failed={loadError !== null && events === null} />
           </TabsContent>
           <TabsContent value="clusters">
-            <ClustersTab clusters={clusters} />
+            <ClustersTab
+              clusters={clusters}
+              failed={loadError !== null && clusters === null}
+            />
           </TabsContent>
           <TabsContent value="locations">
             <LocationsTab
@@ -310,6 +361,7 @@ export default function InventoryLedgerPage() {
               skuOptions={skuOptions}
               skuFilter={skuFilter}
               onSkuFilterChange={setSkuFilter}
+              failed={loadError !== null && locationDetail === null}
             />
           </TabsContent>
         </Tabs>
@@ -433,8 +485,12 @@ function SnapshotTab({ snapshot }: { snapshot: SnapshotResponse }) {
 
 // ── Tab 2: Events ────────────────────────────────────────────────────────────
 
-function EventsTab({ events }: { events: EventsResponse | null }) {
+function EventsTab({ events, failed }: { events: EventsResponse | null; failed?: boolean }) {
   if (!events || events.skus.length === 0) {
+    // BEL-417 iteration 1: distinguish a fetch failure from genuinely empty
+    // data — the old silent catch showed "无事件数据" even on a backend 500.
+    const emptyText =
+      failed && !events ? '数据加载失败，请点击右上角刷新按钮重试' : '无事件数据'
     return (
       <DataTableCard>
         <DataTableCardHeader title="事件流水" />
@@ -442,7 +498,7 @@ function EventsTab({ events }: { events: EventsResponse | null }) {
           <Table>
             <TableBody>
               <tr>
-                <td colSpan={9} className="h-24 text-center text-muted-foreground">无事件数据</td>
+                <td colSpan={9} className="h-24 text-center text-muted-foreground">{emptyText}</td>
               </tr>
             </TableBody>
           </Table>
@@ -521,7 +577,9 @@ function EventsTab({ events }: { events: EventsResponse | null }) {
 
 // ── Tab 3: Clusters ──────────────────────────────────────────────────────────
 
-function ClustersTab({ clusters }: { clusters: ClustersResponse | null }) {
+function ClustersTab({ clusters, failed }: { clusters: ClustersResponse | null; failed?: boolean }) {
+  const emptyText =
+    failed && !clusters ? '数据加载失败，请点击右上角刷新按钮重试' : '无入库记录'
   return (
     <DataTableCard>
       <DataTableCardHeader
@@ -543,7 +601,7 @@ function ClustersTab({ clusters }: { clusters: ClustersResponse | null }) {
           <TableBody>
             {!clusters || clusters.clusters.length === 0 ? (
               <tr>
-                <td colSpan={6} className="h-24 text-center text-muted-foreground">无入库记录</td>
+                <td colSpan={6} className="h-24 text-center text-muted-foreground">{emptyText}</td>
               </tr>
             ) : (
               clusters.clusters.map((c, i) => (
@@ -573,12 +631,15 @@ function LocationsTab({
   skuOptions,
   skuFilter,
   onSkuFilterChange,
+  failed,
 }: {
   rows: LocationDetail[]
   skuOptions: string[]
   skuFilter: string
   onSkuFilterChange: (v: string) => void
+  failed?: boolean
 }) {
+  const emptyText = failed ? '数据加载失败，请点击右上角刷新按钮重试' : '无仓库明细'
   return (
     <DataTableCard>
       <DataTableCardHeader
@@ -614,7 +675,7 @@ function LocationsTab({
           <TableBody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="h-24 text-center text-muted-foreground">无仓库明细</td>
+                <td colSpan={5} className="h-24 text-center text-muted-foreground">{emptyText}</td>
               </tr>
             ) : (
               rows.map((r, i) => (
