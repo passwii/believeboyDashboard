@@ -14,6 +14,7 @@ from app.api.deps import get_read_db_session
 from app.models.sku_info import SkuRecord
 from app.schemas.external.sku_info import ExternalSkuInfoItem, ExternalSkuInfoResponse
 from app.services.external import projects_query
+from app.utils.marketplace_url import build_marketplace_url
 
 router = APIRouter()
 
@@ -91,6 +92,7 @@ def get_external_sku_info(
             units_per_carton=r.units_per_carton,
             is_active=r.is_active,
             product_image_url=r.product_image_r2_url,
+            marketplace_url=build_marketplace_url(r.country, r.asin),
         )
         for r in rows
     ]

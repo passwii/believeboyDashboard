@@ -20,7 +20,13 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_is_admin, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_is_admin,
+    get_request_operator,
+    protected,
+)
 from app.models.sku_info import SkuRecord
 from app.models.project import Project
 from app.schemas.sku_info import (
@@ -66,9 +72,13 @@ from app.services.data.sku_info import (
 from app.services.infra import invalidate_financial_series_cache
 from app.services.shipment import sync_first_leg_cost_from_shipment_summary
 from app.services.ai.factory_info_parser import parse_factory_info_sync
-from app.services.data.sku_info_batch import batch_update_factory_info, get_sku_records_by_ids
+from app.services.data.sku_info_batch import (
+    batch_update_factory_info,
+    get_sku_records_by_ids,
+)
 from app.services import project_service
 from app.utils.country import get_country_label_cn
+from app.utils.marketplace_url import build_marketplace_url
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -109,17 +119,30 @@ def _serialize_sku_record(row: SkuRecord | SkuRecordItem) -> dict[str, object]:
         "country": str(row.country),
         "sort_order": int(row.sort_order),
         "is_active": bool(row.is_active),
-        "sku_factory_info": row.sku_factory_info if hasattr(row, 'sku_factory_info') else None,
-        "sku_factory_info_updated_at": str(row.sku_factory_info_updated_at) if row.sku_factory_info_updated_at else None,
-        "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by) if row.sku_factory_info_updated_by else None,
-        "fnsku_label_r2_key": getattr(row, 'fnsku_label_r2_key', None),
-        "fnsku_label_r2_url": getattr(row, 'fnsku_label_r2_url', None),
-        "product_image_r2_key": getattr(row, 'product_image_r2_key', None),
-        "product_image_r2_url": getattr(row, 'product_image_r2_url', None),
-        "product_image_thumbnail_r2_key": getattr(row, 'product_image_thumbnail_r2_key', None),
-        "product_image_thumbnail_r2_url": getattr(row, 'product_image_thumbnail_r2_url', None),
-        "product_image_uploaded_at": str(row.product_image_uploaded_at) if getattr(row, 'product_image_uploaded_at', None) else None,
-        "product_image_uploaded_by": getattr(row, 'product_image_uploaded_by', None),
+        "sku_factory_info": row.sku_factory_info
+        if hasattr(row, "sku_factory_info")
+        else None,
+        "sku_factory_info_updated_at": str(row.sku_factory_info_updated_at)
+        if row.sku_factory_info_updated_at
+        else None,
+        "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by)
+        if row.sku_factory_info_updated_by
+        else None,
+        "fnsku_label_r2_key": getattr(row, "fnsku_label_r2_key", None),
+        "fnsku_label_r2_url": getattr(row, "fnsku_label_r2_url", None),
+        "product_image_r2_key": getattr(row, "product_image_r2_key", None),
+        "product_image_r2_url": getattr(row, "product_image_r2_url", None),
+        "product_image_thumbnail_r2_key": getattr(
+            row, "product_image_thumbnail_r2_key", None
+        ),
+        "product_image_thumbnail_r2_url": getattr(
+            row, "product_image_thumbnail_r2_url", None
+        ),
+        "product_image_uploaded_at": str(row.product_image_uploaded_at)
+        if getattr(row, "product_image_uploaded_at", None)
+        else None,
+        "product_image_uploaded_by": getattr(row, "product_image_uploaded_by", None),
+        "marketplace_url": build_marketplace_url(row.country, row.asin),
     }
 
 
@@ -212,9 +235,7 @@ def create_or_update_sku_record(
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordUpsertResponse:
-    row, action = upsert_sku_record(
-        db, payload, payload.source_file
-    )
+    row, action = upsert_sku_record(db, payload, payload.source_file)
     snapshot = _serialize_sku_record(row)
     append_operation_audit_log(
         db,
@@ -366,9 +387,7 @@ def move_sku_record(
         .scalars()
         .first()
     )
-    row = move_sku_record_sort_order(
-        db, sku_record_id, payload.direction
-    )
+    row = move_sku_record_sort_order(db, sku_record_id, payload.direction)
     after = _serialize_sku_record(row)
     append_operation_audit_log(
         db,
@@ -478,11 +497,33 @@ def export_product_costs_csv(
     normalized_export_type = export_type.strip().lower()
     # 统一命名规范：${项目}_${中文站点}-页面名-业务标识.csv
     # 与前端 frontend/app/dashboard/data-management/sku-info/page.tsx 的 handleExportCurrentFiltered 保持一致
-    safe_project_name = (project_name or "未选项目").replace("\\", "-").replace("/", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-")
+    safe_project_name = (
+        (project_name or "未选项目")
+        .replace("\\", "-")
+        .replace("/", "-")
+        .replace(":", "-")
+        .replace("*", "-")
+        .replace("?", "-")
+        .replace('"', "-")
+        .replace("<", "-")
+        .replace(">", "-")
+        .replace("|", "-")
+    )
     if not country or country.strip().lower() == "all":
         station_segment = "全部站点"
     else:
-        station_segment = get_country_label_cn(country).replace("\\", "-").replace("/", "-").replace(":", "-").replace("*", "-").replace("?", "-").replace('"', "-").replace("<", "-").replace(">", "-").replace("|", "-")
+        station_segment = (
+            get_country_label_cn(country)
+            .replace("\\", "-")
+            .replace("/", "-")
+            .replace(":", "-")
+            .replace("*", "-")
+            .replace("?", "-")
+            .replace('"', "-")
+            .replace("<", "-")
+            .replace(">", "-")
+            .replace("|", "-")
+        )
     tab_segment = "尺寸管理" if normalized_export_type == "dimension" else "成本管理"
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d-%H-%M-%S")
@@ -611,9 +652,7 @@ def import_default_blf_basic_info(
     operator: str | None = Depends(get_request_operator),
 ) -> SkuRecordBulkUpsertResponse:
     items, source_file = read_sku_record_csv_file()
-    rows, inserted, updated = bulk_upsert_sku_records(
-        db, items, source_file
-    )
+    rows, inserted, updated = bulk_upsert_sku_records(db, items, source_file)
     project_names = {row.project_name for row in rows}
     append_operation_audit_log(
         db,
@@ -731,6 +770,7 @@ def parse_factory_info_endpoint(
         return ParseFactoryInfoResponse(result={}, raw="")
 
     import json
+
     return ParseFactoryInfoResponse(
         result=result,
         raw=json.dumps(result, ensure_ascii=False),
@@ -762,7 +802,10 @@ def batch_update_factory_info_endpoint(
 
     updated = batch_update_factory_info(
         db,
-        updates=[{"id": sku_id, "sku_factory_info": payload.sku_factory_info} for sku_id in payload.sku_ids],
+        updates=[
+            {"id": sku_id, "sku_factory_info": payload.sku_factory_info}
+            for sku_id in payload.sku_ids
+        ],
         operator=operator,
     )
 
@@ -791,7 +834,10 @@ def batch_update_factory_info_endpoint(
 # FNSKU Label PDF Upload / Download / Batch Download
 # ---------------------------------------------------------------------------
 
-@router.post("/sku-info/{sku_record_id}/fnsku-label", response_model=FnskuLabelUploadResponse)
+
+@router.post(
+    "/sku-info/{sku_record_id}/fnsku-label", response_model=FnskuLabelUploadResponse
+)
 def upload_fnsku_label(
     sku_record_id: int,
     file: UploadFile = File(...),
@@ -813,7 +859,11 @@ def upload_fnsku_label(
         raise HTTPException(status_code=503, detail="R2 存储未配置")
 
     # 查找记录
-    row = db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id)).scalars().first()
+    row = (
+        db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id))
+        .scalars()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="SKU 记录不存在")
 
@@ -886,7 +936,10 @@ def upload_fnsku_label(
     )
 
 
-@router.post("/sku-info/{sku_record_id}/product-image", response_model=SkuProductImageUploadResponse)
+@router.post(
+    "/sku-info/{sku_record_id}/product-image",
+    response_model=SkuProductImageUploadResponse,
+)
 def upload_product_image(
     sku_record_id: int,
     file: UploadFile = File(...),
@@ -903,15 +956,19 @@ def upload_product_image(
     if not settings.r2_enabled:
         raise HTTPException(status_code=503, detail="R2 存储未配置")
 
-    row = db.execute(
-        select(SkuRecord).where(SkuRecord.id == sku_record_id)
-    ).scalars().first()
+    row = (
+        db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id))
+        .scalars()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="SKU 记录不存在")
 
     allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片")
+        raise HTTPException(
+            status_code=400, detail="仅支持 JPG / PNG / WebP / GIF 图片"
+        )
 
     content = file.file.read()
     max_size = 10 * 1024 * 1024  # 10MB
@@ -1011,7 +1068,10 @@ def upload_product_image(
     )
 
 
-@router.delete("/sku-info/{sku_record_id}/product-image", response_model=SkuProductImageDeleteResponse)
+@router.delete(
+    "/sku-info/{sku_record_id}/product-image",
+    response_model=SkuProductImageDeleteResponse,
+)
 def delete_product_image(
     sku_record_id: int,
     request: Request = None,
@@ -1024,9 +1084,11 @@ def delete_product_image(
 
     settings = get_settings()
 
-    row = db.execute(
-        select(SkuRecord).where(SkuRecord.id == sku_record_id)
-    ).scalars().first()
+    row = (
+        db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id))
+        .scalars()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="SKU 记录不存在")
 
@@ -1078,7 +1140,11 @@ def download_fnsku_label(
 
     settings = get_settings()
 
-    row = db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id)).scalars().first()
+    row = (
+        db.execute(select(SkuRecord).where(SkuRecord.id == sku_record_id))
+        .scalars()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="SKU 记录不存在")
     if not row.fnsku_label_r2_key:
@@ -1117,9 +1183,11 @@ def batch_download_fnsku_labels(
     settings = get_settings()
 
     # 查找所有匹配记录
-    rows = db.execute(
-        select(SkuRecord).where(SkuRecord.id.in_(payload.sku_record_ids))
-    ).scalars().all()
+    rows = (
+        db.execute(select(SkuRecord).where(SkuRecord.id.in_(payload.sku_record_ids)))
+        .scalars()
+        .all()
+    )
 
     if not rows:
         raise HTTPException(status_code=404, detail="未找到匹配的 SKU 记录")
@@ -1144,14 +1212,20 @@ def batch_download_fnsku_labels(
             # 处理重名：加项目名前缀
             if entry_name in seen_filenames:
                 seen_filenames[entry_name] += 1
-                safe_project = row.project_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+                safe_project = (
+                    row.project_name.replace("/", "_")
+                    .replace("\\", "_")
+                    .replace(" ", "_")
+                )
                 entry_name = f"{safe_project}_{safe_sku}-fnsku-label.pdf"
             else:
                 seen_filenames[entry_name] = 1
 
             pdf_buffer = io.BytesIO()
             try:
-                client.download_fileobj(settings.r2_bucket_name, row.fnsku_label_r2_key, pdf_buffer)
+                client.download_fileobj(
+                    settings.r2_bucket_name, row.fnsku_label_r2_key, pdf_buffer
+                )
                 pdf_buffer.seek(0)
                 zf.writestr(entry_name, pdf_buffer.getvalue())
             except Exception:
@@ -1190,12 +1264,16 @@ def get_fnsku_labels_by_skus(
     db: Session = Depends(get_primary_db_session),
 ) -> FnskuLabelsResponse:
     """通过项目名称和 SKU 列表获取 FNSKU 标签信息（包含 R2 key）。"""
-    rows = db.execute(
-        select(SkuRecord).where(
-            SkuRecord.project_name == payload.project_name,
-            SkuRecord.sku.in_(payload.skus),
+    rows = (
+        db.execute(
+            select(SkuRecord).where(
+                SkuRecord.project_name == payload.project_name,
+                SkuRecord.sku.in_(payload.skus),
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return FnskuLabelsResponse(
         sku_records=[

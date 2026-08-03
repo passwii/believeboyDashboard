@@ -2438,8 +2438,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext Events
-         * @description SKU event flow.
+         * SKU event flow for the period
+         * @description Returns per-SKU totals of every ledger event column summed across the resolved period window.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get"];
         put?: never;
@@ -2458,8 +2460,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext Integrity
-         * @description Cross-month integrity check.
+         * Cross-month integrity check
+         * @description Returns the cross-month continuity check (last month's ending balance vs. this month's starting balance, per SKU × location × disposition). Status is one of ``OK``, ``MISMATCH``, or ``PENDING`` (no prior month data available).
+         *
+         *     Only full-calendar-month period values make sense here (``last_month``, ``this_month``, ``ytd`` cross-year, ``YYYY-MM``, ``YYYY-MM-DD``). Partial windows (7d/30d/custom spanning multiple months) return 400 — use ``last_month`` for the typical 'reconcile last full month' flow.
          */
         get: operations["ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get"];
         put?: never;
@@ -2478,8 +2482,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext List Months
-         * @description List months with ledger data.
+         * List months with ledger data
+         * @description Returns YYYY-MM-DD strings (always the 1st of the month) for every month that has any rows in the project's inventory_ledger_raw table.
          */
         get: operations["ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get"];
         put?: never;
@@ -2498,8 +2502,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext Receipt Clusters
-         * @description Receipt clusters.
+         * Receipt clusters for the period
+         * @description Groups inventory receipts by (date, warehouse) — useful for spotting shipments that arrived together.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get"];
         put?: never;
@@ -2518,8 +2524,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext Snapshot
-         * @description Monthly/period snapshot.
+         * Monthly snapshot — SKU EOM, disposition summary, integrity
+         * @description Returns the end-of-period inventory snapshot for a project. Runs the cross-month integrity check when the resolved period is a full calendar month; partial windows skip it.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get"];
         put?: never;
@@ -2538,8 +2546,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ext Trend
-         * @description Multi-month aggregated trend.
+         * Multi-month trend
+         * @description Aggregates the last N months (default 6, max 24) into a single trend series. Independent of the ``?period=`` convention (driven by ``?months=N``).
          */
         get: operations["ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get"];
         put?: never;
@@ -3092,8 +3100,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Events
-         * @description SKU event flow for the period.
+         * SKU event flow for the period
+         * @description Returns per-SKU totals of every ledger event column (receipts, shipments, returns, damaged, lost, disposed, found, vendor_returns, transfer, other) summed across the resolved period window.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["get_events_api_v1_inventory_ledger_events_get"];
         put?: never;
@@ -3112,8 +3122,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Location Detail
-         * @description Warehouse-level detail, optionally filtered by SKU.
+         * Warehouse-level detail (SKU × Location × Disposition)
+         * @description Returns the end-of-period SKU × warehouse × disposition breakdown — useful for investigating WHERE inventory sits. Optionally filtered by a single ``msku``.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["get_location_detail_api_v1_inventory_ledger_location_detail_get"];
         put?: never;
@@ -3132,8 +3144,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Months
-         * @description List months that have ledger data for this project.
+         * List months with ledger data
+         * @description Returns YYYY-MM-DD strings (always the 1st of the month) for every month that has any rows in the project's inventory_ledger_raw table. Use these values directly as the ``period`` query parameter for the other endpoints — e.g. ``period=2026-01-01`` means 'January 2026'.
          */
         get: operations["list_months_api_v1_inventory_ledger_months_get"];
         put?: never;
@@ -3152,8 +3164,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Clusters
-         * @description Receipt clusters for the period.
+         * Receipt clusters for the period
+         * @description Groups inventory receipts by (date, warehouse) — useful for spotting shipments that arrived together (same day, same location).
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
          */
         get: operations["get_clusters_api_v1_inventory_ledger_receipt_clusters_get"];
         put?: never;
@@ -3172,8 +3186,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Snapshot
-         * @description Monthly/period snapshot: SKU EOM + disposition summary + integrity.
+         * Monthly snapshot — SKU EOM, disposition summary, integrity
+         * @description Returns the end-of-period inventory snapshot for a project: one row per SKU with totals broken down by disposition (SELLABLE / CUSTOMER_DAMAGED / etc.). Runs the cross-month integrity check when the resolved ``period`` is a full calendar month (e.g. ``last_month``, ``2026-01``); partial windows (7d/30d/custom) skip the integrity check since it's meaningless without a complete ledger partition.
+         *
+         *     Period values: 7d / 14d / 28d / 30d / 60d / 90d / this_month / last_month / ytd / custom / YYYY-MM / YYYY-MM-DD. See ``backend/docs/inventory-ledger-api.md`` for the full grammar.
          */
         get: operations["get_snapshot_api_v1_inventory_ledger_snapshot_get"];
         put?: never;
@@ -3192,8 +3208,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Trend Endpoint
-         * @description Multi-month aggregated trend: EOM qty, events, damaged pct per month.
+         * Multi-month trend (EOM qty, events, damaged %)
+         * @description Aggregates the last N months (default 6, max 24) into a single trend series — one row per month with EOM qty, event totals, and damaged-qty percentage. Independent of the ``?period=`` convention (driven by its own ``?months=N`` count parameter).
          */
         get: operations["get_trend_endpoint_api_v1_inventory_ledger_trend_get"];
         put?: never;
@@ -11533,6 +11549,8 @@ export interface components {
             fob_unit_cost: number;
             /** Is Active */
             is_active: boolean;
+            /** Marketplace Url */
+            marketplace_url?: string | null;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -18332,6 +18350,8 @@ export interface components {
             id: number;
             /** Is Active */
             is_active: boolean;
+            /** Marketplace Url */
+            marketplace_url?: string | null;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -25747,10 +25767,12 @@ export interface operations {
     };
     ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get: {
         parameters: {
-            query?: {
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -25784,8 +25806,8 @@ export interface operations {
     ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get: {
         parameters: {
             query: {
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month: string;
+                /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
             };
             header?: never;
             path: {
@@ -25848,10 +25870,12 @@ export interface operations {
     };
     ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get: {
         parameters: {
-            query?: {
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -25884,10 +25908,12 @@ export interface operations {
     };
     ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get: {
         parameters: {
-            query?: {
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -27035,9 +27061,11 @@ export interface operations {
         parameters: {
             query: {
                 project_id: number;
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
                 api_key?: string | null;
             };
@@ -27074,10 +27102,13 @@ export interface operations {
         parameters: {
             query: {
                 project_id: number;
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
+                /** @description Optional SKU filter — returns rows for this MSKU only. */
                 msku?: string | null;
                 api_key?: string | null;
             };
@@ -27149,9 +27180,11 @@ export interface operations {
         parameters: {
             query: {
                 project_id: number;
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
                 api_key?: string | null;
             };
@@ -27188,9 +27221,11 @@ export interface operations {
         parameters: {
             query: {
                 project_id: number;
-                /** @description YYYY-MM or YYYY-MM-DD */
-                report_month?: string | null;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. Examples: ``last_month``, ``30d``, ``2026-01``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. Ignored (→ 400) for any other period value. */
                 start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. Ignored (→ 400) for any other period value. */
                 end_date?: string | null;
                 api_key?: string | null;
             };
