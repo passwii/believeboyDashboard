@@ -106,7 +106,7 @@ frontend/app/dashboard/reports/financial-data/  → 整目录删除
   1. 侧边栏「财务月报」→ 落在 display Tab(默认)
   2. Tab 切换到 generate → URL 变 `/generate`,内容为制作流程
   3. generate 里选项目/国家/月份 → query 参数保留(刷新不丢)
-  4. 老链接 `/dashboard/reports/financial-data` → 301 落到 `/monthly-report/display`
+  4. 老链接 `/dashboard/reports/financial-data` → 307 落到 `/monthly-report/display`
   5. 老链接 `/dashboard/reports/monthly-report` → 落到 `/monthly-report/display`
   6. 深链 `/monthly-report/generate` 直达制作流程,侧边栏「财务月报」高亮
   7. display 内部二级 tab(financial/accounting)与导出功能正常

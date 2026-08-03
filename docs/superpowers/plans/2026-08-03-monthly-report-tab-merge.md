@@ -370,7 +370,7 @@ git commit -m "feat(月报): 新增 generate/display Tab 外壳并将根路由�
 - Create: `frontend/app/dashboard/reports/financial-data/page.tsx`(原目录已删,重新创建为纯重定向 stub)
 
 **Interfaces:**
-- Produces: 旧 `/dashboard/reports/financial-data` → 302 到 `/dashboard/reports/monthly-report/display`
+- Produces: 旧 `/dashboard/reports/financial-data` → 307 重定向到 `/dashboard/reports/monthly-report/display`
 
 - [ ] **Step 1: 重建 financial-data/page.tsx 为重定向**
 

@@ -745,7 +745,7 @@ export default function DisplayTab() {
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
-  // 默认值来自 page.tsx 传入的空串，URL 有值时覆盖。
+  // 默认值为空串，URL 有值时覆盖。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
 
   // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
