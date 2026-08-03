@@ -200,6 +200,8 @@ export function CrmCustomerTable() {
         fetchPage={fetchPage}
         columns={columns}
         filterFields={customerFilterFields}
+        searchable
+        searchPlaceholder="搜索客户名 / 简称…"
         rowKey="id"
         emptyText="暂无客户"
         defaultPageSize={20}

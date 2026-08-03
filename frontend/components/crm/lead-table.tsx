@@ -170,6 +170,8 @@ export function CrmLeadTable() {
         fetchPage={fetchPage}
         columns={columns}
         filterFields={leadFilterFields}
+        searchable
+        searchPlaceholder="搜索联系人 / 公司…"
         rowKey="id"
         emptyText="暂无线索"
         defaultPageSize={20}
