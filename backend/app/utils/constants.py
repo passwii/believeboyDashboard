@@ -4,6 +4,7 @@ This module centralizes hard-coded values that appear in (or may be
 needed by) more than one service, so every downstream module can import
 a single canonical definition instead of maintaining its own copy.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -53,6 +54,7 @@ PERIODIC_REPORT_TYPES: set[str] = {
 
 SUPPORTED_REPORT_TYPES = {
     "inventory_report",
+    "inventory_ledger",
     "business_report",
     # ad_product_report 已于 2026-06-01 迁到 C 表（ad_upload_files / ad_upload_promoted_product_rows），
     # 不再通过 /api/v1/report-upload/commit 入库。如需提交广告报表，请使用 /api/v1/ad-upload/commit。
@@ -64,9 +66,9 @@ SUPPORTED_REPORT_TYPES = {
 
 # ─── File-upload limits ─────────────────────────────────────────────────────
 
-MAX_CONTENT_LENGTH: int = 50000          # AI text upload max characters
-MAX_EXCEL_ROWS: int = 1000              # AI file upload max rows
-MAX_EXCEL_COLS: int = 20                # AI file upload max columns
+MAX_CONTENT_LENGTH: int = 50000  # AI text upload max characters
+MAX_EXCEL_ROWS: int = 1000  # AI file upload max rows
+MAX_EXCEL_COLS: int = 20  # AI file upload max columns
 
 # ─── AI Chat / search constants ──────────────────────────────────────────────
 
