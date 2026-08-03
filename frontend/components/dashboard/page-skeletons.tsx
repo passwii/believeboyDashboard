@@ -259,17 +259,29 @@ export function TablePageLoading() {
 }
 
 /**
+ * 分析类内容区骨架：KPI 行 + 图表 + 表格（不含页头）。
+ * 用于页头/过滤器已在布局层常驻渲染的场景（如 ad-analysis 布局内 Suspense fallback）。
+ */
+export function AnalyticsContentLoading() {
+  return (
+    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+      <KpiCardsSkeleton />
+      <ChartPanelSkeleton />
+      <DataTableSkeleton columns={6} rows={6} />
+    </div>
+  )
+}
+
+/**
  * 分析类页面骨架：标题 + 过滤器 + KPI 行 + 图表 + 表格。
  * 用于 advertising / operations / ad-analysis 等分析页。
  */
 export function AnalyticsPageLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-5">
       <PageHeaderSkeleton />
       <FilterBarSkeleton count={4} />
-      <KpiCardsSkeleton />
-      <ChartPanelSkeleton />
-      <DataTableSkeleton columns={6} rows={6} />
+      <AnalyticsContentLoading />
     </div>
   )
 }

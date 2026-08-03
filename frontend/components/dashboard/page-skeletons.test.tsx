@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import {
+  AnalyticsContentLoading,
   AnalyticsPageLoading,
   CardListSkeleton,
   ChatPageLoading,
@@ -57,6 +58,14 @@ describe('page-skeletons 组合骨架', () => {
 
   it('AnalyticsPageLoading 额外渲染 KPI 行与图表占位', () => {
     render(<AnalyticsPageLoading />)
+    expect(screen.getByTestId('page-skeleton-kpis')).toBeDefined()
+    expect(screen.getByTestId('page-skeleton-chart')).toBeDefined()
+    expect(screen.getByTestId('page-skeleton-table')).toBeDefined()
+  })
+
+  it('AnalyticsContentLoading 不含页头（供布局层 Suspense fallback 复用）', () => {
+    render(<AnalyticsContentLoading />)
+    expect(screen.queryByTestId('page-skeleton-header')).toBeNull()
     expect(screen.getByTestId('page-skeleton-kpis')).toBeDefined()
     expect(screen.getByTestId('page-skeleton-chart')).toBeDefined()
     expect(screen.getByTestId('page-skeleton-table')).toBeDefined()
