@@ -29,6 +29,12 @@ Endpoint layout:
   # Return analysis (BEL-374).
   GET  /external/projects/{id}/return-analysis
   GET  /external/projects/{id}/return-analysis-raw
+
+  # Shop / new-product calculation (BEL-378 / BEL-416).
+  GET  /external/projects/{id}/shop-calculation-history
+  GET  /external/projects/{id}/shop-calculation/snapshots
+  GET  /external/projects/{id}/new-product-calculations
+  GET  /external/projects/{id}/pricing-snapshots
 """
 
 from __future__ import annotations
@@ -74,6 +80,15 @@ from app.api.v1.endpoints.external.return_analysis import (
 from app.api.v1.endpoints.external.inventory_ledger import (
     router as inventory_ledger_router,
 )
+from app.api.v1.endpoints.external.new_product_calculations import (
+    router as new_product_calculations_router,
+)
+from app.api.v1.endpoints.external.pricing_calculation_snapshots import (
+    router as pricing_calculation_snapshots_router,
+)
+from app.api.v1.endpoints.external.shop_calculation import (
+    router as shop_calculation_router,
+)
 from app.api.v1.endpoints.external.sku_info import router as sku_info_router
 
 
@@ -109,3 +124,8 @@ external_router.include_router(replenishment_analysis_router)
 external_router.include_router(sku_info_router)
 external_router.include_router(inventory_ledger_router)
 external_router.include_router(return_analysis_router)
+# BEL-378 / BEL-416: shop-calculation current state + time-series +
+# pricing-snapshot as-of + new-product-calculations.
+external_router.include_router(shop_calculation_router)
+external_router.include_router(pricing_calculation_snapshots_router)
+external_router.include_router(new_product_calculations_router)

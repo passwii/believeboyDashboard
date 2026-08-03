@@ -33,6 +33,8 @@ from app.models import (
     AdUploadTimeTrendRow,
     AnalysisReturnAggregate,
     AnalysisReturnRow,
+    NewProductCalculation,
+    ShopCalculation,
 )
 from app.schemas.external.common import PeriodParseError
 
@@ -211,6 +213,55 @@ ROW_WHITELIST: dict[type, dict[str, InstrumentedAttribute]] = {
         reason=AnalysisReturnRow.reason,
         status=AnalysisReturnRow.status,
         original_return_datetime=AnalysisReturnRow.original_return_datetime,
+    ),
+    # ---------------------------------------------------------------------------
+    # BEL-378 / BEL-416: Shop Calculation (店铺测算) row whitelist.
+    # 16 fields exposed — analytics-friendly summary columns.
+    # Explicitly NOT exposed: warnings_json (debug blob), notes (free-form),
+    # created_by (internal operator), deleted_at (soft-delete marker),
+    # fee-rule labels (long internal strings, low BI value).
+    # ---------------------------------------------------------------------------
+    ShopCalculation: _whitelist(
+        id=ShopCalculation.id,
+        project_id=ShopCalculation.project_id,
+        project_name=ShopCalculation.project_name,
+        sku=ShopCalculation.sku,
+        asin=ShopCalculation.asin,
+        country=ShopCalculation.country,
+        accounting_type=ShopCalculation.accounting_type,
+        observed_at=ShopCalculation.observed_at,
+        source=ShopCalculation.source,
+        sale_price_usd=ShopCalculation.sale_price_usd,
+        profit_usd=ShopCalculation.profit_usd,
+        profit_rate=ShopCalculation.profit_rate,
+        payout_usd=ShopCalculation.payout_usd,
+        total_fee_usd=ShopCalculation.total_fee_usd,
+        created_at=ShopCalculation.created_at,
+        updated_at=ShopCalculation.updated_at,
+    ),
+    # ---------------------------------------------------------------------------
+    # BEL-378 / BEL-416: New Product Calculation (新品核算) row whitelist.
+    # 15 fields exposed — mirror ShopCalculation plus calculation_type
+    # (instead of accounting_type) and target_profit_rate (used by
+    # profit_reverse), minus observed_at/source which NPC doesn't track.
+    # ShopCalculation has 16 fields; NPC has 15.
+    # ---------------------------------------------------------------------------
+    NewProductCalculation: _whitelist(
+        id=NewProductCalculation.id,
+        project_id=NewProductCalculation.project_id,
+        project_name=NewProductCalculation.project_name,
+        sku=NewProductCalculation.sku,
+        asin=NewProductCalculation.asin,
+        country=NewProductCalculation.country,
+        calculation_type=NewProductCalculation.calculation_type,
+        sale_price_usd=NewProductCalculation.sale_price_usd,
+        target_profit_rate=NewProductCalculation.target_profit_rate,
+        profit_usd=NewProductCalculation.profit_usd,
+        profit_rate=NewProductCalculation.profit_rate,
+        payout_usd=NewProductCalculation.payout_usd,
+        total_fee_usd=NewProductCalculation.total_fee_usd,
+        created_at=NewProductCalculation.created_at,
+        updated_at=NewProductCalculation.updated_at,
     ),
 }
 

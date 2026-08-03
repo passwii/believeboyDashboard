@@ -622,14 +622,178 @@ Wilson lower bound uses z=1.96 (95% confidence). Pre-computed by Celery into
 
 ---
 
-## 10. Roadmap (P1+)
+## 10. Shop / New-Product Calculation (BEL-378 / BEL-416)
+
+Four read-only endpoints exposing the append-only ``shop_calculation``
+table (current state + time-series) and the ``new_product_calculations``
+table (paginated list), plus the catalog-freeze endpoint for
+``pricing_calculation_snapshots``. These complete the BEL-378 Phase A
+"externalize the historical time-series" goal so BI tools can pull
+pricing history without joining ``shop_calculation`` directly.
+
+### 10.1 Shop Calculation current-state — `GET /external/projects/{id}/shop-calculation-history`
+
+Latest non-deleted ``shop_calculation`` row per ``(project_id, sku,
+country)`` group. The current-state view mirrors the internal
+``/api/v1/shop-calculation`` endpoint (same `MAX(id)` dedup logic) but
+flattens the nested ``dimensions`` / ``weights`` / ``fees`` / ``profit``
+objects into top-level columns for BI consumption.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `country` | string | no | ISO-2 code (US, DE, UK). Empty returns all countries. |
+| `page` | int | no | 1-based, default 1 |
+| `page_size` | int | no | default 200, max 500 |
+| `order_by` | string | no | 16 whitelisted columns (see below); default `observed_at` |
+| `order_dir` | string | no | `asc` / `desc`, default `desc` |
+
+**`order_by` whitelist**: `id`, `project_id`, `project_name`, `sku`,
+`asin`, `country`, `accounting_type`, `observed_at`, `source`,
+`sale_price_usd`, `profit_usd`, `profit_rate`, `payout_usd`,
+`total_fee_usd`, `created_at`, `updated_at`.
+
+**Response shape**:
+
+```json
+{
+  "project_id": 1,
+  "country": "US",
+  "total": 12,
+  "data": [
+    {
+      "id": 42,
+      "project_id": 1,
+      "project_name": "MyProject",
+      "sku": "SKU-001",
+      "asin": "B0000001",
+      "country": "US",
+      "accounting_type": "profit_calc",
+      "observed_at": "2026-08-01T12:34:56Z",
+      "source": "manual",
+      "sale_price_usd": 29.99,
+      "profit_usd": 5.0,
+      "profit_rate": 0.10,
+      "payout_usd": 14.19,
+      "total_fee_usd": 15.8,
+      "created_at": "2026-08-01T12:34:56Z",
+      "updated_at": "2026-08-01T12:34:56Z"
+    }
+  ]
+}
+```
+
+### 10.2 Shop Calculation time-series — `GET /external/projects/{id}/shop-calculation/snapshots`
+
+Append-only history filtered by date window, SKU, and country. Same
+16-column shape as §10.1, but rows are not deduped — the same SKU can
+appear multiple times across different `observed_at` snapshots.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `from_date` | date | no | Inclusive lower bound (`YYYY-MM-DD`). |
+| `to_date` | date | no | Inclusive upper bound (`YYYY-MM-DD`). |
+| `sku` | string | no | Exact-match SKU filter. |
+| `country` | string | no | ISO-2 code. |
+
+### 10.3 Pricing catalog freeze — `GET /external/projects/{id}/pricing-snapshots?as_of=YYYY-MM-DD`
+
+Returns the latest `pricing_calculation_snapshots` row whose
+`snapshot_date` is on or before `as_of`. When `as_of` is omitted the
+endpoint returns the most recent snapshot.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `as_of` | date | no | `YYYY-MM-DD`. Defaults to no upper bound (newest snapshot). |
+| `country` | string | yes | ISO-2 code (US, DE, UK). |
+
+Returns 404 when no snapshot exists for the `(project, country, as_of)`
+tuple. The 16-column shape is identical to §10.1 (synthetic ids =
+`snapshot_id * 1_000_000 + source_row_no`; `source="manual"`).
+
+### 10.4 New Product Calculation list — `GET /external/projects/{id}/new-product-calculations`
+
+Paginated list of `new_product_calculations` rows (the canonical table
+for profit-calc / profit-reverse snapshots; the legacy
+`store_sku_pricing_snapshots` table was renamed in 2026-08, migration
+230).
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `calculation_type` | string | no | `profit_calc` / `profit_reverse` / `eu_accounting` |
+| `country` | string | no | ISO-2 code |
+| `page` | int | no | default 1 |
+| `page_size` | int | no | default 200, max 500 |
+| `order_by` | string | no | 15 whitelisted columns (mirror of §10.1 + `target_profit_rate`, minus `observed_at`/`source` which NPC doesn't track) |
+| `order_dir` | string | no | `asc` / `desc`, default `desc` |
+
+### 10.5 Field reference (shared across §10.1–§10.3)
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | int | Row PK. For §10.3 this is a synthetic id (`snapshot_id × 1M + source_row_no`). |
+| `project_id`, `project_name` | int / str | Project reference. |
+| `sku`, `asin` | str / str? | SKU identifier; Amazon ASIN (nullable). |
+| `country` | str | ISO-2 code. |
+| `accounting_type` | str | `profit_calc` / `eu_accounting` (NPC uses `calculation_type` instead). |
+| `observed_at` | datetime | BEL-378 append-only timestamp (when the observation was recorded). |
+| `source` | str | `manual` / `agent_listing_pull` / `external_api`. |
+| `sale_price_usd` | float | Catalog sale price. |
+| `profit_usd` | float | Profit per unit. |
+| `profit_rate` | float | Ratio (0..1, NOT percent). |
+| `payout_usd` | float | Net payout to seller. |
+| `total_fee_usd` | float | Total Amazon fees. |
+| `created_at`, `updated_at` | datetime | DB-level timestamps. |
+| `target_profit_rate` | float? | NPC only. Set for `profit_reverse` snapshots. |
+
+### 10.6 Sensitive / excluded fields (defense-in-depth)
+
+These fields are **never** returned by any §10 endpoint, enforced by
+both the whitelist and the Pydantic schema:
+
+- `created_by` — internal operator
+- `deleted_at` — soft-delete marker (callers should never see deleted rows; the service layer filters them out)
+- `warnings` / `warnings_json` — debug blob
+- `notes` — free-form internal text
+- Fee-rule labels (`fulfillment_fee_rule_label`, `inbound_config_fee_rule_label`, `storage_fee_rule_label`) — long internal strings, low BI value
+
+### 10.7 Example calls
+
+```bash
+# Current-state list for project 1 US, sorted by profit
+curl 'http://localhost:8100/api/v1/external/projects/1/shop-calculation-history?country=US&order_by=profit_usd&order_dir=desc'
+
+# History for one SKU over July 2026
+curl 'http://localhost:8100/api/v1/external/projects/1/shop-calculation/snapshots?from_date=2026-07-01&to_date=2026-07-31&sku=SKU-001&country=US'
+
+# Catalog freeze as of Aug 1, 2026 (US)
+curl 'http://localhost:8100/api/v1/external/projects/1/pricing-snapshots?as_of=2026-08-01&country=US'
+
+# Profit-reverse NPC rows
+curl 'http://localhost:8100/api/v1/external/projects/1/new-product-calculations?calculation_type=profit_reverse'
+```
+
+### 10.8 Implementation notes
+
+- All four endpoints use `Depends(get_read_db_session)` — read traffic
+  goes to the configured replica when available.
+- `shop_calculation_service.latest_stmt()` powers the current-state
+  endpoint; `list_history()` powers the time-series endpoint (both
+  apply soft-delete filtering unless explicitly bypassed).
+- `pricing_calculation_snapshot_service.list_snapshots()` (already
+  DESC-sorted by `snapshot_date`) is walked in Python to find the
+  first row with `snapshot_date <= as_of`.
+- No application-layer auth (P0, consistent with all external endpoints).
+
+---
+
+## 11. Roadmap (P1+)
 
 - ~~**API key authentication** — `X-API-Key` header + `external_api_keys`
-  table with `scope`/`expires_at`.~~ ✅ Done (BEL-377) — see §11.
+  table with `scope`/`expires_at`.~~ ✅ Done (BEL-377) — see §12.
 - ~~**Rate limiting** — `slowapi` per-key limits (default 60/min).~~
-  ✅ Done (BEL-377) — see §11.
+  ✅ Done (BEL-377) — see §12.
 - ~~**Audit log** — every call written to `external_api_audit_log`
-  (middleware, 90-day Celery retention).~~ ✅ Done (BEL-377) — see §11.
+  (middleware, 90-day Celery retention).~~ ✅ Done (BEL-377) — see §12.
 - **`?include_raw=true`** — opt-in raw JSON passthrough. (P2)
 - **CSV / Parquet streaming** for large result sets. (P2)
 - **Per-key scope restrictions** — currently every key has full read
@@ -638,7 +802,7 @@ Wilson lower bound uses z=1.96 (95% confidence). Pre-computed by Celery into
 
 ---
 
-## 11. Authentication & Rate Limiting (BEL-377)
+## 12. Authentication & Rate Limiting (BEL-377)
 
 P0 relied on gateway-level network isolation only. P1 adds application-layer
 security on the `/api/v1/external/*` namespace. Both enforcement switches

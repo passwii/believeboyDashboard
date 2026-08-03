@@ -20778,38 +20778,6 @@
         "title": "NewProductCalculationItem",
         "type": "object"
       },
-      "NewProductCalculationListResponse": {
-        "description": "新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/NewProductCalculationItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "page": {
-            "title": "Page",
-            "type": "integer"
-          },
-          "page_size": {
-            "title": "Page Size",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "NewProductCalculationListResponse",
-        "type": "object"
-      },
       "NewProductCalculationProfit": {
         "properties": {
           "ddp_cost_rmb": {
@@ -20868,6 +20836,110 @@
           "profit_rate"
         ],
         "title": "NewProductCalculationProfit",
+        "type": "object"
+      },
+      "NewProductCalculationRow": {
+        "description": "Single SKU row from ``new_product_calculations`` flattened for BI.",
+        "properties": {
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "calculation_type": {
+            "default": "profit_calc",
+            "title": "Calculation Type",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "payout_usd": {
+            "default": 0.0,
+            "title": "Payout Usd",
+            "type": "number"
+          },
+          "profit_rate": {
+            "default": 0.0,
+            "title": "Profit Rate",
+            "type": "number"
+          },
+          "profit_usd": {
+            "default": 0.0,
+            "title": "Profit Usd",
+            "type": "number"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "sale_price_usd": {
+            "default": 0.0,
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "target_profit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Profit Rate"
+          },
+          "total_fee_usd": {
+            "default": 0.0,
+            "title": "Total Fee Usd",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "sku",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "NewProductCalculationRow",
         "type": "object"
       },
       "NewProductCalculationWeight": {
@@ -30724,6 +30796,141 @@
         "title": "ShopCalculationFees",
         "type": "object"
       },
+      "ShopCalculationHistoryResponse": {
+        "description": "Wrapper for ``/shop-calculation-history`` (current-state list).\n\n``total`` is the total number of *current-state* rows for the\nproject (one per SKU/country group, with deleted rows excluded).",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ShopCalculationHistoryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ShopCalculationHistoryResponse",
+        "type": "object"
+      },
+      "ShopCalculationHistoryRow": {
+        "description": "Single SKU row from ``shop_calculation`` flattened for BI consumption.\n\nUsed by:\n\n* ``/shop-calculation-history`` — current-state list (per SKU latest\n  non-deleted row)\n* ``/shop-calculation/snapshots`` — append-only time series filtered\n  by ``?from=&to=&sku=&country=``\n\nThe ``id`` is the underlying ``shop_calculation.id`` (PK). For the\ncurrent-state endpoint each row is the latest non-deleted id for\nthat ``(project_id, sku, country)`` group; for the history endpoint\nthe same id may appear multiple times across different ``observed_at``\nsnapshots.",
+        "properties": {
+          "accounting_type": {
+            "default": "profit_calc",
+            "title": "Accounting Type",
+            "type": "string"
+          },
+          "asin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "payout_usd": {
+            "default": 0.0,
+            "title": "Payout Usd",
+            "type": "number"
+          },
+          "profit_rate": {
+            "default": 0.0,
+            "title": "Profit Rate",
+            "type": "number"
+          },
+          "profit_usd": {
+            "default": 0.0,
+            "title": "Profit Usd",
+            "type": "number"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "sale_price_usd": {
+            "default": 0.0,
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "title": "Source",
+            "type": "string"
+          },
+          "total_fee_usd": {
+            "default": 0.0,
+            "title": "Total Fee Usd",
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_name",
+          "sku",
+          "country",
+          "observed_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ShopCalculationHistoryRow",
+        "type": "object"
+      },
       "ShopCalculationItem": {
         "description": "店铺测算详情",
         "properties": {
@@ -31055,6 +31262,76 @@
           "profit_rate"
         ],
         "title": "ShopCalculationProfit",
+        "type": "object"
+      },
+      "ShopCalculationSnapshotsResponse": {
+        "description": "Wrapper for ``/shop-calculation/snapshots`` (time-series).\n\nThe endpoint exposes the full append-only history filtered by\n``?from=&to=&sku=&country=``; no pagination is applied because\ncallers are expected to use the date filter to bound the result.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ShopCalculationHistoryRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "from_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Date"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "to_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Date"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "ShopCalculationSnapshotsResponse",
         "type": "object"
       },
       "ShopCalculationWeight": {
@@ -34464,6 +34741,64 @@
         "title": "WeeklyAvailabilityItem",
         "type": "object"
       },
+      "app__schemas__external__new_product_calculation__NewProductCalculationListResponse": {
+        "description": "Wrapper for ``/new-product-calculations`` (paginated list).",
+        "properties": {
+          "calculation_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculation Type"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NewProductCalculationRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 200,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "title": "NewProductCalculationListResponse",
+        "type": "object"
+      },
       "app__schemas__external__projects__ProjectItem": {
         "description": "Minimal project descriptor returned by ``GET /external/projects``.\n\nOnly ``project_id`` and ``project_name`` are exposed. Country / status /\ntimestamps live in the project resource and can be fetched via the\ninternal ``/projects`` endpoint when needed.",
         "properties": {
@@ -34481,6 +34816,38 @@
           "project_name"
         ],
         "title": "ProjectItem",
+        "type": "object"
+      },
+      "app__schemas__new_product_calculation__NewProductCalculationListResponse": {
+        "description": "新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NewProductCalculationItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "NewProductCalculationListResponse",
         "type": "object"
       },
       "app__schemas__notification__SubscriptionCreate": {
@@ -55633,6 +56000,122 @@
         ]
       }
     },
+    "/api/v1/external/projects/{project_id}/new-product-calculations": {
+      "get": {
+        "description": "Paginated list of new-product calculation rows for the project. The new-product calculation table (``new_product_calculations``) is the canonical source for profit-calc / profit-reverse snapshots; the legacy\n``store_sku_pricing_snapshots`` table was renamed in 2026-08\n(migration 230).\n\nReturns 14 flat columns — economics + lineage, no nested objects. Use ``?calculation_type=`` to filter, ``?country=`` to restrict to one country, ``?order_by=`` to sort by any of the 14 whitelisted columns.",
+        "operationId": "get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by calculation_type (e.g. profit_calc, profit_reverse).",
+            "in": "query",
+            "name": "calculation_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by calculation_type (e.g. profit_calc, profit_reverse).",
+              "title": "Calculation Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "updated_at",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "pattern": "^(asc|desc)$",
+              "title": "Order Dir",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/app__schemas__external__new_product_calculation__NewProductCalculationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "New Product Calculation list (paginated)",
+        "tags": [
+          "external"
+        ]
+      }
+    },
     "/api/v1/external/projects/{project_id}/orders/summary": {
       "get": {
         "operationId": "get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get",
@@ -55776,6 +56259,78 @@
           }
         },
         "summary": "Get External Orders Summary",
+        "tags": [
+          "external"
+        ]
+      }
+    },
+    "/api/v1/external/projects/{project_id}/pricing-snapshots": {
+      "get": {
+        "description": "Return the latest pricing snapshot (``pricing_calculation_snapshots``) whose ``snapshot_date`` is on or before ``as_of``. When ``as_of`` is omitted the endpoint returns the most recent snapshot.\n\nEach item is one SKU's economics at the freeze moment. The same 15 flat columns as the shop-calculation endpoints — sale price, profit, fees, observed_at (snapshot's create time), source (``\"manual\"``), and timestamps.\n\nReturns 404 when no snapshot exists for the (project, country, as_of) tuple.",
+        "operationId": "get_external_pricing_snapshot_as_of_api_v1_external_projects__project_id__pricing_snapshots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot).",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot).",
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopCalculationSnapshotsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pricing catalog freeze as of date",
         "tags": [
           "external"
         ]
@@ -56264,6 +56819,212 @@
           }
         },
         "summary": "Return Analysis raw events (Pydantic-stripped of sensitive fields)",
+        "tags": [
+          "external"
+        ]
+      }
+    },
+    "/api/v1/external/projects/{project_id}/shop-calculation-history": {
+      "get": {
+        "description": "Current-state list of shop-calculation rows for the project.\n\nEach row is the latest non-deleted entry for a ``(project_id, sku, country)`` group (BEL-378 append-only). Returns 15 flat columns — economics + lineage, no nested objects.\n\nUse ``?country=US`` to restrict to a single country. Use ``?order_by=`` to sort by any of the 15 whitelisted columns.",
+        "operationId": "get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "observed_at",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "pattern": "^(asc|desc)$",
+              "title": "Order Dir",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopCalculationHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Shop Calculation current-state list (per SKU latest row)",
+        "tags": [
+          "external"
+        ]
+      }
+    },
+    "/api/v1/external/projects/{project_id}/shop-calculation/snapshots": {
+      "get": {
+        "description": "Append-only history of shop-calculation rows for the project.\n\nEach row is one observation — the same SKU/country group may appear multiple times across different ``observed_at`` snapshots. Use ``?from=&to=`` to bound the date window, ``?sku=`` and ``?country=`` to filter.\n\nReturns the same 15 flat columns as the current-state endpoint.\nWhen ``?from=`` is greater than ``?to=`` the endpoint returns 400 (defense-in-depth alongside the date parsing).",
+        "operationId": "get_external_shop_calculation_snapshots_api_v1_external_projects__project_id__shop_calculation_snapshots_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound.",
+            "in": "query",
+            "name": "from_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound.",
+              "title": "From Date"
+            }
+          },
+          {
+            "description": "Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound.",
+            "in": "query",
+            "name": "to_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound.",
+              "title": "To Date"
+            }
+          },
+          {
+            "description": "Exact-match SKU filter (case-sensitive).",
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact-match SKU filter (case-sensitive).",
+              "title": "Sku"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopCalculationSnapshotsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Shop Calculation time series (append-only history)",
         "tags": [
           "external"
         ]
@@ -62518,7 +63279,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NewProductCalculationListResponse"
+                  "$ref": "#/components/schemas/app__schemas__new_product_calculation__NewProductCalculationListResponse"
                 }
               }
             },

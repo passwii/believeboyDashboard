@@ -2550,6 +2550,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/external/projects/{project_id}/new-product-calculations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * New Product Calculation list (paginated)
+         * @description Paginated list of new-product calculation rows for the project. The new-product calculation table (``new_product_calculations``) is the canonical source for profit-calc / profit-reverse snapshots; the legacy
+         *     ``store_sku_pricing_snapshots`` table was renamed in 2026-08
+         *     (migration 230).
+         *
+         *     Returns 14 flat columns — economics + lineage, no nested objects. Use ``?calculation_type=`` to filter, ``?country=`` to restrict to one country, ``?order_by=`` to sort by any of the 14 whitelisted columns.
+         */
+        get: operations["get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/external/projects/{project_id}/orders/summary": {
         parameters: {
             query?: never;
@@ -2559,6 +2583,30 @@ export interface paths {
         };
         /** Get External Orders Summary */
         get: operations["get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/pricing-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pricing catalog freeze as of date
+         * @description Return the latest pricing snapshot (``pricing_calculation_snapshots``) whose ``snapshot_date`` is on or before ``as_of``. When ``as_of`` is omitted the endpoint returns the most recent snapshot.
+         *
+         *     Each item is one SKU's economics at the freeze moment. The same 15 flat columns as the shop-calculation endpoints — sale price, profit, fees, observed_at (snapshot's create time), source (``"manual"``), and timestamps.
+         *
+         *     Returns 404 when no snapshot exists for the (project, country, as_of) tuple.
+         */
+        get: operations["get_external_pricing_snapshot_as_of_api_v1_external_projects__project_id__pricing_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2646,6 +2694,55 @@ export interface paths {
          *     Use ``?order_by=`` to sort by any of the 12 whitelisted columns.
          */
         get: operations["get_external_return_analysis_raw_api_v1_external_projects__project_id__return_analysis_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/shop-calculation-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shop Calculation current-state list (per SKU latest row)
+         * @description Current-state list of shop-calculation rows for the project.
+         *
+         *     Each row is the latest non-deleted entry for a ``(project_id, sku, country)`` group (BEL-378 append-only). Returns 15 flat columns — economics + lineage, no nested objects.
+         *
+         *     Use ``?country=US`` to restrict to a single country. Use ``?order_by=`` to sort by any of the 15 whitelisted columns.
+         */
+        get: operations["get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external/projects/{project_id}/shop-calculation/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shop Calculation time series (append-only history)
+         * @description Append-only history of shop-calculation rows for the project.
+         *
+         *     Each row is one observation — the same SKU/country group may appear multiple times across different ``observed_at`` snapshots. Use ``?from=&to=`` to bound the date window, ``?sku=`` and ``?country=`` to filter.
+         *
+         *     Returns the same 15 flat columns as the current-state endpoint.
+         *     When ``?from=`` is greater than ``?to=`` the endpoint returns 400 (defense-in-depth alongside the date parsing).
+         */
+        get: operations["get_external_shop_calculation_snapshots_api_v1_external_projects__project_id__shop_calculation_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13923,20 +14020,6 @@ export interface components {
             weight_kg: number;
             weights: components["schemas"]["NewProductCalculationWeight"];
         };
-        /**
-         * NewProductCalculationListResponse
-         * @description 新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）
-         */
-        NewProductCalculationListResponse: {
-            /** Items */
-            items: components["schemas"]["NewProductCalculationItem"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** NewProductCalculationProfit */
         NewProductCalculationProfit: {
             /** Ddp Cost Rmb */
@@ -13958,6 +14041,66 @@ export interface components {
              * @default 0
              */
             vat_usd: number;
+        };
+        /**
+         * NewProductCalculationRow
+         * @description Single SKU row from ``new_product_calculations`` flattened for BI.
+         */
+        NewProductCalculationRow: {
+            /** Asin */
+            asin?: string | null;
+            /**
+             * Calculation Type
+             * @default profit_calc
+             */
+            calculation_type: string;
+            /** Country */
+            country?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Payout Usd
+             * @default 0
+             */
+            payout_usd: number;
+            /**
+             * Profit Rate
+             * @default 0
+             */
+            profit_rate: number;
+            /**
+             * Profit Usd
+             * @default 0
+             */
+            profit_usd: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Sale Price Usd
+             * @default 0
+             */
+            sale_price_usd: number;
+            /** Sku */
+            sku: string;
+            /** Target Profit Rate */
+            target_profit_rate?: number | null;
+            /**
+             * Total Fee Usd
+             * @default 0
+             */
+            total_fee_usd: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** NewProductCalculationWeight */
         NewProductCalculationWeight: {
@@ -17633,6 +17776,107 @@ export interface components {
             total_fee_usd: number;
         };
         /**
+         * ShopCalculationHistoryResponse
+         * @description Wrapper for ``/shop-calculation-history`` (current-state list).
+         *
+         *     ``total`` is the total number of *current-state* rows for the
+         *     project (one per SKU/country group, with deleted rows excluded).
+         */
+        ShopCalculationHistoryResponse: {
+            /** Country */
+            country?: string | null;
+            /** Data */
+            data?: components["schemas"]["ShopCalculationHistoryRow"][];
+            /** Project Id */
+            project_id: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * ShopCalculationHistoryRow
+         * @description Single SKU row from ``shop_calculation`` flattened for BI consumption.
+         *
+         *     Used by:
+         *
+         *     * ``/shop-calculation-history`` — current-state list (per SKU latest
+         *       non-deleted row)
+         *     * ``/shop-calculation/snapshots`` — append-only time series filtered
+         *       by ``?from=&to=&sku=&country=``
+         *
+         *     The ``id`` is the underlying ``shop_calculation.id`` (PK). For the
+         *     current-state endpoint each row is the latest non-deleted id for
+         *     that ``(project_id, sku, country)`` group; for the history endpoint
+         *     the same id may appear multiple times across different ``observed_at``
+         *     snapshots.
+         */
+        ShopCalculationHistoryRow: {
+            /**
+             * Accounting Type
+             * @default profit_calc
+             */
+            accounting_type: string;
+            /** Asin */
+            asin?: string | null;
+            /** Country */
+            country: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Payout Usd
+             * @default 0
+             */
+            payout_usd: number;
+            /**
+             * Profit Rate
+             * @default 0
+             */
+            profit_rate: number;
+            /**
+             * Profit Usd
+             * @default 0
+             */
+            profit_usd: number;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Sale Price Usd
+             * @default 0
+             */
+            sale_price_usd: number;
+            /** Sku */
+            sku: string;
+            /**
+             * Source
+             * @default manual
+             */
+            source: string;
+            /**
+             * Total Fee Usd
+             * @default 0
+             */
+            total_fee_usd: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * ShopCalculationItem
          * @description 店铺测算详情
          */
@@ -17771,6 +18015,33 @@ export interface components {
              * @default 0
              */
             vat_usd: number;
+        };
+        /**
+         * ShopCalculationSnapshotsResponse
+         * @description Wrapper for ``/shop-calculation/snapshots`` (time-series).
+         *
+         *     The endpoint exposes the full append-only history filtered by
+         *     ``?from=&to=&sku=&country=``; no pagination is applied because
+         *     callers are expected to use the date filter to bound the result.
+         */
+        ShopCalculationSnapshotsResponse: {
+            /** Country */
+            country?: string | null;
+            /** Data */
+            data?: components["schemas"]["ShopCalculationHistoryRow"][];
+            /** From Date */
+            from_date?: string | null;
+            /** Project Id */
+            project_id: number;
+            /** Sku */
+            sku?: string | null;
+            /** To Date */
+            to_date?: string | null;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** ShopCalculationWeight */
         ShopCalculationWeight: {
@@ -19018,6 +19289,35 @@ export interface components {
             week_start_date: string;
         };
         /**
+         * NewProductCalculationListResponse
+         * @description Wrapper for ``/new-product-calculations`` (paginated list).
+         */
+        app__schemas__external__new_product_calculation__NewProductCalculationListResponse: {
+            /** Calculation Type */
+            calculation_type?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Data */
+            data?: components["schemas"]["NewProductCalculationRow"][];
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 200
+             */
+            page_size: number;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
          * ProjectItem
          * @description Minimal project descriptor returned by ``GET /external/projects``.
          *
@@ -19030,6 +19330,20 @@ export interface components {
             project_id: number;
             /** Project Name */
             project_name: string;
+        };
+        /**
+         * NewProductCalculationListResponse
+         * @description 新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）
+         */
+        app__schemas__new_product_calculation__NewProductCalculationListResponse: {
+            /** Items */
+            items: components["schemas"]["NewProductCalculationItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
         };
         /** SubscriptionCreate */
         app__schemas__notification__SubscriptionCreate: {
@@ -25638,6 +25952,45 @@ export interface operations {
             };
         };
     };
+    get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by calculation_type (e.g. profit_calc, profit_reverse). */
+                calculation_type?: string | null;
+                country?: string;
+                page?: number;
+                page_size?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__external__new_product_calculation__NewProductCalculationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get: {
         parameters: {
             query?: {
@@ -25666,6 +26019,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrdersSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_pricing_snapshot_as_of_api_v1_external_projects__project_id__pricing_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot). */
+                as_of?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopCalculationSnapshotsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25799,6 +26187,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReturnAnalysisRawResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                page?: number;
+                page_size?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopCalculationHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_shop_calculation_snapshots_api_v1_external_projects__project_id__shop_calculation_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound. */
+                from_date?: string | null;
+                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound. */
+                to_date?: string | null;
+                /** @description Exact-match SKU filter (case-sensitive). */
+                sku?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopCalculationSnapshotsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27773,7 +28237,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NewProductCalculationListResponse"];
+                    "application/json": components["schemas"]["app__schemas__new_product_calculation__NewProductCalculationListResponse"];
                 };
             };
             /** @description Validation Error */
