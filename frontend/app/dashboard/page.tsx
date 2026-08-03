@@ -14,8 +14,10 @@ import { DashboardTopProjects } from '@/components/dashboard/dashboard-top-proje
 import { DashboardTopCountries } from '@/components/dashboard/dashboard-top-countries'
 import { DashboardAdSpendChart } from '@/components/dashboard/dashboard-ad-spend-chart'
 import { DashboardHealthKpis } from '@/components/dashboard/dashboard-health-kpis'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { ProjectSelect } from '@/components/dashboard/console/project-select'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
+import { useInViewOnce } from '@/lib/hooks/use-in-view-once'
 import { fmtMoney, fmtNum, fmtPct, formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -217,7 +219,9 @@ export default function DashboardPage() {
   /** 跨国家卡片的"代表项目"(用户可手动切换);null 表示跟随默认 projectIds[0] */
   const [representativeProjectId, setRepresentativeProjectId] = useState<number | null>(null)
   const [dataLoading, setDataLoading] = useState(false)
+  const [countriesLoading, setCountriesLoading] = useState(false)
   const latestRequestRef = useRef(0)
+  const latestCountriesRequestRef = useRef(0)
 
   // hook 返回的项目 id 必为 number;保留 ?. 防御性兜底(后端 schema 升级时)
   const projectIds = useMemo(
@@ -275,51 +279,14 @@ export default function DashboardPage() {
         end_date: formatYMD(prevTo),
       })
 
-      // /all-countries 只接受单 project_id,首页是多项目合并 —— 用户可在 Row 3 切换"代表项目",
-      // 未指定时 fallback 到 projectIds[0]
-      const effectiveRepresentativeProjectId = representativeProjectId ?? projectIds[0]
-      const countriesParams =
-        effectiveRepresentativeProjectId !== undefined
-          ? new URLSearchParams({
-              project_id: String(effectiveRepresentativeProjectId),
-              start_date: startDate,
-              end_date: endDate,
-            })
-          : null
-      const countriesCompareParams =
-        effectiveRepresentativeProjectId !== undefined
-          ? new URLSearchParams({
-              project_id: String(effectiveRepresentativeProjectId),
-              start_date: formatYMD(prevFrom),
-              end_date: formatYMD(prevTo),
-            })
-          : null
-
-      const fetches: Array<Promise<Response>> = [
+      // BEL-419 首页数据懒加载：mount 只拉首屏必需的 2 个核心请求（当期 + 对比期）；
+      // Row 3 的跨国家 all-countries 2 个请求推迟到滚动接近 Row 3 时再发（见 loadCountriesData）。
+      const [response, compareResponse] = await Promise.all([
         fetch(`/api/backend/api/v1/daily-analysis/all?${params.toString()}`, { cache: 'no-store' }),
         fetch(`/api/backend/api/v1/daily-analysis/all?${compareParams.toString()}`, {
           cache: 'no-store',
         }),
-      ]
-      if (countriesParams && countriesCompareParams) {
-        fetches.push(
-          fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesParams.toString()}`, {
-            cache: 'no-store',
-          }),
-          fetch(
-            `/api/backend/api/v1/daily-analysis/all-countries?${countriesCompareParams.toString()}`,
-            { cache: 'no-store' }
-          )
-        )
-      }
-
-      const responses = await Promise.all(fetches)
-      const [response, compareResponse, countriesRes, countriesCompareRes] = responses as [
-        Response,
-        Response,
-        Response | undefined,
-        Response | undefined,
-      ]
+      ])
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -331,40 +298,12 @@ export default function DashboardPage() {
         ? ((await compareResponse.json()) as DailyAnalysisAllProjectsResponse)
         : null
 
-      // 跨国家数据:静默降级,失败只 set empty,不阻断 KPI 错误提示
-      let nextCountryRowsByCode: Record<string, DailyAnalysisRow[]> = {}
-      let nextCountryCompareRowsByCode: Record<string, DailyAnalysisRow[]> = {}
-      let nextCurrencyNote: string | null = null
-      if (countriesRes && countriesRes.ok) {
-        try {
-          const countriesPayload = (await countriesRes.json()) as DailyAnalysisAllCountriesResponse
-          nextCountryRowsByCode = parseCountryBreakdown(countriesPayload.country_breakdown)
-          nextCurrencyNote = countriesPayload.currency_note ?? null
-        } catch {
-          nextCountryRowsByCode = {}
-        }
-      }
-      if (countriesCompareRes && countriesCompareRes.ok) {
-        try {
-          const compareCountriesPayload =
-            (await countriesCompareRes.json()) as DailyAnalysisAllCountriesResponse
-          nextCountryCompareRowsByCode = parseCountryBreakdown(
-            compareCountriesPayload.country_breakdown
-          )
-        } catch {
-          nextCountryCompareRowsByCode = {}
-        }
-      }
-
       if (requestId !== latestRequestRef.current) return
 
       setCurrentRows(payload.summary_rows)
       setComparisonRows(comparePayload?.summary_rows ?? [])
       setProjectBreakdown(payload.project_breakdown ?? {})
       setCompareProjectBreakdown(comparePayload?.project_breakdown ?? {})
-      setCountryRowsByCode(nextCountryRowsByCode)
-      setCountryCompareRowsByCode(nextCountryCompareRowsByCode)
-      setCountryCurrencyNote(nextCurrencyNote)
     } catch (err) {
       if (requestId !== latestRequestRef.current) return
       notify({
@@ -376,18 +315,104 @@ export default function DashboardPage() {
       setComparisonRows([])
       setProjectBreakdown({})
       setCompareProjectBreakdown({})
-      setCountryRowsByCode({})
-      setCountryCompareRowsByCode({})
-      setCountryCurrencyNote(null)
     } finally {
       if (requestId !== latestRequestRef.current) return
       setDataLoading(false)
     }
   }, [projects, dateRange, notify])
 
+  /**
+   * BEL-419 首页数据懒加载：Row 3 跨国家分布专用取数。
+   * - 首次触发：滚动接近 Row 3（row3InView）时；
+   * - 后续触发：日期固定为近 7 天，仅"代表项目"切换时重拉（deps 含 representativeProjectId，
+   *   顺带修复旧实现中切换代表项目不重拉的 stale-closure 问题）。
+   * - 失败静默降级为空（与旧实现一致，不阻断首屏 KPI）。
+   */
+  const loadCountriesData = useCallback(async () => {
+    if (projects.length === 0) return
+
+    const startDate = formatYMD(dateRange.from)
+    const endDate = formatYMD(dateRange.to)
+    const currentDayCount =
+      Math.floor((dateRange.to.getTime() - dateRange.from.getTime()) / 86400000) + 1
+    const prevFrom = addDays(dateRange.from, -currentDayCount)
+    const prevTo = addDays(dateRange.from, -1)
+
+    const projectIds = projects.map((p) => p.id).filter((id): id is number => typeof id === 'number')
+    // /all-countries 只接受单 project_id，首页是多项目合并 —— 用户可在 Row 3 切换"代表项目"，
+    // 未指定时 fallback 到 projectIds[0]
+    const effectiveRepresentativeProjectId = representativeProjectId ?? projectIds[0]
+    if (effectiveRepresentativeProjectId === undefined) return
+
+    const requestId = ++latestCountriesRequestRef.current
+    setCountriesLoading(true)
+
+    try {
+      const countriesParams = new URLSearchParams({
+        project_id: String(effectiveRepresentativeProjectId),
+        start_date: startDate,
+        end_date: endDate,
+      })
+      const countriesCompareParams = new URLSearchParams({
+        project_id: String(effectiveRepresentativeProjectId),
+        start_date: formatYMD(prevFrom),
+        end_date: formatYMD(prevTo),
+      })
+
+      const [countriesRes, countriesCompareRes] = await Promise.all([
+        fetch(`/api/backend/api/v1/daily-analysis/all-countries?${countriesParams.toString()}`, {
+          cache: 'no-store',
+        }),
+        fetch(
+          `/api/backend/api/v1/daily-analysis/all-countries?${countriesCompareParams.toString()}`,
+          { cache: 'no-store' }
+        ),
+      ])
+
+      let nextCountryRowsByCode: Record<string, DailyAnalysisRow[]> = {}
+      let nextCountryCompareRowsByCode: Record<string, DailyAnalysisRow[]> = {}
+      let nextCurrencyNote: string | null = null
+      if (countriesRes.ok) {
+        try {
+          const countriesPayload = (await countriesRes.json()) as DailyAnalysisAllCountriesResponse
+          nextCountryRowsByCode = parseCountryBreakdown(countriesPayload.country_breakdown)
+          nextCurrencyNote = countriesPayload.currency_note ?? null
+        } catch {
+          nextCountryRowsByCode = {}
+        }
+      }
+      if (countriesCompareRes.ok) {
+        try {
+          const compareCountriesPayload =
+            (await countriesCompareRes.json()) as DailyAnalysisAllCountriesResponse
+          nextCountryCompareRowsByCode = parseCountryBreakdown(
+            compareCountriesPayload.country_breakdown
+          )
+        } catch {
+          nextCountryCompareRowsByCode = {}
+        }
+      }
+
+      if (requestId !== latestCountriesRequestRef.current) return
+      setCountryRowsByCode(nextCountryRowsByCode)
+      setCountryCompareRowsByCode(nextCountryCompareRowsByCode)
+      setCountryCurrencyNote(nextCurrencyNote)
+    } finally {
+      if (requestId !== latestCountriesRequestRef.current) return
+      setCountriesLoading(false)
+    }
+  }, [projects, dateRange, representativeProjectId])
+
   useEffect(() => {
     if (projects.length > 0) void loadData()
   }, [projects, loadData])
+
+  // BEL-419：滚动接近 Row 3 后才发起跨国家请求；首次触发后，切换代表项目会经 deps 自动重拉。
+  const { ref: row3Ref, inView: row3InView } = useInViewOnce<HTMLElement>({ rootMargin: '480px' })
+  useEffect(() => {
+    if (!row3InView) return
+    void loadCountriesData()
+  }, [row3InView, loadCountriesData])
 
   const metrics = useMemo(() => {
     if (currentRows.length === 0) return undefined
@@ -555,6 +580,8 @@ export default function DashboardPage() {
 
   const handleRefresh = () => {
     void loadData()
+    // 跨国家数据仅在已触发过懒加载（Row 3 已入视口）时随刷新重拉
+    if (row3InView) void loadCountriesData()
   }
 
   const anyLoading = dataLoading || projectsLoading
@@ -605,7 +632,14 @@ export default function DashboardPage() {
         {/* Stagger 容器用 display:contents,不破坏 grid 布局;子节点仍为 section 的直接 grid item */}
         <MotionStagger className="contents">
           <MotionStaggerItem>
-            <DashboardAlertWidget stockSnapshot={stockSnapshot} stockLoading={dataLoading} />
+            {/* BEL-419：告警组件自管 fetch，用 DeferredSection 推迟到滚动接近时再挂载取数 */}
+            <DeferredSection
+              data-testid="home-alert-deferred"
+              fallbackHeight="h-[240px]"
+              className="h-full"
+            >
+              <DashboardAlertWidget stockSnapshot={stockSnapshot} stockLoading={dataLoading} />
+            </DeferredSection>
           </MotionStaggerItem>
           <MotionStaggerItem>
             <DashboardHealthKpis
@@ -632,8 +666,10 @@ export default function DashboardPage() {
        *
        * 子组件根节点已通过 DataTableCard / DataCard 自带 dashboard-surface,
        * 与 row 2 一致,不再包 <DashboardSurfaceCard>,仅加 MotionStagger。
+       *
+       * BEL-419：row3Ref 挂载 useInViewOnce —— 滚动接近本节才触发 all-countries 取数。
        */}
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <section ref={row3Ref} className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {/* Stagger 容器用 display:contents,不破坏 grid 布局 */}
         <MotionStagger className="contents">
           <MotionStaggerItem>
@@ -657,7 +693,7 @@ export default function DashboardPage() {
                   error={projectsError}
                 />
               }
-              loading={dataLoading}
+              loading={row3InView ? countriesLoading : anyLoading}
             />
           </MotionStaggerItem>
           <MotionStaggerItem>
