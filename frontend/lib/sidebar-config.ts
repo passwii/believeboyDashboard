@@ -135,7 +135,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     accent: NEUTRAL_ACCENT,
     activeAccent: NEUTRAL_ACTIVE,
     items: [
-      { title: '财务月报', url: '/dashboard/reports/monthly-report', icon: IconMap.FileBarChart },
+      {
+        title: '财务月报',
+        url: '/dashboard/reports/monthly-report',
+        matchPrefixes: ['/dashboard/reports/monthly-report'],
+        icon: IconMap.FileBarChart,
+      },
       { title: '产品分析', url: '/dashboard/reports/product-analysis', icon: IconMap.Calculator },
       {
         title: '新品核算',
@@ -149,7 +154,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/reports/pricing-calculation/shop-calculation'],
         icon: IconMap.Store,
       },
-      { title: '月度财务分析', url: '/dashboard/reports/financial-data', icon: IconMap.DollarSign },
       { title: '报表核对', url: '/dashboard/reports/report-reconciliation', icon: IconMap.Shield },
       {
         title: '定时报告',

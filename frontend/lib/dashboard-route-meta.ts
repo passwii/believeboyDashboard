@@ -3,7 +3,6 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/reports/product-analysis', title: '产品分析' },
   { match: '/reports/pricing-calculation/shop-calculation', title: '店铺测算' },
   { match: '/reports/pricing-calculation', title: '定价核算' },
-  { match: '/reports/financial-data', title: '月度财务分析' },
   { match: '/operations/daily-analysis', title: '销售数据' },
   { match: '/operations/return-analysis', title: '退货分析' },
   { match: '/advertising/ad-analysis', title: '广告分析' },
