@@ -585,6 +585,36 @@ def _fallback_multi_country_summary(
     return "\n\n".join(parts)
 
 
+def _should_sync_daily_fallback(frequency: str) -> bool:
+    """日报频次且 AI 已关闭（AI_SUMMARY_TIMEOUT_SEC_DAILY=0）→ dispatch 同步写 fallback。
+
+    返回 True 时 `_dispatch_one_task_body` 发送成功后直接生成 fallback 摘要落库，
+    不派 Celery——前端点完立即出摘要、零转圈。周报/月报恒 False（仍走 Celery）。
+    """
+    if frequency != "daily":
+        return False
+    from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
+    return get_ai_timeout_sec("daily") <= 0
+
+
+def _build_daily_fallback_summary_from_report(
+    report_data: dict[str, Any], frequency: str,
+) -> str:
+    """从已构建的 report_data 同步生成日报 fallback 摘要（不重建数据、不调 AI）。
+
+    日报频次关闭 AI（AI_SUMMARY_TIMEOUT_SEC_DAILY=0）时，dispatch 发送成功即可
+    直接落库摘要——点完立即出结果，无需前端轮询 Celery 异步回填。
+    多国家路径用 dispatcher 的折行 fallback；单国家路径复用 report_builder_daily。
+    """
+    from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
+
+    if report_data.get("is_multi_country"):
+        return _fallback_multi_country_summary(report_data.get("country_data", {}) or {})
+
+    # 单国家：report_data 即 overview（含 sales/week_sales/inventory/country）
+    return _generate_fallback_summary(frequency, report_data)
+
+
 def _dispatch_one(
     subscription_id: int,
     email: str,
@@ -803,16 +833,44 @@ def _dispatch_one_task_body(
                 except Exception as cleanup_err:
                     logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
 
-            # AI 摘要改为后台异步生成（Celery ai_summary 队列，方案 §4.6）。
+            # AI 摘要派发：日报频次已关闭 AI（AI_SUMMARY_TIMEOUT_SEC_DAILY=0）时
+            # **同步**生成 fallback 摘要写入 delivery_log（点完立即出摘要、零转圈），
+            # 不再派 Celery 异步任务；周报/月报（或 daily 未关 AI 时）走 Celery。
             try:
-                from app.celery_tasks.ai_summary import generate_delivery_summary
-                generate_delivery_summary.delay(
-                    log_id=log_id,
-                    ledger_key=None,
-                    override_ai_model=ai_model,
+                from app.services.scheduled_report.subscription_service import (
+                    update_delivery_log_ai_summary,
                 )
+
+                if _should_sync_daily_fallback(frequency):
+                    summary = _build_daily_fallback_summary_from_report(report_data, frequency)
+                    if summary:
+                        update_delivery_log_ai_summary(
+                            db, log_id, summary, ai_model=None,
+                        )
+                        logger.info(
+                            "Daily sync fallback summary written: sub=%d log=%d",
+                            subscription_id, log_id,
+                        )
+                    else:
+                        logger.warning(
+                            "Daily fallback summary empty, enqueuing Celery: sub=%d log=%d",
+                            subscription_id, log_id,
+                        )
+                        from app.celery_tasks.ai_summary import generate_delivery_summary
+                        generate_delivery_summary.delay(
+                            log_id=log_id,
+                            ledger_key=None,
+                            override_ai_model=ai_model,
+                        )
+                else:
+                    from app.celery_tasks.ai_summary import generate_delivery_summary
+                    generate_delivery_summary.delay(
+                        log_id=log_id,
+                        ledger_key=None,
+                        override_ai_model=ai_model,
+                    )
             except Exception as sum_err:
-                logger.warning("启动 delivery log ai_summary Celery task 失败: %s", sum_err)
+                logger.warning("启动 delivery log ai_summary task 失败: %s", sum_err)
 
             update_delivery_log_stage(db, log_id, DeliveryStage.DONE.value)
             result["success"] = True

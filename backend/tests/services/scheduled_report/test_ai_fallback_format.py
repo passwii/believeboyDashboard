@@ -197,3 +197,72 @@ def test_markdown_to_email_html_preserves_station_line_break() -> None:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ---------------------------------------------------------------------------
+# dispatch 同步 fallback（方案 2：日报点完立即出摘要、零转圈）
+# ---------------------------------------------------------------------------
+
+
+def test_build_daily_fallback_summary_multi_country() -> None:
+    """多国家 report_data → 折行 fallback（含每国 sales/week_sales/inventory）。"""
+    from app.services.scheduled_report.dispatcher import _build_daily_fallback_summary_from_report
+
+    report_data = {
+        "is_multi_country": True,
+        "country_data": _country_data(),
+        "ai_summary": "",
+    }
+    result = _build_daily_fallback_summary_from_report(report_data, "daily")
+    lines = result.split("\n")
+    assert lines[0] == "◉ 德国站"
+    assert lines[1] == "销量8单/€208.11，近7天累计39单/€1,005.34，库存693件"
+    assert lines[3] == "◉ 英国站"
+
+
+def test_build_daily_fallback_summary_single_country() -> None:
+    """单国家 report_data → report_builder_daily 的简化 fallback。"""
+    from app.services.scheduled_report.dispatcher import _build_daily_fallback_summary_from_report
+
+    report_data = {
+        "country": "DE",
+        "sales": {"yesterday_qty": 8, "yesterday_amount": 208.11},
+        "week_sales": {"week_qty": 39, "week_amount": 1005.34},
+        "inventory": {"total_available": 693, "in_transit": 0},
+        "ai_summary": "",
+    }
+    result = _build_daily_fallback_summary_from_report(report_data, "daily")
+    assert result == "销量8单/€208.11，近7天累计39单/€1,005.34，库存693件"
+
+
+def test_should_sync_daily_fallback_zero_disables_ai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """daily + AI_SUMMARY_TIMEOUT_SEC_DAILY=0 → 同步 fallback（True）。"""
+    from app.services.scheduled_report.dispatcher import _should_sync_daily_fallback
+
+    monkeypatch.setenv("AI_SUMMARY_TIMEOUT_SEC_DAILY", "0")
+    assert _should_sync_daily_fallback("daily") is True
+
+
+def test_should_sync_daily_fallback_positive_timeout_uses_celery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """daily + timeout>0 → 仍走 Celery（False）。"""
+    from app.services.scheduled_report.dispatcher import _should_sync_daily_fallback
+
+    monkeypatch.setenv("AI_SUMMARY_TIMEOUT_SEC_DAILY", "30")
+    assert _should_sync_daily_fallback("daily") is False
+
+
+def test_should_sync_daily_fallback_non_daily_always_celery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """周报/月报不受 daily 开关影响（False）。"""
+    from app.services.scheduled_report.dispatcher import _should_sync_daily_fallback
+
+    monkeypatch.setenv("AI_SUMMARY_TIMEOUT_SEC_DAILY", "0")
+    assert _should_sync_daily_fallback("weekly") is False
+    assert _should_sync_daily_fallback("monthly") is False
+
+
