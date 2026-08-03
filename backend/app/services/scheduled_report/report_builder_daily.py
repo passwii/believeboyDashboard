@@ -763,7 +763,6 @@ def _generate_fallback_summary(frequency: str, overview: dict[str, Any]) -> str:
 
     today_qty = sales.get("yesterday_qty", 0)
     today_amt = sales.get("yesterday_amount", 0.0)
-    vs_prev = sales.get("change_pct", 0.0)
 
     p7d_qty = week_sales.get("week_qty", 0)
     p7d_amt = week_sales.get("week_amount", 0.0)
@@ -771,17 +770,15 @@ def _generate_fallback_summary(frequency: str, overview: dict[str, Any]) -> str:
     total_available = inventory.get("total_available", 0)
     in_transit = inventory.get("in_transit", 0)
 
-    dir_label = "增长" if vs_prev >= 0 else "下降"
     amt_str = f"/{_fmt_currency(today_amt, country)}" if today_amt > 0 else ""
     p7d_amt_str = f"/{_fmt_currency(p7d_amt, country)}" if p7d_amt > 0 else ""
-    parts = [f"昨日销量{today_qty}单{amt_str}，较前一日{dir_label}{abs(vs_prev):.1f}%（近7天累计{p7d_qty}单{p7d_amt_str}）"]
 
     inv_parts = [f"库存{total_available}件"]
     if in_transit > 0:
         inv_parts.append(f"在途{in_transit}件")
-    parts.append("，".join(inv_parts))
 
-    return "；".join(parts)
+    # 简化格式：销量 / 近7天累计 / 库存（不再输出昨日、较前一日、括号）
+    return f"销量{today_qty}单{amt_str}，近7天累计{p7d_qty}单{p7d_amt_str}，{'，'.join(inv_parts)}"
 
 
 def _query_period_sales(

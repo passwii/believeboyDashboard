@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -503,7 +504,7 @@ export function LedgerDetailDialog({
                     {item.ai_summary ? (
                       <div className="rounded-lg border border-border/60 bg-muted/20 p-3 max-h-[60vh] overflow-y-auto">
                         <div className="text-xs leading-relaxed prose prose-xs prose-neutral dark:prose-invert max-w-none [&_ul]:my-0.5 [&_p]:my-0.5 [&_strong]:font-semibold">
-                          <ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>
                             {item.ai_summary.replace(/^[•·●]\s*/gm, '- ')}
                           </ReactMarkdown>
                         </div>

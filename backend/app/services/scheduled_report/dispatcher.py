@@ -571,19 +571,18 @@ def _fallback_multi_country_summary(
         total_available = inventory.get("total_available", 0)
         in_transit = inventory.get("in_transit", 0)
 
-        dir_label = "增长" if change_pct >= 0 else "下降"
         amt_str = f"/{_fmt_currency(amt, country)}" if amt > 0 else ""
         p7d_amt_str = f"/{_fmt_currency(p7d_amt, country)}" if p7d_amt > 0 else ""
-
-        line = f"◉ {label}昨日销量{qty}单{amt_str}，较前一日{dir_label}{abs(change_pct):.1f}%（近7天累计{p7d_qty}单{p7d_amt_str}）"
 
         inv_parts = [f"库存{total_available}件"]
         if in_transit > 0:
             inv_parts.append(f"在途{in_transit}件")
-        line += f"，（{'，'.join(inv_parts)}）"
+
+        # 折行格式：站点名独占一行，数据行简化为「销量/近7天累计/库存」
+        line = f"◉ {label}\n销量{qty}单{amt_str}，近7天累计{p7d_qty}单{p7d_amt_str}，{'，'.join(inv_parts)}"
 
         parts.append(line)
-    return "\n".join(parts)
+    return "\n\n".join(parts)
 
 
 def _dispatch_one(

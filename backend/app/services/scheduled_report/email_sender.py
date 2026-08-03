@@ -112,6 +112,10 @@ def _markdown_to_email_html(md_text: str) -> str:
     import re as _re
     md_text = _re.sub(r"^[•·●]\s*", "- ", md_text, flags=_re.MULTILINE)
 
+    # 预处理：将单个换行（站点名与数据行之间）转为 markdown 硬换行（两个空格 + \n）
+    # 否则 mistune 会把它折叠成空格，站点名和数据会被拼到同一行
+    md_text = _re.sub(r"(?<!\n)\n(?!\n)", "  \n", md_text)
+
     try:
         import mistune
         html = mistune.html(md_text)

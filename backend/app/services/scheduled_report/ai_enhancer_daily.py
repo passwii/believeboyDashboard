@@ -14,15 +14,12 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供的数据，为运营团队生成一段简洁的日报摘要。
 
 叙事要点（严格按此顺序）：
-- 首先描述"今日"的单量和销售额 → 对比对象**只能是前一日（yesterday vs prev_day）**，绝对不能拿单日数据和近7天累计做对比
-- 然后在括号内附上近7天累计数据作为参考
-- 最后关注库存状态和广告效果（ROAS/ACOS）
-
-⚠️ 对比逻辑（最重要，违反即为错误）：
-- "今日销量"的涨跌判断**仅基于 vs 前一日**（change_pct 字段）
-- 近7天累计数据放在括号内作为补充参考，**绝对不能**用来判断单日涨跌
-- 错误示例："今日6单，较前一日大幅下降（近7天累计39单）" → 这是拿单日 vs 7天累计得出"大幅下降"，逻辑错误
-- 正确示例："今日6单/141.94欧元，较前一日增长12.5%（近7天累计39单/981.04欧元）"
+- 每个站点输出两行：第一行站点名，第二行销售数据
+- 销售数据只需要三个指标：今日销量、近7天累计、库存 —— 不需要输出"较前一日增长/下降 X%"等单日对比分析
+- 今日销量格式：`销量{quantity}单{金额}`，如 `销量8单/€208.11`
+- 近7天累计格式：`近7天累计{quantity}单{金额}`，如 `近7天累计39单/€1,005.34`
+- 库存格式：`库存{total_available}件`，如有在途则追加 `在途{in_transit}件`；如有缺货/告急SKU可另起一行标注
+- 三个指标用中文逗号连接成一行，如：`销量8单/€208.11，近7天累计39单/€1,005.34，库存693件`
 
 ⚠️ 货币单位（必须与站点匹配）：
 - 美国站(US) → 美元(USD), 金额写如 "$1,234.56" 或 "1,234.56美元"
@@ -32,29 +29,26 @@ SYSTEM_PROMPT = """你是一位跨境电商运营专家。请根据用户提供�
 - 绝对不能对美国站使用欧元，或对英国站使用美元
 
 强制格式规则：
-1. **近7天累计数据**必须跟在单日数据后面，用括号标注：
-   格式：`（近7天累计{quantity}单/{amount}）`
-   示例（德国站）：`今日6单/€141.94，较前一日增长12.5%（近7天累计39单/€981.04）`
-   示例（美国站）：`今日6单/$1,234.56，较前一日增长12.5%（近7天累计39单/$9,810.40）`
-2. **库存状况**必须包含可用库存和在途数量：
-   格式：`库存{total_available}件在途{in_transit}件`
-   示例：`库存285件在途665件`
-   如果有缺货/告急SKU则另外标注，如：`库存285件在途665件，2个SKU缺货`
-3. **强制折行（bullet 隔离）**:
-   - 每条 bullet 必须独占一行，绝对不允许把多条 bullet 合并成同一段落。
-   - bullet 之间用一个空行隔开，确保 ReactMarkdown 渲染时每个 bullet 形成独立 <li>。
-   - bullet 内部只写一个完整事实，不允许用中文逗号（，）或顿号（、）把多个并列事实串接到同一行。
-   - 错误示例（折叠）："◉ 德国站今日6单/€141.94，较前一日增长12.5%，库存285件在途665件"
-   - 正确示例（分行）：
-     ◉ 德国站今日6单/€141.94，较前一日增长12.5%（近7天累计39单/€981.04）
-
-     ◉ 德国站库存285件在途665件
+1. **每个站点两行**（站点名独占一行，数据行跟在下一行）：
+   示例（德国站）：
+   ```
+   ◉ 德国站
+   销量8单/€208.11，近7天累计39单/€1,005.34，库存693件
+   ```
+   示例（美国站）：
+   ```
+   ◉ 美国站
+   销量6单/$167.70，近7天累计16单/$464.60，库存225件
+   ```
+2. **站点之间用一个空行隔开**，确保每个站点形成独立的块。
+3. 数据行**不要加括号**，不要输出"较前一日增长/下降 X%"，不要用中文逗号串接多余并列事实。
+4. 库存行格式：`库存{total_available}件`，如有在途则 `库存{total_available}件在途{in_transit}件`（不加括号、不加逗号也行，保持简洁）；如有缺货/告急SKU则在该站点块内另起一行标注，如 `2个SKU缺货`。
 
 要求：
-1. 使用 bullet point（以 ◉ 开头）形式组织内容，每点独立一行，每个国家一条
-2. 多国家时每条以"XX站"开头，如"◉ 德国站今日6单/141.94欧元..."
-3. 单国家时直接写数据即可
-4. 识别最重要的变化（增长/下降超过10%时明确标注百分比和方向）
+1. 使用 bullet point（以 ◉ 开头）形式组织内容，每点独立成块，每个国家一个块
+2. 多国家时每条以"XX站"开头，如"◉ 德国站"
+3. 单国家时直接写数据即可（不需要站点名行）
+4. 识别最重要的变化（如销量骤增/骤降、缺货），但**不要**输出单日环比百分比
 5. 指出需要关注的核心问题（缺货、广告ACOS过高、退货率异常等）
 6. 用中文回复，风格专业简洁
 7. 如果数据全为 0 或无有效数据，返回"暂无足够数据生成摘要"
@@ -190,22 +184,15 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
     """当 AI 服务不可用时，生成基础摘要。"""
     sales = report_data.get("sales", {})
     week_sales = report_data.get("week_sales", {})
-    prev_week_sales = report_data.get("prev_week_sales", {})
     inventory = report_data.get("inventory", {})
     ads = report_data.get("ads", {})
     country = report_data.get("country", "US")
 
     today_qty = sales.get("yesterday_qty", 0)
     today_amt = sales.get("yesterday_amount", 0.0)
-    vs_prev = sales.get("change_pct", 0.0)
 
     p7d_qty = week_sales.get("week_qty", 0)
     p7d_amt = week_sales.get("week_amount", 0.0)
-    prev_qty = prev_week_sales.get("week_qty", 0)
-    prev_amt = prev_week_sales.get("week_amount", 0.0)
-
-    p7d_chg = ((p7d_qty - prev_qty) / prev_qty * 100) if prev_qty > 0 else 0
-    p7d_amt_chg = ((p7d_amt - prev_amt) / prev_amt * 100) if prev_amt > 0 else 0
 
     total_available = inventory.get("total_available", 0)
     in_transit = inventory.get("in_transit", 0)
@@ -217,14 +204,8 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
 
     lines = []
 
-    dir_icon = "↑" if vs_prev >= 0 else "↓"
     amt_str = f"/{_fmt_curr(today_amt, country)}" if today_amt > 0 else ""
     p7d_amt_str = f"/{_fmt_curr(p7d_amt, country)}" if p7d_amt > 0 else ""
-    lines.append(
-        f"- 今日销量{today_qty}单{amt_str}，较前一日"
-        f"{'增长' if vs_prev >= 0 else '下降'}{abs(vs_prev):.1f}%"
-        f"（近7天累计{p7d_qty}单{p7d_amt_str}）"
-    )
 
     inv_parts = [f"库存{total_available}件"]
     if in_transit > 0:
@@ -233,7 +214,11 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
         inv_parts.append(f"{oos_count}个SKU缺货")
     if low_count > 0:
         inv_parts.append(f"{low_count}个SKU告急")
-    lines.append(f"- {'，'.join(inv_parts)}")
+
+    # 简化格式：销量 / 近7天累计 / 库存（不再输出较前一日、括号）
+    lines.append(
+        f"- 销量{today_qty}单{amt_str}，近7天累计{p7d_qty}单{p7d_amt_str}，{'，'.join(inv_parts)}"
+    )
 
     if ad_roas > 0 or ad_acos > 0:
         roas_status = "良好" if ad_roas >= 2 else "偏低"
@@ -244,9 +229,5 @@ def _generate_fallback_summary(frequency: str, report_data: dict[str, Any]) -> s
 
 def _fmt_curr(amount: float, country: str = "") -> str:
     symbols = {"US": "$", "DE": "€", "UK": "£"}
-    units = {"US": "美元", "DE": "欧元", "UK": "英镑"}
     symbol = symbols.get(country, "$")
-    unit = units.get(country, "美元")
-    if amount >= 1000:
-        return f"{symbol}{amount:,.0f}"
-    return f"{symbol}{amount:.2f}"
+    return f"{symbol}{amount:,.2f}"
