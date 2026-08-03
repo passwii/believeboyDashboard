@@ -1,5 +1,5 @@
-import MonthlyReportClient from './monthly-report-client'
+import { redirect } from 'next/navigation'
 
 export default function MonthlyReportPage() {
-  return <MonthlyReportClient />
+  redirect('/dashboard/reports/monthly-report/display')
 }
