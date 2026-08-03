@@ -728,15 +728,6 @@ function formatCompactCurrency(value: number): string {
   return formatCurrency(value)
 }
 
-type FinancialDataClientProps = {
-  initialProjects: ProjectOption[]
-  initialProjectId: string
-  initialStartMonth: string
-  initialEndMonth: string
-  initialData: FinancialSeriesResponse | null
-  initialExchangeRateByMonth: Record<string, number>
-}
-
 function FinancialFilterSkeleton() {
   return (
     <div className="space-y-1.5">
@@ -746,23 +737,16 @@ function FinancialFilterSkeleton() {
   )
 }
 
-export default function FinancialDataClient({
-  initialProjects,
-  initialProjectId,
-  initialStartMonth,
-  initialEndMonth,
-  initialData,
-  initialExchangeRateByMonth,
-}: FinancialDataClientProps) {
+export default function DisplayTab() {
   const { data: session, status: sessionStatus } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const [projects, setProjects] = useState<ProjectOption[]>(initialProjects)
-  const [projectsLoading, setProjectsLoading] = useState(initialProjects.length === 0)
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
   // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
-  // 默认值来自 props（page.tsx 传入 ""），URL 有值时覆盖 props。
-  const [projectId, setProjectId] = useUrlParam<string>('project', initialProjectId)
+  // 默认值来自 page.tsx 传入的空串，URL 有值时覆盖。
+  const [projectId, setProjectId] = useUrlParam<string>('project', '')
 
   // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
   useAutoSelectFirstProject(projects, projectId, setProjectId)
@@ -771,8 +755,8 @@ export default function FinancialDataClient({
     DEFAULT_REPORT_UPLOAD_COUNTRY,
     { allowed: ['US', 'DE', 'UK'] }
   )
-  const [startMonth, setStartMonth] = useUrlParam<string>('fromMonth', initialStartMonth)
-  const [endMonth, setEndMonth] = useUrlParam<string>('toMonth', initialEndMonth)
+  const [startMonth, setStartMonth] = useUrlParam<string>('fromMonth', '')
+  const [endMonth, setEndMonth] = useUrlParam<string>('toMonth', '')
 
   // DE/UK 报表启用 VAT 列；US 报表无 VAT 数据
   const showVatColumn = useMemo(() => VAT_COUNTRIES.has(country as 'DE' | 'UK'), [country])
@@ -793,16 +777,14 @@ export default function FinancialDataClient({
     }
   }, [country])
 
-  const [data, setData] = useState<FinancialSeriesResponse | null>(initialData)
+  const [data, setData] = useState<FinancialSeriesResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [recalculating, setRecalculating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // 重算后触发核算明细刷新的计数器
   const [accountingRefreshKey, setAccountingRefreshKey] = useState(0)
-  const [exchangeRateByMonth, setExchangeRateByMonth] = useState<Record<string, number>>(
-    initialExchangeRateByMonth
-  )
+  const [exchangeRateByMonth, setExchangeRateByMonth] = useState<Record<string, number>>({})
 
   // 图表线条可见性状态
   const [visibleLines, setVisibleLines] = useState({
@@ -829,15 +811,13 @@ export default function FinancialDataClient({
   }, [accountingRows, currencyLabel])
 
   const latestRequestIdRef = useRef(0)
-  const skipInitialSeriesLoadRef = useRef(Boolean(initialData))
 
   useEffect(() => {
-    if (initialStartMonth && initialEndMonth) return
     const defaults = getBrowserDefaultMonthRange()
-    // URL 没有 fromMonth/toMonth（或值为 props 的初始 ""）时，套用浏览器默认近 12 个月窗口。
+    // URL 没有 fromMonth/toMonth 时，套用浏览器默认近 12 个月窗口。
     if (!startMonth) setStartMonth(defaults.startMonth)
     if (!endMonth) setEndMonth(defaults.endMonth)
-  }, [initialEndMonth, initialStartMonth, startMonth, endMonth])
+  }, [startMonth, endMonth])
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -1134,30 +1114,6 @@ export default function FinancialDataClient({
   }, [accountingMonth, projectId, country, projects, data])
 
   useEffect(() => {
-    if (initialData) {
-      setClientCache(
-        financialSeriesCacheKey(
-          initialData.project_id,
-          country,
-          initialStartMonth,
-          initialEndMonth
-        ),
-        initialData
-      )
-    }
-    if (Object.keys(initialExchangeRateByMonth).length > 0) {
-      setClientCache(getExchangeRateCacheKey(currencyLabel), initialExchangeRateByMonth)
-    }
-  }, [
-    initialData,
-    country,
-    currencyLabel,
-    initialEndMonth,
-    initialExchangeRateByMonth,
-    initialStartMonth,
-  ])
-
-  useEffect(() => {
     if (sessionStatus === 'loading') return
     if (projects.length > 0) {
       setProjectsLoading(false)
@@ -1168,28 +1124,8 @@ export default function FinancialDataClient({
 
   useEffect(() => {
     if (!projectId || projectsLoading) return
-    const shouldSkipInitialLoad =
-      skipInitialSeriesLoadRef.current &&
-      initialData &&
-      String(initialData.project_id) === projectId &&
-      startMonth === initialStartMonth &&
-      endMonth === initialEndMonth
-
-    if (shouldSkipInitialLoad) {
-      skipInitialSeriesLoadRef.current = false
-      return
-    }
     void loadFinancialSeries()
-  }, [
-    endMonth,
-    initialData,
-    initialEndMonth,
-    initialStartMonth,
-    loadFinancialSeries,
-    projectId,
-    projectsLoading,
-    startMonth,
-  ])
+  }, [endMonth, loadFinancialSeries, projectId, projectsLoading, startMonth])
 
   useEffect(() => {
     const months = (data?.rows ?? []).map((row) => row.report_month)
