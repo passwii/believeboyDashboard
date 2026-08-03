@@ -625,6 +625,229 @@ def get_trend(db: Session, project_id: int, months: int = 6) -> list[dict]:
 # ─── 9. ingest_ledger_csv ─────────────────────────────────────────────────────
 
 
+# BEL-417: column order in the COPY payload must match the staging table
+# definition below AND InventoryLedgerRaw.__table__.columns (minus id, raw_row,
+# loaded_at, which are DB-managed / defaulted).
+_LEDGER_COPY_COLUMNS: tuple[str, ...] = (
+    "project_id",
+    "report_month",
+    "date",
+    "fnsku",
+    "asin",
+    "msku",
+    "title",
+    "disposition",
+    "location",
+    "starting_balance",
+    "in_transit_between",
+    "receipts",
+    "customer_shipments",
+    "customer_returns",
+    "vendor_returns",
+    "warehouse_transfer_io",
+    "found",
+    "lost",
+    "damaged",
+    "disposed",
+    "other_events",
+    "ending_balance",
+    "unknown_events",
+    "store",
+)
+
+
+def _format_copy_value(value) -> str:
+    """Format a Python value for PostgreSQL COPY text format.
+
+    - ``None`` → ``\\N`` (NULL)
+    - ``date`` / ``datetime`` → ISO date / datetime
+    - ``int`` / ``float`` → str representation
+    - ``str`` → backslash-escaped (\\, \\t, \\n, \\r) per COPY default mode
+    """
+    if value is None:
+        return r"\N"
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, bool):
+        return "t" if value else "f"
+    if isinstance(value, (int, float)):
+        return str(value)
+    s = str(value)
+    # COPY text default-mode escapes (order matters — backslash first):
+    return (
+        s.replace("\\", "\\\\")
+        .replace("\t", "\\t")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
+
+
+def _build_copy_payload(
+    full_rows: list[dict],
+) -> bytes:
+    """Serialize parsed CSV rows to a single COPY payload (UTF-8 text).
+
+    Each row becomes one tab-separated line ending in ``\\n`` (the COPY default
+    text format row terminator). The output is one byte string that can be
+    fed to ``cursor.copy_expert("COPY ... FROM STDIN", buffer)``.
+    """
+    out = io.StringIO()
+    for row in full_rows:
+        cells = [_format_copy_value(row.get(col)) for col in _LEDGER_COPY_COLUMNS]
+        out.write("\t".join(cells))
+        out.write("\n")
+    return out.getvalue().encode("utf-8")
+
+
+def _ingest_ledger_csv_legacy(
+    db: Session,
+    full_rows: list[dict],
+) -> int:
+    """Pre-BEL-417 path: per-batch pg_insert().on_conflict_do_update().
+
+    Kept as a safety net for the test suite (SQLite-style) and as a
+    reference implementation. The production path now uses
+    ``_ingest_ledger_csv_copy`` — see the public ``ingest_ledger_csv``.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    batch_size = 500
+    total = 0
+    for i in range(0, len(full_rows), batch_size):
+        batch = full_rows[i : i + batch_size]
+        stmt = pg_insert(InventoryLedgerRaw).values(batch)
+        update_cols = {
+            c.name: stmt.excluded[c.name]
+            for c in InventoryLedgerRaw.__table__.columns
+            if c.name
+            not in (
+                "id",
+                "project_id",
+                "report_month",
+                "date",
+                "msku",
+                "disposition",
+                "location",
+                "loaded_at",
+            )
+        }
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_ledger_natural_key",
+            set_=update_cols,
+        )
+        db.execute(stmt)
+        total += len(batch)
+    return total
+
+
+def _ingest_ledger_csv_copy(
+    db: Session,
+    full_rows: list[dict],
+) -> int:
+    """BEL-417: COPY-from-STDIN into a temp staging table, then
+    ``INSERT ... ON CONFLICT`` into the real table — all in the same
+    transaction.
+
+    Replaces a 100-statement INSERT loop (one per 500-row batch) with a
+    single COPY round-trip, then one bulk upsert. Cuts a 30-50k-row monthly
+    ledger from ~30-60s (which routinely blew the 5s frontend proxy
+    timeout AND sometimes the 120s Postgres ``statement_timeout``) down to
+    a few seconds.
+
+    The temp table is created with ``ON COMMIT DROP`` so it disappears
+    when the surrounding transaction ends — no migration, no leftover
+    staging data, and no risk of conflict with concurrent ingest calls
+    in the same session.
+    """
+    if not full_rows:
+        return 0
+
+    payload = _build_copy_payload(full_rows)
+    # Type the staging table columns to match inventory_ledger_raw so the
+    # subsequent ``INSERT ... SELECT`` does not need per-column casts. The
+    # 5 natural-key columns (project_id, report_month, date, msku, disposition,
+    # location) keep their real types; everything else follows the real
+    # table's column list.
+    staging_column_defs: list[str] = [
+        '"project_id" INTEGER',
+        '"report_month" DATE',
+        '"date" DATE',
+        '"fnsku" VARCHAR(20)',
+        '"asin" VARCHAR(15)',
+        '"msku" VARCHAR(30)',
+        '"title" VARCHAR(500)',
+        '"disposition" VARCHAR(20)',
+        '"location" VARCHAR(10)',
+        '"starting_balance" INTEGER',
+        '"in_transit_between" INTEGER',
+        '"receipts" INTEGER',
+        '"customer_shipments" INTEGER',
+        '"customer_returns" INTEGER',
+        '"vendor_returns" INTEGER',
+        '"warehouse_transfer_io" INTEGER',
+        '"found" INTEGER',
+        '"lost" INTEGER',
+        '"damaged" INTEGER',
+        '"disposed" INTEGER',
+        '"other_events" INTEGER',
+        '"ending_balance" INTEGER',
+        '"unknown_events" INTEGER',
+        '"store" VARCHAR(50)',
+    ]
+    staging_ddl = (
+        "CREATE TEMP TABLE IF NOT EXISTS staging_inventory_ledger_raw ("
+        + ", ".join(staging_column_defs)
+        + ") ON COMMIT DROP"
+    )
+    staging_columns = ", ".join(f'"{c}"' for c in _LEDGER_COPY_COLUMNS)
+    insert_columns_sql = ", ".join(f'"{c}"' for c in _LEDGER_COPY_COLUMNS)
+    update_set_sql = ", ".join(
+        f'"{c}" = EXCLUDED."{c}"'
+        for c in _LEDGER_COPY_COLUMNS
+        if c
+        not in (
+            "project_id",
+            "report_month",
+            "date",
+            "msku",
+            "disposition",
+            "location",
+        )
+    )
+    conflict_cols = "(project_id, report_month, date, msku, disposition, location)"
+
+    # Re-use the session's checked-out DBAPI connection so this COPY runs
+    # in the SAME transaction as the surrounding session.flush()/commit().
+    sa_conn = db.connection()
+    raw_conn = sa_conn.connection.dbapi_connection
+    if raw_conn is None:
+        # Fallback for sessions that haven't materialised a connection yet.
+        raw_conn = db.bind.raw_connection()  # type: ignore[union-attr]
+    cur = raw_conn.cursor()
+    try:
+        cur.execute(staging_ddl)
+        # psycopg 3 doesn't expose psycopg2's ``copy_expert``; instead the
+        # cursor's ``.copy()`` returns a context manager we can write the
+        # payload to.  This is one round-trip — no per-row statement.
+        with cur.copy(
+            f"COPY staging_inventory_ledger_raw ({staging_columns}) "
+            f"FROM STDIN WITH (FORMAT text)"
+        ) as copy:
+            copy.write(payload)
+        upsert_sql = (
+            f"INSERT INTO inventory_ledger_raw ({insert_columns_sql}) "
+            f"SELECT {insert_columns_sql} FROM staging_inventory_ledger_raw "
+            f"ON CONFLICT {conflict_cols} DO UPDATE SET {update_set_sql}"
+        )
+        cur.execute(upsert_sql)
+    finally:
+        cur.close()
+
+    return len(full_rows)
+
+
 def _normalize_header(h: str) -> str:
     return h.strip().lower().replace(" ", "_")
 
@@ -704,41 +927,17 @@ def ingest_ledger_csv(
 
     report_month = _extract_report_month(filename, all_dates)
 
-    # Bulk upsert using PostgreSQL ON CONFLICT
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
     full_rows = [
         {**row, "project_id": project_id, "report_month": report_month}
         for row in rows_to_upsert
     ]
 
-    # Batch in chunks of 500
-    batch_size = 500
-    total = 0
-    for i in range(0, len(full_rows), batch_size):
-        batch = full_rows[i : i + batch_size]
-        stmt = pg_insert(InventoryLedgerRaw).values(batch)
-        update_cols = {
-            c.name: stmt.excluded[c.name]
-            for c in InventoryLedgerRaw.__table__.columns
-            if c.name
-            not in (
-                "id",
-                "project_id",
-                "report_month",
-                "date",
-                "msku",
-                "disposition",
-                "location",
-                "loaded_at",
-            )
-        }
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_ledger_natural_key",
-            set_=update_cols,
-        )
-        db.execute(stmt)
-        total += len(batch)
-
-    db.flush()
-    return total
+    # BEL-417: prefer COPY-from-STDIN (one round-trip + one bulk upsert) over
+    # the legacy per-batch pg_insert loop. Fall back to the legacy path when
+    # the session is bound to a non-Postgres dialect (e.g. SQLite in unit
+    # tests where ``cursor.copy_expert`` would not exist).
+    bind = db.bind
+    is_postgres = bool(bind and getattr(bind.dialect, "name", "") == "postgresql")
+    if is_postgres:
+        return _ingest_ledger_csv_copy(db, full_rows)
+    return _ingest_ledger_csv_legacy(db, full_rows)

@@ -47,6 +47,11 @@ const STREAM_ACCEPT_TOKENS: ReadonlyArray<string> = ['text/event-stream', 'appli
 const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/scheduled-reports\/test-email$/,
   /\/scheduled-reports\/.+\/run$/,
+  // BEL-417: `report-upload/commit` ingests large files (e.g. inventory ledger
+  // monthly reports 30-50k rows). Bumping to 60s so 1× monthly upload survives
+  // the 5s default. Pair with the `COPY FROM STDIN` rewrite of
+  // `ingest_ledger_csv` for throughput — see commit `2026-08-03-bel-417-*`.
+  /\/report-upload\/commit$/,
 ]
 
 const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
