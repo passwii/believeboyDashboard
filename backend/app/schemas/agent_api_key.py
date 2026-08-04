@@ -1,4 +1,4 @@
-"""Schemas for external API key admin endpoints (BEL-377)."""
+"""Schemas for Agent API key admin endpoints（BEL-377，改名见设计稿 §11）。"""
 
 from __future__ import annotations
 
@@ -13,6 +13,11 @@ class ApiKeyCreateRequest(BaseModel):
     expires_at: datetime | None = Field(
         default=None, description="ISO 过期时间；null = 永不过期"
     )
+    agent_id: str | None = Field(
+        default=None,
+        max_length=128,
+        description="绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空",
+    )
 
 
 class ApiKeyCreateResponse(BaseModel):
@@ -20,6 +25,7 @@ class ApiKeyCreateResponse(BaseModel):
     key_prefix: str
     label: str
     scope: str
+    agent_id: str | None
     expires_at: datetime | None
     created_at: datetime
     # Shown exactly once — the stored row only holds the SHA-256 hash.
@@ -31,6 +37,7 @@ class ApiKeyItem(BaseModel):
     key_prefix: str
     label: str
     scope: str
+    agent_id: str | None
     is_revoked: bool
     expires_at: datetime | None
     created_at: datetime

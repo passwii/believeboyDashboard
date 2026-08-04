@@ -16,17 +16,18 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_primary_db_session, get_request_operator
-from app.schemas.external_api_key import (
+from app.schemas.agent_api_key import (
     ApiKeyCreateRequest,
     ApiKeyCreateResponse,
     ApiKeyItem,
     ApiKeyRevokeResponse,
 )
 from app.services.agent import key_service
+from app.services.audit_log_service import append_operation_audit_log
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ def _require_admin(is_admin: bool = Header(default=False, alias="X-Is-Admin")) -
 )
 def create_api_key(
     body: ApiKeyCreateRequest,
+    request: Request,
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ApiKeyCreateResponse:
@@ -56,6 +58,15 @@ def create_api_key(
         created_by=operator or "admin",
         scope=body.scope,
         expires_at=body.expires_at,
+        agent_id=body.agent_id,
+    )
+    append_operation_audit_log(
+        db,
+        action="api_key.create",
+        target_type="agent_api_key",
+        target_id=record.id,
+        operator=operator or "admin",
+        request=request,
     )
     db.commit()
     db.refresh(record)
@@ -65,6 +76,7 @@ def create_api_key(
         key_prefix=record.key_prefix,
         label=record.label,
         scope=record.scope,
+        agent_id=record.agent_id,
         expires_at=record.expires_at,
         created_at=record.created_at,
         plaintext_key=plaintext,
@@ -92,11 +104,21 @@ def list_api_keys(
 )
 def revoke_api_key(
     key_id: int,
+    request: Request,
     db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
 ) -> ApiKeyRevokeResponse:
     record = key_service.revoke_api_key(db, key_id)
     if record is None:
         raise HTTPException(status_code=404, detail="API key not found")
+    append_operation_audit_log(
+        db,
+        action="api_key.revoke",
+        target_type="agent_api_key",
+        target_id=key_id,
+        operator=operator or "admin",
+        request=request,
+    )
     db.commit()
     logger.info("API key revoked id=%s", key_id)
     return ApiKeyRevokeResponse(id=record.id, is_revoked=record.is_revoked)
