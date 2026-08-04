@@ -14,10 +14,14 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.celery_tasks.backup import run_backup_task
 from app.models.backup_record import BackupRecord, BackupStatus, BackupType
-from app.services.r2_service import check_file_exists, generate_presigned_url, upload_file_to_r2
+from app.services.r2_service import (
+    check_file_exists,
+    generate_presigned_url,
+    upload_file_to_r2,
+)
 
 # pgbackrest 本地备份仓库根目录（backup set 目录在 {base}/{set_name}/）。
-PG_BACKUP_BASE = Path("/var/lib/pgbackrest/backup/blf")
+PG_BACKUP_BASE = Path("/var/lib/pgbackrest/backup/blf/backup/blf")
 
 
 def _run_pgbackrest(args: list[str], timeout: int = 3600) -> tuple[int, str, str]:
@@ -42,7 +46,9 @@ def _run_pgbackrest(args: list[str], timeout: int = 3600) -> tuple[int, str, str
 
 def _get_pgbackrest_info() -> tuple[bool, str, list[dict]]:
     """Get backup info from pgbackrest. Returns (success, raw_output, backups_list)."""
-    returncode, stdout, stderr = _run_pgbackrest(["info", "--stanza=blf", "--output=json"])
+    returncode, stdout, stderr = _run_pgbackrest(
+        ["info", "--stanza=blf", "--output=json"]
+    )
     if returncode != 0:
         return False, stderr or stdout, []
 
@@ -97,7 +103,11 @@ def _upload_to_r2(settings: Settings, record: BackupRecord, tar_path: Path) -> d
     filename = f"blf_{date}_{record.backup_type}_{record.id}.tar.gz"
     with tar_path.open("rb") as fh:
         result = upload_file_to_r2(
-            settings, fh, filename=filename, project_slug="db-backups", file_type="pgbackrest"
+            settings,
+            fh,
+            filename=filename,
+            project_slug="db-backups",
+            file_type="pgbackrest",
         )
     record.r2_key = result["key"]
     record.r2_url = result["url"]
@@ -149,7 +159,9 @@ def enqueue_backup(
         return trigger_backup(db, backup_type, user_id=user_id)
 
 
-def trigger_backup(db: Session, backup_type: str, user_id: int | None = None) -> tuple[BackupRecord, str]:
+def trigger_backup(
+    db: Session, backup_type: str, user_id: int | None = None
+) -> tuple[BackupRecord, str]:
     """
     Trigger a pgBackRest backup.
 
@@ -201,7 +213,9 @@ def trigger_backup(db: Session, backup_type: str, user_id: int | None = None) ->
         return record, f"备份失败: {record.error_message}"
 
 
-def get_backup_records(db: Session, limit: int = 50, offset: int = 0) -> tuple[list[BackupRecord], int]:
+def get_backup_records(
+    db: Session, limit: int = 50, offset: int = 0
+) -> tuple[list[BackupRecord], int]:
     """Get backup records with pagination."""
     query = db.query(BackupRecord).order_by(BackupRecord.created_at.desc())
 
@@ -216,7 +230,9 @@ def get_backup_status_summary(db: Session) -> dict:
     query = db.query(BackupRecord)
 
     total = query.count()
-    successful = query.filter(BackupRecord.status == BackupStatus.COMPLETED.value).count()
+    successful = query.filter(
+        BackupRecord.status == BackupStatus.COMPLETED.value
+    ).count()
     failed = query.filter(BackupRecord.status == BackupStatus.FAILED.value).count()
     is_running = (
         db.query(BackupRecord)
