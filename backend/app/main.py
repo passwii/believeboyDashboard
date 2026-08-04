@@ -19,6 +19,7 @@ from sqlalchemy import text
 # → AMQP localhost:5672）→ 手动 resend 报 Connection refused。
 from app.tasks.celery_app import celery_app  # noqa: F401  -- side-effect import
 
+from app.api.agent.errors import register_agent_error_handlers
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
@@ -56,6 +57,7 @@ def _rate_limit_exceeded_handler(
 
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+register_agent_error_handlers(app)
 
 if not settings.frontend_url:
     raise Exception(

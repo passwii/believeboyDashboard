@@ -53,6 +53,72 @@ class KeyVerdict:
         return self.status == "ok"
 
 
+@dataclass
+class AgentKeyVerdict:
+    """agent 通道单候选解析结果（与 external 的 KeyVerdict 区分）。"""
+
+    status: str  # "ok" | "expired" | "revoked" | "not_found" | "agent_mismatch"
+    key: AgentApiKey | None = None
+    # last_used_at 是否被本次 stamped（caller 决定 commit/rollback）
+    changed: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
+
+
+LAST_USED_THROTTLE_SECONDS = 60
+
+
+def resolve_key_for_agent(
+    db: Session,
+    candidate: str,
+    *,
+    agent_id: str,
+    now: datetime | None = None,
+) -> AgentKeyVerdict:
+    """agent 通道解析：严格 agent_id 绑定 + last_used_at 节流。
+
+    与 ``resolve_key``（external 通道、多候选、每次 stamp）不同：
+    * ``agent_id IS NULL`` 的存量 key 一律 agent_mismatch（设计稿 §2.2 行为矩阵）；
+    * 距上次 stamp 不足 60s 跳过更新，避免高频读造成热写。
+
+    返回前将 row ``expunge`` 成 detached 快照（列属性已加载）——caller 关闭
+    会话后仍可安全读 ``verdict.key``；stamp 先 flush 进当前事务，
+    commit/rollback 仍由 caller 决定。
+    """
+    now = now or datetime.now(timezone.utc)
+    row = db.scalars(
+        select(AgentApiKey).where(AgentApiKey.key_hash == hash_key(candidate))
+    ).first()
+    if row is None:
+        return AgentKeyVerdict(status="not_found")
+    if row.is_revoked:
+        db.expunge(row)
+        return AgentKeyVerdict(status="revoked", key=row)
+    if row.expires_at is not None:
+        expires = row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires <= now:
+            db.expunge(row)
+            return AgentKeyVerdict(status="expired", key=row)
+    if row.agent_id is None or row.agent_id != agent_id:
+        db.expunge(row)
+        return AgentKeyVerdict(status="agent_mismatch", key=row)
+
+    changed = False
+    last = row.last_used_at
+    if last is not None and last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    if last is None or (now - last).total_seconds() >= LAST_USED_THROTTLE_SECONDS:
+        row.last_used_at = now
+        db.flush()  # stamp 写入当前事务；caller commit 才落库
+        changed = True
+    db.expunge(row)
+    return AgentKeyVerdict(status="ok", key=row, changed=changed)
+
+
 def create_api_key(
     db: Session,
     *,

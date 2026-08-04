@@ -64,6 +64,7 @@ from app.api.v1.endpoints.backups import router as backups_router
 from app.api.v1.endpoints.inspections import router as inspections_router
 from app.api.v1.endpoints.page_render import router as page_render_router
 from app.api.v1.endpoints.external import external_router
+from app.api.v1.endpoints.agent import agent_router
 from app.api.v1.endpoints.crm import router as crm_router
 from app.api.v1.endpoints.notifications import router as notifications_router
 from app.api.v1.endpoints.internal_jobs import router as internal_jobs_router
@@ -119,6 +120,7 @@ api_router.include_router(backups_router)
 api_router.include_router(inspections_router)
 api_router.include_router(page_render_router)
 api_router.include_router(external_router)
+api_router.include_router(agent_router)
 api_router.include_router(vat_invoices_router)
 api_router.include_router(crm_router)
 api_router.include_router(notifications_router)
