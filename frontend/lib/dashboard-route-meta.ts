@@ -21,6 +21,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/system/data-management', title: '数据库状态' },
   { match: '/system/account-management', title: '系统账号管理' },
   { match: '/system/operator-management', title: '运营管理' },
+  { match: '/system/agent-management', title: 'Agent 凭据管理' },
   { match: '/finance/commission-management', title: '佣金管理' },
   { match: '/system/logs', title: '日志查看' },
   { match: '/reports/scheduled-reports', title: '定时报告' },
