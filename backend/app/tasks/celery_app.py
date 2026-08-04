@@ -91,8 +91,9 @@ def _build_celery_app() -> Celery:
             "external_audit_cleanup": {"queue": "default"},
             # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
             "ai_chat_token_usage.refresh_daily": {"queue": "default"},
-            # 数据库备份：IO 重活，独立 `backups` 队列 + 独立 worker（-c 1，Phase 4）。
-            "app.celery_tasks.backup.run_backup_task": {"queue": "backups"},
+            # 数据库备份：走 default 队列（由主 worker 顺手跑，不单独起 worker）。
+            # 备份每日 03:00 离峰触发，与报告任务不冲突；run_backup_task 内有
+            # 行锁 + 乐观锁幂等护栏，broker 重投不会重复备份。
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={

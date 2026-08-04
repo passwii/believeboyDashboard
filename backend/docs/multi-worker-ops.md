@@ -19,17 +19,16 @@
 | `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
 | `deploy/systemd/believeboy-celery.service` | 主 Celery worker（`-c 4`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
 | `deploy/systemd/believeboy-celery-scheduled.service` | 定时报告专用 worker（`-c 2`，BEL-NEW） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
-| `deploy/systemd/believeboy-celery-backups.service` | 数据库备份专用 worker（`-c 1`） | 仅消费 `backups` 队列——pgBackRest→R2 IO 重活，单并发 |
 
 > **为什么新增 `scheduled` worker？** 方案 §4.4 的核心价值是**内存隔离**：
 > 定时报告带 Playwright headless 截图（约 200-400MB / 任务），OOM 时只
 > 杀死 scheduled 进程，不会拖垮手动月报所在的 reports / insights worker。
 > 副作用是 scheduled 单进程内 `_summary_cache` 全局共享（P1-3 / §4.3）。
 
-> **为什么新增 `backups` worker？** 数据库备份（pgBackRest 全量 → tar.gz →
-> R2 上传）是可能跑 1–2h 的 IO 重活，独立 `backups` 队列 + `-c 1` 单并发
-> 避免它与报告 / 截图抢磁盘 IO 和 prefetch 槽位；`run_backup_task` 内有
-> 行锁 + 乐观锁幂等护栏，broker 重投不会重复备份。
+> **为什么备份不单独起 worker？** 备份（pgBackRest 全量 → tar.gz → R2 上传）
+> 每日 03:00 离峰触发一次，与报告/截图任务不冲突；单独起 worker 在 1G 内存的
+> VPS 上多占一个常驻进程，收益小于成本，故 `run_backup_task` 直接走 default
+> 队列由主 worker 执行。task 内有行锁 + 乐观锁幂等护栏，broker 重投不会重复备份。
 > **Celery Beat 必须单实例**：`daily-pg-full-backup`（每日 03:00 全量）与
 > `r2-backup-cleanup`（每日 04:30 保留清理）由 beat 触发，多副本部署时只能
 > 在一台机器起 `celery -A app.tasks.celery_app beat`（乐观锁虽兜底，勿依赖）。
