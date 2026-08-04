@@ -51,6 +51,7 @@ import {
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import {
   addMonths,
@@ -753,15 +754,24 @@ function SearchableSkuField({
   loading,
   onChange,
   disabled = false,
+  onOpen,
 }: {
   value: string
   options: ProjectSkuOption[]
   loading: boolean
   onChange: (value: string) => void
   disabled?: boolean
+  /** BEL-423：打开选择器时回调（父级据此懒加载 SKU 列表）。 */
+  onOpen?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const selectedSku = options.find((option) => option.sku === value)
+
+  const handleOpen = () => {
+    if (disabled) return
+    setOpen(true)
+    onOpen?.()
+  }
 
   return (
     <Dialog open={open} onOpenChange={(next) => (disabled ? setOpen(false) : setOpen(next))}>
@@ -773,7 +783,7 @@ function SearchableSkuField({
           'h-9 w-[200px] justify-between px-3 font-normal shadow-sm',
           disabled && 'opacity-50 cursor-not-allowed'
         )}
-        onClick={() => !disabled && setOpen(true)}
+        onClick={handleOpen}
       >
         <span
           className={cn('truncate text-left', value ? 'text-foreground' : 'text-muted-foreground')}
@@ -1052,31 +1062,20 @@ export default function DailyAnalysisPage() {
               })
             : null
 
-          const [response, compareResponse] = await Promise.all([
-            fetch(`${API_BASE}/api/v1/daily-analysis/all?${search.toString()}`, {
-              headers: authHeaders(),
-              cache: 'no-store',
-            }),
+          // BEL-423：分析数据走 2min 客户端缓存（重复 mount 0 请求）；
+          // "刷新数据"（skipRedis）force 跳过缓存。
+          const [payload, comparePayload] = await Promise.all([
+            fetchOpsJsonCached<DailyAnalysisAllProjectsResponse>(
+              `${API_BASE}/api/v1/daily-analysis/all?${search.toString()}`,
+              { session, force: skipRedis, fallbackError: '销售数据加载失败' }
+            ),
             compareSearch
-              ? fetch(`${API_BASE}/api/v1/daily-analysis/all?${compareSearch.toString()}`, {
-                  headers: authHeaders(),
-                  cache: 'no-store',
-                })
+              ? fetchOpsJsonCached<DailyAnalysisAllProjectsResponse>(
+                  `${API_BASE}/api/v1/daily-analysis/all?${compareSearch.toString()}`,
+                  { session, force: skipRedis, fallbackError: '销售数据对比加载失败' }
+                )
               : Promise.resolve(null),
           ])
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            throw new Error(payload?.detail || '销售数据加载失败')
-          }
-          if (compareResponse && !compareResponse.ok) {
-            const payload = await compareResponse.json().catch(() => null)
-            throw new Error(payload?.detail || '销售数据对比加载失败')
-          }
-
-          const payload = (await response.json()) as DailyAnalysisAllProjectsResponse
-          const comparePayload = compareResponse
-            ? ((await compareResponse.json()) as DailyAnalysisAllProjectsResponse)
-            : null
           if (requestId !== latestLoadRequestRef.current) return
           setData({
             console: {
@@ -1124,34 +1123,18 @@ export default function DailyAnalysisPage() {
               })
             : null
 
-          const [response, compareResponse] = await Promise.all([
-            fetch(`${API_BASE}/api/v1/daily-analysis/all-countries?${search.toString()}`, {
-              headers: authHeaders(),
-              cache: 'no-store',
-            }),
+          const [payload, comparePayload] = await Promise.all([
+            fetchOpsJsonCached<DailyAnalysisAllCountriesResponse>(
+              `${API_BASE}/api/v1/daily-analysis/all-countries?${search.toString()}`,
+              { session, force: skipRedis, fallbackError: '跨国家销售数据加载失败' }
+            ),
             compareSearch
-              ? fetch(
+              ? fetchOpsJsonCached<DailyAnalysisAllCountriesResponse>(
                   `${API_BASE}/api/v1/daily-analysis/all-countries?${compareSearch.toString()}`,
-                  {
-                    headers: authHeaders(),
-                    cache: 'no-store',
-                  }
+                  { session, force: skipRedis, fallbackError: '跨国家销售数据对比加载失败' }
                 )
               : Promise.resolve(null),
           ])
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            throw new Error(payload?.detail || '跨国家销售数据加载失败')
-          }
-          if (compareResponse && !compareResponse.ok) {
-            const payload = await compareResponse.json().catch(() => null)
-            throw new Error(payload?.detail || '跨国家销售数据对比加载失败')
-          }
-
-          const payload = (await response.json()) as DailyAnalysisAllCountriesResponse
-          const comparePayload = compareResponse
-            ? ((await compareResponse.json()) as DailyAnalysisAllCountriesResponse)
-            : null
           if (requestId !== latestLoadRequestRef.current) return
           setData({
             console: payload.console,
@@ -1184,31 +1167,18 @@ export default function DailyAnalysisPage() {
               })
             : null
 
-          const [response, compareResponse] = await Promise.all([
-            fetch(`${API_BASE}/api/v1/daily-analysis?${search.toString()}`, {
-              headers: authHeaders(),
-              cache: 'no-store',
-            }),
+          const [payload, comparePayload] = await Promise.all([
+            fetchOpsJsonCached<DailyAnalysisResponse>(
+              `${API_BASE}/api/v1/daily-analysis?${search.toString()}`,
+              { session, force: skipRedis, fallbackError: '销售数据加载失败' }
+            ),
             compareSearch
-              ? fetch(`${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`, {
-                  headers: authHeaders(),
-                  cache: 'no-store',
-                })
+              ? fetchOpsJsonCached<DailyAnalysisResponse>(
+                  `${API_BASE}/api/v1/daily-analysis?${compareSearch.toString()}`,
+                  { session, force: skipRedis, fallbackError: '销售数据对比加载失败' }
+                )
               : Promise.resolve(null),
           ])
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            throw new Error(payload?.detail || '销售数据加载失败')
-          }
-          if (compareResponse && !compareResponse.ok) {
-            const payload = await compareResponse.json().catch(() => null)
-            throw new Error(payload?.detail || '销售数据对比加载失败')
-          }
-
-          const payload = (await response.json()) as DailyAnalysisResponse
-          const comparePayload = compareResponse
-            ? ((await compareResponse.json()) as DailyAnalysisResponse)
-            : null
           if (requestId !== latestLoadRequestRef.current) return
           setData(payload)
           setComparisonSummaryRows(comparePayload?.summary_rows ?? EMPTY_SUMMARY_ROWS)
@@ -1229,7 +1199,7 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [projectId, country, dateRange, notify, isAllProjects, projects]
+    [projectId, country, dateRange, notify, isAllProjects, projects, session]
   )
 
   const loadProjectSkus = useCallback(
@@ -1312,17 +1282,27 @@ export default function DailyAnalysisPage() {
     setSelectedSku('')
   }, [projectId])
 
+  // BEL-423 页内懒加载：SKU 列表从 mount 即分页拉取改为首打开 SKU 筛选器再拉取。
+  // 默认不选 SKU 时主数据不需要它，选 SKU 前拉完即可。
+  const skuOptionsRequestedRef = useRef(false)
+  const ensureSkuOptions = useCallback(() => {
+    if (skuOptionsRequestedRef.current) return
+    if (!projectId || country === 'ALL') return
+    skuOptionsRequestedRef.current = true
+    void loadProjectSkus(projectId, country)
+  }, [projectId, country, loadProjectSkus])
+
   useEffect(() => {
     if (!projectId) return
-    // 全部站点跨国家聚合时，SKU 按国家过滤无意义，跳过加载。
+    // 全部站点跨国家聚合时，SKU 按国家过滤无意义，清空选项。
     if (country === 'ALL') {
       setSkuOptions([])
       setSelectedSku('')
       selectedSkuRef.current = ''
-      return
     }
-    void loadProjectSkus(projectId, country)
-  }, [projectId, country, loadProjectSkus])
+    // 作用域变化后，下次打开筛选器需重新拉取。
+    skuOptionsRequestedRef.current = false
+  }, [projectId, country])
 
   useEffect(() => {
     if (!projectId) return
@@ -1330,6 +1310,8 @@ export default function DailyAnalysisPage() {
   }, [loadData])
 
   // Fetch current month goal progress
+  // BEL-423：goal progress 与"目标管理"页共用 project-goals/progress 端点，进 2min
+  // 客户端缓存；目标页写操作后会清缓存，这边下次 mount 自然拿到新值。
   useEffect(() => {
     if (!projectId || isAllProjects || country === 'ALL') {
       setGoalProgress(null)
@@ -1338,23 +1320,30 @@ export default function DailyAnalysisPage() {
     const year = new Date().getFullYear()
     const month = new Date().getMonth() + 1
     setGoalLoading(true)
-    fetch(
+    fetchOpsJsonCached<{
+      monthly_progress?: Array<{
+        month: number
+        target_amount: number
+        achieved_amount: number
+        completion_vs_monthly: number
+        completion_vs_daily: number
+        today_day: number
+        days_in_month: number
+        currency: string
+      }>
+    }>(
       `${API_BASE}/api/v1/project-goals/progress?project_id=${projectId}&country=${country}&year=${year}`,
-      { cache: 'no-store' }
+      { session }
     )
-      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return
-        const monthly = (data.monthly_progress ?? []).find(
-          (m: { month: number }) => m.month === month
-        )
+        const monthly = (data.monthly_progress ?? []).find((m) => m.month === month)
         if (monthly) setGoalProgress(monthly)
       })
       .catch(() => {
         /* silently fail */
       })
       .finally(() => setGoalLoading(false))
-  }, [projectId, country])
+  }, [projectId, country, session, isAllProjects])
 
   const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
@@ -1603,6 +1592,7 @@ export default function DailyAnalysisPage() {
               options={skuOptions}
               loading={skuLoading}
               disabled={country === 'ALL'}
+              onOpen={ensureSkuOptions}
               onChange={(value) => {
                 selectedSkuRef.current = value
                 setSelectedSku(value)
@@ -1658,6 +1648,7 @@ export default function DailyAnalysisPage() {
                   options={skuOptions}
                   loading={skuLoading}
                   disabled={country === 'ALL'}
+                  onOpen={ensureSkuOptions}
                   onChange={(value) => {
                     selectedSkuRef.current = value
                     setSelectedSku(value)

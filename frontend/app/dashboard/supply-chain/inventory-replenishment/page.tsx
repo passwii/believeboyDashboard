@@ -49,6 +49,7 @@ import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/compone
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
@@ -597,12 +598,9 @@ export default function InventoryReplenishmentPage() {
           url = `${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`
         }
 
-        const response = await fetch(url, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        })
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as AnalysisResponse
+        // BEL-423：只读分析数据走 2min 客户端缓存（重复 mount 0 请求）；
+        // 保存行设置后的重载走 reloadAnalysis 的 force 路径。
+        const payload = await fetchOpsJsonCached<AnalysisResponse>(url, { session })
         if (!active) return
         setRows(payload.items)
         setSummary(payload.summary)
@@ -639,6 +637,7 @@ export default function InventoryReplenishmentPage() {
     refreshNonce,
     riskFilter,
     selectedSnapshotId,
+    session,
   ])
 
   async function openShipments(row: AnalysisRow) {
@@ -733,15 +732,11 @@ export default function InventoryReplenishmentPage() {
     })
     if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
     if (riskFilter !== 'all') params.set('risk_status', riskFilter)
-    const response = await fetch(
+    // BEL-423：保存后的重载必须拿最新数据，force 跳过缓存读取并覆写。
+    const refreshed = await fetchOpsJsonCached<AnalysisResponse>(
       `${API_BASE}/api/v1/inventory-replenishment-analysis?${params.toString()}`,
-      {
-        headers: authHeaders(),
-        cache: 'no-store',
-      }
+      { session, force: true }
     )
-    if (!response.ok) throw new Error(await parseError(response))
-    const refreshed = (await response.json()) as AnalysisResponse
     setRows(refreshed.items)
     setSummary(refreshed.summary)
     setEdits((prev) => {

@@ -16,6 +16,7 @@ Phase 1: 跑 pgBackRest 并落 completed/failed; R2 上传 (compressing/r2_uploa
 backup_service 在模块顶部 import 了本模块的 run_backup_task, 顶层互相 import
 会循环。延迟导入同时让单测可 patch 源模块函数。
 """
+
 from __future__ import annotations
 
 import logging
@@ -80,7 +81,10 @@ def run_backup_task(self, record_id: int) -> dict:
         if record.status == BackupStatus.COMPLETED.value:
             return {"record_id": record_id, "status": "already_completed"}
 
-        if record.status == BackupStatus.FAILED.value and record.retry_count >= MAX_RETRIES:
+        if (
+            record.status == BackupStatus.FAILED.value
+            and record.retry_count >= MAX_RETRIES
+        ):
             return {"record_id": record_id, "status": "retry_exhausted"}
 
         if not _advance_phase(db, record_id, "pending", "pgbackrest_running"):
@@ -127,19 +131,27 @@ def run_backup_task(self, record_id: int) -> dict:
         record.retry_count += 1
         record.error_message = stderr or stdout
         db.commit()
-        return {"record_id": record_id, "status": "failed", "error": record.error_message}
+        return {
+            "record_id": record_id,
+            "status": "failed",
+            "error": record.error_message,
+        }
 
 
 @shared_task(name="app.celery_tasks.backup.schedule_daily_backup_task")
-def schedule_daily_backup_task(backup_type: str = "full", triggered_by: str = "auto") -> dict:
+def schedule_daily_backup_task(
+    backup_type: str = "full", triggered_by: str = "auto"
+) -> dict:
     """Celery Beat 入口 (§3.6): 创建一条自动备份记录并入队 run_backup_task。
 
-    thin wrapper — 真正的备份由 run_backup_task 在 backups 队列执行。
+    thin wrapper — 真正的备份由 run_backup_task 在 default 队列执行。
     """
     from app.services.backup_service import enqueue_backup
 
     with SessionLocal() as db:
-        record, _ = enqueue_backup(db, backup_type=backup_type, user_id=None, triggered_by=triggered_by)
+        record, _ = enqueue_backup(
+            db, backup_type=backup_type, user_id=None, triggered_by=triggered_by
+        )
         db.commit()
         return {"record_id": record.id, "status": record.status}
 
@@ -158,12 +170,16 @@ def cleanup_r2_task() -> dict:
     retention = settings.backup_r2_retention_count
 
     with SessionLocal() as db:
-        rows = db.execute(
-            select(BackupRecord)
-            .where(BackupRecord.r2_uploaded_at.is_not(None))
-            .where(BackupRecord.r2_deleted_at.is_(None))
-            .order_by(BackupRecord.r2_uploaded_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(BackupRecord)
+                .where(BackupRecord.r2_uploaded_at.is_not(None))
+                .where(BackupRecord.r2_deleted_at.is_(None))
+                .order_by(BackupRecord.r2_uploaded_at.desc())
+            )
+            .scalars()
+            .all()
+        )
 
         kept = deleted = 0
         for idx, record in enumerate(rows):

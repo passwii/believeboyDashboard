@@ -26,6 +26,8 @@ interface MultiSelectProps {
   onChange: (selected: string[]) => void
   placeholder?: string
   className?: string
+  /** BEL-422：下拉首次打开时回调（供按需加载选项数据，避免首屏预拉） */
+  onOpen?: () => void
 }
 
 export function MultiSelect({
@@ -34,8 +36,14 @@ export function MultiSelect({
   onChange,
   placeholder = 'Select...',
   className,
+  onOpen,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (next) onOpen?.()
+  }
 
   const selectedOptions = options.filter((opt) => selected.includes(opt.value))
 
@@ -52,7 +60,7 @@ export function MultiSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"

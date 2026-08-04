@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
+
 const API_BASE = '/api/backend'
 
 export interface ProjectOption {
@@ -192,13 +194,12 @@ export function usePortfolioData({
           start_date: startDate,
           end_date: endDate,
         })
-        const response = await fetch(`${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`, {
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error(`加载失败 (${response.status})`)
-        }
-        const raw: DailyAnalysisAllProjectsResponse = await response.json()
+        // BEL-423：与 daily-analysis 共用 daily-analysis/all 端点的 2min 客户端缓存，
+        // 两页来回切换不重复请求。
+        const raw = await fetchOpsJsonCached<DailyAnalysisAllProjectsResponse>(
+          `${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`,
+          { session, fallbackError: '加载失败' }
+        )
         if (!active) return
         setData(buildPortfolioSummary(raw))
       } catch (e) {
@@ -213,7 +214,7 @@ export function usePortfolioData({
     return () => {
       active = false
     }
-  }, [projectIds.join(','), country, startDate, endDate, nonce])
+  }, [projectIds.join(','), country, startDate, endDate, nonce, session])
 
   return { data, loading, error, refresh }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   Loader2,
@@ -49,6 +49,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { clearOpsClientCaches, fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -245,34 +246,54 @@ export default function ProjectGoalsPage() {
   })
   const [saving, setSaving] = useState(false)
 
-  const loadData = useCallback(async () => {
-    if (!selectedProjectId) return
-    setLoading(true)
-    try {
+  // BEL-423 页内懒加载：进度概览与目标列表拆开按 tab 取数——mount 只拉 progress，
+  // "目标管理" tab 首次激活才拉 goals；两者都进 2min 客户端缓存（写操作后清缓存）。
+  const [activeTab, setActiveTab] = useState('progress')
+  const goalsRequestedRef = useRef(false)
+
+  const loadProgress = useCallback(
+    async (force = false) => {
+      if (!selectedProjectId) return
       const year = selectedYear || String(new Date().getFullYear())
-      const [progressRes, goalsRes] = await Promise.all([
-        fetch(
-          `${API_BASE}/project-goals/progress?project_id=${selectedProjectId}&country=${selectedCountry}&year=${year}`,
-          { cache: 'no-store' }
-        ),
-        fetch(
-          `${API_BASE}/project-goals?project_id=${selectedProjectId}&country=${selectedCountry}&year=${year}`,
-          { cache: 'no-store' }
-        ),
-      ])
-      if (progressRes.ok) {
-        setProgressData(await progressRes.json())
+      const payload = await fetchOpsJsonCached<ProjectGoalProgressResponse>(
+        `${API_BASE}/project-goals/progress?project_id=${selectedProjectId}&country=${selectedCountry}&year=${year}`,
+        { session, force }
+      )
+      setProgressData(payload)
+    },
+    [selectedProjectId, selectedCountry, selectedYear, session]
+  )
+
+  const loadGoals = useCallback(
+    async (force = false) => {
+      if (!selectedProjectId) return
+      const year = selectedYear || String(new Date().getFullYear())
+      const data = await fetchOpsJsonCached<ProjectGoalListResponse>(
+        `${API_BASE}/project-goals?project_id=${selectedProjectId}&country=${selectedCountry}&year=${year}`,
+        { session, force }
+      )
+      setGoalsData(data.goals)
+    },
+    [selectedProjectId, selectedCountry, selectedYear, session]
+  )
+
+  const loadData = useCallback(
+    async (force = false) => {
+      if (!selectedProjectId) return
+      setLoading(true)
+      try {
+        await Promise.all([
+          loadProgress(force),
+          goalsRequestedRef.current ? loadGoals(force) : Promise.resolve(),
+        ])
+      } catch {
+        notify({ type: 'error', title: '数据加载失败' })
+      } finally {
+        setLoading(false)
       }
-      if (goalsRes.ok) {
-        const data = (await goalsRes.json()) as ProjectGoalListResponse
-        setGoalsData(data.goals)
-      }
-    } catch {
-      notify({ type: 'error', title: '数据加载失败' })
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedProjectId, selectedCountry, selectedYear, notify])
+    },
+    [selectedProjectId, loadProgress, loadGoals, notify]
+  )
 
   useEffect(() => {
     fetchManagedProjectsCached<ProjectOption[]>(session).then(setProjects)
@@ -280,12 +301,24 @@ export default function ProjectGoalsPage() {
 
   useEffect(() => {
     if (selectedProjectId) {
-      loadData()
+      void loadData()
     } else {
       setProgressData(null)
       setGoalsData([])
+      goalsRequestedRef.current = false
     }
   }, [selectedProjectId, selectedCountry, selectedYear, loadData])
+
+  // tab 激活时才拉对应数据：goals 列表首次进入"目标管理"再取数
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    if (value === 'goals' && !goalsRequestedRef.current) {
+      goalsRequestedRef.current = true
+      loadGoals().catch(() => {
+        notify({ type: 'error', title: '目标列表加载失败' })
+      })
+    }
+  }
 
   // Current month progress
   const currentLocalDate = getTodayInTimezone(COUNTRY_TIMEZONE_MAP[selectedCountry] ?? 'UTC')
@@ -372,7 +405,8 @@ export default function ProjectGoalsPage() {
             formData.goal_type === 'monthly'
               ? `${formData.period_month}月目标已存在，请直接编辑现有目标`
               : `${selectedYear}年度目标已存在，请直接编辑现有目标`
-          await loadData()
+          clearOpsClientCaches()
+          await loadData(true)
         } else {
           try {
             const err = JSON.parse(raw)
@@ -387,7 +421,9 @@ export default function ProjectGoalsPage() {
       }
       notify({ type: 'success', title: editingGoal ? '目标已更新' : '目标已创建' })
       setDialogOpen(false)
-      loadData()
+      // BEL-423：写操作后清掉板块缓存，再 force 重载拿最新数据
+      clearOpsClientCaches()
+      void loadData(true)
     } catch (e) {
       notify({ type: 'error', title: e instanceof Error ? e.message : '保存失败' })
     } finally {
@@ -408,7 +444,8 @@ export default function ProjectGoalsPage() {
       notify({ type: 'error', title: '删除失败' })
     } else {
       notify({ type: 'success', title: '目标已删除' })
-      loadData()
+      clearOpsClientCaches()
+      void loadData(true)
     }
   }
 
@@ -518,7 +555,7 @@ export default function ProjectGoalsPage() {
             variant="outline"
             size="sm"
             className="w-full lg:w-auto"
-            onClick={loadData}
+            onClick={() => void loadData(true)}
             disabled={loading || !selectedProjectId}
           >
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -618,7 +655,7 @@ export default function ProjectGoalsPage() {
           )}
 
           {/* Tabs: Progress Table + Goal Management */}
-          <Tabs defaultValue="progress" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
               <TabsTrigger value="progress">进度概览</TabsTrigger>
               <TabsTrigger value="goals">目标管理</TabsTrigger>

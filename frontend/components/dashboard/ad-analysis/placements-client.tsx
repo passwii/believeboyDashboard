@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Gauge, PanelsTopLeft } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
@@ -11,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -21,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const API_BASE = '/api/backend'
 
 type PlacementItem = {
   campaign_name: string
@@ -61,18 +63,10 @@ type PlacementResponse = {
   items: PlacementItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
 
 export function AdAnalysisPlacementsClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -87,6 +81,8 @@ export function AdAnalysisPlacementsClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -102,12 +98,8 @@ export function AdAnalysisPlacementsClient() {
         if (campaignFilter) query.set('campaign', campaignFilter)
         if (placementFilter) query.set('placement', placementFilter)
         if (skuFilter) query.set('sku', skuFilter)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/placements?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as PlacementResponse
+        // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
+        const payload = await fetchAdAnalysisCached<PlacementResponse>('placements', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active)
@@ -121,7 +113,7 @@ export function AdAnalysisPlacementsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, skuFilter])
+  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, session, skuFilter, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载广告位分析..." />
@@ -172,6 +164,7 @@ export function AdAnalysisPlacementsClient() {
         ))}
       </div>
 
+      <DeferredSection fallbackHeight="h-[280px]" data-testid="placements-deferred-narrative">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">广告位层分析</CardTitle>
@@ -214,7 +207,9 @@ export function AdAnalysisPlacementsClient() {
           ))}
         </CardContent>
       </Card>
+      </DeferredSection>
 
+      <DeferredSection fallbackHeight="h-[420px]" data-testid="placements-deferred-table">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -378,6 +373,7 @@ export function AdAnalysisPlacementsClient() {
           </div>
         </CardContent>
       </Card>
+      </DeferredSection>
     </div>
   )
 }

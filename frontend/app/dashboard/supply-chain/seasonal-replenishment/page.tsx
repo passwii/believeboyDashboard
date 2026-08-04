@@ -1,6 +1,6 @@
 'use client'
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { FileDown, RefreshCw, Table2, TrendingDown, TrendingUp } from 'lucide-react'
@@ -33,6 +33,7 @@ import {
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { applyBorder, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
@@ -110,20 +111,6 @@ const EMPTY_SUMMARY: Summary = {
   pending_data_count: 0,
   total_available_inventory: 0,
   total_in_transit_quantity: 0,
-}
-
-function authHeaders(): Record<string, string> {
-  return {}
-}
-
-async function parseError(response: Response): Promise<string> {
-  const text = await response.text()
-  try {
-    const payload = JSON.parse(text) as { detail?: string }
-    return payload.detail || `请求失败 (${response.status})`
-  } catch {
-    return text || `请求失败 (${response.status})`
-  }
 }
 
 function formatNumber(value: number | null | undefined, digits = 2): string {
@@ -231,6 +218,8 @@ export default function SeasonalReplenishmentPage() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  // BEL-423："刷新重算"后的下一次加载跳过客户端缓存（拿后端最新重算结果）。
+  const forceNextLoadRef = useRef(false)
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -335,12 +324,11 @@ export default function SeasonalReplenishmentPage() {
         if (deferredKeyword.trim()) params.set('keyword', deferredKeyword.trim())
 
         const url = `${API_BASE}/api/v1/seasonal-replenishment-analysis?${params.toString()}`
-        const response = await fetch(url, {
-          headers: authHeaders(),
-          cache: 'no-store',
-        })
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as SeasonalResponse
+        // BEL-423：只读分析数据走 2min 客户端缓存（重复 mount 0 请求）；
+        // 点过"刷新重算"后的本次加载 force 跳过缓存。
+        const force = forceNextLoadRef.current
+        forceNextLoadRef.current = false
+        const payload = await fetchOpsJsonCached<SeasonalResponse>(url, { session, force })
         if (!active) return
         setRows(payload.items)
         setSummary(payload.summary)
@@ -370,6 +358,7 @@ export default function SeasonalReplenishmentPage() {
     compareYearOffset,
     deferredKeyword,
     refreshNonce,
+    session,
   ])
   async function exportToExcel() {
     if (rows.length === 0) {
@@ -610,7 +599,10 @@ export default function SeasonalReplenishmentPage() {
               variant="outline"
               size="sm"
               disabled={!currentProjectId || loading || !dateRangeValid}
-              onClick={() => setRefreshNonce((n) => n + 1)}
+              onClick={() => {
+                forceNextLoadRef.current = true
+                setRefreshNonce((n) => n + 1)
+              }}
             >
               <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '重算中...' : '刷新重算'}

@@ -42,7 +42,7 @@ export interface SnapshotOption {
   }
 }
 
-interface SnapshotSelectorProps {
+export interface SnapshotSelectorProps {
   projectId: number | null
   country: string
   selectedSnapshotId: number | null
@@ -93,13 +93,20 @@ export function SnapshotSelector({
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  // BEL-423 页内懒加载：快照列表推迟到下拉首次打开才取数；已打开过的作用域
+  // （项目/国家/刷新序号）不重复请求。避免 mount 即多一个列表请求。
+  const [loadedScope, setLoadedScope] = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) {
       setSnapshots([])
       setLoading(false)
+      setLoadedScope(null)
       return
     }
+    if (!open) return
+    const scope = `${projectId}:${country}:${refreshNonce}`
+    if (scope === loadedScope) return
 
     let active = true
     async function load() {
@@ -118,6 +125,7 @@ export function SnapshotSelector({
         if (!active) return
         const data = await response.json()
         setSnapshots(data)
+        setLoadedScope(scope)
       } catch (e) {
         console.error('Failed to load snapshots:', e)
       } finally {
@@ -128,7 +136,7 @@ export function SnapshotSelector({
     return () => {
       active = false
     }
-  }, [projectId, country, refreshNonce])
+  }, [open, projectId, country, refreshNonce, loadedScope])
 
   const selectedSnapshot = snapshots.find((s) => s.id === selectedSnapshotId)
   const isLiveMode = selectedSnapshotId === null

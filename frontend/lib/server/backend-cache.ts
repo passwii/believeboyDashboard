@@ -124,6 +124,16 @@ export const CACHEABLE_ENDPOINTS: ReadonlyArray<CacheEndpointRule> = [
     revalidateSeconds: 30,
   },
 
+  // BEL-421：ad-data 页“哪些报表类型有成功入库数据”列表——小 payload、
+  // 上传频率低，60s 服务端缓存可接受（原始行 ad-*-raw 因单请求可达
+  // 数 MB，不入 data cache，其重复访问由前端 2min 客户端缓存吸收）。
+
+  {
+    label: 'ad-upload-files',
+    pathPattern: /\/external\/projects\/\d+\/ad-upload-files$/,
+    revalidateSeconds: 60,
+  },
+
   // 2) monthly-reports: ONLY the list endpoint (no `/{id}/...` matches).
   //    Monthly financials are low-frequency edits (manual reconciliation),
   //    so 60s is comfortable.

@@ -44,6 +44,11 @@ export default function LedgerView() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
+  // BEL-422：模型配置与订阅列表只服务于重发/详情交互（模型下拉、订阅 ai_model
+  // 回退），首次交互时才拉取，不再随 mount 无条件请求。台账行渲染所需的
+  // 项目名/国家/邮箱均在 ledger item 自身，不受影响。
+  const modelConfigRequested = useRef(false)
+  const subscriptionsRequested = useRef(false)
   const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([])
   // 初始为 true：tab 切换重新挂载时立即显示骨架屏，避免先闪「暂无台账记录」空状态。
   const [ledgerLoading, setLedgerLoading] = useState(true)
@@ -104,13 +109,27 @@ export default function LedgerView() {
     [ledgerStartDate, ledgerEndDate]
   )
 
-  useEffect(() => {
+  const ensureModelConfig = useCallback(() => {
+    if (modelConfigRequested.current) return
+    modelConfigRequested.current = true
     setIsLoadingModelConfig(true)
     fetchModelConfig((cfg) => {
       setModelConfig(cfg)
       setIsLoadingModelConfig(false)
     })
   }, [])
+
+  const ensureSubscriptions = useCallback(() => {
+    if (subscriptionsRequested.current) return
+    subscriptionsRequested.current = true
+    fetchSubscriptions(session, (subs) => setSubscriptions(subs))
+  }, [session])
+
+  // 重发 / 重新生成 / 打开详情 都可能需要模型配置与订阅信息，统一在交互入口预热
+  const ensureInteractionData = useCallback(() => {
+    ensureModelConfig()
+    ensureSubscriptions()
+  }, [ensureModelConfig, ensureSubscriptions])
 
   const loadLedger = useCallback(async () => {
     setLedgerLoading(true)
@@ -161,10 +180,6 @@ export default function LedgerView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ledgerEmail])
 
-  useEffect(() => {
-    fetchSubscriptions(session, (subs) => setSubscriptions(subs))
-  }, [session])
-
   const roleType = session?.user?.roleType
   const isAdmin = roleType === 'admin'
   const canTriggerResend = isAdmin
@@ -177,6 +192,7 @@ export default function LedgerView() {
   }
 
   const handleResendLedger = async (item: LedgerItem, overrideAiModel?: string | null) => {
+    ensureInteractionData()
     setResendingStates((prev) => ({ ...prev, [item.ledger_key]: 'preparing' }))
     const result = await resendLedgerEntry(item.ledger_key, isAdmin, overrideAiModel)
     if (result.ok && result.deliveryLogId) {
@@ -220,6 +236,7 @@ export default function LedgerView() {
   }
 
   const handleRegenerateAiSummary = async (item: LedgerItem, overrideAiModel?: string | null) => {
+    ensureInteractionData()
     // 防止重复点：若同一 ledger_key 已经在 regenerate 流程中，直接短路掉。
     // （用户从台账「打断并重新生成」入口连点时尤其需要这层防护，避免后端
     // 接连两次 enqueue 产生两个并行生成线程。）
@@ -289,6 +306,7 @@ export default function LedgerView() {
   }
 
   const openDetail = (item: LedgerItem) => {
+    ensureInteractionData()
     setSelectedItem(item)
     setDetailOpen(true)
   }
@@ -432,6 +450,7 @@ export default function LedgerView() {
                     subscriptions={subscriptions}
                     modelConfig={modelConfig}
                     isLoadingModelConfig={isLoadingModelConfig}
+                    onRequestModelConfig={ensureModelConfig}
                     resendingStates={resendingStates}
                     onRowClick={openDetail}
                     onResend={handleResendLedger}
@@ -508,6 +527,7 @@ export default function LedgerView() {
                             canResend
                             modelConfig={modelConfig}
                             isLoadingModelConfig={isLoadingModelConfig}
+                            onRequestModelConfig={ensureModelConfig}
                             fallbackModel={fallbackModel}
                             onLoading={() =>
                               setResendingStates((prev) => ({

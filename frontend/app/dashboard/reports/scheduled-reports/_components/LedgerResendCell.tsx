@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -50,6 +50,7 @@ export function LedgerResendCell({
   fallbackModel,
   onSubmit,
   onLoading,
+  onRequestModelConfig,
 }: {
   item: LedgerItem
   resendingStage: ResendStage | undefined
@@ -59,14 +60,28 @@ export function LedgerResendCell({
   fallbackModel: string
   onSubmit: (overrideAiModel: string | null) => void
   onLoading: () => void
+  /** BEL-422：打开模型选择下拉时通知父级按需加载模型配置（首屏不预拉） */
+  onRequestModelConfig?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const actionLabel = item.status === 'failed' ? '重试' : '补发'
   const defaultModel = fallbackModel || modelConfig?.defaultModel || ''
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel)
+  // 用户主动选过模型后，不再被晚到的默认值（订阅 ai_model / 系统配置）覆盖
+  const userPickedModel = useRef(false)
 
   useEffect(() => {
-    if (open) setSelectedModel(defaultModel)
+    if (open) {
+      userPickedModel.current = false
+      setSelectedModel(defaultModel)
+      // BEL-422：模型配置按需加载 —— 打开下拉才拉取
+      onRequestModelConfig?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
+    if (open && !userPickedModel.current) setSelectedModel(defaultModel)
   }, [open, defaultModel])
 
   if (!canResend) {
@@ -103,7 +118,10 @@ export function LedgerResendCell({
             <label className="text-xs font-medium mb-1 block text-muted-foreground">使用模型</label>
             <Select
               value={selectedModel}
-              onValueChange={setSelectedModel}
+              onValueChange={(value) => {
+                userPickedModel.current = true
+                setSelectedModel(value)
+              }}
               disabled={isLoadingModelConfig || !modelConfig?.models.length}
             >
               <SelectTrigger className="h-8 text-xs">

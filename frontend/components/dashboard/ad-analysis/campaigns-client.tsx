@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Activity, Layers3 } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
@@ -20,9 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 
-const API_BASE = '/api/backend'
 
 type CampaignItem = {
   campaign_name: string
@@ -69,18 +71,10 @@ type CampaignResponse = {
   items: CampaignItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
 
 export function AdAnalysisCampaignsClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -96,6 +90,8 @@ export function AdAnalysisCampaignsClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -112,12 +108,8 @@ export function AdAnalysisCampaignsClient() {
         if (skuFilter) query.set('sku', skuFilter)
         if (searchTermFilter) query.set('search_term', searchTermFilter)
         if (placementFilter) query.set('placement', placementFilter)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/campaigns?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as CampaignResponse
+        // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
+        const payload = await fetchAdAnalysisCached<CampaignResponse>('campaigns', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active) setError(fetchError instanceof Error ? fetchError.message : '活动分析加载失败')
@@ -130,16 +122,7 @@ export function AdAnalysisCampaignsClient() {
     return () => {
       active = false
     }
-  }, [
-    campaignFilter,
-    country,
-    dateFrom,
-    dateTo,
-    placementFilter,
-    projectId,
-    searchTermFilter,
-    skuFilter,
-  ])
+  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, searchTermFilter, session, skuFilter, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />
@@ -189,6 +172,7 @@ export function AdAnalysisCampaignsClient() {
         ))}
       </div>
 
+      <DeferredSection fallbackHeight="h-[280px]" data-testid="campaigns-deferred-narrative">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">活动层分析</CardTitle>
@@ -237,7 +221,9 @@ export function AdAnalysisCampaignsClient() {
           ))}
         </CardContent>
       </Card>
+      </DeferredSection>
 
+      <DeferredSection fallbackHeight="h-[420px]" data-testid="campaigns-deferred-table">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -495,6 +481,7 @@ export function AdAnalysisCampaignsClient() {
           </div>
         </CardContent>
       </Card>
+      </DeferredSection>
     </div>
   )
 }

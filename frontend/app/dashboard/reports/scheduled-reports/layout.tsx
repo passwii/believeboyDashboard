@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { Tabs, TabsList } from '@/components/ui/tabs'
@@ -23,10 +23,18 @@ export default function ScheduledReportsLayout() {
   const [activeTab, setActiveTab] = useState<ScheduledReportTabKey>(() =>
     resolveInitialTab(pathname)
   )
+  // BEL-422：非激活 tab 的 view 首次激活前不挂载 —— 避免进入页面就为看不到的
+  // tab 拉数（订阅/台账各带 2-3 个 mount 请求）。一旦激活过就保持挂载，
+  // 靠 hidden 切换可见性：切 tab 不卸载、不重新拉取数据。
+  const [activatedTabs, setActivatedTabs] = useState<Set<ScheduledReportTabKey>>(
+    () => new Set([resolveInitialTab(pathname)])
+  )
 
-  const handleTabChange = (next: string) => {
-    setActiveTab(next as ScheduledReportTabKey)
-  }
+  const handleTabChange = useCallback((next: string) => {
+    const key = next as ScheduledReportTabKey
+    setActiveTab(key)
+    setActivatedTabs((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
+  }, [])
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
@@ -53,14 +61,18 @@ export default function ScheduledReportsLayout() {
         </TabsList>
       </div>
 
-      {/* 两个 view 常驻挂载，靠 hidden 切换可见性：切 tab 不卸载、不重新拉取数据，
-          骨架屏仅在各自首次加载时出现一次。 */}
-      <div className={cn(activeTab === 'subscriptions' ? 'block' : 'hidden')}>
-        <SubscriptionsView />
-      </div>
-      <div className={cn(activeTab === 'ledger' ? 'block' : 'hidden')}>
-        <LedgerView />
-      </div>
+      {/* 首次激活后才挂载；挂载后常驻，靠 hidden 切换可见性：
+          切 tab 不卸载、不重新拉取数据，骨架屏仅在各自首次加载时出现一次。 */}
+      {activatedTabs.has('subscriptions') && (
+        <div className={cn(activeTab === 'subscriptions' ? 'block' : 'hidden')}>
+          <SubscriptionsView />
+        </div>
+      )}
+      {activatedTabs.has('ledger') && (
+        <div className={cn(activeTab === 'ledger' ? 'block' : 'hidden')}>
+          <LedgerView />
+        </div>
+      )}
     </Tabs>
   )
 }

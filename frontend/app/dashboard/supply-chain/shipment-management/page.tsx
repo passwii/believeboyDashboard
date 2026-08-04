@@ -1,6 +1,6 @@
 'use client'
 
-import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -623,11 +623,14 @@ function SearchableShipmentNoFilter({
   options,
   loading,
   onChange,
+  onOpen,
 }: {
   value: string[]
   options: string[]
   loading: boolean
   onChange: (value: string[]) => void
+  /** BEL-423：下拉首次打开时回调（父级据此懒加载选项列表）。 */
+  onOpen?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -650,6 +653,7 @@ function SearchableShipmentNoFilter({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen)
+          if (nextOpen) onOpen?.()
           if (!nextOpen) setQuery('')
         }}
       >
@@ -774,7 +778,24 @@ export default function ShipmentManagementPage() {
   const searchParams = useSearchParams()
   const { notify } = useNotifications()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const [activeTab, setActiveTab] = useState<ShipmentPageTab>('overview')
+  // BEL-423 页内懒加载：cost / sku-summary 两个 tab 的数据仅在首次激活后取数，
+  // 避免 mount 即并发拉全部汇总；激活过的 tab 仍随筛选条件变化重载。
+  const [activeTab, setActiveTab] = useState<ShipmentPageTab>(() => {
+    const requested = searchParams.get('tab')
+    return SHIPMENT_TAB_ORDER.includes(requested as ShipmentPageTab)
+      ? (requested as ShipmentPageTab)
+      : 'overview'
+  })
+  const [activatedTabs, setActivatedTabs] = useState<ReadonlySet<ShipmentPageTab>>(
+    () => new Set<ShipmentPageTab>([activeTab])
+  )
+  const activateTab = useCallback((tab: ShipmentPageTab) => {
+    setActiveTab(tab)
+    setActivatedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)))
+  }, [])
+  // BEL-423 页内懒加载：货件编号筛选选项推迟到下拉首次打开再取数（该请求按 200 条分页
+  // 遍历全部船期，货件多时是多个请求），mount 不再发。
+  const shipmentNoOptionsRequestedRef = useRef(false)
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
 
@@ -1391,29 +1412,40 @@ export default function ShipmentManagementPage() {
   }, [loadProjects])
 
   useEffect(() => {
-    if (shipmentNoParam.length === 0) return
-    setShipmentNoFilter((current) => {
-      const currentNormalized = normalizeShipmentNoList(current)
-      return currentNormalized.join(',') === shipmentNoParam.join(',') ? current : shipmentNoParam
-    })
-    if (requestedTab === 'fba-box-detail') {
-      setActiveTab('fba-box-detail')
+    if (!requestedTab && shipmentNoParam.length === 0) return
+    if (shipmentNoParam.length > 0) {
+      setShipmentNoFilter((current) => {
+        const currentNormalized = normalizeShipmentNoList(current)
+        return currentNormalized.join(',') === shipmentNoParam.join(',') ? current : shipmentNoParam
+      })
     }
-  }, [requestedTab, shipmentNoParam])
+    if (requestedTab && SHIPMENT_TAB_ORDER.includes(requestedTab as ShipmentPageTab)) {
+      activateTab(requestedTab as ShipmentPageTab)
+    }
+  }, [requestedTab, shipmentNoParam, activateTab])
 
   useEffect(() => {
     void loadList(1)
   }, [loadList])
 
   useEffect(() => {
+    if (!activatedTabs.has('sku-summary')) return
     void loadSkuSummary()
-  }, [loadSkuSummary])
+  }, [loadSkuSummary, activatedTabs])
 
   useEffect(() => {
+    if (!activatedTabs.has('cost')) return
     void loadCostSummary()
-  }, [loadCostSummary])
+  }, [loadCostSummary, activatedTabs])
 
   useEffect(() => {
+    if (!shipmentNoOptionsRequestedRef.current) return
+    void loadShipmentNoOptions()
+  }, [loadShipmentNoOptions])
+
+  const handleShipmentNoFilterOpen = useCallback(() => {
+    if (shipmentNoOptionsRequestedRef.current) return
+    shipmentNoOptionsRequestedRef.current = true
     void loadShipmentNoOptions()
   }, [loadShipmentNoOptions])
 
@@ -2877,6 +2909,7 @@ export default function ShipmentManagementPage() {
                 options={shipmentNoOptions}
                 loading={shipmentNoOptionsLoading}
                 onChange={setShipmentNoFilter}
+                onOpen={handleShipmentNoFilterOpen}
               />
             </div>
           </div>
@@ -2935,7 +2968,7 @@ export default function ShipmentManagementPage() {
       <div className="grid min-w-0 gap-6">
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as ShipmentPageTab)}
+          onValueChange={(value) => activateTab(value as ShipmentPageTab)}
           className="min-w-0 w-full"
         >
           <div className="mb-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">

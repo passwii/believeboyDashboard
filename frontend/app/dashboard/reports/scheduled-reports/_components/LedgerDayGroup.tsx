@@ -34,6 +34,8 @@ interface LedgerDayGroupProps {
   subscriptions: Subscription[]
   modelConfig: AIModelConfig | null
   isLoadingModelConfig: boolean
+  /** BEL-422：行内重发下拉打开时按需加载模型配置 */
+  onRequestModelConfig: () => void
   resendingStates: Record<string, ResendStage>
   onRowClick: (item: LedgerItem) => void
   onResend: (item: LedgerItem, overrideAiModel: string | null) => void
@@ -51,6 +53,7 @@ export function LedgerDayGroup({
   subscriptions,
   modelConfig,
   isLoadingModelConfig,
+  onRequestModelConfig,
   resendingStates,
   onRowClick,
   onResend,
@@ -234,6 +237,7 @@ export function LedgerDayGroup({
                         canResend
                         modelConfig={modelConfig}
                         isLoadingModelConfig={isLoadingModelConfig}
+                        onRequestModelConfig={onRequestModelConfig}
                         fallbackModel={fallbackModel}
                         onLoading={() => onResendLoading(item)}
                         onSubmit={(overrideAiModel) => onResend(item, overrideAiModel)}

@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Boxes, ShoppingBasket } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -18,7 +20,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const API_BASE = '/api/backend'
 
 type PurchasedProductItem = {
   purchased_asin: string
@@ -36,18 +37,10 @@ type PurchasedProductsResponse = {
   items: PurchasedProductItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
 
 export function AdAnalysisPurchasedProductsClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -62,6 +55,8 @@ export function AdAnalysisPurchasedProductsClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -77,12 +72,8 @@ export function AdAnalysisPurchasedProductsClient() {
         if (campaignFilter) query.set('campaign', campaignFilter)
         if (skuFilter) query.set('sku', skuFilter)
         if (purchasedAsinFilter) query.set('purchased_asin', purchasedAsinFilter)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/purchased-products?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as PurchasedProductsResponse
+        // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
+        const payload = await fetchAdAnalysisCached<PurchasedProductsResponse>('purchased-products', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active) {
@@ -97,7 +88,7 @@ export function AdAnalysisPurchasedProductsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, skuFilter])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, session, skuFilter, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import {
   ArrowDown,
   ArrowUp,
@@ -34,6 +35,10 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import {
+  fetchAdRawCached,
+  fetchAdUploadFilesCached,
+} from '@/lib/ad-client-cache'
+import {
   AD_DATA_REPORT_TYPES,
   aggregateAdDataRows,
   buildAdDataCsv,
@@ -44,8 +49,6 @@ import {
   type AdDataColumn,
   type AdDataReportType,
 } from '@/lib/ad-data'
-
-const API_BASE = '/api/backend'
 
 type RawRow = Record<string, unknown> & {
   id?: number
@@ -61,18 +64,9 @@ type SortState = { key: string; dir: 'asc' | 'desc' } | null
 
 const PAGE_SIZE_OPTIONS = [50, 100, 200, 500]
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
-
 export function AdDataExplorer() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
 
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
@@ -129,19 +123,14 @@ export function AdDataExplorer() {
     [isAggregate, config]
   )
 
-  // ---- 拉取"有哪些报表类型有成功入库的数据" ----
+  // ---- 拉取"有哪些报表类型有成功入库的数据"（BEL-421：2min 客户端缓存）----
   useEffect(() => {
     if (!projectId) return
+    // 缓存键按用户域隔离，等 session 就绪再取数，避免 unknown 域双请求
+    if (status === 'loading') return
     let active = true
     setAvailableLoading(true)
-    const query = new URLSearchParams({ country })
-    fetch(`${API_BASE}/api/v1/external/projects/${projectId}/ad-upload-files?${query.toString()}`, {
-      cache: 'no-store',
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await parseError(res))
-        return (await res.json()) as UploadFileItem[]
-      })
+    fetchAdUploadFilesCached<UploadFileItem[]>(projectId, country, session)
       .then((items) => {
         if (!active) return
         const types = Array.from(
@@ -166,13 +155,12 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-    // session 仅用于鉴权透传，无需作为依赖
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, country])
+  }, [projectId, country, session, status])
 
-  // ---- 拉取选中类型的原始行 ----
+  // ---- 拉取选中类型的原始行（BEL-421：2min 客户端缓存，切回已看过的类型 0 请求）----
   useEffect(() => {
     if (!projectId || !selectedReportType || !config) return
+    if (status === 'loading') return
     let active = true
     setLoading(true)
     setError(null)
@@ -183,13 +171,13 @@ export function AdDataExplorer() {
       start_date: dateFrom || '2000-01-01',
       end_date: dateTo || '2100-12-31',
     })
-    fetch(
-      `${API_BASE}/api/v1/external/projects/${projectId}/ad-${config.endpoint}-raw?${query.toString()}`,
-      { cache: 'no-store' }
+    fetchAdRawCached<{ data: RawRow[]; summary?: { total_rows?: number } }>(
+      projectId,
+      config.endpoint,
+      query,
+      session
     )
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await parseError(res))
-        const payload = (await res.json()) as { data: RawRow[]; summary?: { total_rows?: number } }
+      .then((payload) => {
         if (!active) return
         setRows(payload.data ?? [])
         setTotalRows(payload.summary?.total_rows ?? payload.data?.length ?? 0)
@@ -207,8 +195,7 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, country, dateFrom, dateTo, selectedReportType])
+  }, [projectId, country, dateFrom, dateTo, selectedReportType, config, session, status])
 
   // ---- 搜索 + 排序 ----
   const filtered = useMemo(() => {
