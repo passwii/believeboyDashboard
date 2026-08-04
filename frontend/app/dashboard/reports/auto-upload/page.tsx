@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   CheckCircle2,
@@ -221,7 +221,12 @@ function RpaStatusGrid({
 
   const [statusDate, setStatusDate] = useState(() => toLocalDateInputValue())
 
-  useEffect(() => {
+  // BEL-422：项目列表仅服务于「项目筛选」下拉，首次打开下拉时才拉取，
+  // 不再随 mount 预拉（带 2 分钟客户端缓存，打开后重复交互零请求）。
+  const projectsRequested = useRef(false)
+  const ensureProjects = () => {
+    if (projectsRequested.current) return
+    projectsRequested.current = true
     const loadProjects = async () => {
       setProjectsLoading(true)
       try {
@@ -234,7 +239,7 @@ function RpaStatusGrid({
       }
     }
     void loadProjects()
-  }, [session])
+  }
 
   const loadStatus = async () => {
     setStatusLoading(true)
@@ -287,7 +292,11 @@ function RpaStatusGrid({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
             {/* Row 1: 项目 + 站点 */}
             <div className="contents lg:flex lg:items-center lg:gap-2">
-              <DropdownMenu>
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  if (open) ensureProjects()
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
@@ -309,6 +318,9 @@ function RpaStatusGrid({
                     全部项目
                   </button>
                   <DropdownMenuSeparator />
+                  {projectsRequested && projectsLoading && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">加载中…</div>
+                  )}
                   {projects.map((project) => (
                     <DropdownMenuCheckboxItem
                       key={project}

@@ -68,15 +68,19 @@ export default function SubscriptionsView() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
+  const modelConfigRequested = useRef(false)
   const initialLoadDone = useRef(false)
 
-  // 加载模型配置
-  useEffect(() => {
+  // BEL-422：模型配置只服务于新增/编辑弹窗的 AI 模型下拉，首次打开弹窗时才拉取，
+  // 不再随页面 mount 无条件请求（削减首屏并发请求）。
+  const ensureModelConfig = useCallback(() => {
+    if (modelConfigRequested.current) return
+    modelConfigRequested.current = true
+    setIsLoadingModelConfig(true)
     fetchModelConfig((cfg) => {
       setModelConfig(cfg)
       setIsLoadingModelConfig(false)
     })
-    setIsLoadingModelConfig(true)
   }, [])
 
   const refreshSubscriptions = useCallback(async () => {
@@ -145,8 +149,14 @@ export default function SubscriptionsView() {
   })
 
   const handleEdit = (sub: Subscription) => {
+    ensureModelConfig()
     setEditingSub(sub)
     setShowEditDialog(true)
+  }
+
+  const handleOpenCreateDialog = () => {
+    ensureModelConfig()
+    setShowCreateDialog(true)
   }
 
   const handleDelete = async (id: number) => {
@@ -247,7 +257,7 @@ export default function SubscriptionsView() {
               />
               <div className="ml-auto">
                 {canManage && (
-                  <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                  <Button size="sm" onClick={handleOpenCreateDialog}>
                     <Plus className="mr-1 h-4 w-4" />
                     新增订阅
                   </Button>
@@ -311,7 +321,7 @@ export default function SubscriptionsView() {
               />
               <div className="col-span-2">
                 {canManage && (
-                  <Button size="sm" className="w-full" onClick={() => setShowCreateDialog(true)}>
+                  <Button size="sm" className="w-full" onClick={handleOpenCreateDialog}>
                     <Plus className="mr-1 h-4 w-4" />
                     新增订阅
                   </Button>
@@ -329,7 +339,7 @@ export default function SubscriptionsView() {
                 {canManage ? '点击上方「新增订阅」按钮创建第一个配置' : '暂无可用订阅配置'}
               </p>
               {canManage && (
-                <Button size="sm" variant="outline" onClick={() => setShowCreateDialog(true)}>
+                <Button size="sm" variant="outline" onClick={handleOpenCreateDialog}>
                   <Plus className="mr-1 h-4 w-4" />
                   新增订阅
                 </Button>

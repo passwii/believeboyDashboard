@@ -57,6 +57,7 @@ import { cn } from '@/lib/utils'
 import { DENSE_CELL, DENSE_HEAD } from '@/components/ui/data-card'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { getOrderStatusLabel } from '@/lib/order-status'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { COUNTRY_OPTIONS, getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
@@ -198,7 +199,7 @@ function fulfillmentVariant(label: string): 'default' | 'secondary' {
 
 export default function OrderInfoPage() {
   // session：用于向后端注入 X-Operator / X-Is-Admin（数据级权限控制）
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const { notify } = useNotifications()
 
   // 筛选状态（关键字类用 _committed 版本做 debounce，原始 input 用 onChange 实时）
@@ -219,8 +220,14 @@ export default function OrderInfoPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   // 数据状态
+  // BEL-422：filter-options 不再随 mount 预拉（后端是 3 个 distinct 全表扫，3-6s），
+  // 改为用户首次打开任一筛选下拉时按需加载；首屏店铺自动选中改走带客户端
+  // 缓存的 fetchManagedProjectsCached，不再被 filter-options 阻塞。
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null)
-  const [filterOptionsLoading, setFilterOptionsLoading] = useState(true)
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false)
+  const filterOptionsRequested = useRef(false)
+  // 店铺自动选中的来源（manage 项目列表）；filter-options 未加载前也兼作店铺下拉选项
+  const [managedProjects, setManagedProjects] = useState<Array<{ id: number; name: string }>>([])
   const [items, setItems] = useState<OrderItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -262,11 +269,12 @@ export default function OrderInfoPage() {
     return undefined
   }, [session])
 
-  // ====== 拉取筛选项（一次性） ======
+  // ====== 筛选项按需加载（首次打开筛选下拉触发，一次性） ======
   // 8s 客户端超时护栏：collect_filter_options 在大表上 3 个 distinct 全表扫会拖到 3–6s，
-  // 这里给一个上限避免首屏无限转圈；同时超时/失败走 fallback 让首屏数据能出。
-  useEffect(() => {
-    let cancelled = false
+  // 这里给一个上限避免下拉无限转圈；同时超时/失败走 fallback 让下拉可用。
+  const ensureFilterOptions = useCallback(() => {
+    if (filterOptionsRequested.current) return
+    filterOptionsRequested.current = true
     const ctrl = new AbortController()
     const timeoutId = setTimeout(() => ctrl.abort(), 8000)
     async function load() {
@@ -279,12 +287,9 @@ export default function OrderInfoPage() {
         })
         if (!res.ok) throw new Error('筛选选项加载失败')
         const data = (await res.json()) as FilterOptions
-        if (!cancelled) setFilterOptions(data)
+        setFilterOptions(data)
       } catch (e) {
-        if (cancelled) return
-        // 超时 / 失败 不弹红色错误（避免吓用户且造成 filterOptions 永久 null → 拦住数据请求），
-        // 而是用空壳触发 autoselect 完成，让首屏数据能走 /overview（用户起码能看到表格）。
-        // dropdown 会是空的，但表格可看；后续如果 /overview 返回 200 则一切正常。
+        // 超时 / 失败不弹红色错误，用空壳让下拉至少可开；数据表格不受影响。
         setFilterOptions({
           projects: [],
           order_statuses: [],
@@ -294,16 +299,42 @@ export default function OrderInfoPage() {
         })
       } finally {
         clearTimeout(timeoutId)
-        if (!cancelled) setFilterOptionsLoading(false)
+        setFilterOptionsLoading(false)
       }
     }
     void load()
-    return () => {
-      cancelled = true
-      ctrl.abort()
-      clearTimeout(timeoutId)
-    }
   }, [session])
+
+  // ====== 首次加载：店铺自动选中改走带缓存的 manage 项目列表 ======
+  // 不再等 filter-options 返回才选中第一个店铺：manage 列表带 2 分钟客户端缓存，
+  // SPA 内跨页导航时通常零请求，且不会阻塞首屏 /overview。
+  // 失败/空列表时照旧放行（projectId 维持 DEFAULT 全店铺），与旧逻辑空壳分支等价。
+  useEffect(() => {
+    // 等 session 落定再拉项目列表，保证请求带上 X-Operator 头（与旧 filter-options 时序一致）
+    if (sessionStatus === 'loading') return
+    if (initialProjectAutoselected.current) return
+    let active = true
+    void fetchManagedProjectsCached<Array<{ id?: number | null; name?: string }>>(session)
+      .then((payload) => {
+        if (!active || initialProjectAutoselected.current) return
+        const rows = payload.filter(
+          (item): item is { id: number; name: string } =>
+            typeof item.id === 'number' && item.id > 0 && typeof item.name === 'string'
+        )
+        setManagedProjects(rows)
+        if (rows.length > 0) {
+          setProjectId(String(rows[0].id))
+        }
+        initialProjectAutoselected.current = true
+      })
+      .catch(() => {
+        if (!active || initialProjectAutoselected.current) return
+        initialProjectAutoselected.current = true
+      })
+    return () => {
+      active = false
+    }
+  }, [session, sessionStatus])
 
   // ====== 构建请求 query ======
   const buildQuery = useCallback(() => {
@@ -389,19 +420,6 @@ export default function OrderInfoPage() {
     }
   }, [])
 
-  // 首次加载：拿到筛选项后自动选中第一个店铺
-  // 即使 filter-options 失败/超时，setFilterOptions 会置为空壳触发本 effect，
-  // 让 autoselect 走"无项目"分支 → projectId 保持 DEFAULT（__all__）。
-  useEffect(() => {
-    if (!filterOptions || initialProjectAutoselected.current) return
-    if (filterOptions.projects.length > 0) {
-      initialProjectAutoselected.current = true
-      setProjectId(filterOptions.projects[0].value)
-    } else {
-      initialProjectAutoselected.current = true
-    }
-  }, [filterOptions])
-
   // 首屏默认近 7 天：在 mount 后 effect 里 setState 而不是 useState 初值，
   // 避免 SSR pre-render 与 CSR hydrate 不一致导致 React hydration mismatch。
   useEffect(() => {
@@ -411,8 +429,8 @@ export default function OrderInfoPage() {
   }, [])
 
   // ====== 副作用：任何筛选变化触发 fetch ======
-  // gate 只看 autoselect 是否完成（filter-options 失败时空壳 filterOptions 也会让 autoselect 走完），
-  // 保证首屏 /overview 不会被 filter-options 慢/失败永久拦住。
+  // gate 只看 autoselect 是否完成（manage 项目列表失败时也会放行，与旧逻辑等价），
+  // 保证首屏 /overview 不会被任何前置加载永久拦住。
   // 首次加载时等待店铺自动选中后再 fetch，避免默认"全部店铺"拉全量数据慢查询。
   useEffect(() => {
     if (!initialProjectAutoselected.current) return
@@ -423,7 +441,7 @@ export default function OrderInfoPage() {
       void fetchData()
     }, 250)
     return () => clearTimeout(timer)
-  }, [fetchData, filterOptions, projectId])
+  }, [fetchData, projectId])
 
   // ====== 操作 handlers ======
   const handleRefresh = () => {
@@ -574,6 +592,27 @@ export default function OrderInfoPage() {
     [filterOptions]
   )
 
+  // BEL-422：filter-options 未加载前，店铺下拉用 manage 项目列表垫底；
+  // 加载后若当前选中项不在返回列表里（权限投影差异），补一条合成项避免
+  // Radix Select 因 value 不在选项里而显示空白。
+  const projectSelectOptions = useMemo<Option[]>(() => {
+    if (!filterOptions) {
+      return managedProjects.map((project) => ({
+        value: String(project.id),
+        label: project.name,
+      }))
+    }
+    const options = [...filterOptions.projects]
+    if (
+      projectId !== DEFAULT_PROJECT_VALUE &&
+      !options.some((option) => option.value === projectId)
+    ) {
+      const managed = managedProjects.find((project) => String(project.id) === projectId)
+      options.unshift({ value: projectId, label: managed?.name ?? `店铺 ${projectId}` })
+    }
+    return options
+  }, [filterOptions, managedProjects, projectId])
+
   // ====== 渲染 ======
   return (
     <div className="min-w-0 space-y-6 text-foreground">
@@ -617,7 +656,13 @@ export default function OrderInfoPage() {
           <div className="grid gap-3 md:grid-cols-12">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
-              <Select value={projectId} onValueChange={setProjectId}>
+              <Select
+                value={projectId}
+                onValueChange={setProjectId}
+                onOpenChange={(open) => {
+                  if (open) ensureFilterOptions()
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="全部店铺" />
                 </SelectTrigger>
@@ -626,7 +671,7 @@ export default function OrderInfoPage() {
                     全部店铺
                     {hasNoAccessibleProjects ? '（无可用店铺）' : ''}
                   </SelectItem>
-                  {filterOptions?.projects.map((opt) => (
+                  {projectSelectOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
@@ -643,6 +688,7 @@ export default function OrderInfoPage() {
                 options={filterOptions?.fulfillment_channels ?? []}
                 selected={fulfillmentChannels}
                 onChange={setFulfillmentChannels}
+                onOpen={ensureFilterOptions}
                 placeholder={filterOptionsLoading ? '加载中…' : 'FBA / FBM'}
               />
             </div>
@@ -655,6 +701,7 @@ export default function OrderInfoPage() {
                 options={filterOptions?.order_statuses ?? []}
                 selected={orderStatuses}
                 onChange={setOrderStatuses}
+                onOpen={ensureFilterOptions}
                 placeholder={filterOptionsLoading ? '加载中…' : '全部'}
               />
             </div>
@@ -675,6 +722,7 @@ export default function OrderInfoPage() {
                 options={filterOptions?.currencies ?? []}
                 selected={currencies}
                 onChange={setCurrencies}
+                onOpen={ensureFilterOptions}
                 placeholder={filterOptionsLoading ? '加载中…' : '全部币种'}
               />
             </div>
