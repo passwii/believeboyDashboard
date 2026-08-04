@@ -1,11 +1,11 @@
-"""External API key (BEL-377).
+"""Agent API key（BEL-377 external_api_keys 改名而来，见 Agent API 设计稿 §11）。
 
-Application-layer credentials for the ``/api/v1/external/*`` namespace.
-Only the SHA-256 hash of a key is stored; the plaintext is shown exactly
-once at creation time (``POST /api/v1/internal/api-keys``).
+``/api/v1/agent/*`` 命名空间的应用层凭据；过渡期同时覆盖
+``/api/v1/external/*`` 的存量 key。只存 SHA-256 hash，明文仅在创建时
+（``POST /api/v1/internal/api-keys``）返回一次。
 
-House style follows ``alert_rule.py``: ``Integer`` primary key, ``Mapped``
-annotations, timezone-aware timestamps with server defaults.
+House style 对齐 ``alert_rule.py``：``Integer`` 主键、``Mapped`` 注解、
+带 server default 的时区感知时间戳。
 """
 
 from __future__ import annotations
@@ -18,11 +18,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
-class ExternalApiKey(Base):
-    __tablename__ = "external_api_keys"
+class AgentApiKey(Base):
+    __tablename__ = "agent_api_keys"
     __table_args__ = (
-        Index("idx_eak_key_hash", "key_hash", unique=True),
-        Index("idx_eak_revoked_expires", "is_revoked", "expires_at"),
+        Index("idx_aak_key_hash", "key_hash", unique=True),
+        Index("idx_aak_revoked_expires", "is_revoked", "expires_at"),
+        Index("idx_aak_agent_id", "agent_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -33,8 +34,7 @@ class ExternalApiKey(Base):
     # admin list so operators can tell keys apart without the secret.
     key_prefix: Mapped[str] = mapped_column(String(24), nullable=False)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
-    # Reserved for P2 per-key scope restrictions; initially every key has
-    # full read access ("read").
+    # Reserved for per-key scope restrictions; P0 不启用校验。
     scope: Mapped[str] = mapped_column(String(64), nullable=False, default="read")
     is_revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     expires_at: Mapped[datetime | None] = mapped_column(
@@ -46,4 +46,11 @@ class ExternalApiKey(Base):
     )
     last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # 绑定的 Agent 稳定标识（业务主键，外部 Agent 平台生成）。
+    # 存量 external key 为 NULL → 只能读遗留 /external/* 命名空间。
+    agent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # 预留授权范围（设计稿 §9 #2），P0 不强制校验。
+    project_scope: Mapped[str] = mapped_column(
+        String(255), nullable=False, server_default="*"
     )

@@ -24,7 +24,7 @@ from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
 from app.core.scheduler import init_scheduler, shutdown_scheduler
-from app.middleware.external_audit import register_external_audit_middleware
+from app.middleware.agent_api_audit import register_agent_api_audit_middleware
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
@@ -185,6 +185,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 app.include_router(api_router, prefix="/api/v1")
 
-# BEL-377: audit-log every /api/v1/external/* request. Registered last so it
-# wraps the request-logging middleware and captures full end-to-end latency.
-register_external_audit_middleware(app)
+# BEL-377: audit-log every /api/v1/external/* and /api/v1/agent/* request.
+# Registered last so it wraps the request-logging middleware and captures
+# full end-to-end latency.
+register_agent_api_audit_middleware(app)

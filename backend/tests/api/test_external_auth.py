@@ -20,7 +20,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.external_api_key import ExternalApiKey
+from app.models.agent_api_key import AgentApiKey
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def settings():
 def _audit_count() -> int:
     db = SessionLocal()
     try:
-        return db.execute(text("select count(*) from external_api_audit_log")).scalar()
+        return db.execute(text("select count(*) from agent_api_audit_log")).scalar()
     finally:
         db.close()
 
@@ -90,7 +90,7 @@ class TestAuthEnforced:
         # last_used_at stamped on success
         db = SessionLocal()
         try:
-            record = db.get(ExternalApiKey, key["id"])
+            record = db.get(AgentApiKey, key["id"])
             assert record.last_used_at is not None
         finally:
             db.close()
@@ -187,7 +187,7 @@ class TestAdminKeyManagement:
         finally:
             db = SessionLocal()
             try:
-                obj = db.get(ExternalApiKey, key_id)
+                obj = db.get(AgentApiKey, key_id)
                 if obj is not None:
                     db.delete(obj)
                     db.commit()
@@ -224,7 +224,7 @@ class TestAuditLog:
                 db.execute(
                     text(
                         "select method, path, status_code, api_key_id "
-                        "from external_api_audit_log order by id desc limit 1"
+                        "from agent_api_audit_log order by id desc limit 1"
                     )
                 )
                 .mappings()
@@ -243,7 +243,7 @@ class TestAuditLog:
         assert _audit_count() == before + 1
 
     def test_audit_disabled_writes_nothing(self, client, settings):
-        settings.external_api_audit_enabled = False
+        settings.agent_api_audit_enabled = False
         before = _audit_count()
         client.get("/api/v1/external/projects")
         assert _audit_count() == before
@@ -253,23 +253,23 @@ class TestAuditRetention:
     def test_cleanup_deletes_only_old_rows(self, settings):
         from datetime import datetime, timedelta, timezone
 
-        from app.celery_tasks.external_audit_cleanup import external_audit_cleanup
-        from app.models.external_api_audit_log import ExternalApiAuditLog
+        from app.celery_tasks.agent_api_audit_cleanup import agent_api_audit_cleanup
+        from app.models.agent_api_audit_log import AgentApiAuditLog
 
-        settings.external_api_audit_retention_days = 90
+        settings.agent_api_audit_retention_days = 90
         now = datetime.now(timezone.utc)
         old = now - timedelta(days=100)
 
         db = SessionLocal()
         try:
-            old_row = ExternalApiAuditLog(
+            old_row = AgentApiAuditLog(
                 method="GET",
                 path="/api/v1/external/projects",
                 status_code=200,
                 latency_ms=1,
                 created_at=old,
             )
-            new_row = ExternalApiAuditLog(
+            new_row = AgentApiAuditLog(
                 method="GET",
                 path="/api/v1/external/projects",
                 status_code=200,
@@ -283,18 +283,18 @@ class TestAuditRetention:
             db.close()
 
         try:
-            external_audit_cleanup.run()
+            agent_api_audit_cleanup.run()
             db = SessionLocal()
             try:
-                assert db.get(ExternalApiAuditLog, old_id) is None
-                assert db.get(ExternalApiAuditLog, new_id) is not None
+                assert db.get(AgentApiAuditLog, old_id) is None
+                assert db.get(AgentApiAuditLog, new_id) is not None
             finally:
                 db.close()
         finally:
             db = SessionLocal()
             try:
                 for row_id in (old_id, new_id):
-                    obj = db.get(ExternalApiAuditLog, row_id)
+                    obj = db.get(AgentApiAuditLog, row_id)
                     if obj is not None:
                         db.delete(obj)
                 db.commit()

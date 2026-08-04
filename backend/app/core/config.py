@@ -75,10 +75,10 @@ class Settings(BaseSettings):
     # Per-key (or per-IP fallback) rate limiting via slowapi.
     external_api_rate_limit_enabled: bool = Field(default=False)
     external_api_rate_limit: str = Field(default="60/minute", max_length=32)
-    # Audit-log every external request to ``external_api_audit_log``.
-    external_api_audit_enabled: bool = Field(default=True)
-    # Retention for external audit rows (Celery cleanup task).
-    external_api_audit_retention_days: int = Field(default=90, ge=1, le=3650)
+    # Agent API 访问审计（过渡期覆盖 /external/* 与 /agent/* 双前缀）。
+    agent_api_audit_enabled: bool = Field(default=True)
+    # 访问审计保留天数（Celery 清理任务）。
+    agent_api_audit_retention_days: int = Field(default=90, ge=1, le=3650)
     ai_chat_provider_base_url: str = Field(default="", max_length=500)
     ai_chat_provider_api_key: str = Field(default="", max_length=500)
     ai_chat_default_model: str = Field(default="", max_length=200)

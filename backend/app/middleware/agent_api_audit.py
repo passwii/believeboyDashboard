@@ -1,14 +1,14 @@
-"""External API audit logging middleware (BEL-377).
+"""Agent API audit logging middleware（external_audit.py 改名，设计稿 §11）。
 
-Records one ``external_api_audit_log`` row per ``/api/v1/external/*``
-request: method, path, resolved API key id, status code, latency and client
-IP. The key id is read from ``request.state`` (stamped by
+Records one ``agent_api_audit_log`` row per ``/api/v1/external/*`` /
+``/api/v1/agent/*`` request: method, path, resolved API key id, status code,
+latency and client IP. The key id is read from ``request.state`` (stamped by
 ``require_external_api_key``); anonymous / master-key / skip traffic logs
 with ``api_key_id=NULL``.
 
 Design guarantees:
 * Never breaks a request — every DB touch is wrapped and swallowed.
-* Gated by ``external_api_audit_enabled`` (default on).
+* Gated by ``agent_api_audit_enabled`` (default on).
 * Bounded by the 90-day Celery retention sweep.
 """
 
@@ -22,11 +22,12 @@ from starlette.responses import Response
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.external_api_audit_log import ExternalApiAuditLog
+from app.models.agent_api_audit_log import AgentApiAuditLog
 
 logger = logging.getLogger(__name__)
 
-EXTERNAL_PREFIX = "/api/v1/external/"
+# 过渡期双命名空间都记访问日志（设计稿 §11.2）。
+AUDITED_PREFIXES = ("/api/v1/external/", "/api/v1/agent/")
 
 
 def _client_ip(request: Request) -> str | None:
@@ -50,7 +51,7 @@ def _write_audit(
     db = SessionLocal()
     try:
         db.add(
-            ExternalApiAuditLog(
+            AgentApiAuditLog(
                 method=method[:16],
                 path=path[:255],
                 api_key_id=api_key_id,
@@ -61,22 +62,22 @@ def _write_audit(
         )
         db.commit()
     except Exception:  # noqa: BLE001 — audit must never fail the request
-        logger.exception("external API audit write failed")
+        logger.exception("agent API audit write failed")
         db.rollback()
     finally:
         db.close()
 
 
-def register_external_audit_middleware(app: FastAPI) -> None:
+def register_agent_api_audit_middleware(app: FastAPI) -> None:
     """Attach the audit middleware to ``app`` (called from ``main.py``)."""
 
     @app.middleware("http")
-    async def external_audit_middleware(request: Request, call_next):
+    async def agent_api_audit_middleware(request: Request, call_next):
         path = request.url.path
         if (
             request.method == "OPTIONS"
-            or not path.startswith(EXTERNAL_PREFIX)
-            or not get_settings().external_api_audit_enabled
+            or not path.startswith(AUDITED_PREFIXES)
+            or not get_settings().agent_api_audit_enabled
         ):
             return await call_next(request)
 
@@ -93,6 +94,8 @@ def register_external_audit_middleware(app: FastAPI) -> None:
         finally:
             latency_ms = int((time.perf_counter() - start) * 1000)
             api_key_id = getattr(request.state, "external_api_key_id", None)
+            if api_key_id is None:
+                api_key_id = getattr(request.state, "agent_api_key_id", None)
             _write_audit(
                 method=request.method,
                 path=path,
