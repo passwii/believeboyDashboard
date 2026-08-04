@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { BadgeDollarSign, Wallet } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -20,8 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-const API_BASE = '/api/backend'
 
 type BudgetItem = {
   campaign_name: string
@@ -64,18 +65,9 @@ type BudgetResponse = {
   items: BudgetItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
-
 export function AdAnalysisBudgetClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -89,6 +81,8 @@ export function AdAnalysisBudgetClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421：缓存键按用户域隔离，等 session 就绪再取数，避免 unknown 域双请求
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -103,11 +97,8 @@ export function AdAnalysisBudgetClient() {
         if (dateTo) query.set('date_to', dateTo)
         if (campaignFilter) query.set('campaign', campaignFilter)
         if (skuFilter) query.set('sku', skuFilter)
-        const response = await fetch(`${API_BASE}/api/v1/ad-analysis/budget?${query.toString()}`, {
-          cache: 'no-store',
-        })
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as BudgetResponse
+        // BEL-421：客户端缓存（2min TTL）——重复 mount 0 请求
+        const payload = await fetchAdAnalysisCached<BudgetResponse>('budget', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active) setError(fetchError instanceof Error ? fetchError.message : '预算分析加载失败')
@@ -120,7 +111,7 @@ export function AdAnalysisBudgetClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, skuFilter])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, skuFilter, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载预算分析..." />
@@ -158,6 +149,8 @@ export function AdAnalysisBudgetClient() {
         ))}
       </div>
 
+      {/* BEL-421：非首屏区块 —— 叙述分析推迟到滚动接近时再挂载渲染 */}
+      <DeferredSection fallbackHeight="h-[280px]" data-testid="budget-deferred-narrative">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">预算层分析</CardTitle>
@@ -204,7 +197,10 @@ export function AdAnalysisBudgetClient() {
           ))}
         </CardContent>
       </Card>
+      </DeferredSection>
 
+      {/* BEL-421：非首屏区块 —— 预算明细表推迟挂载 */}
+      <DeferredSection fallbackHeight="h-[420px]" data-testid="budget-deferred-table">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -387,6 +383,7 @@ export function AdAnalysisBudgetClient() {
           </div>
         </CardContent>
       </Card>
+      </DeferredSection>
     </div>
   )
 }

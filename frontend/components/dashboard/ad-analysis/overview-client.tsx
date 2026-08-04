@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { AlertCircle, BarChart3, Boxes, Radar, Search, TimerReset, TrendingUp } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Badge } from '@/components/ui/badge'
 import {
   buildAnalysisDrillHref,
   getAnalysisDrillLabel,
 } from '@/components/dashboard/ad-analysis/drill'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import {
   Table,
   TableBody,
@@ -21,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const API_BASE = '/api/backend'
 type OverviewMetric = {
   label: string
   value: number
@@ -69,18 +71,9 @@ type OverviewResponse = {
   top_cross_sell_products: Array<Record<string, unknown>>
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
-
 export function AdAnalysisOverviewClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -92,6 +85,9 @@ export function AdAnalysisOverviewClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421：缓存键按用户域隔离，须等 session 就绪再取数，
+    // 避免先以 unknown 域取一次、session 到位后再取一次的双请求。
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -104,12 +100,9 @@ export function AdAnalysisOverviewClient() {
         })
         if (dateFrom) query.set('date_from', dateFrom)
         if (dateTo) query.set('date_to', dateTo)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/overview?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as OverviewResponse
+        // BEL-421：客户端缓存（2min TTL，见 lib/ad-client-cache.ts）——
+        // 2 分钟内重复 mount（tab 来回 / 下钻返回 / 前进后退）0 请求。
+        const payload = await fetchAdAnalysisCached<OverviewResponse>('overview', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active) {
@@ -124,7 +117,7 @@ export function AdAnalysisOverviewClient() {
     return () => {
       active = false
     }
-  }, [country, dateFrom, dateTo, projectId])
+  }, [country, dateFrom, dateTo, projectId, session, status])
 
   if (!projectId) {
     return <EmptyState rowHeight="lg" message="请先在顶部筛选区选择项目。" />
@@ -224,6 +217,8 @@ export function AdAnalysisOverviewClient() {
         </Card>
       ) : null}
 
+      {/* BEL-421：非首屏区块 —— 数据随首屏同一 payload 取回，渲染挂载推迟到滚动接近时 */}
+      <DeferredSection fallbackHeight="h-[360px]" data-testid="overview-deferred-analysis">
       <div className="grid items-start gap-5 xl:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
@@ -370,7 +365,10 @@ export function AdAnalysisOverviewClient() {
           </CardContent>
         </Card>
       </div>
+      </DeferredSection>
 
+      {/* BEL-421：非首屏区块（高消耗 SKU / 浪费搜索词） */}
+      <DeferredSection fallbackHeight="h-[320px]" data-testid="overview-deferred-products">
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
@@ -476,7 +474,10 @@ export function AdAnalysisOverviewClient() {
           </CardContent>
         </Card>
       </div>
+      </DeferredSection>
 
+      {/* BEL-421：非首屏区块（近 7 日趋势 / 关联购买机会） */}
+      <DeferredSection fallbackHeight="h-[320px]" data-testid="overview-deferred-trend">
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
@@ -591,6 +592,7 @@ export function AdAnalysisOverviewClient() {
           </CardContent>
         </Card>
       </div>
+      </DeferredSection>
     </div>
   )
 }

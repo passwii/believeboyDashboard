@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { AlertTriangle, ShieldAlert } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
@@ -11,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -21,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const API_BASE = '/api/backend'
 
 type TrafficQualityItem = {
   campaign_name: string
@@ -58,15 +60,6 @@ type TrafficQualityResponse = {
   items: TrafficQualityItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
 
 function riskVariant(level: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (level === '高风险') return 'destructive'
@@ -76,6 +69,7 @@ function riskVariant(level: string): 'default' | 'secondary' | 'destructive' | '
 
 export function AdAnalysisTrafficQualityClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -88,6 +82,8 @@ export function AdAnalysisTrafficQualityClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -101,12 +97,8 @@ export function AdAnalysisTrafficQualityClient() {
         if (dateFrom) query.set('date_from', dateFrom)
         if (dateTo) query.set('date_to', dateTo)
         if (campaignFilter) query.set('campaign', campaignFilter)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/traffic-quality?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as TrafficQualityResponse
+        // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
+        const payload = await fetchAdAnalysisCached<TrafficQualityResponse>('traffic-quality', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active) {
@@ -121,7 +113,7 @@ export function AdAnalysisTrafficQualityClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载流量质量分析..." />
@@ -156,6 +148,7 @@ export function AdAnalysisTrafficQualityClient() {
         ))}
       </div>
 
+      <DeferredSection fallbackHeight="h-[280px]" data-testid="traffic-quality-deferred-narrative">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">流量质量层分析</CardTitle>
@@ -199,7 +192,9 @@ export function AdAnalysisTrafficQualityClient() {
           ))}
         </CardContent>
       </Card>
+      </DeferredSection>
 
+      <DeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -393,6 +388,7 @@ export function AdAnalysisTrafficQualityClient() {
           </div>
         </CardContent>
       </Card>
+      </DeferredSection>
     </div>
   )
 }

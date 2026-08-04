@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Search, TrendingUp } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
@@ -11,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -21,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const API_BASE = '/api/backend'
 
 type SearchTermItem = {
   search_term: string
@@ -62,18 +64,10 @@ type SearchTermsResponse = {
   items: SearchTermItem[]
 }
 
-async function parseError(response: Response): Promise<string> {
-  const raw = await response.text()
-  try {
-    const payload = JSON.parse(raw) as { detail?: string; message?: string }
-    return payload.detail || payload.message || `请求失败 (${response.status})`
-  } catch {
-    return raw || `请求失败 (${response.status})`
-  }
-}
 
 export function AdAnalysisSearchTermsClient() {
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
@@ -88,6 +82,8 @@ export function AdAnalysisSearchTermsClient() {
 
   useEffect(() => {
     if (!projectId) return
+    // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
+    if (status === 'loading') return
     let active = true
 
     async function load() {
@@ -103,12 +99,8 @@ export function AdAnalysisSearchTermsClient() {
         if (campaignFilter) query.set('campaign', campaignFilter)
         if (searchTermFilter) query.set('search_term', searchTermFilter)
         if (skuFilter) query.set('sku', skuFilter)
-        const response = await fetch(
-          `${API_BASE}/api/v1/ad-analysis/search-terms?${query.toString()}`,
-          { cache: 'no-store' }
-        )
-        if (!response.ok) throw new Error(await parseError(response))
-        const payload = (await response.json()) as SearchTermsResponse
+        // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
+        const payload = await fetchAdAnalysisCached<SearchTermsResponse>('search-terms', query, session)
         if (active) setData(payload)
       } catch (fetchError) {
         if (active)
@@ -122,7 +114,7 @@ export function AdAnalysisSearchTermsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, searchTermFilter, skuFilter])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, searchTermFilter, session, skuFilter, status])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载搜索词分析..." />
@@ -173,6 +165,7 @@ export function AdAnalysisSearchTermsClient() {
         ))}
       </div>
 
+      <DeferredSection fallbackHeight="h-[280px]" data-testid="search-terms-deferred-narrative">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">搜索词层分析</CardTitle>
@@ -215,7 +208,9 @@ export function AdAnalysisSearchTermsClient() {
           ))}
         </CardContent>
       </Card>
+      </DeferredSection>
 
+      <DeferredSection fallbackHeight="h-[420px]" data-testid="search-terms-deferred-table">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -391,6 +386,7 @@ export function AdAnalysisSearchTermsClient() {
           </div>
         </CardContent>
       </Card>
+      </DeferredSection>
     </div>
   )
 }
