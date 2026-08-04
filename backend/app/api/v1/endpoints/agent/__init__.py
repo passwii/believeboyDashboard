@@ -18,6 +18,9 @@ agent_router = APIRouter(
 agent_router.include_router(health_router)
 
 
+# ⚠️ 路由遮蔽警告：兜底路由必须是 agent_router 注册的最后一个路由。
+# 后续新增 include_router(...) 一律插在它之前，否则新路由会被这里
+# 静默吞成 404 壳（鉴权照常执行，但永远到不了真实 handler）。
 @agent_router.api_route(
     "/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
