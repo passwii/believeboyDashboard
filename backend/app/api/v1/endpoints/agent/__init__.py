@@ -7,12 +7,16 @@ docs/agent-api-design.md）。鉴权 day-1 强制：Bearer + X-Agent-Id。
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.agent.auth import require_agent_credential
+from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.v1.endpoints.agent.health import router as health_router
 
 agent_router = APIRouter(
     prefix="/agent",
     tags=["agent"],
-    dependencies=[Depends(require_agent_credential)],
+    dependencies=[
+        Depends(require_agent_credential),
+        Depends(require_agent_read_rate_limit),
+    ],
 )
 
 agent_router.include_router(health_router)

@@ -19,7 +19,12 @@ from sqlalchemy import text
 # → AMQP localhost:5672）→ 手动 resend 报 Connection refused。
 from app.tasks.celery_app import celery_app  # noqa: F401  -- side-effect import
 
-from app.api.agent.errors import register_agent_error_handlers
+from app.api.agent.errors import (
+    AGENT_PATH_PREFIX,
+    ErrorCode,
+    error_payload,
+    register_agent_error_handlers,
+)
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
@@ -47,9 +52,15 @@ app.state.limiter = limiter
 
 
 def _rate_limit_exceeded_handler(
-    _request: Request, exc: RateLimitExceeded
+    request: Request, exc: RateLimitExceeded
 ) -> JSONResponse:
     """Translate slowapi RateLimitExceeded into a 429 JSON response."""
+    if request.url.path.startswith(AGENT_PATH_PREFIX):
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": "60"},
+            content=error_payload(ErrorCode.AGENT_RATE_LIMIT_EXCEEDED),
+        )
     return JSONResponse(
         status_code=429,
         content={"detail": f"请求过于频繁，请稍后再试（{exc.detail}）"},

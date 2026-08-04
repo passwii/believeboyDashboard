@@ -19,27 +19,33 @@ _SECURITY_FLAGS = (
     # 改名后的访问审计配置（设计稿 §11.2）
     "agent_api_audit_enabled",
     "agent_api_audit_retention_days",
+    # Agent 通道限流（设计稿 §7.1）
+    "agent_api_read_rate_limit",
+    "agent_api_write_rate_limit",
 )
 
 
 @pytest.fixture(autouse=True)
 def _restore_external_state():
+    from app.api.agent.rate_limit import agent_limiter
     from app.api.external_security import external_limiter
     from app.core.config import get_settings
 
     settings = get_settings()
     snapshot = {name: getattr(settings, name) for name in _SECURITY_FLAGS}
-    try:
-        external_limiter.reset()
-    except Exception:  # noqa: BLE001 — reset is best-effort
-        pass
+    for limiter in (external_limiter, agent_limiter):
+        try:
+            limiter.reset()
+        except Exception:  # noqa: BLE001 — reset is best-effort
+            pass
     yield
     for name, value in snapshot.items():
         setattr(settings, name, value)
-    try:
-        external_limiter.reset()
-    except Exception:  # noqa: BLE001
-        pass
+    for limiter in (external_limiter, agent_limiter):
+        try:
+            limiter.reset()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @pytest.fixture
@@ -75,7 +81,7 @@ def make_api_key():
                 record.is_revoked = True
             db.commit()
             created_ids.append(record.id)
-            return {"id": record.id, "plaintext": plaintext}
+            return {"id": record.id, "plaintext": plaintext, "agent_id": agent_id}
         finally:
             db.close()
 
