@@ -1,4 +1,5 @@
 // ── 定时报告共享 API 调用和辅助函数 ──
+import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import type { AIModelConfig, Frequency, LedgerItem, LedgerSummary, Subscription } from './types'
 
@@ -61,17 +62,19 @@ export async function fetchModelConfig(
   onDefaultModel?: (model: string) => void
 ): Promise<AIModelConfig | null> {
   try {
-    const res = await fetch('/api/ai-chat/config', {
-      method: 'GET',
-      cache: 'no-store',
-    })
-    const payload = (await res.json()) as AIModelConfig
-    if (res.ok) {
-      onConfig(payload)
-      onDefaultModel?.(payload.defaultModel || '')
-      return payload
+    // BEL-424：改走 ai-chat 配置 store（模块级缓存 + 在途去重）——
+    // AI 聊天 / 客服 / AI 洞察 / 定时报告共享同一份配置，跨页不重复请求。
+    const config = await ensureConfigLoaded()
+    const payload: AIModelConfig = {
+      providerConfigured: config.providerConfigured,
+      models: config.models,
+      defaultModel: config.defaultModel,
+      premiumModels: config.premiumModels,
+      basicModels: config.basicModels,
     }
-    return null
+    onConfig(payload)
+    onDefaultModel?.(payload.defaultModel || '')
+    return payload
   } catch (e) {
     console.error('Failed to load AI model config', e)
     return null

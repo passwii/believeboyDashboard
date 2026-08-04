@@ -90,6 +90,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { parseResponseError } from '@/lib/error-utils'
+import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -1730,19 +1731,24 @@ export default function AIInsightsPage() {
     }
   }, [selectedProjectId, loadInsights])
 
+  // BEL-424：模型配置推迟到生成弹窗首次打开再拉，并复用 ai-chat 配置 store
+  // （模块级缓存 + 在途去重，与 AI 聊天 / 客服页共享同一份配置，跨页不重复请求）。
+  const modelConfigRequestedRef = useRef(false)
   useEffect(() => {
-    async function loadModelConfig() {
-      setIsLoadingModelConfig(true)
-      try {
-        const res = await fetch('/api/ai-chat/config', {
-          method: 'GET',
-          cache: 'no-store',
-        })
-        const payload = (await res.json()) as AIModelConfig
-        if (!res.ok) {
-          throw new Error(payload.message || `加载模型失败 (${res.status})`)
+    if (!insightDialogOpen || modelConfigRequestedRef.current) return
+    modelConfigRequestedRef.current = true
+    let cancelled = false
+    setIsLoadingModelConfig(true)
+    ensureConfigLoaded()
+      .then((config) => {
+        if (cancelled) return
+        const payload: AIModelConfig = {
+          providerConfigured: config.providerConfigured,
+          models: config.models,
+          defaultModel: config.defaultModel,
+          premiumModels: config.premiumModels,
+          basicModels: config.basicModels,
         }
-
         setModelConfig(payload)
         setSelectedModel((prev) => {
           if (prev && payload.models.includes(prev)) {
@@ -1750,15 +1756,17 @@ export default function AIInsightsPage() {
           }
           return payload.defaultModel || payload.models[0] || ''
         })
-      } catch (e) {
+      })
+      .catch((e) => {
         console.error('Failed to load AI model config', e)
-      } finally {
-        setIsLoadingModelConfig(false)
-      }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingModelConfig(false)
+      })
+    return () => {
+      cancelled = true
     }
-
-    void loadModelConfig()
-  }, [])
+  }, [insightDialogOpen])
 
   const _closeViewSse = useCallback(() => {
     if (viewEventSourceRef.current) {

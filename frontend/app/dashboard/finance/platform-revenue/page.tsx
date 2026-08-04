@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { disableGridLines } from '@/lib/excel-styles'
 import { useNotifications } from '@/components/notifications'
@@ -360,16 +361,14 @@ export default function PlatformRevenuePage() {
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch('/api/backend/api/v1/projects/manage')
-      if (response.ok) {
-        const data = await response.json()
-        const items = Array.isArray(data) ? data : (data.items ?? data.data ?? [])
-        setProjects(items)
-      }
+      // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享项目列表。
+      const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
+      const items = Array.isArray(data) ? data : []
+      setProjects(items)
     } catch (error) {
       console.error('Error fetching projects:', error)
     }
-  }, [])
+  }, [session])
 
   // 获取回款列表
   const fetchRevenues = useCallback(async () => {

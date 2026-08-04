@@ -9,6 +9,13 @@ const PROJECT_CACHE_PREFIX = 'projects:'
 // TTL: 2 minutes — balances UX (avoid频繁刷新) vs权限变更感知
 const PROJECTS_CACHE_TTL_MS = 2 * 60 * 1000
 
+/**
+ * 同一缓存键的在途请求去重（BEL-424）：并发重复 mount 只产生一个网络请求。
+ * 与 ad-client-cache / ops-client-cache 同款语义 —— 例如 vat-invoice 页
+ * SellerCard 与历史面板同时 mount 都取 projects/manage，冷启动只打一次后端。
+ */
+const INFLIGHT = new Map<string, Promise<unknown>>()
+
 function normalizeScopePart(value: string | null | undefined): string {
   return (value || '').trim() || 'none'
 }
@@ -45,22 +52,34 @@ async function fetchCachedJson<T>(
   const cached = getClientCache<T>(key, PROJECTS_CACHE_TTL_MS)
   if (cached) return cached
 
-  const response = await fetchWithTimeout(url, {
-    timeoutMs: 5_000,
-    cache: 'no-store',
-    headers: buildBackendClientHeaders(options?.session ?? null),
-  })
-  if (!response.ok) {
-    const message = await parseError(
-      response,
-      options?.fallbackError || `请求失败 (${response.status})`
-    )
-    throw new Error(normalizeErrorMessage(message, options?.fallbackError || '加载失败'))
-  }
+  const pending = INFLIGHT.get(key) as Promise<T> | undefined
+  if (pending) return pending
 
-  const payload = (await response.json()) as T
-  setClientCache(key, payload)
-  return payload
+  const request = (async () => {
+    try {
+      const response = await fetchWithTimeout(url, {
+        timeoutMs: 5_000,
+        cache: 'no-store',
+        headers: buildBackendClientHeaders(options?.session ?? null),
+      })
+      if (!response.ok) {
+        const message = await parseError(
+          response,
+          options?.fallbackError || `请求失败 (${response.status})`
+        )
+        throw new Error(normalizeErrorMessage(message, options?.fallbackError || '加载失败'))
+      }
+
+      const payload = (await response.json()) as T
+      setClientCache(key, payload)
+      return payload
+    } finally {
+      INFLIGHT.delete(key)
+    }
+  })()
+
+  INFLIGHT.set(key, request)
+  return request
 }
 
 export function clearProjectClientCaches(): void {

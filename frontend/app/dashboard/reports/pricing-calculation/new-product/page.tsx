@@ -71,6 +71,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { logClientOperation } from '@/lib/operation-audit'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
@@ -1883,18 +1884,11 @@ export default function PricingCalculationPage() {
       setProjectsLoading(true)
       setProjectsError(null)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-          cache: 'no-store',
-        })
-        const payload = (await response.json()) as
-          | ProjectManageOption[]
-          | { detail?: string; message?: string }
-        if (!response.ok) {
-          const errorPayload = payload as { detail?: string; message?: string }
-          throw new Error(errorPayload.detail || errorPayload.message || '项目列表加载失败')
-        }
+        // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享项目列表，
+        // 错误解析由缓存层统一承担（原 detail/message 提取逻辑等价）。
+        const payload = await fetchManagedProjectsCached<ProjectManageOption[]>()
         setProjects(
-          (payload as ProjectManageOption[]).map((project) => ({
+          (Array.isArray(payload) ? payload : []).map((project) => ({
             id: project.id,
             name: project.name,
           }))

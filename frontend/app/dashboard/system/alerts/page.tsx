@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fetchAlertStats, type AlertStats } from '@/lib/alerts-api'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { AlertStatsBar } from './components/alert-stats-bar'
 import { AlertEventsTab } from './components/alert-events-tab'
 import { AlertRulesTab } from './components/alert-rules-tab'
@@ -19,9 +20,10 @@ export default function AlertCenterPage() {
 
   useEffect(() => {
     void fetchAlertStats().then(setStats).catch(() => setStats(null))
-    void fetch('/api/backend/api/v1/projects/manage')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Array<{ id: number; name: string }>) =>
+    // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享同一份项目元数据，
+    // warm 复访不再重复打后端。
+    void fetchManagedProjectsCached<Array<{ id: number; name: string }>>()
+      .then((data) =>
         setProjects(Array.isArray(data) ? data.map((p) => ({ id: p.id, name: p.name })) : [])
       )
       .catch(() => setProjects([]))

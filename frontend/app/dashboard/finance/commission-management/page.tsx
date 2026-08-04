@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
 import { DetailTab } from './detail-tab'
 import { MonthlySummaryTab } from './monthly-summary-tab'
@@ -195,14 +196,10 @@ export default function CommissionManagementPage() {
 
   const loadProjectMeta = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/v1/projects/manage`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      })
-      if (!response.ok) {
-        throw new Error(parseErrorBody(await response.text(), response.status))
-      }
-      const payload = (await response.json()) as ProjectMeta[]
+      // 复用 projects/manage 2min 客户端缓存（BEL-424）：项目佣金元数据跨页共享。
+      const payload = await fetchManagedProjectsCached<
+        Array<{ id: number; commission_basis?: string | null; commission_rate?: number | null }>
+      >(session)
       const nextMap = (Array.isArray(payload) ? payload : []).reduce<Record<number, ProjectMeta>>(
         (acc, item) => {
           if (!item || typeof item.id !== 'number') return acc

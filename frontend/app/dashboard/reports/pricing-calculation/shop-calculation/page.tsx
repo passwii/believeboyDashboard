@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DataTableCard, DataTableCardBody, DataTableCardStatBar } from '@/components/ui/data-card'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { cn } from '@/lib/utils'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { ShopCalculationUsSection } from '@/components/dashboard/pricing-calculation/shop-calculation-us-section'
 import { ShopCalculationEuSection } from '@/components/dashboard/pricing-calculation/shop-calculation-eu-section'
@@ -144,9 +145,9 @@ export default function ShopCalculationPage() {
     async function loadProjects() {
       setProjectsLoading(true)
       try {
-        const response = await fetch(`${API_BASE}/api/v1/projects/manage`, { cache: 'no-store' })
-        if (!response.ok) throw new Error('项目列表加载失败')
-        setProjects((await response.json()) as ProjectManageOption[])
+        // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享项目列表。
+        const data = await fetchManagedProjectsCached<ProjectManageOption[]>(session)
+        setProjects(Array.isArray(data) ? data : [])
       } catch {
         setProjects([])
       } finally {
@@ -154,7 +155,7 @@ export default function ShopCalculationPage() {
       }
     }
     void loadProjects()
-  }, [])
+  }, [session])
 
   useEffect(() => {
     const project = projects.find((p) => p.name === selectedProjectName)

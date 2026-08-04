@@ -37,6 +37,10 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import {
+  fetchManagedProjectsCached,
+  fetchProjectOperatorOptionsCached,
+} from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
 import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
@@ -267,6 +271,9 @@ export default function OperatorManagementPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<OperatorPageTab>('role-info')
+  // 已访问过的 tab（BEL-424）：performance / commission 首次激活才拉数，
+  // 之后月份切换 / 手动刷新跟随已访问集合重拉，保持"看过即新鲜"语义。
+  const [visitedTabs, setVisitedTabs] = useState<OperatorPageTab[]>(['role-info'])
   const [month, setMonth] = useState(lastMonthString())
 
   const [projects, setProjects] = useState<ManageProject[]>([])
@@ -366,28 +373,14 @@ export default function OperatorManagementPage() {
   ])
 
   const loadBaseOptions = useCallback(async () => {
-    const [projectsResponse, operatorsResponse] = await Promise.all([
-      fetch(`${API_BASE}/api/v1/projects/manage`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      }),
-      fetch(`${API_BASE}/api/v1/projects/operator-options`, {
-        cache: 'no-store',
-        headers: buildBackendClientHeaders(session),
-      }),
+    // 复用 projects/manage + operator-options 的 2min 客户端缓存（BEL-424）：
+    // 与其他页面共享同一份项目/运营者元数据，warm 复访 0 请求。
+    const [projectPayload, operatorPayload] = await Promise.all([
+      fetchManagedProjectsCached<ManageProject[]>(session),
+      fetchProjectOperatorOptionsCached(),
     ])
-
-    if (!projectsResponse.ok) {
-      throw new Error(parseErrorBody(await projectsResponse.text(), projectsResponse.status))
-    }
-    if (!operatorsResponse.ok) {
-      throw new Error(parseErrorBody(await operatorsResponse.text(), operatorsResponse.status))
-    }
-
-    const projectPayload = (await projectsResponse.json()) as Array<{ id: number; name: string }>
-    const operatorPayload = (await operatorsResponse.json()) as string[]
-    setProjects(projectPayload)
-    setOperatorOptions(operatorPayload)
+    setProjects(Array.isArray(projectPayload) ? projectPayload : [])
+    setOperatorOptions(Array.isArray(operatorPayload) ? operatorPayload : [])
   }, [session])
 
   const loadRoleInfo = useCallback(async () => {
@@ -491,7 +484,10 @@ export default function OperatorManagementPage() {
   const refreshAll = useCallback(async () => {
     try {
       await loadBaseOptions()
-      await Promise.all([loadRoleInfo(), loadPerformance(), loadCommission()])
+      const loads: Array<Promise<unknown>> = [loadRoleInfo()]
+      if (visitedTabs.includes('performance')) loads.push(loadPerformance())
+      if (visitedTabs.includes('commission')) loads.push(loadCommission())
+      await Promise.all(loads)
     } catch (loadError) {
       notify({
         type: 'error',
@@ -499,11 +495,54 @@ export default function OperatorManagementPage() {
         message: loadError instanceof Error ? loadError.message : '加载失败',
       })
     }
-  }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo, notify])
+  }, [loadBaseOptions, loadCommission, loadPerformance, loadRoleInfo, notify, visitedTabs])
+
+  // 首次 mount / 月份变化：只拉基础选项 + 当前激活的 role-info；
+  // performance / commission 推迟到各自 tab 首次激活（见下方门控 effect）。
+  useEffect(() => {
+    void (async () => {
+      try {
+        await loadBaseOptions()
+        await loadRoleInfo()
+      } catch (loadError) {
+        notify({
+          type: 'error',
+          title: '数据加载失败',
+          message: loadError instanceof Error ? loadError.message : '加载失败',
+        })
+      }
+    })()
+  }, [loadBaseOptions, loadRoleInfo, notify])
+
+  const visitedPerformance = visitedTabs.includes('performance')
+  const visitedCommission = visitedTabs.includes('commission')
 
   useEffect(() => {
-    void refreshAll()
-  }, [refreshAll])
+    if (!visitedPerformance) return
+    void loadPerformance().catch((loadError) => {
+      notify({
+        type: 'error',
+        title: '数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '加载失败',
+      })
+    })
+  }, [visitedPerformance, loadPerformance, notify])
+
+  useEffect(() => {
+    if (!visitedCommission) return
+    void loadCommission().catch((loadError) => {
+      notify({
+        type: 'error',
+        title: '数据加载失败',
+        message: loadError instanceof Error ? loadError.message : '加载失败',
+      })
+    })
+  }, [visitedCommission, loadCommission, notify])
+
+  const handleTabChange = useCallback((value: OperatorPageTab) => {
+    setActiveTab(value)
+    setVisitedTabs((prev) => (prev.includes(value) ? prev : [...prev, value]))
+  }, [])
 
   const addRoleRow = () => {
     setRoleDraftRows((prev) => [
@@ -737,7 +776,7 @@ export default function OperatorManagementPage() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as OperatorPageTab)}
+          onValueChange={(value) => handleTabChange(value as OperatorPageTab)}
           className="w-full"
         >
           <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">

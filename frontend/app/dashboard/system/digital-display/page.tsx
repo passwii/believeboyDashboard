@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { cn } from '@/lib/utils'
+import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
 
 // ─── types ──────────────────────────────────────────────────────────────────
 
@@ -189,10 +190,10 @@ export default function DigitalDisplayPage() {
   // ── load project list ──
   useEffect(() => {
     const saved = localStorage.getItem('digital-display-project')
-    fetch('/api/backend/api/v1/projects')
-      .then((r) => r.json())
+    // 复用 projects 列表 2min 客户端缓存（BEL-424）：与首页 / 其他页共享。
+    fetchProjectOptionsCached<{ items?: Project[] }>()
       .then((data) => {
-        const items = data.items ?? []
+        const items = data?.items ?? []
         setProjects(items)
         if (saved) {
           const found = items.find((p: Project) => String(p.id) === saved)
