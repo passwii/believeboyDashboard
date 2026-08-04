@@ -1,5 +1,6 @@
 # Agent / AI tool directories
 .agent-contexts/
+.agent_context/
 .claude/
 .codegraph/
 .zcode/
@@ -10,6 +11,9 @@
 .rpiv/
 .sisyphus/
 .superpowers/
+
+# Multica local daemon workspace cache (持续写入；落根目录漏 ignore）
+.multica/
 
 # OpenCLI `web read` cached fetched pages (generated in cwd on web search)
 web-articles/
@@ -129,6 +133,10 @@ autoReportUpload/.env
 /backend/scripts/agent_testing/.auth/
 # 本地手动 `redis-cli save` / `BGSAVE` 落盘的 redis dump；不要入库
 /backend/*.rdb
+# 兜底：根目录偶然漏出的 redis dump（2026-08-04 出现过一次）
+/dump.rdb
+# Multica issue creation artifact：issue 创建时临时落盘，创建后可弃
+/description.md
 /backend/**/__pycache__/
 /backend/**/*.pyc
 
