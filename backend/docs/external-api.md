@@ -1,5 +1,10 @@
 # External API (`/api/v1/external/*`)
 
+> ⚠️ **Deprecated**：本命名空间将被 `/api/v1/agent/*`（Agent 读写 API）取代——
+> 设计与迁移策略见 [`docs/agent-api-design.md`](../../docs/agent-api-design.md)。
+> 现存端点过渡期继续工作（响应头将带 `Deprecation` / `Sunset`）。
+> 本文档保留至 `/external/*` 退役，描述遗留只读契约。
+
 Whitelisted read-only endpoints for internal BI tools and data analysts.
 
 > **P0 contract**: no authentication, no rate limiting, no audit log. Network
