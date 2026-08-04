@@ -53,6 +53,7 @@ import {
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
@@ -341,49 +342,48 @@ export default function ReturnAnalysisPage() {
     setDateRange(defaultRange)
   }, [country, defaultRange])
 
-  const loadData = useCallback(async () => {
-    const effectiveRange = normalizeDateRange(dateRange)
-    if (!effectiveRange?.from || !effectiveRange?.to) {
-      notify({ type: 'error', title: '请选择开始和结束日期' })
-      return
-    }
-    if (!projectId) {
-      notify({ type: 'error', title: '请先选择项目' })
-      return
-    }
-
-    const startDate = formatYMD(effectiveRange.from)
-    const endDate = formatYMD(effectiveRange.to)
-
-    setLoading(true)
-    try {
-      const search = new URLSearchParams({
-        project_id: projectId,
-        country,
-        start_date: startDate,
-        end_date: endDate,
-      })
-      const response = await fetch(`${API_BASE}/return-analysis?${search.toString()}`, {
-        headers: {},
-        cache: 'no-store',
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.detail || '退货数据加载失败')
+  // BEL-423：退货分析只读数据进 2min 客户端缓存（重复 mount 0 请求）；刷新按钮 force。
+  const loadData = useCallback(
+    async (force = false) => {
+      const effectiveRange = normalizeDateRange(dateRange)
+      if (!effectiveRange?.from || !effectiveRange?.to) {
+        notify({ type: 'error', title: '请选择开始和结束日期' })
+        return
       }
-      const payload = (await response.json()) as ReturnAnalysisResponse
-      setData(payload)
-    } catch (fetchError) {
-      notify({
-        type: 'error',
-        title: '退货数据加载失败',
-        message: fetchError instanceof Error ? fetchError.message : '退货数据加载失败',
-      })
-      setData(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [projectId, country, dateRange, notify])
+      if (!projectId) {
+        notify({ type: 'error', title: '请先选择项目' })
+        return
+      }
+
+      const startDate = formatYMD(effectiveRange.from)
+      const endDate = formatYMD(effectiveRange.to)
+
+      setLoading(true)
+      try {
+        const search = new URLSearchParams({
+          project_id: projectId,
+          country,
+          start_date: startDate,
+          end_date: endDate,
+        })
+        const payload = await fetchOpsJsonCached<ReturnAnalysisResponse>(
+          `${API_BASE}/return-analysis?${search.toString()}`,
+          { session, force, fallbackError: '退货数据加载失败' }
+        )
+        setData(payload)
+      } catch (fetchError) {
+        notify({
+          type: 'error',
+          title: '退货数据加载失败',
+          message: fetchError instanceof Error ? fetchError.message : '退货数据加载失败',
+        })
+        setData(null)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [projectId, country, dateRange, notify, session]
+  )
 
   const handleExportExcel = useCallback(async () => {
     if (!data) return
@@ -630,7 +630,7 @@ export default function ReturnAnalysisPage() {
               </Button>
             )}
             <RefreshButton
-              onClick={() => void loadData()}
+              onClick={() => void loadData(true)}
               loading={loading || projectsLoading}
               label="刷新"
               variant="default"

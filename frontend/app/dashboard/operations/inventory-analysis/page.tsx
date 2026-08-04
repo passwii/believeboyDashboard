@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Boxes, Clock4, FileDown, Loader2, PackageSearch } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
+import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
+
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -272,15 +274,10 @@ export default function InventoryAnalysisPage() {
         if (selectedSnapshotDate !== 'current') {
           query.set('report_date', selectedSnapshotDate)
         }
-        const response = await fetch(`${API_BASE}/inventory-analysis?${query.toString()}`, {
-          headers: {},
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-          throw new Error(payload.detail || `加载失败 (${response.status})`)
-        }
-        const payload = (await response.json()) as InventoryResponse
+        const payload = await fetchOpsJsonCached<InventoryResponse>(
+          `${API_BASE}/inventory-analysis?${query.toString()}`,
+          { session, fallbackError: '库存分析加载失败' }
+        )
         if (!active) return
         setReportDate(payload.report_date)
         setSummary(payload.summary)
@@ -303,9 +300,12 @@ export default function InventoryAnalysisPage() {
     return () => {
       active = false
     }
-  }, [notify, country, currentProjectId, selectedSnapshotDate])
+  }, [notify, country, currentProjectId, selectedSnapshotDate, session])
 
+  // BEL-423 页内懒加载：业务日期选项推迟到下拉首次打开才取数。
+  const [snapshotSelectOpen, setSnapshotSelectOpen] = useState(false)
   useEffect(() => {
+    if (!snapshotSelectOpen) return
     if (!currentProjectId) return
     let active = true
     async function loadSnapshotOptions() {
@@ -331,7 +331,7 @@ export default function InventoryAnalysisPage() {
     return () => {
       active = false
     }
-  }, [country, currentProjectId])
+  }, [snapshotSelectOpen, country, currentProjectId])
 
   const exportToExcel = async () => {
     if (rows.length === 0) {
@@ -546,7 +546,12 @@ export default function InventoryAnalysisPage() {
             <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               业务日期
             </div>
-            <Select value={selectedSnapshotDate} onValueChange={setSelectedSnapshotDate}>
+            <Select
+              value={selectedSnapshotDate}
+              onValueChange={setSelectedSnapshotDate}
+              open={snapshotSelectOpen}
+              onOpenChange={setSnapshotSelectOpen}
+            >
               <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                 <SelectValue placeholder="选择业务日期" />
               </SelectTrigger>
