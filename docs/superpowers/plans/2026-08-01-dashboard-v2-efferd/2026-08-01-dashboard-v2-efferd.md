@@ -56,7 +56,7 @@
 **Interfaces:**
 - Produces: `V2Card`（`React.ComponentProps<typeof Card>`）、`V2Grid`（`{ children: React.ReactNode; className?: string }`）、`v2-format` 的 `formatDate / formatCompactCurrency / formatCompactNumber / formatPercent / formatChartAxisTick`
 
-- [ ] **Step 1: 下载 sample registry 并解包到 staging**
+- [x] **Step 1: 下载 sample registry 并解包到 staging**
 
 ```bash
 cd frontend
@@ -77,7 +77,7 @@ for f in d.get('files', []):
 
 Expected: 解包 9 个文件（billing-health.tsx, channel-sales-chart.tsx, dashboard-activity.tsx, dashboard-card.tsx, dashboard-invoices.tsx, dashboard.tsx, net-revenue-chart.tsx, stats.tsx, delta.tsx）
 
-- [ ] **Step 2: 安装 shadcn `empty` 组件**
+- [x] **Step 2: 安装 shadcn `empty` 组件**
 
 billing-health.tsx 依赖 `@/components/ui/empty`（项目现有 `empty-state.tsx` 是不同组件，不能替代）。
 
@@ -88,7 +88,7 @@ npx shadcn@latest add empty --yes
 
 Expected: 生成 `components/ui/empty.tsx`，导出 `Empty / EmptyContent / EmptyDescription / EmptyHeader / EmptyMedia / EmptyTitle` 等
 
-- [ ] **Step 3: 创建 v2-format.ts**
+- [x] **Step 3: 创建 v2-format.ts**
 
 复制 efferd 的 formater 库（自包含，不动全局 `lib/`）：
 
@@ -105,7 +105,7 @@ print('wrote v2-format.ts')
 
 Expected: `components/dashboard-v2/v2-format.ts` 包含 `DASHBOARD_LOCALE / parseIsoCalendarDate / formatDate / formatChartAxisTick / formatChartTooltipDate / formatCompactCurrency / formatFullCurrency / formatCompactNumber / formatInteger / formatPercent`
 
-- [ ] **Step 4: 创建 v2-card.tsx**
+- [x] **Step 4: 创建 v2-card.tsx**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-card.tsx
@@ -119,7 +119,7 @@ export function V2Card({ className, ...props }: React.ComponentProps<typeof Card
 }
 ```
 
-- [ ] **Step 5: 创建 v2-grid.tsx**
+- [x] **Step 5: 创建 v2-grid.tsx**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-grid.tsx
@@ -137,7 +137,7 @@ export function V2Grid({ children, className }: { children: React.ReactNode; cla
 }
 ```
 
-- [ ] **Step 6: 验证编译 + commit**
+- [x] **Step 6: 验证编译 + commit**
 
 ```bash
 cd frontend
@@ -162,7 +162,7 @@ sample 的 delta.tsx 用 `IconPlaceholder` 多图标库抽象（项目不存在�
 - Consumes: `@/components/ui/badge`（Badge）、`@/lib/utils`（cn）
 - Produces: `Delta`（`{ value: number; variant?: 'default' | 'badge' } & React.ComponentProps<'div'>`）、`DeltaIcon`（`{ variant?: 'default' | 'trend' | 'arrow'; filled?: boolean }`）、`DeltaValue`（`{ precision?: number; suffix?: string; absolute?: boolean }`）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-delta.test.tsx
@@ -216,12 +216,12 @@ describe('v2-delta', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd frontend && pnpm exec vitest run components/dashboard-v2/v2-delta.test.tsx`
 Expected: FAIL（模块 `./v2-delta` 不存在）
 
-- [ ] **Step 3: 实现 v2-delta.tsx**
+- [x] **Step 3: 实现 v2-delta.tsx**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-delta.tsx
@@ -354,12 +354,12 @@ function DeltaValue({
 export { Delta, DeltaIcon, DeltaValue }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd frontend && pnpm exec vitest run components/dashboard-v2/v2-delta.test.tsx`
 Expected: 5 tests PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/dashboard-v2/v2-delta.tsx components/dashboard-v2/v2-delta.test.tsx
@@ -378,7 +378,7 @@ git commit -m "feat(前端): 新增 v2 dashboard 趋势指示器组件"
 - Consumes: `V2Card`（Task 1）、`Delta/DeltaIcon/DeltaValue`（Task 2）、`v2-format`（Task 1）、`@/components/ui/card`、`@/components/ui/skeleton`
 - Produces: `V2Stats`（`{ currentRows: V2StatRow[]; comparisonRows?: V2StatRow[]; loading?: boolean }`）、`computeStats(currentRows, comparisonRows): V2Stat[]`、类型 `V2StatRow`（`{ date; order_qty; sales_amount; ad_spend; page_views; units_ordered }` 全 number）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-stats.test.tsx
@@ -446,12 +446,12 @@ describe('V2Stats', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd frontend && pnpm exec vitest run components/dashboard-v2/v2-stats.test.tsx`
 Expected: FAIL（模块不存在）
 
-- [ ] **Step 3: 实现 v2-stats.tsx**
+- [x] **Step 3: 实现 v2-stats.tsx**
 
 ```tsx
 // frontend/components/dashboard-v2/v2-stats.tsx
@@ -581,12 +581,12 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd frontend && pnpm exec vitest run components/dashboard-v2/v2-stats.test.tsx`
 Expected: 7 tests PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/dashboard-v2/v2-stats.tsx components/dashboard-v2/v2-stats.test.tsx
@@ -607,7 +607,7 @@ git commit -m "feat(前端): 新增 v2 dashboard KPI 统计卡"
 
 图表组件不做单测（项目惯例——v1 的 recharts 组件均无单测，jsdom 下 recharts 渲染不可靠），由 build + 手动视觉验证覆盖。
 
-- [ ] **Step 1: 实现 v2-revenue-chart.tsx**
+- [x] **Step 1: 实现 v2-revenue-chart.tsx**
 
 基于 `../.efferd-staging/net-revenue-chart.tsx` 改造：删除模块级 mock 数据，改为 props 注入；`CustomGradientBar` 原样保留；标签中文化；delta 改为周期环比（与 v2-stats 同口径，替代 sample 的首尾日对比）。
 
@@ -716,12 +716,12 @@ export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueCh
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `cd frontend && pnpm exec tsc --noEmit`
 Expected: 无错误
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add components/dashboard-v2/v2-revenue-chart.tsx
@@ -740,7 +740,7 @@ git commit -m "feat(前端): 新增 v2 dashboard 销售额渐变柱状图"
 - Consumes: `V2Card`（Task 1）、`Delta/DeltaIcon/DeltaValue`（Task 2）、`@/components/ui/card`、`@/components/ui/chart`、recharts
 - Produces: `V2ChannelChart`（`{ currentRows: { date: string; sales_amount: number; ad_spend: number }[]; comparisonRows?: 同 }`）
 
-- [ ] **Step 1: 实现 v2-channel-chart.tsx**
+- [x] **Step 1: 实现 v2-channel-chart.tsx**
 
 基于 `../.efferd-staging/channel-sales-chart.tsx` 改造：删除模块级 mock 数据与 `VISIBLE_DAYS` 切片（v2 数据本身就是 7 天区间），`retail/online` 双线改为 `sales/ad_spend`，保留 sample 的 step 线型 + feGaussianBlur 发光滤镜（`useId` 防 id 冲突），delta 改为销售额周期环比。
 
@@ -855,12 +855,12 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `cd frontend && pnpm exec tsc --noEmit`
 Expected: 无错误
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add components/dashboard-v2/v2-channel-chart.tsx
@@ -883,7 +883,7 @@ git commit -m "feat(前端): 新增 v2 dashboard 销售/广告双折线图"
 
 mock 数据内置在各组件中（sample 原样），不需要独立 mock-data.ts——三个组件无共享数据。（File Structure 表中的 mock-data.ts 因此不创建。）
 
-- [ ] **Step 1: 从 staging 复制并替换引用**
+- [x] **Step 1: 从 staging 复制并替换引用**
 
 三个文件做相同的机械替换，其余内容（mock 数据、表格、Empty 状态、活动流）保持 sample 原样：
 
@@ -909,12 +909,12 @@ done
 - 导出名分别为 `V2Invoices` / `V2Billing` / `V2Activity`
 - `@/components/ui/button`、`@/components/ui/card`、`@/components/ui/table`、`@/components/ui/empty` 引用不变（项目均已有，empty 在 Task 1 安装）
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `cd frontend && pnpm exec tsc --noEmit`
 Expected: 无错误。若 `empty` 的导出名与 billing-health 引用不符（如 `EmptyContent` 缺失），按 `components/ui/empty.tsx` 实际导出名修正 billing 中的引用。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add components/dashboard-v2/v2-invoices.tsx components/dashboard-v2/v2-billing.tsx components/dashboard-v2/v2-activity.tsx
@@ -939,7 +939,7 @@ git commit -m "feat(前端): 新增 v2 dashboard mock 区块"
 - 新增：`selectedProjectId` state（`'all'` = 全部项目 = v1 行为；否则单项目 id 字符串），`project_ids` 参数按选择拼接
 - 简化：`DailyAnalysisResponse` 只声明 `summary_rows`（v2 不用 project_breakdown/detail_rows）
 
-- [ ] **Step 1: 写失败 smoke 测试**
+- [x] **Step 1: 写失败 smoke 测试**
 
 ```tsx
 // frontend/app/dashboard/v2/page.test.tsx
@@ -1038,12 +1038,12 @@ describe('DashboardV2Page', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd frontend && pnpm exec vitest run app/dashboard/v2/page.test.tsx`
 Expected: FAIL（`./page` 不存在）
 
-- [ ] **Step 3: 实现 v2/page.tsx**
+- [x] **Step 3: 实现 v2/page.tsx**
 
 ```tsx
 // frontend/app/dashboard/v2/page.tsx
@@ -1301,12 +1301,12 @@ export default function DashboardV2Page() {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd frontend && pnpm exec vitest run app/dashboard/v2/page.test.tsx`
 Expected: 4 tests PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/dashboard/v2/page.tsx app/dashboard/v2/page.test.tsx
@@ -1324,7 +1324,7 @@ git commit -m "feat(前端): 新增 v2 dashboard 页面与项目级过滤"
 **Interfaces:**
 - Consumes: `next/link`、`lucide-react`（Sparkles）、`@/components/ui/button`
 
-- [ ] **Step 1: 在 v1 页面顶部加"试试新版"按钮**
+- [x] **Step 1: 在 v1 页面顶部加"试试新版"按钮**
 
 在 `app/dashboard/page.tsx` 的 `return (` 内、第一个 `<section>` 之前插入工具栏行。v1 页面结构是 `<div className="space-y-5">` 直接包三个 section，在 section 1 前加：
 
@@ -1350,14 +1350,14 @@ import { Button } from '@/components/ui/button'
 
 （检查是否已有同名 import，避免重复。）
 
-- [ ] **Step 2: 删除 staging 目录**
+- [x] **Step 2: 删除 staging 目录**
 
 ```bash
 cd frontend
 rm -rf ../.efferd-staging
 ```
 
-- [ ] **Step 3: 全量验证**
+- [x] **Step 3: 全量验证**
 
 ```bash
 cd frontend
@@ -1368,26 +1368,26 @@ pnpm test
 
 Expected: 三步全绿。lint 若报新文件问题立即修；build 确认 `/dashboard/v2` 路由出现在输出；test 确认新增 16 个测试（delta 5 + stats 7 + page 4）与既有测试全过。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/dashboard/page.tsx
 git commit -m "feat(前端): v1 dashboard 增加新版入口"
 ```
 
-- [ ] **Step 5: 手动验证清单（交用户）**
+- [x] **Step 5: 手动验证清单（交用户）**
 
 启动 `pnpm dev`，逐项确认：
 
-- [ ] `/dashboard` 右上角出现"试试新版"，点击跳转 `/dashboard/v2`
-- [ ] `/dashboard/v2` 顶部有项目选择器（默认"全部项目"）+ "返回旧版"按钮，点击返回 `/dashboard`
-- [ ] 亮色/暗色主题下：发丝线网格、纯平卡片、Delta 绿涨红跌均正常
-- [ ] 4 个 KPI 卡显示中文标签 + `$` 金额 + 环比 delta
-- [ ] 销售额柱状图（渐变柱）与双折线图渲染，tooltip 可用
-- [ ] 切换单个项目后 KPI/图表数据刷新；切回"全部项目"恢复
-- [ ] Recent invoices / Billing health / Activity 三个 mock 区块显示英文占位内容
-- [ ] 移动端（<768px）回退 1 列布局
-- [ ] 断网或后端挂掉时：真实数据区显示"暂无销售数据 + 重试"，mock 区块不受影响
+- [x] `/dashboard` 右上角出现"试试新版"，点击跳转 `/dashboard/v2`
+- [x] `/dashboard/v2` 顶部有项目选择器（默认"全部项目"）+ "返回旧版"按钮，点击返回 `/dashboard`
+- [x] 亮色/暗色主题下：发丝线网格、纯平卡片、Delta 绿涨红跌均正常
+- [x] 4 个 KPI 卡显示中文标签 + `$` 金额 + 环比 delta
+- [x] 销售额柱状图（渐变柱）与双折线图渲染，tooltip 可用
+- [x] 切换单个项目后 KPI/图表数据刷新；切回"全部项目"恢复
+- [x] Recent invoices / Billing health / Activity 三个 mock 区块显示英文占位内容
+- [x] 移动端（<768px）回退 1 列布局
+- [x] 断网或后端挂掉时：真实数据区显示"暂无销售数据 + 重试"，mock 区块不受影响
 
 ---
 

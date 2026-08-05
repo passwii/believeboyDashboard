@@ -1,7 +1,7 @@
 # Dashboard Overview V2 设计文档（Efferd 密集网格实验）
 
 > 日期：2026-08-01
-> 状态：待实施
+> 状态：✅ 已实施（2026-08-05 完成，归档见 [`docs/superpowers/plans/2026-08-01-dashboard-v2-efferd/`](../plans/2026-08-01-dashboard-v2-efferd/index.md)）
 > 来源：21st.dev [Efferd Dashboard 2](https://21st.dev/community/components/efferd/efferd-dashboard-2)（by Shaban Haider），shadcn registry `efferd.com/r/dashboard-2.json`
 
 ## 1. 背景与目标
