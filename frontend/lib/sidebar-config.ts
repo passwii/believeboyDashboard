@@ -137,7 +137,8 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     items: [
       {
         title: '财务月报',
-        url: '/dashboard/reports/monthly-report',
+        // 直接指向 display 页（财务月报 Tab），绕开中间 307 重定向，避免首次点击体感"打不开/要刷新"。
+        url: '/dashboard/reports/monthly-report/display',
         matchPrefixes: ['/dashboard/reports/monthly-report'],
         icon: IconMap.FileBarChart,
       },

@@ -73,7 +73,7 @@ const ROUTES: string[] = [
   '/dashboard/profile',
   '/dashboard/reports/auto-upload',
   '/dashboard/reports/monthly-report/display',
-  '/dashboard/reports/monthly-report',
+  '/dashboard/reports/monthly-report/generate',
   '/dashboard/reports/order-info',
   '/dashboard/reports/pricing-calculation',
   '/dashboard/reports/pricing-calculation/new-product',
