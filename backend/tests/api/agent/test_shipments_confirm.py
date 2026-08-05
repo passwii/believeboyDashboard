@@ -203,6 +203,18 @@ def _put(client, shipment_env, url_suffix, body, *, token=None, idem=None):
     )
 
 
+def _patch(client, shipment_env, url_suffix, body, *, token=None, idem=None):
+    headers = dict(shipment_env["headers"])
+    headers["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+    if token:
+        headers["X-Confirm-Token"] = token
+    return client.patch(
+        f"/api/v1/agent/projects/{shipment_env['project_id']}/shipments{url_suffix}",
+        json=body,
+        headers=headers,
+    )
+
+
 class TestReplaceItems:
     def test_replace_preview_replay_and_semantics(
         self, client, shipment_env, confirm_memory_store
@@ -256,3 +268,54 @@ class TestReplaceItems:
     def test_replace_items_unknown_shipment_404(self, client, shipment_env, confirm_memory_store):
         resp = _put(client, shipment_env, "/SH-NOPE/items", {"items": [{"sku": "X-001", "quantity": 1}]})
         assert resp.status_code == 404
+
+
+class TestPatchShipment:
+    def test_patch_merges_partial_fields(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-P-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        body = {"remark": "agent 改的备注", "etd_date": "2026-10-01"}
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        preview = _patch(client, shipment_env, f"/{shipment_no}", body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["requires_confirmation"] is True
+        assert sorted(pbody["preview"]["changed"]) == ["etd_date", "remark"]
+
+        replay = _patch(
+            client, shipment_env, f"/{shipment_no}", body,
+            token=pbody["confirm_token"], idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["remark"] == "agent 改的备注"
+        assert data["etd_date"] == "2026-10-01"
+        # 未 patch 的字段保持原值
+        assert data["shipping_method"] == "sea"
+        assert data["shipment_status"] == "draft"
+        assert data["sku_count"] == 2  # 明细不受影响
+
+    def test_patch_rejects_items_key(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-PI-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _patch(
+            client, shipment_env, f"/{shipment_no}",
+            {"items": [{"sku": "X-001", "quantity": 1}]},
+        )
+        assert resp.status_code == 400
+        assert "items" in resp.json()["error"]["human_message"]
+
+    def test_patch_rejects_unknown_fields(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-PU-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _patch(client, shipment_env, f"/{shipment_no}", {"nope_field": 1})
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_patch_invalid_status(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-PS-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _patch(client, shipment_env, f"/{shipment_no}", {"shipment_status": "arrived"})
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "SHIPMENT_STATUS_INVALID"

@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
+from datetime import date as date_type
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +31,7 @@ from app.schemas.shipment_schedule import (
     ShipmentFbaBoxDetailResponse,
     ShipmentScheduleCreate,
     ShipmentScheduleListResponse,
+    ShipmentScheduleUpdate,
 )
 from app.services import infra as redis_service
 from app.services import shipment as shipment_service
@@ -573,6 +577,146 @@ async def replace_shipment_items(
         # commit 后该 session 仅用于读：get_shipment_schedule_detail 不再触发写入
         row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
             db, schedule.id
+        )
+    return agent_ok(
+        build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
+
+
+# ============================================================
+# PATCH 字段更新（Task 7；spec S5）
+# ============================================================
+
+
+_PATCHABLE_FIELDS = (
+    "country",
+    "shipment_no",
+    "tracking_no",
+    "warehouse_code",
+    "forwarder_name",
+    "shipping_method",
+    "created_date",
+    "etd_date",
+    "eta_date",
+    "actual_inbound_date",
+    "logistics_unit_price",
+    "include_in_history_shipping_calc",
+    "remark",
+    "shipment_status",
+    "shipment_batch",
+)
+
+
+def _build_update_payload(schedule, patch: dict) -> ShipmentScheduleUpdate:
+    """把部分 patch 合并成 update_shipment_schedule 需要的全量 payload。"""
+
+    def current(name: str):
+        value = getattr(schedule, name)
+        if isinstance(value, date_type):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return float(value)
+        return value
+
+    data = {name: (patch[name] if name in patch else current(name)) for name in _PATCHABLE_FIELDS}
+    data["project_id"] = int(schedule.project_id)
+    return ShipmentScheduleUpdate(**data)
+
+
+def _validate_patch(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    if not isinstance(body, dict) or not body:
+        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="请求体必须是非空对象")
+    if "items" in body:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="PATCH 不支持 items 字段；请改用 PUT .../items 替换明细",
+        )
+    unknown = sorted(set(body) - set(_PATCHABLE_FIELDS))
+    if unknown:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=f"不支持的字段: {', '.join(unknown)}",
+        )
+    if "shipment_status" in body and body["shipment_status"] not in ALLOWED_SHIPMENT_STATUS:
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_STATUS_INVALID,
+            details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
+        )
+    if "shipping_method" in body and body["shipping_method"] not in ALLOWED_SHIPPING_METHOD:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=(
+                f"shipping_method 必须是: {', '.join(sorted(ALLOWED_SHIPPING_METHOD))}"
+            ),
+        )
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    db = SessionLocal()
+    try:
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        try:
+            _build_update_payload(schedule, body)
+        except ValidationError as exc:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                details=[
+                    {"loc": [str(p) for p in e["loc"]], "msg": e["msg"]}
+                    for e in exc.errors()
+                ],
+            ) from None
+    finally:
+        db.close()
+
+
+def _preview_patch(body: dict, request: Request) -> dict:
+    return {
+        "shipment_no": request.path_params["shipment_no"],
+        "changed": sorted(body.keys()),
+    }
+
+
+@shipments_router.patch(
+    "/{shipment_no}", dependencies=[Depends(require_agent_write_rate_limit)]
+)
+@require_confirmation(
+    action="shipment.update", build_preview=_preview_patch, validate=_validate_patch
+)
+async def patch_shipment(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    body = json.loads(await request.body() or b"{}")
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        before = {name: getattr(schedule, name) for name in body if name in _PATCHABLE_FIELDS}
+        payload = _build_update_payload(schedule, body)
+        row = shipment_service.update_shipment_schedule(
+            db, schedule.id, payload, operator=None
+        )
+        _invalidate_shipment_caches(row)
+        append_operation_audit_log(
+            db,
+            action="shipment.update",
+            target_type="shipment_schedule",
+            target_id=row.id,
+            operator=None,
+            before={
+                k: (v.isoformat() if isinstance(v, date_type) else v)
+                for k, v in before.items()
+            },
+            after={
+                "shipment_no": row.shipment_no,
+                "project_id": row.project_id,
+                "status": row.shipment_status,
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, row.id
         )
     return agent_ok(
         build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
