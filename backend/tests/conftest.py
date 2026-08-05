@@ -57,7 +57,13 @@ HAS_TEST_DATABASE = bool(os.environ.get("TEST_DATABASE_URL"))
 
 
 def _require_test_database() -> None:
-    """Skip DB-touching tests when no dedicated test DB is configured."""
+    """Skip DB-touching tests when no dedicated test DB is configured.
+
+    Protection mechanism, not a "no local testing" rule: the local machine
+    normally has ``TEST_DATABASE_URL`` set (backend/.env.test → BLF_test),
+    so this skip only fires on machines without a configured test DB —
+    preventing accidental writes to the dev/prod DB.
+    """
     if not HAS_TEST_DATABASE:
         pytest.skip(
             "TEST_DATABASE_URL is not set — tests would hit the dev/prod DB. "

@@ -159,7 +159,7 @@ backend/tests/conftest.py                agent_testing/auth.py
 pytest (Layer 1):
   pytest backend/tests/api/test_profile_endpoints.py -v
   → conftest 自动加载 .env.test → engine 指向 BLF_test
-  → 未设 TEST_DATABASE_URL 时 DB 测试 skip（绝不连本地库）
+  → 本机已配 TEST_DATABASE_URL（backend/.env.test）→ 直接跑，不会 skip
 
 Playwright E2E (Layer 2):
   1. TEST_DATABASE_URL=... uvicorn app.main:app  ← backend 指向测试库
@@ -167,6 +167,8 @@ Playwright E2E (Layer 2):
   3. pytest backend/scripts/agent_testing -v
      → login_as(page, "admin") 直接复用缓存的 NextAuth session
 ```
+
+> **本地测试是标准流程（2026-08 更新）**：本地 PG 常驻两个库——`BLF`（生产快照，每日自动同步远程 VPS，BEL-376 起常驻，数据可满足集成/手动读写验证）与 `BLF_test`（自动化 pytest 隔离专用，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`；未设 `TEST_DATABASE_URL` 时跳过只是"防误连开发/生产库"的保护机制，本机已配置好，正常情况不会触发。
 
 ---
 
