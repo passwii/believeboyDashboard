@@ -21,6 +21,12 @@ import pandas as pd
 from slugify import slugify
 from openpyxl import Workbook
 
+from app.services.excel_format import (
+    apply_column_formats,
+    excel_num_fmt,
+    resolve_column_formats,
+)
+
 
 @dataclass
 class CategoryResearchExportPayload:
@@ -215,30 +221,47 @@ def _add_kpi_sheet(wb: Workbook, overview: dict[str, Any]) -> None:
     for row_idx, (key, value) in enumerate(kpis.items(), start=1):
         ws.cell(row=row_idx, column=1, value=key)
         ws.cell(row=row_idx, column=2, value=value)
+    # KPI 是 key-value 两列结构（无表头行），逐行用 key 解析格式应用到值列：
+    # *_usd 命中 currency，amazon_share 是 0..1 分数但后缀不匹配推断规则，显式覆盖为 0.00%。
+    for row_idx, key in enumerate(kpis, start=1):
+        fmt = resolve_column_formats([key], column_formats={"amazon_share": "0.00%"})[0]
+        if fmt:
+            ws.cell(row=row_idx, column=2).number_format = fmt
 
 
 def _add_brand_sheet(wb: Workbook, overview: dict[str, Any]) -> None:
     """Add brand analysis sheet."""
     ws = wb.create_sheet('品牌分析')
     brand_shares = overview.get('brand_sales_share', [])
-    ws.append(['品牌', '月销量', '份额'])
+    headers = ['品牌', '月销量', '份额']
+    ws.append(headers)
     for item in brand_shares:
-        ws.append([item.get('brand', ''), item.get('monthly_sales', 0), f"{float(item.get('share', 0)) * 100:.2f}%"])
+        ws.append([item.get('brand', ''), item.get('monthly_sales', 0), float(item.get('share', 0))])
+    # 份额以 0..1 float 落格 + 0.00% 格式；旧实现写 "33.33%" 文本，破坏 SUM/AVERAGE
+    apply_column_formats(ws, headers, column_formats={'月销量': '0', '份额': '0.00%'})
 
 
 def _add_price_band_sheet(wb: Workbook, overview: dict[str, Any]) -> None:
     """Add price band analysis sheet."""
     ws = wb.create_sheet('价格带分析')
     bands = overview.get('price_band_opportunities', [])
-    ws.append(['价格带', '样本数', '月销量', '销量占比', '平均评分'])
+    headers = ['价格带', '样本数', '月销量', '销量占比', '平均评分']
+    ws.append(headers)
     for item in bands:
         ws.append([
             item.get('label', ''),
             item.get('count', 0),
             item.get('monthly_sales', 0),
-            f"{float(item.get('sales_share', 0)) * 100:.2f}%",
-            f"{float(item.get('average_rating', 0)):.2f}",
+            float(item.get('sales_share', 0)),
+            float(item.get('average_rating', 0)),
         ])
+    # 销量占比 0..1 → 0.00%；平均评分小数 → 0.00；计数 → 0
+    apply_column_formats(
+        ws, headers,
+        column_formats={
+            '样本数': '0', '月销量': '0', '销量占比': '0.00%', '平均评分': '0.00',
+        },
+    )
 
 
 def _add_product_sheet(wb: Workbook, products: list) -> None:
@@ -257,6 +280,14 @@ def _add_product_sheet(wb: Workbook, products: list) -> None:
                 float(item.rating) if item.rating else '',
                 int(item.review_count or 0),
             ])
+        # 价格列 USD 货币格式；评分 0.00；计数 0（空值保持 General，skip_empty）
+        apply_column_formats(
+            ws, headers,
+            column_formats={
+                '价格': excel_num_fmt('currency_usd'),
+                '月销量': '0', '评分': '0.00', '评论数': '0',
+            },
+        )
 
 
 def _add_trend_sheet(wb: Workbook, trends: list) -> None:
@@ -271,6 +302,7 @@ def _add_trend_sheet(wb: Workbook, trends: list) -> None:
                 item.year_month or '',
                 int(item.monthly_sales or 0),
             ])
+        apply_column_formats(ws, headers, column_formats={'月销量': '0'})
 
 
 def _add_metrics_sheet(wb: Workbook, overview: dict[str, Any]) -> None:
