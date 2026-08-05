@@ -4,8 +4,9 @@
 → 带 X-Confirm-Token 重放（落库）。confirm_token 与请求体 SHA-256 绑定，
 防止"预览小改动、确认大改动"。
 
-存储：Redis，key = ``agent:confirm:{token}``；物理 TTL = 2×逻辑 TTL，
+存储：Redis，key = ``{redis_key_prefix}:agent:confirm:{token}``；物理 TTL = 2×逻辑 TTL，
 以便把"逻辑过期"分类为 CONFIRM_TOKEN_EXPIRED（区别于"从未存在"的 INVALID）。
+消费走原子 pop（Lua GET+DEL），并发重放只有一个能取到 token。
 测试经 ``set_confirm_store`` 注入内存实现。
 """
 
@@ -24,10 +25,17 @@ from typing import Any, Callable, Protocol
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.core.config import get_settings
+
 logger = logging.getLogger(__name__)
 
 CONFIRM_KEY_PREFIX = "agent:confirm:"
 DEFAULT_CONFIRM_TTL_SECONDS = 300
+
+
+def _confirm_key(token: str) -> str:
+    """全局前缀 + confirm 前缀（对齐 infra ``_p()`` 惯例，P0 终审 Minor T5-2）。"""
+    return f"{get_settings().redis_key_prefix}:{CONFIRM_KEY_PREFIX}{token}"
 
 
 @dataclass
@@ -43,9 +51,18 @@ class ConfirmRecord:
 class ConfirmStore(Protocol):
     def put(self, record: ConfirmRecord, *, physical_ttl_seconds: int) -> None: ...
 
-    def get(self, token: str) -> ConfirmRecord | None: ...
+    def pop(self, token: str) -> ConfirmRecord | None:
+        """原子取出并删除；不存在返回 None。"""
+        ...
 
-    def delete(self, token: str) -> None: ...
+
+_POP_LUA = """
+local v = redis.call('GET', KEYS[1])
+if v then
+    redis.call('DEL', KEYS[1])
+end
+return v
+"""
 
 
 class RedisConfirmStore:
@@ -55,15 +72,15 @@ class RedisConfirmStore:
         from app.services.infra.redis import get_redis_client
 
         get_redis_client().setex(
-            f"{CONFIRM_KEY_PREFIX}{record.token}",
+            _confirm_key(record.token),
             physical_ttl_seconds,
             json.dumps(asdict(record)),
         )
 
-    def get(self, token: str) -> ConfirmRecord | None:
+    def pop(self, token: str) -> ConfirmRecord | None:
         from app.services.infra.redis import get_redis_client
 
-        raw = get_redis_client().get(f"{CONFIRM_KEY_PREFIX}{token}")
+        raw = get_redis_client().eval(_POP_LUA, 1, _confirm_key(token))
         if raw is None:
             return None
         try:
@@ -71,11 +88,6 @@ class RedisConfirmStore:
         except (json.JSONDecodeError, TypeError, ValueError):
             logger.warning("confirm token payload corrupted: %s", token)
             return None
-
-    def delete(self, token: str) -> None:
-        from app.services.infra.redis import get_redis_client
-
-        get_redis_client().delete(f"{CONFIRM_KEY_PREFIX}{token}")
 
 
 class InMemoryConfirmStore:
@@ -90,14 +102,11 @@ class InMemoryConfirmStore:
             "expires_at": time.time() + physical_ttl_seconds,
         }
 
-    def get(self, token: str) -> ConfirmRecord | None:
-        row = self._rows.get(token)
+    def pop(self, token: str) -> ConfirmRecord | None:
+        row = self._rows.pop(token, None)
         if row is None or time.time() > row["expires_at"]:
             return None
         return row["record"]
-
-    def delete(self, token: str) -> None:
-        self._rows.pop(token, None)
 
 
 _store: ConfirmStore | None = None
@@ -157,9 +166,8 @@ def consume_confirm_token(
     body: bytes,
     ttl_seconds: int = DEFAULT_CONFIRM_TTL_SECONDS,
 ) -> ConfirmRecord:
-    """校验并消费（用后即删）。不匹配抛 ConfirmReplayError。"""
-    store = get_confirm_store()
-    record = store.get(token)
+    """校验并消费（原子 pop，用后即删）。不匹配抛 ConfirmReplayError。"""
+    record = get_confirm_store().pop(token)
     if record is None:
         raise ConfirmReplayError("invalid")
     if time.time() - record.created_at > ttl_seconds:
@@ -170,26 +178,26 @@ def consume_confirm_token(
         or record.body_hash != compute_body_hash(body)
     ):
         raise ConfirmReplayError("invalid")
-    store.delete(token)
     return record
 
 
 def require_confirmation(
     *,
     action: str,
-    build_preview: Callable[[dict], dict] | None = None,
-    validate: Callable[[dict], None] | None = None,
+    build_preview: Callable[[dict, Request], dict] | None = None,
+    validate: Callable[[dict, Request], None] | None = None,
 ):
     """危险写操作两步确认门（设计稿 §3.2）。
 
     被装饰 handler 必须是 **async** 且签名只接 ``request: Request``
     （请求体经 ``await request.body()`` 读取，FastAPI 会缓存）。
 
-    * 第一次调用（无 X-Confirm-Token）：``validate(body)`` → 签发 token →
+    * 第一次调用（无 X-Confirm-Token）：``validate(body, request)`` → 签发 token →
       返回 HTTP 200 预览壳（不进 handler）；
     * 第二次调用（带 X-Confirm-Token）：token 校验（body-hash 绑定保证
       请求体一致）→ 执行 handler。
     ``validate`` 抛 ``AgentApiError`` 时在签发 token 之前失败（spec S6）。
+    ``validate``/``build_preview`` 均接收 ``(body, request)``。
     """
 
     def decorator(handler):
@@ -217,8 +225,8 @@ async def _confirm_gate(
     request: Request,
     *,
     action: str,
-    build_preview: Callable[[dict], dict] | None,
-    validate: Callable[[dict], None] | None,
+    build_preview: Callable[[dict, Request], dict] | None,
+    validate: Callable[[dict, Request], None] | None,
 ) -> JSONResponse | None:
     """返回 JSONResponse = 预览壳（短路）；返回 None = 放行 handler。"""
     from app.api.agent.errors import AgentApiError, ErrorCode
@@ -241,7 +249,7 @@ async def _confirm_gate(
 
     if not confirm_header:
         if validate is not None:
-            validate(body)  # 业务校验先于 confirm（spec S6）；抛 AgentApiError 直接短路
+            validate(body, request)  # 业务校验先于 confirm（spec S6）；抛 AgentApiError 直接短路
         record, ttl = issue_confirm_token(
             agent_id=agent_id,
             action=action,
@@ -251,7 +259,7 @@ async def _confirm_gate(
         )
         preview: dict[str, Any] = {"action": action}
         if build_preview is not None:
-            preview.update(build_preview(body))
+            preview.update(build_preview(body, request))
         return JSONResponse(
             status_code=200,
             content={

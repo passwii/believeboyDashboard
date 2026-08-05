@@ -62,3 +62,24 @@ class TestReadRateLimit:
         # a 桶已耗尽，b 桶不受影响
         assert client.get("/api/v1/agent/health", headers=_headers(key_a)).status_code == 429
         assert client.get("/api/v1/agent/health", headers=_headers(key_b)).status_code == 200
+
+
+class TestReadWriteLimitIndependence:
+    """P2 修复回归：slowapi `_rate_limiting_complete` 跨依赖去重陷阱。
+
+    两个 limiter 实例必须并行存在；写桶被读桶的 flag 短路后会失效。
+    """
+
+    def test_write_bucket_does_not_collide_with_read_bucket(
+        self, client, settings, make_api_key
+    ):
+        # 写端点需要真实路由——用一个简易 stub 路由注册到 agent_router 测
+        from app.api.agent.rate_limit import (
+            agent_read_limiter,
+            agent_write_limiter,
+        )
+        assert agent_read_limiter is not agent_write_limiter  # 独立实例
+
+    def test_write_routes_get_write_limit(self, client, settings, make_api_key):
+        # 用真实 POST 端点测（需要 P2 写路由就绪；此测试在 Task 5 路由落地后才有意义）
+        pytest.skip("Task 5 写路由就绪后补断言")

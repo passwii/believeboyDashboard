@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models.operation_audit_log import OperationAuditLog
@@ -158,3 +158,24 @@ def append_operation_view_log(
     # Passive page-load and data-fetch events generate too much noise for audit review.
     # Keep the call sites stable, but stop persisting view/list-style logs by default.
     return None
+
+
+def query_operation_audit_log(
+    db: Session,
+    *,
+    target_type: str,
+    target_id: str,
+    limit: int = 50,
+) -> list[OperationAuditLog]:
+    """按 target 查审计行（id 倒序）。Agent 货件审计路由使用（spec S7）。"""
+    return list(
+        db.scalars(
+            select(OperationAuditLog)
+            .where(
+                OperationAuditLog.target_type == target_type,
+                OperationAuditLog.target_id == str(target_id),
+            )
+            .order_by(OperationAuditLog.id.desc())
+            .limit(min(max(int(limit), 1), 200))
+        )
+    )

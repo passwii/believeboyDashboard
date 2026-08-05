@@ -7,6 +7,7 @@ confirm 用例（S2-S6）属 P2 plan。
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 from fastapi import FastAPI, Request
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.api.agent.confirm import (
     DEFAULT_CONFIRM_TTL_SECONDS,
     InMemoryConfirmStore,
+    RedisConfirmStore,
     get_confirm_store,
     issue_confirm_token,
     consume_confirm_token,
@@ -24,6 +26,8 @@ from app.api.agent.confirm import (
 )
 from app.api.agent.errors import register_agent_error_handlers
 from app.api.agent.response import agent_ok
+from app.core.config import get_settings
+from app.services.infra.redis import is_redis_available
 
 EXECUTED: list[dict] = []
 
@@ -35,7 +39,7 @@ def _build_app() -> FastAPI:
     @app.post("/w")
     @require_confirmation(
         action="test.action",
-        build_preview=lambda body: {"echo": body},
+        build_preview=lambda body, request: {"echo": body},
         validate=_validate,
     )
     async def write_route(request: Request):
@@ -51,7 +55,7 @@ def _build_app() -> FastAPI:
     return app
 
 
-def _validate(body: dict) -> None:
+def _validate(body: dict, request) -> None:
     from app.api.agent.errors import AgentApiError, ErrorCode
 
     if body.get("sku") == "BAD":
@@ -190,3 +194,110 @@ class TestDecoratorFlow:
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
         # 未签发 token：存储为空
         assert get_confirm_store()._rows == {}
+
+
+class TestAtomicConsume:
+    def test_concurrent_replay_only_one_wins(self):
+        """TOCTOU 回归：N 个并发重放只有一个成功（P0 终审准入门槛）。"""
+        store = InMemoryConfirmStore()
+        set_confirm_store(store)
+        try:
+            record, _ = issue_confirm_token(
+                agent_id="a", action="x", idempotency_key=None, body=b'{"v":1}'
+            )
+            wins: list[bool] = []
+            lock = threading.Lock()
+
+            def attempt():
+                try:
+                    consume_confirm_token(
+                        token=record.token, agent_id="a",
+                        idempotency_key=None, body=b'{"v":1}',
+                    )
+                    ok = True
+                except ConfirmReplayError:
+                    ok = False
+                with lock:
+                    wins.append(ok)
+
+            threads = [threading.Thread(target=attempt) for _ in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            assert sum(wins) == 1
+        finally:
+            set_confirm_store(None)
+
+
+@pytest.mark.skipif(not is_redis_available(), reason="本地 Redis 不可用")
+class TestRedisStoreRoundtrip:
+    def test_put_pop_and_prefix(self):
+        from app.services.infra.redis import get_redis_client
+
+        store = RedisConfirmStore()
+        set_confirm_store(store)
+        try:
+            record, _ = issue_confirm_token(
+                agent_id="a", action="x", idempotency_key="k", body=b'{"v":1}'
+            )
+            expected_key = f"{get_settings().redis_key_prefix}:agent:confirm:{record.token}"
+            assert get_redis_client().exists(expected_key) == 1
+            got = consume_confirm_token(
+                token=record.token, agent_id="a", idempotency_key="k", body=b'{"v":1}'
+            )
+            assert got.token == record.token
+            # 原子 pop 后 key 消失；再 pop 为 invalid
+            assert get_redis_client().exists(expected_key) == 0
+            with pytest.raises(ConfirmReplayError) as exc:
+                consume_confirm_token(
+                    token=record.token, agent_id="a", idempotency_key="k", body=b'{"v":1}'
+                )
+            assert exc.value.reason == "invalid"
+        finally:
+            set_confirm_store(None)
+
+
+class TestCallbacksReceiveRequest:
+    def test_validate_and_preview_get_request(self):
+        """装饰器回调签名升级为 (body, request)。"""
+        from fastapi import FastAPI, Request
+        from fastapi.testclient import TestClient
+
+        from app.api.agent.errors import register_agent_error_handlers
+        from app.api.agent.response import agent_ok
+
+        seen: dict = {}
+
+        app = FastAPI()
+        register_agent_error_handlers(app)
+
+        def _val(body: dict, request: Request) -> None:
+            seen["validate_path"] = request.url.path
+            seen["validate_body"] = body
+
+        def _prev(body: dict, request: Request) -> dict:
+            seen["preview_path"] = request.url.path
+            return {"echo": body}
+
+        @app.post("/w")
+        @require_confirmation(action="t.a", build_preview=_prev, validate=_val)
+        async def _w(request: Request):
+            return agent_ok({"executed": True})
+
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(app)
+            resp = client.post("/w", json={"a": 1}, headers={"Idempotency-Key": "k1"})
+            assert resp.status_code == 200
+            assert seen["validate_path"] == "/w"
+            assert seen["validate_body"] == {"a": 1}
+            assert seen["preview_path"] == "/w"
+            token = resp.json()["confirm_token"]
+            replay = client.post(
+                "/w", json={"a": 1},
+                headers={"Idempotency-Key": "k1", "X-Confirm-Token": token},
+            )
+            assert replay.json() == {"ok": True, "data": {"executed": True}}
+        finally:
+            set_confirm_store(None)

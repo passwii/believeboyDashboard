@@ -19,12 +19,29 @@
 凭据管理：前端"系统 → Agent 凭据"页（`/dashboard/system/agent-management`），
 或 admin 调 `POST/GET /api/v1/internal/api-keys`。
 
-## 2. 端点（P0）
+## 2. 端点
 
-    GET /api/v1/agent/health    存活探针（返回 agent_id + server_time）
+    GET /api/v1/agent/health    存活探针
 
-读侧端点（`/external/*` 镜像）与写侧端点（货件域）随 P1/P2 上线，
-清单以设计稿 §8 阶段表为准。
+### 货件域（P2）
+
+    GET    /api/v1/agent/projects/{project_id}/shipments
+    GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}
+    GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/sku-summary
+    GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-box-detail
+    GET    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/audit
+    POST   /api/v1/agent/projects/{project_id}/shipments                      （confirm）
+    PATCH  /api/v1/agent/projects/{project_id}/shipments/{shipment_no}        （confirm）
+    PUT    /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/items  （confirm）
+    POST   /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/status （confirm）
+    POST   /api/v1/agent/projects/{project_id}/shipments/{shipment_no}/recalculate-costs （confirm）
+
+写接口（confirm）两步：第一次调用返回 HTTP 200 + `requires_confirmation:true` +
+`confirm_token`（300s 有效，与请求体 SHA-256 绑定）；向用户复述 preview 摘要，
+确认后**用同一 Idempotency-Key + X-Confirm-Token + 完全相同的请求体**重放。
+
+货件字段约定：`shipment_status` ∈ {draft, in_transit, completed}；
+`shipping_method` ∈ {sea, air, express, truck, rail, other}（英文 token）。
 
 ## 3. 响应壳
 
@@ -36,7 +53,8 @@
 `AGENT_RATE_LIMIT_EXCEEDED`(429, 附 Retry-After) / `VALIDATION_FAILED`(400) /
 `RESOURCE_NOT_FOUND`(404) / `CONFIRM_TOKEN_INVALID`(400) /
 `CONFIRM_TOKEN_EXPIRED`(409) / `IDEMPOTENCY_KEY_CONFLICT`(409) /
-`INTERNAL_ERROR`(500)。
+`SHIPMENT_DUPLICATE_NO`(409) / `SHIPMENT_ITEMS_INVALID_SKU`(400) /
+`SHIPMENT_STATUS_INVALID`(400) / `INTERNAL_ERROR`(500)。
 
 ## 4. curl 示例
 

@@ -27,13 +27,13 @@ _SECURITY_FLAGS = (
 
 @pytest.fixture(autouse=True)
 def _restore_external_state():
-    from app.api.agent.rate_limit import agent_limiter
+    from app.api.agent.rate_limit import agent_limiter, agent_write_limiter
     from app.api.external_security import external_limiter
     from app.core.config import get_settings
 
     settings = get_settings()
     snapshot = {name: getattr(settings, name) for name in _SECURITY_FLAGS}
-    for limiter in (external_limiter, agent_limiter):
+    for limiter in (external_limiter, agent_limiter, agent_write_limiter):
         try:
             limiter.reset()
         except Exception:  # noqa: BLE001 — reset is best-effort
@@ -41,7 +41,7 @@ def _restore_external_state():
     yield
     for name, value in snapshot.items():
         setattr(settings, name, value)
-    for limiter in (external_limiter, agent_limiter):
+    for limiter in (external_limiter, agent_limiter, agent_write_limiter):
         try:
             limiter.reset()
         except Exception:  # noqa: BLE001
