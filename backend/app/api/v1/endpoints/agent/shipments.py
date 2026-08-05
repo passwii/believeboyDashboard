@@ -800,3 +800,87 @@ async def transition_shipment_status(
         build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
+
+
+# ============================================================
+# 重算费用路由（Task 9；spec S2）
+# ============================================================
+
+
+def _validate_recalculate(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    price = body.get("logistics_unit_price")
+    if not isinstance(price, (int, float)) or isinstance(price, bool) or price < 0:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="logistics_unit_price 必须为非负数字",
+        )
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    db = SessionLocal()
+    try:
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        if not schedule.items:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message="请先导入 SKU 明细，再执行核算",
+            )
+    finally:
+        db.close()
+
+
+def _preview_recalculate(body: dict, request: Request) -> dict:
+    return {
+        "action": "shipment.recalculate_costs",
+        "shipment_no": request.path_params["shipment_no"],
+        "logistics_unit_price": body.get("logistics_unit_price"),
+        "note": "将按 SKU 尺寸/重量重算体积重与计费重，并回写该货件的物流费用",
+    }
+
+
+@shipments_router.post(
+    "/{shipment_no}/recalculate-costs",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+@require_confirmation(
+    action="shipment.recalculate_costs",
+    build_preview=_preview_recalculate,
+    validate=_validate_recalculate,
+)
+async def recalculate_shipment_costs(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    body = json.loads(await request.body() or b"{}")
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        row, sku_count, total_quantity = shipment_service.calculate_shipment_schedule_costs(
+            db, schedule.id, logistics_unit_price=body["logistics_unit_price"]
+        )
+        _invalidate_shipment_caches(row)
+        append_operation_audit_log(
+            db,
+            action="shipment.recalculate_costs",
+            target_type="shipment_schedule",
+            target_id=row.id,
+            operator=None,
+            after={
+                "shipment_no": row.shipment_no,
+                "logistics_unit_price": float(row.logistics_unit_price or 0),
+                "total_volume_m3": float(row.total_volume_m3 or 0),
+                "total_chargeable_weight_kg": float(row.total_chargeable_weight_kg or 0),
+                "logistics_total_price": float(row.logistics_total_price or 0),
+                "sku_count": sku_count,
+                "total_quantity": total_quantity,
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, row.id
+        )
+    return agent_ok(
+        build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )

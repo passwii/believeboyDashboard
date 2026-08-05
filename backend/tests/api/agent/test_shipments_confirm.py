@@ -372,3 +372,87 @@ class TestStatusTransition:
         resp = _post(client, shipment_env, f"/{shipment_no}/status", {})
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+class TestRecalculateCosts:
+    def test_s2_preview_replay_and_audit(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        shipment_no = f"SH-RC-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)  # 已有明细
+        body = {"logistics_unit_price": 13.5}
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        preview = _post(
+            client, shipment_env, f"/{shipment_no}/recalculate-costs", body, idem=idem
+        )
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["requires_confirmation"] is True
+        assert pbody["preview"]["action"] == "shipment.recalculate_costs"
+        assert pbody["preview"]["shipment_no"] == shipment_no
+        assert pbody["preview"]["logistics_unit_price"] == 13.5
+        assert "note" in pbody["preview"]
+
+        replay = _post(
+            client, shipment_env, f"/{shipment_no}/recalculate-costs", body,
+            token=pbody["confirm_token"], idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["logistics_unit_price"] == 13.5
+        assert data["logistics_total_price"] > 0  # 费用被回写
+
+        db = SessionLocal()
+        try:
+            rows = query_operation_audit_log(
+                db, target_type="shipment_schedule", target_id=str(data["id"])
+            )
+            audit = next(r for r in rows if r.action == "shipment.recalculate_costs")
+            assert audit.agent_id == shipment_env["agent_id"]
+            assert audit.after_json["logistics_unit_price"] == 13.5
+        finally:
+            db.close()
+
+    def test_recalculate_without_items_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        # 空明细货件：直接建，不塞明细
+        from app.schemas.shipment_schedule import ShipmentScheduleCreate
+        from app.services import shipment as svc
+
+        shipment_no = f"SH-RCE-{uuid.uuid4().hex[:8]}"
+        db = SessionLocal()
+        try:
+            svc.create_shipment_schedule(
+                db,
+                ShipmentScheduleCreate(
+                    project_id=shipment_env["project_id"],
+                    country="US",
+                    shipment_no=shipment_no,
+                    shipping_method="sea",
+                    shipment_status="draft",
+                ),
+                operator="pytest",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        resp = _post(
+            client, shipment_env, f"/{shipment_no}/recalculate-costs",
+            {"logistics_unit_price": 10},
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        assert get_confirm_store()._rows == {}  # 校验先于 confirm
+
+    def test_negative_price_rejected(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-RCN-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _post(
+            client, shipment_env, f"/{shipment_no}/recalculate-costs",
+            {"logistics_unit_price": -1},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
