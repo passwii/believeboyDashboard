@@ -95,6 +95,41 @@ type OperationAuditLogsSummaryResponse = {
   top_actions: OperationAuditLogActionSummaryItem[]
 }
 
+type AgentAccessLogItem = {
+  id: number
+  created_at: string
+  method: string
+  path: string
+  status_code: number
+  latency_ms: number
+  ip_address: string | null
+  api_key_id: number | null
+  agent_id: string | null
+  key_label: string | null
+}
+
+type AgentAccessLogsResponse = {
+  items: AgentAccessLogItem[]
+  total: number
+  page: number
+  page_size: number
+  has_next: boolean
+}
+
+type AgentAccessLogAgentSummaryItem = {
+  agent_id: string
+  key_label: string | null
+  count: number
+}
+
+type AgentAccessLogsSummaryResponse = {
+  total: number
+  success_count: number
+  error_count: number
+  unique_agent_count: number
+  top_agents: AgentAccessLogAgentSummaryItem[]
+}
+
 type CategoryKey =
   | 'all'
   | 'auth'
@@ -485,7 +520,7 @@ export default function SystemOperationLogsPage() {
 
   const [activeRow, setActiveRow] = useState<OperationAuditLogItem | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'audit' | 'login'>('audit')
+  const [activeTab, setActiveTab] = useState<'audit' | 'login' | 'agent'>('audit')
 
   const [loginRows, setLoginRows] = useState<OperationAuditLogItem[]>([])
   const [loginLoading, setLoginLoading] = useState(false)
@@ -493,6 +528,20 @@ export default function SystemOperationLogsPage() {
   const [loginTotal, setLoginTotal] = useState(0)
   const [loginHasNext, setLoginHasNext] = useState(false)
   const [loginActiveRow, setLoginActiveRow] = useState<OperationAuditLogItem | null>(null)
+
+  const [agentRows, setAgentRows] = useState<AgentAccessLogItem[]>([])
+  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentPage, setAgentPage] = useState(1)
+  const [agentTotal, setAgentTotal] = useState(0)
+  const [agentHasNext, setAgentHasNext] = useState(false)
+  const [agentSummary, setAgentSummary] = useState<AgentAccessLogsSummaryResponse | null>(null)
+  const [agentKeywordInput, setAgentKeywordInput] = useState('')
+  const [agentMethodInput, setAgentMethodInput] = useState('')
+  const [agentResultInput, setAgentResultInput] = useState('')
+  const [agentKeyword, setAgentKeyword] = useState('')
+  const [agentMethod, setAgentMethod] = useState('')
+  const [agentResult, setAgentResult] = useState('')
+  const [agentActiveRow, setAgentActiveRow] = useState<AgentAccessLogItem | null>(null)
 
   const fetchLogs = useCallback(async () => {
     if (status === 'loading') return
@@ -602,6 +651,59 @@ export default function SystemOperationLogsPage() {
     }
   }, [activeTab, fetchLoginLogs])
 
+  const fetchAgentLogs = useCallback(async () => {
+    if (status === 'loading') return
+    setAgentLoading(true)
+
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(agentPage))
+      params.set('page_size', '50')
+      if (agentKeyword) params.set('keyword', agentKeyword)
+      if (agentMethod) params.set('method', agentMethod)
+      if (agentResult) params.set('result', agentResult)
+
+      const headers = buildBackendClientHeaders(session)
+      const [logsResponse, summaryResponse] = await Promise.all([
+        fetch(
+          `${API_BASE}/api/v1/system-management/agent-access-logs?${params.toString()}`,
+          { headers, cache: 'no-store' }
+        ),
+        fetch(
+          `${API_BASE}/api/v1/system-management/agent-access-logs/summary?${params.toString()}`,
+          { headers, cache: 'no-store' }
+        ),
+      ])
+
+      if (!logsResponse.ok) throw new Error(await parseError(logsResponse))
+      if (!summaryResponse.ok) throw new Error(await parseError(summaryResponse))
+
+      const [logsPayload, summaryPayload] = (await Promise.all([
+        logsResponse.json(),
+        summaryResponse.json(),
+      ])) as [AgentAccessLogsResponse, AgentAccessLogsSummaryResponse]
+
+      setAgentRows(logsPayload.items || [])
+      setAgentTotal(logsPayload.total || 0)
+      setAgentHasNext(Boolean(logsPayload.has_next))
+      setAgentSummary(summaryPayload)
+    } catch (err) {
+      notify({
+        type: 'error',
+        title: '加载 Agent 访问日志失败',
+        message: normalizeErrorMessage(err, '加载 Agent 访问日志失败'),
+      })
+    } finally {
+      setAgentLoading(false)
+    }
+  }, [agentKeyword, agentMethod, agentPage, agentResult, session, status, notify])
+
+  useEffect(() => {
+    if (activeTab === 'agent') {
+      void fetchAgentLogs()
+    }
+  }, [activeTab, fetchAgentLogs])
+
   const totalPages = useMemo(() => {
     if (total <= 0) return 1
     return Math.max(1, Math.ceil(total / pageSize))
@@ -611,6 +713,50 @@ export default function SystemOperationLogsPage() {
     if (loginTotal <= 0) return 1
     return Math.max(1, Math.ceil(loginTotal / pageSize))
   }, [loginTotal])
+
+  const agentTotalPages = useMemo(() => {
+    if (agentTotal <= 0) return 1
+    return Math.max(1, Math.ceil(agentTotal / 50))
+  }, [agentTotal])
+
+  const applyAgentFilters = useCallback(() => {
+    setAgentPage(1)
+    setAgentKeyword(agentKeywordInput.trim())
+    setAgentMethod(agentMethodInput)
+    setAgentResult(agentResultInput)
+  }, [agentKeywordInput, agentMethodInput, agentResultInput])
+
+  const resetAgentFilters = useCallback(() => {
+    setAgentKeywordInput('')
+    setAgentMethodInput('')
+    setAgentResultInput('')
+    setAgentPage(1)
+    setAgentKeyword('')
+    setAgentMethod('')
+    setAgentResult('')
+  }, [])
+
+  const statusMeta = (code: number) => {
+    if (code >= 500)
+      return {
+        label: `${code} · 服务端错误`,
+        className: 'border-rose-500/50 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+      }
+    if (code >= 400)
+      return {
+        label: `${code} · 请求错误`,
+        className: 'border-orange-500/50 bg-orange-500/10 text-orange-600 dark:text-orange-400',
+      }
+    if (code >= 300)
+      return {
+        label: `${code} · 重定向`,
+        className: 'border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+      }
+    return {
+      label: `${code} · 成功`,
+      className: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    }
+  }
 
   const applyFilters = useCallback(() => {
     setPage(1)
@@ -670,7 +816,7 @@ export default function SystemOperationLogsPage() {
   return (
     <Tabs
       value={activeTab}
-      onValueChange={(value) => setActiveTab(value as 'audit' | 'login')}
+      onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
       className="w-full"
     >
       <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
@@ -679,6 +825,9 @@ export default function SystemOperationLogsPage() {
         </TabsTrigger>
         <TabsTrigger value="login" className="min-h-10 px-5 py-2 text-sm">
           登录日志
+        </TabsTrigger>
+        <TabsTrigger value="agent" className="min-h-10 px-5 py-2 text-sm">
+          Agent 访问日志
         </TabsTrigger>
       </TabsList>
 
@@ -1140,6 +1289,290 @@ export default function SystemOperationLogsPage() {
                       <p>
                         <span className="text-muted-foreground">资源 ID:</span>{' '}
                         {loginActiveRow.target_id || '-'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="agent" className="mt-6">
+        <div className="space-y-6">
+          <DataCard>
+            <DataCardHeader
+              title="Agent 访问统计概览"
+              description="当前筛选条件下 /api/v1/agent/* 的访问统计（保留 90 天）"
+            />
+            <div className="px-6 py-5">
+              <DataTableCardStatBar
+                items={[
+                  { label: '请求总量', value: agentSummary?.total ?? 0, highlight: true },
+                  { label: '成功 (2xx)', value: agentSummary?.success_count ?? 0 },
+                  { label: '失败 (≥4xx)', value: agentSummary?.error_count ?? 0 },
+                  { label: '活跃 Agent', value: agentSummary?.unique_agent_count ?? 0 },
+                ]}
+              />
+              {agentSummary && agentSummary.top_agents.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {agentSummary.top_agents.map((item) => (
+                    <span
+                      key={item.agent_id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-700 dark:text-indigo-300"
+                      title={`${item.agent_id}（${item.key_label || '无标签'}）`}
+                    >
+                      <code className="font-mono">{item.agent_id}</code>
+                      <span className="text-muted-foreground">×{item.count}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </DataCard>
+
+          <DataTableCard>
+            <DataCardHeader
+              title="访问记录"
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void fetchAgentLogs()}
+                  disabled={agentLoading}
+                >
+                  {agentLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {agentLoading ? '刷新中...' : '刷新'}
+                </Button>
+              }
+            />
+            <DataTableCardBody>
+              <div className="border border-white/45 bg-[hsl(var(--surface-subtle))] p-1.5 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[170px]">时间</TableHead>
+                      <TableHead className="w-[150px]">Agent ID</TableHead>
+                      <TableHead className="w-[130px]">Key 标签</TableHead>
+                      <TableHead className="w-[70px]">方法</TableHead>
+                      <TableHead>路径</TableHead>
+                      <TableHead className="w-[110px]">状态码</TableHead>
+                      <TableHead className="w-[70px]">耗时</TableHead>
+                      <TableHead className="w-[120px]">IP 地址</TableHead>
+                      <TableHead className="w-[80px] text-right">详情</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {agentRows.length === 0 ? (
+                      agentLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-muted-foreground">
+                            加载中...
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <EmptyTableState colSpan={9} message="暂无 Agent 访问记录" />
+                      )
+                    ) : (
+                      agentRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>{formatDateTime(row.created_at)}</TableCell>
+                          <TableCell>
+                            {row.agent_id ? (
+                              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                                {row.agent_id}
+                              </code>
+                            ) : (
+                              <span className="text-muted-foreground">未绑定 / 未鉴权</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-[130px] truncate" title={row.key_label || '-'}>
+                            {row.key_label || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono">
+                              {row.method}
+                            </Badge>
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[300px] truncate font-mono text-xs"
+                            title={row.path}
+                          >
+                            {row.path}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={statusMeta(row.status_code).className}>
+                              {statusMeta(row.status_code).label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {row.latency_ms}ms
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{row.ip_address || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAgentActiveRow(row)}
+                            >
+                              <Eye className="h-4 w-4" />
+                              查看
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex items-center justify-between px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  共 {agentTotal} 条，当前第 {agentPage} / {agentTotalPages} 页
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setAgentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={agentPage <= 1 || agentLoading}
+                  >
+                    上一页
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setAgentPage((prev) => prev + 1)}
+                    disabled={!agentHasNext || agentLoading}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            </DataTableCardBody>
+          </DataTableCard>
+
+          <Card className="dashboard-surface">
+            <CardContent className="p-4">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <Input
+                  value={agentKeywordInput}
+                  onChange={(event) => setAgentKeywordInput(event.target.value)}
+                  placeholder="关键词（Agent ID / Key 标签 / 路径）"
+                />
+                <Select
+                  value={agentMethodInput}
+                  onValueChange={setAgentMethodInput}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="请求方法" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部方法</SelectItem>
+                    <SelectItem value="GET">GET</SelectItem>
+                    <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="PUT">PUT</SelectItem>
+                    <SelectItem value="PATCH">PATCH</SelectItem>
+                    <SelectItem value="DELETE">DELETE</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={agentResultInput}
+                  onValueChange={setAgentResultInput}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="请求结果" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部结果</SelectItem>
+                    <SelectItem value="success">成功 (2xx)</SelectItem>
+                    <SelectItem value="error">失败 (≥4xx)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button className="flex-1" onClick={applyAgentFilters}>
+                    <Search className="h-4 w-4" />
+                    查询
+                  </Button>
+                  <Button type="button" variant="outline" onClick={resetAgentFilters}>
+                    重置
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Dialog
+            open={Boolean(agentActiveRow)}
+            onOpenChange={(open) => (open ? null : setAgentActiveRow(null))}
+          >
+            <DialogContent
+              aria-describedby="agent-log-detail-dialog-description"
+              className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+            >
+              <span id="agent-log-detail-dialog-description" className="sr-only">
+                Agent 访问日志详情查看
+              </span>
+              <DialogHeader>
+                <DialogTitle>Agent 访问详情</DialogTitle>
+              </DialogHeader>
+              {agentActiveRow ? (
+                <div className="space-y-4 text-sm">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <p>
+                      <span className="text-muted-foreground">请求时间:</span>{' '}
+                      {formatDateTime(agentActiveRow.created_at)}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">状态码:</span>{' '}
+                      {statusMeta(agentActiveRow.status_code).label}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Agent ID:</span>{' '}
+                      <code className="font-mono">{agentActiveRow.agent_id || '未绑定 / 未鉴权'}</code>
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">Key 标签:</span>{' '}
+                      {agentActiveRow.key_label || '-'}
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">耗时:</span> {agentActiveRow.latency_ms}ms
+                    </p>
+                    <p>
+                      <span className="text-muted-foreground">IP 地址:</span>{' '}
+                      <code className="font-mono">{agentActiveRow.ip_address || '-'}</code>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-medium">请求</p>
+                    <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                      <p>
+                        <span className="text-muted-foreground">方法:</span>{' '}
+                        <code className="font-mono">{agentActiveRow.method}</code>
+                      </p>
+                      <p className="mt-1">
+                        <span className="text-muted-foreground">路径:</span>{' '}
+                        <code className="break-all font-mono text-xs">
+                          {agentActiveRow.path}
+                        </code>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-medium">凭据</p>
+                    <div className="rounded-md border border-border/70 bg-muted/40 p-3 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+                      <p>
+                        <span className="text-muted-foreground">API Key ID:</span>{' '}
+                        <code className="font-mono text-xs">{agentActiveRow.api_key_id ?? '未鉴权'}</code>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">日志 ID:</span>{' '}
+                        <code className="font-mono text-xs">{agentActiveRow.id}</code>
                       </p>
                     </div>
                   </div>

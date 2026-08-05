@@ -20,7 +20,7 @@ import {
   listAgentApiKeys,
   revokeAgentApiKey,
 } from '@/lib/api/agent-key-admin'
-import { AgentUsageGuide, buildUsageText } from './agent-usage-guide'
+import { AgentUsageGuide, buildUsageText, fetchBackendBaseUrl } from './agent-usage-guide'
 
 type CreatedResult = {
   plaintext_key: string
@@ -115,10 +115,12 @@ export function AgentManagementClient() {
 
   const copyUsage = async () => {
     if (!created) return
+    const baseUrl = await fetchBackendBaseUrl()
     await navigator.clipboard.writeText(
       buildUsageText({
         plaintextKey: created.plaintext_key,
         agentId: created.agent_id,
+        baseUrl,
       })
     )
     setUsageCopied(true)

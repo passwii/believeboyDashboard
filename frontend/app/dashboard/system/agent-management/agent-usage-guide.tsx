@@ -1,14 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookOpen, Check, Copy } from 'lucide-react'
 
+/** 取后端公共地址（未配置或失败时返回空串，调用方回退占位符）。 */
+export async function fetchBackendBaseUrl(): Promise<string> {
+  try {
+    const res = await fetch('/api/backend-base', { cache: 'no-store' })
+    if (!res.ok) return ''
+    const payload = (await res.json()) as { base_url?: string }
+    return payload.base_url || ''
+  } catch {
+    return ''
+  }
+}
+
 /** 生成给 Agent 的调用说明文本（含真实凭据时用于创建成功弹窗的一键复制）。 */
-export function buildUsageText(opts?: { plaintextKey?: string; agentId?: string }) {
+export function buildUsageText(opts?: {
+  plaintextKey?: string
+  agentId?: string
+  baseUrl?: string
+}) {
   const key = opts?.plaintextKey ?? '<明文 Key>'
   const agentId = opts?.agentId ?? '<Agent ID>'
+  const apiBase = (opts?.baseUrl || '').replace(/\/+$/, '') || '<后端地址>'
   return `Agent API 调用说明
 =====================
 
@@ -19,20 +36,20 @@ export function buildUsageText(opts?: { plaintextKey?: string; agentId?: string 
 
 【1. 存活探针】
 
-  curl http://<后端地址>/api/v1/agent/health \
+  curl ${apiBase}/api/v1/agent/health \
     -H "Authorization: Bearer ${key}" \
     -H "X-Agent-Id: ${agentId}"
 
 【2. 读取货件列表】
 
-  curl "http://<后端地址>/api/v1/agent/projects/{project_id}/shipments?page_size=20" \
+  curl "${apiBase}/api/v1/agent/projects/{project_id}/shipments?page_size=20" \
     -H "Authorization: Bearer ${key}" \
     -H "X-Agent-Id: ${agentId}"
 
 【3. 写操作（两步确认，第一次调用不会落库）】
 
   第一步（预览，返回 confirm_token）：
-  curl -X POST "http://<后端地址>/api/v1/agent/projects/{project_id}/shipments" \
+  curl -X POST "${apiBase}/api/v1/agent/projects/{project_id}/shipments" \
     -H "Authorization: Bearer ${key}" \
     -H "X-Agent-Id: ${agentId}" \
     -H "Idempotency-Key: <UUID>" \
@@ -52,9 +69,20 @@ export function buildUsageText(opts?: { plaintextKey?: string; agentId?: string 
 
 export function AgentUsageGuide() {
   const [copied, setCopied] = useState(false)
+  const [baseUrl, setBaseUrl] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchBackendBaseUrl().then((url) => {
+      if (!cancelled) setBaseUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const copyAll = async () => {
-    await navigator.clipboard.writeText(buildUsageText())
+    await navigator.clipboard.writeText(buildUsageText({ baseUrl }))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -71,10 +99,21 @@ export function AgentUsageGuide() {
         <div className="flex items-start justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             创建凭据后，把下面的说明复制给 Agent 作为调用配置。Agent
-            每次请求都必须同时携带 <code className="rounded bg-muted px-1 font-mono text-xs">Authorization</code>{' '}
+            每次请求都必须同时携带{' '}
+            <code className="rounded bg-muted px-1 font-mono text-xs">Authorization</code>{' '}
             与 <code className="rounded bg-muted px-1 font-mono text-xs">X-Agent-Id</code>{' '}
-            两个鉴权头（<code className="rounded bg-muted px-1 font-mono text-xs">&lt;后端地址&gt;</code>{' '}
-            替换为实际后端域名）。
+            两个鉴权头。
+            {baseUrl ? (
+              <span className="mt-1 block">
+                后端地址已自动填入：
+                <code className="rounded bg-muted px-1 font-mono text-xs">{baseUrl}</code>
+              </span>
+            ) : (
+              <span className="mt-1 block">
+                （<code className="rounded bg-muted px-1 font-mono text-xs">&lt;后端地址&gt;</code>{' '}
+                请替换为实际后端域名）
+              </span>
+            )}
           </p>
           <Button variant="outline" size="sm" className="shrink-0" onClick={copyAll}>
             {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
@@ -82,7 +121,7 @@ export function AgentUsageGuide() {
           </Button>
         </div>
         <pre className="overflow-x-auto rounded bg-muted p-3 font-mono text-xs leading-relaxed">
-          {buildUsageText()}
+          {buildUsageText({ baseUrl })}
         </pre>
       </CardContent>
     </Card>
