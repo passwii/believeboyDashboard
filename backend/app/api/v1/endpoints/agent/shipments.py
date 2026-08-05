@@ -722,3 +722,81 @@ async def patch_shipment(
         build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
+
+
+# ============================================================
+# 状态推进路由（Task 8；spec S5）
+# ============================================================
+
+
+def _validate_status(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    to_status = body.get("to_status")
+    if not isinstance(to_status, str) or not to_status.strip():
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="to_status 必填且为字符串"
+        )
+    if to_status.strip() not in ALLOWED_SHIPMENT_STATUS:
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_STATUS_INVALID,
+            details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
+        )
+
+
+def _preview_status(body: dict, request: Request) -> dict:
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    db = SessionLocal()
+    try:
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        from_status = str(schedule.shipment_status)
+    finally:
+        db.close()
+    return {
+        "shipment_no": shipment_no,
+        "from_status": from_status,
+        "to_status": str(body["to_status"]).strip(),
+    }
+
+
+@shipments_router.post(
+    "/{shipment_no}/status", dependencies=[Depends(require_agent_write_rate_limit)]
+)
+@require_confirmation(
+    action="shipment.status.transition",
+    build_preview=_preview_status,
+    validate=_validate_status,
+)
+async def transition_shipment_status(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    body = json.loads(await request.body() or b"{}")
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    to_status = str(body["to_status"]).strip()
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        from_status = str(schedule.shipment_status)
+        payload = _build_update_payload(schedule, {"shipment_status": to_status})
+        row = shipment_service.update_shipment_schedule(
+            db, schedule.id, payload, operator=None
+        )
+        _invalidate_shipment_caches(row)
+        append_operation_audit_log(
+            db,
+            action="shipment.status.transition",
+            target_type="shipment_schedule",
+            target_id=row.id,
+            operator=None,
+            before={"shipment_status": from_status},
+            after={"shipment_status": to_status},
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, row.id
+        )
+    return agent_ok(
+        build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )

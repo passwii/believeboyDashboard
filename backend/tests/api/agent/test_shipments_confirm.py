@@ -319,3 +319,56 @@ class TestPatchShipment:
         resp = _patch(client, shipment_env, f"/{shipment_no}", {"shipment_status": "arrived"})
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "SHIPMENT_STATUS_INVALID"
+
+
+class TestStatusTransition:
+    def test_s5_status_preview_replay_and_audit(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        shipment_no = f"SH-ST-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)  # draft
+        body = {"to_status": "in_transit"}
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        preview = _post(client, shipment_env, f"/{shipment_no}/status", body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["requires_confirmation"] is True
+        assert pbody["preview"]["from_status"] == "draft"
+        assert pbody["preview"]["to_status"] == "in_transit"
+
+        replay = _post(
+            client, shipment_env, f"/{shipment_no}/status", body,
+            token=pbody["confirm_token"], idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["shipment_status"] == "in_transit"
+
+        db = SessionLocal()
+        try:
+            rows = query_operation_audit_log(
+                db, target_type="shipment_schedule", target_id=str(data["id"])
+            )
+            audit = next(r for r in rows if r.action == "shipment.status.transition")
+            assert audit.before_json == {"shipment_status": "draft"}
+            assert audit.after_json == {"shipment_status": "in_transit"}
+            assert audit.agent_id == shipment_env["agent_id"]
+        finally:
+            db.close()
+
+    def test_invalid_to_status(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-STI-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _post(client, shipment_env, f"/{shipment_no}/status", {"to_status": "shipped"})
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "SHIPMENT_STATUS_INVALID"
+        assert sorted(err["details"]["allowed"]) == ["completed", "draft", "in_transit"]
+
+    def test_missing_to_status(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-STM-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _post(client, shipment_env, f"/{shipment_no}/status", {})
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
