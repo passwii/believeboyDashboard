@@ -39,13 +39,12 @@ def confirm_memory_store():
 
 @pytest.fixture(autouse=True)
 def _reset_agent_rate_limit():
-    """clear 内存 limiter：跨测试隔离（slowapi 状态按进程共享）。"""
-    from app.api.agent.rate_limit import agent_limiter
+    """clear 内存写桶：跨测试隔离（slowapi 状态按进程共享）。"""
+    from app.api.agent.rate_limit import agent_write_limiter
 
-    agent_limiter.reset()
-    print("\n[LIMITER RESET]")
+    agent_write_limiter.reset()
     yield
-    agent_limiter.reset()
+    agent_write_limiter.reset()
 
 
 def _post(client, shipment_env, url_suffix, body, *, token=None, idem=None):

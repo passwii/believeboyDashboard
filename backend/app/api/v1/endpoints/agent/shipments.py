@@ -494,6 +494,7 @@ async def create_shipment(
             **_audit_kwargs(request),
         )
         db.commit()
+        # commit 后该 session 仅用于读：get_shipment_schedule_detail 不再触发写入
         row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
             db, row.id
         )

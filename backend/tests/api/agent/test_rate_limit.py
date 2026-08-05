@@ -73,8 +73,6 @@ class TestReadWriteLimitIndependence:
     def test_write_bucket_does_not_collide_with_read_bucket(
         self, client, settings, make_api_key
     ):
-        settings.agent_api_read_rate_limit = "100/minute"  # 几乎不限读
-        settings.agent_api_write_rate_limit = "2/minute"
         # 写端点需要真实路由——用一个简易 stub 路由注册到 agent_router 测
         from app.api.agent.rate_limit import (
             agent_read_limiter,
