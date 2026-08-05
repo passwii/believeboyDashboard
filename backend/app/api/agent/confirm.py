@@ -11,9 +11,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import hashlib
+import inspect
 import json
 import logging
 import secrets
@@ -193,7 +193,7 @@ def require_confirmation(
     """
 
     def decorator(handler):
-        if not asyncio.iscoroutinefunction(handler):
+        if not inspect.iscoroutinefunction(handler):
             raise TypeError(
                 "require_confirmation requires an async handler "
                 f"(got {handler!r})"

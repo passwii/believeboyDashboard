@@ -15,6 +15,7 @@ class OperationAuditLog(Base):
         Index('idx_operation_audit_logs_operator_created_at', 'operator', 'created_at'),
         Index('idx_operation_audit_logs_target', 'target_type', 'target_id'),
         Index('idx_operation_audit_logs_trace_id', 'trace_id'),
+        Index('idx_oal_agent_id', 'agent_id'),
     )
 
     id: Mapped[int] = mapped_column(

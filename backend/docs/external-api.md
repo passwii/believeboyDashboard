@@ -797,7 +797,7 @@ curl 'http://localhost:8100/api/v1/external/projects/1/new-product-calculations?
   table with `scope`/`expires_at`.~~ ✅ Done (BEL-377) — see §12.
 - ~~**Rate limiting** — `slowapi` per-key limits (default 60/min).~~
   ✅ Done (BEL-377) — see §12.
-- ~~**Audit log** — every call written to `external_api_audit_log`
+- ~~**Audit log** — every call written to `agent_api_audit_log`
   (middleware, 90-day Celery retention).~~ ✅ Done (BEL-377) — see §12.
 - **`?include_raw=true`** — opt-in raw JSON passthrough. (P2)
 - **CSV / Parquet streaming** for large result sets. (P2)
@@ -822,8 +822,8 @@ flip them once every consumer holds a key.
 | `EXTERNAL_API_ALLOW_SKIP_AUTH` | `true` | While enforcing, honour `?skip_auth=true` (transition bypass — remove after rollout). |
 | `EXTERNAL_API_RATE_LIMIT_ENABLED` | `false` | Enable per-key rate limiting. |
 | `EXTERNAL_API_RATE_LIMIT` | `60/minute` | slowapi limit expression. |
-| `EXTERNAL_API_AUDIT_ENABLED` | `true` | Write one audit row per external request. |
-| `EXTERNAL_API_AUDIT_RETENTION_DAYS` | `90` | Celery cleanup horizon. |
+| `AGENT_API_AUDIT_ENABLED` | `true` | Write one audit row per request on `/api/v1/external/*` and `/api/v1/agent/*`. |
+| `AGENT_API_AUDIT_RETENTION_DAYS` | `90` | Celery cleanup horizon. |
 
 ### 11.2 Credentials
 
@@ -883,10 +883,10 @@ cannot exhaust another's bucket.
 
 ### 11.5 Audit log
 
-Every external request writes one row to `external_api_audit_log`
+Every external request writes one row to `agent_api_audit_log`
 (`method`, `path`, `api_key_id`, `status_code`, `latency_ms`, `ip_address`,
 `created_at`). `api_key_id` is null for master-key / skip / anonymous
 calls. The write is best-effort — an audit failure never breaks the request.
-A daily Celery task (`external_audit_cleanup`, 04:00) deletes rows older
-than `EXTERNAL_API_AUDIT_RETENTION_DAYS`.
+A daily Celery task (`agent_api_audit_cleanup`, 04:00) deletes rows older
+than `AGENT_API_AUDIT_RETENTION_DAYS`.
 - **SQL endpoint** (low priority — only if BI team strongly requests).
