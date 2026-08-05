@@ -18,6 +18,7 @@ from app.api.agent.response import agent_ok
 from app.api.deps import get_read_db_session
 from app.models import Project
 from app.models.shipment_schedule import ShipmentSchedule
+from app.models.sku_info import SkuRecord
 from app.schemas.shipment_schedule import (
     ShipmentFbaBoxDetailItem,
     ShipmentFbaBoxDetailResponse,
@@ -29,6 +30,10 @@ from app.services.shipment import summary as shipment_summary_service
 from app.services.shipment.serialization import (
     build_shipment_schedule_detail,
     serialize_schedule_list_item,
+)
+from app.services.shipment.validation import (
+    ALLOWED_SHIPMENT_STATUS,
+    ALLOWED_SHIPPING_METHOD,
 )
 
 shipments_router = APIRouter(
@@ -87,6 +92,105 @@ def _resolve_schedule(db: Session, project_id: int, shipment_no: str) -> Shipmen
             human_message=f"货件 {shipment_no} 不存在或不属于该项目",
         )
     return row
+
+
+def _check_idempotency_header(request: Request) -> None:
+    """Idempotency-Key 可缺失；出现则必须非空且 ≤64 字符（spec §3）。"""
+    value = request.headers.get("idempotency-key")
+    if value is not None and (len(value) == 0 or len(value) > 64):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message="Idempotency-Key 必须为非空字符串且不超过 64 字符",
+        )
+
+
+def _normalize_items_body(body: dict) -> list[dict]:
+    """把请求体里的 items 规范化为 service 层明细 dict；结构错误抛壳异常。"""
+    raw_items = body.get("items")
+    if not isinstance(raw_items, list) or not raw_items:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="items 必须为非空数组"
+        )
+    normalized: list[dict] = []
+    seen: set[str] = set()
+    for index, item in enumerate(raw_items, start=1):
+        if not isinstance(item, dict):
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED, human_message=f"第 {index} 行：明细必须是对象"
+            )
+        sku = str(item.get("sku") or "").strip()
+        quantity = item.get("quantity")
+        if not sku:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED, human_message=f"第 {index} 行：sku 不能为空"
+            )
+        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"第 {index} 行：quantity 必须为正整数",
+            )
+        if sku in seen:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"SKU 明细中存在重复 SKU: {sku}",
+            )
+        seen.add(sku)
+        carton_count = item.get("carton_count")
+        normalized.append(
+            {
+                "row_no": index,
+                "project_name": None,
+                "shipment_no": None,
+                "item_date": item.get("item_date"),
+                "sku": sku,
+                "quantity": int(quantity),
+                "carton_count": int(carton_count) if carton_count is not None else None,
+                "remark": item.get("remark"),
+            }
+        )
+    return normalized
+
+
+def _find_missing_skus(
+    db: Session, *, project_name: str, country: str, skus: list[str]
+) -> list[str]:
+    found = set(
+        db.scalars(
+            select(SkuRecord.sku).where(
+                SkuRecord.project_name == project_name,
+                SkuRecord.country == country,
+                SkuRecord.sku.in_(skus),
+            )
+        ).all()
+    )
+    return [sku for sku in skus if sku not in found]
+
+
+def _validate_items_skus(
+    db: Session,
+    *,
+    project_name: str,
+    country: str,
+    normalized_items: list[dict],
+) -> None:
+    """结构化 SKU 存在性校验（spec S6：details 逐行给出）。"""
+    missing = _find_missing_skus(
+        db,
+        project_name=project_name,
+        country=country,
+        skus=[str(item["sku"]) for item in normalized_items],
+    )
+    if not missing:
+        return
+    sku_to_row = {str(item["sku"]): int(item["row_no"]) for item in normalized_items}
+    raise AgentApiError(
+        ErrorCode.SHIPMENT_ITEMS_INVALID_SKU,
+        human_message=f"明细里有 {len(missing)} 个 SKU 在本项目不存在",
+        details=[
+            {"row": sku_to_row[sku], "sku": sku, "reason": "not_found"}
+            for sku in missing
+        ],
+    )
 
 
 # ============================================================

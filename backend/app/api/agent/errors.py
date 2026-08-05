@@ -30,6 +30,10 @@ class ErrorCode(str, Enum):
     CONFIRM_TOKEN_INVALID = "CONFIRM_TOKEN_INVALID"
     CONFIRM_TOKEN_EXPIRED = "CONFIRM_TOKEN_EXPIRED"
     CONFIRM_REQUIRED = "CONFIRM_REQUIRED"
+    # 货件域（P2）
+    SHIPMENT_DUPLICATE_NO = "SHIPMENT_DUPLICATE_NO"
+    SHIPMENT_ITEMS_INVALID_SKU = "SHIPMENT_ITEMS_INVALID_SKU"
+    SHIPMENT_STATUS_INVALID = "SHIPMENT_STATUS_INVALID"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -44,6 +48,9 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.IDEMPOTENCY_KEY_CONFLICT: 409,
     ErrorCode.CONFIRM_TOKEN_INVALID: 400,
     ErrorCode.CONFIRM_TOKEN_EXPIRED: 409,
+    ErrorCode.SHIPMENT_DUPLICATE_NO: 409,
+    ErrorCode.SHIPMENT_ITEMS_INVALID_SKU: 400,
+    ErrorCode.SHIPMENT_STATUS_INVALID: 400,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -73,6 +80,18 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.CONFIRM_TOKEN_EXPIRED: (
         "确认凭证已过期",
         "请重新发起预览请求，向用户再次确认后再调用",
+    ),
+    ErrorCode.SHIPMENT_DUPLICATE_NO: (
+        "货件编号已存在",
+        "请更换 shipment_no 后重试；可用列表端点查询已有货件",
+    ),
+    ErrorCode.SHIPMENT_ITEMS_INVALID_SKU: (
+        "明细里有 SKU 在本项目不存在",
+        "先核对 SKU 主数据（sku-info 相关端点），修正后重试",
+    ),
+    ErrorCode.SHIPMENT_STATUS_INVALID: (
+        "货件状态值不合法",
+        "合法状态值：draft、in_transit、completed",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
