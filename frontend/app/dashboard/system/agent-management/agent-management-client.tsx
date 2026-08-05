@@ -20,6 +20,7 @@ import {
   listAgentApiKeys,
   revokeAgentApiKey,
 } from '@/lib/api/agent-key-admin'
+import { AgentUsageGuide, buildUsageText } from './agent-usage-guide'
 
 type CreatedResult = {
   plaintext_key: string
@@ -38,6 +39,7 @@ export function AgentManagementClient() {
   const [submitting, setSubmitting] = useState(false)
   const [created, setCreated] = useState<CreatedResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [usageCopied, setUsageCopied] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -109,6 +111,18 @@ export function AgentManagementClient() {
     await navigator.clipboard.writeText(created.plaintext_key)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const copyUsage = async () => {
+    if (!created) return
+    await navigator.clipboard.writeText(
+      buildUsageText({
+        plaintextKey: created.plaintext_key,
+        agentId: created.agent_id,
+      })
+    )
+    setUsageCopied(true)
+    setTimeout(() => setUsageCopied(false), 2000)
   }
 
   return (
@@ -197,6 +211,8 @@ export function AgentManagementClient() {
         </CardContent>
       </Card>
 
+      <AgentUsageGuide />
+
       <Dialog
         open={createOpen}
         onOpenChange={(open) => {
@@ -242,6 +258,14 @@ export function AgentManagementClient() {
                 X-Agent-Id 用 Agent ID。
               </p>
               <DialogFooter>
+                <Button variant="outline" onClick={copyUsage}>
+                  {usageCopied ? (
+                    <Check className="mr-1 h-4 w-4" />
+                  ) : (
+                    <Copy className="mr-1 h-4 w-4" />
+                  )}
+                  {usageCopied ? '已复制调用说明' : '复制调用说明'}
+                </Button>
                 <Button onClick={() => setCreateOpen(false)}>关闭</Button>
               </DialogFooter>
             </div>
