@@ -136,6 +136,15 @@ def _normalize_items_body(body: dict) -> list[dict]:
             )
         seen.add(sku)
         carton_count = item.get("carton_count")
+        if carton_count is not None and (
+            not isinstance(carton_count, int)
+            or isinstance(carton_count, bool)
+            or carton_count < 0
+        ):
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=f"第 {index} 行：carton_count 必须为非负整数",
+            )
         normalized.append(
             {
                 "row_no": index,
@@ -144,7 +153,7 @@ def _normalize_items_body(body: dict) -> list[dict]:
                 "item_date": item.get("item_date"),
                 "sku": sku,
                 "quantity": int(quantity),
-                "carton_count": int(carton_count) if carton_count is not None else None,
+                "carton_count": carton_count,
                 "remark": item.get("remark"),
             }
         )

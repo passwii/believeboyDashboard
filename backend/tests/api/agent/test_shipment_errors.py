@@ -91,3 +91,10 @@ class TestNormalizeItemsBody:
             _normalize_items_body({"items": [{"sku": "X-001", "quantity": 0}]})
         with pytest.raises(AgentApiError):
             _normalize_items_body({"items": [{"sku": "X-001", "quantity": "abc"}]})
+
+    def test_bad_carton_count_rejected(self):
+        with pytest.raises(AgentApiError) as exc:
+            _normalize_items_body({"items": [{"sku": "X-001", "quantity": 1, "carton_count": "abc"}]})
+        assert exc.value.code is ErrorCode.VALIDATION_FAILED
+        with pytest.raises(AgentApiError):
+            _normalize_items_body({"items": [{"sku": "X-001", "quantity": 1, "carton_count": -1}]})
