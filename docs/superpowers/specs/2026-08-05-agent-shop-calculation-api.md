@@ -1,6 +1,6 @@
-# Agent API · Shop Calculation API 实施规格（spec 草案）
+# Agent API · Shop Calculation API 实施规格（设计定稿）
 
-> **状态**：设计讨论定稿草案（BLF-439 产出），等待用户拍板 3 个开放决策点后进入 writing-plans → 开执行子 issue。
+> **状态**：设计定稿（BLF-439 产出；D1/D2/D3 已由用户拍板 2026-08-05），可进入 writing-plans → 开执行子 issue。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（设计稿 v0.4）、[`docs/superpowers/specs/2026-08-04-agent-readwrite-api-spec.md`](./2026-08-04-agent-readwrite-api-spec.md)（P0 基建 + P2 货件规格）、[`docs/superpowers/plans/2026-08-05-agent-api-p2-shipments.md`](../plans/2026-08-05-agent-api-p2-shipments.md)（P2 落地模板）。
 > **范围**：在 `/api/v1/agent/projects/{id}/shop-calculations/*` 开放**店铺测算（Shop Calculation）域**的读 + 写路由。**本 spec 只设计，不实施**（对齐 BLF-439 边界）。
 
@@ -10,7 +10,7 @@
 
 | # | 议题 | 结论 | 说明 |
 |---|---|---|---|
-| 1 | 写契约 A vs B | **方案 A（推荐拍板）** | 零后端改造；/compute 试算 + 快照 confirm 追加。方案 B 暂缓（见 §1.2） |
+| 1 | 写契约 A vs B | **方案 A（已拍板）** | 零后端改造；/compute 试算 + 快照 confirm 追加。方案 B 暂缓（见 §1.2） |
 | 2 | 路由面定稿 | 6 条（读 4 + 写 1 + 试算 1） | 见 §2 路由表 |
 | 3 | confirm 白名单 | `shop_calculation.append`（唯一写动作） | validate/preview 见 §4 |
 | 4 | 权限 L2 准入 | **硬前置**：`agent_api_keys.project_scope` 启用校验 | 新增 `require_project_scope` 依赖 + 凭据页项目下拉（§6） |
@@ -18,11 +18,13 @@
 | 6 | 软删除策略 | **不开放给 agent**，admin only（沿用内部 `soft_delete_group`） | 不在路由表出现 |
 | 7 | BEL-415/416 协同 | 读路径并入 agent 命名空间；BEL-416 `/external/*` 端点**暂缓不落**；BEL-415 写路径保持双轨（append-only 天然无冲突） | 见 §8 |
 
+> **D1-D3 拍板记录（2026-08-05 用户确认）**：D1=**方案 A**；D2=SKU 校验按 **`(project_id, country, sku)`** 严格粒度（与货件域一致）；D3=/compute 返回 **双字段** `{calculation, snapshot}`。
+
 ---
 
 ## 1. 写契约 A/B 拍板
 
-### 1.1 方案 A（推荐）：compute 试算 + 快照 confirm 追加
+### 1.1 方案 A（已拍板）：compute 试算 + 快照 confirm 追加
 
 ```
 Agent 流程：
@@ -175,7 +177,7 @@ class AgentShopCalculationComputeRequest(BaseModel):
 ### 4.2 `_validate_append`（业务校验，先于 confirm，短路不生成 token）
 
 1. `source ∈ {agent_listing_pull, agent_review_scrape, agent_market_research, external_api}` → 否则 400 `SHOP_CALCULATION_INVALID_SOURCE`；
-2. **SKU 存在性校验**（镜像 `_find_missing_skus`）：`select SkuRecord.sku where project_id == {pid} and sku == body.sku`，不存在 → 400 `SHOP_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据（sku-info 相关端点）；
+2. **SKU 存在性校验**（D2 拍板：按 `(project_id, country, sku)` 严格粒度，与货件域 `_find_missing_skus` 完全一致）：`select SkuRecord.sku where project_id == {pid} and country == body.country and sku == body.sku`，不存在 → 400 `SHOP_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据（sku-info 相关端点）；
 3. `observed_at` 若提供：不晚于 now()+24h（容忍时区偏差），否则 400 `VALIDATION_FAILED`；
 4. 金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库（pydantic 已兜结构，这里是业务兜底）。
 
@@ -289,19 +291,19 @@ SHOP_CALCULATION_AMBIGUOUS_COUNTRY = "SHOP_CALCULATION_AMBIGUOUS_COUNTRY"  # 400
 
 ---
 
-## 9. 开放决策点（需用户拍板，3 项）
+## 9. 决策记录（D1-D3 已拍板，2026-08-05）
 
-| # | 决策点 | 默认建议 | 影响 |
+| # | 决策点 | 拍板结论 | 实施影响 |
 |---|---|---|---|
-| D1 | **写契约 A vs B** | A（本 spec 全按 A 展开） | 若选 B 则 §1.2 / §3.1 / C1 全部重写 |
-| D2 | **SKU 校验粒度** | `(project_id, sku)` 国别无关 | 与货件域 `(project, country, sku)` 差异仅一处查询条件 |
-| D3 | **`/compute` 返回形态** | `{calculation, snapshot}` 双字段 | 若只返回 calculation，agent 需自行做字段映射（前端映射表已存在，成本可控） |
+| D1 | 写契约 A vs B | **A**（compute 试算 + 快照 confirm 追加） | §1.2 / §3.1 / C1 按 A 定稿 |
+| D2 | SKU 校验粒度 | **`(project_id, country, sku)` 严格粒度**（与货件域一致） | §4.2 validate 回调按此查询；SKU 主数据缺失对应国家行时 append 会 400，agent 需先补主数据 |
+| D3 | `/compute` 返回形态 | **双字段** `{calculation, snapshot}` | §3.4 响应定格；snapshot 直接可 confirm，agent 零字段映射 |
 
 ---
 
 ## 10. 执行前置（writing-plans 前确认）
 
-- [ ] D1/D2/D3 用户拍板（本 issue 评论）
+- [x] D1/D2/D3 用户拍板（2026-08-05 BLF-439 评论：A / (project,country,sku) / 双字段）
 - [ ] Task 0：project_scope 校验依赖 + 前端项目下拉（§6.2，独立小任务可先开）
 - [ ] BEL-416 状态处理（blocked + 备注指向本 spec）
 - [ ] 仓库当前 main 已含 P2（`agent/shipments.py` 在 main，2026-08-05 merge 后）——本 spec 引用均为真实函数名
@@ -310,4 +312,5 @@ SHOP_CALCULATION_AMBIGUOUS_COUNTRY = "SHOP_CALCULATION_AMBIGUOUS_COUNTRY"  # 400
 
 ## 修订记录
 
+- **v0.2（2026-08-05）**：D1-D3 用户拍板落定——D1=方案 A、D2=SKU 校验按 `(project_id, country, sku)` 严格粒度、D3=/compute 双字段返回；§0/§4.2/§9/§10 同步；spec 状态改为「设计定稿」。
 - **v0.1（2026-08-05）**：BLF-439 讨论清单 7 项收口 + 完整 spec 草案初稿。关键代码事实核实：`_compute_pricing`/`_compute_eu_pricing` 纯计算不落库；`list_by_project`/`list_history`/`append_calculation` 签名；`agent_api_key.project_scope` 列已存在但未启用校验；P2 confirm/rate_limit/errors 基建可零改动复用。
