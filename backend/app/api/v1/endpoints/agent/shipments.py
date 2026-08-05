@@ -498,8 +498,83 @@ async def create_shipment(
         row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
             db, row.id
         )
-    detail = build_shipment_schedule_detail(row, sku_count, total_quantity)
+        detail = build_shipment_schedule_detail(row, sku_count, total_quantity)
+        return agent_ok(
+            detail.model_dump(),
+            idempotency_key=request.headers.get("idempotency-key") or None,
+        )
+
+
+def _validate_replace_items(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    items = _normalize_items_body(body)
+    db = SessionLocal()
+    try:
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        _validate_items_skus(
+            db,
+            project_name=str(schedule.project_name_snapshot),
+            country=str(schedule.country),
+            normalized_items=items,
+        )
+    finally:
+        db.close()
+
+
+def _preview_replace_items(body: dict, request: Request) -> dict:
+    items = body.get("items") or []
+    return {
+        "shipment_no": request.path_params["shipment_no"],
+        "items_count": len(items),
+        "total_quantity": sum(
+            int(item.get("quantity") or 0) for item in items if isinstance(item, dict)
+        ),
+        "note": "将完全替换该货件的现有明细（非追加）",
+    }
+
+
+@shipments_router.put(
+    "/{shipment_no}/items", dependencies=[Depends(require_agent_write_rate_limit)]
+)
+@require_confirmation(
+    action="shipment.items.replace",
+    build_preview=_preview_replace_items,
+    validate=_validate_replace_items,
+)
+async def replace_shipment_items(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    body = json.loads(await request.body() or b"{}")
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    items = _normalize_items_body(body)
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        before_count = len(schedule.items)
+        replace_shipment_schedule_items(db, schedule, items, source_type="manual")
+        db.flush()
+        _invalidate_shipment_caches(schedule)
+        append_operation_audit_log(
+            db,
+            action="shipment.items.replace",
+            target_type="shipment_schedule",
+            target_id=schedule.id,
+            operator=None,
+            before={"items_count": before_count},
+            after={
+                "items_count": len(items),
+                "total_quantity": sum(int(item["quantity"]) for item in items),
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        # commit 后该 session 仅用于读：get_shipment_schedule_detail 不再触发写入
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, schedule.id
+        )
     return agent_ok(
-        detail.model_dump(),
+        build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )

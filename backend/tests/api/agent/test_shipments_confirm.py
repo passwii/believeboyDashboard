@@ -189,3 +189,70 @@ class TestWriteRateLimit:
         )
         assert blocked.status_code == 429
         assert blocked.json()["error"]["code"] == "AGENT_RATE_LIMIT_EXCEEDED"
+
+
+def _put(client, shipment_env, url_suffix, body, *, token=None, idem=None):
+    headers = dict(shipment_env["headers"])
+    headers["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+    if token:
+        headers["X-Confirm-Token"] = token
+    return client.put(
+        f"/api/v1/agent/projects/{shipment_env['project_id']}/shipments{url_suffix}",
+        json=body,
+        headers=headers,
+    )
+
+
+class TestReplaceItems:
+    def test_replace_preview_replay_and_semantics(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        shipment_no = f"SH-IT-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)  # 已有 X-001×100、X-002×50
+        body = {"items": [{"sku": "X-002", "quantity": 30}]}
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        preview = _put(client, shipment_env, f"/{shipment_no}/items", body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["requires_confirmation"] is True
+        assert pbody["preview"]["items_count"] == 1
+        assert pbody["preview"]["total_quantity"] == 30
+
+        replay = _put(
+            client, shipment_env, f"/{shipment_no}/items", body,
+            token=pbody["confirm_token"], idem=idem,
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        # 替换语义：只剩一行 X-002×30
+        assert data["sku_count"] == 1
+        assert data["total_quantity"] == 30
+        assert data["items"][0]["sku"] == "X-002"
+
+        # 审计行
+        db = SessionLocal()
+        try:
+            rows = query_operation_audit_log(
+                db, target_type="shipment_schedule", target_id=str(data["id"])
+            )
+            audit = next(r for r in rows if r.action == "shipment.items.replace")
+            assert audit.agent_id == shipment_env["agent_id"]
+            assert audit.before_json == {"items_count": 2}
+            assert audit.after_json["total_quantity"] == 30
+        finally:
+            db.close()
+
+    def test_replace_items_invalid_sku(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-ITSKU-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        resp = _put(
+            client, shipment_env, f"/{shipment_no}/items",
+            {"items": [{"sku": "X-999", "quantity": 1}]},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "SHIPMENT_ITEMS_INVALID_SKU"
+
+    def test_replace_items_unknown_shipment_404(self, client, shipment_env, confirm_memory_store):
+        resp = _put(client, shipment_env, "/SH-NOPE/items", {"items": [{"sku": "X-001", "quantity": 1}]})
+        assert resp.status_code == 404
