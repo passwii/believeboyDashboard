@@ -1,0 +1,192 @@
+"""Agent 货件写路由 confirm 流（spec S2-S6；S2 在 Task 9 补）。"""
+
+from __future__ import annotations
+
+import uuid
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.agent.confirm import InMemoryConfirmStore, get_confirm_store, set_confirm_store
+from app.db.session import SessionLocal
+from app.main import app
+from app.services.audit_log_service import query_operation_audit_log
+
+from conftest import seed_schedule
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture
+def settings():
+    from app.core.config import get_settings
+
+    return get_settings()
+
+
+@pytest.fixture
+def confirm_memory_store():
+    """confirm 测试注入内存 store：不依赖 Redis，且可直接改 created_at 模拟过期。"""
+    set_confirm_store(InMemoryConfirmStore())
+    try:
+        yield get_confirm_store()
+    finally:
+        set_confirm_store(None)
+
+
+@pytest.fixture(autouse=True)
+def _reset_agent_rate_limit():
+    """clear 内存 limiter：跨测试隔离（slowapi 状态按进程共享）。"""
+    from app.api.agent.rate_limit import agent_limiter
+
+    agent_limiter.reset()
+    print("\n[LIMITER RESET]")
+    yield
+    agent_limiter.reset()
+
+
+def _post(client, shipment_env, url_suffix, body, *, token=None, idem=None):
+    headers = dict(shipment_env["headers"])
+    headers["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+    if token:
+        headers["X-Confirm-Token"] = token
+    return client.post(
+        f"/api/v1/agent/projects/{shipment_env['project_id']}/shipments{url_suffix}",
+        json=body,
+        headers=headers,
+    )
+
+
+def _create_body(shipment_no: str) -> dict:
+    return {
+        "shipment_no": shipment_no,
+        "country": "US",
+        "shipping_method": "sea",
+        "shipment_status": "draft",
+        "etd_date": "2026-08-20",
+        "eta_date": "2026-09-15",
+        "logistics_unit_price": 13.5,
+        "items": [
+            {"sku": "X-001", "quantity": 100},
+            {"sku": "X-002", "quantity": 50},
+        ],
+    }
+
+
+class TestCreateShipment:
+    def test_s3_preview_then_replay(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-C-{uuid.uuid4().hex[:8]}"
+        body = _create_body(shipment_no)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        # 第一次：预览壳（HTTP 200 + ok:false + requires_confirmation）
+        preview = _post(client, shipment_env, "", body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["ok"] is False
+        assert pbody["requires_confirmation"] is True
+        assert pbody["confirm_token"].startswith("cf_")
+        assert pbody["expires_in_sec"] == 300
+        assert pbody["preview"]["shipment_no"] == shipment_no
+        assert pbody["preview"]["items_count"] == 2
+        assert pbody["preview"]["total_quantity"] == 150
+
+        # 第二次：重放落库
+        replay = _post(client, shipment_env, "", body, token=pbody["confirm_token"], idem=idem)
+        assert replay.status_code == 200, replay.text
+        rbody = replay.json()
+        assert rbody["ok"] is True
+        assert rbody["data"]["shipment_no"] == shipment_no
+        assert rbody["data"]["total_quantity"] == 150
+        assert rbody["idempotency_key"] == idem
+
+        # 审计行：agent 归因
+        db = SessionLocal()
+        try:
+            schedule_id = rbody["data"]["id"]
+            rows = query_operation_audit_log(
+                db, target_type="shipment_schedule", target_id=str(schedule_id)
+            )
+            assert len(rows) == 1
+            audit = rows[0]
+            assert audit.action == "shipment.create"
+            assert audit.agent_id == shipment_env["agent_id"]
+            assert audit.idempotency_key == idem
+            assert audit.operator is None
+        finally:
+            db.close()
+
+    def test_replay_single_use(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-U-{uuid.uuid4().hex[:8]}"
+        body = _create_body(shipment_no)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, "", body, idem=idem)
+        token = preview.json()["confirm_token"]
+        first = _post(client, shipment_env, "", body, token=token, idem=idem)
+        assert first.status_code == 200
+        second = _post(client, shipment_env, "", body, token=token, idem=idem)
+        assert second.status_code == 400
+        assert second.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+
+    def test_s6_invalid_sku_before_confirm(self, client, shipment_env, confirm_memory_store):
+        body = _create_body(f"SH-VSKU-{uuid.uuid4().hex[:8]}")
+        body["items"].append({"sku": "X-999", "quantity": 1})
+        resp = _post(client, shipment_env, "", body)
+        assert resp.status_code == 400, resp.text
+        err = resp.json()["error"]
+        assert err["code"] == "SHIPMENT_ITEMS_INVALID_SKU"
+        assert {"row": 3, "sku": "X-999", "reason": "not_found"} in err["details"]
+        # 业务校验先于 confirm：未签发 token
+        assert get_confirm_store()._rows == {}
+
+    def test_invalid_status_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _create_body(f"SH-VST-{uuid.uuid4().hex[:8]}")
+        body["shipment_status"] = "shipped"
+        resp = _post(client, shipment_env, "", body)
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "SHIPMENT_STATUS_INVALID"
+        assert sorted(err["details"]["allowed"]) == ["completed", "draft", "in_transit"]
+
+    def test_invalid_shipping_method_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _create_body(f"SH-VSM-{uuid.uuid4().hex[:8]}")
+        body["shipping_method"] = "海运"  # 只接受英文 token
+        resp = _post(client, shipment_env, "", body)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_duplicate_shipment_no_rejected(self, client, shipment_env, confirm_memory_store):
+        existing = f"SH-DUP-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], existing)
+        body = _create_body(existing)
+        resp = _post(client, shipment_env, "", body)
+        assert resp.status_code == 409, resp.text
+        assert resp.json()["error"]["code"] == "SHIPMENT_DUPLICATE_NO"
+
+    def test_unknown_project_on_create_404(self, client, shipment_env, confirm_memory_store):
+        body = _create_body(f"SH-NP-{uuid.uuid4().hex[:8]}")
+        headers = dict(shipment_env["headers"])
+        headers["Idempotency-Key"] = "idem-x"
+        resp = client.post(
+            "/api/v1/agent/projects/99999999/shipments", json=body, headers=headers
+        )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+class TestWriteRateLimit:
+    def test_write_bucket(self, client, shipment_env, confirm_memory_store, settings):
+        settings.agent_api_write_rate_limit = "2/minute"
+        for i in range(2):
+            resp = _post(
+                client, shipment_env, "", _create_body(f"SH-RL-{uuid.uuid4().hex[:8]}")
+            )
+            assert resp.status_code == 200, resp.text
+        blocked = _post(
+            client, shipment_env, "", _create_body(f"SH-RL-{uuid.uuid4().hex[:8]}")
+        )
+        assert blocked.status_code == 429
+        assert blocked.json()["error"]["code"] == "AGENT_RATE_LIMIT_EXCEEDED"

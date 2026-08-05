@@ -7,26 +7,36 @@ service 层抛出的裸 HTTPException 在 ``_service_errors`` 里统一翻译成
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.agent.confirm import require_confirmation
 from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
-from app.api.deps import get_read_db_session
+from app.api.deps import get_primary_db_session, get_read_db_session
+from app.db.session import SessionLocal
 from app.models import Project
 from app.models.shipment_schedule import ShipmentSchedule
 from app.models.sku_info import SkuRecord
 from app.schemas.shipment_schedule import (
     ShipmentFbaBoxDetailItem,
     ShipmentFbaBoxDetailResponse,
+    ShipmentScheduleCreate,
     ShipmentScheduleListResponse,
 )
+from app.services import infra as redis_service
 from app.services import shipment as shipment_service
-from app.services.audit_log_service import query_operation_audit_log
+from app.services.audit_log_service import (
+    append_operation_audit_log,
+    query_operation_audit_log,
+)
 from app.services.shipment import summary as shipment_summary_service
+from app.services.shipment.item import replace_shipment_schedule_items
 from app.services.shipment.serialization import (
     build_shipment_schedule_detail,
     serialize_schedule_list_item,
@@ -203,6 +213,31 @@ def _validate_items_skus(
 
 
 # ============================================================
+# 写路由公共 helper（Task 6-9 复用）
+# ============================================================
+
+
+def _audit_kwargs(request: Request) -> dict:
+    """agent 写审计归因（设计稿 §4.2：operator=NULL，agent_id/idempotency_key 归因）。"""
+    return {
+        "agent_id": getattr(request.state, "agent_id", None),
+        "idempotency_key": request.headers.get("idempotency-key") or None,
+        "request": request,
+    }
+
+
+def _invalidate_shipment_caches(row) -> None:
+    """写后缓存失效，对齐内部端点（backend/app/api/v1/endpoints/shipment_schedules.py）。"""
+    redis_service.invalidate_shipment_schedule_detail_cache(row.id)
+    redis_service.invalidate_shipment_schedules_list_cache()
+    redis_service.invalidate_shipment_schedules_cost_summary_cache()
+    redis_service.invalidate_shipment_sku_summary_cache()
+    redis_service.invalidate_shipment_fba_box_details_cache()
+    redis_service.invalidate_shipment_in_transit_qty_cache(row.project_id)
+    redis_service.invalidate_daily_analysis_cache(row.project_id)
+
+
+# ============================================================
 # 读路由
 # ============================================================
 
@@ -344,4 +379,126 @@ def get_shipment_audit(
                 for row in rows
             ],
         }
+    )
+
+
+# ============================================================
+# 写路由（confirm 两步确认；spec S3-S6）
+# ============================================================
+
+
+def _validate_create(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(body.get("shipment_no") or "").strip()
+    shipping_method = str(body.get("shipping_method") or "").strip()
+    shipment_status = str(body.get("shipment_status") or "").strip()
+    if not shipment_no:
+        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="shipment_no 不能为空")
+    if shipping_method not in ALLOWED_SHIPPING_METHOD:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            human_message=(
+                f"shipping_method 必须是: {', '.join(sorted(ALLOWED_SHIPPING_METHOD))}"
+            ),
+        )
+    if shipment_status not in ALLOWED_SHIPMENT_STATUS:
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_STATUS_INVALID,
+            details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
+        )
+    items = _normalize_items_body(body)
+
+    db = SessionLocal()
+    try:
+        project = _get_project_or_shell_404(db, project_id)
+        duplicate = db.scalars(
+            select(ShipmentSchedule).where(ShipmentSchedule.shipment_no == shipment_no)
+        ).first()
+        if duplicate is not None:
+            raise AgentApiError(
+                ErrorCode.SHIPMENT_DUPLICATE_NO,
+                human_message=f"货件编号 {shipment_no} 已存在",
+            )
+        _validate_items_skus(
+            db,
+            project_name=str(project.project_name),
+            country=str(body.get("country") or "US"),
+            normalized_items=items,
+        )
+    finally:
+        db.close()
+
+
+def _preview_create(body: dict, request: Request) -> dict:
+    items = body.get("items") or []
+    return {
+        "shipment_no": body.get("shipment_no"),
+        "shipment_status": body.get("shipment_status"),
+        "shipping_method": body.get("shipping_method"),
+        "items_count": len(items),
+        "total_quantity": sum(
+            int(item.get("quantity") or 0) for item in items if isinstance(item, dict)
+        ),
+    }
+
+
+@shipments_router.post("", dependencies=[Depends(require_agent_write_rate_limit)])
+@require_confirmation(
+    action="shipment.create",
+    build_preview=_preview_create,
+    validate=_validate_create,
+)
+async def create_shipment(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    body = json.loads(await request.body() or b"{}")
+    project_id = int(request.path_params["project_id"])
+    items = _normalize_items_body(body)
+    create_payload = ShipmentScheduleCreate(
+        project_id=project_id,
+        country=str(body.get("country") or "US"),
+        shipment_no=str(body["shipment_no"]).strip(),
+        tracking_no=body.get("tracking_no"),
+        warehouse_code=body.get("warehouse_code"),
+        forwarder_name=body.get("forwarder_name"),
+        shipping_method=str(body["shipping_method"]).strip(),
+        created_date=body.get("created_date"),
+        etd_date=body.get("etd_date"),
+        eta_date=body.get("eta_date"),
+        actual_inbound_date=body.get("actual_inbound_date"),
+        logistics_unit_price=float(body.get("logistics_unit_price") or 0),
+        include_in_history_shipping_calc=bool(
+            body.get("include_in_history_shipping_calc", True)
+        ),
+        remark=body.get("remark"),
+        shipment_status=str(body["shipment_status"]).strip(),
+        shipment_batch=body.get("shipment_batch"),
+    )
+    with _service_errors():
+        row = shipment_service.create_shipment_schedule(db, create_payload, operator=None)
+        replace_shipment_schedule_items(db, row, items, source_type="manual")
+        _invalidate_shipment_caches(row)
+        append_operation_audit_log(
+            db,
+            action="shipment.create",
+            target_type="shipment_schedule",
+            target_id=row.id,
+            operator=None,
+            after={
+                "shipment_no": row.shipment_no,
+                "project_id": row.project_id,
+                "status": row.shipment_status,
+                "items_count": len(items),
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, row.id
+        )
+    detail = build_shipment_schedule_detail(row, sku_count, total_quantity)
+    return agent_ok(
+        detail.model_dump(),
+        idempotency_key=request.headers.get("idempotency-key") or None,
     )
