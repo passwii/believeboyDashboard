@@ -7,7 +7,7 @@ Two router-level dependencies live here:
   deploying the code never breaks existing consumers. Accepted credentials,
   in precedence order: ``?skip_auth=true`` (transition bypass), the master
   ``settings.api_key`` (backward compat), then a DB-issued key from
-  ``external_api_keys``.
+  ``agent_api_keys``.
 * :func:`require_external_rate_limit` — slowapi per-key (per-IP fallback)
   limiting, gated by ``external_api_rate_limit_enabled``.
 
@@ -26,7 +26,7 @@ from slowapi.util import get_remote_address
 
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
-from app.services.external import api_key_service
+from app.services.agent import key_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class ExternalKeyContext:
 
     key_id: int | None = None
     label: str | None = None
-    # "db" (external_api_keys row) | "master" (settings.api_key) |
+    # "db" (agent_api_keys row) | "master" (settings.api_key) |
     # "skip" (?skip_auth=true) | "none" (anonymous / unauthenticated).
     source: str = "none"
 
@@ -99,7 +99,7 @@ def require_external_api_key(
     if candidates:
         db = SessionLocal()
         try:
-            verdict = api_key_service.resolve_key(db, candidates)
+            verdict = key_service.resolve_key(db, candidates)
             if verdict.ok:
                 db.commit()
                 ctx = ExternalKeyContext(

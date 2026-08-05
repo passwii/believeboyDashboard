@@ -1,5 +1,11 @@
 # External API — Network Isolation (P0)
 
+> **命名空间说明（2026-08）**：`/api/v1/external/*` 正被 `/api/v1/agent/*`
+> 取代（见 [`docs/agent-api-design.md`](../agent-api-design.md)）。新命名空间
+> **沿用本文档的同一网关隔离策略**——agent 通道虽有应用层 Bearer 鉴权，
+> 网关白名单仍是纵深防御的 backstop；配置时把 `/api/v1/agent/*` 与
+> `/api/v1/external/*` 一并纳入即可。
+
 The `/api/v1/external/*` namespace is **whitelisted read-only** for
 internal BI tools and data analysts. It has **no application-layer
 authentication** in P0 — see

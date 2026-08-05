@@ -13,6 +13,7 @@
 - 入口：`backend/app/main.py`；路由聚合：`backend/app/api/v1/router.py`
 - Endpoint 模块：`backend/app/api/v1/endpoints/`（auth, users, projects, product_costs, exchange_rates, daily_reports, monthly_reports, product_analysis, daily_analysis, ad_analysis, ad_upload, inventory_replenishment, pricing_calculation, store_accounting, shipment_schedules, store_sku_pricing_snapshots, category_research, report_upload, ai_chat, ai_file_upload, ai_insight, jobs, uploads, system_management, presence, health, return_analysis, project_goals, rpa_reports）
 - Services：`backend/app/services/`（每资源一个文件）；Models：`backend/app/models/`；Schemas：`backend/app/schemas/`；DB session：`backend/app/db/session.py`
+- 对外 API：只读 external 现状见 `backend/docs/external-api.md`；面向 Agent 的读写 API（`/api/v1/agent/*`，替代 external）设计与实施规格见 [`docs/agent-api-design.md`](./agent-api-design.md) + [`docs/superpowers/specs/2026-08-04-agent-readwrite-api-spec.md`](./superpowers/specs/2026-08-04-agent-readwrite-api-spec.md)
 
 ### Frontend 结构
 - `frontend/app/dashboard/` — 页面（App Router）：`ai-panel/`、`ai-insights/`、`operations/`、`data-reporting/`、`data-analysis/`、`data-management/`、`system-management/`、`tools/`、`changelog/`
@@ -69,7 +70,7 @@ curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8100/docs
 systemd 会拉起新进程但可能读旧代码 / 旧 `.env`、撞端口，进入 `activating (auto-restart)` 死循环。`systemctl restart` 按 unit 顺序 SIGTERM → 等 `TimeoutStopSec` → `ExecStart` 新进程，端口由 systemd 接管。
 
 ### Mac 本地开发（launchd）
-仓库根 `deploy/launchd/`（Mac 对应物；前端在 Vercel 不起 web）。DB 走远程 VPS（`145.79.143.98:5432`），`.env` 改远程值（模板 `deploy/launchd/.env.mac.example`）。改代码一律 `deploy/launchd/bin/restart.sh`。
+仓库根 `deploy/launchd/`（Mac 对应物；前端在 Vercel 不起 web）。**DB 现走本地生产快照**（`localhost:5432` 的 `BLF`，BEL-376 起常驻；详见 [TESTING.md](../../TESTING.md#本地生产快照库bel-376-集成--手动读写测试)），`backend/.env` 的 `DATABASE_URL` 已指向它；旧方案曾走远程 VPS（`145.79.143.98:5432`）。改代码一律 `deploy/launchd/bin/restart.sh`。
 
 ### 已知坑
 - `ss -ltnp` 在沙箱看不到非自己用户的 socket，用 `journalctl -u <unit> -n 5` + `ps -ef | grep` 双确认。
@@ -83,7 +84,7 @@ systemd 会拉起新进程但可能读旧代码 / 旧 `.env`、撞端口，进�
 **Frontend**（`frontend/.env.local`，Mac 本地）：`BACKEND_API_BASE_URL`、`BACKEND_API_KEY`、`NEXTAUTH_URL`、`NEXTAUTH_SECRET`。
 
 **Backend**（`backend/.env`）：`API_KEY`（须匹配前端 `BACKEND_API_KEY`）、`UPLOAD_ROOT` / `RESULT_ROOT` / `MAX_UPLOAD_BYTES`、`AI_CHAT_PROVIDER_*`、`AI_CHAT_WEB_SEARCH_*`、`REDIS_*`（可选，presence 用）。
-> 注：`DATABASE_URL` / `TEST_DATABASE_URL` **不在** `backend/.env` 里，而从 shell 环境变量或运行时注入（`.env` 只放 R2 / API_KEY / 密码等）。Mac launchd 本地开发走远程 VPS（`145.79.143.98:5432`），按 `deploy/launchd/.env.mac.example` 填；本地 pytest / Playwright 测试则连本机 `brew` 起的 Postgres（见 [TESTING.md](../../TESTING.md#本地服务mac--brew按需启停)）。
+> 注（BEL-376 更新）：`backend/.env` 现已**直接写入** `DATABASE_URL`，指向本地生产快照 `postgresql+psycopg://damon:<pw>@localhost:5432/BLF`（旧值曾误指向死端口 `55432`；更早的本地开发曾直连远程 VPS `145.79.143.98:5432`，均已弃用）。`TEST_DATABASE_URL` 仍在 `backend/.env.test`（gitignored）→ 本机 `brew` Postgres 的 `BLF_test`，供自动化 pytest / Playwright 隔离用（见 [TESTING.md](../../TESTING.md#本地服务mac--brew)）。
 
 ---
 

@@ -11,34 +11,41 @@ from __future__ import annotations
 
 import pytest
 
-_EXTERNAL_FLAGS = (
+_SECURITY_FLAGS = (
     "external_api_require_auth",
     "external_api_allow_skip_auth",
     "external_api_rate_limit_enabled",
     "external_api_rate_limit",
-    "external_api_audit_enabled",
-    "external_api_audit_retention_days",
+    # 改名后的访问审计配置（设计稿 §11.2）
+    "agent_api_audit_enabled",
+    "agent_api_audit_retention_days",
+    # Agent 通道限流（设计稿 §7.1）
+    "agent_api_read_rate_limit",
+    "agent_api_write_rate_limit",
 )
 
 
 @pytest.fixture(autouse=True)
 def _restore_external_state():
+    from app.api.agent.rate_limit import agent_limiter
     from app.api.external_security import external_limiter
     from app.core.config import get_settings
 
     settings = get_settings()
-    snapshot = {name: getattr(settings, name) for name in _EXTERNAL_FLAGS}
-    try:
-        external_limiter.reset()
-    except Exception:  # noqa: BLE001 — reset is best-effort
-        pass
+    snapshot = {name: getattr(settings, name) for name in _SECURITY_FLAGS}
+    for limiter in (external_limiter, agent_limiter):
+        try:
+            limiter.reset()
+        except Exception:  # noqa: BLE001 — reset is best-effort
+            pass
     yield
     for name, value in snapshot.items():
         setattr(settings, name, value)
-    try:
-        external_limiter.reset()
-    except Exception:  # noqa: BLE001
-        pass
+    for limiter in (external_limiter, agent_limiter):
+        try:
+            limiter.reset()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @pytest.fixture
@@ -49,8 +56,8 @@ def make_api_key():
     rolled back) to be visible to it.
     """
     from app.db.session import SessionLocal
-    from app.models.external_api_key import ExternalApiKey
-    from app.services.external import api_key_service
+    from app.models.agent_api_key import AgentApiKey
+    from app.services.agent import key_service
 
     created_ids: list[int] = []
 
@@ -59,17 +66,22 @@ def make_api_key():
         label: str = "test-key",
         expires_at=None,
         revoked: bool = False,
+        agent_id: str | None = None,
     ) -> dict:
         db = SessionLocal()
         try:
-            record, plaintext = api_key_service.create_api_key(
-                db, label=label, created_by="pytest", expires_at=expires_at
+            record, plaintext = key_service.create_api_key(
+                db,
+                label=label,
+                created_by="pytest",
+                expires_at=expires_at,
+                agent_id=agent_id,
             )
             if revoked:
                 record.is_revoked = True
             db.commit()
             created_ids.append(record.id)
-            return {"id": record.id, "plaintext": plaintext}
+            return {"id": record.id, "plaintext": plaintext, "agent_id": agent_id}
         finally:
             db.close()
 
@@ -78,7 +90,7 @@ def make_api_key():
     db = SessionLocal()
     try:
         for key_id in created_ids:
-            obj = db.get(ExternalApiKey, key_id)
+            obj = db.get(AgentApiKey, key_id)
             if obj is not None:
                 db.delete(obj)
         db.commit()

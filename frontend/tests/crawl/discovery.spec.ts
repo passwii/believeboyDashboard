@@ -91,6 +91,7 @@ const ROUTES: string[] = [
   '/dashboard/supply-chain/sku-info',
   '/dashboard/supply-chain/weekly-product-analysis',
   '/dashboard/system/account-management',
+  '/dashboard/system/agent-management',
   '/dashboard/system/alerts',
   '/dashboard/system/backup-management',
   '/dashboard/system/changelog',

@@ -110,8 +110,20 @@ def append_operation_audit_log(
     after: dict[str, Any] | list[Any] | None = None,
     error_message: str | None = None,
     request: Request | None = None,
+    agent_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> None:
     trace_id, request_method, request_path, ip_address = _extract_request_meta(request)
+    # Agent 写调用缺 Idempotency-Key 时打风险标记（设计稿 §7.2），人事发起的写不受影响。
+    after_payload = after
+    if agent_id is not None and idempotency_key is None:
+        marker = {'risk': 'no_idempotency'}
+        if isinstance(after_payload, dict):
+            after_payload = {**after_payload, **marker}
+        elif after_payload is None:
+            after_payload = marker
+        else:
+            after_payload = {'value': after_payload, **marker}
     db.add(
         OperationAuditLog(
             operator=_clip(operator, 255),
@@ -125,8 +137,10 @@ def append_operation_audit_log(
             ip_address=ip_address,
             user_agent=_clip(request.headers.get('user-agent') if request else None, 512),
             before_json=_json_safe(before),
-            after_json=_json_safe(after),
+            after_json=_json_safe(after_payload),
             error_message=_clip(error_message, 4000),
+            agent_id=_clip(agent_id, 128),
+            idempotency_key=_clip(idempotency_key, 64),
         )
     )
 

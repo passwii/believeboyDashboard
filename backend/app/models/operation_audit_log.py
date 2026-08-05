@@ -15,6 +15,7 @@ class OperationAuditLog(Base):
         Index('idx_operation_audit_logs_operator_created_at', 'operator', 'created_at'),
         Index('idx_operation_audit_logs_target', 'target_type', 'target_id'),
         Index('idx_operation_audit_logs_trace_id', 'trace_id'),
+        Index('idx_oal_agent_id', 'agent_id'),
     )
 
     id: Mapped[int] = mapped_column(
@@ -35,4 +36,6 @@ class OperationAuditLog(Base):
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     before_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     after_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    agent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -19,12 +19,18 @@ from sqlalchemy import text
 # → AMQP localhost:5672）→ 手动 resend 报 Connection refused。
 from app.tasks.celery_app import celery_app  # noqa: F401  -- side-effect import
 
+from app.api.agent.errors import (
+    AGENT_PATH_PREFIX,
+    ErrorCode,
+    error_payload,
+    register_agent_error_handlers,
+)
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
 from app.core.scheduler import init_scheduler, shutdown_scheduler
-from app.middleware.external_audit import register_external_audit_middleware
+from app.middleware.agent_api_audit import register_agent_api_audit_middleware
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
@@ -46,9 +52,15 @@ app.state.limiter = limiter
 
 
 def _rate_limit_exceeded_handler(
-    _request: Request, exc: RateLimitExceeded
+    request: Request, exc: RateLimitExceeded
 ) -> JSONResponse:
     """Translate slowapi RateLimitExceeded into a 429 JSON response."""
+    if request.url.path.startswith(AGENT_PATH_PREFIX):
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": "60"},
+            content=error_payload(ErrorCode.AGENT_RATE_LIMIT_EXCEEDED),
+        )
     return JSONResponse(
         status_code=429,
         content={"detail": f"请求过于频繁，请稍后再试（{exc.detail}）"},
@@ -56,6 +68,7 @@ def _rate_limit_exceeded_handler(
 
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+register_agent_error_handlers(app)
 
 if not settings.frontend_url:
     raise Exception(
@@ -185,6 +198,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 app.include_router(api_router, prefix="/api/v1")
 
-# BEL-377: audit-log every /api/v1/external/* request. Registered last so it
-# wraps the request-logging middleware and captures full end-to-end latency.
-register_external_audit_middleware(app)
+# BEL-377: audit-log every /api/v1/external/* and /api/v1/agent/* request.
+# Registered last so it wraps the request-logging middleware and captures
+# full end-to-end latency.
+register_agent_api_audit_middleware(app)

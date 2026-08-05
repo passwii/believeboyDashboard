@@ -80,8 +80,8 @@ from app.models.report_upload_log import ReportUploadLog
 from app.models.auto_report_upload_log import AutoReportUploadLog
 from app.models.return_analysis import ReturnAnalysisRecord, ReturnCustomerComment
 from app.models.analysis_return_aggregate import AnalysisReturnAggregate
-from app.models.external_api_key import ExternalApiKey
-from app.models.external_api_audit_log import ExternalApiAuditLog
+from app.models.agent_api_key import AgentApiKey
+from app.models.agent_api_audit_log import AgentApiAuditLog
 from app.models.digital_employee import (
     DigitalEmployee,
     DigitalEmployeeTask,
@@ -168,8 +168,8 @@ __all__ = [
     "ReturnAnalysisRecord",
     "ReturnCustomerComment",
     "AnalysisReturnAggregate",
-    "ExternalApiKey",
-    "ExternalApiAuditLog",
+    "AgentApiKey",
+    "AgentApiAuditLog",
     "ProjectGoal",
     "MonthlyReport",
     "MonthlyReportTransaction",
