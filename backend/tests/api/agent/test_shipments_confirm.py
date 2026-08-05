@@ -456,3 +456,43 @@ class TestRecalculateCosts:
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+class TestConfirmTokenFailures:
+    def test_s4_expired_token(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-EXP-{uuid.uuid4().hex[:8]}"
+        body = _create_body(shipment_no)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, "", body, idem=idem)
+        token = preview.json()["confirm_token"]
+
+        # 模拟逻辑过期（TTL 300s）：直接回拨 created_at
+        confirm_memory_store._rows[token]["record"].created_at -= 301
+
+        replay = _post(client, shipment_env, "", body, token=token, idem=idem)
+        assert replay.status_code == 409
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_EXPIRED"
+
+    def test_changed_body_rejected(self, client, shipment_env, confirm_memory_store):
+        shipment_no = f"SH-CHB-{uuid.uuid4().hex[:8]}"
+        body = _create_body(shipment_no)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, "", body, idem=idem)
+        token = preview.json()["confirm_token"]
+
+        tampered = _create_body(shipment_no)
+        tampered["items"][0]["quantity"] = 999999  # 预览小改动、确认大改动
+        replay = _post(client, shipment_env, "", tampered, token=token, idem=idem)
+        assert replay.status_code == 400
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+
+    def test_changed_idempotency_key_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        shipment_no = f"SH-CHK-{uuid.uuid4().hex[:8]}"
+        body = _create_body(shipment_no)
+        preview = _post(client, shipment_env, "", body, idem="idem-A")
+        token = preview.json()["confirm_token"]
+        replay = _post(client, shipment_env, "", body, token=token, idem="idem-B")
+        assert replay.status_code == 400
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
