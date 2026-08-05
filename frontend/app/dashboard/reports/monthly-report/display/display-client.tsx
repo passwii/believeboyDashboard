@@ -59,7 +59,7 @@ import {
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { useUrlParam } from '@/lib/hooks/use-url-param'
+import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { getCountryLabel } from '@/lib/country'
 import { getExcelNumFmt } from './excel-num-fmt'
@@ -235,7 +235,14 @@ function lastMonthString(): string {
   return `${y}-${m}`
 }
 
-function getBrowserDefaultMonthRange(): {
+// monthRange URL 参数值：滚动默认窗口（近 12 个月、截至上月）。
+// 带此标记的 URL 每次加载都按"当前时间"重算窗口，具体月份随时间推进而不固化。
+const ROLLING_MONTH_RANGE_MARKER = 'last12m'
+
+// useUrlParams 的 defaults 必须是稳定引用，否则 setValues 每帧重建。
+const MONTH_URL_DEFAULTS = { fromMonth: '', toMonth: '', monthRange: '' }
+
+export function getBrowserDefaultMonthRange(): {
   startMonth: string
   endMonth: string
 } {
@@ -744,8 +751,8 @@ export default function DisplayTab() {
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
 
-  // 项目 / 国家 / 起止月份 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
-  // 默认值为空串，URL 有值时覆盖。
+  // 项目 / 国家同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
+  // 默认值为空串，URL 有值时覆盖。（起止月份见下方 monthUrl，带滚动默认语义）
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
 
   // 进入页面默认选中第一个真实项目,内容立即加载（跳过 all / 空白意图）
@@ -755,8 +762,14 @@ export default function DisplayTab() {
     DEFAULT_REPORT_UPLOAD_COUNTRY,
     { allowed: ['US', 'DE', 'UK'] }
   )
-  const [startMonth, setStartMonth] = useUrlParam<string>('fromMonth', '')
-  const [endMonth, setEndMonth] = useUrlParam<string>('toMonth', '')
+  // 起止月份同步到 URL search param（fromMonth/toMonth），URL 始终携带具体月份，
+  // 刷新 / 分享链接 / 浏览器后退都能还原窗口。monthRange 标记窗口来源：
+  //  - last12m：滚动默认窗口，每次加载按当前时间重算（近 12 个月、截至上月），
+  //    URL 里的具体月份随之推进，不固化为生成 URL 时的月份；
+  //  - 无标记：用户动过月份选择器后的显式窗口，具体月份固化、完全按 URL 还原。
+  const [monthUrl, setMonthUrl] = useUrlParams(MONTH_URL_DEFAULTS)
+  const startMonth = monthUrl.fromMonth
+  const endMonth = monthUrl.toMonth
 
   // DE/UK 报表启用 VAT 列；US 报表无 VAT 数据
   const showVatColumn = useMemo(() => VAT_COUNTRIES.has(country as 'DE' | 'UK'), [country])
@@ -793,6 +806,10 @@ export default function DisplayTab() {
   })
   const [activeTab, setActiveTab] = useState<FinancialViewTab>('financial')
   const [accountingMonth, setAccountingMonth] = useState('')
+  // 月份是否由用户在下拉框里显式挑选过。自动默认（含首屏加载、刷新/重算后
+  // 的重新落位）不算显式选择——只有显式选择才允许在数据更新后停留在原月份，
+  // 否则默认始终跟随最新有源报表的月份。
+  const accountingMonthUserPickedRef = useRef(false)
   const [accountingRows, setAccountingRows] = useState<FinancialAccountingDetailLine[]>([])
   const [accountingLoading, setAccountingLoading] = useState(false)
   const [accountingExporting, setAccountingExporting] = useState(false)
@@ -813,11 +830,37 @@ export default function DisplayTab() {
   const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
+    // 滚动默认窗口：URL 带 monthRange=last12m，或全新 URL（三个参数都空）。
+    // 每次加载按当前时间重算"近 12 个月、截至上月"，并同步刷新 URL 里的具体
+    // 月份——窗口随时间推进，不会固化为生成 URL 时的月份。
+    // 用户改过月份选择器后标记被摘除（见下方 onChange），不再走这条分支。
+    const isRollingDefault =
+      monthUrl.monthRange === ROLLING_MONTH_RANGE_MARKER ||
+      (!monthUrl.monthRange && !startMonth && !endMonth)
+    if (!isRollingDefault) return
     const defaults = getBrowserDefaultMonthRange()
-    // URL 没有 fromMonth/toMonth 时，套用浏览器默认近 12 个月窗口。
-    if (!startMonth) setStartMonth(defaults.startMonth)
-    if (!endMonth) setEndMonth(defaults.endMonth)
-  }, [startMonth, endMonth])
+    if (
+      startMonth === defaults.startMonth &&
+      endMonth === defaults.endMonth &&
+      monthUrl.monthRange === ROLLING_MONTH_RANGE_MARKER
+    ) {
+      return
+    }
+    setMonthUrl({
+      fromMonth: defaults.startMonth,
+      toMonth: defaults.endMonth,
+      monthRange: ROLLING_MONTH_RANGE_MARKER,
+    })
+  }, [monthUrl.monthRange, startMonth, endMonth, setMonthUrl])
+
+  // 用户动过月份选择器即视为显式窗口：摘除滚动标记，具体月份固化进 URL。
+  // 清空两个选择器（都回到空串）则重新落回滚动默认窗口。
+  const handleStartMonthChange = (date?: Date) => {
+    setMonthUrl({ fromMonth: formatMonthInputValue(date), monthRange: '' })
+  }
+  const handleEndMonthChange = (date?: Date) => {
+    setMonthUrl({ toMonth: formatMonthInputValue(date), monthRange: '' })
+  }
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -1020,8 +1063,16 @@ export default function DisplayTab() {
       setAccountingRows([])
       return
     }
-    if (accountingMonthOptions.includes(accountingMonth)) return
-    setAccountingMonth(accountingMonthOptions[accountingMonthOptions.length - 1])
+    const latestMonth = accountingMonthOptions[accountingMonthOptions.length - 1]
+    // 用户显式挑过且该月份仍在可选项里 → 不打扰其选择；
+    // 其余情况（首次加载的自动落位 / 刷新、重算带来新月份 / 陈旧客户端缓存
+    // 回放后最新响应到达）一律跟随最新月份。旧实现只判断 includes，会把
+    // 自动落位的旧月份当成用户选择，导致 7 月数据到达后仍停在 6 月。
+    if (accountingMonthUserPickedRef.current && accountingMonthOptions.includes(accountingMonth)) {
+      return
+    }
+    accountingMonthUserPickedRef.current = false
+    setAccountingMonth(latestMonth)
   }, [accountingMonth, accountingMonthOptions])
 
   const loadAccountingDetail = useCallback(async () => {
@@ -1817,12 +1868,12 @@ export default function DisplayTab() {
             />
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
-              onChange={(date) => setStartMonth(formatMonthInputValue(date))}
+              onChange={handleStartMonthChange}
               className="h-9 w-full"
             />
             <MonthPicker
               value={parseMonthInputValue(endMonth)}
-              onChange={(date) => setEndMonth(formatMonthInputValue(date))}
+              onChange={handleEndMonthChange}
               className="h-9 w-full"
             />
             <RefreshButton
@@ -1870,14 +1921,14 @@ export default function DisplayTab() {
             <FilterField label="开始月份">
               <MonthPicker
                 value={parseMonthInputValue(startMonth)}
-                onChange={(date) => setStartMonth(formatMonthInputValue(date))}
+                onChange={handleStartMonthChange}
                 className="h-9 w-[170px]"
               />
             </FilterField>
             <FilterField label="结束月份">
               <MonthPicker
                 value={parseMonthInputValue(endMonth)}
-                onChange={(date) => setEndMonth(formatMonthInputValue(date))}
+                onChange={handleEndMonthChange}
                 className="h-9 w-[170px]"
               />
             </FilterField>
@@ -2126,7 +2177,10 @@ export default function DisplayTab() {
               <>
                 <Select
                   value={accountingMonth}
-                  onValueChange={setAccountingMonth}
+                  onValueChange={(month) => {
+                    accountingMonthUserPickedRef.current = true
+                    setAccountingMonth(month)
+                  }}
                   disabled={accountingMonthOptions.length === 0}
                 >
                   <SelectTrigger className="h-8 w-[190px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">

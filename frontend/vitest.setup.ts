@@ -22,6 +22,16 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
   Element.prototype.scrollTo = function () {}
 }
 
+// jsdom v29 未实现 Pointer Capture API（hasPointerCapture / setPointerCapture /
+// releasePointerCapture），而 Radix Select 的触发器 onPointerDown 会先调用
+// target.hasPointerCapture(event.pointerId)，缺失时抛 "not a function"，
+// 导致 fireEvent.pointerDown 无法打开下拉框。补 no-op 桩（同类 jsdom 缺口修补）。
+if (typeof Element !== 'undefined' && !Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+}
+
 // jsdom v29 在当前环境不暴露 window.localStorage，导致 mock-crm-client.test.ts
 // 的 beforeEach `window.localStorage.clear()` 抛 "Cannot read properties of
 // undefined (reading 'clear')"，连带 MockCrmClient 的持久化读写也无存储可用。
