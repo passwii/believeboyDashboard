@@ -1425,10 +1425,10 @@ export default function DisplayTab() {
       )
 
       const detailSheet = workbook.addWorksheet('月度财务总览', {
-        views: [{ state: 'frozen', ySplit: 2, xSplit: 1, activeCell: 'A3' }],
+        views: [{ state: 'frozen', ySplit: 2, xSplit: 1, activeCell: 'A3', showGridLines: false }],
       })
       const summarySheet = workbook.addWorksheet('年度财务总览', {
-        views: [{ state: 'frozen', ySplit: 1, xSplit: 1, activeCell: 'A2' }],
+        views: [{ state: 'frozen', ySplit: 1, xSplit: 1, activeCell: 'A2', showGridLines: false }],
       })
 
       const summaryLastColumn = 4

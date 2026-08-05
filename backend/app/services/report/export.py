@@ -805,6 +805,10 @@ def export_financial_accounting_detail_workbook(
         currency_code=currency_label,
     )
 
+    # 统一关闭网格线：本页面所有导出 Excel 均不显示网格线
+    for sheet in wb.worksheets:
+        sheet.sheet_view.showGridLines = False
+
     out = BytesIO()
     wb.save(out)
     safe_project = _safe_project_name(report.project_name)
