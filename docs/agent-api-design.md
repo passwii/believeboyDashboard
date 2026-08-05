@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.4 — 术语同步版）
+# Agent API 设计文档（v0.5 — 开放货件删除版）
 
-> **状态**：v0.4 — 增加 external → agent 术语与命名同步计划（§11），待评审通过后进入 P0 实施。
+> **状态**：v0.5 — 开放货件删除给 Agent（confirm 两步，§3.2 白名单同步），待评审通过后进入 P0 实施。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -182,7 +182,8 @@ Content-Type: application/json
 | 替换 items | ⚠️ 是 |
 | 推进 status（任意 to_status） | ⚠️ 是（不可逆） |
 | 重算费用（recalculate-costs，见 spec §5） | ⚠️ 是（会回写费用字段） |
-| 删除 / 隐藏 | ❌ **P0 暂不开放给 Agent**（admin only） |
+| 删除货件（DELETE /{shipment_no}） | ⚠️ 是（不可逆） |
+| 隐藏（shipment batch hidden） | ❌ 不开放给 Agent（admin only） |
 
 > 通过一个 FastAPI 装饰器 `@require_confirmation(action="shipment.create")` 集中表达，handler 在第一次调用时返回 confirm 壳，第二次调用时才执行真正的 service 调用。
 
@@ -473,6 +474,9 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 ## 修订记录
 
+- **v0.5（2026-08-05）**：开放货件删除给 Agent——
+  1. §3.2 白名单「删除 / 隐藏」拆行：删除货件（DELETE）开放并走 confirm 流（action `shipment.delete`，不可逆）；隐藏（shipment batch hidden）仍保持 admin only；
+  2. 新增 Agent 端点 `DELETE /api/v1/agent/projects/{project_id}/shipments/{shipment_no}`：预览（含货件状态 / 明细条数 / 总量）→ token → 重放删除；审计 action `shipment.delete`（before 记录被删货件信息，operator=NULL + agent_id 归因）。
 - **v0.4（2026-08-04）**：术语与命名同步——
   1. 新增 §11：external → agent 改名计划（现状盘点 / 改名矩阵 / 保留旧名清单 / 文档同步 / 部署窗口风险）；
   2. 凭据表策略升级为"改名 + 扩展"：`external_api_keys` → `agent_api_keys`，RENAME 与加列同一迁移（§4.1）；
