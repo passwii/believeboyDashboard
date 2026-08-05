@@ -6,6 +6,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 /**
  * useUrlParam — 把单个值同步到 URL search param。
  *
+ * ⚠️ 使用前提（生产构建必读）：页面必须为动态渲染（在 server 包装的
+ * page.tsx 里 `export const dynamic = 'force-dynamic'`）。若页面被静态
+ * 预渲染（build 输出 ○），生产构建下 `router.replace` 仅改 query 的导航
+ * 会被 Next.js 当作"同路由 no-op"（RSC payload 相同）——URL 不更新、
+ * 页面无反馈；dev 模式按需渲染会掩盖该问题（2026-08 BEL 实测）。
+ *
  * 设计要点（URL 是单一真理之源，避免 state/URL 漂移）：
  *  1. value 直接从 URL 读取，不维护本地 useState → 刷新 / 分享链接 / 浏览器后退全部天然可用。
  *  2. 写入走 router.replace（不是 push），避免每次切换项目都在历史栈里堆一条记录。
@@ -74,6 +80,9 @@ export function useUrlParam<T extends string>(
  *
  * 注意：setFilters 接受 Partial，因此传入的字段会被更新，未传入的字段保持 URL 当前值不变。
  *       设回默认值（首次调用时的 default）的字段会从 URL 删除，保持 URL 干净。
+ *
+ * ⚠️ 与 useUrlParam 相同：使用本 hook 的页面必须 `export const dynamic = 'force-dynamic'`
+ *   （否则静态预渲染下生产构建的 router.replace 仅改 query 会 no-op，见上方 useUrlParam 说明）。
  */
 export function useUrlParams<T extends Record<string, string>>(
   defaults: T
