@@ -245,6 +245,7 @@ ORDER BY id DESC LIMIT 1;
 
 **关键事实**：
 - `ShipmentScheduleCreate` 必填 `project_id` / `shipment_no` / `shipping_method` / `shipment_status`；日期字段是 `created_date` / `etd_date` / `eta_date` / `actual_inbound_date`；**Create schema 不含 items**——明细走 `replace_shipment_schedule_items`，所以 agent 的"创建货件"是端点层复合（一次 confirm 覆盖建单 + 明细两步）。
+- **`shipping_method` 词表**（`validation.ALLOWED_SHIPPING_METHOD`）：`sea / air / express / truck / rail / other`——英文 token，不接受中文（早期示例里的"海运"是笔误，已修正）。
 - `calculate_shipment_schedule_costs(db, schedule_id, *, logistics_unit_price)` 基于已导入明细计算体积重/计费重并**更新该 schedule 的物流费用**；明细为空或缺 SKU 会 400。因此它是**写操作**，必须 confirm，命名用 `recalculate-costs` 避免误导。
 - `ShipmentScheduleUpdate` 是**全量** schema（所有字段必填或有默认），PATCH 端点需先读当前值再合并请求里的增量字段。**P0 并发语义 = last-write-wins**（读-改-写，无乐观锁）；confirm 流本身已把写频率压得很低，暂不加版本号。
 - **审计映射**：所有货件写操作的审计行统一 `target_type="shipment_schedule"`、`target_id=<schedule.id>`（数字 id，非 shipment_no）。`GET .../audit` 端点先把 path 里的 `shipment_no` 解析成 schedule id 再查审计表。
@@ -302,7 +303,7 @@ curl -X POST http://api/api/v1/agent/projects/123/shipments \
   -d '{
     "shipment_no": "SH-2026-0008",
     "country": "US",
-    "shipping_method": "海运",
+    "shipping_method": "sea",
     "shipment_status": "draft",
     "etd_date": "2026-08-20",
     "eta_date": "2026-09-15",
@@ -509,6 +510,7 @@ cd frontend && pnpm lint && pnpm build && pnpm test
 
 ## 修订记录
 
+- **v0.4.1（2026-08-05）**：修正 §5.3 创建示例的 `shipping_method` 笔误（"海运" → `"sea"`），并在 §5.1 关键事实补运输方式词表 `sea/air/express/truck/rail/other`（对齐 `validation.ALLOWED_SHIPPING_METHOD`）。
 - **v0.4（2026-08-04）**：external → agent 术语同步（对齐设计稿 v0.4 §11）——
   1. §2.1 文件清单加改名/挪动条目：模型（2 个）、key service 挪入新包 `app/services/agent/`、审计中间件、celery 任务、`config.py` 2 个审计配置项改名 + 2 个限流配置新增；
   2. §3 迁移由 2 个变 3 个：凭据表 RENAME + 加列、访问审计表 RENAME、`operation_audit_logs` 加列；RENAME 迁移 downgrade 必须反向；
