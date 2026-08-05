@@ -60,6 +60,18 @@ export function buildUsageText(opts?: {
   同一 URL + 同一 Idempotency-Key，另加：
     -H "X-Confirm-Token: <第一步返回的 confirm_token>"
 
+【4. 删除货件（两步确认，不可逆）】
+
+  第一步（预览，返回 confirm_token）：
+  curl -X DELETE "${apiBase}/api/v1/agent/projects/{project_id}/shipments/{shipment_no}" \
+    -H "Authorization: Bearer ${key}" \
+    -H "X-Agent-Id: ${agentId}" \
+    -H "Idempotency-Key: <UUID>"
+
+  第二步（向用户确认后重放；DELETE 无请求体，重放保持同样不带 body）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"
+
 【注意事项】
 - 明文 Key 只在创建时展示一次，请妥善保存；库中只存 SHA-256
 - 吊销后该凭据立即失效，Agent 需换新卡
