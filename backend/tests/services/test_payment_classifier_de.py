@@ -91,6 +91,29 @@ class TestClassifierAcceptsGermanDescription:
         assert len(classified["adjustment_expense"]) == 1
         assert len(classified["adjustment_income"]) == 0
 
+    def test_real_world_de_general_adjustment_with_double_space(self):
+        """BEL-XXX: Regression test for 2026-07 弥森 DE 月报 18.07 10:57
+        line. Amazon DE export had description =
+        'Versand durch Amazon Erstattung für Lagerbestand -  Allgemeine
+        Anpassung' (note double space around the dash). Before the fix
+        this row leaked into adjustment_income, off by 15.94 from the
+        PDF-reported 66.49 income_fba_inventory_credit."""
+        rows = [
+            _de_row(
+                "Anpassung",
+                "Versand durch Amazon Erstattung für Lagerbestand -  Allgemeine Anpassung",
+                total=-15.94,
+            )
+        ]
+        classified = classify_rows(rows)
+        assert len(classified["adjustment_expense"]) == 1
+        assert len(classified["adjustment_income"]) == 0
+
+        from app.services.payment.financial import compute_metrics
+        result = compute_metrics(classified, country="DE")
+        assert float(result["pt3"]["expense_adjustments"]) == -15.94
+        assert float(result["pt3"]["income_fba_inventory_credit"]) == 0.0
+
 
 class TestAdjustmentOtherDescription:
     """BEL-305: ``Other`` Adjustment description must hit adjustment_expense,

@@ -58,3 +58,26 @@ class TestGermanDescriptionAliases:
             normalize_payment_description(de, locale='de')
             == 'FBA Inventory Reimbursement - General Adjustment'
         )
+
+    def test_de_long_form_general_adjustment_canonical(self):
+        """BEL-XXX: Amazon DE exports the full German string
+        'Versand durch Amazon Erstattung für Lagerbestand - Allgemeine
+        Anpassung' for the General Adjustment description. Must canonicalise
+        to 'FBA Inventory Reimbursement - General Adjustment' so the
+        classifier routes it into adjustment_expense (not adjustment_income)."""
+        de = 'Versand durch Amazon Erstattung für Lagerbestand - Allgemeine Anpassung'
+        assert (
+            normalize_payment_description(de, locale='de')
+            == 'FBA Inventory Reimbursement - General Adjustment'
+        )
+
+    def test_de_long_form_with_double_space_general_adjustment_canonical(self):
+        """BEL-XXX: Amazon DE exports sometimes contain a double space
+        ('... -  Allgemeine Anpassung'). After internal-whitespace folding
+        the description must still canonicalise to the General Adjustment
+        bucket."""
+        de = 'Versand durch Amazon Erstattung für Lagerbestand -  Allgemeine Anpassung'
+        assert (
+            normalize_payment_description(de, locale='de')
+            == 'FBA Inventory Reimbursement - General Adjustment'
+        )

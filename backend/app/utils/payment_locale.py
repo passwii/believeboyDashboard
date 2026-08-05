@@ -123,6 +123,11 @@ PAYMENT_DESCRIPTION_ALIASES = {
     'FBA Inventory Reimbursement - General Adjustment': [
         'fba inventory reimbursement - general adjustment',
         'fba-bestandsentschaedigung - allgemeine anpassung',
+        # BEL-XXX: full German long-form Amazon DE actually exports
+        # ("Versand durch Amazon Erstattung für Lagerbestand - Allgemeine
+        # Anpassung"). Without this, double-space variants of the same
+        # string were leaking into adjustment_income in classifier.py.
+        'versand durch amazon erstattung für lagerbestand - allgemeine anpassung',
     ],
     'FBA Inventory Reimbursement - Lost': [
         'fba inventory reimbursement - lost',
@@ -361,9 +366,24 @@ def normalize_payment_description(value: Any, locale: str = 'en') -> str:
 
     original_value = str(value or '').strip()
     normalized = _normalize_payment_token(original_value)
+    # BEL-XXX: Amazon DE exports occasionally contain internal double spaces
+    # (e.g. "Versand durch Amazon Erstattung für Lagerbestand -  Allgemeine
+    # Anpassung" — two spaces around the dash). Collapse internal whitespace
+    # so the exact-match check below can hit either the canonical alias or a
+    # future DE long-string alias we add. Without this, every double-space
+    # variant silently falls through and returns the raw German string,
+    # which then mismatches classifier.adjustment_expense_descriptions and
+    # leaks into adjustment_income.
+    normalized = ' '.join(normalized.split())
 
     for canonical, aliases in PAYMENT_DESCRIPTION_ALIASES.items():
-        normalized_aliases = {_normalize_payment_token(alias) for alias in aliases if alias}
+        normalized_canonical = ' '.join(_normalize_payment_token(canonical).split())
+        if normalized == normalized_canonical:
+            return canonical
+        normalized_aliases = {
+            ' '.join(_normalize_payment_token(alias).split())
+            for alias in aliases if alias
+        }
         if normalized in normalized_aliases:
             return canonical
 
