@@ -381,6 +381,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/shop-calculations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shop Calculations
+         * @description R1 店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）。
+         */
+        get: operations["list_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_get"];
+        put?: never;
+        /**
+         * Append Shop Calculation
+         * @description W1 追加快照：confirm 两步后 append-only 落一行 + 审计归因。
+         */
+        post: operations["append_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shop-calculations/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute Shop Calculation
+         * @description C1 试算：包装引擎纯计算（不落库、不落审计），返回 {calculation, snapshot} 双字段。
+         */
+        post: operations["compute_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_compute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shop Calculation Sku
+         * @description R2 SKU 详情：当前态最新行；country 缺省时多国家 → 400 AMBIGUOUS。
+         */
+        get: operations["get_shop_calculation_sku_api_v1_agent_projects__project_id__shop_calculations_skus__sku__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shop Calculation Audit
+         * @description R4 SKU 审计：按 SKU 聚合多行 target_id 的操作审计轨迹（id 倒序）。
+         */
+        get: operations["get_shop_calculation_audit_api_v1_agent_projects__project_id__shop_calculations_skus__sku__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shop Calculation History
+         * @description R3 SKU 历史：append-only 全部版本（observed_at 倒序）+ from/to/分页薄壳。
+         */
+        get: operations["list_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculations_skus__sku__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai-insights": {
         parameters: {
             query?: never;
@@ -8521,6 +8625,83 @@ export interface components {
             total: number;
             /** Unique Agent Count */
             unique_agent_count: number;
+        };
+        /**
+         * AgentShopCalculationComputeRequest
+         * @description 试算请求（C1）：双模式，纯计算不落库。
+         */
+        AgentShopCalculationComputeRequest: {
+            /**
+             * Advertising Rate
+             * @default 0.12
+             */
+            advertising_rate: number;
+            /**
+             * Commission Rate
+             * @default 0.15
+             */
+            commission_rate: number;
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * Delivery Fee Usd
+             * @default 0
+             */
+            delivery_fee_usd: number;
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb: number;
+            /** Fob Product Cost Rmb */
+            fob_product_cost_rmb: number;
+            /**
+             * Inbound Config Fee Usd
+             * @default 0
+             */
+            inbound_config_fee_usd: number;
+            /**
+             * Inbound Placement Mode
+             * @default single_destination
+             * @enum {string}
+             */
+            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "profit_calc" | "eu_accounting";
+            /** Package Height Cm */
+            package_height_cm: number;
+            /** Package Length Cm */
+            package_length_cm: number;
+            /** Package Width Cm */
+            package_width_cm: number;
+            /** Product Name */
+            product_name: string;
+            /**
+             * Return Loss Rate
+             * @default 0.04
+             */
+            return_loss_rate: number;
+            /** Sale Price Usd */
+            sale_price_usd: number;
+            /** Sku */
+            sku?: string | null;
+            /**
+             * Storage Fee Usd
+             * @default 0
+             */
+            storage_fee_usd: number;
+            /**
+             * Storage Months
+             * @default 1
+             */
+            storage_months: number;
+            /** Usd To Rmb Rate */
+            usd_to_rmb_rate?: number | null;
+            /** Weight Kg */
+            weight_kg: number;
         };
         /**
          * AggregateSummary
@@ -20929,6 +21110,225 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_get: {
+        parameters: {
+            query?: {
+                country?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    append_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compute_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_compute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentShopCalculationComputeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shop_calculation_sku_api_v1_agent_projects__project_id__shop_calculations_skus__sku__get: {
+        parameters: {
+            query?: {
+                country?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shop_calculation_audit_api_v1_agent_projects__project_id__shop_calculations_skus__sku__audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculations_skus__sku__history_get: {
+        parameters: {
+            query?: {
+                country?: string | null;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

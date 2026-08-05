@@ -11,23 +11,23 @@ from sqlalchemy.orm import Session
 from app.models.operation_audit_log import OperationAuditLog
 
 _SENSITIVE_KEYS = {
-    'password',
-    'password_hash',
-    'token',
-    'access_token',
-    'refresh_token',
-    'authorization',
-    'cookie',
-    'set-cookie',
-    'secret',
-    'api_key',
-    'x-api-key',
+    "password",
+    "password_hash",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "secret",
+    "api_key",
+    "x-api-key",
 }
 
 
 def sync_operation_audit_log_sequence(db: Session) -> None:
     bind = db.get_bind()
-    if bind.dialect.name != 'postgresql':
+    if bind.dialect.name != "postgresql":
         return
 
     db.execute(
@@ -63,7 +63,7 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, Decimal):
         return float(value)
     if isinstance(value, datetime):
-        return value.isoformat(timespec='seconds')
+        return value.isoformat(timespec="seconds")
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, dict):
@@ -71,7 +71,7 @@ def _json_safe(value: Any) -> Any:
         for key, child in value.items():
             key_text = str(key)
             if key_text.lower() in _SENSITIVE_KEYS:
-                output[key_text] = '***'
+                output[key_text] = "***"
             else:
                 output[key_text] = _json_safe(child)
         return output
@@ -80,18 +80,20 @@ def _json_safe(value: Any) -> Any:
     return str(value)
 
 
-def _extract_request_meta(request: Request | None) -> tuple[str | None, str | None, str | None, str | None]:
+def _extract_request_meta(
+    request: Request | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
     if request is None:
         return None, None, None, None
 
-    forwarded_for = request.headers.get('x-forwarded-for')
+    forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
-        ip_address = forwarded_for.split(',')[0].strip()
+        ip_address = forwarded_for.split(",")[0].strip()
     else:
         ip_address = request.client.host if request.client else None
 
     return (
-        _clip(str(getattr(request.state, 'request_id', '') or ''), 64),
+        _clip(str(getattr(request.state, "request_id", "") or ""), 64),
         _clip(request.method, 16),
         _clip(request.url.path, 255),
         _clip(ip_address, 64),
@@ -105,7 +107,7 @@ def append_operation_audit_log(
     target_type: str,
     target_id: str | int | None = None,
     operator: str | None = None,
-    result: str = 'success',
+    result: str = "success",
     before: dict[str, Any] | list[Any] | None = None,
     after: dict[str, Any] | list[Any] | None = None,
     error_message: str | None = None,
@@ -117,25 +119,27 @@ def append_operation_audit_log(
     # Agent 写调用缺 Idempotency-Key 时打风险标记（设计稿 §7.2），人事发起的写不受影响。
     after_payload = after
     if agent_id is not None and idempotency_key is None:
-        marker = {'risk': 'no_idempotency'}
+        marker = {"risk": "no_idempotency"}
         if isinstance(after_payload, dict):
             after_payload = {**after_payload, **marker}
         elif after_payload is None:
             after_payload = marker
         else:
-            after_payload = {'value': after_payload, **marker}
+            after_payload = {"value": after_payload, **marker}
     db.add(
         OperationAuditLog(
             operator=_clip(operator, 255),
-            action=_clip(action, 128) or 'unknown',
-            target_type=_clip(target_type, 64) or 'unknown',
+            action=_clip(action, 128) or "unknown",
+            target_type=_clip(target_type, 64) or "unknown",
             target_id=_clip(str(target_id), 128) if target_id is not None else None,
-            result='success' if result != 'failure' else 'failure',
+            result="success" if result != "failure" else "failure",
             trace_id=trace_id,
             request_method=request_method,
             request_path=request_path,
             ip_address=ip_address,
-            user_agent=_clip(request.headers.get('user-agent') if request else None, 512),
+            user_agent=_clip(
+                request.headers.get("user-agent") if request else None, 512
+            ),
             before_json=_json_safe(before),
             after_json=_json_safe(after_payload),
             error_message=_clip(error_message, 4000),
@@ -174,6 +178,35 @@ def query_operation_audit_log(
             .where(
                 OperationAuditLog.target_type == target_type,
                 OperationAuditLog.target_id == str(target_id),
+            )
+            .order_by(OperationAuditLog.id.desc())
+            .limit(min(max(int(limit), 1), 200))
+        )
+    )
+
+
+def query_operation_audit_log_for_targets(
+    db: Session,
+    *,
+    target_type: str,
+    target_ids: list[str | int],
+    limit: int = 50,
+) -> list[OperationAuditLog]:
+    """按 target 集合查审计行（IN 子句 + id 倒序 + limit）。
+
+    Agent 店铺测算审计路由（R4，BLF-442）按 SKU 聚合多行 target_id 使用：
+    SKU 的历史 append-only 行各自带一条审计行，查全部 target_id 一次 IN 查询
+    拿回按 id 倒序的审计轨迹。空集合直接返回 []（避免生成 ``IN ()`` 非法 SQL）。
+    """
+    if not target_ids:
+        return []
+    normalized = {str(target_id) for target_id in target_ids}
+    return list(
+        db.scalars(
+            select(OperationAuditLog)
+            .where(
+                OperationAuditLog.target_type == target_type,
+                OperationAuditLog.target_id.in_(normalized),
             )
             .order_by(OperationAuditLog.id.desc())
             .limit(min(max(int(limit), 1), 200))

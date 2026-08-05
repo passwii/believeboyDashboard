@@ -4435,6 +4435,170 @@
         "title": "AgentAccessLogsSummaryResponse",
         "type": "object"
       },
+      "AgentShopCalculationComputeRequest": {
+        "description": "试算请求（C1）：双模式，纯计算不落库。",
+        "properties": {
+          "advertising_rate": {
+            "default": 0.12,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Advertising Rate",
+            "type": "number"
+          },
+          "commission_rate": {
+            "default": 0.15,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Commission Rate",
+            "type": "number"
+          },
+          "country": {
+            "default": "US",
+            "maxLength": 10,
+            "title": "Country",
+            "type": "string"
+          },
+          "delivery_fee_usd": {
+            "default": 0.0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Delivery Fee Usd",
+            "type": "number"
+          },
+          "first_leg_cost_rmb": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "First Leg Cost Rmb",
+            "type": "number"
+          },
+          "fob_product_cost_rmb": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Fob Product Cost Rmb",
+            "type": "number"
+          },
+          "inbound_config_fee_usd": {
+            "default": 0.0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Inbound Config Fee Usd",
+            "type": "number"
+          },
+          "inbound_placement_mode": {
+            "default": "single_destination",
+            "enum": [
+              "single_destination",
+              "amazon_optimized_split"
+            ],
+            "title": "Inbound Placement Mode",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "profit_calc",
+              "eu_accounting"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "package_height_cm": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1000.0,
+            "title": "Package Height Cm",
+            "type": "number"
+          },
+          "package_length_cm": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1000.0,
+            "title": "Package Length Cm",
+            "type": "number"
+          },
+          "package_width_cm": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1000.0,
+            "title": "Package Width Cm",
+            "type": "number"
+          },
+          "product_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Product Name",
+            "type": "string"
+          },
+          "return_loss_rate": {
+            "default": 0.04,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Return Loss Rate",
+            "type": "number"
+          },
+          "sale_price_usd": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000000.0,
+            "title": "Sale Price Usd",
+            "type": "number"
+          },
+          "sku": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku"
+          },
+          "storage_fee_usd": {
+            "default": 0.0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Storage Fee Usd",
+            "type": "number"
+          },
+          "storage_months": {
+            "default": 1,
+            "exclusiveMinimum": 0.0,
+            "maximum": 120.0,
+            "title": "Storage Months",
+            "type": "number"
+          },
+          "usd_to_rmb_rate": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd To Rmb Rate"
+          },
+          "weight_kg": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1000.0,
+            "title": "Weight Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "mode",
+          "product_name",
+          "package_length_cm",
+          "package_width_cm",
+          "package_height_cm",
+          "weight_kg",
+          "fob_product_cost_rmb",
+          "first_leg_cost_rmb",
+          "sale_price_usd"
+        ],
+        "title": "AgentShopCalculationComputeRequest",
+        "type": "object"
+      },
       "AggregateSummary": {
         "description": "Top-level totals across all aggregated rows in the response.\n\n``overall_acos`` / ``overall_roas`` are weighted: the same formula\napplied to the *total* spend / sales, not an average of per-row rates.",
         "properties": {
@@ -39187,6 +39351,455 @@
         "tags": [
           "agent",
           "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shop-calculations": {
+      "get": {
+        "description": "R1 店铺测算「当前态」列表（每 SKU 最新有效行，软删过滤）。",
+        "operationId": "list_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Shop Calculations Api V1 Agent Projects  Project Id  Shop Calculations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shop Calculations",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      },
+      "post": {
+        "description": "W1 追加快照：confirm 两步后 append-only 落一行 + 审计归因。",
+        "operationId": "append_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Append Shop Calculation Api V1 Agent Projects  Project Id  Shop Calculations Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append Shop Calculation",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shop-calculations/compute": {
+      "post": {
+        "description": "C1 试算：包装引擎纯计算（不落库、不落审计），返回 {calculation, snapshot} 双字段。",
+        "operationId": "compute_shop_calculation_api_v1_agent_projects__project_id__shop_calculations_compute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentShopCalculationComputeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Compute Shop Calculation Api V1 Agent Projects  Project Id  Shop Calculations Compute Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compute Shop Calculation",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}": {
+      "get": {
+        "description": "R2 SKU 详情：当前态最新行；country 缺省时多国家 → 400 AMBIGUOUS。",
+        "operationId": "get_shop_calculation_sku_api_v1_agent_projects__project_id__shop_calculations_skus__sku__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shop Calculation Sku Api V1 Agent Projects  Project Id  Shop Calculations Skus  Sku  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shop Calculation Sku",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/audit": {
+      "get": {
+        "description": "R4 SKU 审计：按 SKU 聚合多行 target_id 的操作审计轨迹（id 倒序）。",
+        "operationId": "get_shop_calculation_audit_api_v1_agent_projects__project_id__shop_calculations_skus__sku__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shop Calculation Audit Api V1 Agent Projects  Project Id  Shop Calculations Skus  Sku  Audit Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shop Calculation Audit",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/history": {
+      "get": {
+        "description": "R3 SKU 历史：append-only 全部版本（observed_at 倒序）+ from/to/分页薄壳。",
+        "operationId": "list_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculations_skus__sku__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Shop Calculation History Api V1 Agent Projects  Project Id  Shop Calculations Skus  Sku  History Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shop Calculation History",
+        "tags": [
+          "agent",
+          "agent-shop-calculations"
         ]
       }
     },

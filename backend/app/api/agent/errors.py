@@ -34,6 +34,10 @@ class ErrorCode(str, Enum):
     SHIPMENT_DUPLICATE_NO = "SHIPMENT_DUPLICATE_NO"
     SHIPMENT_ITEMS_INVALID_SKU = "SHIPMENT_ITEMS_INVALID_SKU"
     SHIPMENT_STATUS_INVALID = "SHIPMENT_STATUS_INVALID"
+    # 店铺测算域（BLF-442）
+    SHOP_CALCULATION_INVALID_SOURCE = "SHOP_CALCULATION_INVALID_SOURCE"
+    SHOP_CALCULATION_INVALID_SKU = "SHOP_CALCULATION_INVALID_SKU"
+    SHOP_CALCULATION_AMBIGUOUS_COUNTRY = "SHOP_CALCULATION_AMBIGUOUS_COUNTRY"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -51,6 +55,9 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.SHIPMENT_DUPLICATE_NO: 409,
     ErrorCode.SHIPMENT_ITEMS_INVALID_SKU: 400,
     ErrorCode.SHIPMENT_STATUS_INVALID: 400,
+    ErrorCode.SHOP_CALCULATION_INVALID_SOURCE: 400,
+    ErrorCode.SHOP_CALCULATION_INVALID_SKU: 400,
+    ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY: 400,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -92,6 +99,18 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.SHIPMENT_STATUS_INVALID: (
         "货件状态值不合法",
         "合法状态值：draft、in_transit、completed",
+    ),
+    ErrorCode.SHOP_CALCULATION_INVALID_SOURCE: (
+        "写入来源不合法",
+        "合法来源：agent_listing_pull、agent_review_scrape、agent_market_research、external_api",
+    ),
+    ErrorCode.SHOP_CALCULATION_INVALID_SKU: (
+        "该 SKU 在本项目不存在",
+        "先核对 SKU 主数据（sku-info 相关端点），确认后再追加",
+    ),
+    ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY: (
+        "该 SKU 存在多个国家站点，需指定 country",
+        "用 details 里的国家列表带 ?country= 重试",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
@@ -216,6 +235,4 @@ def register_agent_error_handlers(app: FastAPI) -> None:
                 content={"detail": exc.detail},
                 headers=headers,
             )
-        return JSONResponse(
-            status_code=exc.status_code, content={"detail": exc.detail}
-        )
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
