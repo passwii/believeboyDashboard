@@ -4254,6 +4254,187 @@
         "title": "AdUploadStatusResponse",
         "type": "object"
       },
+      "AgentAccessLogAgentSummaryItem": {
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Label"
+          }
+        },
+        "required": [
+          "agent_id",
+          "count"
+        ],
+        "title": "AgentAccessLogAgentSummaryItem",
+        "type": "object"
+      },
+      "AgentAccessLogItem": {
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
+          "api_key_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Id"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "key_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Label"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "status_code": {
+            "title": "Status Code",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "method",
+          "path",
+          "status_code",
+          "latency_ms"
+        ],
+        "title": "AgentAccessLogItem",
+        "type": "object"
+      },
+      "AgentAccessLogsResponse": {
+        "properties": {
+          "has_next": {
+            "title": "Has Next",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAccessLogItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "page_size",
+          "has_next"
+        ],
+        "title": "AgentAccessLogsResponse",
+        "type": "object"
+      },
+      "AgentAccessLogsSummaryResponse": {
+        "properties": {
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "success_count": {
+            "title": "Success Count",
+            "type": "integer"
+          },
+          "top_agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAccessLogAgentSummaryItem"
+            },
+            "title": "Top Agents",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unique_agent_count": {
+            "title": "Unique Agent Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "success_count",
+          "error_count",
+          "unique_agent_count"
+        ],
+        "title": "AgentAccessLogsSummaryResponse",
+        "type": "object"
+      },
       "AggregateSummary": {
         "description": "Top-level totals across all aggregated rows in the response.\n\n``overall_acos`` / ``overall_roas`` are weighted: the same formula\napplied to the *total* spend / sales, not an average of per-row rates.",
         "properties": {
@@ -5173,6 +5354,19 @@
       },
       "ApiKeyCreateRequest": {
         "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空",
+            "title": "Agent Id"
+          },
           "expires_at": {
             "anyOf": [
               {
@@ -5193,6 +5387,13 @@
             "title": "Label",
             "type": "string"
           },
+          "project_scope": {
+            "default": "*",
+            "description": "项目范围：'*' 全部，或 ',' 分隔的 project_id 白名单（空串按 '*' 处理）",
+            "maxLength": 255,
+            "title": "Project Scope",
+            "type": "string"
+          },
           "scope": {
             "default": "read",
             "maxLength": 64,
@@ -5208,6 +5409,17 @@
       },
       "ApiKeyCreateResponse": {
         "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -5241,6 +5453,10 @@
             "title": "Plaintext Key",
             "type": "string"
           },
+          "project_scope": {
+            "title": "Project Scope",
+            "type": "string"
+          },
           "scope": {
             "title": "Scope",
             "type": "string"
@@ -5251,6 +5467,8 @@
           "key_prefix",
           "label",
           "scope",
+          "project_scope",
+          "agent_id",
           "expires_at",
           "created_at",
           "plaintext_key"
@@ -5260,6 +5478,17 @@
       },
       "ApiKeyItem": {
         "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -5305,6 +5534,10 @@
             ],
             "title": "Last Used At"
           },
+          "project_scope": {
+            "title": "Project Scope",
+            "type": "string"
+          },
           "scope": {
             "title": "Scope",
             "type": "string"
@@ -5315,6 +5548,8 @@
           "key_prefix",
           "label",
           "scope",
+          "project_scope",
+          "agent_id",
           "is_revoked",
           "expires_at",
           "created_at",
@@ -5644,6 +5879,39 @@
         "title": "AvatarUploadResponse",
         "type": "object"
       },
+      "BackupDeleteResponse": {
+        "description": "软删备份记录结果。",
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "deleted"
+        ],
+        "title": "BackupDeleteResponse",
+        "type": "object"
+      },
+      "BackupDownloadUrlResponse": {
+        "description": "R2 presigned 下载链接。",
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "BackupDownloadUrlResponse",
+        "type": "object"
+      },
       "BackupInfoResponse": {
         "description": "Raw pgBackRest info output.",
         "properties": {
@@ -5680,6 +5948,17 @@
             ],
             "title": "Backup Info"
           },
+          "backup_set_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup Set Name"
+          },
           "backup_type": {
             "title": "Backup Type",
             "type": "string"
@@ -5695,6 +5974,17 @@
               }
             ],
             "title": "Completed At"
+          },
+          "compressed_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compressed Size Bytes"
           },
           "created_at": {
             "format": "date-time",
@@ -5738,6 +6028,73 @@
             "title": "Id",
             "type": "integer"
           },
+          "phase": {
+            "default": "pending",
+            "title": "Phase",
+            "type": "string"
+          },
+          "r2_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2 Bucket"
+          },
+          "r2_deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2 Deleted At"
+          },
+          "r2_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2 Key"
+          },
+          "r2_uploaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2 Uploaded At"
+          },
+          "r2_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2 Url"
+          },
+          "retry_count": {
+            "default": 0,
+            "title": "Retry Count",
+            "type": "integer"
+          },
           "size_bytes": {
             "anyOf": [
               {
@@ -5756,6 +6113,11 @@
           },
           "status": {
             "title": "Status",
+            "type": "string"
+          },
+          "triggered_by": {
+            "default": "manual",
+            "title": "Triggered By",
             "type": "string"
           }
         },
@@ -5789,6 +6151,25 @@
           "total"
         ],
         "title": "BackupRecordListResponse",
+        "type": "object"
+      },
+      "BackupRestoreCommandResponse": {
+        "description": "pgbackrest restore 命令预览（不执行）。",
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          },
+          "set_name": {
+            "title": "Set Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "set_name"
+        ],
+        "title": "BackupRestoreCommandResponse",
         "type": "object"
       },
       "BackupStatusSummary": {
@@ -38192,6 +38573,623 @@
         "summary": "List Ad Upload Status"
       }
     },
+    "/api/v1/agent/health": {
+      "get": {
+        "operationId": "agent_health_api_v1_agent_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Health Api V1 Agent Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Agent Health",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments": {
+      "get": {
+        "operationId": "list_shipments_api_v1_agent_projects__project_id__shipments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "shipment_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shipment Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "shipping_method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shipping Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "shipment_no",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shipment No"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "etd_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Etd From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "etd_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Etd To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eta_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eta From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eta_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eta To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Shipments Api V1 Agent Projects  Project Id  Shipments Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shipments",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      },
+      "post": {
+        "operationId": "create_shipment_api_v1_agent_projects__project_id__shipments_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Shipment Api V1 Agent Projects  Project Id  Shipments Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Create Shipment",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}": {
+      "delete": {
+        "operationId": "delete_shipment_api_v1_agent_projects__project_id__shipments__shipment_no__delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Shipment Api V1 Agent Projects  Project Id  Shipments  Shipment No  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Shipment",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      },
+      "get": {
+        "operationId": "get_shipment_api_v1_agent_projects__project_id__shipments__shipment_no__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "title": "Shipment No",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shipment Api V1 Agent Projects  Project Id  Shipments  Shipment No  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shipment",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_shipment_api_v1_agent_projects__project_id__shipments__shipment_no__patch",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Patch Shipment Api V1 Agent Projects  Project Id  Shipments  Shipment No  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Patch Shipment",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/audit": {
+      "get": {
+        "operationId": "get_shipment_audit_api_v1_agent_projects__project_id__shipments__shipment_no__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "title": "Shipment No",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shipment Audit Api V1 Agent Projects  Project Id  Shipments  Shipment No  Audit Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shipment Audit",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/fba-box-detail": {
+      "get": {
+        "operationId": "get_shipment_fba_box_detail_api_v1_agent_projects__project_id__shipments__shipment_no__fba_box_detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "title": "Shipment No",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shipment Fba Box Detail Api V1 Agent Projects  Project Id  Shipments  Shipment No  Fba Box Detail Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shipment Fba Box Detail",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/items": {
+      "put": {
+        "operationId": "replace_shipment_items_api_v1_agent_projects__project_id__shipments__shipment_no__items_put",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Replace Shipment Items Api V1 Agent Projects  Project Id  Shipments  Shipment No  Items Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Replace Shipment Items",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/recalculate-costs": {
+      "post": {
+        "operationId": "recalculate_shipment_costs_api_v1_agent_projects__project_id__shipments__shipment_no__recalculate_costs_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Recalculate Shipment Costs Api V1 Agent Projects  Project Id  Shipments  Shipment No  Recalculate Costs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Recalculate Shipment Costs",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/sku-summary": {
+      "get": {
+        "operationId": "get_shipment_sku_summary_api_v1_agent_projects__project_id__shipments__shipment_no__sku_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "shipment_no",
+            "required": true,
+            "schema": {
+              "title": "Shipment No",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Shipment Sku Summary Api V1 Agent Projects  Project Id  Shipments  Shipment No  Sku Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shipment Sku Summary",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/shipments/{shipment_no}/status": {
+      "post": {
+        "operationId": "transition_shipment_status_api_v1_agent_projects__project_id__shipments__shipment_no__status_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transition Shipment Status Api V1 Agent Projects  Project Id  Shipments  Shipment No  Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Transition Shipment Status",
+        "tags": [
+          "agent",
+          "agent-shipments"
+        ]
+      }
+    },
     "/api/v1/ai-insights": {
       "get": {
         "operationId": "list_insights_api_v1_ai_insights_get",
@@ -44090,6 +45088,424 @@
           }
         },
         "summary": "Verify Backup Endpoint",
+        "tags": [
+          "备份管理"
+        ]
+      }
+    },
+    "/api/v1/backups/{record_id}": {
+      "delete": {
+        "description": "软删备份记录 + 删除 R2 对象（记录行保留，写 r2_deleted_at）。",
+        "operationId": "delete_backup_api_v1_backups__record_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "title": "Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupDeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Backup",
+        "tags": [
+          "备份管理"
+        ]
+      },
+      "get": {
+        "description": "单条备份记录详情（含 phase / R2 字段），供前端轮询。",
+        "operationId": "get_backup_record_api_v1_backups__record_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "title": "Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupRecordItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backup Record",
+        "tags": [
+          "备份管理"
+        ]
+      }
+    },
+    "/api/v1/backups/{record_id}/download-url": {
+      "get": {
+        "description": "生成 R2 临时下载链接（presigned，1h 有效）。",
+        "operationId": "get_backup_download_url_api_v1_backups__record_id__download_url_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "title": "Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupDownloadUrlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backup Download Url",
+        "tags": [
+          "备份管理"
+        ]
+      }
+    },
+    "/api/v1/backups/{record_id}/restore-command": {
+      "get": {
+        "description": "生成可复制的 pgbackrest restore 命令文本（不执行）。",
+        "operationId": "get_backup_restore_command_api_v1_backups__record_id__restore_command_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "title": "Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupRestoreCommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backup Restore Command",
         "tags": [
           "备份管理"
         ]
@@ -56015,7 +57431,7 @@
     },
     "/api/v1/external/projects/{project_id}/new-product-calculations": {
       "get": {
-        "description": "Paginated list of new-product calculation rows for the project. The new-product calculation table (``new_product_calculations``) is the canonical source for profit-calc / profit-reverse snapshots; the legacy\n``store_sku_pricing_snapshots`` table was renamed in 2026-08\n(migration 230).\n\nReturns 14 flat columns — economics + lineage, no nested objects. Use ``?calculation_type=`` to filter, ``?country=`` to restrict to one country, ``?order_by=`` to sort by any of the 14 whitelisted columns.",
+        "description": "Paginated list of new-product calculation rows for the project. The new-product calculation table (``new_product_calculations``) is the canonical source for profit-calc / profit-reverse snapshots; the legacy\n``store_sku_pricing_snapshots`` table was renamed in 2026-08\n(migration 230).\n\nReturns 14 flat columns — economics + lineage, no nested objects. Use ``?calculation_type=`` to filter, ``?country=`` to restrict to one country, ``?order_by=`` to sort by any of the 15 whitelisted columns.",
         "operationId": "get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get",
         "parameters": [
           {
@@ -56839,7 +58255,7 @@
     },
     "/api/v1/external/projects/{project_id}/shop-calculation-history": {
       "get": {
-        "description": "Current-state list of shop-calculation rows for the project.\n\nEach row is the latest non-deleted entry for a ``(project_id, sku, country)`` group (BEL-378 append-only). Returns 15 flat columns — economics + lineage, no nested objects.\n\nUse ``?country=US`` to restrict to a single country. Use ``?order_by=`` to sort by any of the 15 whitelisted columns.",
+        "description": "Current-state list of shop-calculation rows for the project.\n\nEach row is the latest non-deleted entry for a ``(project_id, sku, country)`` group (BEL-378 append-only). Returns 15 flat columns — economics + lineage, no nested objects.\n\nUse ``?country=US`` to restrict to a single country. Use ``?order_by=`` to sort by any of the 16 whitelisted columns.",
         "operationId": "get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get",
         "parameters": [
           {
@@ -58855,6 +60271,38 @@
               "default": false,
               "title": "X-Is-Admin",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
             }
           }
         ],
@@ -82425,6 +83873,297 @@
           }
         },
         "summary": "Upload Product Image"
+      }
+    },
+    "/api/v1/system-management/agent-access-logs": {
+      "get": {
+        "operationId": "list_agent_access_logs_api_v1_system_management_agent_access_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 599,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "result",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAccessLogsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agent Access Logs",
+        "tags": [
+          "系统管理",
+          "Agent 访问日志"
+        ]
+      }
+    },
+    "/api/v1/system-management/agent-access-logs/summary": {
+      "get": {
+        "operationId": "agent_access_logs_summary_api_v1_system_management_agent_access_logs_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Keyword"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 599,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "result",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAccessLogsSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Access Logs Summary",
+        "tags": [
+          "系统管理",
+          "Agent 访问日志"
+        ]
       }
     },
     "/api/v1/system-management/audit-logs": {

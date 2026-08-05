@@ -12,6 +12,7 @@ export type AgentApiKeyItem = {
   key_prefix: string
   label: string
   scope: string
+  project_scope: string
   agent_id: string | null
   is_revoked: boolean
   expires_at: string | null
@@ -21,6 +22,17 @@ export type AgentApiKeyItem = {
 
 export type AgentApiKeyCreateResult = AgentApiKeyItem & {
   plaintext_key: string
+}
+
+/**
+ * 归一化项目范围：空串 / '*' → '*'（全项目，服务端哨兵值）；
+ * 其余保持 ',' 分隔的 project_id 白名单。
+ */
+export function normalizeProjectScope(scope: string | undefined | null): string {
+  if (!scope) return '*'
+  const trimmed = scope.trim()
+  if (!trimmed || trimmed === '*') return '*'
+  return trimmed
 }
 
 export async function listAgentApiKeys(): Promise<AgentApiKeyItem[]> {
@@ -35,6 +47,7 @@ export async function createAgentApiKey(input: {
   label: string
   agent_id: string
   expires_at: string | null
+  project_scope: string
 }): Promise<AgentApiKeyCreateResult> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys`, {
     method: 'POST',

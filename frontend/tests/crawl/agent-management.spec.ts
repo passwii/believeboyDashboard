@@ -102,4 +102,58 @@ test.describe('Agent 凭据管理页', () => {
       .click()
     await expect(row.getByText('已吊销')).toBeVisible({ timeout: 10000 })
   })
+
+  test('创建时可选项目范围白名单，列表展示项目名', async ({ page }) => {
+    await loginAsUser(page)
+    await page.goto('/dashboard/system/agent-management', {
+      waitUntil: 'networkidle',
+      timeout: 30000,
+    })
+
+    await page.getByRole('button', { name: '创建凭据' }).click()
+    const dialog = page.getByRole('dialog')
+
+    // 默认「全部项目」勾选
+    const allToggle = dialog.getByRole('button', { name: /全部项目/ })
+    await expect(allToggle).toBeVisible()
+
+    const scopeLabel = `${TEST_LABEL}-scope`
+    await dialog.getByLabel('名称').fill(scopeLabel)
+    await dialog.getByLabel('Agent ID').fill(TEST_AGENT_ID)
+
+    // 取消「全部项目」→ 打开多选，选第一个具体项目（若无项目选项则回退全部）
+    await allToggle.click()
+    const combobox = dialog.getByRole('combobox')
+    await combobox.click()
+    const options = dialog.getByRole('option')
+    const optionCount = await options.count()
+
+    let expectedScope: string
+    if (optionCount > 0) {
+      const first = options.first()
+      const name = ((await first.textContent()) ?? '').trim()
+      await first.click()
+      expectedScope = name
+    } else {
+      await allToggle.click()
+      expectedScope = '全部项目'
+    }
+
+    await dialog.getByRole('button', { name: '创建', exact: true }).click()
+    await expect(page.getByText('凭据创建成功')).toBeVisible()
+    await page.getByRole('button', { name: '关闭' }).click()
+
+    // 列表出现新行且展示项目范围
+    const row = page.getByRole('row').filter({ hasText: scopeLabel })
+    await expect(row).toBeVisible()
+    await expect(row.getByText(expectedScope)).toBeVisible()
+
+    // 吊销（自动清理）
+    await row.getByRole('button', { name: '吊销' }).click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: '吊销' })
+      .click()
+    await expect(row.getByText('已吊销')).toBeVisible({ timeout: 10000 })
+  })
 })

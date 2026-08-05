@@ -6,11 +6,11 @@ import { cn } from '@/lib/utils'
 import { MultiSelect, type Option as MultiSelectOption } from '@/components/ui/multi-select'
 
 /**
- * 项目范围多选控件
+ * 项目范围多选控件（BLF-441 提升为共享组件，原位于 scheduled-reports/_components）
  * - 三态合一：'*'（全部项目）/ []（空）/ ['id1','id2',...]（具体项目）
  * - 顶部一个「☑️ 全部项目」首选项；勾选后禁用 MultiSelect
  * - 在 MultiSelect 上勾任意具体项目，自动取消「全部项目」
- * - 提交时把空串归一为 '*'，确保后端拿到的永远是合法值
+ * - 提交时把空串归一为 '*'（由调用方在提交处归一，确保后端拿到的永远是合法值）
  */
 export function ProjectScopeSelect({
   value,
@@ -19,6 +19,8 @@ export function ProjectScopeSelect({
   onSelectedIdsChange,
   projects,
   disabled = false,
+  allHint = '当前聚合所有项目的数据',
+  specificHint,
 }: {
   value: string
   selectedIds: string[]
@@ -26,10 +28,17 @@ export function ProjectScopeSelect({
   onSelectedIdsChange: (ids: string[]) => void
   projects: Array<{ id?: number | null; name: string }>
   disabled?: boolean
+  /** 「全部项目」选中时右侧提示文案 */
+  allHint?: string
+  /** 未选任何项目时的提示文案（缺省由 selectedIds 推导） */
+  specificHint?: string
 }) {
   const isAll = value === '*'
   const options: MultiSelectOption[] = useMemo(
-    () => projects.filter((p) => p.id != null).map((p) => ({ value: String(p.id), label: p.name })),
+    () =>
+      projects
+        .filter((p) => p.id != null)
+        .map((p) => ({ value: String(p.id), label: p.name })),
     [projects]
   )
 
@@ -75,10 +84,10 @@ export function ProjectScopeSelect({
         <span className="font-medium">全部项目</span>
         <span className="ml-auto text-xs text-muted-foreground">
           {isAll
-            ? '当前聚合所有项目的数据'
+            ? allHint
             : selectedIds.length > 0
               ? `已选 ${selectedIds.length} 个项目合并`
-              : '请选择具体项目'}
+              : (specificHint ?? '请选择具体项目')}
         </span>
       </button>
       <MultiSelect

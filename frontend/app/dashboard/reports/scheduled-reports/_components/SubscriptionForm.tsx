@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
 import { getCountryLabel, COUNTRY_OPTIONS } from '@/lib/country'
-import { ProjectScopeSelect } from './ProjectScopeSelect'
+import { ProjectScopeSelect } from '@/components/project-scope-select'
 import type { AIModelConfig, Frequency } from './types'
 import { MIN_HOUR_FOR_MONDAY, WEEKDAY_LABELS } from './types'
 

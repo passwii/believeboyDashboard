@@ -125,6 +125,7 @@ def create_api_key(
     label: str,
     created_by: str,
     scope: str = "read",
+    project_scope: str = "*",
     expires_at: datetime | None = None,
     agent_id: str | None = None,
 ) -> tuple[AgentApiKey, str]:
@@ -132,7 +133,9 @@ def create_api_key(
 
     The plaintext is only available here — the stored row holds the hash.
     ``agent_id`` 非空即"Agent 凭据"（必须与调用时的 X-Agent-Id 头一致）；
-    留空为存量 external 语义。Caller commits.
+    留空为存量 external 语义。``project_scope`` 为项目范围白名单
+    （"," 分隔 project_id；"*" = 全部，即本任务启用前的存量语义）；
+    校验逻辑见 ``app/api/agent/scope.py``。Caller commits.
     """
     plaintext, key_hash, key_prefix = generate_key()
     record = AgentApiKey(
@@ -140,6 +143,7 @@ def create_api_key(
         key_prefix=key_prefix,
         label=label[:128],
         scope=scope[:64],
+        project_scope=(project_scope or "*")[:255],
         expires_at=expires_at,
         created_by=created_by[:128],
         agent_id=agent_id[:128] if agent_id else None,
@@ -151,9 +155,7 @@ def create_api_key(
 
 def list_api_keys(db: Session) -> list[AgentApiKey]:
     """All keys, newest first (admin list view)."""
-    return list(
-        db.scalars(select(AgentApiKey).order_by(AgentApiKey.created_at.desc()))
-    )
+    return list(db.scalars(select(AgentApiKey).order_by(AgentApiKey.created_at.desc())))
 
 
 def list_agent_keys(db: Session) -> list[AgentApiKey]:

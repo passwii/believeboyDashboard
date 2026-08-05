@@ -57,6 +57,7 @@ def create_api_key(
         label=body.label,
         created_by=operator or "admin",
         scope=body.scope,
+        project_scope=body.project_scope,
         expires_at=body.expires_at,
         agent_id=body.agent_id,
     )
@@ -76,6 +77,7 @@ def create_api_key(
         key_prefix=record.key_prefix,
         label=record.label,
         scope=record.scope,
+        project_scope=record.project_scope,
         agent_id=record.agent_id,
         expires_at=record.expires_at,
         created_at=record.created_at,

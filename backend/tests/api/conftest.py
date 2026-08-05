@@ -67,6 +67,7 @@ def make_api_key():
         expires_at=None,
         revoked: bool = False,
         agent_id: str | None = None,
+        project_scope: str = "*",
     ) -> dict:
         db = SessionLocal()
         try:
@@ -76,12 +77,18 @@ def make_api_key():
                 created_by="pytest",
                 expires_at=expires_at,
                 agent_id=agent_id,
+                project_scope=project_scope,
             )
             if revoked:
                 record.is_revoked = True
             db.commit()
             created_ids.append(record.id)
-            return {"id": record.id, "plaintext": plaintext, "agent_id": agent_id}
+            return {
+                "id": record.id,
+                "plaintext": plaintext,
+                "agent_id": agent_id,
+                "project_scope": project_scope,
+            }
         finally:
             db.close()
 

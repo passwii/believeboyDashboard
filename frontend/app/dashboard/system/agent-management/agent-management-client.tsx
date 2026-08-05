@@ -14,10 +14,13 @@ import {
 import { Loader2, KeyRound, Copy, Check } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
+import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
+import { ProjectScopeSelect } from '@/components/project-scope-select'
 import {
   AgentApiKeyItem,
   createAgentApiKey,
   listAgentApiKeys,
+  normalizeProjectScope,
   revokeAgentApiKey,
 } from '@/lib/api/agent-key-admin'
 import { AgentUsageGuide, buildUsageText, fetchBackendBaseUrl } from './agent-usage-guide'
@@ -26,16 +29,36 @@ type CreatedResult = {
   plaintext_key: string
   agent_id: string
   label: string
+  project_scope: string
+}
+
+/** 把后端 project_scope 值格式化成可读文案（* = 全部项目；否则映射项目名）。 */
+function formatProjectScope(
+  scope: string | undefined | null,
+  projects: Array<{ id: number; name: string }>
+): string {
+  const value = normalizeProjectScope(scope)
+  if (value === '*') return '全部项目'
+  const nameById = new Map(projects.map((p) => [p.id, p.name]))
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((id) => nameById.get(Number(id)) ?? `#${id}`)
+    .join('、')
 }
 
 export function AgentManagementClient() {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
+  const { projects } = useManagedProjects()
   const [keys, setKeys] = useState<AgentApiKeyItem[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [label, setLabel] = useState('')
   const [agentId, setAgentId] = useState('')
+  const [projectScope, setProjectScope] = useState('*')
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [created, setCreated] = useState<CreatedResult | null>(null)
   const [copied, setCopied] = useState(false)
@@ -59,6 +82,14 @@ export function AgentManagementClient() {
     void refresh()
   }, [refresh])
 
+  const resetForm = useCallback(() => {
+    setLabel('')
+    setAgentId('')
+    setProjectScope('*')
+    setSelectedProjectIds([])
+    setCreated(null)
+  }, [])
+
   const handleCreate = async () => {
     if (!label.trim() || !agentId.trim()) return
     setSubmitting(true)
@@ -67,14 +98,18 @@ export function AgentManagementClient() {
         label: label.trim(),
         agent_id: agentId.trim(),
         expires_at: null,
+        project_scope: normalizeProjectScope(projectScope),
       })
       setCreated({
         plaintext_key: result.plaintext_key,
         agent_id: result.agent_id ?? agentId.trim(),
         label: result.label,
+        project_scope: result.project_scope ?? '*',
       })
       setLabel('')
       setAgentId('')
+      setProjectScope('*')
+      setSelectedProjectIds([])
       await refresh()
     } catch (error) {
       notify({
@@ -153,6 +188,7 @@ export function AgentManagementClient() {
                   <th className="py-2 pr-4 font-medium">名称</th>
                   <th className="py-2 pr-4 font-medium">Key 前缀</th>
                   <th className="py-2 pr-4 font-medium">Agent ID</th>
+                  <th className="py-2 pr-4 font-medium">项目范围</th>
                   <th className="py-2 pr-4 font-medium">最近使用</th>
                   <th className="py-2 pr-4 font-medium">状态</th>
                   <th className="py-2 font-medium">操作</th>
@@ -173,6 +209,9 @@ export function AgentManagementClient() {
                           —（存量 external key）
                         </span>
                       )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {formatProjectScope(item.project_scope, projects)}
                     </td>
                     <td className="py-2 pr-4 text-muted-foreground">
                       {item.last_used_at
@@ -202,7 +241,7 @@ export function AgentManagementClient() {
                 ))}
                 {keys.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       暂无凭据
                     </td>
                   </tr>
@@ -219,11 +258,7 @@ export function AgentManagementClient() {
         open={createOpen}
         onOpenChange={(open) => {
           setCreateOpen(open)
-          if (!open) {
-            setCreated(null)
-            setLabel('')
-            setAgentId('')
-          }
+          if (!open) resetForm()
         }}
       >
         <DialogContent>
@@ -255,6 +290,12 @@ export function AgentManagementClient() {
                   {created.agent_id}
                 </code>
               </div>
+              <div>
+                <div className="text-muted-foreground mb-1">项目范围</div>
+                <span className="text-sm">
+                  {formatProjectScope(created.project_scope, projects)}
+                </span>
+              </div>
               <p className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
                 ⚠ 明文仅展示一次，请妥善保存。调用时 Authorization 用明文 Key，
                 X-Agent-Id 用 Agent ID。
@@ -268,7 +309,14 @@ export function AgentManagementClient() {
                   )}
                   {usageCopied ? '已复制调用说明' : '复制调用说明'}
                 </Button>
-                <Button onClick={() => setCreateOpen(false)}>关闭</Button>
+                <Button
+                  onClick={() => {
+                    setCreateOpen(false)
+                    resetForm()
+                  }}
+                >
+                  关闭
+                </Button>
               </DialogFooter>
             </div>
           ) : (
@@ -296,6 +344,22 @@ export function AgentManagementClient() {
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  项目范围（空 = 全部项目）
+                </label>
+                <div className="mt-1">
+                  <ProjectScopeSelect
+                    value={projectScope}
+                    selectedIds={selectedProjectIds}
+                    onValueChange={setProjectScope}
+                    onSelectedIdsChange={setSelectedProjectIds}
+                    projects={projects}
+                    allHint="该凭据可访问所有项目的数据"
+                    specificHint="仅限所选项目，未选中的项目将返回 403"
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>
