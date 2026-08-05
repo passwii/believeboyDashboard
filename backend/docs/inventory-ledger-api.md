@@ -26,6 +26,9 @@ below).
 | 4 | GET | `/api/v1/inventory-ledger/receipt-clusters?project_id=&period=` | Receipts grouped by (date, warehouse) |
 | 5 | GET | `/api/v1/inventory-ledger/location-detail?project_id=&period=&msku?=` | SKU × warehouse × disposition EOM |
 | 6 | GET | `/api/v1/inventory-ledger/trend?project_id=&months=N` | Multi-month trend (uses `?months=` count, not `?period=`) |
+| 7 | GET | `/api/v1/inventory-ledger/detail?project_id=&period=&msku?=&fulfillment_center?=&event_type?=` | Event-level rows from the Detailed view (BEL-428) |
+| 8 | GET | `/api/v1/inventory-ledger/batches?project_id=&limit?=` | CSV ingest batch history — 排查数据版本 (BEL-428) |
+| 9 | GET | `/api/v1/inventory-ledger/consistency?project_id=&period=` | Cross-table reconciliation detail vs summary (requires full month, BEL-428) |
 
 ### 1.2 External (no auth, network-isolated)
 
@@ -37,6 +40,9 @@ below).
 | 4 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/receipt-clusters?period=` | Receipt clusters |
 | 5 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/integrity?period=` | Cross-month integrity check (requires full-month period) |
 | 6 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/trend?months=N` | Multi-month trend |
+| 7 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/detail?period=&msku?=&fulfillment_center?=&event_type?=` | Event-level rows from the Detailed view (BEL-428) |
+| 8 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/batches?limit?=` | CSV ingest batch history (BEL-428) |
+| 9 | GET | `/api/v1/external/projects/{project_id}/inventory-ledger/consistency?period=` | Cross-table reconciliation detail vs summary (BEL-428) |
 
 ---
 

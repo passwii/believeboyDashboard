@@ -63,7 +63,7 @@ def project(db_session: Session):
     db_session.flush()
     yield p
     db_session.execute(
-        text("DELETE FROM inventory_ledger_raw WHERE project_id = :pid"),
+        text("DELETE FROM inventory_ledger_summary WHERE project_id = :pid"),
         {"pid": p.id},
     )
     db_session.rollback()

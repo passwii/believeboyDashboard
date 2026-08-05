@@ -138,6 +138,76 @@ type LocationDetailResponse = {
   rows: LocationDetail[]
 }
 
+type LedgerDetailRow = {
+  id: number
+  date: string
+  fnsku: string | null
+  asin: string | null
+  msku: string
+  title: string | null
+  event_type: string
+  reference_id: string | null
+  quantity: number
+  fulfillment_center: string
+  disposition: string
+  reason: string | null
+  country: string | null
+  reconciled_quantity: number | null
+  unreconciled_quantity: number | null
+  date_and_time: string | null
+  store: string | null
+  batch_id: number | null
+}
+
+type LedgerDetailResponse = {
+  report_month: string
+  rows: LedgerDetailRow[]
+}
+
+type IngestBatchInfo = {
+  id: number
+  project_id: number
+  report_month: string
+  source_filename: string
+  file_hash: string
+  file_size_bytes: number
+  file_kind: string
+  loaded_by: string | null
+  loaded_at: string
+  completed_at: string | null
+  status: string
+  rows_parsed: number
+  rows_written_summary: number
+  rows_written_detail: number
+  rows_skipped_duplicate: number
+  rows_failed_validation: number
+  error_message: string | null
+  consistency_check: string | null
+  consistency_mismatch_count: number
+}
+
+type IngestBatchesResponse = {
+  project_id: number
+  batches: IngestBatchInfo[]
+}
+
+type ConsistencyMismatch = {
+  msku: string
+  location: string
+  disposition: string
+  detail_quantity: number
+  summary_delta: number
+  diff: number
+}
+
+type ConsistencyCheckResult = {
+  report_month: string
+  status: 'OK' | 'MISMATCH' | 'PENDING'
+  mismatch_count: number
+  mismatches: ConsistencyMismatch[]
+  checked_at: string
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InventoryLedgerPage() {
@@ -162,6 +232,13 @@ export default function InventoryLedgerPage() {
   const [events, setEvents] = useState<EventsResponse | null>(null)
   const [clusters, setClusters] = useState<ClustersResponse | null>(null)
   const [locationDetail, setLocationDetail] = useState<LocationDetailResponse | null>(null)
+  const [detailRows, setDetailRows] = useState<LedgerDetailResponse | null>(null)
+  const [batches, setBatches] = useState<IngestBatchesResponse | null>(null)
+  const [consistency, setConsistency] = useState<ConsistencyCheckResult | null>(null)
+  const [detailFilter, setDetailFilter] = useState<{
+    msku: string
+    eventType: string
+  }>({ msku: 'all', eventType: 'all' })
   const [skuFilter, setSkuFilter] = useState<string>('all')
 
   // Load projects
@@ -205,14 +282,20 @@ export default function InventoryLedgerPage() {
       const base = `${API_BASE}/inventory-ledger`
       const params = `project_id=${projectId}&period=${month}`
 
-      // allSettled: one failing endpoint must not take down the other three
+      // allSettled: one failing endpoint must not take down the other four
       // tabs' data (a single 500 used to lose everything).
-      const [snapRes, evtRes, clustRes, locRes] = await Promise.allSettled([
-        fetchLedgerJson<SnapshotResponse>(`${base}/snapshot?${params}`),
-        fetchLedgerJson<EventsResponse>(`${base}/events?${params}`),
-        fetchLedgerJson<ClustersResponse>(`${base}/receipt-clusters?${params}`),
-        fetchLedgerJson<LocationDetailResponse>(`${base}/location-detail?${params}`),
-      ])
+      const [snapRes, evtRes, clustRes, locRes, detailRes, batchRes, consRes] =
+        await Promise.allSettled([
+          fetchLedgerJson<SnapshotResponse>(`${base}/snapshot?${params}`),
+          fetchLedgerJson<EventsResponse>(`${base}/events?${params}`),
+          fetchLedgerJson<ClustersResponse>(`${base}/receipt-clusters?${params}`),
+          fetchLedgerJson<LocationDetailResponse>(`${base}/location-detail?${params}`),
+          fetchLedgerJson<LedgerDetailResponse>(`${base}/detail?${params}`),
+          fetchLedgerJson<IngestBatchesResponse>(
+            `${base}/batches?project_id=${projectId}`,
+          ),
+          fetchLedgerJson<ConsistencyCheckResult>(`${base}/consistency?${params}`),
+        ])
       // Race guard: drop results from a stale request.
       if (seq !== loadSeq.current) return
 
@@ -220,8 +303,11 @@ export default function InventoryLedgerPage() {
       setEvents(evtRes.status === 'fulfilled' ? evtRes.value : null)
       setClusters(clustRes.status === 'fulfilled' ? clustRes.value : null)
       setLocationDetail(locRes.status === 'fulfilled' ? locRes.value : null)
+      setDetailRows(detailRes.status === 'fulfilled' ? detailRes.value : null)
+      setBatches(batchRes.status === 'fulfilled' ? batchRes.value : null)
+      setConsistency(consRes.status === 'fulfilled' ? consRes.value : null)
 
-      const failures = [snapRes, evtRes, clustRes, locRes].filter(
+      const failures = [snapRes, evtRes, clustRes, locRes, detailRes, batchRes, consRes].filter(
         (r): r is PromiseRejectedResult => r.status === 'rejected',
       )
       if (failures.length > 0) {
@@ -229,7 +315,7 @@ export default function InventoryLedgerPage() {
         const firstMsg =
           firstReason instanceof Error ? firstReason.message : '加载失败'
         setLoadError(
-          failures.length === 4 ? firstMsg : `部分数据加载失败：${firstMsg}`,
+          failures.length === 7 ? firstMsg : `部分数据加载失败：${firstMsg}`,
         )
       }
     } catch (err) {
@@ -301,6 +387,8 @@ export default function InventoryLedgerPage() {
 
       {/* Integrity badge */}
       {snapshot?.integrity && <IntegrityBadge integrity={snapshot.integrity} />}
+      {/* Cross-table consistency badge (BEL-428) */}
+      {consistency && <ConsistencyBadge consistency={consistency} />}
 
       {/* Load error banner (BEL-417 iteration 1): real error + retry instead
           of a silent failure that looked like "no data". */}
@@ -341,6 +429,8 @@ export default function InventoryLedgerPage() {
             <TabsTrigger value="events">事件流水</TabsTrigger>
             <TabsTrigger value="clusters">入库记录</TabsTrigger>
             <TabsTrigger value="locations">仓库明细</TabsTrigger>
+            <TabsTrigger value="detail">事件明细</TabsTrigger>
+            <TabsTrigger value="batches">上传批次</TabsTrigger>
           </TabsList>
 
           <TabsContent value="snapshot">
@@ -362,6 +452,20 @@ export default function InventoryLedgerPage() {
               skuFilter={skuFilter}
               onSkuFilterChange={setSkuFilter}
               failed={loadError !== null && locationDetail === null}
+            />
+          </TabsContent>
+          <TabsContent value="detail">
+            <DetailTab
+              rows={detailRows?.rows ?? []}
+              filter={detailFilter}
+              onFilterChange={setDetailFilter}
+              failed={loadError !== null && detailRows === null}
+            />
+          </TabsContent>
+          <TabsContent value="batches">
+            <BatchesTab
+              batches={batches?.batches ?? []}
+              failed={loadError !== null && batches === null}
             />
           </TabsContent>
         </Tabs>
@@ -713,4 +817,259 @@ function DispositionBadge({ disposition }: { disposition: string }) {
     return <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 text-xs">可售</Badge>
   }
   return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-xs">{disposition}</Badge>
+}
+
+// ── Cross-table consistency badge (BEL-428) ──────────────────────────────────
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  Receipts: '入库',
+  Shipments: '出库',
+  WhseTransfers: '调拨',
+  CustomerReturns: '客户退货',
+  VendorReturns: '供应商退货',
+  Adjustments: '调整',
+}
+
+function ConsistencyBadge({ consistency }: { consistency: ConsistencyCheckResult }) {
+  if (consistency.status === 'OK') {
+    return (
+      <Badge variant="outline" className="gap-1 border-green-300 bg-green-50 text-green-700">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        双表对账通过（明细累加 = 汇总水位变动）
+      </Badge>
+    )
+  }
+  if (consistency.status === 'PENDING') {
+    return (
+      <Badge variant="outline" className="gap-1 border-yellow-300 bg-yellow-50 text-yellow-700">
+        <Clock4 className="h-3.5 w-3.5" />
+        本月无数据，暂无法对账
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="gap-1 border-red-300 bg-red-50 text-red-700">
+      <AlertTriangle className="h-3.5 w-3.5" />
+      双表对账异常（{consistency.mismatch_count} 项）
+    </Badge>
+  )
+}
+
+// ── Tab 5: Detail（事件明细） ─────────────────────────────────────────────────
+
+function DetailTab({
+  rows,
+  filter,
+  onFilterChange,
+  failed,
+}: {
+  rows: LedgerDetailRow[]
+  filter: { msku: string; eventType: string }
+  onFilterChange: (v: { msku: string; eventType: string }) => void
+  failed?: boolean
+}) {
+  const skuOptions = useMemo(() => {
+    const set = new Set(rows.map((r) => r.msku))
+    return ['all', ...Array.from(set).sort()]
+  }, [rows])
+  const eventOptions = useMemo(() => {
+    const set = new Set(rows.map((r) => r.event_type))
+    return ['all', ...Array.from(set).sort()]
+  }, [rows])
+  const filtered = useMemo(() => {
+    return rows.filter(
+      (r) =>
+        (filter.msku === 'all' || r.msku === filter.msku) &&
+        (filter.eventType === 'all' || r.event_type === filter.eventType),
+    )
+  }, [rows, filter])
+
+  const emptyText =
+    failed ? '数据加载失败，请点击右上角刷新按钮重试' : '无事件明细'
+
+  return (
+    <DataTableCard>
+      <DataTableCardHeader
+        title="事件明细"
+        description={`${filtered.length} 条事件`}
+        action={
+          <div className="flex items-center gap-2">
+            <Select
+              value={filter.msku}
+              onValueChange={(v) => onFilterChange({ ...filter, msku: v })}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="全部 SKU" />
+              </SelectTrigger>
+              <SelectContent>
+                {skuOptions.map((s) => (
+                  <SelectItem key={s} value={s}>{s === 'all' ? '全部 SKU' : s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filter.eventType}
+              onValueChange={(v) => onFilterChange({ ...filter, eventType: v })}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="全部类型" />
+              </SelectTrigger>
+              <SelectContent>
+                {eventOptions.map((e) => (
+                  <SelectItem key={e} value={e}>
+                    {e === 'all' ? '全部类型' : (EVENT_TYPE_LABELS[e] ?? e)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
+      <DataTableCardBody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className={DENSE_HEAD}>日期</TableHead>
+              <TableHead className={DENSE_HEAD}>SKU</TableHead>
+              <TableHead className={DENSE_HEAD}>事件</TableHead>
+              <TableHead className={cn(DENSE_HEAD, 'text-right')}>数量</TableHead>
+              <TableHead className={DENSE_HEAD}>仓库</TableHead>
+              <TableHead className={DENSE_HEAD}>Disposition</TableHead>
+              <TableHead className={DENSE_HEAD}>Reference ID</TableHead>
+              <TableHead className={DENSE_HEAD}>批次</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="h-24 text-center text-muted-foreground">{emptyText}</td>
+              </tr>
+            ) : (
+              filtered.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className={DENSE_CELL}>{r.date}</TableCell>
+                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{r.msku}</TableCell>
+                  <TableCell className={DENSE_CELL}>
+                    <Badge variant="outline" className="text-xs">
+                      {EVENT_TYPE_LABELS[r.event_type] ?? r.event_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className={cn(
+                    DENSE_CELL,
+                    'text-right font-mono text-xs',
+                    r.quantity > 0 ? 'text-green-600' : r.quantity < 0 ? 'text-red-600' : undefined,
+                  )}>
+                    {r.quantity > 0 ? `+${r.quantity}` : r.quantity}
+                  </TableCell>
+                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{r.fulfillment_center}</TableCell>
+                  <TableCell className={DENSE_CELL}>
+                    <DispositionBadge disposition={r.disposition} />
+                  </TableCell>
+                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
+                    {r.reference_id || '—'}
+                  </TableCell>
+                  <TableCell className={cn(DENSE_CELL, 'font-mono text-xs text-muted-foreground')}>
+                    {r.batch_id ?? '—'}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </DataTableCardBody>
+    </DataTableCard>
+  )
+}
+
+// ── Tab 6: Batches（上传批次） ────────────────────────────────────────────────
+
+const BATCH_STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  success: { label: '成功', className: 'border-green-200 bg-green-50 text-green-700' },
+  failed: { label: '失败', className: 'border-red-200 bg-red-50 text-red-700' },
+  running: { label: '处理中', className: 'border-blue-200 bg-blue-50 text-blue-700' },
+  pending: { label: '等待中', className: 'border-yellow-200 bg-yellow-50 text-yellow-700' },
+  partial: { label: '部分成功', className: 'border-yellow-200 bg-yellow-50 text-yellow-700' },
+}
+
+function BatchesTab({ batches, failed }: { batches: IngestBatchInfo[]; failed?: boolean }) {
+  const emptyText =
+    failed ? '数据加载失败，请点击右上角刷新按钮重试' : '暂无上传记录'
+  return (
+    <DataTableCard>
+      <DataTableCardHeader
+        title="上传批次"
+        description="每次 CSV 上传留档：文件指纹 / 行数 / 状态 / 对账结果，用于排查数据版本"
+      />
+      <DataTableCardBody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className={DENSE_HEAD}>批次 ID</TableHead>
+              <TableHead className={DENSE_HEAD}>报表月</TableHead>
+              <TableHead className={DENSE_HEAD}>类型</TableHead>
+              <TableHead className={DENSE_HEAD}>文件名</TableHead>
+              <TableHead className={cn(DENSE_HEAD, 'text-right')}>解析行</TableHead>
+              <TableHead className={cn(DENSE_HEAD, 'text-right')}>汇总行</TableHead>
+              <TableHead className={cn(DENSE_HEAD, 'text-right')}>明细行</TableHead>
+              <TableHead className={DENSE_HEAD}>状态</TableHead>
+              <TableHead className={DENSE_HEAD}>对账</TableHead>
+              <TableHead className={DENSE_HEAD}>上传时间</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {batches.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="h-24 text-center text-muted-foreground">{emptyText}</td>
+              </tr>
+            ) : (
+              batches.map((b) => {
+                const st = BATCH_STATUS_LABELS[b.status] ?? {
+                  label: b.status,
+                  className: 'border-gray-200 bg-gray-50 text-gray-700',
+                }
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{b.id}</TableCell>
+                    <TableCell className={DENSE_CELL}>{b.report_month}</TableCell>
+                    <TableCell className={DENSE_CELL}>
+                      <Badge variant="outline" className="text-xs">
+                        {b.file_kind === 'summary' ? '汇总' : b.file_kind === 'detail' ? '明细' : b.file_kind}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'max-w-[260px] truncate text-xs')} title={b.source_filename}>
+                      {b.source_filename}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right font-mono text-xs')}>{b.rows_parsed}</TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right font-mono text-xs')}>{b.rows_written_summary}</TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right font-mono text-xs')}>{b.rows_written_detail}</TableCell>
+                    <TableCell className={DENSE_CELL}>
+                      <Badge variant="outline" className={cn('text-xs', st.className)}>{st.label}</Badge>
+                    </TableCell>
+                    <TableCell className={DENSE_CELL}>
+                      {b.consistency_check ? (
+                        b.consistency_check === 'ok' ? (
+                          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 text-xs">OK</Badge>
+                        ) : b.consistency_check === 'mismatch' ? (
+                          <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 text-xs">
+                            异常（{b.consistency_mismatch_count}）
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{b.consistency_check}</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-xs text-muted-foreground')}>
+                      {b.loaded_at ? b.loaded_at.slice(0, 16).replace('T', ' ') : '—'}
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </DataTableCardBody>
+    </DataTableCard>
+  )
 }

@@ -310,7 +310,8 @@ def commit_report_upload(
         project = _get_project_by_name(db, project_name)
         _invalidate_daily_analysis_cache(project.id)
     elif report_type == "inventory_ledger":
-        # Amazon Detailed Inventory Ledger CSV → inventory_ledger_raw table
+        # Amazon Inventory Ledger CSV → inventory_ledger_summary / _detail
+        # (auto-detected by headers) + inventory_ledger_ingest_batch
         from app.services.inventory.ledger import ingest_ledger_csv
 
         project = _get_project_by_name(db, project_name)
@@ -322,6 +323,7 @@ def commit_report_upload(
             project_id=project.id,
             csv_content=csv_content,
             filename=payload.original_filename or "",
+            loaded_by=operator,
         )
         response_status = "persisted"
         message = f"库存盘点数据已入库（{row_count} 行）"

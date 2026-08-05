@@ -24,7 +24,10 @@ from app.api.v1.endpoints.inventory_ledger_common import (
     resolve_period_inputs,
 )
 from app.schemas.inventory_ledger import (
+    ConsistencyCheckResult,
     EventsResponse,
+    IngestBatchesResponse,
+    LedgerDetailResponse,
     LocationDetailResponse,
     MonthlySnapshotResponse,
     MonthsResponse,
@@ -32,14 +35,17 @@ from app.schemas.inventory_ledger import (
     TrendResponse,
 )
 from app.services.inventory.ledger import (
+    check_ledger_consistency,
     check_ledger_integrity,
     get_available_months,
+    get_ledger_detail_rows,
     get_month_disposition_summary,
     get_receipt_clusters,
     get_sku_location_eom,
     get_sku_month_eom,
     get_sku_month_events,
     get_trend,
+    list_ingest_batches,
 )
 
 router = APIRouter(dependencies=[Depends(protected)])
@@ -287,3 +293,112 @@ def get_trend_endpoint(
     """Multi-month aggregated trend: EOM qty, events, damaged pct per month."""
     items = get_trend(db, project_id, months=months)
     return TrendResponse(project_id=project_id, months=items)
+
+
+@router.get(
+    "/detail",
+    response_model=LedgerDetailResponse,
+    summary="Event-level detail rows (Detailed view)",
+    description=(
+        "Returns event-level rows from the Amazon Detailed view for the "
+        "resolved period — one row per inventory event (receipt, shipment, "
+        "transfer, return, adjustment) with its quantity, warehouse, "
+        "disposition and reference. Optional filters: ``msku``, "
+        "``fulfillment_center``, ``event_type``.\n\n"
+        "Period values: see ``backend/docs/inventory-ledger-api.md``."
+    ),
+)
+def get_detail_rows(
+    project_id: int = Query(...),
+    period: str = Query(
+        ...,
+        description=(
+            "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``."
+        ),
+    ),
+    start_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    msku: str | None = Query(default=None, description="Optional SKU filter"),
+    fulfillment_center: str | None = Query(
+        default=None, description="Optional FBA warehouse code filter"
+    ),
+    event_type: str | None = Query(
+        default=None, description="Optional event type filter"
+    ),
+    db: Session = Depends(get_db_session),
+) -> LedgerDetailResponse:
+    start, end, _report_month = resolve_period_inputs(
+        period,
+        start_date,
+        end_date,
+    )
+    rows = get_ledger_detail_rows(
+        db,
+        project_id,
+        start,
+        end,
+        msku=msku,
+        fulfillment_center=fulfillment_center,
+        event_type=event_type,
+    )
+    return LedgerDetailResponse(report_month=start, rows=rows)
+
+
+@router.get(
+    "/batches",
+    response_model=IngestBatchesResponse,
+    summary="List CSV ingest batches (traceability)",
+    description=(
+        "Returns the upload history for this project — one row per CSV ingest "
+        "run with file identity (filename + sha256), row counts, status and "
+        "the cross-table consistency result. Use this to figure out which "
+        "file version populated a given month (排查版本)."
+    ),
+)
+def list_batches(
+    project_id: int = Query(...),
+    limit: int = Query(100, ge=1, le=500, description="Max batches to return"),
+    db: Session = Depends(get_db_session),
+) -> IngestBatchesResponse:
+    batches = list_ingest_batches(db, project_id, limit=limit)
+    return IngestBatchesResponse(project_id=project_id, batches=batches)
+
+
+@router.get(
+    "/consistency",
+    response_model=ConsistencyCheckResult,
+    summary="Cross-table consistency check (detail vs summary)",
+    description=(
+        "Reconciles the Detailed view against the Summary truth table for a "
+        "full calendar month: per (msku, location, disposition), compares "
+        "sum(detail.quantity) against (last summary ending - first summary "
+        "starting). Status is ``OK``, ``MISMATCH``, or ``PENDING`` (neither "
+        "view has data for the month).\n\n"
+        "Only full-calendar-month period values make sense here; partial "
+        "windows (7d/30d/custom) return 400."
+    ),
+)
+def get_consistency(
+    project_id: int = Query(...),
+    period: str = Query(
+        ...,
+        description=("REQUIRED. Must resolve to a full calendar month."),
+    ),
+    db: Session = Depends(get_db_session),
+) -> ConsistencyCheckResult:
+    _start, _end, report_month = resolve_period_inputs(period, None, None)
+    if report_month is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"period={period!r} does not resolve to a full calendar month; "
+                "consistency check requires a complete ledger partition"
+            ),
+        )
+    return check_ledger_consistency(db, project_id, report_month)
