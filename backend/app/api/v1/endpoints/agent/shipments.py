@@ -884,3 +884,79 @@ async def recalculate_shipment_costs(
         build_shipment_schedule_detail(row, sku_count, total_quantity).model_dump(),
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
+
+
+# ============================================================
+# 删除路由（confirm 两步；不可逆）
+# ============================================================
+
+
+def _validate_delete(body: dict, request: Request) -> None:
+    _check_idempotency_header(request)
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    db = SessionLocal()
+    try:
+        _resolve_schedule(db, project_id, shipment_no)
+    finally:
+        db.close()
+
+
+def _preview_delete(body: dict, request: Request) -> dict:
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    db = SessionLocal()
+    try:
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        items = list(schedule.items)
+        preview = {
+            "action": "shipment.delete",
+            "shipment_no": shipment_no,
+            "shipment_status": str(schedule.shipment_status),
+            "items_count": len(items),
+            "total_quantity": sum(int(item.quantity or 0) for item in items),
+            "note": "将永久删除该货件及其 SKU 明细，并联动刷新 SKU 汇总与首段费用",
+        }
+    finally:
+        db.close()
+    return preview
+
+
+@shipments_router.delete(
+    "/{shipment_no}", dependencies=[Depends(require_agent_write_rate_limit)]
+)
+@require_confirmation(
+    action="shipment.delete",
+    build_preview=_preview_delete,
+    validate=_validate_delete,
+)
+async def delete_shipment(
+    request: Request, db: Session = Depends(get_primary_db_session)
+) -> dict:
+    project_id = int(request.path_params["project_id"])
+    shipment_no = str(request.path_params["shipment_no"])
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        # delete 前收集 before：删除后明细联动已被标记删除，读原值不再可靠
+        before = {
+            "shipment_no": schedule.shipment_no,
+            "project_id": schedule.project_id,
+            "status": schedule.shipment_status,
+            "items_count": len(schedule.items),
+        }
+        row = shipment_service.delete_shipment_schedule(db, schedule.id)
+        _invalidate_shipment_caches(row)
+        append_operation_audit_log(
+            db,
+            action="shipment.delete",
+            target_type="shipment_schedule",
+            target_id=row.id,
+            operator=None,
+            before=before,
+            **_audit_kwargs(request),
+        )
+        db.commit()
+    return agent_ok(
+        {"deleted": True, "shipment_no": shipment_no},
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
