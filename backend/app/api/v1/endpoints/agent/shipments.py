@@ -1,0 +1,196 @@
+"""Agent 货件域路由（设计稿 P2；spec §5）。
+
+读路由不落审计、绕过 Redis 读缓存直查 DB；写路由全部走 confirm 两步确认，
+审计归因走 agent_id / idempotency_key（operator=NULL）。
+service 层抛出的裸 HTTPException 在 ``_service_errors`` 里统一翻译成响应壳。
+"""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.api.agent.errors import AgentApiError, ErrorCode
+from app.api.agent.response import agent_ok
+from app.api.deps import get_read_db_session
+from app.models import Project
+from app.models.shipment_schedule import ShipmentSchedule
+from app.schemas.shipment_schedule import (
+    ShipmentFbaBoxDetailItem,
+    ShipmentFbaBoxDetailResponse,
+    ShipmentScheduleListResponse,
+)
+from app.services import shipment as shipment_service
+from app.services.shipment import summary as shipment_summary_service
+from app.services.shipment.serialization import (
+    build_shipment_schedule_detail,
+    serialize_schedule_list_item,
+)
+
+shipments_router = APIRouter(
+    prefix="/projects/{project_id}/shipments",
+    tags=["agent-shipments"],
+)
+
+
+# ============================================================
+# 壳翻译与解析 helper（后续写任务继续追加）
+# ============================================================
+
+
+def _translate_http_exception(exc: HTTPException) -> AgentApiError:
+    detail = str(exc.detail) if exc.detail else None
+    if exc.status_code == 404:
+        return AgentApiError(ErrorCode.RESOURCE_NOT_FOUND, human_message=detail)
+    if exc.status_code == 409:
+        return AgentApiError(ErrorCode.SHIPMENT_DUPLICATE_NO, human_message=detail)
+    if exc.status_code == 400 and "SKU" in (detail or ""):
+        return AgentApiError(ErrorCode.SHIPMENT_ITEMS_INVALID_SKU, human_message=detail)
+    return AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail)
+
+
+@contextmanager
+def _service_errors():
+    """把 service 层 HTTPException 翻译成 agent 响应壳（设计稿 §5）。"""
+    try:
+        yield
+    except AgentApiError:
+        raise
+    except HTTPException as exc:
+        raise _translate_http_exception(exc) from None
+
+
+def _get_project_or_shell_404(db: Session, project_id: int) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise AgentApiError(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            human_message=f"项目 {project_id} 不存在",
+        )
+    return project
+
+
+def _resolve_schedule(db: Session, project_id: int, shipment_no: str) -> ShipmentSchedule:
+    row = db.scalars(
+        select(ShipmentSchedule).where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.shipment_no == shipment_no,
+        )
+    ).first()
+    if row is None:
+        raise AgentApiError(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            human_message=f"货件 {shipment_no} 不存在或不属于该项目",
+        )
+    return row
+
+
+# ============================================================
+# 读路由
+# ============================================================
+
+
+@shipments_router.get("")
+def list_shipments(
+    project_id: int,
+    db: Session = Depends(get_read_db_session),
+    country: str | None = Query(default=None),
+    shipment_status: str | None = Query(default=None),
+    shipping_method: str | None = Query(default=None),
+    shipment_no: str | None = Query(default=None),
+    created_date_from: str | None = Query(default=None),
+    created_date_to: str | None = Query(default=None),
+    etd_from: str | None = Query(default=None),
+    etd_to: str | None = Query(default=None),
+    eta_from: str | None = Query(default=None),
+    eta_to: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    with _service_errors():
+        _get_project_or_shell_404(db, project_id)
+        rows, total, has_next = shipment_service.list_shipment_schedules(
+            db,
+            project_id=project_id,
+            country=country,
+            shipment_status=shipment_status,
+            shipping_method=shipping_method,
+            shipment_no=shipment_no,
+            created_date_from=created_date_from,
+            created_date_to=created_date_to,
+            etd_from=etd_from,
+            etd_to=etd_to,
+            eta_from=eta_from,
+            eta_to=eta_to,
+            page=page,
+            page_size=page_size,
+            include_total=True,
+        )
+    payload = ShipmentScheduleListResponse(
+        items=[
+            serialize_schedule_list_item(row, sku_count, total_quantity)
+            for row, sku_count, total_quantity in rows
+        ],
+        page=page,
+        page_size=page_size,
+        total=total,
+        has_next=has_next,
+    )
+    return agent_ok(payload.model_dump())
+
+
+@shipments_router.get("/{shipment_no}")
+def get_shipment(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        row, sku_count, total_quantity = shipment_service.get_shipment_schedule_detail(
+            db, schedule.id
+        )
+    detail = build_shipment_schedule_detail(row, sku_count, total_quantity)
+    return agent_ok(detail.model_dump())
+
+
+@shipments_router.get("/{shipment_no}/sku-summary")
+def get_shipment_sku_summary(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    with _service_errors():
+        _resolve_schedule(db, project_id, shipment_no)
+        rows = shipment_summary_service.list_shipment_sku_summary(
+            db,
+            project_id=project_id,
+            shipment_nos=[shipment_no],
+            include_only_history_calc=False,
+            shipment_status=None,
+        )
+    return agent_ok({"items": rows})
+
+
+@shipments_router.get("/{shipment_no}/fba-box-detail")
+def get_shipment_fba_box_detail(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+) -> dict:
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        rows, items = shipment_service.list_shipment_fba_box_details(
+            db, shipment_nos=[shipment_no]
+        )
+    response = ShipmentFbaBoxDetailResponse(
+        project_ids=[int(row.project_id) for row in rows],
+        project_names=[str(row.project_name_snapshot) for row in rows],
+        countries=[str(row.country) for row in rows],
+        shipment_nos=[str(row.shipment_no) for row in rows],
+        items=[ShipmentFbaBoxDetailItem(**item) for item in items],
+    )
+    return agent_ok(response.model_dump())
