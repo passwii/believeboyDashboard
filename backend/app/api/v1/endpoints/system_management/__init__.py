@@ -5,6 +5,7 @@ System Management 端点入口。
 """
 from fastapi import APIRouter
 
+from app.api.v1.endpoints.system_management.agent_access import router as agent_access_router
 from app.api.v1.endpoints.system_management.audit import router as audit_router
 from app.api.v1.endpoints.system_management.data_management import router as data_management_router, cache_router
 from app.api.v1.endpoints.system_management.commission import (
@@ -21,6 +22,9 @@ router = APIRouter(prefix="/system-management", tags=["系统管理"])
 
 # 审计日志
 router.include_router(audit_router)
+
+# Agent 访问日志
+router.include_router(agent_access_router)
 
 # 数据管理
 router.include_router(data_management_router)
