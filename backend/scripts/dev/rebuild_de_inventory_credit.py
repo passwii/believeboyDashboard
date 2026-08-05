@@ -75,7 +75,12 @@ def main() -> int:
     total = 0
 
     with SessionLocal() as db:
-        stmt = select(MonthlyReport).where(MonthlyReport.country == "DE")
+        stmt = select(MonthlyReport).where(
+            MonthlyReport.country == "DE",
+            # 只重建当前生效版本：历史 is_current=False 版本保持原口径
+            # （前端不展示，且按当时逻辑生成，不应被后修逻辑覆盖）
+            MonthlyReport.is_current.is_(True),
+        )
         if args.report_id is not None:
             stmt = stmt.where(MonthlyReport.id == args.report_id)
         reports = list(
