@@ -24,6 +24,7 @@ from app.schemas.shipment_schedule import (
     ShipmentScheduleListResponse,
 )
 from app.services import shipment as shipment_service
+from app.services.audit_log_service import query_operation_audit_log
 from app.services.shipment import summary as shipment_summary_service
 from app.services.shipment.serialization import (
     build_shipment_schedule_detail,
@@ -194,3 +195,40 @@ def get_shipment_fba_box_detail(
         items=[ShipmentFbaBoxDetailItem(**item) for item in items],
     )
     return agent_ok(response.model_dump())
+
+
+@shipments_router.get("/{shipment_no}/audit")
+def get_shipment_audit(
+    project_id: int,
+    shipment_no: str,
+    db: Session = Depends(get_read_db_session),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    with _service_errors():
+        schedule = _resolve_schedule(db, project_id, shipment_no)
+        rows = query_operation_audit_log(
+            db,
+            target_type="shipment_schedule",
+            target_id=str(schedule.id),
+            limit=limit,
+        )
+    return agent_ok(
+        {
+            "shipment_no": shipment_no,
+            "items": [
+                {
+                    "id": row.id,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "action": row.action,
+                    "agent_id": row.agent_id,
+                    "operator": row.operator,
+                    "idempotency_key": row.idempotency_key,
+                    "result": row.result,
+                    "before": row.before_json,
+                    "after": row.after_json,
+                    "error_message": row.error_message,
+                }
+                for row in rows
+            ],
+        }
+    )
