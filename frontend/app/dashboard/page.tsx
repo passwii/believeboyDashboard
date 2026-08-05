@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import { Sparkles } from 'lucide-react'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
 import { MotionStagger, MotionStaggerItem } from '@/components/motion/MotionStagger'
@@ -21,6 +23,7 @@ import { useInViewOnce } from '@/lib/hooks/use-in-view-once'
 import { fmtMoney, fmtNum, fmtPct, formatYMD } from '@/lib/dashboard-format'
 import { useNotifications } from '@/components/notifications'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
 const LazyDashboardSalesChart = dynamic(
@@ -592,6 +595,15 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
+      {/* v2 实验入口——临时，实验结束后移除 */}
+      <div className="flex justify-end">
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/dashboard/v2">
+            试试新版
+            <Sparkles className="ml-1 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
       {/*
        * iPad portrait (768–1023px) intentionally stays single-column:
        * the 2:3 split would compress tiles to ~200px each. Side-by-side
