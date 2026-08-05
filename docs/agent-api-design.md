@@ -168,7 +168,7 @@ Content-Type: application/json
 - `confirm_token` 必须未过期（默认 300s）
 - 校验失败返回 `CONFIRM_TOKEN_INVALID | CONFIRM_TOKEN_EXPIRED | IDEMPOTENCY_KEY_CONFLICT`
 
-`confirm_token` 存 Redis（现有 `app/services/infra` 提供 Redis 客户端），key=`agent:confirm:{token}`，value 含 `{agent_id, action, body_hash, created_at}`，TTL=300s，用后即删。
+`confirm_token` 存 Redis（现有 `app/services/infra` 提供 Redis 客户端），key=`{redis_key_prefix}:agent:confirm:{token}`，value 含 `{agent_id, action, idempotency_key, body_hash, created_at}`，逻辑 TTL=300s（物理 TTL=2×，以区分过期与不存在），**原子 pop（Lua GET+DEL）用后即删**——并发重放只有一个能取到 token（P2 准入门槛）。
 
 > **HTTP 状态约定**：confirm 预览响应返回 **HTTP 200** + `ok:false, requires_confirmation:true`——这是协议内的正常一步，不是错误；让 Agent 用统一的成功解析路径处理它。真正的失败（token 过期/不匹配）才返回 4xx（见 §5.3）。
 
