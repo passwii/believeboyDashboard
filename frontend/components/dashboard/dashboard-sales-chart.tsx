@@ -23,7 +23,7 @@ import {
   formatAxisMoney,
 } from '@/lib/dashboard-format'
 
-import type { DashboardDailyData } from '@/app/dashboard/page'
+import type { DashboardDailyData } from '@/app/dashboard/v1/page'
 
 type DailyAnalysisRow = {
   date: string

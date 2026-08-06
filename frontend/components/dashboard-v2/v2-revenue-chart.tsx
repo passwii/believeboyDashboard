@@ -2,7 +2,7 @@
 
 import type * as React from 'react'
 import { TrendingUp } from 'lucide-react'
-import { Bar, BarChart, XAxis } from 'recharts'
+import { Bar, BarChart, Line, XAxis, YAxis } from 'recharts'
 
 import {
   CardContent,
@@ -13,14 +13,17 @@ import {
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
 
 import { V2Card } from './v2-card'
 import { Delta, DeltaIcon, DeltaValue } from './v2-delta'
+import { formatCompactCurrency } from './v2-format'
 
-type RevenueRow = { date: string; sales_amount: number }
+type RevenueRow = { date: string; sales_amount: number; units_ordered: number }
 
 export interface V2RevenueChartProps {
   currentRows: RevenueRow[]
@@ -31,6 +34,10 @@ const chartConfig = {
   sales: {
     label: '销售额',
     color: '#2563eb',
+  },
+  volume: {
+    label: '销量',
+    color: '#60a5fa',
   },
 } satisfies ChartConfig
 
@@ -64,7 +71,12 @@ function dayLabel(isoDate: string): string {
 }
 
 export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueChartProps) {
-  const chartRows = currentRows.map((r) => ({ day: dayLabel(r.date), sales: r.sales_amount }))
+  // 销售额（左轴柱） + 销量（右轴折线）—— 复合图增强数据观察性
+  const chartRows = currentRows.map((r) => ({
+    day: dayLabel(r.date),
+    sales: r.sales_amount,
+    volume: r.units_ordered ?? 0,
+  }))
   const total = currentRows.reduce((s, r) => s + r.sales_amount, 0)
   const prevTotal = comparisonRows.reduce((s, r) => s + r.sales_amount, 0)
   const delta = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : 0
@@ -82,11 +94,15 @@ export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueCh
             <DeltaValue />
           </Delta>
         </div>
-        <CardDescription>每日销售额（近 7 天）</CardDescription>
+        <CardDescription>每日销售额与销量（近 7 天）</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer className="aspect-auto h-60 w-full md:h-80" config={chartConfig}>
-          <BarChart accessibilityLayer data={chartRows}>
+          <BarChart
+            accessibilityLayer
+            data={chartRows}
+            margin={{ left: 4, right: 4, top: 8 }}
+          >
             <XAxis
               axisLine={false}
               dataKey="day"
@@ -95,8 +111,41 @@ export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueCh
               tickLine={false}
               tickMargin={10}
             />
-            <ChartTooltip content={<ChartTooltipContent hideLabel />} cursor={false} />
-            <Bar dataKey="sales" fill="var(--color-sales)" shape={<CustomGradientBar />} />
+            {/* 销售额 / 销量量级差异大，分左右双轴 */}
+            <YAxis
+              axisLine={false}
+              tickFormatter={(value) => formatCompactCurrency(Number(value))}
+              tickLine={false}
+              width={52}
+              yAxisId="left"
+            />
+            <YAxis
+              axisLine={false}
+              orientation="right"
+              tickLine={false}
+              width={44}
+              yAxisId="right"
+            />
+            <ChartTooltip
+              content={<ChartTooltipContent hideLabel />}
+              cursor={{ stroke: 'var(--border)', strokeDasharray: '4 4' }}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar
+              dataKey="sales"
+              fill="var(--color-sales)"
+              shape={<CustomGradientBar />}
+              yAxisId="left"
+            />
+            <Line
+              activeDot={{ r: 4 }}
+              dataKey="volume"
+              dot={false}
+              stroke="var(--color-volume)"
+              strokeWidth={2.5}
+              type="monotone"
+              yAxisId="right"
+            />
           </BarChart>
         </ChartContainer>
       </CardContent>

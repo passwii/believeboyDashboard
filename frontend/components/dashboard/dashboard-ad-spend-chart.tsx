@@ -23,7 +23,7 @@ import {
   formatAxisMoney,
 } from '@/lib/dashboard-format'
 
-import type { DashboardDailyData } from '@/app/dashboard/page'
+import type { DashboardDailyData } from '@/app/dashboard/v1/page'
 
 const CHART_CONFIG = {
   sales_amount: { label: '销售额', color: 'hsl(var(--chart-1))' },

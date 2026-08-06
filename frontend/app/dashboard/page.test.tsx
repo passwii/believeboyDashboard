@@ -120,10 +120,9 @@ beforeEach(() => {
 })
 
 describe('DashboardV2Page', () => {
-  it('渲染页面级项目选择器与返回旧版入口', async () => {
+  it('渲染页面级项目选择器', async () => {
     render(<DashboardV2Page />)
     expect(screen.getByText('全部项目')).toBeInTheDocument()
-    expect(screen.getByText('返回旧版')).toBeInTheDocument()
   })
 
   it('渲染真实业务区块（项目排行 标题 + 四个图表占位）', async () => {
