@@ -99,6 +99,8 @@ def _to_item(row: NewProductCalculation) -> NewProductCalculationItem:
         },
         warnings=row.warnings_json or [],
         notes=row.notes,
+        source=row.source,
+        observed_at=row.observed_at,
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -206,6 +208,8 @@ def _create_snapshot(
         else None,
         warnings_json=payload.warnings,
         notes=payload.notes,
+        source=payload.source,
+        observed_at=payload.observed_at,
         created_by=(operator or "").strip() or None,
     )
 
@@ -284,6 +288,10 @@ def _update_snapshot(
     )
     existing.warnings_json = payload.warnings
     existing.notes = payload.notes
+    if payload.source is not None:
+        existing.source = payload.source
+    if payload.observed_at is not None:
+        existing.observed_at = payload.observed_at
     if operator:
         existing.created_by = (operator or "").strip() or None
 

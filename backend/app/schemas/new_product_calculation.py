@@ -7,7 +7,17 @@ from pydantic import BaseModel, Field
 
 
 InboundPlacementMode = Literal["single_destination", "amazon_optimized_split"]
-CalculationType = Literal["profit_calc", "profit_reverse", "eu_accounting"]
+CalculationType = Literal[
+    "profit_calc",
+    "profit_reverse",
+    "cost_reverse",
+    "fbm_calc",
+    "eu_accounting",
+]
+# Agent W1 白名单（D2b 拍板：4 种全可存；EU 不纳入新品域）
+AgentCalculationType = Literal[
+    "profit_calc", "profit_reverse", "cost_reverse", "fbm_calc"
+]
 
 
 class NewProductCalculationDimensions(BaseModel):
@@ -113,6 +123,9 @@ class NewProductCalculationItem(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     # 备注
     notes: str | None = None
+    # 溯源字段（BLF-451 D1；agent 通道写入声明采集渠道）
+    source: str | None = None
+    observed_at: datetime | None = None
     # 操作人
     created_by: str | None = None
     created_at: datetime
@@ -206,6 +219,9 @@ class NewProductCalculationCreateRequest(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     # 备注
     notes: str | None = None
+    # 溯源字段（BLF-451 D1；agent 通道写入声明采集渠道，内部端点可留空）
+    source: str | None = None
+    observed_at: datetime | None = None
 
 
 class NewProductCalculationListResponse(BaseModel):

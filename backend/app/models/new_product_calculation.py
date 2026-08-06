@@ -149,6 +149,12 @@ class NewProductCalculation(Base):
         Numeric(8, 6), nullable=True
     )
 
+    # 溯源字段（BLF-451 D1：加列，对齐店铺域；agent 通道写入声明采集渠道）
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    observed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # 警告信息
     warnings_json: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     # 备注

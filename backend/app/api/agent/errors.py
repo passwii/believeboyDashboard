@@ -39,6 +39,9 @@ class ErrorCode(str, Enum):
     SHOP_CALCULATION_INVALID_SOURCE = "SHOP_CALCULATION_INVALID_SOURCE"
     SHOP_CALCULATION_INVALID_SKU = "SHOP_CALCULATION_INVALID_SKU"
     SHOP_CALCULATION_AMBIGUOUS_COUNTRY = "SHOP_CALCULATION_AMBIGUOUS_COUNTRY"
+    # 新品测算域（BLF-451）——注：D2b 拍板 4 种全可存后不再需要 INVALID_TYPE
+    NEW_PRODUCT_CALCULATION_INVALID_SOURCE = "NEW_PRODUCT_CALCULATION_INVALID_SOURCE"
+    NEW_PRODUCT_CALCULATION_INVALID_SKU = "NEW_PRODUCT_CALCULATION_INVALID_SKU"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -60,6 +63,8 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.SHOP_CALCULATION_INVALID_SOURCE: 400,
     ErrorCode.SHOP_CALCULATION_INVALID_SKU: 400,
     ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY: 400,
+    ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SOURCE: 400,
+    ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: 400,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -117,6 +122,14 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY: (
         "该 SKU 存在多个国家站点，需指定 country",
         "用 details 里的国家列表带 ?country= 重试",
+    ),
+    ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SOURCE: (
+        "写入来源不合法",
+        "合法来源：agent_listing_pull、agent_review_scrape、agent_market_research、external_api",
+    ),
+    ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: (
+        "该 SKU 在本项目不存在",
+        "先核对 SKU 主数据（sku-info 相关端点），确认后再写入",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",
