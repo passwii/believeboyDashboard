@@ -72,7 +72,7 @@ autoReportUpload/logs/
 update_extensions.sql
 
 # Frontend (Next.js)
-/frontend/node_modules/
+/frontend/node_modules
 /frontend/.pnp
 /frontend/.pnp.js
 /frontend/.yarn/install-state.gz
