@@ -116,7 +116,7 @@ export function V2TopProjects({
   )
 
   return (
-    <V2Card className="relative gap-0 md:col-span-2">
+    <V2Card className="relative gap-0 md:col-span-4">
       <CardHeader className="border-b">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="space-y-1">
@@ -134,7 +134,7 @@ export function V2TopProjects({
                 className={cn(
                   'rounded px-2 py-1 text-xs transition-colors',
                   sortKey === tab.key
-                    ? 'bg-muted font-medium text-foreground'
+                    ? 'bg-blue-100 font-medium text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 key={tab.key}

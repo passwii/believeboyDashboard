@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
-import { V2AlertFeed } from '@/components/dashboard-v2/v2-alert-feed'
 import { V2Grid } from '@/components/dashboard-v2/v2-grid'
 import { V2Stats } from '@/components/dashboard-v2/v2-stats'
 import { V2TopProjects } from '@/components/dashboard-v2/v2-top-projects'
@@ -30,7 +29,7 @@ const LazyV2RevenueChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-24" />
         <Skeleton className="mb-4 h-3 w-40" />
         <Skeleton className="h-60 w-full md:h-80" />
@@ -44,7 +43,7 @@ const LazyV2ChannelChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-40" />
         <Skeleton className="mb-4 h-3 w-48" />
         <Skeleton className="h-60 w-full md:h-80" />
@@ -58,7 +57,7 @@ const LazyV2ProjectChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-40" />
         <Skeleton className="mb-4 h-3 w-48" />
         <Skeleton className="h-52 w-full" />
@@ -72,7 +71,7 @@ const LazyV2CountryChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-40" />
         <Skeleton className="mb-4 h-3 w-48" />
         <Skeleton className="h-52 w-full" />
@@ -86,7 +85,7 @@ const LazyV2StockChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-24" />
         <Skeleton className="mb-4 h-3 w-40" />
         <Skeleton className="h-52 w-full" />
@@ -100,7 +99,7 @@ const LazyV2TrafficChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-background p-5 md:col-span-2">
+      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
         <Skeleton className="mb-2 h-5 w-40" />
         <Skeleton className="mb-4 h-3 w-48" />
         <Skeleton className="h-52 w-full" />
@@ -410,7 +409,7 @@ export default function DashboardV2Page() {
             <LazyV2TrafficChart currentRows={currentRows} loading={dataLoading} />
           </>
         ) : (
-          <div className="col-span-full flex flex-col items-center justify-center gap-3 bg-background py-16 text-sm text-muted-foreground">
+          <div className="col-span-full flex flex-col items-center justify-center gap-3 bg-blue-50/60 py-16 text-sm text-muted-foreground dark:bg-blue-950/30">
             <span>暂无销售数据</span>
             <Button onClick={() => void loadData()} size="sm" variant="outline">
               重试
@@ -423,7 +422,6 @@ export default function DashboardV2Page() {
           projects={projects}
           loading={anyLoading}
         />
-        <V2AlertFeed />
       </V2Grid>
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { Bar, BarChart, XAxis, YAxis } from 'recharts'
+import { Store } from 'lucide-react'
 
 import {
   CardContent,
@@ -32,7 +33,7 @@ export interface V2ProjectChartProps {
 const chartConfig = {
   sales: {
     label: '销售额',
-    color: 'var(--chart-2)',
+    color: '#2563eb',
   },
 } satisfies ChartConfig
 
@@ -47,9 +48,14 @@ export function V2ProjectChart({ projectBreakdown, projects, loading }: V2Projec
     .map((r) => ({ name: truncateName(r.projectName), sales: r.totalSales }))
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-muted/50 md:col-span-2">
+    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/30 md:col-span-2">
       <CardHeader>
-        <CardTitle>项目销售额对比</CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300">
+            <Store className="size-4" />
+          </span>
+          <CardTitle>项目销售额对比</CardTitle>
+        </div>
         <CardDescription>近 7 天各项目销售额 Top 5</CardDescription>
       </CardHeader>
       <CardContent>

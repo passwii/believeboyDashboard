@@ -1,6 +1,7 @@
 'use client'
 
 import type * as React from 'react'
+import { TrendingUp } from 'lucide-react'
 import { Bar, BarChart, XAxis } from 'recharts'
 
 import {
@@ -29,7 +30,7 @@ export interface V2RevenueChartProps {
 const chartConfig = {
   sales: {
     label: '销售额',
-    color: 'var(--chart-2)',
+    color: '#2563eb',
   },
 } satisfies ChartConfig
 
@@ -69,9 +70,12 @@ export function V2RevenueChart({ currentRows, comparisonRows = [] }: V2RevenueCh
   const delta = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : 0
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-muted/50 md:col-span-2">
+    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/30 md:col-span-2">
       <CardHeader className="gap-2">
         <div className="flex flex-wrap items-center gap-2">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300">
+            <TrendingUp className="size-4" />
+          </span>
           <CardTitle>销售额</CardTitle>
           <Delta value={delta} variant="badge">
             <DeltaIcon variant="trend" />

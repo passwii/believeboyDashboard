@@ -1,6 +1,7 @@
 'use client'
 
 import { Bar, BarChart, XAxis, YAxis } from 'recharts'
+import { Globe2 } from 'lucide-react'
 
 import {
   CardContent,
@@ -61,7 +62,7 @@ export interface V2CountryChartProps {
 const chartConfig = {
   sales: {
     label: '销售额',
-    color: 'var(--chart-1)',
+    color: '#60a5fa',
   },
 } satisfies ChartConfig
 
@@ -76,9 +77,14 @@ export function V2CountryChart({
   }))
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-muted/50 md:col-span-2">
+    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/30 md:col-span-2">
       <CardHeader>
-        <CardTitle>跨国家销售额</CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300">
+            <Globe2 className="size-4" />
+          </span>
+          <CardTitle>跨国家销售额</CardTitle>
+        </div>
         <CardDescription>
           {representativeProjectName
             ? `${representativeProjectName} · 各站点销售额分布`

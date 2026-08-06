@@ -100,29 +100,6 @@ const countryBreakdown = {
   DE: { summary_rows: mockRows },
 }
 
-const alertStats = {
-  total_active: 2,
-  critical_count: 1,
-  warning_count: 1,
-  info_count: 0,
-  acknowledged_today: 1,
-  resolved_today: 0,
-}
-
-const alertEvents = {
-  items: [
-    {
-      id: 1,
-      message: '库存低于安全水位',
-      severity: 'warning',
-      status: 'active',
-      triggered_at: '2026-08-05T10:00:00Z',
-      metric: 'inventory',
-      deviation_pct: -12.3,
-    },
-  ],
-}
-
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
@@ -133,12 +110,6 @@ beforeEach(() => {
           ok: true,
           json: () => Promise.resolve({ country_breakdown: countryBreakdown }),
         })
-      }
-      if (url.includes('/alerts/stats')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(alertStats) })
-      }
-      if (url.includes('/alerts/events')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(alertEvents) })
       }
       return Promise.resolve({
         ok: true,
@@ -155,11 +126,10 @@ describe('DashboardV2Page', () => {
     expect(screen.getByText('返回旧版')).toBeInTheDocument()
   })
 
-  it('渲染真实业务区块（项目排行 / 告警动态 标题 + 四个图表占位）', async () => {
+  it('渲染真实业务区块（项目排行 标题 + 四个图表占位）', async () => {
     render(<DashboardV2Page />)
     // 非 mock 的真实组件直接渲染标题
     expect(await screen.findByText('项目排行')).toBeInTheDocument()
-    expect(screen.getByText('告警动态')).toBeInTheDocument()
     // 图表走 dynamic mock，断言 testid（标题由 mock 占位替代）
     expect(screen.getByTestId('v2-project-chart')).toBeInTheDocument()
     expect(screen.getByTestId('v2-country-chart')).toBeInTheDocument()

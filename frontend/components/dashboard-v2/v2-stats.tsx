@@ -108,7 +108,9 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
             <CardTitle className="font-normal text-xs tracking-wide">{s.label}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-row items-center gap-2">
-            <p className="font-semibold text-2xl tabular-nums">{s.value}</p>
+            <p className="font-semibold text-2xl tabular-nums text-blue-700 dark:text-blue-300">
+              {s.value}
+            </p>
           </CardContent>
           <CardFooter className="gap-1 rounded-none bg-background text-xs">
             <Delta value={s.delta}>
