@@ -1,6 +1,6 @@
 # Agent API · New Product Calculation（新品测算）API 实施规格（设计草案）
 
-> **状态**：设计草案（BLF-451 产出；测算模式已核实确认，D1-D4 待用户拍板后转定稿 → 开执行子 issue）。
+> **状态**：**必要元素已定稿**（用户拍板 2026-08-06：4 种模式确认、`eu_accounting` 暂不纳入新品）；**API/路由/service 复用方案待讨论**（BLF-451 下一轮推进，收敛后转定稿 → 开执行子 issue）。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（设计稿 v0.4）、[`docs/superpowers/specs/2026-08-05-agent-shop-calculation-api.md`](./2026-08-05-agent-shop-calculation-api.md)（店铺测算 spec 定稿，本 spec 的模板）、[`docs/superpowers/specs/2026-08-04-agent-readwrite-api-spec.md`](./2026-08-04-agent-readwrite-api-spec.md)（P0 基建 + P2 货件规格）、[`docs/external-api-ops-agent-roadmap.md`](../../external-api-ops-agent-roadmap.md)（全景图）。
 > **范围**：在 `/api/v1/agent/projects/{id}/new-product-calculations/*` 开放**新品测算（New Product Calculation）域**的读 + 写路由。**本 spec 只设计，不实施**（对齐 BLF-451 执行顺序：先定必要元素与 API 文档，再实施）。
 > **前提**：店铺测算域 6 路由（commit `90e2ee8f`）与 `project_scope` 准入（commit `d5241993`）**已合入 main**——新品域路由可直接复用 `require_project_scope` / confirm / 限流 / 响应壳 / `query_operation_audit_log_for_targets`，**无 Task 0 前置**。
@@ -28,7 +28,7 @@
 
 **引擎另有第 5 种**：`eu_accounting`（欧洲核算）——`eu-quote`（`computation.py:_compute_eu_pricing`），带 VAT / 手动三费，**店铺测算页的 EU 区块在用**（`shop-calculation-eu-section.tsx`），新品页未暴露。
 
-> 用户记忆的"约 4 种"与代码一致：正测算 / 倒测算 / 自发货测算 + 成本倒算；第 5 种 EU 为引擎已有、UI 未暴露。
+> **用户拍板（2026-08-06）**：4 种模式确认无误；**`eu_accounting`（欧洲测算）暂不纳入新品域**——本 spec 范围 = 4 种模式，EU 留在店铺测算域，后续如需再单独评估。
 
 ### 0.3 与店铺测算的关键差异（决定路由面形态）
 
@@ -36,7 +36,7 @@
 |---|---|---|
 | 存储语义 | **append-only**（每次快照新增一行，历史保留） | **upsert**（`(project_id, sku, calculation_type)` 唯一键，只留最新一行，**无历史**） |
 | 溯源列 | 有 `source` / `observed_at` / `deleted_at` | **无** `source` / `observed_at` / `deleted_at`（溯源仅靠审计表） |
-| 快照可存类型 | `{profit_calc, eu_accounting}` | schema Literal `{profit_calc, profit_reverse, eu_accounting}`（`cost_reverse`/`fbm_calc` 目前仅试算、UI 不存快照） |
+| 快照可存类型 | `{profit_calc, eu_accounting}` | schema Literal 含 `{profit_calc, profit_reverse}`（EU 不纳入新品）；`cost_reverse`/`fbm_calc` 目前仅试算、是否可存快照 → API 讨论阶段定 |
 | 缓存耦合 | 0 个 Redis | 0 个 Redis（无写后失效） |
 | external 端点 | BEL-416 规划中，**暂缓未落** | `GET /external/projects/{pid}/new-product-calculations` **已上线**（BEL-378/416，无鉴权 P0 契约） |
 
@@ -59,7 +59,7 @@
 | `_solve_sale_price_for_profit_rate` | `app/services/pricing/reverse.py:12` | `PricingCalculationReverseRequest`（`target_profit_rate` 默认 0.25，无 `sale_price_usd`） | 同构 + **sale_price_usd 由目标利润率反解** |
 | `_solve_fob_cost_for_profit_rate` | `app/services/pricing/cost_reverse.py:12` | `PricingCalculationCostReverseRequest`（**无 `fob_product_cost_rmb`**，有售价 + 目标利润率） | 同构 + **fob_product_cost_rmb 为最大可接受成本** |
 | `_compute_fbm_pricing` | `app/services/pricing/fbm.py:33` | `PricingCalculationFbmRequest`（整柜数量/价格 + 派送费） | 同构（FBM 头程 = 整柜价/数量，前端算好传入） |
-| `_compute_eu_pricing` | `app/services/pricing/computation.py:205` | `PricingCalculationEURequest`（DE/UK，手动三费） | 同构（含 VAT / profit_after_vat） |
+| `_compute_eu_pricing` | `app/services/pricing/computation.py:205` | `PricingCalculationEURequest`（DE/UK，手动三费） | 同构（含 VAT / profit_after_vat）；**店铺测算域在用，新品不纳入**（用户拍板） |
 
 内部端点：`POST /api/v1/pricing-calculation/{quote,reverse-quote,reverse-cost,fbm-quote,eu-quote}`（`pricing_calculation.py`），试算同时落一条 `pricing_calculation_runs`。
 
@@ -77,9 +77,9 @@
 
 ---
 
-## 2. 测算的必要元素（打磨定稿）
+## 2. 测算的必要元素（**定稿**：用户拍板 2026-08-06，4 模式，EU 不纳入）
 
-所有 5 种模式共享同一套元素骨架，按**所有权**分 6 层：
+所有 4 种模式共享同一套元素骨架，按**所有权**分 6 层：
 
 | 层 | 元素 | 必填性 | 说明 |
 |---|---|---|---|
@@ -88,20 +88,20 @@
 | ③ 成本层 | `fob_product_cost_rmb`、`first_leg_cost_rmb` | 见模式矩阵 | `cost_reverse` 模式 **FOB 成本是输出**（最大可接受成本）而非输入；头程可换 `first_leg_unit_price_rmb` 或 `use_historical_shipping_cost`（历史加权） |
 | ④ 销售参数层 | `sale_price_usd`、`target_profit_rate` | 见模式矩阵 | `profit_reverse` 模式 **售价是输出**（建议售价）；`target_profit_rate` 仅倒算/成本倒算用 |
 | ⑤ 费率默认组 | `commission_rate`(0.15)、`advertising_rate`(0.12)、`return_loss_rate`(0.04)、`storage_months`(1)、`inbound_placement_mode`(single_destination)、`usd_to_rmb_rate`(缺省实时汇率) | 全部可选（缺省用默认） | Agent 不传即用引擎默认，**不是沿用上一期**（当前引擎为无状态，无基线继承——若需要"只改价格重算"，属店铺域 B 选项的增强点，不在本 spec 范围） |
-| ⑥ 模式专属 | FBM：`full_container_quantity` / `full_container_price_rmb` / `delivery_fee_usd`；EU：`delivery_fee_usd` / `inbound_config_fee_usd` / `storage_fee_usd`（手动填） | 对应模式必填/可填 | FBM 头程 = 整柜价 ÷ 整柜数量（前端算好传入）；EU 三费默认 0 |
+| ⑥ 模式专属 | FBM：`full_container_quantity` / `full_container_price_rmb` / `delivery_fee_usd` | FBM 模式必填/可填 | FBM 头程 = 整柜价 ÷ 整柜数量（前端算好传入）；EU 三费属店铺测算域，不纳入新品 |
 
 ### 模式 × 必要元素矩阵
 
-| 元素 | profit_calc | profit_reverse | cost_reverse | fbm_calc | eu_accounting |
-|---|---|---|---|---|---|
-| ① 定位层 | ✅ | ✅ | ✅ | ✅ | ✅（country=DE/UK） |
-| ② 物理规格层 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ③ `fob_product_cost_rmb` | ✅ 输入 | ✅ 输入 | 🔄 **输出** | ✅ 输入 | ✅ 输入 |
-| ③ `first_leg_cost_rmb` | ✅ | ✅ | ✅ | 🔄 整柜分摊 | ✅ |
-| ④ `sale_price_usd` | ✅ 输入 | 🔄 **输出** | ✅ 输入 | ✅ 输入 | ✅ 输入 |
-| ④ `target_profit_rate` | — | ✅ | ✅ | — | — |
-| ⑤ 费率默认组 | 可选 | 可选 | 可选 | 可选 | 可选（无 storage_months / inbound_placement_mode） |
-| ⑥ 模式专属 | — | — | — | 整柜 + 派送费 | 手动三费 |
+| 元素 | profit_calc | profit_reverse | cost_reverse | fbm_calc |
+|---|---|---|---|---|
+| ① 定位层 | ✅ | ✅ | ✅ | ✅ |
+| ② 物理规格层 | ✅ | ✅ | ✅ | ✅ |
+| ③ `fob_product_cost_rmb` | ✅ 输入 | ✅ 输入 | 🔄 **输出** | ✅ 输入 |
+| ③ `first_leg_cost_rmb` | ✅ | ✅ | ✅ | 🔄 整柜分摊 |
+| ④ `sale_price_usd` | ✅ 输入 | 🔄 **输出** | ✅ 输入 | ✅ 输入 |
+| ④ `target_profit_rate` | — | ✅ | ✅ | — |
+| ⑤ 费率默认组 | 可选 | 可选 | 可选 | 可选 |
+| ⑥ 模式专属 | — | — | — | 整柜 + 派送费 |
 
 > **派生层**（`size_tier` / `price_band` / `dimensions` / `weights` / `fees` / `profit` / `warnings`，约 45 字段）一律为**引擎产物，Agent 不可提供**——这就是"试算"与"快照"的分界线。
 
@@ -120,7 +120,7 @@
 **分类理由**：
 
 1. **算 / 存 / 记三分**与店铺域（compute / read / append）同构，但 F3 写语义是 **upsert 而非 append**——新品测算定位是"规划/选品决策"，每次核算只关心最新结果，覆盖旧值（`(project, sku, calculation_type)` 唯一键）；店铺域是"价格时间序列"，必须保留历史。
-2. **模式差异只体现在 F1**：4（+1）种模式共享同一元素骨架，差异仅是 ③④⑥ 层的必填/输出互换 → 用一个 `mode` 判别参数的 `/compute` 覆盖全部模式，**不按模式拆端点**（Agent 提示词只需记一个端点 + mode 枚举）。
+2. **模式差异只体现在 F1**：4 种模式共享同一元素骨架，差异仅是 ③④⑥ 层的必填/输出互换 → 用一个 `mode` 判别参数的 `/compute` 覆盖全部模式，**不按模式拆端点**（Agent 提示词只需记一个端点 + mode 枚举）。
 3. **F2 不做 history**：upsert 表无历史，`pricing_calculation_runs`（试算记录）属内部表，不向 agent 暴露（对齐店铺域"读路径只查快照表"的边界）；如未来要"SKU 全历史聚合"，单独评估（店铺域 spec §8.1 已预留该议题）。
 4. **软删除不开放**：`DELETE` 沿用内部端点（admin only），不进路由表。
 
@@ -137,15 +137,15 @@
 | R2 | GET | `/projects/{pid}/new-product-calculations/skus/{sku}` | `get_snapshot`（`?calculation_type=`，默认 profit_calc） | ❌ | 读 | 不落 |
 | R3 | GET | `/projects/{pid}/new-product-calculations/skus/{sku}/audit` | **复用** `query_operation_audit_log_for_targets` | ❌ | 读 | 不落 |
 | W1 | POST | `/projects/{pid}/new-product-calculations` | `upsert_snapshot` | ✅ `new_product_calculation.upsert` | 写 | 落（agent 归因） |
-| C1 | POST | `/projects/{pid}/new-product-calculations/compute` | 5 个引擎纯计算函数（不落库） | ❌ | 读 | 不落 |
+| C1 | POST | `/projects/{pid}/new-product-calculations/compute` | 4 个引擎纯计算函数（EU 不纳入；不落库） | ❌ | 读 | 不落 |
 
 **关键事实（代码已核实，2026-08-06）**：
 
-- 自然业务键 `(project_id, sku, calculation_type)`；`country` 为元数据（不在唯一键）；`calculation_type` 当前可存 `{profit_calc, profit_reverse, eu_accounting}`（schema Literal；`cost_reverse`/`fbm_calc` 是否可存 → D2 拍板）。
+- 自然业务键 `(project_id, sku, calculation_type)`；`country` 为元数据（不在唯一键）；`calculation_type` 可存 `{profit_calc, profit_reverse}`（EU 不纳入新品；`cost_reverse`/`fbm_calc` 是否可存快照 → API 讨论阶段定）。
 - `list_snapshots` 现为 `updated_at DESC, id DESC` + 分页（page_size ≤ 500）；R1 薄壳透传过滤参数，返回 `{items, total, page, page_size}`。
 - 审计映射：写操作审计行 `target_type="new_product_calculation"`、`target_id=<row.id>`（数字 id）、`agent_id`/`idempotency_key` 归因、`operator=NULL`；`created_by` 保持 NULL。R3 按 SKU 聚合：先查该 `(project, sku, calculation_type)` 当前行 id（及其历史 id 无法追溯——upsert 表只存最新 id，R3 仅能查最近一次覆盖的痕迹，spec 标注此限制）。
 - 该域 **0 个 Redis 缓存**（写后无需失效，与店铺域一致）。
-- `/compute` 引擎纯计算函数已在仓库且不写库（`_compute_pricing` 等 5 个均只算不写；内部试算端点额外落 run，agent 通道**不落 run**，与店铺域 C1 一致）。
+- `/compute` 引擎纯计算函数已在仓库且不写库（`_compute_pricing` / `_solve_sale_price_for_profit_rate` / `_solve_fob_cost_for_profit_rate` / `_compute_fbm_pricing` 4 个均只算不写；内部试算端点额外落 run，agent 通道**不落 run**，与店铺域 C1 一致）。
 
 ---
 
@@ -184,10 +184,10 @@ class AgentNewProductCalculationUpsertRequest(BaseModel):
 
 ```python
 class AgentNewProductCalculationComputeRequest(BaseModel):
-    mode: Literal["profit_calc", "profit_reverse", "cost_reverse", "fbm_calc", "eu_accounting"]  # D2 拍板
+    mode: Literal["profit_calc", "profit_reverse", "cost_reverse", "fbm_calc"]  # 4 模式（用户拍板，EU 不纳入）
     # 定位层（所有模式）
     sku: str | None = None          # 选填；有则参与 SKU 主数据校验（见 §6.2）
-    country: str = "US"             # profit_calc/profit_reverse/cost_reverse/fbm_calc → US；eu_accounting → DE|UK
+    country: str = "US"             # 4 模式均 US（EU 不纳入）
     product_name: str = Field(min_length=1, max_length=255)   # 引擎必填（可传 sku 本身）
     asin: str | None = None
     # 物理规格层（所有模式必填）
@@ -207,9 +207,7 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
     # 模式专属
     full_container_quantity: float | None = None    # fbm_calc
     full_container_price_rmb: float | None = None   # fbm_calc
-    delivery_fee_usd: float = 0.0                   # fbm_calc / eu_accounting
-    inbound_config_fee_usd: float = 0.0             # eu_accounting
-    storage_fee_usd: float = 0.0                    # eu_accounting
+    delivery_fee_usd: float = 0.0                   # fbm_calc
 ```
 
 响应（D3 待拍板，默认双字段）：
@@ -245,7 +243,7 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
 
 1. `source`（若 D1 加列）∈ `{agent_listing_pull, agent_review_scrape, agent_market_research, external_api}` → 否则 400 `NEW_PRODUCT_CALCULATION_INVALID_SOURCE`；
 2. **SKU 存在性校验**（对齐店铺域 D2）：`select SkuRecord.sku where project_id == {pid} and country == body.country and sku == body.sku`，不存在 → 400 `NEW_PRODUCT_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据；
-3. `calculation_type` 白名单（D2 拍板后定：`{profit_calc, profit_reverse, eu_accounting}` 或扩到 5 种）；
+3. `calculation_type` 白名单（API 讨论阶段定：`{profit_calc, profit_reverse}` 为基线，`cost_reverse`/`fbm_calc` 是否可存快照待定）；
 4. `observed_at`（若 D1 加列）不晚于 now()+24h；金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库。
 
 ### 6.3 `_preview_upsert`（confirm 预览摘要）
@@ -277,7 +275,7 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
 # 新品测算域（BLF-451）
 NEW_PRODUCT_CALCULATION_INVALID_SOURCE = "NEW_PRODUCT_CALCULATION_INVALID_SOURCE"    # 400
 NEW_PRODUCT_CALCULATION_INVALID_SKU = "NEW_PRODUCT_CALCULATION_INVALID_SKU"          # 400
-NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"        # 400（D2 后按需）
+NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"        # 400（API 讨论阶段按需）
 ```
 
 | code | HTTP | 默认 human_message | 默认 agent_hint |
@@ -297,7 +295,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 | 能力 | 人类用户（内部端点） | Agent（`/agent/*`） | 备注 |
 |---|---|---|---|
 | 读当前态 | ✅ GET /new-product-calculations | ✅ R1/R2（受 project_scope 限制） | |
-| 试算（不落库） | ✅ quote 等 | ✅ C1（5 模式，读桶） | |
+| 试算（不落库） | ✅ quote 等 | ✅ C1（4 模式，读桶） | |
 | 保存/覆盖快照 | ✅ POST（operator 归因） | ✅ W1（source 枚举 + confirm + 审计归因，D1 后） | upsert 覆盖语义 |
 | 删除快照 | ✅ DELETE /{snapshot_id} | ❌ 不开放 | admin only（沿用内部端点） |
 | 审计查询 | 内部 audit 中间件 | ✅ R3（只读自己的写入痕迹 + 人类操作痕迹；upsert 表仅能追溯最近一次） | |
@@ -326,7 +324,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 |---|---|
 | `backend/tests/api/agent/test_new_product_read.py` | R1 列表/过滤（calculation_type/country/分页）+ 读不落审计；R2 详情（calculation_type 缺省/显式）+ 404；跨项目 404 壳 |
 | `backend/tests/api/agent/test_new_product_confirm.py` | W1 预览（is_new 两分支 + previous）→ confirm → upsert 落行 + 审计归因；SKU 不存在 400；calculation_type 白名单 400；confirm 过期/body 变更；**覆盖语义断言**（同键二次写入行数不变、字段更新） |
-| `backend/tests/api/agent/test_new_product_compute.py` | C1 五模式各一例（profit_calc / profit_reverse / cost_reverse / fbm_calc / eu_accounting）；不落库断言（new_product_calculations 与 pricing_calculation_runs 行数均不变）；引擎 ValueError → 400 VALIDATION_FAILED；snapshot 与 upsert 请求兼容 |
+| `backend/tests/api/agent/test_new_product_compute.py` | C1 四模式各一例（profit_calc / profit_reverse / cost_reverse / fbm_calc）；不落库断言（new_product_calculations 与 pricing_calculation_runs 行数均不变）；引擎 ValueError → 400 VALIDATION_FAILED；snapshot 与 upsert 请求兼容 |
 | `backend/tests/api/agent/test_new_product_audit.py` | R3 按 SKU 聚合（复用 `query_operation_audit_log_for_targets`） |
 | `backend/tests/api/agent/test_project_scope.py`（已有） | 新品域路由挂载后回归（`*` 放行 / 白名单命中 / 未命中 403） |
 | 前端 | 无新增（新品域仅后端；凭据页 project_scope 已在 BLF-441 覆盖） |
@@ -335,12 +333,13 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ---
 
-## 11. 决策记录（D1-D4 待用户拍板）
+## 11. 决策记录（已拍板 + 待讨论）
 
 | # | 决策点 | 默认建议 | 实施影响 |
 |---|---|---|---|
 | **D1** | **溯源列**：`new_product_calculations` 无 `source`/`observed_at` 列。A=加列（迁移，对齐店铺域，agent 写入声明采集渠道，快照行可溯源）；B=零迁移（溯源仅靠审计表，快照行无渠道标记） | **A（加列）**，与第一期"审计溯源"经验一致；若用户倾向零迁移则 B | A：一个迁移（加 2-3 列，含 `competitor_url` 可选）；B：W1 请求体不含 source 字段 |
-| **D2** | **快照可存类型**：schema Literal 现为 `{profit_calc, profit_reverse, eu_accounting}`；`cost_reverse`/`fbm_calc` 目前仅试算（UI 不存快照）。A=维持 3 种（W1 白名单 3 种，其余模式仅试算）；B=扩到 5 种（改 schema Literal，无迁移，快照表支持所有模式） | **A（维持 3 种）**，与 UI 行为一致、schema 零改动；选 B 则加 `NEW_PRODUCT_CALCULATION_INVALID_TYPE` 之外的放宽 | A：C1 mode 全 5 种可试算；W1 只收 3 种；B：W1 收 5 种 |
+| **D2** | **测算模式范围**：4 种模式（profit_calc / profit_reverse / cost_reverse / fbm_calc）确认无误；`eu_accounting`（欧洲测算）**暂不纳入新品域** | **已拍板（用户 2026-08-06）**：范围 = 4 模式，EU 留店铺测算域 | spec 全篇按 4 模式定稿；C1 mode 枚举 4 种 |
+| **D2b** | **快照可存类型**：`cost_reverse`/`fbm_calc` 目前仅试算（UI 不存快照）；schema Literal 含 `eu_accounting`（EU 不纳入后可忽略）。是否允许 agent 把这 2 种模式也存为快照 | 待 API 讨论阶段定 | W1 `calculation_type` 白名单据此定；若可存则改 schema Literal（无迁移） |
 | **D3** | **/compute 返回形态**：A=双字段 `{calculation, snapshot}`（snapshot 直接可 confirm，agent 零字段映射）；B=单字段 `{calculation}`（agent 自行映射） | **A（双字段）**，对齐店铺域 D3 | §5.3 响应定格 |
 | **D4** | **external 端点去留**：`/external/projects/{pid}/new-product-calculations` 已上线（无鉴权）。A=标记 deprecated 保留兼容期；B=随 R1 上线即停用 | **A（标记 deprecated）**，给存量消费者迁移缓冲 | 响应头 + 文档标注；停用走 BEL 侧协调 |
 
@@ -348,8 +347,8 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ## 12. 执行前置（writing-plans 前确认）
 
-- [ ] D1-D4 用户拍板（本 spec §11）
-- [ ] 拍板后：本 spec 状态改为「设计定稿」，开执行子 issue（路由 5 条 + 错误码 + 测试；如 D1=A 则含 1 个迁移）
+- [x] 测算模式范围拍板（用户 2026-08-06：4 模式，EU 不纳入新品）；必要元素已定稿（spec §2 + BLF-451 下 4 个按模式子 issue 承载）
+- [ ] API/路由/service 复用方案讨论（BLF-451 下一轮，用户已排期）→ 收敛后本 spec 转定稿、开执行子 issue（路由 5 条 + 错误码 + 测试；如 D1=A 则含 1 个迁移）
 - [ ] BEL-416 协调（external 端点 deprecated/停用）在 BEL 侧处理或备注指向本 spec
 - [ ] 仓库当前 main 已含：P2 货件域、店铺测算域 6 路由（`90e2ee8f`）、project_scope（`d5241993`）——本 spec 引用的复用函数均为真实存在的符号
 
@@ -357,4 +356,5 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ## 修订记录
 
+- **v0.2（2026-08-06）**：用户拍板——4 种模式确认、`eu_accounting` 暂不纳入新品域（D2 范围收敛）；必要元素 §2 转定稿；快照可存类型拆为 D2b 待 API 讨论；C1 mode 枚举改 4 种并移除 EU 专属字段；§0.2/§1.2/§3/§4/§6.2/§8/§10/§11/§12 同步。
 - **v0.1（2026-08-06）**：BLF-451 产出。review 两个前置 issue + 新品测算现状核实（4 模式 + 引擎第 5 种 EU；upsert 存储语义；external 端点已上线）；定稿必要元素 6 层 + 模式矩阵；按元素所有权/写语义分类 3 个 API 家族；路由表 5 条 + schema + confirm + 错误码 + 权限 + 测试清单；D1-D4 待拍板。
