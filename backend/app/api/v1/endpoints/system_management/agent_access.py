@@ -6,6 +6,7 @@ Agent 访问日志管理端端点（agent_api_audit_log 查询）。
 agent_id 显示为未绑定。数据保留 90 天（agent_api_audit_retention_days，
 Celery 每日清理），本端点只读不写。
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -38,6 +39,8 @@ def _apply_filters(
     result: str | None,
     date_from: date | None,
     date_to: date | None,
+    project_id: int | None = None,
+    operation_type: str | None = None,
 ):
     """应用 Agent 访问日志过滤条件。"""
     normalized_keyword = (keyword or "").strip()
@@ -70,6 +73,13 @@ def _apply_filters(
     if date_to is not None:
         stmt = stmt.where(func.date(_LOG.created_at) <= date_to)
 
+    # BLF-460 读操作明细筛选
+    if project_id is not None:
+        stmt = stmt.where(_LOG.project_id == project_id)
+    normalized_op = (operation_type or "").strip()
+    if normalized_op:
+        stmt = stmt.where(_LOG.operation_type == normalized_op)
+
     return stmt
 
 
@@ -97,6 +107,8 @@ def list_agent_access_logs(
     result: str | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    operation_type: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> AgentAccessLogsResponse:
     kwargs = {
@@ -106,12 +118,14 @@ def list_agent_access_logs(
         "result": result,
         "date_from": date_from,
         "date_to": date_to,
+        "project_id": project_id,
+        "operation_type": operation_type,
     }
     stmt = _apply_filters(_base_stmt(), **kwargs)
     total_stmt = _apply_filters(
-        select(func.count(_LOG.id)).select_from(_LOG).outerjoin(
-            _KEY, _KEY.id == _LOG.api_key_id
-        ),
+        select(func.count(_LOG.id))
+        .select_from(_LOG)
+        .outerjoin(_KEY, _KEY.id == _LOG.api_key_id),
         **kwargs,
     )
     total = int(db.execute(total_stmt).scalar() or 0)
@@ -131,6 +145,8 @@ def list_agent_access_logs(
             "api_key_id": log.api_key_id,
             "agent_id": agent_id,
             "key_label": label,
+            "project_id": log.project_id,
+            "operation_type": log.operation_type,
         }
         for log, agent_id, label in rows
     ]
@@ -151,6 +167,8 @@ def agent_access_logs_summary(
     result: str | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    operation_type: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> AgentAccessLogsSummaryResponse:
     sub = _apply_filters(
@@ -161,6 +179,8 @@ def agent_access_logs_summary(
         result=result,
         date_from=date_from,
         date_to=date_to,
+        project_id=project_id,
+        operation_type=operation_type,
     ).subquery()
 
     total = int(db.execute(select(func.count()).select_from(sub)).scalar() or 0)
@@ -201,7 +221,9 @@ def agent_access_logs_summary(
         error_count=error_count,
         unique_agent_count=unique_agent_count,
         top_agents=[
-            AgentAccessLogAgentSummaryItem(agent_id=agent_id, key_label=label, count=count)
+            AgentAccessLogAgentSummaryItem(
+                agent_id=agent_id, key_label=label, count=count
+            )
             for agent_id, label, count in top_rows
         ],
     )

@@ -6,6 +6,9 @@ latency and client IP. The key id is read from ``request.state`` (stamped by
 ``require_external_api_key``); anonymous / master-key / skip traffic logs
 with ``api_key_id=NULL``.
 
+BLF-460 读操作明细：每条记录额外解析并落 ``project_id``（path 正则
+``/projects/(\d+)``）与 ``operation_type``（业务域，path 片段映射表）。
+
 Design guarantees:
 * Never breaks a request — every DB touch is wrapped and swallowed.
 * Gated by ``agent_api_audit_enabled`` (default on).
@@ -15,6 +18,7 @@ Design guarantees:
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from fastapi import FastAPI, Request
@@ -28,6 +32,42 @@ logger = logging.getLogger(__name__)
 
 # 过渡期双命名空间都记访问日志（设计稿 §11.2）。
 AUDITED_PREFIXES = ("/api/v1/external/", "/api/v1/agent/")
+
+# 业务域 path 片段映射（长片段优先）。与 frontend/lib/agent-domains.ts 注册表
+# 及 agent/__init__.py 路由接线保持一致；覆盖 external 镜像读路由片段，
+# 否则规划中域的读访问会全落「其他」。新增业务域时同步维护本表。
+AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
+    ("/new-product-calculations", "new_product_calculations"),
+    ("/pricing-snapshots", "new_product_calculations"),
+    ("/shop-calculation", "shop_calculations"),
+    ("/return-analysis", "return_analysis"),
+    ("/replenishment-analysis", "inventory_ledger"),
+    ("/inventory-ledger", "inventory_ledger"),
+    ("/sku-info", "inventory_ledger"),
+    ("/business-summary", "finance_profit"),
+    ("/orders/", "finance_profit"),
+    ("/ad-", "ad_analysis"),
+    ("/shipments", "shipments"),
+)
+
+_PROJECT_ID_RE = re.compile(r"/projects/(\d+)")
+
+
+def parse_audit_path_meta(path: str) -> tuple[int | None, str | None]:
+    """从请求 path 解析 (project_id, operation_type)。
+
+    纯函数，便于单测；project_id 取 ``/projects/\d+`` 首个命中，operation_type
+    走 ``AGENT_PATH_DOMAIN_MAP`` 长片段优先匹配，未命中返回 ``None``（前端
+    显示「其他/未知」）。
+    """
+    match = _PROJECT_ID_RE.search(path)
+    project_id = int(match.group(1)) if match else None
+    operation_type = None
+    for fragment, domain in AGENT_PATH_DOMAIN_MAP:
+        if fragment in path:
+            operation_type = domain
+            break
+    return project_id, operation_type
 
 
 def _client_ip(request: Request) -> str | None:
@@ -48,6 +88,7 @@ def _write_audit(
     latency_ms: int,
     ip_address: str | None,
 ) -> None:
+    project_id, operation_type = parse_audit_path_meta(path)
     db = SessionLocal()
     try:
         db.add(
@@ -55,6 +96,8 @@ def _write_audit(
                 method=method[:16],
                 path=path[:255],
                 api_key_id=api_key_id,
+                project_id=project_id,
+                operation_type=operation_type,
                 status_code=status_code,
                 latency_ms=latency_ms,
                 ip_address=ip_address,

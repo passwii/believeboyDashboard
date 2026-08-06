@@ -59,7 +59,9 @@ class TestAgentAccessLogsList:
             ]
         )
         try:
-            resp = client.get("/api/v1/system-management/agent-access-logs?page_size=50")
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?page_size=50"
+            )
             assert resp.status_code == 200, resp.text
             payload = resp.json()
             assert payload["total"] == 2
@@ -69,9 +71,7 @@ class TestAgentAccessLogsList:
             assert authed["key_label"] == "访问测试 key"
             assert authed["api_key_id"] == key["id"]
             assert authed["status_code"] == 200
-            anon = next(
-                item for item in payload["items"] if item["method"] == "POST"
-            )
+            anon = next(item for item in payload["items"] if item["method"] == "POST")
             assert anon["agent_id"] is None
             assert anon["api_key_id"] is None
         finally:
@@ -114,9 +114,7 @@ class TestAgentAccessLogsList:
             )
             assert resp.json()["total"] == 2
             # method 过滤
-            resp = client.get(
-                "/api/v1/system-management/agent-access-logs?method=GET"
-            )
+            resp = client.get("/api/v1/system-management/agent-access-logs?method=GET")
             assert resp.json()["total"] == 2
             # result=success（2xx）
             resp = client.get(
@@ -136,6 +134,74 @@ class TestAgentAccessLogsList:
         finally:
             _cleanup_logs()
 
+    def test_new_fields_project_and_operation_type(self, client, make_api_key):
+        key = make_api_key(agent_id="meta-agent")
+        _insert_logs(
+            [
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/projects/12/shipments",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                    "project_id": 12,
+                    "operation_type": "shipments",
+                },
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/health",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                },
+                {
+                    "method": "GET",
+                    "path": "/api/v1/external/projects/3/return-analysis",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                    "project_id": 3,
+                    "operation_type": "return_analysis",
+                },
+            ]
+        )
+        try:
+            resp = client.get("/api/v1/system-management/agent-access-logs")
+            assert resp.status_code == 200, resp.text
+            by_path = {item["path"]: item for item in resp.json()["items"]}
+            assert by_path["/api/v1/agent/projects/12/shipments"]["project_id"] == 12
+            assert (
+                by_path["/api/v1/agent/projects/12/shipments"]["operation_type"]
+                == "shipments"
+            )
+            assert by_path["/api/v1/agent/health"]["project_id"] is None
+            assert by_path["/api/v1/agent/health"]["operation_type"] is None
+            assert (
+                by_path["/api/v1/external/projects/3/return-analysis"]["operation_type"]
+                == "return_analysis"
+            )
+            # project_id / operation_type 筛选
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?project_id=12"
+            )
+            payload = resp.json()
+            assert payload["total"] == 1
+            assert payload["items"][0]["path"] == "/api/v1/agent/projects/12/shipments"
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?operation_type=return_analysis"
+            )
+            assert resp.json()["total"] == 1
+            # 组合筛选（交集为空）
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?project_id=3&operation_type=shipments"
+            )
+            assert resp.json()["total"] == 0
+        finally:
+            _cleanup_logs()
+
     def test_pagination(self, client, make_api_key):
         key = make_api_key(agent_id="page-agent")
         _insert_logs(
@@ -152,12 +218,16 @@ class TestAgentAccessLogsList:
             ]
         )
         try:
-            resp = client.get("/api/v1/system-management/agent-access-logs?page=1&page_size=2")
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?page=1&page_size=2"
+            )
             payload = resp.json()
             assert payload["total"] == 5
             assert len(payload["items"]) == 2
             assert payload["has_next"] is True
-            resp = client.get("/api/v1/system-management/agent-access-logs?page=3&page_size=2")
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?page=3&page_size=2"
+            )
             payload = resp.json()
             assert len(payload["items"]) == 1
             assert payload["has_next"] is False

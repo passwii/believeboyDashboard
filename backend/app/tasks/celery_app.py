@@ -52,6 +52,8 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.return_analysis_refresh",
             # BEL-377：agent API 审计日志 90 天保留清理
             "app.celery_tasks.agent_api_audit_cleanup",
+            # BLF-460：agent 写操作明细（operation_audit_logs）90 天保留清理
+            "app.celery_tasks.operation_audit_cleanup",
             # BEL-379：每日 03:15 CST 刷新 ai_chat token 用量聚合快照
             "app.celery_tasks.ai_chat_token_usage_refresh",
             "app.celery_tasks.backup",
@@ -89,6 +91,8 @@ def _build_celery_app() -> Celery:
             "alert_detect": {"queue": "default"},
             # BEL-377：agent API 审计日志保留清理：default 队列（每日一次短任务）
             "agent_api_audit_cleanup": {"queue": "default"},
+            # BLF-460：agent 写操作明细保留清理：default 队列（每日一次短任务）
+            "operation_audit_cleanup": {"queue": "default"},
             # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
             "ai_chat_token_usage.refresh_daily": {"queue": "default"},
             # 数据库备份：走 default 队列（由主 worker 顺手跑，不单独起 worker）。
@@ -120,6 +124,11 @@ def _build_celery_app() -> Celery:
             "agent-api-audit-cleanup": {
                 "task": "agent_api_audit_cleanup",
                 "schedule": crontab(hour=4, minute=0),
+            },
+            # BLF-460：agent 写操作明细每日 04:30 清理（错开 04:00 读侧清理）
+            "operation-audit-cleanup": {
+                "task": "operation_audit_cleanup",
+                "schedule": crontab(hour=4, minute=30),
             },
             # BEL-379：ai_chat token 用量每日 03:15 CST（Asia/Shanghai 时区下）刷新快照，
             # 错开 return-analysis 03:00 与 agent-api-audit 04:00 的整点并发。

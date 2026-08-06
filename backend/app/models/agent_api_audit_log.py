@@ -23,6 +23,8 @@ class AgentApiAuditLog(Base):
     __table_args__ = (
         Index("idx_aaal_created_at", "created_at"),
         Index("idx_aaal_api_key_id", "api_key_id"),
+        Index("idx_aaal_project_id", "project_id"),
+        Index("idx_aaal_operation_type", "operation_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -32,6 +34,9 @@ class AgentApiAuditLog(Base):
     # null for master-key, ``?skip_auth=true``, or unauthenticated traffic.
     # Deliberately not a FK: audit rows must survive key deletion.
     api_key_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析打标）。
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    operation_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)

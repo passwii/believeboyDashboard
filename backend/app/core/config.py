@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     agent_api_audit_enabled: bool = Field(default=True)
     # 访问审计保留天数（Celery 清理任务）。
     agent_api_audit_retention_days: int = Field(default=90, ge=1, le=3650)
+    # 操作审计（agent 写操作明细）保留天数（BLF-460；仅清 agent 行）。
+    operation_audit_retention_days: int = Field(default=90, ge=1, le=3650)
     # Agent 通道限流（slowapi 内存 Limiter）：读桶挂命名空间级，写桶由 P2 写路由逐个挂载。
     # 设计稿 §7.1：可不改代码调整。
     agent_api_read_rate_limit: str = Field(default="300/minute", max_length=32)
