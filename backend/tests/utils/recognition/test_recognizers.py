@@ -328,6 +328,64 @@ class TestInventoryLedgerRecognition:
         finally:
             path.unlink()
 
+    def test_quantity_only_column_is_not_treated_as_ledger(self):
+        """只有 quantity 一个 Detail 强特征列的 CSV 不应被当作库存分类账。
+
+        回归：其它 Amazon 导出（普通商品 CSV）也含 "quantity" 列，单列命中
+        不足以认定与库存分类账相关。应返回 None（落入未知报表），既不是
+        LedgerRecognitionError，也不是 business_report。
+        """
+        content = (
+            "date,sku,quantity,price\n"
+            "2026-03-01,MSKU-001,10,19.99\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="inventory_2026-03.csv"
+            )
+            assert result is None, (
+                "仅含 quantity 列的 CSV 应落入未知报表（None），"
+                f"实际返回 {result.report_type if result else result}"
+            )
+        finally:
+            path.unlink()
+
+    def test_detail_two_strong_markers_incomplete_raises(self):
+        """Detail 强特征命中 2 列但不完整 → 仍按部分签名拒绝。
+
+        两列阈值不弱化真实 Detail 部分签名的拒绝：event type + quantity
+        均出现但缺 fulfillment center 时，仍抛 LedgerRecognitionError。
+        """
+        headers = ["date", "msku", "event type", "quantity", "disposition"]
+        content = (
+            ",".join(headers)
+            + "\n"
+            + "03/01/2026,MSKU-001,Shipments,-1,SELLABLE\n"
+        )
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(path, country="US")
+            assert "Detail" in str(exc.value)
+            assert "fulfillment center" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_summary_and_detail_strong_markers_conflict_raises(self):
+        """Summary 强特征与 Detail 强特征（≥2 列）并存 → 冲突拒绝。"""
+        content = (
+            "date,msku,event type,quantity,starting warehouse balance\n"
+            "03/01/2026,MSKU-001,Shipments,-1,100\n"
+        )
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(path, country="US")
+            assert "冲突" in str(exc.value)
+        finally:
+            path.unlink()
+
     def test_normalized_headers_match_space_separated_signature_names(self):
         """签名用空格分隔（非下划线）：_normalize_columns 只做 strip+lower。
 

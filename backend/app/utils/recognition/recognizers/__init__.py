@@ -314,7 +314,9 @@ _INVENTORY_LEDGER_DETAIL_REQUIRED_COLUMNS = {
     "disposition",
 }
 
-# 强特征：任一出现即认为文件属于对应视图，进入部分签名校验。
+# 强特征：Summary 两列均为分类账独有，任一出现即视为部分签名；
+# Detail 三列中 "quantity" 在其它 Amazon 导出（普通商品/业务报表）中常见，
+# 单列命中不足以认定与库存分类账相关，需命中 ≥2 列才进入部分签名校验。
 _INVENTORY_LEDGER_SUMMARY_STRONG_COLUMNS = {
     "starting warehouse balance",
     "ending warehouse balance",
@@ -393,7 +395,8 @@ def _recognize_inventory_ledger_columns(
     - 完整 Summary 签名 → ``inventory_ledger_summary``
     - 完整 Detail 签名 → ``inventory_ledger_detail``
     - 两套签名同时完整 / 同时出现两类强特征 → ``LedgerRecognitionError``（冲突）
-    - 仅一类强特征但不完整 → ``LedgerRecognitionError``（列出缺失字段）
+    - 仅 Summary 强特征但不完整 → ``LedgerRecognitionError``（列出缺失字段）
+    - Detail 强特征命中 ≥2 列但不完整 → ``LedgerRecognitionError``（列出缺失字段）
     - 无任何强特征 → ``None``（调用方继续识别其他报表）
     """
     columns = set(df.columns)
@@ -409,7 +412,9 @@ def _recognize_inventory_ledger_columns(
         return _build_ledger_result("detail", df, country, original_filename)
 
     summary_strong = bool(_INVENTORY_LEDGER_SUMMARY_STRONG_COLUMNS & columns)
-    detail_strong = bool(_INVENTORY_LEDGER_DETAIL_STRONG_COLUMNS & columns)
+    # Detail 强特征需命中 ≥2 列：单列 "quantity" 在其它 Amazon 导出中常见，
+    # 不足以免误判普通 CSV 为库存分类账（summary 强特征无此问题）。
+    detail_strong = len(_INVENTORY_LEDGER_DETAIL_STRONG_COLUMNS & columns) >= 2
     if summary_strong and detail_strong:
         raise LedgerRecognitionError(
             "库存分类账格式冲突：同时包含 Summary 与 Detail 的关键字段"
