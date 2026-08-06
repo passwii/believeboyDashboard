@@ -65,3 +65,10 @@
 - **全中文化**：页面已无 sample 英文残留；新表格/图表/告警全部中文标签
 - **验证**：lint 0 错误 / build 含 `/dashboard/v2` / 全量 82 文件 447 测试通过（新增 top-projects 4 + stock-traffic 6 + page 1）
 - **测试经验**：页面级测试中图表组件 mock 为 testid 占位（不渲染标题，断言 testid）；告警组件自管 fetch 先于页面主 fetch 触发，断言主请求需按 URL 过滤而非 calls[0]
+
+## 打磨轮 2（2026-08-06，BLF-450 用户三条新反馈）
+
+1. **销售 vs 广告花费复合图打磨**（commit `7cc774a4`）：双 Y 轴（销售额左轴/广告花费右轴，量级差异大）+ ChartLegend 图例 + 实线（销售额）/虚线（广告花费）+ 表头图标芯片 + 移除模糊 glow 滤镜，改 monotone 平滑线
+2. **移除告警中心**：删除 `V2AlertFeed` 组件与页面引用；项目排行改 `md:col-span-4` 全宽收底
+3. **商务蓝主题**：发丝线 `bg-blue-100/70 dark:bg-blue-900/50`、卡片淡蓝渐变（`from-blue-50/70 to-white` / 暗色 `from-blue-950/40`）、6 图表 series 全蓝系（`#2563eb` 主蓝 / `#60a5fa` 亮蓝 / `#93c5fd` 浅蓝 / `#1d4ed8` 深蓝）、KPI 数值蓝、表头图标芯片、Tab 高亮蓝、loading 占位同步蓝调；Delta 语义色（绿涨红跌）保留
+- **验证**：lint 0 错 / build 通过 / 全量 472 测试全绿
