@@ -181,3 +181,4 @@ db_capacity_results.json
 /macos/.DS_Store
 
 openSourceProjects/
+.worktrees
