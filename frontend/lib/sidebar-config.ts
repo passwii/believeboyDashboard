@@ -236,7 +236,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '组合分析', url: '/dashboard/supply-chain/portfolio-overview', icon: IconMap.Layers },
       { title: 'SKU 信息', url: '/dashboard/supply-chain/sku-info', icon: IconMap.FileBarChart },
       { title: '补货分析', url: '/dashboard/supply-chain/inventory-replenishment', icon: IconMap.Repeat2 },
-      { title: '库存盘点', url: '/dashboard/supply-chain/inventory-ledger', icon: IconMap.ClipboardCheck },
+      { title: '库存分类账', url: '/dashboard/supply-chain/inventory-ledger', icon: IconMap.ClipboardCheck },
       {
         title: '季节性补货分析',
         url: '/dashboard/supply-chain/seasonal-replenishment',
