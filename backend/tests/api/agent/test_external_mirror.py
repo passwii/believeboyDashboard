@@ -221,18 +221,22 @@ def mirror_env(make_api_key):
 def test_all_external_get_routes_have_agent_mirror():
     """路由表级断言：external 每个 GET 路由（除已原生迁移的
     new-product-calculations）都存在对应 /agent/* 镜像。"""
-    from app.api.v1.endpoints.agent import agent_router
-    from app.api.v1.endpoints.external import external_router
+    from app.api.v1.endpoints.agent.external_mirror import (
+        _iter_external_apiroutes,
+        external_mirror_router,
+    )
 
-    agent_paths = {r.path for r in agent_router.routes}
+    # external_mirror_router.routes 是 add_api_route 直挂的 APIRoute，
+    # 路径为相对路径（/projects/...，/agent 前缀由 agent_router 提供）。
+    agent_paths = {r.path for r in external_mirror_router.routes}
     excluded = {"/external/projects/{project_id}/new-product-calculations"}
-    for route in external_router.routes:
+    for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):
             continue
-        if route.path in excluded:
+        if ext_path in excluded:
             continue
-        rel = route.path[len("/external") :] or "/"
-        assert f"/agent{rel}" in agent_paths, f"missing agent mirror for {route.path}"
+        rel = ext_path[len("/external") :] or "/"
+        assert rel in agent_paths, f"missing agent mirror for {ext_path}"
 
 
 # ---------------------------------------------------------------------------

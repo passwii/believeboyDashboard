@@ -45,6 +45,32 @@ _AGENT_PROJECTS_LIST_PATH = "/projects"
 
 
 # ============================================================
+# 版本容错：枚举 external 命名空间的 GET APIRoute
+# ============================================================
+
+
+def _iter_external_apiroutes():
+    """版本容错地枚举 ``external_router`` 下所有 GET ``APIRoute``。
+
+    FastAPI < 0.13x：``include_router`` 会把子路由拍平进父 router，
+    ``external_router.routes`` 直接是 ``APIRoute``（path 含 ``/external``
+    前缀）。FastAPI >= 0.13x（本机 0.115 vs VPS 0.139 实测差异）：子路由被
+    包成 ``_IncludedRouter``，真实 ``APIRoute`` 在 ``original_router.routes``
+    里且 path 不含前缀。统一 yield ``(全路径含 /external 前缀, APIRoute)``。
+    """
+    for route in external_router.routes:
+        if isinstance(route, APIRoute):
+            yield route.path, route
+            continue
+        inner = getattr(route, "original_router", None)
+        if inner is None:
+            continue
+        for sub in getattr(inner, "routes", []):
+            if isinstance(sub, APIRoute):
+                yield f"/external{sub.path}", sub
+
+
+# ============================================================
 # 壳翻译与解析 helper（对齐货件/店铺域模板）
 # ============================================================
 
@@ -145,17 +171,14 @@ def _agent_projects_list(
 
 external_mirror_router = APIRouter(tags=["agent-external-mirror"])
 
-for _route in external_router.routes:
-    if not isinstance(_route, APIRoute):
-        continue
+for _ext_path, _route in _iter_external_apiroutes():
     if "GET" not in (_route.methods or set()):
         continue
-    if _route.path in _EXCLUDED_EXTERNAL_PATHS:
+    if _ext_path in _EXCLUDED_EXTERNAL_PATHS:
         continue
 
-    # external_router prefix="/external" + 子路由 /projects/... → 全路径
-    # /external/projects/...；剥掉 /external 即 agent 侧相对路径。
-    rel_path = _route.path[len("/external") :] or "/"
+    # 剥掉 /external 即 agent 侧相对路径。
+    rel_path = _ext_path[len("/external") :] or "/"
     agent_name = f"agent_{_route.name}"
 
     if rel_path == _AGENT_PROJECTS_LIST_PATH:
@@ -170,7 +193,7 @@ for _route in external_router.routes:
         endpoint=wrapped,
         methods=["GET"],
         name=agent_name,
-        summary=f"agent 镜像: {_route.path}",
+        summary=f"agent 镜像: {_ext_path}",
         tags=["agent-external-mirror"],
         response_model=None,
         dependencies=deps,
