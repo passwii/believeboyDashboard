@@ -26,6 +26,7 @@ from app.api.v1.endpoints.inventory_ledger_common import (
 from app.schemas.inventory_ledger import (
     ConsistencyCheckResult,
     EventsResponse,
+    IngestBatchInfo,
     IngestBatchesResponse,
     LedgerDetailResponse,
     LedgerSummaryResponse,
@@ -424,7 +425,11 @@ def list_batches(
     db: Session = Depends(get_db_session),
 ) -> IngestBatchesResponse:
     batches = list_ingest_batches(db, project_id, limit=limit)
-    return IngestBatchesResponse(project_id=project_id, batches=batches)
+    # ORM → schema 显式转换（Pydantic v2 不做隐式 from_attributes）
+    return IngestBatchesResponse(
+        project_id=project_id,
+        batches=[IngestBatchInfo.model_validate(b) for b in batches],
+    )
 
 
 @router.get(

@@ -222,6 +222,8 @@ class LedgerDetailResponse(BaseModel):
 class IngestBatchInfo(BaseModel):
     """One CSV ingest run — traceability metadata (排查版本用)."""
 
+    model_config = {"from_attributes": True}
+
     id: int
     project_id: int
     report_month: date
