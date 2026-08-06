@@ -41,6 +41,7 @@ import {
 } from '@/lib/agent-domains'
 import { AgentUsageGuide, buildUsageText, fetchBackendBaseUrl } from './agent-usage-guide'
 import { AgentAccessLogsPanel } from '@/components/system/agent-access-logs-panel'
+import { AgentOperationLogsPanel } from '@/components/system/agent-operation-logs-panel'
 
 type CreatedResult = {
   plaintext_key: string
@@ -418,9 +419,24 @@ export function AgentManagementClient() {
           <AgentUsageGuide />
         </TabsContent>
 
-        {/* ── Tab 4 访问日志 ───────────────────────────────────────── */}
+        {/* ── Tab 4 访问日志（读访问 / 写操作子 Tab） ─────────────── */}
         <TabsContent value="logs" className="mt-6">
-          <AgentAccessLogsPanel />
+          <Tabs defaultValue="read" className="w-full">
+            <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+              <TabsTrigger value="read" className="min-h-9 px-4 py-2 text-sm">
+                读访问
+              </TabsTrigger>
+              <TabsTrigger value="write" className="min-h-9 px-4 py-2 text-sm">
+                写操作
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="read" className="mt-6">
+              <AgentAccessLogsPanel />
+            </TabsContent>
+            <TabsContent value="write" className="mt-6">
+              <AgentOperationLogsPanel />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 

@@ -47,6 +47,7 @@ import { Eye, Loader2, RefreshCw, Search } from 'lucide-react'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
+import { AGENT_DOMAINS, getAgentDomain } from '@/lib/agent-domains'
 
 const API_BASE = '/api/backend'
 
@@ -61,6 +62,9 @@ export type AgentAccessLogItem = {
   api_key_id: number | null
   agent_id: string | null
   key_label: string | null
+  /** BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析） */
+  project_id: number | null
+  operation_type: string | null
 }
 
 type AgentAccessLogsResponse = {
@@ -94,6 +98,11 @@ function formatDateTime(value: string | null): string {
 
 async function parseError(response: Response): Promise<string> {
   return parseResponseError(response, '请求失败')
+}
+
+function operationTypeLabel(code: string | null): string {
+  if (!code) return '-'
+  return getAgentDomain(code)?.label ?? '其他'
 }
 
 function statusMeta(code: number) {
@@ -131,9 +140,13 @@ export function AgentAccessLogsPanel() {
   const [keywordInput, setKeywordInput] = useState('')
   const [methodInput, setMethodInput] = useState('')
   const [resultInput, setResultInput] = useState('')
+  const [projectIdInput, setProjectIdInput] = useState('')
+  const [operationTypeInput, setOperationTypeInput] = useState('')
   const [keyword, setKeyword] = useState('')
   const [method, setMethod] = useState('')
   const [result, setResult] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [operationType, setOperationType] = useState('')
   const [activeRow, setActiveRow] = useState<AgentAccessLogItem | null>(null)
 
   const fetchLogs = useCallback(async () => {
@@ -147,6 +160,9 @@ export function AgentAccessLogsPanel() {
       if (keyword) params.set('keyword', keyword)
       if (method) params.set('method', method)
       if (result) params.set('result', result)
+      const trimmedProjectId = projectId.trim()
+      if (/^\d+$/.test(trimmedProjectId)) params.set('project_id', trimmedProjectId)
+      if (operationType) params.set('operation_type', operationType)
 
       const headers = buildBackendClientHeaders(session)
       const [logsResponse, summaryResponse] = await Promise.all([
@@ -181,7 +197,7 @@ export function AgentAccessLogsPanel() {
     } finally {
       setLoading(false)
     }
-  }, [keyword, method, page, result, session, status, notify])
+  }, [keyword, method, operationType, page, projectId, result, session, status, notify])
 
   useEffect(() => {
     void fetchLogs()
@@ -197,16 +213,22 @@ export function AgentAccessLogsPanel() {
     setKeyword(keywordInput.trim())
     setMethod(methodInput)
     setResult(resultInput)
-  }, [keywordInput, methodInput, resultInput])
+    setProjectId(projectIdInput.trim())
+    setOperationType(operationTypeInput)
+  }, [keywordInput, methodInput, operationTypeInput, projectIdInput, resultInput])
 
   const resetFilters = useCallback(() => {
     setKeywordInput('')
     setMethodInput('')
     setResultInput('')
+    setProjectIdInput('')
+    setOperationTypeInput('')
     setPage(1)
     setKeyword('')
     setMethod('')
     setResult('')
+    setProjectId('')
+    setOperationType('')
   }, [])
 
   return (
@@ -262,6 +284,8 @@ export function AgentAccessLogsPanel() {
                   <TableHead className="w-[130px]">Key 标签</TableHead>
                   <TableHead className="w-[70px]">方法</TableHead>
                   <TableHead>路径</TableHead>
+                  <TableHead className="w-[90px]">项目 ID</TableHead>
+                  <TableHead className="w-[110px]">操作类型</TableHead>
                   <TableHead className="w-[110px]">状态码</TableHead>
                   <TableHead className="w-[70px]">耗时</TableHead>
                   <TableHead className="w-[120px]">IP 地址</TableHead>
@@ -272,12 +296,12 @@ export function AgentAccessLogsPanel() {
                 {rows.length === 0 ? (
                   loading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground">
                         加载中...
                       </TableCell>
                     </TableRow>
                   ) : (
-                    <EmptyTableState colSpan={9} message="暂无 Agent 访问记录" />
+                    <EmptyTableState colSpan={11} message="暂无 Agent 访问记录" />
                   )
                 ) : (
                   rows.map((row) => (
@@ -305,6 +329,18 @@ export function AgentAccessLogsPanel() {
                         title={row.path}
                       >
                         {row.path}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {row.project_id ?? '-'}
+                      </TableCell>
+                      <TableCell>
+                        {row.operation_type ? (
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {operationTypeLabel(row.operation_type)}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusMeta(row.status_code).className}>
@@ -383,6 +419,25 @@ export function AgentAccessLogsPanel() {
                 <SelectItem value="error">失败 (≥4xx)</SelectItem>
               </SelectContent>
             </Select>
+            <Input
+              value={projectIdInput}
+              onChange={(event) => setProjectIdInput(event.target.value)}
+              placeholder="项目 ID（数字）"
+              inputMode="numeric"
+            />
+            <Select value={operationTypeInput} onValueChange={setOperationTypeInput}>
+              <SelectTrigger>
+                <SelectValue placeholder="操作类型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部操作类型</SelectItem>
+                {AGENT_DOMAINS.map((domain) => (
+                  <SelectItem key={domain.code} value={domain.code}>
+                    {domain.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={applyFilters}>
                 <Search className="h-4 w-4" />
@@ -421,6 +476,16 @@ export function AgentAccessLogsPanel() {
                 <p>
                   <span className="text-muted-foreground">Agent ID:</span>{' '}
                   <code className="font-mono">{activeRow.agent_id || '未绑定 / 未鉴权'}</code>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">项目 ID:</span>{' '}
+                  <code className="font-mono">{activeRow.project_id ?? '-'}</code>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">操作类型:</span>{' '}
+                  {activeRow.operation_type
+                    ? operationTypeLabel(activeRow.operation_type)
+                    : '-'}
                 </p>
                 <p>
                   <span className="text-muted-foreground">Key 标签:</span>{' '}

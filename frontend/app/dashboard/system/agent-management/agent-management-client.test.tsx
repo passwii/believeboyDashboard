@@ -88,6 +88,10 @@ vi.mock('@/components/system/agent-access-logs-panel', () => ({
   AgentAccessLogsPanel: () => <div data-testid="access-logs-panel" />,
 }))
 
+vi.mock('@/components/system/agent-operation-logs-panel', () => ({
+  AgentOperationLogsPanel: () => <div data-testid="operation-logs-panel" />,
+}))
+
 // ProjectScopeSelect 内含 MultiSelect（弹层），页面测试里简化渲染。
 vi.mock('@/components/project-scope-select', () => ({
   ProjectScopeSelect: () => <div data-testid="project-scope-select" />,
@@ -171,6 +175,12 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     expect(screen.getByTestId('usage-guide')).toBeTruthy()
 
     await user.click(screen.getByRole('tab', { name: /访问日志/ }))
+    expect(screen.getByTestId('access-logs-panel')).toBeTruthy()
+
+    // BLF-460：访问日志 Tab 内拆「读访问 / 写操作」子 Tab
+    await user.click(screen.getByRole('tab', { name: /写操作/ }))
+    expect(screen.getByTestId('operation-logs-panel')).toBeTruthy()
+    await user.click(screen.getByRole('tab', { name: /读访问/ }))
     expect(screen.getByTestId('access-logs-panel')).toBeTruthy()
   })
 
