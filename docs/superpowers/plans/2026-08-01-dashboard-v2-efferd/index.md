@@ -55,3 +55,13 @@
 
 - **验收 issue**：BLF-450（确认 V2 进度 + 集成 V1/V2 切换）
 - **数据快照**：新增 16 测试（delta 5 / stats 7 / page 4）；全量 78 文件 416 测试通过；`pnpm lint` 0 错误；`pnpm build` 含 `/dashboard/v2` 路由
+
+## 打磨轮（2026-08-06，BLF-450 用户反馈）
+
+用户三条反馈：业务数据集成 / 图表完整度 / 中文化。commit `e9472fd2` 一次性落地：
+
+- **替换 3 个英文 mock 为真实业务数据**：`V2TopProjects`（项目排行表格，project_breakdown + 环比，销售额/广告花费 Tab）替代 `V2Invoices`；`V2AlertFeed`（告警动态，alerts/stats + alerts/events 自管 fetch）替代 `V2Activity`；`V2StockChart`（库存水位 7 日趋势）替代 `V2Billing`；删除 `v2-invoices/billing/activity.tsx`
+- **新增 3 个真实数据图表**：`V2ProjectChart`（项目销售额对比 Top 5）、`V2CountryChart`（跨国家销售额，/all-countries 随页面项目选择）、`V2TrafficChart`（流量与转化：浏览量柱 + 转化率线 + 汇总）
+- **全中文化**：页面已无 sample 英文残留；新表格/图表/告警全部中文标签
+- **验证**：lint 0 错误 / build 含 `/dashboard/v2` / 全量 82 文件 447 测试通过（新增 top-projects 4 + stock-traffic 6 + page 1）
+- **测试经验**：页面级测试中图表组件 mock 为 testid 占位（不渲染标题，断言 testid）；告警组件自管 fetch 先于页面主 fetch 触发，断言主请求需按 URL 过滤而非 calls[0]
