@@ -13,7 +13,10 @@ class UploadResponse(BaseModel):
 ProjectMatchStatus = Literal["unmatched", "matched", "conflict", "manual"]
 ReportUploadType = Literal[
     "inventory_report",
+    # 旧值仅保留给历史调用方（入库层仍按表头路由），新识别不再输出。
     "inventory_ledger",
+    "inventory_ledger_summary",
+    "inventory_ledger_detail",
     "business_report",
     "ad_product_report",
     "ad_report",
@@ -97,6 +100,11 @@ class ReportCommitResponse(BaseModel):
     persisted_table: str | None = None
     message: str
     duplicate_warnings: list[dict] = Field(default_factory=list)
+    # 按行入库的报表（库存盘点 / 库存分类账）返回实际入库行数；
+    # 其他类型保持 None（可选字段，向后兼容）。
+    rows_ingested: int | None = Field(
+        default=None, description="实际入库行数（仅按行入库的报表类型非空）"
+    )
 
 
 class ReportStatusCell(BaseModel):

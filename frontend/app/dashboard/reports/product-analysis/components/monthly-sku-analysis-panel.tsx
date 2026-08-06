@@ -302,6 +302,7 @@ export default function MonthlySkuAnalysisPanel() {
               fileCommitStatus: 'idle',
               commitError: null,
               error: '识别失败',
+              rowsIngested: null,
             })
             continue
           }
@@ -328,6 +329,7 @@ export default function MonthlySkuAnalysisPanel() {
               fileCommitStatus: 'idle',
               commitError: null,
               error: `产品分析不需要此类型 (${rType})，已忽略`,
+              rowsIngested: null,
             })
             continue
           }
@@ -352,6 +354,7 @@ export default function MonthlySkuAnalysisPanel() {
             fileCommitStatus: 'idle',
             commitError: null,
             error: recognition.status !== 'recognized' ? recognition.reason : null,
+            rowsIngested: null,
           }
           next.push(item)
 

@@ -18,6 +18,7 @@ from app.utils.country import normalize_country as _normalize_country
 from app.utils.recognition import (
     recognize_file,
     RecognitionResult,
+    LedgerRecognitionError,
     _normalize_identifier,
     _normalize_columns,
     _read_csv_with_encoding_fallback,
@@ -85,9 +86,28 @@ def recognize_saved_report_upload(
     }
     normalized_country = _normalize_country(country)
 
-    result = recognize_file(
-        path, country=normalized_country, original_filename=original_filename
-    )
+    try:
+        result = recognize_file(
+            path, country=normalized_country, original_filename=original_filename
+        )
+    except LedgerRecognitionError as exc:
+        # 库存分类账部分签名/冲突是结构化识别失败：返回 status="error"
+        # 的可操作响应，不落裸 500，也不降级为其他报表类型。
+        return ReportRecognitionResponse(
+            temp_file_id=temp_file_id,
+            original_filename=original_filename,
+            extension=extension,
+            report_type="unknown",
+            matched_columns=[],
+            reason=str(exc),
+            status="error",
+            country=normalized_country,
+            date_input_mode="single_manual",
+            project_match=ReportProjectMatchSummary(
+                status="manual", message="未识别成功"
+            ),
+            warnings=[],
+        )
 
     if result is None:
         return ReportRecognitionResponse(
@@ -128,7 +148,11 @@ def recognize_saved_report_upload(
             df = _normalize_columns(_read_csv_with_encoding_fallback(path))
             match_by = "sku"
             values = df[match_by].dropna().astype(str).tolist()
-        elif result.report_type == "inventory_ledger":
+        elif result.report_type in {
+            "inventory_ledger",
+            "inventory_ledger_summary",
+            "inventory_ledger_detail",
+        }:
             df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
             match_by = "sku"
             values = (

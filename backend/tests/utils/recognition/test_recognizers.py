@@ -2,8 +2,10 @@
 import tempfile
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
+from app.utils.recognition.patterns import _normalize_columns
 from app.utils.recognition.recognizers import recognize_file
 
 
@@ -151,3 +153,254 @@ class TestBusinessReportRecognition:
             assert result.report_type == "business_report"
         finally:
             path.unlink()
+
+
+# ─── Inventory Ledger: Summary (22 列) / Detail (16 列) 互斥识别 ─────────────
+# 真实文件表头：库存分类账 2026-03一览视图.csv（Summary）/ 库存分类账-2026-03详细视图.csv（Detail）。
+
+INVENTORY_LEDGER_SUMMARY_HEADERS = [
+    "Date",
+    "FNSKU",
+    "ASIN",
+    "MSKU",
+    "Title",
+    "Disposition",
+    "Starting Warehouse Balance",
+    "In Transit Between Warehouses",
+    "Receipts",
+    "Customer Shipments",
+    "Customer Returns",
+    "Vendor Returns",
+    "Warehouse Transfer In/Out",
+    "Found",
+    "Lost",
+    "Damaged",
+    "Disposed",
+    "Other Events",
+    "Ending Warehouse Balance",
+    "Unknown Events",
+    "Location",
+    "Store",
+]
+
+INVENTORY_LEDGER_DETAIL_HEADERS = [
+    "Date",
+    "FNSKU",
+    "ASIN",
+    "MSKU",
+    "Title",
+    "Event Type",
+    "Reference ID",
+    "Quantity",
+    "Fulfillment Center",
+    "Disposition",
+    "Reason",
+    "Country",
+    "Reconciled Quantity",
+    "Unreconciled Quantity",
+    "Date and Time",
+    "Store",
+]
+
+_INVENTORY_LEDGER_SUMMARY_ROW = (
+    "03/01/2026,X00ABC,B0001,MSKU-001,Test Item,SELLABLE,"
+    "100,0,0,5,0,0,0,0,0,0,0,0,95,0,LAX1,Bel-Bel"
+)
+_INVENTORY_LEDGER_DETAIL_ROW = (
+    "03/01/2026,X00ABC,B0001,MSKU-001,Test Item,Shipments,REF-123,"
+    "-1,LAX1,SELLABLE,,US,,-1,2026-03-01T00:00:00-0700,"
+)
+
+
+@pytest.mark.recognition
+class TestInventoryLedgerRecognition:
+    """Amazon 库存分类账 Summary/Detail 识别为两个互斥类型（BEL-428）。"""
+
+    def test_recognize_inventory_ledger_summary_header(self):
+        content = (
+            ",".join(INVENTORY_LEDGER_SUMMARY_HEADERS)
+            + "\n"
+            + _INVENTORY_LEDGER_SUMMARY_ROW
+            + "\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="库存分类账 2026-03一览视图.csv"
+            )
+            assert result is not None
+            assert result.report_type == "inventory_ledger_summary"
+        finally:
+            path.unlink()
+
+    def test_recognize_inventory_ledger_detail_header(self):
+        content = (
+            ",".join(INVENTORY_LEDGER_DETAIL_HEADERS)
+            + "\n"
+            + _INVENTORY_LEDGER_DETAIL_ROW
+            + "\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="库存分类账-2026-03详细视图.csv"
+            )
+            assert result is not None
+            assert result.report_type == "inventory_ledger_detail"
+        finally:
+            path.unlink()
+
+    def test_detail_does_not_fall_back_to_business_report(self):
+        content = (
+            ",".join(INVENTORY_LEDGER_DETAIL_HEADERS)
+            + "\n"
+            + _INVENTORY_LEDGER_DETAIL_ROW
+            + "\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="库存分类账-2026-03详细视图.csv"
+            )
+            assert result is not None
+            assert result.report_type != "business_report"
+        finally:
+            path.unlink()
+
+    def test_ledger_never_emits_legacy_inventory_ledger_type(self):
+        """recognizer 对任何新文件都不再输出旧 inventory_ledger 类型。"""
+        for headers, row in (
+            (INVENTORY_LEDGER_SUMMARY_HEADERS, _INVENTORY_LEDGER_SUMMARY_ROW),
+            (INVENTORY_LEDGER_DETAIL_HEADERS, _INVENTORY_LEDGER_DETAIL_ROW),
+        ):
+            content = ",".join(headers) + "\n" + row + "\n"
+            path = _write_csv(content)
+            try:
+                result = recognize_file(path, country="US")
+                assert result is not None
+                assert result.report_type != "inventory_ledger"
+            finally:
+                path.unlink()
+
+    def test_summary_missing_column_raises_with_missing_names(self):
+        headers = list(INVENTORY_LEDGER_SUMMARY_HEADERS)
+        headers.remove("Ending Warehouse Balance")
+        content = ",".join(headers) + "\n" + _INVENTORY_LEDGER_SUMMARY_ROW + "\n"
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(
+                    path, country="US", original_filename="库存分类账 2026-03一览视图.csv"
+                )
+            assert "Summary" in str(exc.value)
+            assert "ending warehouse balance" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_detail_missing_column_raises_with_missing_names(self):
+        headers = list(INVENTORY_LEDGER_DETAIL_HEADERS)
+        headers.remove("Fulfillment Center")
+        content = ",".join(headers) + "\n" + _INVENTORY_LEDGER_DETAIL_ROW + "\n"
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(
+                    path, country="US", original_filename="库存分类账-2026-03详细视图.csv"
+                )
+            assert "Detail" in str(exc.value)
+            assert "fulfillment center" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_both_signatures_conflict_raises(self):
+        """同时包含 Summary 与 Detail 完整签名 → 结构化拒绝，不落入 business_report。"""
+        combined = list(INVENTORY_LEDGER_SUMMARY_HEADERS) + [
+            h
+            for h in INVENTORY_LEDGER_DETAIL_HEADERS
+            if h not in INVENTORY_LEDGER_SUMMARY_HEADERS
+        ]
+        content = ",".join(combined) + "\n" + _INVENTORY_LEDGER_SUMMARY_ROW + "\n"
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(path, country="US")
+            assert "冲突" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_quantity_only_column_is_not_treated_as_ledger(self):
+        """只有 quantity 一个 Detail 强特征列的 CSV 不应被当作库存分类账。
+
+        回归：其它 Amazon 导出（普通商品 CSV）也含 "quantity" 列，单列命中
+        不足以认定与库存分类账相关。应返回 None（落入未知报表），既不是
+        LedgerRecognitionError，也不是 business_report。
+        """
+        content = (
+            "date,sku,quantity,price\n"
+            "2026-03-01,MSKU-001,10,19.99\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="inventory_2026-03.csv"
+            )
+            assert result is None, (
+                "仅含 quantity 列的 CSV 应落入未知报表（None），"
+                f"实际返回 {result.report_type if result else result}"
+            )
+        finally:
+            path.unlink()
+
+    def test_detail_two_strong_markers_incomplete_raises(self):
+        """Detail 强特征命中 2 列但不完整 → 仍按部分签名拒绝。
+
+        两列阈值不弱化真实 Detail 部分签名的拒绝：event type + quantity
+        均出现但缺 fulfillment center 时，仍抛 LedgerRecognitionError。
+        """
+        headers = ["date", "msku", "event type", "quantity", "disposition"]
+        content = (
+            ",".join(headers)
+            + "\n"
+            + "03/01/2026,MSKU-001,Shipments,-1,SELLABLE\n"
+        )
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(path, country="US")
+            assert "Detail" in str(exc.value)
+            assert "fulfillment center" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_summary_and_detail_strong_markers_conflict_raises(self):
+        """Summary 强特征与 Detail 强特征（≥2 列）并存 → 冲突拒绝。"""
+        content = (
+            "date,msku,event type,quantity,starting warehouse balance\n"
+            "03/01/2026,MSKU-001,Shipments,-1,100\n"
+        )
+        path = _write_csv(content)
+        try:
+            with pytest.raises(ValueError) as exc:
+                recognize_file(path, country="US")
+            assert "冲突" in str(exc.value)
+        finally:
+            path.unlink()
+
+    def test_normalized_headers_match_space_separated_signature_names(self):
+        """签名用空格分隔（非下划线）：_normalize_columns 只做 strip+lower。
+
+        证明选择：真实表头 "Starting Warehouse Balance" 经 _normalize_columns
+        后为 "starting warehouse balance"，下划线形式（ingestion 层的
+        _normalize_header 才生成）不会出现在 recognizer 的标准化列名里。
+        """
+        summary_cols = set(
+            _normalize_columns(pd.DataFrame(columns=INVENTORY_LEDGER_SUMMARY_HEADERS)).columns
+        )
+        detail_cols = set(
+            _normalize_columns(pd.DataFrame(columns=INVENTORY_LEDGER_DETAIL_HEADERS)).columns
+        )
+        assert "starting warehouse balance" in summary_cols
+        assert "ending warehouse balance" in summary_cols
+        assert "starting_warehouse_balance" not in summary_cols
+        assert {"event type", "quantity", "fulfillment center"} <= detail_cols
+        assert "event_type" not in detail_cols

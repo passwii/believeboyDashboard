@@ -1,6 +1,8 @@
 export type ReportType =
   | 'inventory_report'
   | 'inventory_ledger'
+  | 'inventory_ledger_summary'
+  | 'inventory_ledger_detail'
   | 'business_report'
   | 'ad_product_report'
   | 'ad_search_term_share_report'
@@ -139,6 +141,8 @@ export type UploadQueueItem = {
   fileCommitStatus: CommitStatus
   commitError: string | null
   error: string | null
+  /** 入库成功后的实际行数（后端 commit 响应 rows_ingested，按行入库类型才有值） */
+  rowsIngested: number | null
 }
 
 // 需要日期的报表类型
@@ -146,6 +150,8 @@ export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
   'business_report',
   'inventory_report',
   'inventory_ledger',
+  'inventory_ledger_summary',
+  'inventory_ledger_detail',
   'ad_product_report',
   'ad_search_term_share_report',
   'ad_budget_report',

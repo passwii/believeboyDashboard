@@ -613,6 +613,115 @@ class TestValidation:
 
 
 # ---------------------------------------------------------------------------
+# Typed ingest contract — expected_kind 声明与文件内容必须一致 (Task 2)
+# ---------------------------------------------------------------------------
+
+
+class TestTypedIngestContract:
+    """声明类型（expected_kind）与 CSV 表头检测结果不一致时必须拒绝。
+
+    调用方（HTTP persistence）把声明类型与文件内容不一致视为结构化 4xx，
+    因此这里必须抛 ``ValueError`` 且消息含"类型与文件内容不一致"。
+    """
+
+    def test_expected_summary_rejects_detail_csv(
+        self, db_session: Session, project: Project
+    ):
+        csv = _make_detail_csv([_detail_row()])
+        with pytest.raises(ValueError, match="类型与文件内容不一致") as exc:
+            ingest_ledger_csv(
+                db_session,
+                project_id=project.id,
+                csv_content=csv,
+                filename="库存分类账-2026-06详细视图.csv",
+                expected_kind="summary",
+            )
+        msg = str(exc.value)
+        assert "summary" in msg and "detail" in msg, msg
+
+    def test_expected_detail_rejects_summary_csv(
+        self, db_session: Session, project: Project
+    ):
+        csv = _make_summary_csv([_summary_row()])
+        with pytest.raises(ValueError, match="类型与文件内容不一致") as exc:
+            ingest_ledger_csv(
+                db_session,
+                project_id=project.id,
+                csv_content=csv,
+                filename="库存分类账 2026-0601-0630.csv",
+                expected_kind="detail",
+            )
+        msg = str(exc.value)
+        assert "summary" in msg and "detail" in msg, msg
+
+    def test_expected_summary_with_summary_csv_ingests_summary_table(
+        self, db_session: Session, project: Project
+    ):
+        csv = _make_summary_csv([_summary_row()])
+        n = ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="库存分类账 2026-0601-0630.csv",
+            expected_kind="summary",
+        )
+        assert n == 1
+        db_session.commit()
+        summary_rows = db_session.execute(
+            select(InventoryLedgerSummary).where(
+                InventoryLedgerSummary.project_id == project.id
+            )
+        ).all()
+        detail_rows = db_session.execute(
+            select(InventoryLedgerDetail).where(
+                InventoryLedgerDetail.project_id == project.id
+            )
+        ).all()
+        assert len(summary_rows) == 1
+        assert len(detail_rows) == 0
+
+    def test_expected_detail_with_detail_csv_ingests_detail_table(
+        self, db_session: Session, project: Project
+    ):
+        csv = _make_detail_csv([_detail_row()])
+        n = ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="库存分类账-2026-06详细视图.csv",
+            expected_kind="detail",
+        )
+        assert n == 1
+        db_session.commit()
+        summary_rows = db_session.execute(
+            select(InventoryLedgerSummary).where(
+                InventoryLedgerSummary.project_id == project.id
+            )
+        ).all()
+        detail_rows = db_session.execute(
+            select(InventoryLedgerDetail).where(
+                InventoryLedgerDetail.project_id == project.id
+            )
+        ).all()
+        assert len(summary_rows) == 0
+        assert len(detail_rows) == 1
+
+    def test_expected_kind_none_keeps_autodetect_legacy_path(
+        self, db_session: Session, project: Project
+    ):
+        """兼容旧调用：不传 expected_kind 时保持按表头自动识别。"""
+        csv = _make_summary_csv([_summary_row()])
+        n = ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="库存分类账 2026-0601-0630.csv",
+            expected_kind=None,
+        )
+        assert n == 1
+
+
+# ---------------------------------------------------------------------------
 # Bulk volume / performance — regression guard for BEL-417
 # ---------------------------------------------------------------------------
 

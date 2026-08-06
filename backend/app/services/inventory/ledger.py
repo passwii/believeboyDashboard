@@ -21,6 +21,7 @@ import hashlib
 import io
 import re
 from datetime import date, datetime, timezone
+from typing import Literal
 
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.orm import Session
@@ -1437,12 +1438,19 @@ def ingest_ledger_csv(
     csv_content: str | bytes,
     filename: str = "",
     loaded_by: str | None = None,
+    expected_kind: Literal["summary", "detail"] | None = None,
 ) -> int:
     """Parse an Amazon Inventory Ledger CSV and write to the dual-table schema.
 
     Auto-detects Summary vs Detailed by headers; creates/updates the ingest
     batch row (natural-key dedupe on file identity); writes rows with the
     batch id attached.
+
+    ``expected_kind`` is the typed ingestion contract (HTTP 入库层在收到
+    独立报表类型时传入)：声明类型与表头检测结果不一致直接抛
+    ``ValueError``（消息含"类型与文件内容不一致"），不重新猜测目标视图。
+    为 ``None`` 时保持旧行为——按表头自动识别（旧 ``inventory_ledger``
+    兼容路径）。
 
     Returns the number of rows written (0 if the identical file was already
     ingested — idempotent re-upload).
@@ -1496,6 +1504,12 @@ def ingest_ledger_csv(
                 "无法识别报表类型：列头既不是 Summary 视图（Starting/Ending "
                 "Warehouse Balance）也不是 Detailed 视图（Event Type / Quantity）。"
             )
+
+    # 类型化契约：声明类型必须与表头检测结果一致，拒绝时不再重新猜测。
+    if expected_kind is not None and kind != expected_kind:
+        raise ValueError(
+            f"报表类型与文件内容不一致：声明为 {expected_kind}，实际检测为 {kind}"
+        )
 
     raw_headers = [_normalize_header(h) for h in reader.fieldnames]
     header_map = {raw: column_map.get(raw) for raw in raw_headers}
