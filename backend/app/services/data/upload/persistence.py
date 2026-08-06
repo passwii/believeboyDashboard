@@ -36,6 +36,21 @@ from app.utils.persist_helpers import write_report_upload_log
 from app.utils.utils import sha256_file as _sha256_file
 
 
+def _recognition_matches_declared(declared: str, recognized: str) -> bool:
+    """识别结果是否满足声明类型（report_type 一致性校验）。
+
+    新识别器只输出拆分的 ``inventory_ledger_summary`` / ``inventory_ledger_detail``，
+    不再输出旧值 ``inventory_ledger``。声明旧值的受控兼容客户端在此放行，
+    由入库层按表头自动路由（旧分支 expected_kind=None）；新调用方必须精确一致。
+    """
+    if declared == recognized:
+        return True
+    return (
+        declared == "inventory_ledger"
+        and recognized in {"inventory_ledger_summary", "inventory_ledger_detail"}
+    )
+
+
 def commit_report_upload(
     db: Session,
     settings: Settings,
@@ -84,7 +99,7 @@ def commit_report_upload(
                     detail=f"文件识别失败，无法确认项目归属：{auto_recognition.reason}",
                 )
             recognized_type = normalize_report_type(auto_recognition.report_type)
-            if recognized_type != report_type:
+            if not _recognition_matches_declared(report_type, recognized_type):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
@@ -161,7 +176,7 @@ def commit_report_upload(
                     detail=f"文件识别失败，无法确认项目归属：{recognition.reason}",
                 )
             recognized_type = normalize_report_type(recognition.report_type)
-            if recognized_type != report_type:
+            if not _recognition_matches_declared(report_type, recognized_type):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="report_type does not match recognized report",
@@ -327,6 +342,37 @@ def commit_report_upload(
         )
         response_status = "persisted"
         message = f"库存盘点数据已入库（{row_count} 行）"
+    elif report_type in {"inventory_ledger_summary", "inventory_ledger_detail"}:
+        # 库存分类账独立类型：声明类型必须与 CSV 表头一致，分别只写
+        # inventory_ledger_summary / inventory_ledger_detail 目标表，
+        # 不落入通用 _persist_single_source 路径。
+        from app.services.inventory.ledger import ingest_ledger_csv
+
+        expected_kind = (
+            "summary" if report_type == "inventory_ledger_summary" else "detail"
+        )
+        view_label = "汇总视图" if expected_kind == "summary" else "明细视图"
+        project = _get_project_by_name(db, project_name)
+        file_path = file_meta["file_path"]
+        with open(file_path, "rb") as f:
+            csv_content = f.read()
+        try:
+            row_count = ingest_ledger_csv(
+                db,
+                project_id=project.id,
+                csv_content=csv_content,
+                filename=payload.original_filename or "",
+                loaded_by=operator,
+                expected_kind=expected_kind,
+            )
+        except ValueError as exc:
+            # 声明类型与表头不一致 / 格式不完整等：结构化 4xx，不落裸 500。
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+        response_status = "persisted"
+        message = f"库存分类账{view_label}已入库（{row_count} 行）"
     elif report_type == "business_report":
         if payload.use_period_dates:
             start = (payload.report_start_date or "").strip()

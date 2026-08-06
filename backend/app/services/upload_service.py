@@ -17,6 +17,8 @@ TYPE_ALLOWED_EXTENSIONS: dict[str, set[str]] = {
     "sales_report": {".txt"},
     "inventory_report": {".txt"},
     "inventory_ledger": {".csv"},
+    "inventory_ledger_summary": {".csv"},
+    "inventory_ledger_detail": {".csv"},
     "ad_product_report": {".xlsx"},
     "payment_report": {".csv"},
     "transaction_csv": {".csv"},
