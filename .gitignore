@@ -98,6 +98,7 @@ update_extensions.sql
 
 # Auto report upload
 autoReportUpload/__pycache__/
+autoReportUpload/**/__pycache__/
 autoReportUpload/.env
 !autoReportUpload/.env.example
 
