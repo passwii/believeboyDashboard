@@ -101,6 +101,12 @@ describe('REPORT_UPLOAD_REPORT_TYPE_LABELS', () => {
   it('保留旧版 inventory_ledger 的非空历史标签', () => {
     expect(REPORT_UPLOAD_REPORT_TYPE_LABELS.inventory_ledger).toBeTruthy()
   })
+
+  it('旧版 inventory_ledger 历史标签为计划指定精确文案', () => {
+    expect(REPORT_UPLOAD_REPORT_TYPE_LABELS.inventory_ledger).toBe(
+      '历史库存分类账类型（待重新识别）'
+    )
+  })
 })
 
 describe('REPORT_TYPES（RPA 状态矩阵）', () => {
@@ -158,5 +164,60 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
 
     expect(await screen.findByText('汇总')).toBeInTheDocument()
     expect(screen.getByText('明细')).toBeInTheDocument()
+  })
+
+  it('上传成功后队列展示入库行数（rows_ingested 结构化字段）', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'matched',
+              project_name: '测试项目',
+              candidate_projects: [],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1'],
+              message: '已根据SKU自动匹配项目',
+            },
+          })
+        }
+        if (url.includes('/report-upload/commit')) {
+          return jsonResponse({
+            report_type: 'inventory_ledger_summary',
+            status: 'persisted',
+            rows_ingested: 1234,
+            message: '库存分类账汇总视图已入库（1234 行）',
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+
+    const input = screen.getByLabelText(/拖拽文件到这里/)
+    const file = new File(['date,msku,disposition'], '库存分类账 2026-03一览视图.csv', {
+      type: 'text/csv',
+    })
+    await user.upload(input, file)
+    await screen.findByText(`类型：${SUMMARY_LABEL}`)
+
+    await user.click(screen.getByRole('button', { name: /上传全部/ }))
+
+    // 行数文本被拆在 <p> 与高亮 <span> 中，用 textContent 断言整行文案
+    expect(
+      await screen.findByText(
+        (_content, element) =>
+          element?.tagName === 'P' &&
+          (element.textContent ?? '').includes('入库：1,234 行')
+      )
+    ).toBeInTheDocument()
   })
 })

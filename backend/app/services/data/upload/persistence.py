@@ -296,6 +296,8 @@ def commit_report_upload(
     persisted_table: str | None = None
     response_status: str = "saved"
     message = "文件已保存"
+    # 按行入库的报表（库存盘点 / 库存分类账）记录实际行数，随响应返回给前端展示
+    ingested_rows: int | None = None
 
     if report_type == "inventory_report":
         report_date = (payload.report_date or "").strip()
@@ -342,6 +344,7 @@ def commit_report_upload(
         )
         response_status = "persisted"
         message = f"库存盘点数据已入库（{row_count} 行）"
+        ingested_rows = row_count
     elif report_type in {"inventory_ledger_summary", "inventory_ledger_detail"}:
         # 库存分类账独立类型：声明类型必须与 CSV 表头一致，分别只写
         # inventory_ledger_summary / inventory_ledger_detail 目标表，
@@ -373,6 +376,7 @@ def commit_report_upload(
             ) from exc
         response_status = "persisted"
         message = f"库存分类账{view_label}已入库（{row_count} 行）"
+        ingested_rows = row_count
     elif report_type == "business_report":
         if payload.use_period_dates:
             start = (payload.report_start_date or "").strip()
@@ -699,6 +703,7 @@ def commit_report_upload(
         persisted_table=persisted_table,
         message=message,
         duplicate_warnings=duplicate_warnings,
+        rows_ingested=ingested_rows,
     )
 
 

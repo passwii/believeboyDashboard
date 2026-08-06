@@ -529,6 +529,7 @@ function AutoUploadContent({
       fileCommitStatus: 'idle',
       commitError: null,
       error: null,
+      rowsIngested: null,
     }))
 
     setQueueItems((prev) => [...pending, ...prev])
@@ -736,10 +737,21 @@ function AutoUploadContent({
           const text = await res.text()
           throw new Error(text || '上传失败')
         }
+        // 读取结构化响应：rows_ingested 用于上传成功后的行数反馈（按行入库类型才有值）
+        let rowsIngested: number | null = null
+        try {
+          const commitPayload = (await res.json()) as { rows_ingested?: number | null }
+          rowsIngested =
+            typeof commitPayload.rows_ingested === 'number' && commitPayload.rows_ingested > 0
+              ? commitPayload.rows_ingested
+              : null
+        } catch {
+          // 响应非 JSON 时忽略，仅缺失行数反馈，不影响成功状态
+        }
         setQueueItems((prev) =>
           prev.map((it) =>
             it.localId === item.localId
-              ? { ...it, fileCommitStatus: 'success', commitError: null }
+              ? { ...it, fileCommitStatus: 'success', commitError: null, rowsIngested }
               : it
           )
         )
@@ -929,6 +941,15 @@ function AutoUploadContent({
                           ? '识别中'
                           : `类型：${getUploadReportTypeLabel(item.reportType)}`}
                       </p>
+                      {item.fileCommitStatus === 'success' && item.rowsIngested != null ? (
+                        <p className="text-xs text-muted-foreground">
+                          入库：
+                          <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-400">
+                            {item.rowsIngested.toLocaleString()}
+                          </span>{' '}
+                          行
+                        </p>
+                      ) : null}
                       {item.recognitionStatus !== 'pending' ? (
                         <>
                           <p className="text-xs text-muted-foreground">

@@ -141,6 +141,8 @@ export type UploadQueueItem = {
   fileCommitStatus: CommitStatus
   commitError: string | null
   error: string | null
+  /** 入库成功后的实际行数（后端 commit 响应 rows_ingested，按行入库类型才有值） */
+  rowsIngested: number | null
 }
 
 // 需要日期的报表类型

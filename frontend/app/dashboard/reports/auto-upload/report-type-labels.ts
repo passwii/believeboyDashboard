@@ -12,7 +12,7 @@ export const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
   payment_report: '付款报告',
   return_report: '退货报告',
   // 历史队列可能携带旧值；保留非空映射避免显示原始 key，但不再作为新上传选项
-  inventory_ledger: '库存分类账（旧版，待重新识别）',
+  inventory_ledger: '历史库存分类账类型（待重新识别）',
   inventory_ledger_summary: '库存分类账 · 汇总视图（Summary）',
   inventory_ledger_detail: '库存分类账 · 明细视图（Detail）',
   ...AD_REPORT_TYPES.reduce<Record<string, string>>((acc, item) => {

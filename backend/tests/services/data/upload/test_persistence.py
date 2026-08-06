@@ -32,6 +32,7 @@ from app.models.inventory_ledger import (
 from app.models.sku_info import SkuRecord
 from app.schemas.upload import (
     ReportCommitRequest,
+    ReportCommitResponse,
     ReportProjectMatchSummary,
     ReportRecognitionResponse,
 )
@@ -225,6 +226,7 @@ class TestLedgerTypedRouting:
         )
         assert resp.status == "persisted"
         assert resp.message == "库存分类账汇总视图已入库（1 行）"
+        assert resp.rows_ingested == 1
         db_session.commit()
         assert _summary_count(db_session, project.id) == 1
         assert _detail_count(db_session, project.id) == 0
@@ -258,6 +260,7 @@ class TestLedgerTypedRouting:
         )
         assert resp.status == "persisted"
         assert resp.message == "库存分类账明细视图已入库（1 行）"
+        assert resp.rows_ingested == 1
         db_session.commit()
         assert _summary_count(db_session, project.id) == 0
         assert _detail_count(db_session, project.id) == 1
@@ -292,6 +295,7 @@ class TestLedgerTypedRouting:
         )
         assert resp.status == "persisted"
         assert resp.message == "库存盘点数据已入库（1 行）"
+        assert resp.rows_ingested == 1
         db_session.commit()
         assert _summary_count(db_session, project.id) == 1
 
@@ -383,3 +387,17 @@ class TestLedgerExtensionMap:
         assert upload_service.TYPE_ALLOWED_EXTENSIONS["inventory_ledger_detail"] == {
             ".csv"
         }
+
+
+class TestCommitResponseRowsIngestedBackwardCompat:
+    def test_rows_ingested_defaults_none_for_non_ledger_types(self):
+        """非按行入库的报表类型：rows_ingested 保持 None（字段可选，向后兼容）。"""
+        resp = ReportCommitResponse(
+            report_type="inventory_report",
+            status="saved",
+            file_id="f-1",
+            file_path="/tmp/f-1",
+            message="文件已保存",
+        )
+        assert resp.rows_ingested is None
+        assert resp.model_dump(exclude_none=True).get("rows_ingested") is None
