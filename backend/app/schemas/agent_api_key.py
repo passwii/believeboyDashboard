@@ -15,6 +15,11 @@ class ApiKeyCreateRequest(BaseModel):
         max_length=255,
         description="项目范围：'*' 全部，或 ',' 分隔的 project_id 白名单（空串按 '*' 处理）",
     )
+    business_scope: str = Field(
+        default="*",
+        max_length=255,
+        description="业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）",
+    )
     expires_at: datetime | None = Field(
         default=None, description="ISO 过期时间；null = 永不过期"
     )
@@ -31,6 +36,7 @@ class ApiKeyCreateResponse(BaseModel):
     label: str
     scope: str
     project_scope: str
+    business_scope: str
     agent_id: str | None
     expires_at: datetime | None
     created_at: datetime
@@ -44,6 +50,7 @@ class ApiKeyItem(BaseModel):
     label: str
     scope: str
     project_scope: str
+    business_scope: str
     agent_id: str | None
     is_revoked: bool
     expires_at: datetime | None

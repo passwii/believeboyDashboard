@@ -126,6 +126,7 @@ def create_api_key(
     created_by: str,
     scope: str = "read",
     project_scope: str = "*",
+    business_scope: str = "*",
     expires_at: datetime | None = None,
     agent_id: str | None = None,
 ) -> tuple[AgentApiKey, str]:
@@ -135,6 +136,7 @@ def create_api_key(
     ``agent_id`` 非空即"Agent 凭据"（必须与调用时的 X-Agent-Id 头一致）；
     留空为存量 external 语义。``project_scope`` 为项目范围白名单
     （"," 分隔 project_id；"*" = 全部，即本任务启用前的存量语义）；
+    ``business_scope`` 为业务域范围白名单（"," 分隔域 code；"*" = 全部）；
     校验逻辑见 ``app/api/agent/scope.py``。Caller commits.
     """
     plaintext, key_hash, key_prefix = generate_key()
@@ -144,6 +146,7 @@ def create_api_key(
         label=label[:128],
         scope=scope[:64],
         project_scope=(project_scope or "*")[:255],
+        business_scope=(business_scope or "*")[:255],
         expires_at=expires_at,
         created_by=created_by[:128],
         agent_id=agent_id[:128] if agent_id else None,

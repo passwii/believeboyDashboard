@@ -54,3 +54,8 @@ class AgentApiKey(Base):
     project_scope: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="*"
     )
+    # 业务域授权范围（BLF-448）：'*' 全域放行，或 ',' 分隔的域 code 白名单
+    # （如 shipments,shop_calculations）。校验见 app/api/agent/scope.py。
+    business_scope: Mapped[str] = mapped_column(
+        String(255), nullable=False, server_default="*"
+    )

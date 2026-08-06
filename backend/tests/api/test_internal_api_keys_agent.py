@@ -50,12 +50,16 @@ class TestAgentKeyCreate:
             # E1-4：审计行（人发起，operator 归因）
             db = SessionLocal()
             try:
-                row = db.execute(
-                    text(
-                        "select operator, action, target_type from operation_audit_logs "
-                        "where action='api_key.create' order by id desc limit 1"
+                row = (
+                    db.execute(
+                        text(
+                            "select operator, action, target_type from operation_audit_logs "
+                            "where action='api_key.create' order by id desc limit 1"
+                        )
                     )
-                ).mappings().first()
+                    .mappings()
+                    .first()
+                )
                 assert row is not None
                 assert row["target_type"] == "agent_api_key"
                 assert row["operator"]
@@ -77,9 +81,45 @@ class TestAgentKeyCreate:
         finally:
             _cleanup(key_id)
 
+    def test_create_with_business_scope(self, client, admin_headers):
+        created = client.post(
+            "/api/v1/internal/api-keys",
+            json={
+                "label": "域白名单 (测试)",
+                "agent_id": "shipment-assistant-test",
+                "business_scope": "shipments,shop_calculations",
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 201, created.text
+        body = created.json()
+        key_id = body["id"]
+        try:
+            assert body["business_scope"] == "shipments,shop_calculations"
+            listed = client.get("/api/v1/internal/api-keys", headers=admin_headers)
+            match = next(i for i in listed.json() if i["id"] == key_id)
+            assert match["business_scope"] == "shipments,shop_calculations"
+        finally:
+            _cleanup(key_id)
+
+    def test_create_business_scope_defaults_to_all(self, client, admin_headers):
+        created = client.post(
+            "/api/v1/internal/api-keys",
+            json={"label": "默认域范围 (测试)", "agent_id": "shipment-assistant-test"},
+            headers=admin_headers,
+        )
+        assert created.status_code == 201, created.text
+        key_id = created.json()["id"]
+        try:
+            assert created.json()["business_scope"] == "*"
+        finally:
+            _cleanup(key_id)
+
 
 class TestAgentKeyRevokeIntegration:
-    def test_revoked_agent_key_blocks_agent_channel(self, client, admin_headers, make_api_key):
+    def test_revoked_agent_key_blocks_agent_channel(
+        self, client, admin_headers, make_api_key
+    ):
         key = make_api_key(agent_id="e5-agent")
         headers = {
             "Authorization": f"Bearer {key['plaintext']}",

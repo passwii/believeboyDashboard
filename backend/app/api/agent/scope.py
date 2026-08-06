@@ -70,3 +70,54 @@ def require_project_scope(project_id: int, request: Request) -> None:
             )
     finally:
         db.close()
+
+
+def _parse_business_scope(scope: str) -> set[str]:
+    """把 ``"shipments, shop_calculations"`` 解析成域 code 集合；空片段跳过。"""
+    codes: set[str] = set()
+    for part in scope.split(","):
+        part = part.strip()
+        if part:
+            codes.add(part)
+    return codes
+
+
+def require_business_scope(domain: str):
+    """业务域范围准入依赖工厂（BLF-448）。
+
+    ``domain`` 为域 code（如 ``shipments`` / ``shop_calculations``），在路由
+    接线时闭包注入，同一路由下所有端点共享。语义与 project_scope 对齐：
+
+    * ``business_scope == "*"`` → 放行（存量 key 兼容，行为不变）；
+    * 否则按 ``,`` 分隔的域 code 白名单校验，不在 → **403
+      ``AGENT_BUSINESS_OUT_OF_SCOPE``**；
+    * 查不到 key 行（auth 之后被并发吊销/删除）→ 401 fail closed。
+
+    必须在 ``require_agent_credential`` 之后运行（它注入
+    ``request.state.agent_api_key_id``）。
+    """
+
+    def _require(request: Request) -> None:
+        key_id = getattr(request.state, "agent_api_key_id", None)
+        if key_id is None:
+            # 依赖顺序错误（auth 未先跑）或 state 未注入 → fail closed。
+            raise AgentApiError(ErrorCode.AGENT_AUTH_FAILED, reason="token_invalid")
+
+        db = SessionLocal()
+        try:
+            key = db.get(AgentApiKey, key_id)
+            if key is None:
+                # auth 之后 key 被删/并发吊销：与 auth 语义一致 401。
+                raise AgentApiError(ErrorCode.AGENT_AUTH_FAILED, reason="token_invalid")
+            scope = key.business_scope or SCOPE_ALL
+            if scope == SCOPE_ALL:
+                return
+            if domain not in _parse_business_scope(scope):
+                raise AgentApiError(
+                    ErrorCode.AGENT_BUSINESS_OUT_OF_SCOPE,
+                    reason="business_not_in_scope",
+                )
+        finally:
+            db.close()
+
+    return _require

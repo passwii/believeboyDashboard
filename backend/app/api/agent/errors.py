@@ -22,6 +22,7 @@ class ErrorCode(str, Enum):
     # 鉴权
     AGENT_AUTH_FAILED = "AGENT_AUTH_FAILED"
     AGENT_PROJECT_OUT_OF_SCOPE = "AGENT_PROJECT_OUT_OF_SCOPE"
+    AGENT_BUSINESS_OUT_OF_SCOPE = "AGENT_BUSINESS_OUT_OF_SCOPE"
     # 限流
     AGENT_RATE_LIMIT_EXCEEDED = "AGENT_RATE_LIMIT_EXCEEDED"
     # 幂等
@@ -48,6 +49,7 @@ class ErrorCode(str, Enum):
 _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.AGENT_AUTH_FAILED: 401,
     ErrorCode.AGENT_PROJECT_OUT_OF_SCOPE: 403,
+    ErrorCode.AGENT_BUSINESS_OUT_OF_SCOPE: 403,
     ErrorCode.AGENT_RATE_LIMIT_EXCEEDED: 429,
     ErrorCode.IDEMPOTENCY_KEY_CONFLICT: 409,
     ErrorCode.CONFIRM_TOKEN_INVALID: 400,
@@ -71,6 +73,10 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.AGENT_PROJECT_OUT_OF_SCOPE: (
         "本凭据未被授权访问该项目",
         "请在 Agent 平台为该 agent 配置项目访问权限",
+    ),
+    ErrorCode.AGENT_BUSINESS_OUT_OF_SCOPE: (
+        "本凭据未被授权访问该业务域",
+        "请在 Agent 平台为该 agent 配置业务域访问权限",
     ),
     ErrorCode.AGENT_RATE_LIMIT_EXCEEDED: (
         "Agent 调用频率超限",

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
+from app.api.agent.scope import require_business_scope
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
@@ -22,8 +23,14 @@ agent_router = APIRouter(
 )
 
 agent_router.include_router(health_router)
-agent_router.include_router(shipments_router)
-agent_router.include_router(shop_calculations_router)
+agent_router.include_router(
+    shipments_router,
+    dependencies=[Depends(require_business_scope("shipments"))],
+)
+agent_router.include_router(
+    shop_calculations_router,
+    dependencies=[Depends(require_business_scope("shop_calculations"))],
+)
 
 
 # ⚠️ 路由遮蔽警告：兜底路由必须是 agent_router 注册的最后一个路由。

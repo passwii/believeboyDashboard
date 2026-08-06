@@ -68,6 +68,7 @@ def make_api_key():
         revoked: bool = False,
         agent_id: str | None = None,
         project_scope: str = "*",
+        business_scope: str = "*",
     ) -> dict:
         db = SessionLocal()
         try:
@@ -78,6 +79,7 @@ def make_api_key():
                 expires_at=expires_at,
                 agent_id=agent_id,
                 project_scope=project_scope,
+                business_scope=business_scope,
             )
             if revoked:
                 record.is_revoked = True
