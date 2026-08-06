@@ -40,3 +40,41 @@ describe('buildUsageText', () => {
     expect(text).toContain('<后端地址>')
   })
 })
+
+describe('buildUsageText · 业务域分支（BLF-448）', () => {
+  it('缺省 domain 仍为货件示例（兼容旧签名）', () => {
+    const text = buildUsageText({ plaintextKey: 'bbx_test', agentId: 'agent-1' })
+    expect(text).toContain('/shipments?page_size=20')
+  })
+
+  it('domain=shipments 显式货件示例', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'shipments',
+    })
+    expect(text).toContain('/shipments?page_size=20')
+    expect(text).toContain('货件管理')
+  })
+
+  it('domain=shop_calculations 输出店铺测算示例', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'shop_calculations',
+    })
+    expect(text).toContain('/shop-calculations?page_size=20')
+    expect(text).toContain('/shop-calculations/compute')
+    expect(text).toContain('店铺测算')
+    expect(text).not.toContain('/shipments?page_size=20')
+  })
+
+  it('未知域输出占位说明', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'return_analysis',
+    })
+    expect(text).toContain('尚未接入 Agent API')
+  })
+})

@@ -13,6 +13,7 @@ export type AgentApiKeyItem = {
   label: string
   scope: string
   project_scope: string
+  business_scope: string
   agent_id: string | null
   is_revoked: boolean
   expires_at: string | null
@@ -35,6 +36,17 @@ export function normalizeProjectScope(scope: string | undefined | null): string 
   return trimmed
 }
 
+/**
+ * 归一化业务域范围：空串 / '*' → '*'（全业务域，服务端哨兵值）；
+ * 其余保持 ',' 分隔的域 code 白名单。
+ */
+export function normalizeBusinessScope(scope: string | undefined | null): string {
+  if (!scope) return '*'
+  const trimmed = scope.trim()
+  if (!trimmed || trimmed === '*') return '*'
+  return trimmed
+}
+
 export async function listAgentApiKeys(): Promise<AgentApiKeyItem[]> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys`, {
     cache: 'no-store',
@@ -48,6 +60,7 @@ export async function createAgentApiKey(input: {
   agent_id: string
   expires_at: string | null
   project_scope: string
+  business_scope: string
 }): Promise<AgentApiKeyCreateResult> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys`, {
     method: 'POST',

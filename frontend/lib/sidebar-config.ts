@@ -346,7 +346,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '告警中心', url: '/dashboard/system/alerts', icon: IconMap.Bell },
       { title: '日志查看', url: '/dashboard/system/logs', icon: IconMap.History },
       { title: '备份管理', url: '/dashboard/system/backup-management', icon: IconMap.Database },
-      { title: 'Agent 凭据', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
+      { title: 'Agent 接入管理', url: '/dashboard/system/agent-management', icon: IconMap.Shield },
     ],
   },
 ]

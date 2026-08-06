@@ -1,5 +1,5 @@
 /**
- * Agent 凭据管理页功能巡检（Agent API P0 spec §7.2）。
+ * Agent 接入管理页功能巡检（Agent API P0 spec §7.2）。
  *
  * 覆盖：页面渲染 / 创建弹窗（明文只展示一次）/ 吊销。
  * 创建出的测试凭据会在用例内吊销，不留脏数据。
@@ -65,7 +65,7 @@ async function loginAsUser(page: Page): Promise<void> {
 const TEST_LABEL = `pw-agent-${Date.now()}`
 const TEST_AGENT_ID = 'pw-crawl-agent'
 
-test.describe('Agent 凭据管理页', () => {
+test.describe('Agent 接入管理页', () => {
   test('列表渲染 + 创建（明文一次）+ 吊销', async ({ page }) => {
     await loginAsUser(page)
     await page.goto('/dashboard/system/agent-management', {
@@ -74,7 +74,7 @@ test.describe('Agent 凭据管理页', () => {
     })
 
     // 页面渲染
-    await expect(page.getByRole('heading', { name: /Agent 凭据管理/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Agent 接入管理/ })).toBeVisible()
     await expect(page.getByText('Key 前缀')).toBeVisible()
 
     // 创建

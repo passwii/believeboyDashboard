@@ -1,0 +1,94 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  AGENT_DOMAINS,
+  BUSINESS_SCOPE_ALL,
+  formatBusinessScope,
+  getAgentDomain,
+  liveAgentDomains,
+  normalizeBusinessScope,
+  scopeHasDomain,
+} from './agent-domains'
+
+describe('normalizeBusinessScope', () => {
+  it('空串 / 空白 → 全部业务域 *', () => {
+    expect(normalizeBusinessScope('')).toBe('*')
+    expect(normalizeBusinessScope('   ')).toBe('*')
+  })
+
+  it('null / undefined → 全部业务域 *', () => {
+    expect(normalizeBusinessScope(null)).toBe('*')
+    expect(normalizeBusinessScope(undefined)).toBe('*')
+  })
+
+  it('* 保持原样', () => {
+    expect(normalizeBusinessScope('*')).toBe('*')
+    expect(normalizeBusinessScope(' * ')).toBe('*')
+  })
+
+  it('白名单保持逗号分隔域 code', () => {
+    expect(normalizeBusinessScope('shipments,shop_calculations')).toBe(
+      'shipments,shop_calculations'
+    )
+  })
+})
+
+describe('getAgentDomain', () => {
+  it('已知域返回注册表条目', () => {
+    expect(getAgentDomain('shipments')?.label).toBe('货件管理')
+    expect(getAgentDomain('shop_calculations')?.status).toBe('live')
+  })
+
+  it('未知域返回 undefined', () => {
+    expect(getAgentDomain('not_a_domain')).toBeUndefined()
+  })
+})
+
+describe('scopeHasDomain', () => {
+  it('* 恒为 true', () => {
+    expect(scopeHasDomain('*', 'shipments')).toBe(true)
+    expect(scopeHasDomain('*', 'return_analysis')).toBe(true)
+  })
+
+  it('白名单命中返回 true', () => {
+    expect(scopeHasDomain('shipments,shop_calculations', 'shipments')).toBe(true)
+    expect(scopeHasDomain('shipments', 'shipments')).toBe(true)
+  })
+
+  it('白名单未命中返回 false', () => {
+    expect(scopeHasDomain('shipments', 'shop_calculations')).toBe(false)
+    expect(scopeHasDomain('', 'shipments')).toBe(true) // 空串归一为 *
+  })
+})
+
+describe('formatBusinessScope', () => {
+  it('* 格式化为全部业务域', () => {
+    expect(formatBusinessScope('*')).toBe('全部业务域')
+    expect(formatBusinessScope(null)).toBe('全部业务域')
+  })
+
+  it('白名单映射为中文名', () => {
+    expect(formatBusinessScope('shipments,shop_calculations')).toBe('货件管理、店铺测算')
+  })
+
+  it('未知 code 回退为 #code', () => {
+    expect(formatBusinessScope('mystery')).toBe('#mystery')
+  })
+})
+
+describe('AGENT_DOMAINS 注册表', () => {
+  it('live 域包含 shipments 与 shop_calculations', () => {
+    const live = liveAgentDomains()
+    expect(live.map((d) => d.code)).toEqual(
+      expect.arrayContaining(['shipments', 'shop_calculations'])
+    )
+  })
+
+  it('注册表有规划中域（roadmap 待迁移）', () => {
+    expect(AGENT_DOMAINS.some((d) => d.status === 'planned')).toBe(true)
+  })
+
+  it('全域哨兵值与后端 server_default 一致', () => {
+    expect(BUSINESS_SCOPE_ALL).toBe('*')
+  })
+})
