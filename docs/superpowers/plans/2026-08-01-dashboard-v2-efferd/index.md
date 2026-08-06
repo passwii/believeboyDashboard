@@ -72,3 +72,14 @@
 2. **移除告警中心**：删除 `V2AlertFeed` 组件与页面引用；项目排行改 `md:col-span-4` 全宽收底
 3. **商务蓝主题**：发丝线 `bg-blue-100/70 dark:bg-blue-900/50`、卡片淡蓝渐变（`from-blue-50/70 to-white` / 暗色 `from-blue-950/40`）、6 图表 series 全蓝系（`#2563eb` 主蓝 / `#60a5fa` 亮蓝 / `#93c5fd` 浅蓝 / `#1d4ed8` 深蓝）、KPI 数值蓝、表头图标芯片、Tab 高亮蓝、loading 占位同步蓝调；Delta 语义色（绿涨红跌）保留
 - **验证**：lint 0 错 / build 通过 / 全量 472 测试全绿
+
+## 转正轮（2026-08-06，BLF-450 用户确认弃用 V1）
+
+用户拍板：正式弃用 V1，V2 转正为主概览（commit `9bb32640`）：
+
+- **V2 转正到根路径**：`app/dashboard/v2/page.tsx` + `page.test.tsx` 移到根 `app/dashboard/page.tsx`（`/dashboard` 即 V2）；`app/dashboard/loading.tsx` 换 V2 扁平骨架；`/dashboard/v2` 路由删除；V2 工具栏移除「返回旧版」按钮
+- **V1 弃用**：移至 `app/dashboard/v1/page.tsx`（`/dashboard/v1` 保留可访问作回退），移除「试试新版」按钮；补 `v1/loading.tsx`（BEL-419 守卫）；v1 图表组件 import 从 `@/app/dashboard/page` 改为 `@/app/dashboard/v1/page`
+- **KPI 卡去灰**：移除底部灰色 footer（`bg-background` 条 + 「vs 上一周期」灰字），delta 徽章移到表头右侧
+- **销售额复合图**：增加销量维度——`units_ordered` 折线（右轴）+ 销售额渐变柱（左轴）双轴 + 图例；描述改「每日销售额与销量」
+- **验证**：lint 0 错 / build 通过（`/dashboard` 为 V2、`/dashboard/v1` 存在、`/dashboard/v2` 消失）/ 全量 472 测试全绿
+- **路由现状**：`/dashboard` = V2 主概览；`/dashboard/v1` = 旧版（弃用，仅回退用）
