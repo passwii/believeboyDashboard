@@ -43,16 +43,15 @@ import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import {
-  AD_REPORT_TYPES,
   REPORT_UPLOAD_COUNTRY_OPTIONS,
   getMultiCountryDisplay,
   getReportUploadCountryLabel,
   isDateRequired,
-  type ReportType,
   type UploadQueueItem,
   type RecognitionResponse,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
+import { getUploadReportTypeLabel, REPORT_TYPES } from './report-type-labels'
 
 const API_BASE = '/api/backend'
 
@@ -63,24 +62,6 @@ const COUNTRY_OPTIONS = [
   { value: 'DE', label: '德国站' },
   { value: 'UK', label: '英国站' },
 ]
-
-const REPORT_UPLOAD_REPORT_TYPE_LABELS: Record<string, string> = {
-  inventory_report: '亚马逊物流库存',
-  business_report: '业务报告',
-  ad_product_report: '广告 - 已推广商品',
-  sales_report: '销售报表 - 所有订单',
-  payment_report: '付款报告',
-  return_report: '退货报告',
-  ...AD_REPORT_TYPES.reduce<Record<string, string>>((acc, item) => {
-    acc[item.type] = `广告 - ${item.label}`
-    return acc
-  }, {}),
-}
-
-function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): string {
-  if (!type || type === 'unknown') return '未识别'
-  return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
-}
 
 // ── RPA Status types ──────────────────────────────────────────────────────────
 
@@ -120,28 +101,6 @@ type ProjectRow = {
   country: string
   statuses: StatusCell[]
 }
-
-const REPORT_TYPES = [
-  { key: 'inventory_report', label: '库存', active: true },
-  { key: 'business_report', label: '业务', active: true },
-  { key: 'sales_report', label: '销售', active: true },
-  { key: 'payment_report', label: '付款', active: true },
-  { key: 'return_report', label: '退货', active: true },
-  ...AD_REPORT_TYPES.map((item) => ({
-    key: item.type,
-    label: item.short,
-    active: true,
-  })),
-  { key: 'storage_report', label: '仓储', active: false },
-  { key: 'returns_detail_report', label: '退货明细', active: false },
-  { key: 'fba_inventory_report', label: 'FBA库存', active: false },
-  { key: 'reimbursement_report', label: '赔偿', active: false },
-  { key: 'tax_invoice_report', label: '税务发票', active: false },
-  { key: 'health_report', label: '健康报告', active: false },
-  { key: 'advertising_reports', label: '广告报表', active: false },
-  { key: 'brand_report', label: '品牌报表', active: false },
-  { key: 'vendor_report', label: '供应商', active: false },
-]
 
 const TABLE_HEADER_HEIGHT_CLASS = 'h-[clamp(3.5rem,3.8vh,4.25rem)] min-h-14 max-h-[4.25rem]'
 const TABLE_ROW_HEIGHT_CLASS = 'h-[clamp(2.8rem,3.2vh,3.5rem)] min-h-[2.8rem] max-h-[3.5rem]'

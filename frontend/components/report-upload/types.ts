@@ -1,6 +1,8 @@
 export type ReportType =
   | 'inventory_report'
   | 'inventory_ledger'
+  | 'inventory_ledger_summary'
+  | 'inventory_ledger_detail'
   | 'business_report'
   | 'ad_product_report'
   | 'ad_search_term_share_report'
@@ -146,6 +148,8 @@ export const DATE_REQUIRED_REPORT_TYPES: ReportType[] = [
   'business_report',
   'inventory_report',
   'inventory_ledger',
+  'inventory_ledger_summary',
+  'inventory_ledger_detail',
   'ad_product_report',
   'ad_search_term_share_report',
   'ad_budget_report',
