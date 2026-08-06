@@ -28,6 +28,7 @@ from app.schemas.inventory_ledger import (
     EventsResponse,
     IngestBatchesResponse,
     LedgerDetailResponse,
+    LedgerSummaryResponse,
     LocationDetailResponse,
     MonthlySnapshotResponse,
     MonthsResponse,
@@ -39,6 +40,7 @@ from app.services.inventory.ledger import (
     check_ledger_integrity,
     get_available_months,
     get_ledger_detail_rows,
+    get_ledger_summary_rows,
     get_month_disposition_summary,
     get_receipt_clusters,
     get_sku_location_eom,
@@ -348,6 +350,61 @@ def get_detail_rows(
         event_type=event_type,
     )
     return LedgerDetailResponse(report_month=start, rows=rows)
+
+
+@router.get(
+    "/summary",
+    response_model=LedgerSummaryResponse,
+    summary="Daily water-level rows (Summary view)",
+    description=(
+        "Returns daily water-level rows from the Amazon Summary view for "
+        "the resolved period — one row per (FNSKU × warehouse × disposition "
+        "× date) snapshot with starting/ending balances and every event "
+        "column. Optional filters: ``msku``, ``location``, "
+        "``disposition``.\n\n"
+        "Period values: see ``backend/docs/inventory-ledger-api.md``."
+    ),
+)
+def get_summary_rows(
+    project_id: int = Query(...),
+    period: str = Query(
+        ...,
+        description=(
+            "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``."
+        ),
+    ),
+    start_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Companion for ``period=custom`` only.",
+    ),
+    msku: str | None = Query(default=None, description="Optional SKU filter"),
+    location: str | None = Query(
+        default=None, description="Optional FBA warehouse code filter"
+    ),
+    disposition: str | None = Query(
+        default=None, description="Optional disposition filter (e.g. SELLABLE)"
+    ),
+    db: Session = Depends(get_db_session),
+) -> LedgerSummaryResponse:
+    start, end, _report_month = resolve_period_inputs(
+        period,
+        start_date,
+        end_date,
+    )
+    rows = get_ledger_summary_rows(
+        db,
+        project_id,
+        start,
+        end,
+        msku=msku,
+        location=location,
+        disposition=disposition,
+    )
+    return LedgerSummaryResponse(report_month=start, rows=rows)
 
 
 @router.get(

@@ -149,6 +149,46 @@ class TrendResponse(BaseModel):
     months: list[TrendMonthItem] = []
 
 
+class LedgerSummaryRow(BaseModel):
+    """A single daily water-level row from the Amazon Summary view.
+
+    1 row = 1 (FNSKU × FC × Disposition × Date) snapshot. Sparse ledger:
+    Amazon only emits a row when the combination changed that day.
+    """
+
+    id: int
+    date: date
+    fnsku: str | None = None
+    asin: str | None = None
+    msku: str
+    title: str | None = None
+    disposition: str
+    location: str
+    starting_balance: int = 0
+    in_transit_between: int = 0
+    receipts: int = 0
+    customer_shipments: int = 0
+    customer_returns: int = 0
+    vendor_returns: int = 0
+    warehouse_transfer_io: int = 0
+    found: int = 0
+    lost: int = 0
+    damaged: int = 0
+    disposed: int = 0
+    other_events: int = 0
+    ending_balance: int = 0
+    unknown_events: int = 0
+    store: str | None = None
+    batch_id: int | None = None
+
+
+class LedgerSummaryResponse(BaseModel):
+    """Daily water-level rows for a period."""
+
+    report_month: date
+    rows: list[LedgerSummaryRow] = []
+
+
 class LedgerDetailRow(BaseModel):
     """A single event-level row from the Amazon Detailed view."""
 

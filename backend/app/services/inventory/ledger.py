@@ -37,6 +37,7 @@ from app.schemas.inventory_ledger import (
     IntegrityCheckResult,
     IntegrityMismatch,
     LedgerDetailRow,
+    LedgerSummaryRow,
     LocationDetail,
     ReceiptCluster,
     SkuMonthEom,
@@ -830,6 +831,79 @@ def get_ledger_detail_rows(
                 reconciled_quantity=r.reconciled_quantity,
                 unreconciled_quantity=r.unreconciled_quantity,
                 date_and_time=r.date_and_time,
+                store=r.store,
+                batch_id=r.batch_id,
+            )
+        )
+    return rows
+
+
+# ─── 11. Summary 原始行查询（BLF-428 前端重构：每日水位账） ─────────────────────
+
+
+def get_ledger_summary_rows(
+    db: Session,
+    project_id: int,
+    start: date,
+    end: date,
+    msku: str | None = None,
+    location: str | None = None,
+    disposition: str | None = None,
+    limit: int = 5000,
+) -> list[LedgerSummaryRow]:
+    """Daily water-level rows from the Summary view, newest first.
+
+    Mirrors ``get_ledger_detail_rows``: same period contract, optional
+    dimension filters, capped result. The Summary view is the truth source
+    (1 row = 1 FNSKU × FC × Disposition × Date snapshot, sparse).
+    """
+    filters = [
+        InventoryLedgerSummary.project_id == project_id,
+        InventoryLedgerSummary.date >= start,
+        InventoryLedgerSummary.date <= end,
+    ]
+    if msku:
+        filters.append(InventoryLedgerSummary.msku == msku)
+    if location:
+        filters.append(InventoryLedgerSummary.location == location)
+    if disposition:
+        filters.append(InventoryLedgerSummary.disposition == disposition)
+
+    stmt = (
+        select(InventoryLedgerSummary)
+        .where(*filters)
+        .order_by(
+            InventoryLedgerSummary.date.desc(),
+            InventoryLedgerSummary.id.desc(),
+        )
+        .limit(limit)
+    )
+    rows = []
+    for r in db.execute(stmt).scalars().all():
+        rows.append(
+            LedgerSummaryRow(
+                id=r.id,
+                date=r.date,
+                fnsku=r.fnsku,
+                asin=r.asin,
+                msku=r.msku,
+                title=r.title,
+                disposition=r.disposition,
+                location=r.location,
+                starting_balance=r.starting_balance,
+                in_transit_between=r.in_transit_between,
+                receipts=r.receipts,
+                customer_shipments=r.customer_shipments,
+                customer_returns=r.customer_returns,
+                vendor_returns=r.vendor_returns,
+                warehouse_transfer_io=r.warehouse_transfer_io,
+                found=r.found,
+                lost=r.lost,
+                damaged=r.damaged,
+                disposed=r.disposed,
+                other_events=r.other_events,
+                ending_balance=r.ending_balance,
+                unknown_events=r.unknown_events,
                 store=r.store,
                 batch_id=r.batch_id,
             )

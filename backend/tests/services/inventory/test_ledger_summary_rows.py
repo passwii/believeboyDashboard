@@ -1,0 +1,250 @@
+"""Tests for ``get_ledger_summary_rows`` + ``GET /summary`` (BLF-428 前端重构).
+
+The Summary view is the truth source: 1 row = 1 (FNSKU × FC × Disposition ×
+Date) daily water-level snapshot (sparse ledger). These tests cover:
+
+* service-level filters (msku / location / disposition) + date-desc ordering
+* the external endpoint contract (period required, filters, shape)
+
+Test isolation mirrors ``test_ledger_consistency.py``: unique project per
+test, teardown deletes every ledger row for it.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.main import app
+from app.models import Project
+from app.services.inventory.ledger import (
+    get_ledger_summary_rows,
+    ingest_ledger_csv,
+)
+
+_SUMMARY_HEADER = (
+    "Date,FNSKU,ASIN,MSKU,Title,Disposition,Starting Warehouse Balance,"
+    "In Transit Between Warehouses,Receipts,Customer Shipments,Customer Returns,"
+    "Vendor Returns,Warehouse Transfer In/Out,Found,Lost,Damaged,Disposed,"
+    "Other Events,Ending Warehouse Balance,Unknown Events,Location,Store"
+)
+
+
+def _summary_csv(rows: list[str]) -> str:
+    return _SUMMARY_HEADER + "\n" + "\n".join(rows) + "\n"
+
+
+def _summary_row(
+    day: str,
+    msku: str,
+    starting: int,
+    ending: int,
+    location: str = "LAX1",
+    disposition: str = "SELLABLE",
+    receipts: int = 0,
+    shipments: int = 0,
+) -> str:
+    return (
+        f"{day},FN-{msku},B-{msku},{msku},Item {msku},{disposition},{starting},"
+        f"0,{receipts},{shipments},0,0,0,0,0,0,0,0,{ending},0,{location},TestStore"
+    )
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture
+def project(db_session: Session):
+    p = Project(
+        project_name=f"blf428-summary-rows-{uuid.uuid4().hex[:8]}",
+        sort_order=999_999,
+        is_active=True,
+    )
+    db_session.add(p)
+    db_session.flush()
+    yield p
+    db_session.execute(
+        text("DELETE FROM inventory_ledger_detail WHERE project_id = :pid"),
+        {"pid": p.id},
+    )
+    db_session.execute(
+        text("DELETE FROM inventory_ledger_summary WHERE project_id = :pid"),
+        {"pid": p.id},
+    )
+    db_session.execute(
+        text("DELETE FROM inventory_ledger_ingest_batch WHERE project_id = :pid"),
+        {"pid": p.id},
+    )
+    db_session.rollback()
+
+
+def _ingest(db: Session, project_id: int, csv: str, filename: str) -> None:
+    ingest_ledger_csv(db, project_id=project_id, csv_content=csv, filename=filename)
+    db.commit()
+
+
+def _seed_three_rows(db: Session, project_id: int) -> None:
+    """2 SKUs × 2 locations × mixed dispositions across 2 days."""
+    _ingest(
+        db,
+        project_id,
+        _summary_csv(
+            [
+                _summary_row("03/01/2026", "SKU-A", 50, 45, location="LAX1"),
+                _summary_row("03/02/2026", "SKU-A", 45, 40, location="LAX1"),
+                _summary_row(
+                    "03/02/2026",
+                    "SKU-A",
+                    5,
+                    5,
+                    location="SCK8",
+                    disposition="CUSTOMER_DAMAGED",
+                ),
+                _summary_row(
+                    "03/01/2026", "SKU-B", 10, 12, location="SCK8", receipts=2
+                ),
+            ]
+        ),
+        "库存分类账 2026-0301-0331.csv",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Service level
+# ---------------------------------------------------------------------------
+
+
+class TestGetLedgerSummaryRows:
+    def test_no_data_returns_empty(self, db_session: Session, project: Project):
+        rows = get_ledger_summary_rows(
+            db_session, project.id, date(2026, 3, 1), date(2026, 3, 31)
+        )
+        assert rows == []
+
+    def test_returns_all_rows_date_desc(self, db_session: Session, project: Project):
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session, project.id, date(2026, 3, 1), date(2026, 3, 31)
+        )
+        assert len(rows) == 4
+        # newest first
+        assert rows[0].date >= rows[-1].date
+        # water-level columns round-trip
+        sku_a_lax1_0302 = next(
+            r
+            for r in rows
+            if r.msku == "SKU-A" and r.location == "LAX1" and r.date == date(2026, 3, 2)
+        )
+        assert sku_a_lax1_0302.starting_balance == 45
+        assert sku_a_lax1_0302.ending_balance == 40
+
+    def test_msku_filter(self, db_session: Session, project: Project):
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session,
+            project.id,
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+            msku="SKU-A",
+        )
+        assert len(rows) == 3
+        assert {r.msku for r in rows} == {"SKU-A"}
+
+    def test_location_filter(self, db_session: Session, project: Project):
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session,
+            project.id,
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+            location="SCK8",
+        )
+        assert len(rows) == 2
+        assert {r.location for r in rows} == {"SCK8"}
+
+    def test_disposition_filter(self, db_session: Session, project: Project):
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session,
+            project.id,
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+            disposition="CUSTOMER_DAMAGED",
+        )
+        assert len(rows) == 1
+        assert rows[0].disposition == "CUSTOMER_DAMAGED"
+        assert rows[0].msku == "SKU-A"
+
+    def test_date_window_excludes_out_of_range(
+        self, db_session: Session, project: Project
+    ):
+        _seed_three_rows(db_session, project.id)
+        rows = get_ledger_summary_rows(
+            db_session, project.id, date(2026, 3, 2), date(2026, 3, 2)
+        )
+        assert {r.date for r in rows} == {date(2026, 3, 2)}
+        assert len(rows) == 2
+
+
+# ---------------------------------------------------------------------------
+# External endpoint contract (no auth; network-isolated)
+# ---------------------------------------------------------------------------
+
+
+class TestExternalSummaryEndpoint:
+    def _url(self, project_id: int, **params: str) -> str:
+        base = f"/api/v1/external/projects/{project_id}/inventory-ledger/summary"
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        return f"{base}?{qs}" if qs else base
+
+    def test_missing_period_422(self, client: TestClient, project: Project):
+        # FastAPI rejects a missing required Query param at the validation
+        # layer (422) before resolve_period_inputs ever runs (that path
+        # returns 400 for empty/invalid values).
+        res = client.get(self._url(project.id))
+        assert res.status_code == 422
+
+    def test_empty_period_400(self, client: TestClient, project: Project):
+        res = client.get(self._url(project.id, period=""))
+        assert res.status_code == 400
+
+    def test_shape_and_filters(
+        self, client: TestClient, db_session: Session, project: Project
+    ):
+        _seed_three_rows(db_session, project.id)
+
+        res = client.get(self._url(project.id, period="2026-03"))
+        assert res.status_code == 200
+        body = res.json()
+        assert body["report_month"] == "2026-03-01"
+        assert len(body["rows"]) == 4
+        row = body["rows"][0]
+        for col in (
+            "date",
+            "msku",
+            "location",
+            "disposition",
+            "starting_balance",
+            "ending_balance",
+            "receipts",
+            "customer_shipments",
+            "warehouse_transfer_io",
+            "batch_id",
+        ):
+            assert col in row
+
+        # msku + location filters compose
+        res2 = client.get(
+            self._url(project.id, period="2026-03", msku="SKU-A", location="LAX1")
+        )
+        assert res2.status_code == 200
+        rows2 = res2.json()["rows"]
+        assert len(rows2) == 2
+        assert all(r["msku"] == "SKU-A" and r["location"] == "LAX1" for r in rows2)
