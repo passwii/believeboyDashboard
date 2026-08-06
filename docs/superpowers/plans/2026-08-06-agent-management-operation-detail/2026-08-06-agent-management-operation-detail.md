@@ -83,31 +83,31 @@
 
 ### Phase 1：后端 — 读侧增强
 
-**Task 1：迁移 + 模型**
+**Task 1：迁移 + 模型** ✅（rev `238`，已部署）
 - 文件：`alembic/versions/20260806_238_agent_audit_log_operation_fields.py`、`models/agent_api_audit_log.py`
 - 接口：`AgentApiAuditLog.project_id: Mapped[int | None]`、`AgentApiAuditLog.operation_type: Mapped[str | None]`
-- 步骤：建迁移（先 `git fetch origin && git rebase origin/main` + `alembic heads` 确认单链，rev-id `238`）→ 模型加列 → 迁移 upgrade 内分批回填 → `alembic upgrade head` 本地验证 → 测试 `pytest tests/...`（模型可建/回填幂等）
+- 状态：完成；存量 249 行回填 227 行（project_id）；VPS `alembic current`=238
 
-**Task 2：中间件打标**
+**Task 2：中间件打标** ✅
 - 文件：`middleware/agent_api_audit.py`
-- 接口：`parse_audit_path_meta(path: str) -> tuple[int | None, str | None]`、`AGENT_PATH_DOMAIN_MAP: list[tuple[str, str]]`
-- 步骤：TDD — 先写 `tests/api/test_agent_api_audit_path_meta.py`（纯函数用例：`/api/v1/agent/projects/12/shipments` → (12, "shipments")；`/projects` 列表 → (None, None)；external 镜像路径）→ 实现 → 中间件 `_write_audit` 接两参 → 集成断言（调 agent 端点后查审计行含 project_id/operation_type）
+- 接口：`parse_audit_path_meta(path: str) -> tuple[int | None, str | None]`、`AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...]`
+- 状态：完成；域映射覆盖 external 镜像片段（Seth Q2 建议）；`tests/api/test_agent_api_audit_path_meta.py` 18 参数化用例
 
-**Task 3：管理端点补列 + 过滤**
+**Task 3：管理端点补列 + 过滤** ✅
 - 文件：`schemas/system_management/agent_access_logs.py`、`endpoints/system_management/agent_access.py`、`tests/api/test_agent_access_logs.py`
 - 接口：`AgentAccessLogItem.project_id` / `.operation_type`；list 加 `project_id` / `operation_type` Query
-- 步骤：TDD — 补测试（列表带新字段、按 project_id/operation_type 过滤）→ 实现
+- 状态：完成；新增 `test_new_fields_project_and_operation_type`
 
 ### Phase 2：后端 — 写侧上架
 
-**Task 4：写操作端点**
-- 文件：`endpoints/system_management/agent_operations.py`、`schemas/system_management/agent_operations.py`、`tests/api/test_agent_operation_logs.py`；`system_management` router 聚合处 include
-- 接口：`AgentOperationLogItem`（见 B1）；`list_agent_operation_logs`（agent_id/project_id/action/result/date/keyword/page/page_size）、`agent_operation_logs_summary`
-- 步骤：TDD — 造 `OperationAuditLog(agent_id=..., before_json=..., after_json=..., request_path=...)` 行，测列表/各过滤/派生 project_id/summary/分页 → 实现 → 全量 `pytest tests/api`
+**Task 4：写操作端点** ✅（已部署）
+- 文件：`endpoints/system_management/agent_operations.py`、`schemas/system_management/agent_operations.py`、`tests/api/test_agent_operation_logs.py`；`system_management/__init__.py` 已 include
+- 接口：`AgentOperationLogItem`（含 `operation_type` 派生 + `project_id` 派生）；`list_agent_operation_logs`（agent_id/project_id/action/result/date/keyword/page/page_size，响应 `{items,total,page,page_size,has_next}` 对齐读侧——Seth 契约建议）、`agent_operation_logs_summary`
+- 状态：完成；operation_type 按 action 前缀派生（Seth 建议）
 
-**Task 5：后端回归 + 部署准备**
-- `cd backend && pytest`（与 origin/main 基线比对零新增失败）
-- 迁移 + 端点随分支合 main，`git deploy` 触发 VPS（alembic upgrade head 自动跑）
+**Task 5：后端回归 + 部署准备** ✅
+- `cd backend && pytest`：44 failed = 43 环境基线（Redis 未起等）+ 1 条 `test_list_joins_agent_identity` 顺序污染（已在 clean main 验证复现，非回归）；新测试全绿
+- 迁移 + 端点已随 commit `c529c66f` 合 main，`git deploy` 已部署（VPS alembic=238、端点 200）
 
 ### Phase 3：前端（Seth，后端字段契约出即可并行）
 
@@ -142,7 +142,7 @@
 
 | 风险 | 对策 |
 |------|------|
-| `operation_audit_logs` 无保留期，表膨胀 | 待确认问题 5 增加 Celery 清理任务（对齐 access log 90 天模式） |
+| `operation_audit_logs` 无保留期，表膨胀 | 待确认问题 5 增加 Celery 清理任务（对齐 access log 90 天模式）——**已完成**：`celery_tasks/operation_audit_cleanup.py` 每日 04:30 仅清 agent 行（`agent_id IS NOT NULL`，人工 operator 审计不受影响），setting `operation_audit_retention_days` 默认 90 |
 | external 镜像 51 条路由 operation_type 映射不全 → 大量「未知」 | 长片段优先映射表 + 未知 fallback；统计口径在概览中说明；可二期补全 |
 | 迁移回填大表扫描 | 分批 UPDATE + `agent_api_audit_log` 90 天保留量可控；回填幂等 |
 | 动 `system_management` 端点影响既有审计页 | 只加字段/参数（可空、缺省不筛），`/audit-logs` 原端点不动 |
