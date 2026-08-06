@@ -35,6 +35,8 @@ from app.models import (  # noqa: E402
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
     InventorySnapshotRow,
+    # 库存分类账（BEL-428）：批次表用于 RPA 重复文件检测（_find_sha256_duplicates）
+    InventoryLedgerIngestBatch,
     Project,
     ReportUploadLog,
     ReturnCustomerComment,

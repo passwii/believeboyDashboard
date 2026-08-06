@@ -7,6 +7,10 @@ Two recognition pipelines:
 
 AutoReportUpload tries B 表 first, then A 表. Ad reports always go to B 表
 because A 表's analysis_ad_product_rows was dropped in alembic 152.
+
+库存分类账（inventory_ledger_summary / inventory_ledger_detail）由 A 表共享
+recognizer 输出两个独立类型（Tasks 1-2 已拆分），RPA 直接复用后端签名逻辑，
+不重复实现；persistence 走 processor 的类型化 ingestion 分支。
 """
 
 from __future__ import annotations
@@ -245,6 +249,16 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
             df = _normalize_columns(df)
             match_by = "sku"
             values = df["sku"].dropna().astype(str).tolist()
+        elif result.report_type in {"inventory_ledger_summary", "inventory_ledger_detail"}:
+            # 库存分类账两种视图都含 MSKU 列 —— 按 MSKU（即 ProductCost.sku）
+            # 匹配项目；匹配不到再走目录名 fallback（与其它 A 表报表一致）。
+            # 修复：旧代码此处落入 else → values=[] 后引用未绑定的 match_by，
+            # UnboundLocalError 被吞成 project_match="manual"，process_file
+            # 会以「项目匹配状态为 manual」跳过所有库存分类账文件。
+            df = _normalize_columns(_read_csv_with_encoding_fallback(path, sep=","))
+            msku_col = next((c for c in ["msku", "sku"] if c in df.columns), None)
+            match_by = "sku"
+            values = df[msku_col].dropna().astype(str).tolist() if msku_col else []
         else:
             values = []
 

@@ -25,6 +25,7 @@ from models import (
     AnalysisReturnRow,
     AnalysisSalesOrderRow,
     AnalysisSourceFile,
+    InventoryLedgerIngestBatch,
     InventorySnapshotRow,
     ProductCost,
     Project,
@@ -103,6 +104,28 @@ from app.utils.persist_helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ─── Inventory ledger（库存分类账）独立类型 ────────────────────────────────────
+# 两个独立类型由共享后端 recognizer（app.utils.recognition）输出；persistence
+# 委托给与 HTTP 路径相同的类型化 ingestion —— app.services.inventory.ledger 的
+# ingest_ledger_csv(expected_kind=...)，参考
+# backend/app/services/data/upload/persistence.py 的
+# inventory_ledger_summary / inventory_ledger_detail 分支。
+# 分类账类型绝不落入通用 _persist_single_source（A 表 analysis_source_files）。
+LEDGER_KIND_BY_REPORT_TYPE: dict[str, str] = {
+    "inventory_ledger_summary": "summary",
+    "inventory_ledger_detail": "detail",
+}
+
+LEDGER_REPORT_LABELS: dict[str, str] = {
+    "inventory_ledger_summary": "库存分类账 · 汇总视图（Summary）",
+    "inventory_ledger_detail": "库存分类账 · 明细视图（Detail）",
+}
+
+_LEDGER_REPORT_TYPE_BY_KIND: dict[str, str] = {
+    "summary": "inventory_ledger_summary",
+    "detail": "inventory_ledger_detail",
+}
 
 _MONTH_MAP = {
     "jan": 1,
@@ -290,8 +313,13 @@ def process_file(
     if result is None:
         return ProcessResult(skipped=True, reason="未匹配任何报表类型")
 
-    # Chinese report label (ad reports use spec.report_label; A-table uses report_type as-is)
-    _report_label = result.spec.report_label if result.spec else result.report_type
+    # Chinese report label (ad reports use spec.report_label; A-table uses report_type as-is;
+    # 库存分类账使用中文主标签并保留英文对照)
+    _report_label = (
+        result.spec.report_label
+        if result.spec
+        else LEDGER_REPORT_LABELS.get(result.report_type, result.report_type)
+    )
 
     # Emit start to Digital Employee (best-effort; 不阻塞主流程)
     _task_id = _emit_event.emit_start(
@@ -473,6 +501,20 @@ def _persist_one_file(
             now=now,
         )
         outcome["_timing"] = f"setup={t2-t1:.1f}s total={time.time()-t0:.1f}s"
+        return outcome
+
+    # 库存分类账独立类型（Summary / Detail）：两个显式分支，各自委托给与 HTTP
+    # 路径相同的类型化 ingestion（ingest_ledger_csv + expected_kind），
+    # 绝不落入下方通用 _persist_single_source。
+    if report_type in LEDGER_KIND_BY_REPORT_TYPE:
+        outcome = _persist_inventory_ledger(
+            db=db,
+            file_path=file_path,
+            project=project,
+            report_type=report_type,
+            country=country,
+        )
+        outcome["_timing"] = f"total={time.time()-t0:.1f}s"
         return outcome
 
     t1 = time.time()
@@ -734,6 +776,81 @@ def _persist_ad_upload_report(
         "row_count": len(saved_rows),
         "report_start_date": saved_rows[0].period_start_date.isoformat() if saved_rows else None,
         "report_end_date": saved_rows[-1].period_end_date.isoformat() if saved_rows else None,
+    }
+
+
+def _persist_inventory_ledger(
+    *,
+    db: Session,
+    file_path: Path,
+    project: Project,
+    report_type: str,
+    country: str,
+) -> dict[str, Any]:
+    """Persist an inventory ledger CSV via the typed ingestion service.
+
+    与 HTTP 路径（backend/app/services/data/upload/persistence.py 的
+    inventory_ledger_summary / inventory_ledger_detail 分支）完全一致：
+    读取文件字节 → ``ingest_ledger_csv(expected_kind=...)`` → 写 upload log。
+
+    ``expected_kind`` 是类型化契约：声明类型与 CSV 表头检测结果不一致 /
+    格式不完整时 ``ingest_ledger_csv`` 抛 ``ValueError``，这里转为结构化失败
+    结果（保留原始可操作错误信息），绝不回退到 A 表 ``_persist_single_source``
+    或重新猜测目标视图。
+
+    Outcome 额外携带 ``report_kind``（summary / detail），供 daemon 日志
+    展示本次入库的是哪个视图。
+    """
+    from app.services.inventory.ledger import ingest_ledger_csv
+
+    ledger_kind = LEDGER_KIND_BY_REPORT_TYPE[report_type]
+    view_label = "汇总视图" if ledger_kind == "summary" else "明细视图"
+
+    with open(file_path, "rb") as f:
+        csv_content = f.read()
+
+    try:
+        row_count = ingest_ledger_csv(
+            db,
+            project_id=int(project.id),
+            csv_content=csv_content,
+            filename=file_path.name,
+            loaded_by="autoReportUpload",
+            expected_kind=ledger_kind,
+        )
+    except ValueError as exc:
+        # 声明类型与表头不一致 / 格式不完整：结构化失败，错误信息面向用户可操作。
+        return {
+            "success": False,
+            "error": str(exc),
+            "report_type": report_type,
+            "report_kind": ledger_kind,
+        }
+
+    # Write a single ReportUploadLog for today so the RPA status grid shows the
+    # file as processed (same convention as B-table ad reports). source_file_id
+    # is None — the FK points at analysis_source_files (A 表)，分类账走批次表。
+    now = datetime.now()
+    _write_upload_log(
+        db,
+        project_id=int(project.id),
+        report_type=report_type,
+        country=country,
+        upload_date=_resolve_upload_date(now),
+        has_real_data=row_count > 0,
+        row_count=row_count,
+        source_file_id=None,
+        original_filename=file_path.name,
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "source_id": None,
+        "row_count": row_count,
+        "report_kind": ledger_kind,
+        "report_type": report_type,
+        "report_label": view_label,
     }
 
 
@@ -1427,10 +1544,11 @@ def _parse_payment_period_from_filename(value: str | None) -> tuple[date, date] 
 def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
     """Find existing records with same SHA-256 (autoReportUpload version).
 
-    Scans BOTH A-table (analysis_source_files) and C-table (ad_upload_files) for
-    any prior ingestion of this exact file.  Returns list of dicts with
-    project_id, report_type, country, source_id, row_count_total, and table
-    (so callers can log which table held the duplicate).
+    Scans A-table (analysis_source_files), C-table (ad_upload_files) AND
+    L-table (inventory_ledger_ingest_batch) for any prior ingestion of this
+    exact file.  Returns list of dicts with project_id, report_type, country,
+    source_id, row_count_total, and table (so callers can log which table held
+    the duplicate).
     """
     duplicates: list[dict] = []
 
@@ -1469,6 +1587,30 @@ def _find_sha256_duplicates(db: Session, file_sha256: str) -> list[dict]:
             "source_id": int(row.id),
             "row_count_total": 0,
             "table": "C",
+        })
+
+    # L-table: inventory_ledger_ingest_batch（库存分类账）。仅 status=="success"
+    # 的批次算重复 —— failed/pending 批次不拦截重试。file_hash 是
+    # ingest_ledger_csv 对解码后内容算的 sha256，与 _sha256_file（原始字节）
+    # 在无 BOM 的 UTF-8 文件上一致；带 BOM 时 miss，由批次 natural-key 幂等
+    # （同 file 重传返回 0 行）兜底。
+    l_rows = db.execute(
+        select(InventoryLedgerIngestBatch).where(
+            InventoryLedgerIngestBatch.file_hash == file_sha256,
+            InventoryLedgerIngestBatch.status == "success",
+        )
+    ).scalars().all()
+    for row in l_rows:
+        duplicates.append({
+            "project_id": int(row.project_id),
+            "report_type": _LEDGER_REPORT_TYPE_BY_KIND.get(
+                row.file_kind, "inventory_ledger_unknown"
+            ),
+            "country": "US",
+            "source_id": int(row.id),
+            "row_count_total": int(row.rows_written_summary or 0)
+            + int(row.rows_written_detail or 0),
+            "table": "L",
         })
 
     return duplicates
