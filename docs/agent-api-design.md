@@ -345,6 +345,9 @@ P2 货件域再扩展（`SHIPMENT_*`）。
   agent 镜像 parity 改为直调 external handler 函数比对；新增 410 契约测试。
 - 消费者：believeboySP `scripts/ad_analysis/load_data.py` 已切到
   `/api/v1/agent` + Bearer/X-Agent-Id 鉴权 + `{ok,data}` 解壳（调用方形状不变）。
+  **BLF-464（2026-08-06）**：believeboySP 整体已删除（git 历史可恢复，
+  `git checkout <commit> -- believeboySP/`）。未来新 Agent 一律走「Agent 接入
+  管理」页创建 key + ID，不再使用该直连脚本。
 
 ### 6.2 映射关系
 
