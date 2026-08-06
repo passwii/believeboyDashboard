@@ -8,6 +8,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import AdUploadFile, AnalysisSourceFile, ReportUploadLog
+from app.models.inventory_ledger import InventoryLedgerDetail, InventoryLedgerSummary
 from app.services import project_service
 
 
@@ -34,6 +35,8 @@ AD_REPORT_TYPE_SUFFIX = "_report"
 REPORT_TYPES = [
     # 已接入
     "inventory_report",      # 库存
+    "inventory_ledger_summary",  # 库存分类账 - 汇总视图（Summary）
+    "inventory_ledger_detail",   # 库存分类账 - 明细视图（Detail）
     "business_report",        # 业务
     # 广告（C 表 10 个细分维度；已推广商品报告 = ad_promoted_product_report 在列内）
     "ad_search_term_share_report",  # 广告 - 搜索词展示量份额
@@ -305,6 +308,46 @@ def get_report_status_for_date(
                     is_uploaded=True,
                     latest_date=str(src.report_date) if src.report_date else None,
                     original_filename=src.original_filename,
+                    status_source="business_date_backfill",
+                )
+
+    # ── Fallback: inventory ledger tables (inventory_ledger_summary / _detail) ──
+    # 库存分类账两类报表的数据在独立表（按 project_id + report_month 分区），
+    # 不在 analysis_source_files 里 —— 故直接查对应表判断 has_data。
+    # report_date 按"当月 1 号"映射到 ledger 的 report_month 语义。
+    if target_date is not None:
+        ledger_month = date(target_date.year, target_date.month, 1)
+        for rt, model in (
+            ("inventory_ledger_summary", InventoryLedgerSummary),
+            ("inventory_ledger_detail", InventoryLedgerDetail),
+        ):
+            ledger_missing_pairs = [
+                (pid, r)
+                for pid in project_ids
+                for r in (rt,)
+                if pid in status_by_project and not status_by_project[pid][r].is_uploaded
+            ]
+            if not ledger_missing_pairs:
+                continue
+            ledger_pids = sorted({pid for pid, _ in ledger_missing_pairs})
+            ledger_rows = db.execute(
+                select(model.project_id, func.max(model.date))
+                .where(model.project_id.in_(ledger_pids))
+                .where(model.report_month == ledger_month)
+                .group_by(model.project_id)
+            ).all()
+            for pid, max_business_date in ledger_rows:
+                if status_by_project[pid][rt].is_uploaded:
+                    continue
+                status_by_project[pid][rt] = ReportTypeStatus(
+                    report_type=rt,
+                    has_data=True,
+                    is_uploaded=True,
+                    latest_date=(
+                        max_business_date.isoformat()
+                        if max_business_date is not None
+                        else ledger_month.isoformat()
+                    ),
                     status_source="business_date_backfill",
                 )
 
