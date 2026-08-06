@@ -1,10 +1,11 @@
 """Agent API audit logging middleware（external_audit.py 改名，设计稿 §11）。
 
-Records one ``agent_api_audit_log`` row per ``/api/v1/external/*`` /
-``/api/v1/agent/*`` request: method, path, resolved API key id, status code,
-latency and client IP. The key id is read from ``request.state`` (stamped by
+Records one ``agent_api_audit_log`` row per ``/api/v1/agent/*`` request:
+method, path, resolved API key id, status code, latency and client IP. The
+key id is read from ``request.state`` (stamped by
 ``require_external_api_key``); anonymous / master-key / skip traffic logs
-with ``api_key_id=NULL``.
+with ``api_key_id=NULL``. ``/api/v1/external/*`` was retired in V3
+(BLF-459) and is intentionally not audited.
 
 BLF-460 读操作明细：每条记录额外解析并落 ``project_id``（path 正则
 ``/projects/(\d+)``）与 ``operation_type``（业务域，path 片段映射表）。
@@ -30,8 +31,8 @@ from app.models.agent_api_audit_log import AgentApiAuditLog
 
 logger = logging.getLogger(__name__)
 
-# 过渡期双命名空间都记访问日志（设计稿 §11.2）。
-AUDITED_PREFIXES = ("/api/v1/external/", "/api/v1/agent/")
+# 仅审计 /api/v1/agent/*；/api/v1/external/* 已于 V3（BLF-459）下线并停止审计。
+AUDITED_PREFIXES = ("/api/v1/agent/",)
 
 # 业务域 path 片段映射（长片段优先）。与 frontend/lib/agent-domains.ts 注册表
 # 及 agent/__init__.py 路由接线保持一致；覆盖 external 镜像读路由片段，

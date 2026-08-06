@@ -363,9 +363,7 @@ export function AgentManagementClient() {
                           {item.agent_id ? (
                             <span className="font-mono text-xs">{item.agent_id}</span>
                           ) : (
-                            <span className="text-muted-foreground">
-                              —（存量 external key）
-                            </span>
+                            <span className="text-muted-foreground">—（未绑定）</span>
                           )}
                         </td>
                         <td className="py-2 pr-4">

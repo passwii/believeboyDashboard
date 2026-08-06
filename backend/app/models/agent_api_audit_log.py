@@ -1,7 +1,8 @@
 """Agent API access audit log（BEL-377 external_api_audit_log 改名而来）。
 
-过渡期每个 ``/api/v1/external/*`` 与 ``/api/v1/agent/*`` 请求一行：
-method、path、凭据 id（匿名/master/skip 流量为 null）、status、latency、IP。
+每个 ``/api/v1/agent/*`` 请求一行：method、path、凭据 id（匿名/master/skip
+流量为 null）、status、latency、IP。``/api/v1/external/*`` 已于 BLF-459 V3
+下线并停止审计；存量历史行（迁移前写入）仍保留供查询。
 保留期由 Celery 清理任务约束（``agent_api_audit_retention_days``，默认 90）。
 
 高流量访问日志单独成表（不复用 ``operation_audit_logs``），保留期清理

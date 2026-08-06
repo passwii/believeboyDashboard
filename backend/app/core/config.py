@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Per-key (or per-IP fallback) rate limiting via slowapi.
     external_api_rate_limit_enabled: bool = Field(default=False)
     external_api_rate_limit: str = Field(default="60/minute", max_length=32)
-    # Agent API 访问审计（过渡期覆盖 /external/* 与 /agent/* 双前缀）。
+    # Agent API 访问审计（仅 /api/v1/agent/*；/external/* 已于 BLF-459 V3 下线）。
     agent_api_audit_enabled: bool = Field(default=True)
     # 访问审计保留天数（Celery 清理任务）。
     agent_api_audit_retention_days: int = Field(default=90, ge=1, le=3650)

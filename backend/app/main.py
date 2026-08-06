@@ -198,7 +198,8 @@ async def request_logging_middleware(request: Request, call_next):
 
 app.include_router(api_router, prefix="/api/v1")
 
-# BEL-377: audit-log every /api/v1/external/* and /api/v1/agent/* request.
+# BEL-377: audit-log every /api/v1/agent/* request. /api/v1/external/*
+# was retired in V3 (BLF-459) and is no longer audited.
 # Registered last so it wraps the request-logging middleware and captures
 # full end-to-end latency.
 register_agent_api_audit_middleware(app)

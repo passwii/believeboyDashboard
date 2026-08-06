@@ -1,8 +1,9 @@
 """
 Agent 访问日志（agent_api_audit_log）Schema。
 
-中间件每请求一行记录 /api/v1/agent/* 与 /api/v1/external/* 的访问；
-管理端查询时 join agent_api_keys 还原 agent_id / label。
+中间件每请求一行记录 /api/v1/agent/* 的访问（V3 BLF-459 起
+/api/v1/external/* 不再写入审计）；管理端查询时 join agent_api_keys
+还原 agent_id / label。
 """
 
 from __future__ import annotations
