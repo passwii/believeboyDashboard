@@ -337,7 +337,65 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 ### 6.2 映射关系
 
-现有 `/external/*` 每个 GET 路由一对一映射到 `/agent/*`（如 `/external/projects/{id}/sku-info` → `/agent/projects/{id}/sku-info`）。`/agent/*` 独有的写路由（shipments 等）不存在映射问题。P1 spec 时用脚本枚举 `external/__init__.py` 的 include_router 清单自动生成对照表。
+现有 `/external/*` 每个 GET 路由一对一映射到 `/agent/*`（如 `/external/projects/{id}/sku-info` → `/agent/projects/{id}/sku-info`）。`/agent/*` 独有的写路由（shipments 等）不存在映射问题。
+
+**对照表（BLF-459 P1 落地，共 51 条 GET 路由）**：镜像由
+`backend/app/api/v1/endpoints/agent/external_mirror.py` 从 `external_router`
+**程序化生成**（同后缀路径 + 复用 external handler 沿 ``__wrapped__`` 保留
+签名 + 壳翻译），未来新增 external 读路由自动出现在 agent 侧。下表由脚本枚举生成：
+
+| 老路径 (`/external`) | 新路径 (`/agent`) | 状态 |
+|---|---|---|
+| `/external/projects` | `/agent/projects` | v1 双挂（project_scope 过滤列表） |
+| `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | v1 双挂 |
+| `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-terms` | `/agent/projects/{project_id}/ad-search-terms` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-terms-raw` | `/agent/projects/{project_id}/ad-search-terms-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-term-raw` | `/agent/projects/{project_id}/ad-search-term-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-budgets` | `/agent/projects/{project_id}/ad-budgets` | v1 双挂 |
+| `/external/projects/{project_id}/ad-budgets-raw` | `/agent/projects/{project_id}/ad-budgets-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-budget-raw` | `/agent/projects/{project_id}/ad-budget-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-targets` | `/agent/projects/{project_id}/ad-targets` | v1 双挂 |
+| `/external/projects/{project_id}/ad-targets-raw` | `/agent/projects/{project_id}/ad-targets-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-target-raw` | `/agent/projects/{project_id}/ad-target-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-placements` | `/agent/projects/{project_id}/ad-placements` | v1 双挂 |
+| `/external/projects/{project_id}/ad-placements-raw` | `/agent/projects/{project_id}/ad-placements-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-placement-raw` | `/agent/projects/{project_id}/ad-placement-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-promoted-products` | `/agent/projects/{project_id}/ad-promoted-products` | v1 双挂 |
+| `/external/projects/{project_id}/ad-promoted-products-raw` | `/agent/projects/{project_id}/ad-promoted-products-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-promoted-product-raw` | `/agent/projects/{project_id}/ad-promoted-product-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-time-trends` | `/agent/projects/{project_id}/ad-time-trends` | v1 双挂 |
+| `/external/projects/{project_id}/ad-time-trends-raw` | `/agent/projects/{project_id}/ad-time-trends-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-time-trend-raw` | `/agent/projects/{project_id}/ad-time-trend-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-term-shares` | `/agent/projects/{project_id}/ad-search-term-shares` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-term-shares-raw` | `/agent/projects/{project_id}/ad-search-term-shares-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-search-term-share-raw` | `/agent/projects/{project_id}/ad-search-term-share-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-invalid-traffic` | `/agent/projects/{project_id}/ad-invalid-traffic` | v1 双挂 |
+| `/external/projects/{project_id}/ad-invalid-traffic-raw` | `/agent/projects/{project_id}/ad-invalid-traffic-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | v1 双挂 |
+| `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
+| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/orders/summary` | v1 双挂 |
+| `/external/projects/{project_id}/business-summary` | `/agent/projects/{project_id}/business-summary` | v1 双挂 |
+| `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
+| `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/snapshot` | `/agent/projects/{project_id}/inventory-ledger/snapshot` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/events` | `/agent/projects/{project_id}/inventory-ledger/events` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/receipt-clusters` | `/agent/projects/{project_id}/inventory-ledger/receipt-clusters` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/integrity` | `/agent/projects/{project_id}/inventory-ledger/integrity` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/trend` | `/agent/projects/{project_id}/inventory-ledger/trend` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/detail` | `/agent/projects/{project_id}/inventory-ledger/detail` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/summary` | `/agent/projects/{project_id}/inventory-ledger/summary` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/batches` | `/agent/projects/{project_id}/inventory-ledger/batches` | v1 双挂 |
+| `/external/projects/{project_id}/inventory-ledger/consistency` | `/agent/projects/{project_id}/inventory-ledger/consistency` | v1 双挂 |
+| `/external/projects/{project_id}/return-analysis` | `/agent/projects/{project_id}/return-analysis` | v1 双挂 |
+| `/external/projects/{project_id}/return-analysis-raw` | `/agent/projects/{project_id}/return-analysis-raw` | v1 双挂 |
+| `/external/projects/{project_id}/shop-calculation-history` | `/agent/projects/{project_id}/shop-calculation-history` | v1 双挂 |
+| `/external/projects/{project_id}/shop-calculation/snapshots` | `/agent/projects/{project_id}/shop-calculation/snapshots` | v1 双挂 |
+| `/external/projects/{project_id}/pricing-snapshots` | `/agent/projects/{project_id}/pricing-snapshots` | v1 双挂 |
+| `/external/projects/{project_id}/new-product-calculations` | `/agent/projects/{project_id}/new-product-calculations` | 已原生迁移（BLF-457 agent R1 同路径） |
 
 ---
 

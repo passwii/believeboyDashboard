@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
+from app.api.v1.endpoints.agent.external_mirror import external_mirror_router
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
@@ -37,6 +38,9 @@ agent_router.include_router(
 # 新品测算域（BLF-451）：只挂 require_project_scope；business_scope（BLF-448）
 # 暂不挂载，域 code 预留 new_product_calculations。
 agent_router.include_router(new_product_calculations_router)
+# BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
+# require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
+agent_router.include_router(external_mirror_router)
 
 
 # ⚠️ 路由遮蔽警告：兜底路由必须是 agent_router 注册的最后一个路由。

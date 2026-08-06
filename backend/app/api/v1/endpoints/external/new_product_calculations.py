@@ -17,7 +17,7 @@ fee-rule labels) are filtered out by the whitelist + Pydantic schema.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session
@@ -60,7 +60,6 @@ router = APIRouter()
     ),
 )
 def get_external_new_product_calculations(
-    response: Response,
     project_id: int = Path(..., ge=1),
     calculation_type: str | None = Query(
         default=None,
@@ -73,9 +72,8 @@ def get_external_new_product_calculations(
     order_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_read_db_session),
 ) -> NewProductCalculationListResponse:
-    # D4 已拍板（BLF-451）：R1 落地后 external 端点标记 deprecated（响应头标注，
-    # 行为不动，保留兼容期后停用——停用需 BEL 侧协调）。
-    response.headers["Deprecation"] = "true"
+    # BLF-459 (P1)：Deprecation/Sunset/Link 头已由全局 middleware 统一打
+    # （app/middleware/external_deprecation.py），此处不再单端点手写。
     try:
         normalized_country = parse_country(country) if country else None
         order_column, direction = parse_order_by(
