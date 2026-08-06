@@ -144,15 +144,23 @@ def _make_wrapper(endpoint: Callable, *, name: str) -> Callable:
 def _agent_projects_list(
     request: Request,
     status: str = Query(default="active"),
+    name: str | None = Query(default=None),
     db: Session = Depends(get_read_db_session),
 ) -> dict:
     """``/projects`` 列表专用：复用 external handler + 按 key 的 project_scope 过滤。
 
     受 scope 限制的 agent key（如 ``project_scope="1,2"``）不应看到全部项目名；
     ``*`` 全放行时行为与 external 完全一致。无 project_id → 不挂 project_scope。
+
+    ``name``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」
+    的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；
+    未命中返回空列表，Agent 据此判断名字写错或项目不存在。
     """
     with _service_errors():
         projects = get_external_projects(status=status, db=db)
+
+    if name:
+        projects = [p for p in projects if p.project_name == name]
 
     key_id = getattr(request.state, "agent_api_key_id", None)
     if key_id is not None:

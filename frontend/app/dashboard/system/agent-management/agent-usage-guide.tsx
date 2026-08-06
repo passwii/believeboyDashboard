@@ -25,6 +25,25 @@ export async function fetchBackendBaseUrl(): Promise<string> {
   }
 }
 
+/** 项目名 → ID 解析步骤（BLF-461）：派发文档只写项目名，Agent 先查 ID。 */
+function buildResolveProjectStep(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【0. 解析项目 ID（派发时只给项目名，先查 ID）】
+
+  项目名以系统为准（例如 <项目名>），调用后取 data[0].project_id：
+
+  curl "${apiBase}/api/v1/agent/projects?name=<项目名>" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  # → {"ok":true,"data":[{"project_id":1,"project_name":"<项目名>"}]}
+  # 把 project_id 记下来，下面所有示例里的 $PROJECT_ID 都替换成它`
+}
+
 /** 货件域调用说明（原默认，保持兼容）。 */
 function buildShipmentsGuide(opts: {
   key?: string
@@ -40,14 +59,14 @@ function buildShipmentsGuide(opts: {
 
 【2. 读取货件列表】
 
-  curl "${apiBase}/api/v1/agent/projects/{project_id}/shipments?page_size=20" \\
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shipments?page_size=20" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
 【3. 写操作（两步确认，第一次调用不会落库）】
 
   第一步（预览，返回 confirm_token）：
-  curl -X POST "${apiBase}/api/v1/agent/projects/{project_id}/shipments" \\
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shipments" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}" \\
     -H "Idempotency-Key: <UUID>" \\
@@ -61,7 +80,7 @@ function buildShipmentsGuide(opts: {
 【4. 删除货件（两步确认，不可逆）】
 
   第一步（预览，返回 confirm_token）：
-  curl -X DELETE "${apiBase}/api/v1/agent/projects/{project_id}/shipments/{shipment_no}" \\
+  curl -X DELETE "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shipments/{shipment_no}" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}" \\
     -H "Idempotency-Key: <UUID>"
@@ -86,29 +105,29 @@ function buildShopCalculationsGuide(opts: {
 
 【2. 读取测算列表】
 
-  curl "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations?page_size=20" \\
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations?page_size=20" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
 【3. 查询单个 SKU 测算详情（多国站点需带 ?country=）】
 
-  curl "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}" \\
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations/skus/{sku}" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
 【4. 查看 SKU 测算历史与审计】
 
-  curl "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/history" \\
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations/skus/{sku}/history" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
-  curl "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations/skus/{sku}/audit" \\
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations/skus/{sku}/audit" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
 【5. 试算（不落库，纯计算）】
 
-  curl -X POST "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations/compute" \\
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations/compute" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}" \\
     -H "Content-Type: application/json" \\
@@ -117,7 +136,7 @@ function buildShopCalculationsGuide(opts: {
 【6. 追加写（两步确认，第一次调用不会落库）】
 
   第一步（预览，返回 confirm_token）：
-  curl -X POST "${apiBase}/api/v1/agent/projects/{project_id}/shop-calculations" \\
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/shop-calculations" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}" \\
     -H "Idempotency-Key: <UUID>" \\
@@ -175,6 +194,8 @@ export function buildUsageText(opts?: {
 =====================
 
 ${authHeader}
+
+${buildResolveProjectStep({ key, agentId, apiBase })}
 
 ${domainGuide}
 

@@ -16,9 +16,20 @@ describe('buildUsageText', () => {
     })
     expect(text).toContain('https://dash-api.believeboy.com/api/v1/agent/health')
     expect(text).toContain(
-      'https://dash-api.believeboy.com/api/v1/agent/projects/{project_id}/shipments?page_size=20'
+      'https://dash-api.believeboy.com/api/v1/agent/projects/$PROJECT_ID/shipments?page_size=20'
     )
     expect(text).not.toContain('<后端地址>')
+  })
+
+  it('BLF-461：示例里先展示「项目名 → ID」解析步骤，不再用 {project_id} 占位符', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      baseUrl: 'https://dash-api.believeboy.com',
+    })
+    expect(text).toContain('/projects?name=')
+    expect(text).toContain('$PROJECT_ID')
+    expect(text).not.toContain('{project_id}')
   })
 
   it('baseUrl 末尾斜杠会被去掉，避免出现双斜杠', () => {

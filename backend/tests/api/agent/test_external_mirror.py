@@ -407,6 +407,71 @@ def test_agent_projects_list_filtered_by_scope(client, make_api_key):
     assert all(p["project_id"] == 1 for p in body["data"])
 
 
+def test_agent_projects_list_filtered_by_name(client, make_api_key):
+    """``?name=`` 精确匹配：命中返回该项目的 id+name，未命中返回空列表。
+
+    BLF-461：Agent 派发只给项目名，靠这个过滤做「名字 → ID」的确定性解析
+    （project_name 唯一约束，结果 0/1 条）。
+    """
+    key = make_api_key(agent_id="name-filter", project_scope="*")
+    headers = _headers(key, "name-filter")
+
+    # 构造两个临时项目，确保名字匹配是精确的（不是子串）。
+    suffix = uuid.uuid4().hex[:8]
+    name_a = f"blf461-a-{suffix}"
+    name_b = f"blf461-b-{suffix}"
+    db = SessionLocal()
+    project_ids: list[int] = []
+    try:
+        for name in (name_a, name_b):
+            proj = Project(
+                project_name=name,
+                project_operator="pytest",
+                assistant_operator=None,
+                sort_order=0,
+                is_active=True,
+            )
+            db.add(proj)
+            db.commit()
+            db.refresh(proj)
+            project_ids.append(proj.id)
+    finally:
+        db.close()
+
+    try:
+        # 命中：只返回名字完全相等的那个项目。
+        resp = client.get(f"/api/v1/agent/projects?name={name_a}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ok"] is True
+        assert [p["project_name"] for p in body["data"]] == [name_a]
+
+        # 未命中：空列表（Agent 据此判断「名字写错或项目不存在」）。
+        resp = client.get(
+            f"/api/v1/agent/projects?name=no-such-project-{suffix}", headers=headers
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ok"] is True
+        assert body["data"] == []
+
+        # 不带 name：行为不变（全量 active 列表）。
+        resp = client.get("/api/v1/agent/projects", headers=headers)
+        assert resp.status_code == 200, resp.text
+        all_names = [p["project_name"] for p in resp.json()["data"]]
+        assert name_a in all_names and name_b in all_names
+    finally:
+        db = SessionLocal()
+        try:
+            for pid in project_ids:
+                obj = db.get(Project, pid)
+                if obj is not None:
+                    db.delete(obj)
+            db.commit()
+        finally:
+            db.close()
+
+
 # ---------------------------------------------------------------------------
 # 4. 壳翻译 —— 404 项目 / 400 参数
 # ---------------------------------------------------------------------------
