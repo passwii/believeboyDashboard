@@ -242,6 +242,898 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * agent 镜像: /external/projects
+         * @description ``/projects`` 列表专用：复用 external handler + 按 key 的 project_scope 过滤。
+         *
+         *     受 scope 限制的 agent key（如 ``project_scope="1,2"``）不应看到全部项目名；
+         *     ``*`` 全放行时行为与 external 完全一致。无 project_id → 不挂 project_scope。
+         *
+         *     ``name``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」
+         *     的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；
+         *     未命中返回空列表，Agent 据此判断名字写错或项目不存在。
+         */
+        get: operations["agent_get_external_projects_api_v1_agent_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-budget-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-budget-raw */
+        get: operations["agent_get_external_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-budgets */
+        get: operations["agent_get_external_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-budgets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-budgets-raw */
+        get: operations["agent_get_external_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-campaign-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-campaign-raw */
+        get: operations["agent_get_external_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-campaigns */
+        get: operations["agent_get_external_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-campaigns-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-campaigns-raw */
+        get: operations["agent_get_external_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-invalid-traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-invalid-traffic */
+        get: operations["agent_get_external_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-invalid-traffic-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-invalid-traffic-raw */
+        get: operations["agent_get_external_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-placement-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-placement-raw */
+        get: operations["agent_get_external_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-placements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-placements */
+        get: operations["agent_get_external_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-placements-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-placements-raw */
+        get: operations["agent_get_external_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-promoted-product-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-promoted-product-raw */
+        get: operations["agent_get_external_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-promoted-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-promoted-products */
+        get: operations["agent_get_external_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-promoted-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-promoted-products-raw */
+        get: operations["agent_get_external_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-purchased-product-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-purchased-product-raw */
+        get: operations["agent_get_external_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-purchased-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-purchased-products */
+        get: operations["agent_get_external_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-purchased-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-purchased-products-raw */
+        get: operations["agent_get_external_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-term-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-term-raw */
+        get: operations["agent_get_external_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-term-share-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-term-share-raw */
+        get: operations["agent_get_external_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-term-shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-term-shares */
+        get: operations["agent_get_external_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-term-shares-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-term-shares-raw */
+        get: operations["agent_get_external_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-terms */
+        get: operations["agent_get_external_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-search-terms-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-search-terms-raw */
+        get: operations["agent_get_external_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-target-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-target-raw */
+        get: operations["agent_get_external_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-targets */
+        get: operations["agent_get_external_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-targets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-targets-raw */
+        get: operations["agent_get_external_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-time-trend-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-time-trend-raw */
+        get: operations["agent_get_external_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-time-trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-time-trends */
+        get: operations["agent_get_external_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/ad-time-trends-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/ad-time-trends-raw */
+        get: operations["agent_get_external_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/business-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/business-summary */
+        get: operations["agent_get_external_business_summary_api_v1_agent_projects__project_id__business_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/batches */
+        get: operations["agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/consistency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/consistency */
+        get: operations["agent_ext_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/detail */
+        get: operations["agent_ext_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/events */
+        get: operations["agent_ext_events_api_v1_agent_projects__project_id__inventory_ledger_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * agent 镜像: /external/projects/{project_id}/inventory-ledger/integrity
+         * @description Cross-month integrity check for a full calendar month.
+         */
+        get: operations["agent_ext_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/months */
+        get: operations["agent_ext_list_months_api_v1_agent_projects__project_id__inventory_ledger_months_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/receipt-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/receipt-clusters */
+        get: operations["agent_ext_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/snapshot */
+        get: operations["agent_ext_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/summary */
+        get: operations["agent_ext_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/inventory-ledger/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * agent 镜像: /external/projects/{project_id}/inventory-ledger/trend
+         * @description Multi-month aggregated trend.
+         */
+        get: operations["agent_ext_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/new-product-calculations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List New Product Calculations
+         * @description R1 新品测算快照列表（calculation_type / country 过滤 + 分页，updated_at 倒序）。
+         */
+        get: operations["list_new_product_calculations_api_v1_agent_projects__project_id__new_product_calculations_get"];
+        put?: never;
+        /**
+         * Upsert New Product Calculation
+         * @description W1 快照写：confirm 两步后按 (project_id, sku, calculation_type) upsert + 审计归因。
+         */
+        post: operations["upsert_new_product_calculation_api_v1_agent_projects__project_id__new_product_calculations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/new-product-calculations/compute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute New Product Calculation
+         * @description C1 试算：包装 4 个引擎纯计算函数（不落库、不落审计），返回 {calculation, snapshot} 双字段。
+         *
+         *     profit_reverse / cost_reverse 的引擎函数只解出单一数值（建议售价 / 最大 FOB
+         *     成本），再用解出的值跑一遍 ``_compute_pricing`` 拿完整派生快照（与内部
+         *     create_pricing_reverse_run / create_pricing_cost_reverse_run 同构，但不落 run）。
+         */
+        post: operations["compute_new_product_calculation_api_v1_agent_projects__project_id__new_product_calculations_compute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/new-product-calculations/skus/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get New Product Calculation Sku
+         * @description R2 SKU 详情：当前行（calculation_type 缺省 profit_calc）；不存在 → 404 壳。
+         *
+         *     country 不在唯一键内（upsert 键为 (project_id, sku, calculation_type)），
+         *     天然无歧义——与店铺域 R2 的 AMBIGUOUS_COUNTRY 不同。
+         */
+        get: operations["get_new_product_calculation_sku_api_v1_agent_projects__project_id__new_product_calculations_skus__sku__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/new-product-calculations/skus/{sku}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get New Product Calculation Audit
+         * @description R3 SKU 审计：先拿该 SKU 全部快照行 id（upsert 行 id 稳定），再按行 id 聚合审计轨迹。
+         *
+         *     upsert 覆盖语义下，同一 (project, sku, calculation_type) 的每次覆盖都挂在
+         *     同一行 id 上——该 id 的审计行即该键全部 upsert 痕迹（含历史覆盖）。
+         */
+        get: operations["get_new_product_calculation_audit_api_v1_agent_projects__project_id__new_product_calculations_skus__sku__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/orders/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/orders/summary */
+        get: operations["agent_get_external_orders_summary_api_v1_agent_projects__project_id__orders_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/pricing-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/pricing-snapshots */
+        get: operations["agent_get_external_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/replenishment-analysis */
+        get: operations["agent_get_external_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/return-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/return-analysis */
+        get: operations["agent_get_external_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/return-analysis-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/return-analysis-raw */
+        get: operations["agent_get_external_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/shipments": {
         parameters: {
             query?: never;
@@ -381,6 +1273,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/shop-calculation-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/shop-calculation-history */
+        get: operations["agent_get_external_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/shop-calculation/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/shop-calculation/snapshots */
+        get: operations["agent_get_external_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/shop-calculations": {
         parameters: {
             query?: never;
@@ -477,6 +1403,23 @@ export interface paths {
          * @description R3 SKU 历史：append-only 全部版本（observed_at 倒序）+ from/to/分页薄壳。
          */
         get: operations["list_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculations_skus__sku__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sku-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** agent 镜像: /external/projects/{project_id}/sku-info */
+        get: operations["agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2227,879 +3170,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/external/projects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Projects */
-        get: operations["get_external_projects_api_v1_external_projects_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-budget-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Budget Raw Alias */
-        get: operations["get_external_ad_budget_raw_alias_api_v1_external_projects__project_id__ad_budget_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-budgets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Budget Aggregate */
-        get: operations["get_external_ad_budget_aggregate_api_v1_external_projects__project_id__ad_budgets_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-budgets-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Budget Raw */
-        get: operations["get_external_ad_budget_raw_api_v1_external_projects__project_id__ad_budgets_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-campaign-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Campaign Raw Alias */
-        get: operations["get_external_ad_campaign_raw_alias_api_v1_external_projects__project_id__ad_campaign_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-campaigns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Campaign Aggregate */
-        get: operations["get_external_ad_campaign_aggregate_api_v1_external_projects__project_id__ad_campaigns_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-campaigns-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Campaign Raw */
-        get: operations["get_external_ad_campaign_raw_api_v1_external_projects__project_id__ad_campaigns_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-invalid-traffic": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Invalid Traffic Aggregate */
-        get: operations["get_external_ad_invalid_traffic_aggregate_api_v1_external_projects__project_id__ad_invalid_traffic_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-invalid-traffic-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Invalid Traffic Raw */
-        get: operations["get_external_ad_invalid_traffic_raw_api_v1_external_projects__project_id__ad_invalid_traffic_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-placement-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Placement Raw Alias */
-        get: operations["get_external_ad_placement_raw_alias_api_v1_external_projects__project_id__ad_placement_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-placements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Placement Aggregate */
-        get: operations["get_external_ad_placement_aggregate_api_v1_external_projects__project_id__ad_placements_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-placements-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Placement Raw */
-        get: operations["get_external_ad_placement_raw_api_v1_external_projects__project_id__ad_placements_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-promoted-product-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Promoted Product Raw Alias */
-        get: operations["get_external_ad_promoted_product_raw_alias_api_v1_external_projects__project_id__ad_promoted_product_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-promoted-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Promoted Product Aggregate */
-        get: operations["get_external_ad_promoted_product_aggregate_api_v1_external_projects__project_id__ad_promoted_products_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-promoted-products-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Promoted Product Raw */
-        get: operations["get_external_ad_promoted_product_raw_api_v1_external_projects__project_id__ad_promoted_products_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-purchased-product-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Purchased Product Raw Alias */
-        get: operations["get_external_ad_purchased_product_raw_alias_api_v1_external_projects__project_id__ad_purchased_product_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-purchased-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Purchased Product Aggregate */
-        get: operations["get_external_ad_purchased_product_aggregate_api_v1_external_projects__project_id__ad_purchased_products_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-purchased-products-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Purchased Product Raw */
-        get: operations["get_external_ad_purchased_product_raw_api_v1_external_projects__project_id__ad_purchased_products_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-term-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Raw Alias */
-        get: operations["get_external_ad_search_term_raw_alias_api_v1_external_projects__project_id__ad_search_term_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-term-share-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Share Raw Alias */
-        get: operations["get_external_ad_search_term_share_raw_alias_api_v1_external_projects__project_id__ad_search_term_share_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-term-shares": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Share Aggregate */
-        get: operations["get_external_ad_search_term_share_aggregate_api_v1_external_projects__project_id__ad_search_term_shares_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-term-shares-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Share Raw */
-        get: operations["get_external_ad_search_term_share_raw_api_v1_external_projects__project_id__ad_search_term_shares_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-terms": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Aggregate */
-        get: operations["get_external_ad_search_term_aggregate_api_v1_external_projects__project_id__ad_search_terms_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-search-terms-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Search Term Raw */
-        get: operations["get_external_ad_search_term_raw_api_v1_external_projects__project_id__ad_search_terms_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-target-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Target Raw Alias */
-        get: operations["get_external_ad_target_raw_alias_api_v1_external_projects__project_id__ad_target_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-targets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Target Aggregate */
-        get: operations["get_external_ad_target_aggregate_api_v1_external_projects__project_id__ad_targets_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-targets-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Target Raw */
-        get: operations["get_external_ad_target_raw_api_v1_external_projects__project_id__ad_targets_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-time-trend-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Time Trend Raw Alias */
-        get: operations["get_external_ad_time_trend_raw_alias_api_v1_external_projects__project_id__ad_time_trend_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-time-trends": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Time Trend Aggregate */
-        get: operations["get_external_ad_time_trend_aggregate_api_v1_external_projects__project_id__ad_time_trends_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/ad-time-trends-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Ad Time Trend Raw */
-        get: operations["get_external_ad_time_trend_raw_api_v1_external_projects__project_id__ad_time_trends_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/business-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Business Summary */
-        get: operations["get_external_business_summary_api_v1_external_projects__project_id__business_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * SKU event flow for the period
-         * @description Returns per-SKU totals of every ledger event column summed across the resolved period window.
-         *
-         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
-         */
-        get: operations["ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/integrity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Cross-month integrity check
-         * @description Returns the cross-month continuity check (last month's ending balance vs. this month's starting balance, per SKU × location × disposition). Status is one of ``OK``, ``MISMATCH``, or ``PENDING`` (no prior month data available).
-         *
-         *     Only full-calendar-month period values make sense here (``last_month``, ``this_month``, ``ytd`` cross-year, ``YYYY-MM``, ``YYYY-MM-DD``). Partial windows (7d/30d/custom spanning multiple months) return 400 — use ``last_month`` for the typical 'reconcile last full month' flow.
-         */
-        get: operations["ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/months": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List months with ledger data
-         * @description Returns YYYY-MM-DD strings (always the 1st of the month) for every month that has any rows in the project's inventory_ledger_raw table.
-         */
-        get: operations["ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/receipt-clusters": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Receipt clusters for the period
-         * @description Groups inventory receipts by (date, warehouse) — useful for spotting shipments that arrived together.
-         *
-         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
-         */
-        get: operations["ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/snapshot": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Monthly snapshot — SKU EOM, disposition summary, integrity
-         * @description Returns the end-of-period inventory snapshot for a project. Runs the cross-month integrity check when the resolved period is a full calendar month; partial windows skip it.
-         *
-         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
-         */
-        get: operations["ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/inventory-ledger/trend": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Multi-month trend
-         * @description Aggregates the last N months (default 6, max 24) into a single trend series. Independent of the ``?period=`` convention (driven by ``?months=N``).
-         */
-        get: operations["ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/new-product-calculations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * New Product Calculation list (paginated)
-         * @description Paginated list of new-product calculation rows for the project. The new-product calculation table (``new_product_calculations``) is the canonical source for profit-calc / profit-reverse snapshots; the legacy
-         *     ``store_sku_pricing_snapshots`` table was renamed in 2026-08
-         *     (migration 230).
-         *
-         *     Returns 14 flat columns — economics + lineage, no nested objects. Use ``?calculation_type=`` to filter, ``?country=`` to restrict to one country, ``?order_by=`` to sort by any of the 15 whitelisted columns.
-         */
-        get: operations["get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/orders/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Orders Summary */
-        get: operations["get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/pricing-snapshots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Pricing catalog freeze as of date
-         * @description Return the latest pricing snapshot (``pricing_calculation_snapshots``) whose ``snapshot_date`` is on or before ``as_of``. When ``as_of`` is omitted the endpoint returns the most recent snapshot.
-         *
-         *     Each item is one SKU's economics at the freeze moment. The same 15 flat columns as the shop-calculation endpoints — sale price, profit, fees, observed_at (snapshot's create time), source (``"manual"``), and timestamps.
-         *
-         *     Returns 404 when no snapshot exists for the (project, country, as_of) tuple.
-         */
-        get: operations["get_external_pricing_snapshot_as_of_api_v1_external_projects__project_id__pricing_snapshots_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/replenishment-analysis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Replenishment analysis with age-bucket breakdown and DMS
-         * @description Per-SKU inventory-health + replenishment analysis. Each item includes:
-         *       - **Stock**: available_inventory, in_transit_quantity, age buckets
-         *       - **Sales velocity**: DMS at 30/14/7/3 days, weighted DMS
-         *       - **Sell-through**: sellable_days, sellout_date (with/without transit)
-         *       - **Replenishment**: production_lead_days, shipping_days, estimated_replenishment_quantity
-         *       - **Risk**: risk_status (断货风险 / 健康库存 / 滞销 / 待补数据)
-         *       - **Age bucket**: age_0_90_qty … age_365_plus_qty, recommended_action
-         */
-        get: operations["get_external_replenishment_analysis_api_v1_external_projects__project_id__replenishment_analysis_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/return-analysis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Return Analysis aggregate (per-SKU rollup from snapshot)
-         * @description Per-SKU rollup of return metrics within the requested window.
-         *     Reads from the ``analysis_return_aggregates`` snapshot, so the
-         *     ``risk_level`` and ``wilson_lower`` values reflect the Celery
-         *     nightly pre-aggregation (not live computation).
-         *
-         *     Each row carries 12 fields:
-         *       - **Counts**: return_count, return_quantity, sales_quantity
-         *       - **Rates**: return_rate (%), wilson_lower (%)
-         *       - **Cycle**: cycle_avg_days / cycle_min_days / cycle_max_days
-         *       - **Top reasons**: reason_top1, disposition_top1, dominant_fc_id
-         *       - **Risk**: risk_level (critical / warning / normal / no_data)
-         *
-         *     Use ``?risk_level=critical`` to surface at-risk SKUs only.
-         *     Use ``?min_return_rate=5.0`` to set a rate threshold.
-         *     Use ``?sku=SKU-001`` for substring match.
-         */
-        get: operations["get_external_return_analysis_aggregate_api_v1_external_projects__project_id__return_analysis_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/return-analysis-raw": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Return Analysis raw events (Pydantic-stripped of sensitive fields)
-         * @description Raw ``analysis_return_rows`` events within the requested window.
-         *     Sensitive fields are **never** returned:
-         *       - ``customer_comments`` — PII / free-form complaint text
-         *       - ``raw_row``           — debug-only JSON blob
-         *       - ``fnsku``             — internal Amazon LPN
-         *       - ``license_plate_number`` — internal LPN
-         *
-         *     Use ``?order_by=`` to sort by any of the 12 whitelisted columns.
-         */
-        get: operations["get_external_return_analysis_raw_api_v1_external_projects__project_id__return_analysis_raw_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/shop-calculation-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Shop Calculation current-state list (per SKU latest row)
-         * @description Current-state list of shop-calculation rows for the project.
-         *
-         *     Each row is the latest non-deleted entry for a ``(project_id, sku, country)`` group (BEL-378 append-only). Returns 15 flat columns — economics + lineage, no nested objects.
-         *
-         *     Use ``?country=US`` to restrict to a single country. Use ``?order_by=`` to sort by any of the 16 whitelisted columns.
-         */
-        get: operations["get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/shop-calculation/snapshots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Shop Calculation time series (append-only history)
-         * @description Append-only history of shop-calculation rows for the project.
-         *
-         *     Each row is one observation — the same SKU/country group may appear multiple times across different ``observed_at`` snapshots. Use ``?from=&to=`` to bound the date window, ``?sku=`` and ``?country=`` to filter.
-         *
-         *     Returns the same 15 flat columns as the current-state endpoint.
-         *     When ``?from=`` is greater than ``?to=`` the endpoint returns 400 (defense-in-depth alongside the date parsing).
-         */
-        get: operations["get_external_shop_calculation_snapshots_api_v1_external_projects__project_id__shop_calculation_snapshots_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/external/projects/{project_id}/sku-info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get External Sku Info */
-        get: operations["get_external_sku_info_api_v1_external_projects__project_id__sku_info_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -3316,6 +3386,196 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-budgets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Budgets Raw */
+        get: operations["internal_ad_data_ad_budgets_raw_api_v1_internal_ad_data_projects__project_id__ad_budgets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-campaigns-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Campaigns Raw */
+        get: operations["internal_ad_data_ad_campaigns_raw_api_v1_internal_ad_data_projects__project_id__ad_campaigns_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-invalid-traffic-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Invalid-Traffic Raw */
+        get: operations["internal_ad_data_ad_invalid_traffic_raw_api_v1_internal_ad_data_projects__project_id__ad_invalid_traffic_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-placements-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Placements Raw */
+        get: operations["internal_ad_data_ad_placements_raw_api_v1_internal_ad_data_projects__project_id__ad_placements_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-promoted-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Promoted-Products Raw */
+        get: operations["internal_ad_data_ad_promoted_products_raw_api_v1_internal_ad_data_projects__project_id__ad_promoted_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-purchased-products-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Purchased-Products Raw */
+        get: operations["internal_ad_data_ad_purchased_products_raw_api_v1_internal_ad_data_projects__project_id__ad_purchased_products_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-search-term-shares-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Search-Term-Shares Raw */
+        get: operations["internal_ad_data_ad_search_term_shares_raw_api_v1_internal_ad_data_projects__project_id__ad_search_term_shares_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-search-terms-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Search-Terms Raw */
+        get: operations["internal_ad_data_ad_search_terms_raw_api_v1_internal_ad_data_projects__project_id__ad_search_terms_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-targets-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Targets Raw */
+        get: operations["internal_ad_data_ad_targets_raw_api_v1_internal_ad_data_projects__project_id__ad_targets_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-time-trends-raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Internal Ad Data Ad-Time-Trends Raw */
+        get: operations["internal_ad_data_ad_time_trends_raw_api_v1_internal_ad_data_projects__project_id__ad_time_trends_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/ad-data/projects/{project_id}/ad-upload-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ad Upload Files
+         * @description 列出项目已入库的广告报表文件（当前版本优先，按 updated_at 倒序）。
+         */
+        get: operations["list_ad_upload_files_api_v1_internal_ad_data_projects__project_id__ad_upload_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/api-keys": {
         parameters: {
             query?: never;
@@ -3408,6 +3668,70 @@ export interface paths {
         };
         /** Get Inventory Analysis */
         get: operations["get_inventory_analysis_api_v1_inventory_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List CSV ingest batches (traceability)
+         * @description Returns the upload history for this project — one row per CSV ingest run with file identity (filename + sha256), row counts, status and the cross-table consistency result. Use this to figure out which file version populated a given month (排查版本).
+         */
+        get: operations["list_batches_api_v1_inventory_ledger_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/consistency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-table consistency check (detail vs summary)
+         * @description Reconciles the Detailed view against the Summary truth table for a full calendar month: per (msku, location, disposition), compares sum(detail.quantity) against (last summary ending - first summary starting). Status is ``OK``, ``MISMATCH``, or ``PENDING`` (neither view has data for the month).
+         *
+         *     Only full-calendar-month period values make sense here; partial windows (7d/30d/custom) return 400.
+         */
+        get: operations["get_consistency_api_v1_inventory_ledger_consistency_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Event-level detail rows (Detailed view)
+         * @description Returns event-level rows from the Amazon Detailed view for the resolved period — one row per inventory event (receipt, shipment, transfer, return, adjustment) with its quantity, warehouse, disposition and reference. Optional filters: ``msku``, ``fulfillment_center``, ``event_type``.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
+         */
+        get: operations["get_detail_rows_api_v1_inventory_ledger_detail_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3516,6 +3840,28 @@ export interface paths {
          *     Period values: 7d / 14d / 28d / 30d / 60d / 90d / this_month / last_month / ytd / custom / YYYY-MM / YYYY-MM-DD. See ``backend/docs/inventory-ledger-api.md`` for the full grammar.
          */
         get: operations["get_snapshot_api_v1_inventory_ledger_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inventory-ledger/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily water-level rows (Summary view)
+         * @description Returns daily water-level rows from the Amazon Summary view for the resolved period — one row per (FNSKU × warehouse × disposition × date) snapshot with starting/ending balances and every event column. Optional filters: ``msku``, ``location``, ``disposition``.
+         *
+         *     Period values: see ``backend/docs/inventory-ledger-api.md``.
+         */
+        get: operations["get_summary_rows_api_v1_inventory_ledger_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6114,6 +6460,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system-management/agent-operation-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Agent Operation Logs */
+        get: operations["list_agent_operation_logs_api_v1_system_management_agent_operation_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-management/agent-operation-logs/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Operation Logs Summary */
+        get: operations["agent_operation_logs_summary_api_v1_system_management_agent_operation_logs_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-management/audit-logs": {
         parameters: {
             query?: never;
@@ -7138,1256 +7518,6 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
-        /** AdBudgetAggregateResponse */
-        AdBudgetAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdBudgetAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdBudgetAggregateRow */
-        AdBudgetAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Budget */
-            budget?: number | null;
-            /**
-             * Budget Utilization Rate
-             * @default 0
-             */
-            budget_utilization_rate: number;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Missed Clicks Max
-             * @default 0
-             */
-            missed_clicks_max: number;
-            /**
-             * Missed Clicks Min
-             * @default 0
-             */
-            missed_clicks_min: number;
-            /**
-             * Missed Impressions Max
-             * @default 0
-             */
-            missed_impressions_max: number;
-            /**
-             * Missed Impressions Min
-             * @default 0
-             */
-            missed_impressions_min: number;
-            /**
-             * Missed Sales Max
-             * @default 0
-             */
-            missed_sales_max: number;
-            /**
-             * Missed Sales Min
-             * @default 0
-             */
-            missed_sales_min: number;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /** Status */
-            status?: string | null;
-            /** Suggested Budget */
-            suggested_budget?: number | null;
-        };
-        /** AdBudgetRawRow */
-        AdBudgetRawRow: {
-            /** Acos */
-            acos: number;
-            /** Budget */
-            budget: number;
-            /** Budget Utilization Rate */
-            budget_utilization_rate: number;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Missed Clicks Max */
-            missed_clicks_max: number;
-            /** Missed Clicks Min */
-            missed_clicks_min: number;
-            /** Missed Impressions Max */
-            missed_impressions_max: number;
-            /** Missed Impressions Min */
-            missed_impressions_min: number;
-            /** Missed Sales Max */
-            missed_sales_max: number;
-            /** Missed Sales Min */
-            missed_sales_min: number;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Status */
-            status?: string | null;
-            /** Suggested Budget */
-            suggested_budget: number;
-        };
-        /** AdCampaignAggregateResponse */
-        AdCampaignAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdCampaignAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /**
-         * AdCampaignAggregateRow
-         * @description Aggregate by ``campaign_name``.
-         */
-        AdCampaignAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Bidding Strategy */
-            bidding_strategy?: string | null;
-            /** Budget */
-            budget?: number | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Campaign Type */
-            campaign_type?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /** Portfolio Name */
-            portfolio_name?: string | null;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /** Status */
-            status?: string | null;
-            /** Targeting Type */
-            targeting_type?: string | null;
-        };
-        /** AdCampaignRawRow */
-        AdCampaignRawRow: {
-            /** Acos */
-            acos: number;
-            /** Bidding Strategy */
-            bidding_strategy?: string | null;
-            /** Budget */
-            budget: number;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Campaign Type */
-            campaign_type?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ctr */
-            ctr: number;
-            /** Id */
-            id: number;
-            /** Impressions */
-            impressions: number;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Portfolio Name */
-            portfolio_name?: string | null;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Status */
-            status?: string | null;
-            /** Targeting Type */
-            targeting_type?: string | null;
-        };
-        /** AdInvalidTrafficAggregateResponse */
-        AdInvalidTrafficAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdInvalidTrafficAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdInvalidTrafficAggregateRow */
-        AdInvalidTrafficAggregateRow: {
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Invalid Click Rate
-             * @default 0
-             */
-            invalid_click_rate: number;
-            /**
-             * Invalid Clicks
-             * @default 0
-             */
-            invalid_clicks: number;
-            /**
-             * Invalid Impression Rate
-             * @default 0
-             */
-            invalid_impression_rate: number;
-            /**
-             * Invalid Impressions
-             * @default 0
-             */
-            invalid_impressions: number;
-            /** Status */
-            status?: string | null;
-            /**
-             * Total Clicks
-             * @default 0
-             */
-            total_clicks: number;
-            /**
-             * Total Impressions
-             * @default 0
-             */
-            total_impressions: number;
-            /**
-             * Valid Clicks
-             * @default 0
-             */
-            valid_clicks: number;
-            /**
-             * Valid Impressions
-             * @default 0
-             */
-            valid_impressions: number;
-        };
-        /** AdInvalidTrafficRawRow */
-        AdInvalidTrafficRawRow: {
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Invalid Click Rate */
-            invalid_click_rate: number;
-            /** Invalid Clicks */
-            invalid_clicks: number;
-            /** Invalid Impression Rate */
-            invalid_impression_rate: number;
-            /** Invalid Impressions */
-            invalid_impressions: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Source File Id */
-            source_file_id: number;
-            /** Status */
-            status?: string | null;
-            /** Total Clicks */
-            total_clicks: number;
-            /** Total Impressions */
-            total_impressions: number;
-            /** Valid Clicks */
-            valid_clicks: number;
-            /** Valid Impressions */
-            valid_impressions: number;
-        };
-        /** AdPlacementAggregateResponse */
-        AdPlacementAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPlacementAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdPlacementAggregateRow */
-        AdPlacementAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Bidding Strategy */
-            bidding_strategy?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /** Placement */
-            placement?: string | null;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /**
-             * Units 7D
-             * @default 0
-             */
-            units_7d: number;
-        };
-        /** AdPlacementRawRow */
-        AdPlacementRawRow: {
-            /** Acos */
-            acos: number;
-            /** Bidding Strategy */
-            bidding_strategy?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Impressions */
-            impressions: number;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Placement */
-            placement?: string | null;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Units 7D */
-            units_7d: number;
-        };
-        /** AdPromotedProductAggregateResponse */
-        AdPromotedProductAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPromotedProductAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdPromotedProductAggregateRow */
-        AdPromotedProductAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Ad Asin */
-            ad_asin?: string | null;
-            /** Ad Sku */
-            ad_sku?: string | null;
-            /**
-             * Ad Sku Sales 7D
-             * @default 0
-             */
-            ad_sku_sales_7d: number;
-            /**
-             * Ad Sku Units 7D
-             * @default 0
-             */
-            ad_sku_units_7d: number;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /**
-             * Other Sku Sales 7D
-             * @default 0
-             */
-            other_sku_sales_7d: number;
-            /**
-             * Other Sku Units 7D
-             * @default 0
-             */
-            other_sku_units_7d: number;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /** Scope Status */
-            scope_status?: string | null;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /**
-             * Units 7D
-             * @default 0
-             */
-            units_7d: number;
-        };
-        /** AdPromotedProductRawRow */
-        AdPromotedProductRawRow: {
-            /** Acos */
-            acos: number;
-            /** Ad Asin */
-            ad_asin?: string | null;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Ad Sku */
-            ad_sku?: string | null;
-            /** Ad Sku Sales 7D */
-            ad_sku_sales_7d: number;
-            /** Ad Sku Units 7D */
-            ad_sku_units_7d: number;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ctr */
-            ctr: number;
-            /** Cvr 7D */
-            cvr_7d: number;
-            /** Id */
-            id: number;
-            /** Impressions */
-            impressions: number;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Other Sku Sales 7D */
-            other_sku_sales_7d: number;
-            /** Other Sku Units 7D */
-            other_sku_units_7d: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Scope Status */
-            scope_status: string;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Units 7D */
-            units_7d: number;
-        };
-        /** AdPurchasedProductAggregateResponse */
-        AdPurchasedProductAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPurchasedProductAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdPurchasedProductAggregateRow */
-        AdPurchasedProductAggregateRow: {
-            /** Ad Asin */
-            ad_asin?: string | null;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Ad Sku */
-            ad_sku?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Match Type */
-            match_type?: string | null;
-            /**
-             * Other Sku Orders 7D
-             * @default 0
-             */
-            other_sku_orders_7d: number;
-            /**
-             * Other Sku Sales 7D
-             * @default 0
-             */
-            other_sku_sales_7d: number;
-            /**
-             * Other Sku Units 7D
-             * @default 0
-             */
-            other_sku_units_7d: number;
-            /** Purchased Asin */
-            purchased_asin?: string | null;
-            /** Target Text */
-            target_text?: string | null;
-        };
-        /** AdPurchasedProductRawRow */
-        AdPurchasedProductRawRow: {
-            /** Ad Asin */
-            ad_asin?: string | null;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Ad Sku */
-            ad_sku?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Match Type */
-            match_type?: string | null;
-            /** Other Sku Orders 7D */
-            other_sku_orders_7d: number;
-            /** Other Sku Sales 7D */
-            other_sku_sales_7d: number;
-            /** Other Sku Units 7D */
-            other_sku_units_7d: number;
-            /** Purchased Asin */
-            purchased_asin?: string | null;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Source File Id */
-            source_file_id: number;
-            /** Target Text */
-            target_text?: string | null;
-        };
-        /** AdSearchTermAggregateResponse */
-        AdSearchTermAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdSearchTermAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /**
-         * AdSearchTermAggregateRow
-         * @description Aggregate by ``(search_term, targeting_type, match_type)`` —
-         *     see ``services/external/ad_targeting.py`` for ``targeting_type`` semantics.
-         */
-        AdSearchTermAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /** Search Term */
-            search_term?: string | null;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /** Targeting Type */
-            targeting_type?: string | null;
-        };
-        /** AdSearchTermRawRow */
-        AdSearchTermRawRow: {
-            /** Acos */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ctr */
-            ctr: number;
-            /** Cvr 7D */
-            cvr_7d: number;
-            /** Id */
-            id: number;
-            /** Impressions */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Search Term */
-            search_term?: string | null;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Targeting Type */
-            targeting_type?: string | null;
-        };
-        /** AdSearchTermShareAggregateResponse */
-        AdSearchTermShareAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdSearchTermShareAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdSearchTermShareAggregateRow */
-        AdSearchTermShareAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impression Rank
-             * @default 0
-             */
-            impression_rank: number;
-            /**
-             * Impression Share
-             * @default 0
-             */
-            impression_share: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /** Search Term */
-            search_term?: string | null;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /** Target Text */
-            target_text?: string | null;
-        };
-        /** AdSearchTermShareRawRow */
-        AdSearchTermShareRawRow: {
-            /** Acos */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ctr */
-            ctr: number;
-            /** Cvr 7D */
-            cvr_7d: number;
-            /** Id */
-            id: number;
-            /** Impression Rank */
-            impression_rank: number;
-            /** Impression Share */
-            impression_share: number;
-            /** Impressions */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Search Term */
-            search_term?: string | null;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Target Text */
-            target_text?: string | null;
-        };
-        /** AdTargetAggregateResponse */
-        AdTargetAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdTargetAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /** AdTargetAggregateRow */
-        AdTargetAggregateRow: {
-            /**
-             * Acos
-             * @default 0
-             */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /**
-             * Ctr
-             * @default 0
-             */
-            ctr: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Impressions
-             * @default 0
-             */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /**
-             * Orders 7D
-             * @default 0
-             */
-            orders_7d: number;
-            /**
-             * Roas
-             * @default 0
-             */
-            roas: number;
-            /**
-             * Sales 7D
-             * @default 0
-             */
-            sales_7d: number;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-            /** Target Text */
-            target_text?: string | null;
-            /**
-             * Top Of Search Impression Share
-             * @default 0
-             */
-            top_of_search_impression_share: number;
-            /**
-             * Units 7D
-             * @default 0
-             */
-            units_7d: number;
-        };
-        /** AdTargetRawRow */
-        AdTargetRawRow: {
-            /** Acos */
-            acos: number;
-            /** Ad Group Name */
-            ad_group_name?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /** Clicks */
-            clicks: number;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Ctr */
-            ctr: number;
-            /** Cvr 7D */
-            cvr_7d: number;
-            /** Id */
-            id: number;
-            /** Impressions */
-            impressions: number;
-            /** Match Type */
-            match_type?: string | null;
-            /** Orders 7D */
-            orders_7d: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Roas */
-            roas: number;
-            /** Sales 7D */
-            sales_7d: number;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-            /** Target Text */
-            target_text?: string | null;
-            /** Top Of Search Impression Share */
-            top_of_search_impression_share: number;
-            /** Units 7D */
-            units_7d: number;
-        };
-        /** AdTimeTrendAggregateResponse */
-        AdTimeTrendAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdTimeTrendAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["AggregateSummary"];
-        };
-        /**
-         * AdTimeTrendAggregateRow
-         * @description Aggregate by ``report_end_date`` (one row per day).
-         */
-        AdTimeTrendAggregateRow: {
-            /**
-             * Clicks
-             * @default 0
-             */
-            clicks: number;
-            /** Country */
-            country?: string | null;
-            /**
-             * Cpc
-             * @default 0
-             */
-            cpc: number;
-            /** Currency */
-            currency?: string | null;
-            /** Report End Date */
-            report_end_date: string;
-            /**
-             * Spend
-             * @default 0
-             */
-            spend: number;
-        };
-        /** AdTimeTrendRawRow */
-        AdTimeTrendRawRow: {
-            /** Clicks */
-            clicks: number;
-            /** Country */
-            country?: string | null;
-            /** Cpc */
-            cpc: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Currency */
-            currency?: string | null;
-            /** Id */
-            id: number;
-            /** Raw Row */
-            raw_row: {
-                [key: string]: unknown;
-            };
-            /**
-             * Report End Date
-             * Format: date
-             */
-            report_end_date: string;
-            /**
-             * Report Start Date
-             * Format: date
-             */
-            report_start_date: string;
-            /** Source File Id */
-            source_file_id: number;
-            /** Spend */
-            spend: number;
-        };
         /** AdUploadCommitRequest */
         AdUploadCommitRequest: {
             /**
@@ -8452,6 +7582,40 @@ export interface components {
              * @enum {string}
              */
             report_type: "ad_time_trend_report" | "ad_campaign_report" | "ad_budget_report" | "ad_placement_report" | "ad_invalid_traffic_report" | "ad_search_term_report" | "ad_target_report" | "ad_search_term_share_report" | "ad_promoted_product_report" | "ad_purchased_product_report" | "unknown";
+            /** Version */
+            version: number;
+        };
+        /** AdUploadFileItem */
+        AdUploadFileItem: {
+            /** Country */
+            country: string;
+            /** File Id */
+            file_id: number;
+            /** Ingestion Status */
+            ingestion_status: string;
+            /** Is Current */
+            is_current: boolean;
+            /**
+             * Period End Date
+             * Format: date
+             */
+            period_end_date: string;
+            /**
+             * Period Start Date
+             * Format: date
+             */
+            period_start_date: string;
+            /** Report Label */
+            report_label: string;
+            /** Report Type */
+            report_type: string;
+            /** Row Count Preview */
+            row_count_preview?: number | null;
+            /**
+             * Uploaded At
+             * Format: date-time
+             */
+            uploaded_at: string;
             /** Version */
             version: number;
         };
@@ -8595,8 +7759,12 @@ export interface components {
             latency_ms: number;
             /** Method */
             method: string;
+            /** Operation Type */
+            operation_type?: string | null;
             /** Path */
             path: string;
+            /** Project Id */
+            project_id?: number | null;
             /** Status Code */
             status_code: number;
         };
@@ -8621,6 +7789,167 @@ export interface components {
             success_count: number;
             /** Top Agents */
             top_agents?: components["schemas"]["AgentAccessLogAgentSummaryItem"][];
+            /** Total */
+            total: number;
+            /** Unique Agent Count */
+            unique_agent_count: number;
+        };
+        /**
+         * AgentNewProductCalculationComputeRequest
+         * @description C1 试算请求（spec §5.3）：mode 4 种，纯计算不落库。
+         */
+        AgentNewProductCalculationComputeRequest: {
+            /**
+             * Advertising Rate
+             * @default 0.12
+             */
+            advertising_rate: number;
+            /** Asin */
+            asin?: string | null;
+            /**
+             * Commission Rate
+             * @default 0.15
+             */
+            commission_rate: number;
+            /**
+             * Country
+             * @default US
+             */
+            country: string;
+            /**
+             * Delivery Fee Usd
+             * @default 0
+             */
+            delivery_fee_usd: number;
+            /** First Leg Cost Rmb */
+            first_leg_cost_rmb?: number | null;
+            /** First Leg Unit Price Rmb */
+            first_leg_unit_price_rmb?: number | null;
+            /** Fob Product Cost Rmb */
+            fob_product_cost_rmb?: number | null;
+            /** Full Container Price Rmb */
+            full_container_price_rmb?: number | null;
+            /** Full Container Quantity */
+            full_container_quantity?: number | null;
+            /**
+             * Inbound Placement Mode
+             * @default single_destination
+             * @enum {string}
+             */
+            inbound_placement_mode: "single_destination" | "amazon_optimized_split";
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "profit_calc" | "profit_reverse" | "cost_reverse" | "fbm_calc";
+            /** Package Height Cm */
+            package_height_cm: number;
+            /** Package Length Cm */
+            package_length_cm: number;
+            /** Package Width Cm */
+            package_width_cm: number;
+            /** Product Name */
+            product_name: string;
+            /**
+             * Return Loss Rate
+             * @default 0.04
+             */
+            return_loss_rate: number;
+            /** Sale Price Usd */
+            sale_price_usd?: number | null;
+            /** Sku */
+            sku?: string | null;
+            /**
+             * Storage Months
+             * @default 1
+             */
+            storage_months: number;
+            /** Target Profit Rate */
+            target_profit_rate?: number | null;
+            /** Usd To Rmb Rate */
+            usd_to_rmb_rate?: number | null;
+            /**
+             * Use Historical Shipping Cost
+             * @default false
+             */
+            use_historical_shipping_cost: boolean;
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /** AgentOperationLogActionSummaryItem */
+        AgentOperationLogActionSummaryItem: {
+            /** Action */
+            action: string;
+            /** Count */
+            count: number;
+        };
+        /** AgentOperationLogItem */
+        AgentOperationLogItem: {
+            /** Action */
+            action: string;
+            /** After Json */
+            after_json?: {
+                [key: string]: unknown;
+            } | unknown[] | null;
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Before Json */
+            before_json?: {
+                [key: string]: unknown;
+            } | unknown[] | null;
+            /** Created At */
+            created_at: string;
+            /** Error Message */
+            error_message?: string | null;
+            /** Id */
+            id: number;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Operation Type */
+            operation_type?: string | null;
+            /** Project Id */
+            project_id?: number | null;
+            /** Request Method */
+            request_method?: string | null;
+            /** Request Path */
+            request_path?: string | null;
+            /** Result */
+            result: string;
+            /** Target Id */
+            target_id?: string | null;
+            /** Target Type */
+            target_type: string;
+        };
+        /** AgentOperationLogSummaryItem */
+        AgentOperationLogSummaryItem: {
+            /** Agent Id */
+            agent_id: string;
+            /** Count */
+            count: number;
+        };
+        /** AgentOperationLogsResponse */
+        AgentOperationLogsResponse: {
+            /** Has Next */
+            has_next: boolean;
+            /** Items */
+            items?: components["schemas"]["AgentOperationLogItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** AgentOperationLogsSummaryResponse */
+        AgentOperationLogsSummaryResponse: {
+            /** Failure Count */
+            failure_count: number;
+            /** Success Count */
+            success_count: number;
+            /** Top Actions */
+            top_actions?: components["schemas"]["AgentOperationLogActionSummaryItem"][];
+            /** Top Agents */
+            top_agents?: components["schemas"]["AgentOperationLogSummaryItem"][];
             /** Total */
             total: number;
             /** Unique Agent Count */
@@ -8702,27 +8031,6 @@ export interface components {
             usd_to_rmb_rate?: number | null;
             /** Weight Kg */
             weight_kg: number;
-        };
-        /**
-         * AggregateSummary
-         * @description Top-level totals across all aggregated rows in the response.
-         *
-         *     ``overall_acos`` / ``overall_roas`` are weighted: the same formula
-         *     applied to the *total* spend / sales, not an average of per-row rates.
-         */
-        AggregateSummary: {
-            /** Overall Acos */
-            overall_acos: number;
-            /** Overall Roas */
-            overall_roas: number;
-            /** Total Orders */
-            total_orders: number;
-            /** Total Rows */
-            total_rows: number;
-            /** Total Sales */
-            total_sales: number;
-            /** Total Spend */
-            total_spend: number;
         };
         /** AlertEventItem */
         AlertEventItem: {
@@ -9022,6 +8330,12 @@ export interface components {
              */
             agent_id?: string | null;
             /**
+             * Business Scope
+             * @description 业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）
+             * @default *
+             */
+            business_scope: string;
+            /**
              * Expires At
              * @description ISO 过期时间；null = 永不过期
              */
@@ -9047,6 +8361,8 @@ export interface components {
         ApiKeyCreateResponse: {
             /** Agent Id */
             agent_id: string | null;
+            /** Business Scope */
+            business_scope: string;
             /**
              * Created At
              * Format: date-time
@@ -9071,6 +8387,8 @@ export interface components {
         ApiKeyItem: {
             /** Agent Id */
             agent_id: string | null;
+            /** Business Scope */
+            business_scope: string;
             /**
              * Created At
              * Format: date-time
@@ -9454,7 +8772,10 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /**
              * Marketplace
@@ -9464,17 +8785,26 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -9484,7 +8814,10 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -9494,36 +8827,57 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /** Excel File */
+            /**
+             * Excel File
+             * Format: binary
+             */
             excel_file: string;
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Title */
             title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** File Type */
             file_type: string;
@@ -9532,161 +8886,63 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
-            /** Report Id */
-            report_id?: number | null;
+            /** Report Id Form */
+            report_id_form?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
         Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
-            /** Csv File */
+            /**
+             * Csv File
+             * Format: binary
+             */
             csv_file: string;
-        };
-        /**
-         * BusinessSummaryAggregate
-         * @description Aggregate totals across all ASINs.
-         */
-        BusinessSummaryAggregate: {
-            /**
-             * Overall Cvr
-             * @default 0
-             */
-            overall_cvr: number;
-            /**
-             * Overall Profit Rate
-             * @default 0
-             */
-            overall_profit_rate: number;
-            /**
-             * Total Asins
-             * @default 0
-             */
-            total_asins: number;
-            /**
-             * Total Cost
-             * @default 0
-             */
-            total_cost: number;
-            /**
-             * Total Page Views
-             * @default 0
-             */
-            total_page_views: number;
-            /**
-             * Total Profit
-             * @default 0
-             */
-            total_profit: number;
-            /**
-             * Total Sales Amount
-             * @default 0
-             */
-            total_sales_amount: number;
-            /**
-             * Total Sessions
-             * @default 0
-             */
-            total_sessions: number;
-            /**
-             * Total Units Ordered
-             * @default 0
-             */
-            total_units_ordered: number;
-        };
-        /**
-         * BusinessSummaryDetailRow
-         * @description Merged detail row: business metrics + shop calculation.
-         */
-        BusinessSummaryDetailRow: {
-            /** Asin */
-            asin: string;
-            /**
-             * Breakeven Units
-             * @default 0
-             */
-            breakeven_units: number;
-            /**
-             * Cost Total
-             * @default 0
-             */
-            cost_total: number;
-            /**
-             * Cvr
-             * @default 0
-             */
-            cvr: number;
-            /**
-             * Ordered Sales Amount
-             * @default 0
-             */
-            ordered_sales_amount: number;
-            /**
-             * Page Views
-             * @default 0
-             */
-            page_views: number;
-            /**
-             * Profit
-             * @default 0
-             */
-            profit: number;
-            /**
-             * Profit Rate
-             * @default 0
-             */
-            profit_rate: number;
-            /**
-             * Sessions
-             * @default 0
-             */
-            sessions: number;
-            /**
-             * Units Ordered
-             * @default 0
-             */
-            units_ordered: number;
-        };
-        /**
-         * BusinessSummaryResponse
-         * @description Response wrapper for GET /external/projects/{project_id}/business-summary.
-         */
-        BusinessSummaryResponse: {
-            aggregate: components["schemas"]["BusinessSummaryAggregate"];
-            /** Country */
-            country: string;
-            /** Detail */
-            detail?: components["schemas"]["BusinessSummaryDetailRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["BusinessSummaryAggregate"];
         };
         /** CSVUploadResponse */
         CSVUploadResponse: {
@@ -10897,6 +10153,52 @@ export interface components {
             /** Review Policy Violations */
             review_policy_violations?: number | null;
         };
+        /**
+         * ConsistencyCheckResult
+         * @description Cross-table (detail vs summary) reconciliation result.
+         */
+        ConsistencyCheckResult: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Mismatch Count */
+            mismatch_count: number;
+            /**
+             * Mismatches
+             * @default []
+             */
+            mismatches: components["schemas"]["ConsistencyMismatch"][];
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OK" | "MISMATCH" | "PENDING";
+        };
+        /**
+         * ConsistencyMismatch
+         * @description A single cross-table reconciliation mismatch.
+         */
+        ConsistencyMismatch: {
+            /** Detail Quantity */
+            detail_quantity: number;
+            /** Diff */
+            diff: number;
+            /** Disposition */
+            disposition: string;
+            /** Location */
+            location: string;
+            /** Msku */
+            msku: string;
+            /** Summary Delta */
+            summary_delta: number;
+        };
         /** ContactCreate */
         ContactCreate: {
             /** Email */
@@ -12087,72 +11389,6 @@ export interface components {
             /** Url */
             url: string;
         };
-        /**
-         * ExternalSkuInfoItem
-         * @description Public-facing SKU descriptor returned by ``GET /external/projects/{id}/sku-info``.
-         *
-         *     Exposes product identity, pricing, dimensions, and carton specs.
-         *     Internal fields (id, sort_order, source_file, factory_info JSON, R2 keys,
-         *     uploaded_by) are intentionally omitted.
-         */
-        ExternalSkuInfoItem: {
-            /** Asin */
-            asin: string;
-            /** Carton Height Cm */
-            carton_height_cm: number;
-            /** Carton Length Cm */
-            carton_length_cm: number;
-            /** Carton Weight Kg */
-            carton_weight_kg: number;
-            /** Carton Width Cm */
-            carton_width_cm: number;
-            /** Country */
-            country: string;
-            /** Currency */
-            currency: string;
-            /** First Leg Cost Rmb */
-            first_leg_cost_rmb: number;
-            /** Fnsku */
-            fnsku?: string | null;
-            /** Fob Unit Cost */
-            fob_unit_cost: number;
-            /** Is Active */
-            is_active: boolean;
-            /** Marketplace Url */
-            marketplace_url?: string | null;
-            /** Package Height Cm */
-            package_height_cm: number;
-            /** Package Length Cm */
-            package_length_cm: number;
-            /** Package Width Cm */
-            package_width_cm: number;
-            /** Product Image Url */
-            product_image_url?: string | null;
-            /** Product Name */
-            product_name?: string | null;
-            /** Sku */
-            sku: string;
-            /** Units Per Carton */
-            units_per_carton: number;
-            /** Weight Kg */
-            weight_kg: number;
-        };
-        /**
-         * ExternalSkuInfoResponse
-         * @description Paginated wrapper for the SKU info list endpoint.
-         */
-        ExternalSkuInfoResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["ExternalSkuInfoItem"][];
-            /** Has Next */
-            has_next: boolean;
-            /** Project Id */
-            project_id: number;
-            /** Total */
-            total?: number | null;
-        };
         /** FilterOption */
         FilterOption: {
             /** Label */
@@ -12410,6 +11646,87 @@ export interface components {
             acknowledged_at: string;
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * IngestBatchInfo
+         * @description One CSV ingest run — traceability metadata (排查版本用).
+         */
+        IngestBatchInfo: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Consistency Check */
+            consistency_check?: string | null;
+            /**
+             * Consistency Mismatch Count
+             * @default 0
+             */
+            consistency_mismatch_count: number;
+            /** Error Message */
+            error_message?: string | null;
+            /** File Hash */
+            file_hash: string;
+            /** File Kind */
+            file_kind: string;
+            /** File Size Bytes */
+            file_size_bytes: number;
+            /** Id */
+            id: number;
+            /**
+             * Loaded At
+             * Format: date-time
+             */
+            loaded_at: string;
+            /** Loaded By */
+            loaded_by?: string | null;
+            /** Project Id */
+            project_id: number;
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Rows Failed Validation
+             * @default 0
+             */
+            rows_failed_validation: number;
+            /**
+             * Rows Parsed
+             * @default 0
+             */
+            rows_parsed: number;
+            /**
+             * Rows Skipped Duplicate
+             * @default 0
+             */
+            rows_skipped_duplicate: number;
+            /**
+             * Rows Written Detail
+             * @default 0
+             */
+            rows_written_detail: number;
+            /**
+             * Rows Written Summary
+             * @default 0
+             */
+            rows_written_summary: number;
+            /** Source Filename */
+            source_filename: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * IngestBatchesResponse
+         * @description Ingest batch list for a project.
+         */
+        IngestBatchesResponse: {
+            /**
+             * Batches
+             * @default []
+             */
+            batches: components["schemas"]["IngestBatchInfo"][];
+            /** Project Id */
+            project_id: number;
         };
         /** InsightDetail */
         InsightDetail: {
@@ -13705,6 +13022,67 @@ export interface components {
             /** Wechat */
             wechat?: string | null;
         };
+        /**
+         * LedgerDetailResponse
+         * @description Event-level detail rows for a period.
+         */
+        LedgerDetailResponse: {
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["LedgerDetailRow"][];
+        };
+        /**
+         * LedgerDetailRow
+         * @description A single event-level row from the Amazon Detailed view.
+         */
+        LedgerDetailRow: {
+            /** Asin */
+            asin?: string | null;
+            /** Batch Id */
+            batch_id?: number | null;
+            /** Country */
+            country?: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Date And Time */
+            date_and_time?: string | null;
+            /** Disposition */
+            disposition: string;
+            /** Event Type */
+            event_type: string;
+            /** Fnsku */
+            fnsku?: string | null;
+            /** Fulfillment Center */
+            fulfillment_center: string;
+            /** Id */
+            id: number;
+            /** Msku */
+            msku: string;
+            /** Quantity */
+            quantity: number;
+            /** Reason */
+            reason?: string | null;
+            /** Reconciled Quantity */
+            reconciled_quantity?: number | null;
+            /** Reference Id */
+            reference_id?: string | null;
+            /** Store */
+            store?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Unreconciled Quantity */
+            unreconciled_quantity?: number | null;
+        };
         /** LedgerItem */
         LedgerItem: {
             /** Ai Summary */
@@ -13819,6 +13197,124 @@ export interface components {
             resendable: number;
             /** Sent */
             sent: number;
+        };
+        /**
+         * LedgerSummaryResponse
+         * @description Daily water-level rows for a period.
+         */
+        LedgerSummaryResponse: {
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["LedgerSummaryRow"][];
+        };
+        /**
+         * LedgerSummaryRow
+         * @description A single daily water-level row from the Amazon Summary view.
+         *
+         *     1 row = 1 (FNSKU × FC × Disposition × Date) snapshot. Sparse ledger:
+         *     Amazon only emits a row when the combination changed that day.
+         */
+        LedgerSummaryRow: {
+            /** Asin */
+            asin?: string | null;
+            /** Batch Id */
+            batch_id?: number | null;
+            /**
+             * Customer Returns
+             * @default 0
+             */
+            customer_returns: number;
+            /**
+             * Customer Shipments
+             * @default 0
+             */
+            customer_shipments: number;
+            /**
+             * Damaged
+             * @default 0
+             */
+            damaged: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Disposed
+             * @default 0
+             */
+            disposed: number;
+            /** Disposition */
+            disposition: string;
+            /**
+             * Ending Balance
+             * @default 0
+             */
+            ending_balance: number;
+            /** Fnsku */
+            fnsku?: string | null;
+            /**
+             * Found
+             * @default 0
+             */
+            found: number;
+            /** Id */
+            id: number;
+            /**
+             * In Transit Between
+             * @default 0
+             */
+            in_transit_between: number;
+            /** Location */
+            location: string;
+            /**
+             * Lost
+             * @default 0
+             */
+            lost: number;
+            /** Msku */
+            msku: string;
+            /**
+             * Other Events
+             * @default 0
+             */
+            other_events: number;
+            /**
+             * Receipts
+             * @default 0
+             */
+            receipts: number;
+            /**
+             * Starting Balance
+             * @default 0
+             */
+            starting_balance: number;
+            /** Store */
+            store?: string | null;
+            /** Title */
+            title?: string | null;
+            /**
+             * Unknown Events
+             * @default 0
+             */
+            unknown_events: number;
+            /**
+             * Vendor Returns
+             * @default 0
+             */
+            vendor_returns: number;
+            /**
+             * Warehouse Transfer Io
+             * @default 0
+             */
+            warehouse_transfer_io: number;
         };
         /**
          * LocationDetail
@@ -14340,7 +13836,7 @@ export interface components {
              * @default profit_calc
              * @enum {string}
              */
-            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
+            calculation_type: "profit_calc" | "profit_reverse" | "cost_reverse" | "fbm_calc" | "eu_accounting";
             /** Chargeable Weight Lb */
             chargeable_weight_lb: number;
             /** Chargeable Weight Oz */
@@ -14390,6 +13886,8 @@ export interface components {
             middle_side_in: number;
             /** Notes */
             notes?: string | null;
+            /** Observed At */
+            observed_at?: string | null;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -14434,6 +13932,8 @@ export interface components {
             size_tier_label: string;
             /** Sku */
             sku: string;
+            /** Source */
+            source?: string | null;
             /**
              * Storage Fee Manual Usd
              * @default 0
@@ -14528,7 +14028,7 @@ export interface components {
              * @default profit_calc
              * @enum {string}
              */
-            calculation_type: "profit_calc" | "profit_reverse" | "eu_accounting";
+            calculation_type: "profit_calc" | "profit_reverse" | "cost_reverse" | "fbm_calc" | "eu_accounting";
             /** Country */
             country?: string | null;
             /**
@@ -14561,6 +14061,8 @@ export interface components {
             inbound_placement_mode: "single_destination" | "amazon_optimized_split";
             /** Notes */
             notes?: string | null;
+            /** Observed At */
+            observed_at?: string | null;
             /** Package Height Cm */
             package_height_cm: number;
             /** Package Length Cm */
@@ -14586,6 +14088,8 @@ export interface components {
             size_tier_label: string;
             /** Sku */
             sku: string;
+            /** Source */
+            source?: string | null;
             /** Storage Fee Rule Label */
             storage_fee_rule_label: string;
             /** Storage Months */
@@ -14606,6 +14110,20 @@ export interface components {
             /** Weight Kg */
             weight_kg: number;
             weights: components["schemas"]["NewProductCalculationWeight"];
+        };
+        /**
+         * NewProductCalculationListResponse
+         * @description 新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）
+         */
+        NewProductCalculationListResponse: {
+            /** Items */
+            items: components["schemas"]["NewProductCalculationItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
         };
         /** NewProductCalculationProfit */
         NewProductCalculationProfit: {
@@ -14628,66 +14146,6 @@ export interface components {
              * @default 0
              */
             vat_usd: number;
-        };
-        /**
-         * NewProductCalculationRow
-         * @description Single SKU row from ``new_product_calculations`` flattened for BI.
-         */
-        NewProductCalculationRow: {
-            /** Asin */
-            asin?: string | null;
-            /**
-             * Calculation Type
-             * @default profit_calc
-             */
-            calculation_type: string;
-            /** Country */
-            country?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /**
-             * Payout Usd
-             * @default 0
-             */
-            payout_usd: number;
-            /**
-             * Profit Rate
-             * @default 0
-             */
-            profit_rate: number;
-            /**
-             * Profit Usd
-             * @default 0
-             */
-            profit_usd: number;
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-            /**
-             * Sale Price Usd
-             * @default 0
-             */
-            sale_price_usd: number;
-            /** Sku */
-            sku: string;
-            /** Target Profit Rate */
-            target_profit_rate?: number | null;
-            /**
-             * Total Fee Usd
-             * @default 0
-             */
-            total_fee_usd: number;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /** NewProductCalculationWeight */
         NewProductCalculationWeight: {
@@ -15113,88 +14571,6 @@ export interface components {
             updated_by?: string | null;
         };
         /**
-         * OrdersSummaryAggregateRow
-         * @description Aggregated orders summary (when aggregate=true).
-         */
-        OrdersSummaryAggregateRow: {
-            /** Currency */
-            currency?: string | null;
-            /**
-             * Fba Orders
-             * @default 0
-             */
-            fba_orders: number;
-            /**
-             * Fbm Orders
-             * @default 0
-             */
-            fbm_orders: number;
-            /**
-             * Total Orders
-             * @default 0
-             */
-            total_orders: number;
-            /**
-             * Total Quantity
-             * @default 0
-             */
-            total_quantity: number;
-            /**
-             * Total Sales Amount
-             * @default 0
-             */
-            total_sales_amount: number;
-        };
-        /**
-         * OrdersSummaryResponse
-         * @description Response wrapper for GET /external/projects/{project_id}/orders/summary.
-         */
-        OrdersSummaryResponse: {
-            aggregate?: components["schemas"]["OrdersSummaryAggregateRow"] | null;
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["OrdersSummaryRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary?: components["schemas"]["OrdersSummaryAggregateRow"] | null;
-        };
-        /**
-         * OrdersSummaryRow
-         * @description Single row in the orders summary — aggregated by order (deduplicated).
-         */
-        OrdersSummaryRow: {
-            /** Amazon Order Id */
-            amazon_order_id: string;
-            /** Asin */
-            asin?: string | null;
-            /** Country */
-            country: string;
-            /** Currency */
-            currency?: string | null;
-            /** Fulfillment Channel */
-            fulfillment_channel: string;
-            /** Fulfillment Label */
-            fulfillment_label: string;
-            /** Is Counted Sales */
-            is_counted_sales: boolean;
-            /** Item Price */
-            item_price: number;
-            /** Order Status */
-            order_status: string;
-            /** Product Name */
-            product_name?: string | null;
-            /** Purchase Date Pt */
-            purchase_date_pt: string;
-            /** Quantity */
-            quantity: number;
-            /** Shipping Price */
-            shipping_price: number;
-            /** Sku */
-            sku?: string | null;
-        };
-        /**
          * OwnerPerformance
          * @description 每销售业绩（按负责人分组）。
          */
@@ -15374,31 +14750,6 @@ export interface components {
             period_start_date: string;
             /** Source Id */
             source_id: number;
-        };
-        /**
-         * PeriodInfo
-         * @description Resolved period metadata embedded in every v1.0 aggregate / raw response.
-         *
-         *     * ``type`` — ``"relative"`` (convenience alias) or ``"custom"``
-         *     * ``value`` — the original alias (``"14d"``, ``"this_month"``) or
-         *       the literal string ``"custom"``
-         *     * ``start_date`` / ``end_date`` — resolved calendar dates
-         */
-        PeriodInfo: {
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
-            /**
-             * Start Date
-             * Format: date
-             */
-            start_date: string;
-            /** Type */
-            type: string;
-            /** Value */
-            value: string;
         };
         /** PlatformRevenueAttachment */
         PlatformRevenueAttachment: {
@@ -16659,6 +16010,46 @@ export interface components {
             /** Target Amount */
             target_amount: number;
         };
+        /** ProjectItem */
+        ProjectItem: {
+            /** Assistant Operator */
+            assistant_operator?: string | null;
+            /** Brand Name */
+            brand_name?: string | null;
+            /** Commission Basis */
+            commission_basis?: string | null;
+            /** Commission Rate */
+            commission_rate?: number | null;
+            /**
+             * Has Context
+             * @default false
+             */
+            has_context: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Project Operator */
+            project_operator?: string | null;
+            /** Project Tier */
+            project_tier?: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Source File */
+            source_file?: string | null;
+            /** Store Address */
+            store_address?: string | null;
+            /**
+             * Vat Enabled
+             * @default false
+             */
+            vat_enabled: boolean;
+        };
         /** ProjectOption */
         ProjectOption: {
             /** Id */
@@ -16732,126 +16123,6 @@ export interface components {
             store_address?: string | null;
             /** Vat Enabled */
             vat_enabled?: boolean | null;
-        };
-        /** RawResponse[AdBudgetRawRow] */
-        RawResponse_AdBudgetRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdBudgetRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdCampaignRawRow] */
-        RawResponse_AdCampaignRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdCampaignRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdInvalidTrafficRawRow] */
-        RawResponse_AdInvalidTrafficRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdInvalidTrafficRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdPlacementRawRow] */
-        RawResponse_AdPlacementRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPlacementRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdPromotedProductRawRow] */
-        RawResponse_AdPromotedProductRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPromotedProductRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdPurchasedProductRawRow] */
-        RawResponse_AdPurchasedProductRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdPurchasedProductRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdSearchTermRawRow] */
-        RawResponse_AdSearchTermRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdSearchTermRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdSearchTermShareRawRow] */
-        RawResponse_AdSearchTermShareRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdSearchTermShareRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdTargetRawRow] */
-        RawResponse_AdTargetRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdTargetRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /** RawResponse[AdTimeTrendRawRow] */
-        RawResponse_AdTimeTrendRawRow_: {
-            /** Country */
-            country: string;
-            /** Data */
-            data: components["schemas"]["AdTimeTrendRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["RawSummary"];
-        };
-        /**
-         * RawSummary
-         * @description Top-level metadata for a raw response — total row count + date range.
-         */
-        RawSummary: {
-            /** Date Range */
-            date_range?: string[];
-            /** Total Rows */
-            total_rows: number;
         };
         /**
          * ReceiptCluster
@@ -17085,7 +16356,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Temp File Id */
             temp_file_id: string;
             /**
@@ -17127,7 +16398,12 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            /**
+             * Rows Ingested
+             * @description 实际入库行数（仅按行入库的报表类型非空）
+             */
+            rows_ingested?: number | null;
             /**
              * Status
              * @enum {string}
@@ -17193,7 +16469,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Row Count Preview */
             row_count_preview?: number | null;
             /**
@@ -17222,7 +16498,7 @@ export interface components {
              * Report Type
              * @enum {string}
              */
-            report_type: "inventory_report" | "inventory_ledger" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
+            report_type: "inventory_report" | "inventory_ledger" | "inventory_ledger_summary" | "inventory_ledger_detail" | "business_report" | "ad_product_report" | "ad_report" | "ad_search_term_report" | "sales_report" | "payment_report" | "return_report" | "unknown";
             /** Source Table */
             source_table?: string | null;
             /**
@@ -17257,190 +16533,6 @@ export interface components {
             report_type: string;
             /** Status Source */
             status_source?: string | null;
-        };
-        /**
-         * ReturnAnalysisAggregateResponse
-         * @description Wrapper for the aggregate endpoint.
-         */
-        ReturnAnalysisAggregateResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data?: components["schemas"]["ReturnAnalysisAggregateRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            summary: components["schemas"]["ReturnAnalysisAggregateSummary"];
-        };
-        /**
-         * ReturnAnalysisAggregateRow
-         * @description Per-SKU rollup from ``analysis_return_aggregates``.
-         *
-         *     Snapshot is daily grain: the endpoint collapses the per-day rows to a
-         *     single per-SKU rollup across the requested ``period``.
-         *
-         *     Fields mirror the AGG_WHITELIST contract in
-         *     ``backend/app/api/v1/endpoints/external/_whitelist.py`` — adding a
-         *     field here **requires** extending that whitelist, and vice versa.
-         */
-        ReturnAnalysisAggregateRow: {
-            /** Cycle Avg Days */
-            cycle_avg_days?: number | null;
-            /** Cycle Max Days */
-            cycle_max_days?: number | null;
-            /** Cycle Min Days */
-            cycle_min_days?: number | null;
-            /** Disposition Top1 */
-            disposition_top1?: string | null;
-            /** Dominant Fc Id */
-            dominant_fc_id?: string | null;
-            /** Reason Top1 */
-            reason_top1?: string | null;
-            /**
-             * Return Count
-             * @default 0
-             */
-            return_count: number;
-            /**
-             * Return Quantity
-             * @default 0
-             */
-            return_quantity: number;
-            /**
-             * Return Rate
-             * @default 0
-             */
-            return_rate: number;
-            /**
-             * Risk Level
-             * @default normal
-             */
-            risk_level: string;
-            /**
-             * Sales Quantity
-             * @default 0
-             */
-            sales_quantity: number;
-            /** Sku */
-            sku?: string | null;
-            /**
-             * Wilson Lower
-             * @default 0
-             */
-            wilson_lower: number;
-        };
-        /**
-         * ReturnAnalysisAggregateSummary
-         * @description Top-level totals across all returned SKU rollups.
-         *
-         *     Mirrors the internal ``ReturnAnalysisSummary`` (without the
-         *     per-distribution rows that drive the dashboard): external callers
-         *     get the same headline numbers, stripped of any privacy-sensitive
-         *     fields.
-         */
-        ReturnAnalysisAggregateSummary: {
-            /**
-             * Critical Sku Count
-             * @default 0
-             */
-            critical_sku_count: number;
-            /**
-             * Overall Return Rate
-             * @default 0
-             */
-            overall_return_rate: number;
-            /**
-             * Overall Risk Level
-             * @default no_data
-             */
-            overall_risk_level: string;
-            /**
-             * Total Return Count
-             * @default 0
-             */
-            total_return_count: number;
-            /**
-             * Total Return Quantity
-             * @default 0
-             */
-            total_return_quantity: number;
-            /**
-             * Total Rows
-             * @default 0
-             */
-            total_rows: number;
-            /**
-             * Total Sales Quantity
-             * @default 0
-             */
-            total_sales_quantity: number;
-            /**
-             * Warning Sku Count
-             * @default 0
-             */
-            warning_sku_count: number;
-        };
-        /**
-         * ReturnAnalysisRawResponse
-         * @description Wrapper for the raw endpoint.
-         *
-         *     No project_name / summary_text — raw endpoint exposes the row list
-         *     + the date range; BI tools handle their own summaries.
-         */
-        ReturnAnalysisRawResponse: {
-            /** Country */
-            country: string;
-            /** Data */
-            data?: components["schemas"]["ReturnAnalysisRawRow"][];
-            period: components["schemas"]["PeriodInfo"];
-            /** Project Id */
-            project_id: number;
-            /** Summary */
-            summary?: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * ReturnAnalysisRawRow
-         * @description Per-event raw row from ``analysis_return_rows``.
-         *
-         *     Fields mirror the ROW_WHITELIST contract in
-         *     ``backend/app/api/v1/endpoints/external/_whitelist.py`` — adding a
-         *     field here **requires** extending that whitelist, and vice versa.
-         *
-         *     Explicitly excluded:
-         *
-         *     * ``customer_comments`` — PII / free-form complaint text (永远不返回)
-         *     * ``raw_row``           — debug-only blob (Amazon CSV verbatim)
-         *     * ``fnsku``             — internal Amazon fulfillment identifier (no
-         *       analytic value to external callers; trim surface)
-         *     * ``license_plate_number`` — internal LPN; same rationale
-         */
-        ReturnAnalysisRawRow: {
-            /** Asin */
-            asin?: string | null;
-            /** Detailed Disposition */
-            detailed_disposition: string;
-            /** Fulfillment Center Id */
-            fulfillment_center_id?: string | null;
-            /** Id */
-            id: number;
-            /** Order Id */
-            order_id: string;
-            /** Original Return Datetime */
-            original_return_datetime: string;
-            /** Product Name */
-            product_name?: string | null;
-            /** Quantity */
-            quantity: number;
-            /** Reason */
-            reason: string;
-            /** Return Date */
-            return_date: string;
-            /** Sku */
-            sku: string;
-            /** Status */
-            status: string;
         };
         /**
          * ReturnAnalysisRefreshRequest
@@ -18363,107 +17455,6 @@ export interface components {
             total_fee_usd: number;
         };
         /**
-         * ShopCalculationHistoryResponse
-         * @description Wrapper for ``/shop-calculation-history`` (current-state list).
-         *
-         *     ``total`` is the total number of *current-state* rows for the
-         *     project (one per SKU/country group, with deleted rows excluded).
-         */
-        ShopCalculationHistoryResponse: {
-            /** Country */
-            country?: string | null;
-            /** Data */
-            data?: components["schemas"]["ShopCalculationHistoryRow"][];
-            /** Project Id */
-            project_id: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-        };
-        /**
-         * ShopCalculationHistoryRow
-         * @description Single SKU row from ``shop_calculation`` flattened for BI consumption.
-         *
-         *     Used by:
-         *
-         *     * ``/shop-calculation-history`` — current-state list (per SKU latest
-         *       non-deleted row)
-         *     * ``/shop-calculation/snapshots`` — append-only time series filtered
-         *       by ``?from=&to=&sku=&country=``
-         *
-         *     The ``id`` is the underlying ``shop_calculation.id`` (PK). For the
-         *     current-state endpoint each row is the latest non-deleted id for
-         *     that ``(project_id, sku, country)`` group; for the history endpoint
-         *     the same id may appear multiple times across different ``observed_at``
-         *     snapshots.
-         */
-        ShopCalculationHistoryRow: {
-            /**
-             * Accounting Type
-             * @default profit_calc
-             */
-            accounting_type: string;
-            /** Asin */
-            asin?: string | null;
-            /** Country */
-            country: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /**
-             * Observed At
-             * Format: date-time
-             */
-            observed_at: string;
-            /**
-             * Payout Usd
-             * @default 0
-             */
-            payout_usd: number;
-            /**
-             * Profit Rate
-             * @default 0
-             */
-            profit_rate: number;
-            /**
-             * Profit Usd
-             * @default 0
-             */
-            profit_usd: number;
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-            /**
-             * Sale Price Usd
-             * @default 0
-             */
-            sale_price_usd: number;
-            /** Sku */
-            sku: string;
-            /**
-             * Source
-             * @default manual
-             */
-            source: string;
-            /**
-             * Total Fee Usd
-             * @default 0
-             */
-            total_fee_usd: number;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
          * ShopCalculationItem
          * @description 店铺测算详情
          */
@@ -18602,33 +17593,6 @@ export interface components {
              * @default 0
              */
             vat_usd: number;
-        };
-        /**
-         * ShopCalculationSnapshotsResponse
-         * @description Wrapper for ``/shop-calculation/snapshots`` (time-series).
-         *
-         *     The endpoint exposes the full append-only history filtered by
-         *     ``?from=&to=&sku=&country=``; no pagination is applied because
-         *     callers are expected to use the date filter to bound the result.
-         */
-        ShopCalculationSnapshotsResponse: {
-            /** Country */
-            country?: string | null;
-            /** Data */
-            data?: components["schemas"]["ShopCalculationHistoryRow"][];
-            /** From Date */
-            from_date?: string | null;
-            /** Project Id */
-            project_id: number;
-            /** Sku */
-            sku?: string | null;
-            /** To Date */
-            to_date?: string | null;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
         };
         /** ShopCalculationWeight */
         ShopCalculationWeight: {
@@ -19461,10 +18425,6 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -19877,63 +18837,6 @@ export interface components {
             /** Week Start Date */
             week_start_date: string;
         };
-        /**
-         * NewProductCalculationListResponse
-         * @description Wrapper for ``/new-product-calculations`` (paginated list).
-         */
-        app__schemas__external__new_product_calculation__NewProductCalculationListResponse: {
-            /** Calculation Type */
-            calculation_type?: string | null;
-            /** Country */
-            country?: string | null;
-            /** Data */
-            data?: components["schemas"]["NewProductCalculationRow"][];
-            /**
-             * Page
-             * @default 1
-             */
-            page: number;
-            /**
-             * Page Size
-             * @default 200
-             */
-            page_size: number;
-            /** Project Id */
-            project_id: number;
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-        };
-        /**
-         * ProjectItem
-         * @description Minimal project descriptor returned by ``GET /external/projects``.
-         *
-         *     Only ``project_id`` and ``project_name`` are exposed. Country / status /
-         *     timestamps live in the project resource and can be fetched via the
-         *     internal ``/projects`` endpoint when needed.
-         */
-        app__schemas__external__projects__ProjectItem: {
-            /** Project Id */
-            project_id: number;
-            /** Project Name */
-            project_name: string;
-        };
-        /**
-         * NewProductCalculationListResponse
-         * @description 新品核算列表响应（2026-08-03 由 StoreSkuPricingSnapshotListResponse 改名）
-         */
-        app__schemas__new_product_calculation__NewProductCalculationListResponse: {
-            /** Items */
-            items: components["schemas"]["NewProductCalculationItem"][];
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total */
-            total: number;
-        };
         /** SubscriptionCreate */
         app__schemas__notification__SubscriptionCreate: {
             /**
@@ -20011,46 +18914,6 @@ export interface components {
         app__schemas__notification__TestEmailRequest: {
             /** Test Recipients */
             test_recipients?: string[] | null;
-        };
-        /** ProjectItem */
-        app__schemas__project__ProjectItem: {
-            /** Assistant Operator */
-            assistant_operator?: string | null;
-            /** Brand Name */
-            brand_name?: string | null;
-            /** Commission Basis */
-            commission_basis?: string | null;
-            /** Commission Rate */
-            commission_rate?: number | null;
-            /**
-             * Has Context
-             * @default false
-             */
-            has_context: boolean;
-            /** Id */
-            id: number;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /** Name */
-            name: string;
-            /** Project Operator */
-            project_operator?: string | null;
-            /** Project Tier */
-            project_tier?: string | null;
-            /** Sort Order */
-            sort_order: number;
-            /** Source File */
-            source_file?: string | null;
-            /** Store Address */
-            store_address?: string | null;
-            /**
-             * Vat Enabled
-             * @default false
-             */
-            vat_enabled: boolean;
         };
         /** SubscriptionCreate */
         app__schemas__scheduled_report__SubscriptionCreate: {
@@ -20798,6 +19661,1951 @@ export interface operations {
             };
         };
     };
+    agent_get_external_projects_api_v1_agent_projects_get: {
+        parameters: {
+            query?: {
+                status?: string;
+                name?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_business_summary_api_v1_agent_projects__project_id__business_summary_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get: {
+        parameters: {
+            query?: {
+                /** @description Max batches to return */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Must resolve to a full calendar month. */
+                period: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+                /** @description Optional SKU filter */
+                msku?: string | null;
+                /** @description Optional FBA warehouse code filter */
+                fulfillment_center?: string | null;
+                /** @description Optional event type filter */
+                event_type?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_events_api_v1_agent_projects__project_id__inventory_ledger_events_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_list_months_api_v1_agent_projects__project_id__inventory_ledger_months_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get: {
+        parameters: {
+            query: {
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+                /** @description Optional SKU filter */
+                msku?: string | null;
+                /** @description Optional FBA warehouse code filter */
+                location?: string | null;
+                /** @description Optional disposition filter (e.g. SELLABLE) */
+                disposition?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_ext_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get: {
+        parameters: {
+            query?: {
+                /** @description Number of recent months */
+                months?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_new_product_calculations_api_v1_agent_projects__project_id__new_product_calculations_get: {
+        parameters: {
+            query?: {
+                calculation_type?: string | null;
+                country?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_new_product_calculation_api_v1_agent_projects__project_id__new_product_calculations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compute_new_product_calculation_api_v1_agent_projects__project_id__new_product_calculations_compute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentNewProductCalculationComputeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_new_product_calculation_sku_api_v1_agent_projects__project_id__new_product_calculations_skus__sku__get: {
+        parameters: {
+            query?: {
+                calculation_type?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_new_product_calculation_audit_api_v1_agent_projects__project_id__new_product_calculations_skus__sku__audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_orders_summary_api_v1_agent_projects__project_id__orders_summary_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                include_cancelled?: boolean;
+                include_pending?: boolean;
+                aggregate?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot). */
+                as_of?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get: {
+        parameters: {
+            query?: {
+                /** @description ISO-2 country code */
+                country?: string;
+                /** @description Filter by SKU or ASIN (substring match, case-insensitive) */
+                keyword?: string | null;
+                /** @description Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据 */
+                risk_status?: string | null;
+                /** @description Only SKUs with in-transit quantity > 0 */
+                in_transit_only?: boolean;
+                /** @description Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today. */
+                report_date?: string | null;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Items per page (max 200) */
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                /** @description Optional SKU substring filter (case-insensitive) */
+                sku?: string | null;
+                /** @description Filter: return_rate >= value (percent) */
+                min_return_rate?: number | null;
+                /** @description Filter: critical / warning / normal / no_data */
+                risk_level?: string | null;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_shipments_api_v1_agent_projects__project_id__shipments_get: {
         parameters: {
             query?: {
@@ -21114,6 +21922,82 @@ export interface operations {
             };
         };
     };
+    agent_get_external_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                page?: number;
+                page_size?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get: {
+        parameters: {
+            query?: {
+                /** @description Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound. */
+                from_date?: string | null;
+                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound. */
+                to_date?: string | null;
+                /** @description Exact-match SKU filter (case-sensitive). */
+                sku?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_shop_calculations_api_v1_agent_projects__project_id__shop_calculations_get: {
         parameters: {
             query?: {
@@ -21320,6 +22204,44 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                is_active?: boolean;
+                sku?: string;
+                limit?: number;
+                offset?: number;
+                include_total?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -25853,1768 +26775,6 @@ export interface operations {
             };
         };
     };
-    get_external_projects_api_v1_external_projects_get: {
-        parameters: {
-            query?: {
-                status?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__external__projects__ProjectItem"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_budget_raw_alias_api_v1_external_projects__project_id__ad_budget_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdBudgetRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_budget_aggregate_api_v1_external_projects__project_id__ad_budgets_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdBudgetAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_budget_raw_api_v1_external_projects__project_id__ad_budgets_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdBudgetRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_campaign_raw_alias_api_v1_external_projects__project_id__ad_campaign_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdCampaignRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_campaign_aggregate_api_v1_external_projects__project_id__ad_campaigns_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdCampaignAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_campaign_raw_api_v1_external_projects__project_id__ad_campaigns_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdCampaignRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_invalid_traffic_aggregate_api_v1_external_projects__project_id__ad_invalid_traffic_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdInvalidTrafficAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_invalid_traffic_raw_api_v1_external_projects__project_id__ad_invalid_traffic_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdInvalidTrafficRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_placement_raw_alias_api_v1_external_projects__project_id__ad_placement_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPlacementRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_placement_aggregate_api_v1_external_projects__project_id__ad_placements_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdPlacementAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_placement_raw_api_v1_external_projects__project_id__ad_placements_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPlacementRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_promoted_product_raw_alias_api_v1_external_projects__project_id__ad_promoted_product_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPromotedProductRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_promoted_product_aggregate_api_v1_external_projects__project_id__ad_promoted_products_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdPromotedProductAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_promoted_product_raw_api_v1_external_projects__project_id__ad_promoted_products_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPromotedProductRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_purchased_product_raw_alias_api_v1_external_projects__project_id__ad_purchased_product_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPurchasedProductRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_purchased_product_aggregate_api_v1_external_projects__project_id__ad_purchased_products_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdPurchasedProductAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_purchased_product_raw_api_v1_external_projects__project_id__ad_purchased_products_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdPurchasedProductRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_raw_alias_api_v1_external_projects__project_id__ad_search_term_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdSearchTermRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_share_raw_alias_api_v1_external_projects__project_id__ad_search_term_share_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdSearchTermShareRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_share_aggregate_api_v1_external_projects__project_id__ad_search_term_shares_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdSearchTermShareAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_share_raw_api_v1_external_projects__project_id__ad_search_term_shares_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdSearchTermShareRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_aggregate_api_v1_external_projects__project_id__ad_search_terms_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdSearchTermAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_search_term_raw_api_v1_external_projects__project_id__ad_search_terms_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdSearchTermRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_target_raw_alias_api_v1_external_projects__project_id__ad_target_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdTargetRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_target_aggregate_api_v1_external_projects__project_id__ad_targets_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdTargetAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_target_raw_api_v1_external_projects__project_id__ad_targets_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdTargetRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_time_trend_raw_alias_api_v1_external_projects__project_id__ad_time_trend_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdTimeTrendRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_time_trend_aggregate_api_v1_external_projects__project_id__ad_time_trends_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdTimeTrendAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_ad_time_trend_raw_api_v1_external_projects__project_id__ad_time_trends_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RawResponse_AdTimeTrendRawRow_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_business_summary_api_v1_external_projects__project_id__business_summary_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BusinessSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_events_api_v1_external_projects__project_id__inventory_ledger_events_get: {
-        parameters: {
-            query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
-                period: string;
-                /** @description Companion for ``period=custom`` only. */
-                start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
-                end_date?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_integrity_api_v1_external_projects__project_id__inventory_ledger_integrity_get: {
-        parameters: {
-            query: {
-                /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``. */
-                period: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["IntegrityCheckResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_list_months_api_v1_external_projects__project_id__inventory_ledger_months_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MonthsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_receipt_clusters_api_v1_external_projects__project_id__inventory_ledger_receipt_clusters_get: {
-        parameters: {
-            query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
-                period: string;
-                /** @description Companion for ``period=custom`` only. */
-                start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
-                end_date?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReceiptClustersResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_snapshot_api_v1_external_projects__project_id__inventory_ledger_snapshot_get: {
-        parameters: {
-            query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
-                period: string;
-                /** @description Companion for ``period=custom`` only. */
-                start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
-                end_date?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MonthlySnapshotResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ext_trend_api_v1_external_projects__project_id__inventory_ledger_trend_get: {
-        parameters: {
-            query?: {
-                /** @description Number of recent months */
-                months?: number;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TrendResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_new_product_calculations_api_v1_external_projects__project_id__new_product_calculations_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by calculation_type (e.g. profit_calc, profit_reverse). */
-                calculation_type?: string | null;
-                country?: string;
-                page?: number;
-                page_size?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__external__new_product_calculation__NewProductCalculationListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_orders_summary_api_v1_external_projects__project_id__orders_summary_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                include_cancelled?: boolean;
-                include_pending?: boolean;
-                aggregate?: boolean;
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrdersSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_pricing_snapshot_as_of_api_v1_external_projects__project_id__pricing_snapshots_get: {
-        parameters: {
-            query?: {
-                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot). */
-                as_of?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShopCalculationSnapshotsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_replenishment_analysis_api_v1_external_projects__project_id__replenishment_analysis_get: {
-        parameters: {
-            query?: {
-                /** @description ISO-2 country code */
-                country?: string;
-                /** @description Filter by SKU or ASIN (substring match, case-insensitive) */
-                keyword?: string | null;
-                /** @description Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据 */
-                risk_status?: string | null;
-                /** @description Only SKUs with in-transit quantity > 0 */
-                in_transit_only?: boolean;
-                /** @description Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today. */
-                report_date?: string | null;
-                /** @description Page number (1-based) */
-                page?: number;
-                /** @description Items per page (max 200) */
-                page_size?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Project ID */
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryReplenishmentListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_return_analysis_aggregate_api_v1_external_projects__project_id__return_analysis_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                /** @description Optional SKU substring filter (case-insensitive) */
-                sku?: string | null;
-                /** @description Filter: return_rate >= value (percent) */
-                min_return_rate?: number | null;
-                /** @description Filter: critical / warning / normal / no_data */
-                risk_level?: string | null;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReturnAnalysisAggregateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_return_analysis_raw_api_v1_external_projects__project_id__return_analysis_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReturnAnalysisRawResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_shop_calculation_history_api_v1_external_projects__project_id__shop_calculation_history_get: {
-        parameters: {
-            query?: {
-                country?: string;
-                page?: number;
-                page_size?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShopCalculationHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_shop_calculation_snapshots_api_v1_external_projects__project_id__shop_calculation_snapshots_get: {
-        parameters: {
-            query?: {
-                /** @description Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound. */
-                from_date?: string | null;
-                /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound. */
-                to_date?: string | null;
-                /** @description Exact-match SKU filter (case-sensitive). */
-                sku?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShopCalculationSnapshotsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_external_sku_info_api_v1_external_projects__project_id__sku_info_get: {
-        parameters: {
-            query?: {
-                country?: string;
-                is_active?: boolean;
-                sku?: string;
-                limit?: number;
-                offset?: number;
-                include_total?: boolean;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExternalSkuInfoResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     health_api_v1_health_get: {
         parameters: {
             query?: {
@@ -28122,6 +27282,487 @@ export interface operations {
             };
         };
     };
+    internal_ad_data_ad_budgets_raw_api_v1_internal_ad_data_projects__project_id__ad_budgets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_campaigns_raw_api_v1_internal_ad_data_projects__project_id__ad_campaigns_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_invalid_traffic_raw_api_v1_internal_ad_data_projects__project_id__ad_invalid_traffic_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_placements_raw_api_v1_internal_ad_data_projects__project_id__ad_placements_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_promoted_products_raw_api_v1_internal_ad_data_projects__project_id__ad_promoted_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_purchased_products_raw_api_v1_internal_ad_data_projects__project_id__ad_purchased_products_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_search_term_shares_raw_api_v1_internal_ad_data_projects__project_id__ad_search_term_shares_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_search_terms_raw_api_v1_internal_ad_data_projects__project_id__ad_search_terms_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_targets_raw_api_v1_internal_ad_data_projects__project_id__ad_targets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    internal_ad_data_ad_time_trends_raw_api_v1_internal_ad_data_projects__project_id__ad_time_trends_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ad_upload_files_api_v1_internal_ad_data_projects__project_id__ad_upload_files_get: {
+        parameters: {
+            query?: {
+                report_type?: string | null;
+                country?: string | null;
+                include_history?: boolean;
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdUploadFileItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_api_keys_api_v1_internal_api_keys_get: {
         parameters: {
             query?: never;
@@ -28334,6 +27975,127 @@ export interface operations {
             };
         };
     };
+    list_batches_api_v1_inventory_ledger_batches_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description Max batches to return */
+                limit?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestBatchesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_consistency_api_v1_inventory_ledger_consistency_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description REQUIRED. Must resolve to a full calendar month. */
+                period: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsistencyCheckResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_detail_rows_api_v1_inventory_ledger_detail_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+                /** @description Optional SKU filter */
+                msku?: string | null;
+                /** @description Optional FBA warehouse code filter */
+                fulfillment_center?: string | null;
+                /** @description Optional event type filter */
+                event_type?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_events_api_v1_inventory_ledger_events_get: {
         parameters: {
             query: {
@@ -28522,6 +28284,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonthlySnapshotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_rows_api_v1_inventory_ledger_summary_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                period: string;
+                /** @description Companion for ``period=custom`` only. */
+                start_date?: string | null;
+                /** @description Companion for ``period=custom`` only. */
+                end_date?: string | null;
+                /** @description Optional SKU filter */
+                msku?: string | null;
+                /** @description Optional FBA warehouse code filter */
+                location?: string | null;
+                /** @description Optional disposition filter (e.g. SELLABLE) */
+                disposition?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29549,7 +29358,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__new_product_calculation__NewProductCalculationListResponse"];
+                    "application/json": components["schemas"]["NewProductCalculationListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -32272,7 +32081,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
+                    "application/json": components["schemas"]["ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -32310,7 +32119,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"][];
+                    "application/json": components["schemas"]["ProjectItem"][];
                 };
             };
             /** @description Validation Error */
@@ -32389,7 +32198,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
+                    "application/json": components["schemas"]["ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -32551,7 +32360,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__project__ProjectItem"];
+                    "application/json": components["schemas"]["ProjectItem"];
                 };
             };
             /** @description Validation Error */
@@ -35044,6 +34853,8 @@ export interface operations {
                 result?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                project_id?: number | null;
+                operation_type?: string | null;
             };
             header?: never;
             path?: never;
@@ -35080,6 +34891,8 @@ export interface operations {
                 result?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                project_id?: number | null;
+                operation_type?: string | null;
             };
             header?: never;
             path?: never;
@@ -35094,6 +34907,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentAccessLogsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_operation_logs_api_v1_system_management_agent_operation_logs_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                agent_id?: string | null;
+                project_id?: number | null;
+                action?: string | null;
+                result?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                keyword?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentOperationLogsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_operation_logs_summary_api_v1_system_management_agent_operation_logs_summary_get: {
+        parameters: {
+            query?: {
+                agent_id?: string | null;
+                project_id?: number | null;
+                action?: string | null;
+                result?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                keyword?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentOperationLogsSummaryResponse"];
                 };
             };
             /** @description Validation Error */
