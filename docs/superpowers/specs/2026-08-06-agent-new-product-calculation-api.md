@@ -1,6 +1,6 @@
-# Agent API · New Product Calculation（新品测算）API 实施规格（设计草案）
+# Agent API · New Product Calculation（新品测算）API 实施规格（设计定稿）
 
-> **状态**：**必要元素已定稿**（用户拍板 2026-08-06：4 种模式确认、`eu_accounting` 暂不纳入新品）；**API 讨论进行中**（① 路由骨架 + ② D3 已拍板，③ D1/D2b/D4 待讨论；收敛后转定稿 → 开执行子 issue）。
+> **状态**：**设计定稿**（2026-08-06 全部决策已拍板：D1=A 溯源列 / D2=4 模式 / D2b=4 种快照全可存 / D3=双字段 / D4=A deprecated / D5 路由骨架 / service 复用确认）→ 可开执行子 issue。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（设计稿 v0.4）、[`docs/superpowers/specs/2026-08-05-agent-shop-calculation-api.md`](./2026-08-05-agent-shop-calculation-api.md)（店铺测算 spec 定稿，本 spec 的模板）、[`docs/superpowers/specs/2026-08-04-agent-readwrite-api-spec.md`](./2026-08-04-agent-readwrite-api-spec.md)（P0 基建 + P2 货件规格）、[`docs/external-api-ops-agent-roadmap.md`](../../external-api-ops-agent-roadmap.md)（全景图）。
 > **范围**：在 `/api/v1/agent/projects/{id}/new-product-calculations/*` 开放**新品测算（New Product Calculation）域**的读 + 写路由。**本 spec 只设计，不实施**（对齐 BLF-451 执行顺序：先定必要元素与 API 文档，再实施）。
 > **前提**：店铺测算域 6 路由（commit `90e2ee8f`）与 `project_scope` 准入（commit `d5241993`）**已合入 main**——新品域路由可直接复用 `require_project_scope` / confirm / 限流 / 响应壳 / `query_operation_audit_log_for_targets`，**无 Task 0 前置**。
@@ -36,7 +36,7 @@
 |---|---|---|
 | 存储语义 | **append-only**（每次快照新增一行，历史保留） | **upsert**（`(project_id, sku, calculation_type)` 唯一键，只留最新一行，**无历史**） |
 | 溯源列 | 有 `source` / `observed_at` / `deleted_at` | **无** `source` / `observed_at` / `deleted_at`（溯源仅靠审计表） |
-| 快照可存类型 | `{profit_calc, eu_accounting}` | schema Literal 含 `{profit_calc, profit_reverse}`（EU 不纳入新品）；`cost_reverse`/`fbm_calc` 目前仅试算、是否可存快照 → API 讨论阶段定 |
+| 快照可存类型 | `{profit_calc, eu_accounting}` | **4 种全可存** `{profit_calc, profit_reverse, cost_reverse, fbm_calc}`（D2b 拍板；改 schema Literal，无迁移；EU 不纳入新品） |
 | 缓存耦合 | 0 个 Redis | 0 个 Redis（无写后失效） |
 | external 端点 | BEL-416 规划中，**暂缓未落** | `GET /external/projects/{pid}/new-product-calculations` **已上线**（BEL-378/416，无鉴权 P0 契约） |
 
@@ -115,7 +115,7 @@
 |---|---|---|---|---|---|---|
 | **F1 试算**（算） | `POST /compute` | 输入 = 必要元素（按 mode 矩阵）；输出 = 完整派生快照 | 无状态纯计算，**不落库**（引擎函数现成，零改造） | ❌ | 读 | 不落 |
 | **F2 快照读**（存） | `GET` 列表 / `GET .../skus/{sku}` / `GET .../skus/{sku}/audit` | 读取已保存快照 + 审计痕迹 | 当前态（upsert 表无历史） | ❌ | 读 | 不落 |
-| **F3 快照写**（记） | `POST`（upsert） | 输入 = F1 产出的 snapshot + 溯源（D1 待拍板） | **upsert**：`(project, sku, calculation_type)` 覆盖当前行 | ✅ | 写 | 落（agent 归因） |
+| **F3 快照写**（记） | `POST`（upsert） | 输入 = F1 产出的 snapshot + 溯源（source/observed_at） | **upsert**：`(project, sku, calculation_type)` 覆盖当前行 | ✅ | 写 | 落（agent 归因） |
 
 **分类理由**：
 
@@ -141,7 +141,7 @@
 
 **关键事实（代码已核实，2026-08-06）**：
 
-- 自然业务键 `(project_id, sku, calculation_type)`；`country` 为元数据（不在唯一键）；`calculation_type` 可存 `{profit_calc, profit_reverse}`（EU 不纳入新品；`cost_reverse`/`fbm_calc` 是否可存快照 → API 讨论阶段定）。
+- 自然业务键 `(project_id, sku, calculation_type)`；`country` 为元数据（不在唯一键）；`calculation_type` **4 种全可存** `{profit_calc, profit_reverse, cost_reverse, fbm_calc}`（D2b 拍板；schema Literal 扩 2 种，无迁移；EU 不纳入新品）。
 - `list_snapshots` 现为 `updated_at DESC, id DESC` + 分页（page_size ≤ 500）；R1 薄壳透传过滤参数，返回 `{items, total, page, page_size}`。
 - 审计映射：写操作审计行 `target_type="new_product_calculation"`、`target_id=<row.id>`（数字 id）、`agent_id`/`idempotency_key` 归因、`operator=NULL`；`created_by` 保持 NULL。R3 按 SKU 聚合：先查该 `(project, sku, calculation_type)` 当前行 id 再查审计——**`_update_snapshot` 是原地更新（行 id 稳定），该 id 的审计行即该键的全部 upsert 痕迹（含每次覆盖），R3 可完整追溯**（2026-08-06 代码核实，修正 v0.1 的悲观假设）。
 - 该域 **0 个 Redis 缓存**（写后无需失效，与店铺域一致）。
@@ -153,7 +153,7 @@
 
 ### 5.1 W1 写请求 `AgentNewProductCalculationUpsertRequest`
 
-字段 = 内部 `NewProductCalculationCreateRequest` 的**全部快照字段**（~50 项：定位/规格/成本/销售参数/费率/尺寸等级/尺寸重量详情/费用规则标签/费用明细/利润明细/warnings），减去 3 个服务端派生项 + 溯源（D1 待拍板）：
+字段 = 内部 `NewProductCalculationCreateRequest` 的**全部快照字段**（~50 项：定位/规格/成本/销售参数/费率/尺寸等级/尺寸重量详情/费用规则标签/费用明细/利润明细/warnings），减去 3 个服务端派生项 + 溯源字段（D1 已拍板：加列）：
 
 | 移除字段 | 服务端派生规则 |
 |---|---|
@@ -164,10 +164,10 @@
 ```python
 class AgentNewProductCalculationUpsertRequest(BaseModel):
     # ...全部快照字段（镜像 NewProductCalculationCreateRequest）...
-    # D1 待拍板：若加列，则追加以下溯源字段（对齐店铺域）：
-    # source: Literal["agent_listing_pull", "agent_review_scrape",
-    #                 "agent_market_research", "external_api"]   # 必填，无默认（validate 卡死）
-    # observed_at: datetime | None = None                         # 缺省后端取 now()
+    # 溯源字段（D1 已拍板：加列，对齐店铺域）：
+    source: Literal["agent_listing_pull", "agent_review_scrape",
+                    "agent_market_research", "external_api"]   # 必填，无默认（validate 卡死）
+    observed_at: datetime | None = None                         # 缺省后端取 now()
 ```
 
 > 无 `project_name` 时由路由层从 Project 行读取——`new_product_calculations.project_name` 列是冗余快照，写请求不要求 agent 提供。
@@ -241,10 +241,10 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
 
 ### 6.2 `_validate_upsert`（业务校验，先于 confirm，短路不生成 token）
 
-1. `source`（若 D1 加列）∈ `{agent_listing_pull, agent_review_scrape, agent_market_research, external_api}` → 否则 400 `NEW_PRODUCT_CALCULATION_INVALID_SOURCE`；
+1. `source` ∈ `{agent_listing_pull, agent_review_scrape, agent_market_research, external_api}`（必填，禁 manual）→ 否则 400 `NEW_PRODUCT_CALCULATION_INVALID_SOURCE`；
 2. **SKU 存在性校验**（对齐店铺域 D2）：`select SkuRecord.sku where project_id == {pid} and country == body.country and sku == body.sku`，不存在 → 400 `NEW_PRODUCT_CALCULATION_INVALID_SKU`，`details: [{sku, reason: "not_found"}]`，agent_hint 提示先建 SKU 主数据；
-3. `calculation_type` 白名单（API 讨论阶段定：`{profit_calc, profit_reverse}` 为基线，`cost_reverse`/`fbm_calc` 是否可存快照待定）；
-4. `observed_at`（若 D1 加列）不晚于 now()+24h；金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库。
+3. `calculation_type` 白名单 = **4 种全可存** `{profit_calc, profit_reverse, cost_reverse, fbm_calc}`（D2b 拍板）；
+4. `observed_at` 不晚于 now()+24h；金额字段（sale_price_usd / profit_usd / total_fee_usd）为正数、`profit_rate ∈ (-1, 1)` → 防脏数据入库。
 
 ### 6.3 `_preview_upsert`（confirm 预览摘要）
 
@@ -275,14 +275,13 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
 # 新品测算域（BLF-451）
 NEW_PRODUCT_CALCULATION_INVALID_SOURCE = "NEW_PRODUCT_CALCULATION_INVALID_SOURCE"    # 400
 NEW_PRODUCT_CALCULATION_INVALID_SKU = "NEW_PRODUCT_CALCULATION_INVALID_SKU"          # 400
-NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"        # 400（API 讨论阶段按需）
+# 注：D2b 拍板 4 种全可存后，不再需要 NEW_PRODUCT_CALCULATION_INVALID_TYPE
 ```
 
 | code | HTTP | 默认 human_message | 默认 agent_hint |
 |---|---|---|---|
 | `NEW_PRODUCT_CALCULATION_INVALID_SOURCE` | 400 | 写入来源不合法 | 合法来源：agent_listing_pull、agent_review_scrape、agent_market_research、external_api |
 | `NEW_PRODUCT_CALCULATION_INVALID_SKU` | 400 | 该 SKU 在本项目不存在 | 先核对 SKU 主数据（sku-info 相关端点），确认后再写入 |
-| `NEW_PRODUCT_CALCULATION_INVALID_TYPE` | 400 | 该核算类型不可保存为快照 | 当前可存类型见文档；其余模式仅试算（/compute），不落快照 |
 
 复用既有：`RESOURCE_NOT_FOUND`（404）、`VALIDATION_FAILED`（400）、`CONFIRM_TOKEN_*` / `IDEMPOTENCY_KEY_CONFLICT`（confirm 流）、`AGENT_PROJECT_OUT_OF_SCOPE`（403）。`_HTTP_STATUS` / `_DEFAULTS` 两表同步注册。
 
@@ -296,20 +295,18 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 |---|---|---|---|
 | 读当前态 | ✅ GET /new-product-calculations | ✅ R1/R2（受 project_scope 限制） | |
 | 试算（不落库） | ✅ quote 等 | ✅ C1（4 模式，读桶） | |
-| 保存/覆盖快照 | ✅ POST（operator 归因） | ✅ W1（source 枚举 + confirm + 审计归因，D1 后） | upsert 覆盖语义 |
+| 保存/覆盖快照 | ✅ POST（operator 归因） | ✅ W1（source 枚举 + confirm + 审计归因） | upsert 覆盖语义 |
 | 删除快照 | ✅ DELETE /{snapshot_id} | ❌ 不开放 | admin only（沿用内部端点） |
-| 审计查询 | 内部 audit 中间件 | ✅ R3（只读自己的写入痕迹 + 人类操作痕迹；upsert 表仅能追溯最近一次） | |
+| 审计查询 | 内部 audit 中间件 | ✅ R3（只读自己的写入痕迹 + 人类操作痕迹；行 id 稳定 → 可追溯该键全部 upsert 痕迹） | |
 
 ---
 
 ## 9. 与 BEL-415 / BEL-416 的协同
 
-### 9.1 BEL-416（External API 读暴露）——**端点已上线，D4 拍板去留**
+### 9.1 BEL-416（External API 读暴露）——**D4 已拍板：标记 deprecated**
 
 - `GET /external/projects/{pid}/new-product-calculations` **已上线**（BEL-378/416，P0 无鉴权契约，网关层网络隔离）。
-- 与本 spec R1 **功能重叠**。店铺域的处理是"读路径并入 agent 命名空间，不另开无鉴权的 `/external/*` 双挂"——新品域 **external 端点已经存在**，处置选项：
-  - **D4-A（推荐）**：R1 落地后，external 端点**标记 deprecated**（响应头 `Deprecation` + 文档标注），保留兼容期后停用；
-  - **D4-B**：立即停用 external 端点（移除挂载），读路径只走 agent 命名空间。
+- 与本 spec R1 **功能重叠**。店铺域的处理是"读路径并入 agent 命名空间，不另开无鉴权的 `/external/*` 双挂"——新品域 **external 端点已经存在**，**已拍板（D4=A）**：R1 落地后 external 端点**标记 deprecated**（响应头 `Deprecation` + 文档标注），保留兼容期后停用；
 - 注意：BEL 前缀 issue 不在当前工作区（CLI 解析不到），无法直接置 blocked/备注——协调请用户在 BEL 侧处理或补一条备注指向本 spec。
 
 ### 9.2 BEL-415（Mac Paseo agent 写入）
@@ -333,23 +330,25 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ---
 
-## 11. 决策记录（已拍板 + 待讨论）
+## 11. 决策记录（全部已拍板，2026-08-06）
 
 | # | 决策点 | 默认建议 | 实施影响 |
 |---|---|---|---|
-| **D1** | **溯源列**：`new_product_calculations` 无 `source`/`observed_at` 列。A=加列（迁移，对齐店铺域，agent 写入声明采集渠道，快照行可溯源）；B=零迁移（溯源仅靠审计表，快照行无渠道标记） | **A（加列）**，与第一期"审计溯源"经验一致；若用户倾向零迁移则 B | A：一个迁移（加 2-3 列，含 `competitor_url` 可选）；B：W1 请求体不含 source 字段 |
+| **D1** | **溯源列**：`new_product_calculations` 无 `source`/`observed_at` 列。A=加列（迁移，对齐店铺域，agent 写入声明采集渠道，快照行可溯源）；B=零迁移（溯源仅靠审计表，快照行无渠道标记） | **已拍板 = A（加列）**（用户 2026-08-06） | 1 个迁移：`new_product_calculations` 加 `source` + `observed_at`（可含 `competitor_url` 可选）；W1 请求体含 source 枚举 + observed_at
 | **D2** | **测算模式范围**：4 种模式（profit_calc / profit_reverse / cost_reverse / fbm_calc）确认无误；`eu_accounting`（欧洲测算）**暂不纳入新品域** | **已拍板（用户 2026-08-06）**：范围 = 4 模式，EU 留店铺测算域 | spec 全篇按 4 模式定稿；C1 mode 枚举 4 种 |
-| **D2b** | **快照可存类型**：`cost_reverse`/`fbm_calc` 目前仅试算（UI 不存快照）；schema Literal 含 `eu_accounting`（EU 不纳入后可忽略）。是否允许 agent 把这 2 种模式也存为快照 | 待 API 讨论阶段定 | W1 `calculation_type` 白名单据此定；若可存则改 schema Literal（无迁移） |
+| **D2b** | **快照可存类型**：`cost_reverse`/`fbm_calc` 目前仅试算（UI 不存快照）；schema Literal 含 `eu_accounting`（EU 不纳入后可忽略）。是否允许 agent 把这 2 种模式也存为快照 | **已拍板 = 4 种全可存**（用户 2026-08-06："4 种都需要"） | schema Literal 扩为 `{profit_calc, profit_reverse, cost_reverse, fbm_calc}`（无迁移）；W1 白名单 4 种；UI 快照保存范围仍 2 种（前端不改，如需后续扩展） |
 | **D3** | **/compute 返回形态**：A=双字段 `{calculation, snapshot}`（snapshot 直接可 confirm，agent 零字段映射）；B=单字段 `{calculation}`（agent 自行映射） | **已拍板 = A（双字段）**（用户 2026-08-06，对齐店铺域 D3） | §5.3 响应定格；snapshot 由路由层薄壳整形，agent 零字段映射 |
-| **D4** | **external 端点去留**：`/external/projects/{pid}/new-product-calculations` 已上线（无鉴权）。A=标记 deprecated 保留兼容期；B=随 R1 上线即停用 | **A（标记 deprecated）**，给存量消费者迁移缓冲 | 响应头 + 文档标注；停用走 BEL 侧协调 |
+| **D4** | **external 端点去留**：`/external/projects/{pid}/new-product-calculations` 已上线（无鉴权）。A=标记 deprecated 保留兼容期；B=随 R1 上线即停用 | **已拍板 = A（标记 deprecated）**（用户 2026-08-06） | R1 落地后加 `Deprecation` 响应头 + 文档标注；停用走 BEL 侧协调 |
 | **D5** | **路由骨架（5 条）**：R1 列表 / R2 SKU 详情 / R3 审计 / W1 upsert（confirm）/ C1 试算（mode 覆盖 4 模式）；**无 history 路由**（upsert 表无历史）；C1 **4 模式全开**（新品是选品/规划语义，倒算与成本倒推是核心，对比店铺域只开 2 模式） | **已拍板（用户 2026-08-06）**：5 条 OK、无 history 合理、C1 4 模式全开 | spec §4 路由表定格；R3 审计可追溯全量 upsert（行 id 稳定） |
+| **D6** | **service 复用**：R1/R2=`list_snapshots`/`get_snapshot`、R3=`query_operation_audit_log_for_targets`、W1=`upsert_snapshot`+审计、C1=4 个引擎纯函数，全部现成；唯一新增=路由层快照整形 helper + 错误码注册 | **已确认（用户 2026-08-06）** | service 层零新增函数，路由层薄壳，与店铺域一致 |
 
 ---
 
 ## 12. 执行前置（writing-plans 前确认）
 
 - [x] 测算模式范围拍板（用户 2026-08-06：4 模式，EU 不纳入新品）；必要元素已定稿（spec §2 + BLF-451 下 4 个按模式子 issue 承载）
-- [ ] API/路由/service 复用方案讨论（进行中：① 路由骨架 + ② D3 已拍板，③ D1/D2b/D4 待过，④ service 复用确认）→ 收敛后本 spec 转定稿、开执行子 issue（路由 5 条 + 错误码 + 测试；如 D1=A 则含 1 个迁移）
+- [x] API/路由/service 复用方案讨论全部收敛（D1=A / D2=4 模式 / D2b=4 种全可存 / D3=双字段 / D4=A / D5 路由骨架 / D6 service 复用）——**spec 已转「设计定稿」**
+- [ ] 开执行子 issue：路由 5 条 + 迁移（D1：`new_product_calculations` 加 `source`/`observed_at`）+ schema Literal 扩 4 种 + 错误码 2 个 + 测试（§10 清单）
 - [ ] BEL-416 协调（external 端点 deprecated/停用）在 BEL 侧处理或备注指向本 spec
 - [ ] 仓库当前 main 已含：P2 货件域、店铺测算域 6 路由（`90e2ee8f`）、project_scope（`d5241993`）——本 spec 引用的复用函数均为真实存在的符号
 
@@ -357,6 +356,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ## 修订记录
 
+- **v0.5（2026-08-06）**：全部决策拍板落定——D1=A（加溯源列）/ D2b=4 种快照全可存（schema Literal 扩 2 种）/ D4=A（external deprecated）/ D6 service 复用确认；§0.3/§4/§5.1/§6.2/§7/§8/§9.1/§11/§12 同步；**spec 状态转「设计定稿」**。
 - **v0.4（2026-08-06）**：用户拍板 D3 = A 双字段 `/compute` 返回（对齐店铺域 D3）；§5.3 响应定格、§11 决策记录同步。
 - **v0.3（2026-08-06）**：用户拍板路由骨架（D5）——5 条 OK、无 history 合理、C1 4 模式全开；修正 R3 审计可追溯性（`_update_snapshot` 原地更新、行 id 稳定 → 审计可查全部 upsert 痕迹）；§4/§11/§12 同步。
 - **v0.2（2026-08-06）**：用户拍板——4 种模式确认、`eu_accounting` 暂不纳入新品域（D2 范围收敛）；必要元素 §2 转定稿；快照可存类型拆为 D2b 待 API 讨论；C1 mode 枚举改 4 种并移除 EU 专属字段；§0.2/§1.2/§3/§4/§6.2/§8/§10/§11/§12 同步。
