@@ -54,7 +54,10 @@ PERIODIC_REPORT_TYPES: set[str] = {
 
 SUPPORTED_REPORT_TYPES = {
     "inventory_report",
+    # 旧值仅保留给历史调用方（入库层仍按表头路由），新识别不再输出。
     "inventory_ledger",
+    "inventory_ledger_summary",
+    "inventory_ledger_detail",
     "business_report",
     # ad_product_report 已于 2026-06-01 迁到 C 表（ad_upload_files / ad_upload_promoted_product_rows），
     # 不再通过 /api/v1/report-upload/commit 入库。如需提交广告报表，请使用 /api/v1/ad-upload/commit。

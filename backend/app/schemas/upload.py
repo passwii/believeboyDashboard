@@ -13,7 +13,10 @@ class UploadResponse(BaseModel):
 ProjectMatchStatus = Literal["unmatched", "matched", "conflict", "manual"]
 ReportUploadType = Literal[
     "inventory_report",
+    # 旧值仅保留给历史调用方（入库层仍按表头路由），新识别不再输出。
     "inventory_ledger",
+    "inventory_ledger_summary",
+    "inventory_ledger_detail",
     "business_report",
     "ad_product_report",
     "ad_report",

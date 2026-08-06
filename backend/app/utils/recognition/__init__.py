@@ -11,6 +11,7 @@ from app.utils.recognition.recognizers import (
     recognize_business_report,
     recognize_payment_report,
     recognize_return_report,
+    LedgerRecognitionError,
 )
 from app.utils.recognition.models import RecognitionResult
 from app.utils.recognition.patterns import (
