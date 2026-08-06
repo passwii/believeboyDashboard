@@ -75,9 +75,6 @@ class Settings(BaseSettings):
     # Per-key (or per-IP fallback) rate limiting via slowapi.
     external_api_rate_limit_enabled: bool = Field(default=False)
     external_api_rate_limit: str = Field(default="60/minute", max_length=32)
-    # BLF-459 (P1 路径迁移)：/external/* 全量响应标 deprecated 的 Sunset 日期
-    # （RFC 8594 建议 HTTP-date；这里用 ISO 日期，消费者按信息读取）。
-    external_api_sunset: str = Field(default="2026-11-01", max_length=32)
     # Agent API 访问审计（过渡期覆盖 /external/* 与 /agent/* 双前缀）。
     agent_api_audit_enabled: bool = Field(default=True)
     # 访问审计保留天数（Celery 清理任务）。

@@ -72,8 +72,8 @@ def get_external_new_product_calculations(
     order_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_read_db_session),
 ) -> NewProductCalculationListResponse:
-    # BLF-459 (P1)：Deprecation/Sunset/Link 头已由全局 middleware 统一打
-    # （app/middleware/external_deprecation.py），此处不再单端点手写。
+    # BLF-459 (V3)：/external/* 已整体下线（410 Gone 兜底），不再有
+    # Deprecation 头一说——消费者一律走 /agent/* 镜像。
     try:
         normalized_country = parse_country(country) if country else None
         order_column, direction = parse_order_by(

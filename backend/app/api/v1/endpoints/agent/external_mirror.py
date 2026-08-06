@@ -1,4 +1,4 @@
-"""Agent 命名空间镜像 external 读路由（BLF-459 P1 路径迁移）。
+"""Agent 命名空间镜像 external 读路由（BLF-459 P1 迁移 + V3 下线）。
 
 设计稿 §6.2：``/external/*`` 每个 GET 路由一对一映射到 ``/agent/*``（同后缀
 路径），本模块**程序化**从 ``external_router`` 生成镜像路由，而不是手写 51 条
@@ -9,6 +9,10 @@
 + ``_service_errors()`` 壳翻译（HTTPException → AgentApiError）+
 ``agent_ok()`` 响应壳。纯读路由不落审计、绕过 Redis 读缓存直查 DB（与
 external 行为一致）。
+
+V3（BLF-459）：``/api/v1/external/*`` 已彻底下线（410 Gone 兜底，见
+``app/api/v1/endpoints/external_retired.py``），external 模块仅作为本镜像的
+handler 来源保留，不再挂载到应用。
 
 例外：
 * ``new-product-calculations`` 已在 BLF-457 原生迁移（agent R1 同路径存在），

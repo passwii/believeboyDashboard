@@ -1,10 +1,19 @@
-# 广告分析- 外部 API 接入文档
+# 广告分析- Agent API 接入文档（BLF-459 V3）
+
+> **2026-08-06 V3 变更**：`/api/v1/external/*` 已**彻底下线**（响应 410 Gone）。
+> 统一走 `/api/v1/agent/*` 镜像：**路径后缀完全不变**（仅前缀 `/external` → `/agent`），
+> 鉴权改为 `Authorization: Bearer <key>` + `X-Agent-Id`，响应包一层 `{ok, data}` 壳。
+> 仓库内消费者 `scripts/ad_analysis/load_data.py` 已在 fetch 层解壳，调用方无需改动。
 
 ## 1. 基础信息
 - **Base URL**: https://dash-api.believeboy.com
-- **Path**: /api/v1/external/
+- **Path**: /api/v1/agent/
 - **协议**: HTTPS（HTTP 自动重定向至 HTTPS）
-- **认证**: 无（P0 级别接口，认证和速率限制由网关层处理）
+- **认证**: `Authorization: Bearer <agent_key>` + `X-Agent-Id: <agent_id>`（**两者必填**；
+  凭据在「Agent 接入管理」页创建，明文只在创建时展示一次）
+- **响应壳**: 统一 `{ok: true, data: {...}}`；`data` 内容与 external 时代裸 body 一致
+- **权限**: `project_scope` 白名单（`*` 全放行或逗号分隔 project_id），越权 403
+- **限流**: 读 300 次/分钟（按 agent_id），无条件启用
 - **网络隔离**: 通过网关层实施，见 `docs/deployment/external-api-network-isolation.md`
 
 ## 2. 端点分类与报表枚举
@@ -221,8 +230,10 @@
 ### 示例 1：获取广告活动汇总数据（聚合视图）
 **请求**：
 ```http
-GET https://dash-api.believeboy.com/api/v1/external/projects/15/ad-campaigns?country=US&period=30d
+GET https://dash-api.believeboy.com/api/v1/agent/projects/15/ad-campaigns?country=US&period=30d
 Accept: application/json
+Authorization: Bearer <agent_key>
+X-Agent-Id: <agent_id>
 ```
 
 **响应摘要**：
@@ -267,8 +278,10 @@ Accept: application/json
 ### 示例 2：获取广告活动原始数据（未汇总视图）
 **请求**：
 ```http
-GET https://dash-api.believeboy.com/api/v1/external/projects/15/ad-campaigns-raw?country=US&period=30d&limit=3
+GET https://dash-api.believeboy.com/api/v1/agent/projects/15/ad-campaigns-raw?country=US&period=30d&limit=3
 Accept: application/json
+Authorization: Bearer <agent_key>
+X-Agent-Id: <agent_id>
 ```
 
 **响应摘要**：
@@ -337,8 +350,10 @@ Accept: application/json
 ### 示例 3：获取搜索词原始数据（展示 targeting_type 分类及原始数据）
 **请求**：
 ```http
-GET https://dash-api.believeboy.com/api/v1/external/projects/7/ad-search-terms-raw?country=US&period=90d&limit=3
+GET https://dash-api.believeboy.com/api/v1/agent/projects/7/ad-search-terms-raw?country=US&period=90d&limit=3
 Accept: application/json
+Authorization: Bearer <agent_key>
+X-Agent-Id: <agent_id>
 ```
 
 **响应摘要（展示 complements 类型及原始数据结构）**：
@@ -457,8 +472,10 @@ Accept: application/json
 ### 示例 4：获取广告预算建议数据（展示预算优化字段）
 **请求**：
 ```http
-GET https://dash-api.believeboy.com/api/v1/external/projects/15/ad-budgets?country=US&period=30d
+GET https://dash-api.believeboy.com/api/v1/agent/projects/15/ad-budgets?country=US&period=30d
 Accept: application/json
+Authorization: Bearer <agent_key>
+X-Agent-Id: <agent_id>
 ```
 
 **响应摘要**：

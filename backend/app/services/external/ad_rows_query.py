@@ -411,5 +411,45 @@ def query_invalid_traffic_raw(
 
 
 # ---------------------------------------------------------------------------
-# AdUploadFile listing (used by /external/projects/{id}/ad-upload-files)
+# AdUploadFile listing (BLF-459 V3 恢复：浏览器 ad-data 页用 /internal 重建)
 # ---------------------------------------------------------------------------
+
+
+def list_ad_upload_files(
+    db: Session,
+    *,
+    project_id: int,
+    report_type: str | None = None,
+    country: str | None = None,
+    include_history: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+):
+    """List ``AdUploadFile`` rows for a project, optionally filtered by
+    report_type / country.  ``include_history=False`` (default) restricts to
+    ``is_current=True``; ``True`` returns all versions, newest first."""
+    if limit < 1 or limit > 500:
+        raise ValueError(f"limit must be 1..500, got {limit}")
+    if offset < 0:
+        raise ValueError(f"offset must be >= 0, got {offset}")
+
+    from app.models import AdUploadFile  # local to avoid cycle at import
+
+    stmt = select(AdUploadFile).where(AdUploadFile.project_id == project_id)
+    if report_type is not None:
+        stmt = stmt.where(AdUploadFile.report_type == report_type)
+    if country is not None:
+        stmt = stmt.where(AdUploadFile.country == country)
+    if not include_history:
+        stmt = stmt.where(AdUploadFile.is_current.is_(True))
+
+    stmt = (
+        stmt.order_by(
+            AdUploadFile.updated_at.desc(),
+            AdUploadFile.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+
+    return list(db.execute(stmt).scalars().all())

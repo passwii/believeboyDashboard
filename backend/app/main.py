@@ -31,9 +31,6 @@ from app.db.session import ReadSessionLocal, SessionLocal
 from app.services.audit_log_service import sync_operation_audit_log_sequence
 from app.core.scheduler import init_scheduler, shutdown_scheduler
 from app.middleware.agent_api_audit import register_agent_api_audit_middleware
-from app.middleware.external_deprecation import (
-    register_external_deprecation_middleware,
-)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
@@ -205,7 +202,3 @@ app.include_router(api_router, prefix="/api/v1")
 # Registered last so it wraps the request-logging middleware and captures
 # full end-to-end latency.
 register_agent_api_audit_middleware(app)
-
-# BLF-459 (P1 路径迁移): /external/* 全量响应标 deprecated + Sunset + Link
-# (successor → /agent/*)。middleware 保证 404 等错误响应也带头（BLF-416）。
-register_external_deprecation_middleware(app)

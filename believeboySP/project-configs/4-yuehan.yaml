@@ -90,9 +90,14 @@ d_signals:
     p3_sales_ratio: 2.0           # P3: recent_sales > prev_sales × 2
 
 # ── API 基础 URL（默认走生产 API） ──
+# BLF-459 V3：/api/v1/external/* 已下线（410），统一走 /api/v1/agent/* 镜像。
+# agent_key（明文，创建时只展示一次）+ agent_id 必填；也可用环境变量
+# AD_ANALYSIS_AGENT_KEY / AD_ANALYSIS_AGENT_ID 覆盖。
 api:
   base_url: https://dash-api.believeboy.com
-  path_prefix: /api/v1/external
+  path_prefix: /api/v1/agent
+  agent_key: ""                  # TODO: 填入 Agent 凭据明文 key（Bearer）
+  agent_id: ""                   # TODO: 填入 Agent ID（X-Agent-Id）
   cache_dir: /tmp/ad-analysis     # 缓存目录
 
 # ── 输出格式 ──

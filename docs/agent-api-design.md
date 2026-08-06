@@ -324,16 +324,27 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 ## 6. 路径迁移策略
 
-### 6.1 两阶段切换
+### 6.1 三阶段切换
 
-**v1（立刻开始）**：双挂 + 老路径标 deprecated
+**v1（已完成，2026-08-06）**：双挂 + 老路径标 deprecated
 - 注册新路由到 `/api/v1/agent/*`（挂载点：`app/api/v1/router.py` 的 `api_router.include_router(...)`，与 `external_router` 并列）
 - 老的 `/api/v1/external/*` 继续工作，响应头加 `Deprecation: true`、`Sunset: <日期>`、`Link: </api/v1/agent/...>; rel="successor-version"`
 
-**v2（运行 1~2 个 minor 版本后）**：301 跳转
-- 老 `/api/v1/external/*` 改为转发层，返回 301 → `/api/v1/agent/*` 对应路径
-- 给消费者**至少一个 minor 周期**的过渡窗口
-- v3 再彻底下掉老路径
+**v2（跳过）**：原计划 301 跳转过渡。实际核查近 14 天审计日志发现
+`/external/*` 无真实消费者（全部流量为本机/测试探测），且存量
+`agent_id IS NULL` 的 external key 为 0——用户决策**直接进入 v3**。
+
+**v3（已完成，2026-08-06）**：彻底下掉老路径
+- `app/api/v1/router.py` 不再挂载 `external_router`；旧命名空间由
+  `app/api/v1/endpoints/external_retired.py` 兜底返回 **410 Gone** +
+  `Link: rel="successor-version"` 指向对应 `/agent/*` 路径（比裸 404 更明确）。
+- 移除 `app/middleware/external_deprecation.py`（Deprecation/Sunset 头随
+  路由下线而失去意义）与 `Settings.external_api_sunset`。
+- external 模块保留为 `agent/external_mirror.py` 的 handler 来源，不再挂载。
+- 测试：删除 10 个打旧路由的 `test_external_*.py`（API 已下线）；
+  agent 镜像 parity 改为直调 external handler 函数比对；新增 410 契约测试。
+- 消费者：believeboySP `scripts/ad_analysis/load_data.py` 已切到
+  `/api/v1/agent` + Bearer/X-Agent-Id 鉴权 + `{ok,data}` 解壳（调用方形状不变）。
 
 ### 6.2 映射关系
 

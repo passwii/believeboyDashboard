@@ -166,7 +166,7 @@ describe('具名封装的 URL 组装', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]))
     await fetchAdUploadFilesCached('3', 'DE', SESSION)
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/backend/api/v1/external/projects/3/ad-upload-files?country=DE',
+      '/api/backend/api/v1/internal/ad-data/projects/3/ad-upload-files?country=DE',
       expect.anything()
     )
   })
@@ -175,7 +175,7 @@ describe('具名封装的 URL 组装', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ data: [] }))
     await fetchAdRawCached('3', 'campaigns', 'period=custom&limit=10000', SESSION)
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/backend/api/v1/external/projects/3/ad-campaigns-raw?limit=10000&period=custom',
+      '/api/backend/api/v1/internal/ad-data/projects/3/ad-campaigns-raw?limit=10000&period=custom',
       expect.anything()
     )
   })

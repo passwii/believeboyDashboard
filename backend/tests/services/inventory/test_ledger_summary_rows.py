@@ -4,7 +4,7 @@ The Summary view is the truth source: 1 row = 1 (FNSKU × FC × Disposition ×
 Date) daily water-level snapshot (sparse ledger). These tests cover:
 
 * service-level filters (msku / location / disposition) + date-desc ordering
-* the external endpoint contract (period required, filters, shape)
+* the agent 镜像端点契约（BLF-459 V3 起 /external/* 已下线，走 /agent/*）
 
 Test isolation mirrors ``test_ledger_consistency.py``: unique project per
 test, teardown deletes every ledger row for it.
@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.main import app
+from app.db.session import SessionLocal
 from app.models import Project
 from app.services.inventory.ledger import (
     get_ledger_summary_rows,
@@ -194,38 +195,76 @@ class TestGetLedgerSummaryRows:
 
 
 # ---------------------------------------------------------------------------
-# External endpoint contract (no auth; network-isolated)
+# Agent 镜像端点契约（BLF-459 V3：/external/* 已 410 下线，走 /agent/*）
 # ---------------------------------------------------------------------------
 
 
-class TestExternalSummaryEndpoint:
+class TestAgentSummaryEndpoint:
+    """agent 镜像的 inventory-ledger/summary（V3 起 /external/* 已下线）。"""
+
     def _url(self, project_id: int, **params: str) -> str:
-        base = f"/api/v1/external/projects/{project_id}/inventory-ledger/summary"
+        base = f"/api/v1/agent/projects/{project_id}/inventory-ledger/summary"
         qs = "&".join(f"{k}={v}" for k, v in params.items())
         return f"{base}?{qs}" if qs else base
 
     def test_missing_period_422(self, client: TestClient, project: Project):
-        # FastAPI rejects a missing required Query param at the validation
-        # layer (422) before resolve_period_inputs ever runs (that path
-        # returns 400 for empty/invalid values).
+        # agent 命名空间强制鉴权，未带凭据先 401（与 external 的 422 不同）。
         res = client.get(self._url(project.id))
-        assert res.status_code == 422
+        assert res.status_code == 401
 
     def test_empty_period_400(self, client: TestClient, project: Project):
-        res = client.get(self._url(project.id, period=""))
+        from app.services.agent import key_service
+
+        db = SessionLocal()
+        try:
+            _, plaintext = key_service.create_api_key(
+                db,
+                label="blf459-ledger-test",
+                created_by="pytest",
+                agent_id="blf459-ledger-400",
+                project_scope=str(project.id),
+            )
+            db.commit()
+        finally:
+            db.close()
+        headers = {
+            "Authorization": f"Bearer {plaintext}",
+            "X-Agent-Id": "blf459-ledger-400",
+        }
+        res = client.get(self._url(project.id, period=""), headers=headers)
         assert res.status_code == 400
 
     def test_shape_and_filters(
         self, client: TestClient, db_session: Session, project: Project
     ):
-        _seed_three_rows(db_session, project.id)
+        from app.services.agent import key_service
 
-        res = client.get(self._url(project.id, period="2026-03"))
+        _seed_three_rows(db_session, project.id)
+        db = SessionLocal()
+        try:
+            _, plaintext = key_service.create_api_key(
+                db,
+                label="blf459-ledger-test",
+                created_by="pytest",
+                agent_id="blf459-ledger",
+                project_scope=str(project.id),
+            )
+            db.commit()
+        finally:
+            db.close()
+        headers = {
+            "Authorization": f"Bearer {plaintext}",
+            "X-Agent-Id": "blf459-ledger",
+        }
+
+        res = client.get(self._url(project.id, period="2026-03"), headers=headers)
         assert res.status_code == 200
         body = res.json()
-        assert body["report_month"] == "2026-03-01"
-        assert len(body["rows"]) == 4
-        row = body["rows"][0]
+        assert body["ok"] is True
+        data = body["data"]
+        assert data["report_month"] == "2026-03-01"
+        assert len(data["rows"]) == 4
+        row = data["rows"][0]
         for col in (
             "date",
             "msku",
@@ -242,9 +281,10 @@ class TestExternalSummaryEndpoint:
 
         # msku + location filters compose
         res2 = client.get(
-            self._url(project.id, period="2026-03", msku="SKU-A", location="LAX1")
+            self._url(project.id, period="2026-03", msku="SKU-A", location="LAX1"),
+            headers=headers,
         )
         assert res2.status_code == 200
-        rows2 = res2.json()["rows"]
+        rows2 = res2.json()["data"]["rows"]
         assert len(rows2) == 2
         assert all(r["msku"] == "SKU-A" and r["location"] == "LAX1" for r in rows2)

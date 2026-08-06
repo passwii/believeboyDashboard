@@ -147,7 +147,8 @@ export function fetchAdAnalysisCached<T>(
   })
 }
 
-/** ad-data：当前项目/国家下"哪些报表类型有成功入库数据"。 */
+/** ad-data：当前项目/国家下"哪些报表类型有成功入库数据"。
+ * BLF-459 V3：/external/* 已下线，改走 /internal/ad-data（浏览器用户通道）。 */
 export function fetchAdUploadFilesCached<T>(
   projectId: string,
   country: string,
@@ -155,12 +156,13 @@ export function fetchAdUploadFilesCached<T>(
 ): Promise<T> {
   const search = normalizeAdCacheQuery(new URLSearchParams({ country }).toString())
   return fetchAdJsonCached<T>(
-    `${API_BASE}/api/v1/external/projects/${projectId}/ad-upload-files?${search}`,
+    `${API_BASE}/api/v1/internal/ad-data/projects/${projectId}/ad-upload-files?${search}`,
     { session, fallbackError: '广告报表列表加载失败' }
   )
 }
 
-/** ad-data：某个报表类型的原始行（limit 由调用方放在 query 中）。 */
+/** ad-data：某个报表类型的原始行（limit 由调用方放在 query 中）。
+ * BLF-459 V3：/external/* 已下线，改走 /internal/ad-data（浏览器用户通道）。 */
 export function fetchAdRawCached<T>(
   projectId: string,
   endpoint: string,
@@ -169,7 +171,7 @@ export function fetchAdRawCached<T>(
 ): Promise<T> {
   const search = normalizeAdCacheQuery(query instanceof URLSearchParams ? query.toString() : query)
   return fetchAdJsonCached<T>(
-    `${API_BASE}/api/v1/external/projects/${projectId}/ad-${endpoint}-raw?${search}`,
+    `${API_BASE}/api/v1/internal/ad-data/projects/${projectId}/ad-${endpoint}-raw?${search}`,
     { session, fallbackError: '数据加载失败' }
   )
 }

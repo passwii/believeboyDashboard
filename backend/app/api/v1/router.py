@@ -63,12 +63,13 @@ from app.api.v1.endpoints.platform_revenues import router as platform_revenues_r
 from app.api.v1.endpoints.backups import router as backups_router
 from app.api.v1.endpoints.inspections import router as inspections_router
 from app.api.v1.endpoints.page_render import router as page_render_router
-from app.api.v1.endpoints.external import external_router
+from app.api.v1.endpoints.external_retired import external_retired_router
 from app.api.v1.endpoints.agent import agent_router
 from app.api.v1.endpoints.crm import router as crm_router
 from app.api.v1.endpoints.notifications import router as notifications_router
 from app.api.v1.endpoints.internal_jobs import router as internal_jobs_router
 from app.api.v1.endpoints.internal.api_keys import router as internal_api_keys_router
+from app.api.v1.endpoints.internal.ad_data import router as internal_ad_data_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -119,10 +120,15 @@ api_router.include_router(platform_revenues_router)
 api_router.include_router(backups_router)
 api_router.include_router(inspections_router)
 api_router.include_router(page_render_router)
-api_router.include_router(external_router)
+# BLF-459 V3：/external/* 已彻底下线（老消费者全部切到 /agent/*）。
+# 保留一个 410 Gone 兜底路由，给仍打旧路径的调用方明确信号（见
+# app/api/v1/endpoints/external_retired.py），而不是裸 404。
+api_router.include_router(external_retired_router)
 api_router.include_router(agent_router)
 api_router.include_router(vat_invoices_router)
 api_router.include_router(crm_router)
 api_router.include_router(notifications_router)
 api_router.include_router(internal_jobs_router)
 api_router.include_router(internal_api_keys_router)
+# BLF-459 V3：/external/* 下线后浏览器 ad-data 页的内部读路由。
+api_router.include_router(internal_ad_data_router)

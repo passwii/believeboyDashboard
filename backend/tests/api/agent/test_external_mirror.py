@@ -1,12 +1,13 @@
-"""Agent 镜像 external 读路由测试（BLF-459 P1 路径迁移）。
+"""Agent 镜像 external 读路由测试（BLF-459 P1 迁移 + V3 下线）。
 
 覆盖：
 * 映射完整性：external 每个 GET 路由都有对应 /agent/* 路由（除已原生迁移的
   new-product-calculations）。
-* 数据一致：同一项目同一参数，agent 响应 ``data`` == external 响应 body。
+* 数据一致：同一项目同一参数，agent 响应 ``data`` == external handler 直调结果
+  （V3 起 /external/* HTTP 路由已 410 下线，直接比对 handler 函数输出）。
 * 鉴权契约：401 未带凭据 / 403 project_scope 越权。
 * 壳翻译：404 项目 → RESOURCE_NOT_FOUND 壳；400 参数 → VALIDATION_FAILED 壳。
-* Deprecation 头：external 全路径（含错误响应）带 Deprecation/Sunset/Link。
+* V3 下线契约：/external/* 全路径 410 Gone + Link successor。
 * projects 列表：受 scope 限制的 key 只见自己项目。
 """
 
@@ -15,6 +16,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
@@ -112,36 +114,55 @@ _QUERY_PARAMS = {
     "ad-search-term-shares-raw": "?period=7d&country=US",
     "ad-invalid-traffic-raw": "?period=7d&country=US",
     "ad-purchased-products-raw": "?period=7d&country=US",
-    "orders/summary": "?period=7d",
-    "business-summary": "?period=7d",
-    "replenishment-analysis": "?period=7d",
-    "return-analysis": "?period=7d",
-    "return-analysis-raw": "?period=7d",
-    "shop-calculation-history": "?period=7d",
-    "shop-calculation/snapshots": "?period=7d",
+    "orders/summary": "?period=7d&country=US",
+    "business-summary": "?period=7d&country=US",
+    "replenishment-analysis": "?country=US",
+    "return-analysis": "?period=7d&country=US",
+    "return-analysis-raw": "?period=7d&country=US",
+    "shop-calculation-history": "?country=US",
+    "shop-calculation/snapshots": "?country=US",
     "inventory-ledger/months": "",
     "inventory-ledger/snapshot": "?period=last_month",
     "inventory-ledger/events": "?period=last_month",
     "inventory-ledger/receipt-clusters": "?period=last_month",
     "inventory-ledger/integrity": "?period=last_month",
-    "inventory-ledger/trend": "?period=last_month",
+    "inventory-ledger/trend": "?months=6",
     "inventory-ledger/detail": "?period=last_month",
     "inventory-ledger/summary": "?period=last_month",
-    "inventory-ledger/batches": "?period=last_month",
+    "inventory-ledger/batches": "?limit=50",
     "inventory-ledger/consistency": "?period=last_month",
     "sku-info": "",
-    "pricing-snapshots": "",
+    "pricing-snapshots": "?country=US",
 }
 
 _AD_ALIAS_SUFFIXES = ("-raw",)  # 单数 alias 路径（ad-campaign-raw 等）同参数。
 
 
 def _query_for(path: str) -> str:
-    """从 /external/projects/{pid}/<rest> 提取 rest 并给出查询串。"""
+    """从 /external/projects/{pid}/<rest> 提取 rest 并给出查询串。
+
+    单数 alias 路径（ad-campaign-raw 等）与复数版本共享参数。
+    """
     rest = path.split("/external/projects/{pid}/", 1)[1]
     for key, qs in _QUERY_PARAMS.items():
         if rest == key or rest.endswith(key):
             return qs
+    # 单数 alias：ad-campaign-raw → ad-campaigns-raw 的参数
+    alias_map = {
+        "ad-campaign-raw": "ad-campaigns-raw",
+        "ad-search-term-raw": "ad-search-terms-raw",
+        "ad-budget-raw": "ad-budgets-raw",
+        "ad-target-raw": "ad-targets-raw",
+        "ad-placement-raw": "ad-placements-raw",
+        "ad-promoted-product-raw": "ad-promoted-products-raw",
+        "ad-time-trend-raw": "ad-time-trends-raw",
+        "ad-search-term-share-raw": "ad-search-term-shares-raw",
+        "ad-invalid-traffic-raw": "ad-invalid-traffic-raw",
+        "ad-purchased-product-raw": "ad-purchased-products-raw",
+    }
+    for alias, plural in alias_map.items():
+        if rest == alias or rest.endswith(alias):
+            return _QUERY_PARAMS.get(plural, "")
     return ""
 
 
@@ -240,31 +261,99 @@ def test_all_external_get_routes_have_agent_mirror():
 
 
 # ---------------------------------------------------------------------------
-# 2. 数据一致 —— 同一项目同一参数，agent data == external body
+# 2. 数据一致 —— 同一项目同一参数，agent data == external handler 直调结果
 # ---------------------------------------------------------------------------
+
+
+def _external_handler_for(path: str):
+    """从 external 命名空间找 path 对应的 APIRoute（handler 函数）。"""
+    from app.api.v1.endpoints.agent.external_mirror import _iter_external_apiroutes
+
+    for ext_path, route in _iter_external_apiroutes():
+        if ext_path == path.format(pid="{project_id}"):
+            return route
+    raise AssertionError(f"no external route for {path}")
+
+
+def _handler_kwargs(route, qs: str, pid: int) -> dict:
+    """构造直调 external handler 的 kwargs：查询串参数 + 签名其余参数的真实默认值。
+
+    直调（不经 FastAPI）时未传参数的默认值是 ``Query(...)`` / ``Path(...)``
+    对象（truthy），不是声明的默认值——必须沿签名解包（``param.default.default``）。
+    查询串来的字符串按签名注解转成 int（如 ``months``、``limit``、``page``）。
+    """
+    import inspect
+    import typing
+    from urllib.parse import parse_qsl
+
+    from fastapi.params import Param
+
+    kwargs: dict = dict(parse_qsl(qs.lstrip("?")))
+    sig = inspect.signature(route.endpoint)
+    for name, param in sig.parameters.items():
+        if name in kwargs or name == "db" or name == "project_id":
+            continue
+        default = param.default
+        if isinstance(default, Param):
+            default = default.default
+        if name == "project_id":
+            default = pid
+        kwargs[name] = default
+    kwargs["project_id"] = pid
+    # 字符串 → int 类型转换（按解析后的注解；from __future__ import annotations
+    # 下注解是字符串，需 get_type_hints 解析）。
+    try:
+        hints = typing.get_type_hints(route.endpoint)
+    except Exception:  # noqa: BLE001 — 注解解析失败就跳过类型转换
+        hints = {}
+    for name, hint in hints.items():
+        if name in kwargs and hint is int:
+            kwargs[name] = int(kwargs[name])
+    return kwargs
 
 
 @pytest.mark.parametrize("path", _MIRROR_PATHS)
 def test_agent_mirror_data_parity(client, mirror_env, path):
     pid = mirror_env["project_id"]
     qs = _query_for(path)
-    ext_url = f"/api/v1{path.format(pid=pid)}{qs}"
     agent_url = f"/api/v1{path.format(pid=pid).replace('/external/', '/agent/', 1)}{qs}"
 
-    ext = client.get(ext_url)
     agent = client.get(agent_url, headers=mirror_env["headers"])
-
-    # 状态码一致（200 / 400 业务错误等）
-    assert agent.status_code == ext.status_code, (
-        f"{path}: ext={ext.status_code} agent={agent.status_code}\n"
-        f"agent body: {agent.text[:300]}"
-    )
-    if ext.status_code != 200:
-        return  # 错误路径的壳翻译由下方专项用例覆盖
     body = agent.json()
+
+    # V3：/external/* HTTP 已下线（410），数据一致改为直调 external handler
+    # 函数比对——镜像本来就是复用同一 handler，直调即同源同参同结果。
+    route = _external_handler_for(path)
+    db = SessionLocal()
+    try:
+        kwargs = _handler_kwargs(route, qs, pid)
+        try:
+            result = route.endpoint(db=db, **kwargs)
+            direct_status = 200
+        except HTTPException as exc:
+            result = None
+            direct_status = exc.status_code
+        if hasattr(result, "model_dump"):
+            ext_data = result.model_dump(mode="json")
+        elif isinstance(result, list):
+            ext_data = [
+                item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+                for item in result
+            ]
+        else:
+            ext_data = result
+    finally:
+        db.close()
+
+    # 无数据 / 参数错误的端点：agent 状态码应与直调一致（200 或 4xx）。
+    if direct_status != 200 or agent.status_code != 200:
+        assert agent.status_code == direct_status, (
+            f"{path}: agent={agent.status_code} direct={direct_status}\n"
+            f"agent body: {agent.text[:300]}"
+        )
+        return
     assert body["ok"] is True, f"{path}: {agent.text[:300]}"
 
-    ext_data = ext.json()
     agent_data = body["data"]
 
     # 库存分类账 integrity/consistency 是每次实时校验，checked_at 必然不同——
@@ -346,26 +435,34 @@ def test_agent_mirror_400_validation_shell(client, mirror_env):
 
 
 # ---------------------------------------------------------------------------
-# 5. Deprecation 头 —— external 全路径（含错误响应）
+# 5. V3 下线契约 —— /external/* 全路径 410 Gone + Link successor
 # ---------------------------------------------------------------------------
 
 
-def test_external_200_carries_deprecation_headers(client, mirror_env):
-    resp = client.get(f"/api/v1/external/projects/{mirror_env['project_id']}/sku-info")
-    assert resp.status_code == 200
-    assert resp.headers.get("Deprecation") == "true"
-    assert resp.headers.get("Sunset") == "2026-11-01"
-    link = resp.headers.get("Link")
-    assert link == (
-        f"</api/v1/agent/projects/{mirror_env['project_id']}/sku-info>; "
-        'rel="successor-version"'
-    )
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/api/v1/external/projects",
+        "/api/v1/external/projects/1/ad-campaigns?period=7d&country=US",
+        "/api/v1/external/projects/1/inventory-ledger/months",
+        "/api/v1/external/projects/99999999/sku-info",
+    ],
+)
+def test_external_all_gone_410(client, url):
+    """V3：旧命名空间全部 410 Gone + Link 指向 /agent/* 对应路径。"""
+    resp = client.get(url)
+    assert resp.status_code == 410, f"{url}: got {resp.status_code}"
+    body = resp.json()
+    assert "下线" in body["detail"]
+    successor = body["successor"]
+    assert successor.startswith("/api/v1/agent")
+    link = resp.headers.get("Link") or ""
+    assert f"<{successor}>" in link
+    assert 'rel="successor-version"' in link
 
 
-def test_external_404_carries_deprecation_headers(client):
-    """BLF-416 修复点：middleware 让 404 也带头（路由注入 Response 头做不到）。"""
-    resp = client.get("/api/v1/external/projects/99999999/sku-info")
-    assert resp.status_code == 404
-    assert resp.headers.get("Deprecation") == "true"
-    assert resp.headers.get("Sunset") == "2026-11-01"
-    assert 'rel="successor-version"' in (resp.headers.get("Link") or "")
+def test_external_gone_successor_maps_same_suffix(client):
+    """410 successor 与请求路径同后缀（/external → /agent 前缀替换）。"""
+    resp = client.get("/api/v1/external/projects/42/ad-search-terms?period=30d")
+    assert resp.status_code == 410
+    assert resp.json()["successor"] == ("/api/v1/agent/projects/42/ad-search-terms")
