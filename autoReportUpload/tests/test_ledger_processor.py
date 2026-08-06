@@ -11,7 +11,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from processor import _persist_one_file, _find_sha256_duplicates
+from processor import (
+    _find_sha256_duplicates,
+    _persist_one_file,
+    _write_dedup_upload_log,
+    process_file,
+)
+from models import ReportUploadLog
 
 from test_ledger_recognition import (
     INVENTORY_LEDGER_DETAIL_HEADERS,
@@ -139,3 +145,105 @@ class TestLedgerSha256DuplicateDetection:
         assert len(ledger_dups) == 1
         assert ledger_dups[0]["report_type"] == "inventory_ledger_detail"
         assert ledger_dups[0]["row_count_total"] == 99
+
+
+class TestDedupUploadLogSourceFileId:
+    """重复日志的 source_file_id 只能写 A 表（analysis_source_files）主键。
+
+    回归 I1：L 表（inventory_ledger_ingest_batch）与 C 表（ad_upload_files）
+    的 source id 不是 analysis_source_files 的主键，写入
+    report_upload_logs.source_file_id 会触发外键 IntegrityError
+    （FK 指向 analysis_source_files.id，alembic 20260423_103）——
+    跨天重复重传时 db.commit() 抛异常逃出 process_file，轮询模式下
+    每轮中止该项目的其余文件。L/C 表重复必须写 None（无 FK 引用），
+    A 表重复保留原值（有效 FK）。
+    """
+
+    def _stub_db(self, *, project_id: int = 7) -> MagicMock:
+        db = MagicMock()
+        project_query = MagicMock()
+        project_query.scalars.return_value.first.return_value = MagicMock(id=project_id)
+        log_query = MagicMock()
+        log_query.scalars.return_value.first.return_value = None  # 今日尚无日志
+        db.execute.side_effect = [project_query, log_query]
+        return db
+
+    def _dup(self, *, table: str, report_type: str, source_id: int, row_count_total: int) -> dict:
+        return {
+            "project_id": 7,
+            "report_type": report_type,
+            "country": "US",
+            "source_id": source_id,
+            "row_count_total": row_count_total,
+            "table": table,
+        }
+
+    def test_ledger_batch_duplicate_writes_null_source_file_id(self):
+        """L 表重复（source 是批次 id）→ 日志行 source_file_id=None，不违反 FK。"""
+        db = self._stub_db()
+        _write_dedup_upload_log(
+            db, "库存分类账-2026-03详细视图.csv", "测试项目",
+            "inventory_ledger_detail", "US",
+            [self._dup(table="L", report_type="inventory_ledger_detail",
+                       source_id=555, row_count_total=99)],
+        )
+        log = db.add.call_args[0][0]
+        assert isinstance(log, ReportUploadLog)
+        assert log.source_file_id is None
+        assert log.row_count == 99
+        assert log.has_real_data is True
+        assert log.original_filename == "库存分类账-2026-03详细视图.csv"
+        db.commit.assert_called_once()
+
+    def test_ad_upload_duplicate_writes_null_source_file_id(self):
+        """C 表重复（source 是 ad_upload_files id）→ source_file_id=None。"""
+        db = self._stub_db()
+        _write_dedup_upload_log(
+            db, "广告-2026-03.csv", "测试项目",
+            "ad_placement_report", "US",
+            [self._dup(table="C", report_type="ad_placement_report",
+                       source_id=777, row_count_total=0)],
+        )
+        log = db.add.call_args[0][0]
+        assert isinstance(log, ReportUploadLog)
+        assert log.source_file_id is None
+        assert log.has_real_data is False
+
+    def test_a_table_duplicate_keeps_source_file_id(self):
+        """A 表重复（source 是 analysis_source_files id）→ 保留原值（有效 FK）。"""
+        db = self._stub_db()
+        _write_dedup_upload_log(
+            db, "payment.csv", "测试项目",
+            "payment_report", "US",
+            [self._dup(table="A", report_type="payment_report",
+                       source_id=42, row_count_total=50)],
+        )
+        log = db.add.call_args[0][0]
+        assert isinstance(log, ReportUploadLog)
+        assert log.source_file_id == 42
+
+
+class TestLedgerRecognitionErrorHandling:
+    """部分签名/冲突的库存分类账文件 → process_file 返回结构化失败，不抛异常。
+
+    回归 I2：共享 recognizer 对部分签名文件抛 LedgerRecognitionError，
+    process_file 必须将其转为 ProcessResult(success=False, reason=str(exc))，
+    否则异常逃出 run_cycle 的项目级 try，轮询模式每轮中止该项目的其余
+    文件且该文件永远重试。失败文件留在原地（与既有失败路径一致，不移动）。
+    """
+
+    def test_partial_signature_summary_returns_structured_failure(self, tmp_path):
+        """Summary 强特征列齐全但缺必填列 → 结构化失败，不抛异常。"""
+        headers = list(INVENTORY_LEDGER_SUMMARY_HEADERS)
+        headers.remove("Date")  # 保留 starting/ending warehouse balance 强特征，缺必填列
+        path = _write_csv(
+            tmp_path, "库存分类账 2026-03一览视图.csv",
+            headers, _INVENTORY_LEDGER_SUMMARY_ROW,
+        )
+        result = process_file(path, "测试项目", MagicMock(), dry_run=False)
+        assert result.success is False
+        assert result.skipped is False
+        assert "Summary" in result.error
+        assert "date" in result.error
+        assert result.reason == result.error
+        assert path.exists()  # 失败文件留在原地，等待人工处理（不移动、不删除）

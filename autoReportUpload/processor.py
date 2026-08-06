@@ -57,6 +57,7 @@ from app.services.ad.upload.utils import (
     _to_decimal as _ad_to_decimal,
 )
 from app.utils.country import normalize_country as _normalize_country
+from app.utils.recognition import LedgerRecognitionError
 from app.utils.parsers import classify_scope
 
 # Shared utilities from backend/app/utils/utils.py
@@ -224,7 +225,15 @@ def _write_dedup_upload_log(
     if matching_dup:
         has_real_data = matching_dup["row_count_total"] > 0
         row_count = matching_dup["row_count_total"]
-        source_file_id = matching_dup["source_id"]
+        # source_file_id 有 FK 指向 analysis_source_files.id（alembic
+        # 20260423_103）——只有 A 表重复的 source_id 是有效外键。C 表
+        # （ad_upload_files）与 L 表（inventory_ledger_ingest_batch）的
+        # source id 不是 analysis_source_files 主键，写进去会在 db.commit()
+        # 时抛 IntegrityError（跨天重复重传路径，异常逃出 process_file）。
+        # 这两类重复写 None（无 FK 引用），日志行与去重语义保持不变。
+        source_file_id = (
+            matching_dup["source_id"] if matching_dup.get("table") == "A" else None
+        )
     else:
         # No exact match — still write a log to mark today as processed
         has_real_data = False
@@ -307,7 +316,19 @@ def process_file(
     _task_id: str | None = None
 
     # 1. Recognize
-    result = recognize_file(db, file_path, original_filename=file_path.name, country="US")
+    try:
+        result = recognize_file(db, file_path, original_filename=file_path.name, country="US")
+    except LedgerRecognitionError as exc:
+        # 库存分类账部分签名/冲突是结构化识别失败：转为结构化 ProcessResult，
+        # 不抛给调用方（否则轮询模式下 run_cycle 的项目级 catch 每轮中止其余
+        # 文件、且该文件永远重试）。文件留在原地，与既有失败路径一致
+        # （不入库、不移动）。
+        return ProcessResult(
+            skipped=False,
+            success=False,
+            reason=str(exc),
+            error=str(exc),
+        )
     t1 = time.time()
 
     if result is None:
