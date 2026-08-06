@@ -1,6 +1,6 @@
 # Agent API · New Product Calculation（新品测算）API 实施规格（设计草案）
 
-> **状态**：**必要元素已定稿**（用户拍板 2026-08-06：4 种模式确认、`eu_accounting` 暂不纳入新品）；**API 讨论进行中**（① 路由骨架已确认，D3/D1/D2b/D4 待讨论；收敛后转定稿 → 开执行子 issue）。
+> **状态**：**必要元素已定稿**（用户拍板 2026-08-06：4 种模式确认、`eu_accounting` 暂不纳入新品）；**API 讨论进行中**（① 路由骨架 + ② D3 已拍板，③ D1/D2b/D4 待讨论；收敛后转定稿 → 开执行子 issue）。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（设计稿 v0.4）、[`docs/superpowers/specs/2026-08-05-agent-shop-calculation-api.md`](./2026-08-05-agent-shop-calculation-api.md)（店铺测算 spec 定稿，本 spec 的模板）、[`docs/superpowers/specs/2026-08-04-agent-readwrite-api-spec.md`](./2026-08-04-agent-readwrite-api-spec.md)（P0 基建 + P2 货件规格）、[`docs/external-api-ops-agent-roadmap.md`](../../external-api-ops-agent-roadmap.md)（全景图）。
 > **范围**：在 `/api/v1/agent/projects/{id}/new-product-calculations/*` 开放**新品测算（New Product Calculation）域**的读 + 写路由。**本 spec 只设计，不实施**（对齐 BLF-451 执行顺序：先定必要元素与 API 文档，再实施）。
 > **前提**：店铺测算域 6 路由（commit `90e2ee8f`）与 `project_scope` 准入（commit `d5241993`）**已合入 main**——新品域路由可直接复用 `require_project_scope` / confirm / 限流 / 响应壳 / `query_operation_audit_log_for_targets`，**无 Task 0 前置**。
@@ -210,7 +210,7 @@ class AgentNewProductCalculationComputeRequest(BaseModel):
     delivery_fee_usd: float = 0.0                   # fbm_calc
 ```
 
-响应（D3 待拍板，默认双字段）：
+响应（**D3 已拍板：双字段**）：
 
 ```json
 {
@@ -340,7 +340,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 | **D1** | **溯源列**：`new_product_calculations` 无 `source`/`observed_at` 列。A=加列（迁移，对齐店铺域，agent 写入声明采集渠道，快照行可溯源）；B=零迁移（溯源仅靠审计表，快照行无渠道标记） | **A（加列）**，与第一期"审计溯源"经验一致；若用户倾向零迁移则 B | A：一个迁移（加 2-3 列，含 `competitor_url` 可选）；B：W1 请求体不含 source 字段 |
 | **D2** | **测算模式范围**：4 种模式（profit_calc / profit_reverse / cost_reverse / fbm_calc）确认无误；`eu_accounting`（欧洲测算）**暂不纳入新品域** | **已拍板（用户 2026-08-06）**：范围 = 4 模式，EU 留店铺测算域 | spec 全篇按 4 模式定稿；C1 mode 枚举 4 种 |
 | **D2b** | **快照可存类型**：`cost_reverse`/`fbm_calc` 目前仅试算（UI 不存快照）；schema Literal 含 `eu_accounting`（EU 不纳入后可忽略）。是否允许 agent 把这 2 种模式也存为快照 | 待 API 讨论阶段定 | W1 `calculation_type` 白名单据此定；若可存则改 schema Literal（无迁移） |
-| **D3** | **/compute 返回形态**：A=双字段 `{calculation, snapshot}`（snapshot 直接可 confirm，agent 零字段映射）；B=单字段 `{calculation}`（agent 自行映射） | **A（双字段）**，对齐店铺域 D3 | §5.3 响应定格 |
+| **D3** | **/compute 返回形态**：A=双字段 `{calculation, snapshot}`（snapshot 直接可 confirm，agent 零字段映射）；B=单字段 `{calculation}`（agent 自行映射） | **已拍板 = A（双字段）**（用户 2026-08-06，对齐店铺域 D3） | §5.3 响应定格；snapshot 由路由层薄壳整形，agent 零字段映射 |
 | **D4** | **external 端点去留**：`/external/projects/{pid}/new-product-calculations` 已上线（无鉴权）。A=标记 deprecated 保留兼容期；B=随 R1 上线即停用 | **A（标记 deprecated）**，给存量消费者迁移缓冲 | 响应头 + 文档标注；停用走 BEL 侧协调 |
 | **D5** | **路由骨架（5 条）**：R1 列表 / R2 SKU 详情 / R3 审计 / W1 upsert（confirm）/ C1 试算（mode 覆盖 4 模式）；**无 history 路由**（upsert 表无历史）；C1 **4 模式全开**（新品是选品/规划语义，倒算与成本倒推是核心，对比店铺域只开 2 模式） | **已拍板（用户 2026-08-06）**：5 条 OK、无 history 合理、C1 4 模式全开 | spec §4 路由表定格；R3 审计可追溯全量 upsert（行 id 稳定） |
 
@@ -349,7 +349,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 ## 12. 执行前置（writing-plans 前确认）
 
 - [x] 测算模式范围拍板（用户 2026-08-06：4 模式，EU 不纳入新品）；必要元素已定稿（spec §2 + BLF-451 下 4 个按模式子 issue 承载）
-- [ ] API/路由/service 复用方案讨论（进行中：① 路由骨架已拍板，②③④ 待过）→ 收敛后本 spec 转定稿、开执行子 issue（路由 5 条 + 错误码 + 测试；如 D1=A 则含 1 个迁移）
+- [ ] API/路由/service 复用方案讨论（进行中：① 路由骨架 + ② D3 已拍板，③ D1/D2b/D4 待过，④ service 复用确认）→ 收敛后本 spec 转定稿、开执行子 issue（路由 5 条 + 错误码 + 测试；如 D1=A 则含 1 个迁移）
 - [ ] BEL-416 协调（external 端点 deprecated/停用）在 BEL 侧处理或备注指向本 spec
 - [ ] 仓库当前 main 已含：P2 货件域、店铺测算域 6 路由（`90e2ee8f`）、project_scope（`d5241993`）——本 spec 引用的复用函数均为真实存在的符号
 
@@ -357,6 +357,7 @@ NEW_PRODUCT_CALCULATION_INVALID_TYPE = "NEW_PRODUCT_CALCULATION_INVALID_TYPE"   
 
 ## 修订记录
 
+- **v0.4（2026-08-06）**：用户拍板 D3 = A 双字段 `/compute` 返回（对齐店铺域 D3）；§5.3 响应定格、§11 决策记录同步。
 - **v0.3（2026-08-06）**：用户拍板路由骨架（D5）——5 条 OK、无 history 合理、C1 4 模式全开；修正 R3 审计可追溯性（`_update_snapshot` 原地更新、行 id 稳定 → 审计可查全部 upsert 痕迹）；§4/§11/§12 同步。
 - **v0.2（2026-08-06）**：用户拍板——4 种模式确认、`eu_accounting` 暂不纳入新品域（D2 范围收敛）；必要元素 §2 转定稿；快照可存类型拆为 D2b 待 API 讨论；C1 mode 枚举改 4 种并移除 EU 专属字段；§0.2/§1.2/§3/§4/§6.2/§8/§10/§11/§12 同步。
 - **v0.1（2026-08-06）**：BLF-451 产出。review 两个前置 issue + 新品测算现状核实（4 模式 + 引擎第 5 种 EU；upsert 存储语义；external 端点已上线）；定稿必要元素 6 层 + 模式矩阵；按元素所有权/写语义分类 3 个 API 家族；路由表 5 条 + schema + confirm + 错误码 + 权限 + 测试清单；D1-D4 待拍板。
