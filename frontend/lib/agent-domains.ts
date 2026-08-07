@@ -42,9 +42,9 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   {
     code: 'return_analysis',
     label: '退货分析',
-    description: '退货/客诉归因（ASIN 维度），roadmap L1 待迁移',
-    status: 'planned',
-    routeCount: 0,
+    description: '退货/客诉归因：全量分析/per-SKU 风险清单/raw 事件/覆盖度',
+    status: 'live',
+    routeCount: 5,
     capabilities: { read: true, write: false },
   },
   {

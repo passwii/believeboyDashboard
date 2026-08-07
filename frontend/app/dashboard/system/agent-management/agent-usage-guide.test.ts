@@ -80,11 +80,27 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('/shipments?page_size=20')
   })
 
-  it('未知域输出占位说明', () => {
+  it('domain=return_analysis 输出退货分析示例（BLF-474）', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
       agentId: 'agent-1',
       domain: 'return_analysis',
+    })
+    expect(text).toContain('退货分析')
+    expect(text).toContain('/return-analysis/overview')
+    expect(text).toContain('/return-analysis?period=30d')
+    expect(text).toContain('/return-analysis-raw')
+    expect(text).toContain('/return-analysis/skus/{sku}')
+    expect(text).toContain('/return-analysis/coverage')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
+  it('未知域输出占位说明', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'mystery_domain',
     })
     expect(text).toContain('尚未接入 Agent API')
   })

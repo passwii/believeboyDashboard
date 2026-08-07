@@ -77,11 +77,18 @@ describe('formatBusinessScope', () => {
 })
 
 describe('AGENT_DOMAINS 注册表', () => {
-  it('live 域包含 shipments 与 shop_calculations', () => {
+  it('live 域包含 shipments、shop_calculations 与 return_analysis', () => {
     const live = liveAgentDomains()
     expect(live.map((d) => d.code)).toEqual(
-      expect.arrayContaining(['shipments', 'shop_calculations'])
+      expect.arrayContaining(['shipments', 'shop_calculations', 'return_analysis'])
     )
+  })
+
+  it('return_analysis 已翻 live 且 routeCount=5（BLF-474）', () => {
+    const domain = getAgentDomain('return_analysis')
+    expect(domain?.status).toBe('live')
+    expect(domain?.routeCount).toBe(5)
+    expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
   it('注册表有规划中域（roadmap 待迁移）', () => {
