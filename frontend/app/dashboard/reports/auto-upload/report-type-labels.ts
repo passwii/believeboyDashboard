@@ -27,18 +27,18 @@ export function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): s
   return REPORT_UPLOAD_REPORT_TYPE_LABELS[type] ?? type
 }
 
-/** RPA 状态矩阵列定义（key 与后端 status 的 report_type 对齐）。 */
+/** RPA 状态矩阵列定义（key 与后端 status 的 report_type 对齐）。
+ * 注意：库存分类账（inventory_ledger_summary / inventory_ledger_detail）不在此页面展示（BLF-482）。 */
 export const REPORT_TYPES: Array<{ key: string; label: string; active: boolean }> = [
   { key: 'inventory_report', label: '库存', active: true },
-  { key: 'inventory_ledger_summary', label: '汇总', active: true },
-  { key: 'inventory_ledger_detail', label: '明细', active: true },
   { key: 'business_report', label: '业务', active: true },
   { key: 'sales_report', label: '销售', active: true },
   { key: 'payment_report', label: '付款', active: true },
   { key: 'return_report', label: '退货', active: true },
+  // 广告相关列统一加「广告-」前缀（BLF-482），与销售列区分
   ...AD_REPORT_TYPES.map((item) => ({
     key: item.type,
-    label: item.short,
+    label: `广告-${item.short}`,
     active: true,
   })),
   { key: 'storage_report', label: '仓储', active: false },

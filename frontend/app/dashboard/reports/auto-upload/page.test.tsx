@@ -110,18 +110,22 @@ describe('REPORT_UPLOAD_REPORT_TYPE_LABELS', () => {
 })
 
 describe('REPORT_TYPES（RPA 状态矩阵）', () => {
-  it('包含两个独立类型，短标签为 汇总/明细 且 active', () => {
+  it('不含库存分类账两类视图（BLF-482 已移除）', () => {
     const keys = REPORT_TYPES.map((rt) => rt.key)
-    expect(keys).toContain('inventory_ledger_summary')
-    expect(keys).toContain('inventory_ledger_detail')
-    expect(REPORT_TYPES.find((rt) => rt.key === 'inventory_ledger_summary')).toMatchObject({
-      label: '汇总',
-      active: true,
-    })
-    expect(REPORT_TYPES.find((rt) => rt.key === 'inventory_ledger_detail')).toMatchObject({
-      label: '明细',
-      active: true,
-    })
+    expect(keys).not.toContain('inventory_ledger_summary')
+    expect(keys).not.toContain('inventory_ledger_detail')
+  })
+
+  it('广告相关列从「词份额」到「时间效果」统一加「广告-」前缀（BLF-482）', () => {
+    const adEntries = REPORT_TYPES.filter((rt) =>
+      rt.key.startsWith('ad_')
+    )
+    expect(adEntries.length).toBeGreaterThan(0)
+    for (const entry of adEntries) {
+      expect(entry.label.startsWith('广告-')).toBe(true)
+    }
+    expect(REPORT_TYPES.find((rt) => rt.key === 'ad_search_term_share_report')?.label).toBe('广告-词份额')
+    expect(REPORT_TYPES.find((rt) => rt.key === 'ad_time_trend_report')?.label).toBe('广告-时间效果')
   })
 
   it('不把旧版 inventory_ledger 作为可展示列', () => {
@@ -159,11 +163,20 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
     expect(screen.queryByText('类型：inventory_ledger_summary')).not.toBeInTheDocument()
   })
 
-  it('RPA 状态矩阵渲染 汇总/明细 两个新列', async () => {
+  it('RPA 状态矩阵不再渲染 库存分类账 汇总/明细 两列（BLF-482）', async () => {
     render(<AutoUploadPage />)
 
-    expect(await screen.findByText('汇总')).toBeInTheDocument()
-    expect(screen.getByText('明细')).toBeInTheDocument()
+    await screen.findByText('销售')
+    expect(screen.queryByText('汇总')).not.toBeInTheDocument()
+    expect(screen.queryByText('明细')).not.toBeInTheDocument()
+  })
+
+  it('RPA 状态矩阵广告列渲染「广告-」前缀表头', async () => {
+    render(<AutoUploadPage />)
+
+    expect(await screen.findByText('广告-词份额')).toBeInTheDocument()
+    expect(screen.getByText('广告-时间效果')).toBeInTheDocument()
+    expect(screen.queryByText('词份额')).not.toBeInTheDocument()
   })
 
   it('上传成功后队列展示入库行数（rows_ingested 结构化字段）', async () => {
