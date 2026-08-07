@@ -111,6 +111,28 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=inventory_ledger 输出库存台账示例（BLF-485）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'inventory_ledger',
+    })
+    expect(text).toContain('库存台账')
+    expect(text).toContain('/inventory-ledger/months')
+    expect(text).toContain('/inventory-ledger/snapshot?period=last_month')
+    expect(text).toContain('/inventory-ledger/events?period=2026-06')
+    expect(text).toContain('/inventory-ledger/receipt-clusters?period=30d')
+    expect(text).toContain('/inventory-ledger/integrity?period=last_month')
+    expect(text).toContain('/inventory-ledger/trend?months=6')
+    expect(text).toContain('/inventory-ledger/detail?period=2026-06')
+    expect(text).toContain('/inventory-ledger/summary?period=2026-06')
+    expect(text).toContain('/inventory-ledger/batches?limit=20')
+    expect(text).toContain('/inventory-ledger/consistency?period=last_month')
+    expect(text).toContain('period=custom')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

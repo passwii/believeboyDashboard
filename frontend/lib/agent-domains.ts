@@ -66,9 +66,9 @@ export const AGENT_DOMAINS: AgentDomain[] = [
   {
     code: 'inventory_ledger',
     label: '库存台账',
-    description: '库存台账/补货分析/主数据',
-    status: 'planned',
-    routeCount: 0,
+    description: '月度盘点/事件/收货簇/完整性/趋势（Detailed + Summary 视图）',
+    status: 'live',
+    routeCount: 10,
     capabilities: { read: true, write: false },
   },
   {

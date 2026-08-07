@@ -104,6 +104,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
+  it('inventory_ledger 已翻 live 且 routeCount=10、纯读（BLF-485）', () => {
+    const domain = getAgentDomain('inventory_ledger')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('库存台账')
+    expect(domain?.routeCount).toBe(10)
+    expect(domain?.capabilities).toEqual({ read: true, write: false })
+  })
+
   it('注册表有规划中域（roadmap 待迁移）', () => {
     expect(AGENT_DOMAINS.some((d) => d.status === 'planned')).toBe(true)
   })
