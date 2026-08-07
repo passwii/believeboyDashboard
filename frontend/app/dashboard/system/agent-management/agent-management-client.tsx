@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -17,6 +16,23 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { EmptyTableState } from '@/components/ui/empty-state'
+import {
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+} from '@/components/ui/data-card'
+import { StatusPill, type TableStatus } from '@/components/ui/table-presets'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -69,18 +85,14 @@ function getKeyStatus(item: AgentApiKeyItem): KeyStatus {
   return 'active'
 }
 
-const STATUS_META: Record<KeyStatus, { label: string; badgeClassName?: string; badgeVariant?: 'secondary' }> = {
-  active: {
-    label: '激活',
-    badgeClassName:
-      'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  },
-  inactive: { label: '停用', badgeVariant: 'secondary' },
-  expired: {
-    label: '已过期',
-    badgeClassName: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  },
-  deleted: { label: '已删除', badgeVariant: 'secondary' },
+const STATUS_META: Record<
+  KeyStatus,
+  { label: string; pill: TableStatus; lineThrough?: boolean }
+> = {
+  active: { label: '激活', pill: 'success' },
+  inactive: { label: '停用', pill: 'neutral' },
+  expired: { label: '已过期', pill: 'warning' },
+  deleted: { label: '已删除', pill: 'neutral', lineThrough: true },
 }
 
 /** 把后端 project_scope 值格式化成可读文案（* = 全部项目；否则映射项目名）。 */
@@ -421,14 +433,23 @@ export function AgentManagementClient() {
   }, [keys])
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold flex items-center gap-2">
-          <KeyRound className="h-5 w-5" />
-          Agent 接入管理
-        </h1>
+    <div className="w-full space-y-6">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（FRONTEND-DESIGN-SPEC §4.1） ── */}
+      <section className="flex flex-wrap items-start justify-between gap-5">
+        <div className="max-w-2xl space-y-3">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <KeyRound className="h-3.5 w-3.5" />
+            系统管理 · Agent 接入
+          </p>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Agent 接入管理</h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              管理 Agent 凭据生命周期（创建 / 停用 / 激活 / 删除）与项目、业务域访问范围。
+            </p>
+          </div>
+        </div>
         <Button onClick={() => setCreateOpen(true)}>创建凭据</Button>
-      </div>
+      </section>
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
@@ -452,11 +473,12 @@ export function AgentManagementClient() {
 
         {/* ── Tab 1 业务域概览 ─────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-6 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>业务域接入一览</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <DataTableCard>
+            <DataTableCardHeader
+              title="业务域接入一览"
+              description="各业务域的 Agent API 接入状态与已授权凭据数"
+            />
+            <DataTableCardBody className="p-5">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {domainStats.map(({ domain, keyCount }) => (
                   <div
@@ -498,18 +520,23 @@ export function AgentManagementClient() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </DataTableCardBody>
+          </DataTableCard>
         </TabsContent>
 
         {/* ── Tab 2 凭据管理 ───────────────────────────────────────── */}
-        <TabsContent value="credentials" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                凭据列表
-                <span className="ml-auto flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
+        <TabsContent value="credentials" className="mt-6 space-y-4">
+          <DataTableCard>
+            <DataTableCardHeader>
+              <div className="flex w-full flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <h2 className="text-base font-semibold leading-none text-foreground">凭据列表</h2>
+                  <p className="text-sm text-muted-foreground">
+                    管理 Agent 凭据的生命周期状态与项目 / 业务域权限范围
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
                     <input
                       type="checkbox"
                       checked={includeDeleted}
@@ -533,7 +560,7 @@ export function AgentManagementClient() {
                   <select
                     value={domainFilter}
                     onChange={(e) => setDomainFilter(e.target.value)}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     aria-label="按业务域筛选"
                   >
                     <option value="all">全部业务域</option>
@@ -543,71 +570,65 @@ export function AgentManagementClient() {
                       </option>
                     ))}
                   </select>
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+                </div>
+              </div>
+            </DataTableCardHeader>
+            <DataTableCardBody>
               {loading ? (
-                <div className="flex justify-center py-8">
+                <div className="flex justify-center py-10">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">名称</th>
-                      <th className="py-2 pr-4 font-medium">Key 前缀</th>
-                      <th className="py-2 pr-4 font-medium">Agent</th>
-                      <th className="py-2 pr-4 font-medium">项目范围</th>
-                      <th className="py-2 pr-4 font-medium">业务域范围</th>
-                      <th className="py-2 pr-4 font-medium">最近使用</th>
-                      <th className="py-2 pr-4 font-medium">状态</th>
-                      <th className="py-2 font-medium">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[170px]">名称</TableHead>
+                      <TableHead>Key 前缀</TableHead>
+                      <TableHead>Agent</TableHead>
+                      <TableHead>项目范围</TableHead>
+                      <TableHead>业务域范围</TableHead>
+                      <TableHead>最近使用</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead className="w-[160px]">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {filteredKeys.map((item) => {
                       const status = getKeyStatus(item)
                       const statusMeta = STATUS_META[status]
                       return (
-                        <tr key={item.id} className="border-b last:border-0">
-                          <td className="py-2 pr-4">{item.label}</td>
-                          <td className="py-2 pr-4 font-mono text-xs">
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.label}</TableCell>
+                          <TableCell className="font-mono text-xs">
                             {item.key_prefix}…
-                          </td>
-                          <td className="py-2 pr-4">
+                          </TableCell>
+                          <TableCell>
                             {item.agent_id ? (
                               <code className="font-mono text-xs">{item.agent_id}</code>
                             ) : (
                               <span className="text-muted-foreground">—（未绑定）</span>
                             )}
-                          </td>
-                          <td className="py-2 pr-4">
+                          </TableCell>
+                          <TableCell>
                             {formatProjectScope(item.project_scope, projects)}
-                          </td>
-                          <td className="py-2 pr-4">
+                          </TableCell>
+                          <TableCell>
                             {formatBusinessScope(item.business_scope)}
-                          </td>
-                          <td className="py-2 pr-4 text-muted-foreground">
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
                             {item.last_used_at
                               ? new Date(item.last_used_at).toLocaleString()
                               : '从未使用'}
-                          </td>
-                          <td className="py-2 pr-4">
-                            {statusMeta.badgeVariant ? (
-                              <Badge
-                                variant="secondary"
-                                className={status === 'deleted' ? 'line-through' : undefined}
-                              >
-                                {statusMeta.label}
-                              </Badge>
-                            ) : (
-                              <Badge className={statusMeta.badgeClassName}>
-                                {statusMeta.label}
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="py-2">
+                          </TableCell>
+                          <TableCell>
+                            <StatusPill
+                              status={statusMeta.pill}
+                              label={statusMeta.label}
+                              dot={status !== 'deleted'}
+                              className={statusMeta.lineThrough ? 'line-through' : undefined}
+                            />
+                          </TableCell>
+                          <TableCell>
                             {status === 'deleted' ? null : (
                               <div className="flex items-center gap-1">
                                 <Button
@@ -647,22 +668,18 @@ export function AgentManagementClient() {
                                 </Button>
                               </div>
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       )
                     })}
                     {filteredKeys.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                          暂无凭据
-                        </td>
-                      </tr>
+                      <EmptyTableState colSpan={8} message="暂无凭据" />
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               )}
-            </CardContent>
-          </Card>
+            </DataTableCardBody>
+          </DataTableCard>
         </TabsContent>
 
         {/* ── Tab 3 调用指南 ───────────────────────────────────────── */}
@@ -767,25 +784,24 @@ export function AgentManagementClient() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div>
+              <div className="space-y-1.5">
                 <label htmlFor="agent-key-label" className="text-sm font-medium">
                   名称
                 </label>
-                <input
+                <Input
                   id="agent-key-label"
-                  className="mt-1 w-full rounded border bg-background p-2 text-sm"
                   placeholder="如：货件助理 (生产)"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                 />
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <label htmlFor="agent-key-agent-id" className="text-sm font-medium">
                   Agent ID
                 </label>
-                <input
+                <Input
                   id="agent-key-agent-id"
-                  className="mt-1 w-full rounded border bg-background p-2 text-sm font-mono"
+                  className="font-mono"
                   placeholder="如：shipment-assistant-prod"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
@@ -850,13 +866,12 @@ export function AgentManagementClient() {
           </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              <div>
+              <div className="space-y-1.5">
                 <label htmlFor="edit-agent-key-label" className="text-sm font-medium">
                   名称
                 </label>
-                <input
+                <Input
                   id="edit-agent-key-label"
-                  className="mt-1 w-full rounded border bg-background p-2 text-sm"
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
                 />

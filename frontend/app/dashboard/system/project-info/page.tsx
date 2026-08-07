@@ -15,7 +15,6 @@ import { useSession } from 'next-auth/react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -27,7 +26,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import { EmptyState } from '@/components/ui/empty-state'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -41,6 +40,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { StatusPill } from '@/components/ui/table-presets'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  STICKY_TOP_ROW,
+} from '@/components/ui/table'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { ProjectContextDrawer } from '@/components/dashboard/project-context/project-context-drawer'
@@ -97,10 +106,10 @@ const TIER_OPTIONS = [
 const TIER_LABEL: Record<string, string> = { T1: 'T1', T2: 'T2', T3: 'T3', T4: 'T4' }
 
 const TIER_BADGE_CLASS: Record<string, string> = {
-  T1: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-red-200 dark:border-red-800',
-  T2: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-  T3: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-  T4: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-400 border-slate-200 dark:border-slate-800',
+  T1: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300',
+  T2: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  T3: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  T4: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
 }
 
 function parseOperatorNames(value: string | null): string[] {
@@ -529,11 +538,14 @@ export default function StoreInfoPage() {
         </div>
 
         <TabsContent value="basic" className="flex-1 mt-0">
-          <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80 shadow-[0_20px_40px_-22px_rgba(15,23,42,0.22)] dark:border-border/80 dark:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.45)]">
+          <DataTableCard className="h-full flex flex-col overflow-hidden border-border/80">
             <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex min-w-0 flex-col gap-1">
-                <Badge variant="outline" className="w-fit rounded-md">
-                  数据管理
+                <Badge
+                  variant="outline"
+                  className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                >
+                  系统管理 · 项目资料
                 </Badge>
                 <p className="text-sm text-muted-foreground">
                   维护项目主数据，支持单个新增与项目信息编辑。
@@ -766,125 +778,85 @@ export default function StoreInfoPage() {
               </div>
             </DataTableCardHeader>
             <DataTableCardBody className="flex-1 min-h-0">
-              <div className="h-full overflow-auto relative">
+              <div className="relative h-full overflow-auto">
                 <RefreshProgressBar refreshing={isRefreshing}>
-                  <table className="w-full border-separate border-spacing-0 caption-bottom text-sm">
-                    <thead className="[&_tr]:border-b-0">
-                      <tr className="border-b border-border/70 shadow-sm">
-                        <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          ID
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          项目名称
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          品牌名称
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          运营
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          助理运营
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          佣金方式
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          佣金点数
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 w-[120px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          店铺地址
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          状态
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 w-[80px] border-b border-r border-border/60 bg-background px-4 text-left align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          项目等级
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 w-[140px] border-b border-border/60 bg-background px-4 text-center align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          排序
-                        </th>
-                        <th className="sticky top-0 z-20 h-12 w-[100px] border-b border-border/60 bg-background px-4 text-right align-middle font-medium text-muted-foreground dark:bg-[hsl(var(--surface-panel))]">
-                          操作
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="[&_tr:last-child]:border-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className={STICKY_TOP_ROW}>
+                        <TableHead className="w-[80px]">ID</TableHead>
+                        <TableHead>项目名称</TableHead>
+                        <TableHead>品牌名称</TableHead>
+                        <TableHead>运营</TableHead>
+                        <TableHead>助理运营</TableHead>
+                        <TableHead>佣金方式</TableHead>
+                        <TableHead>佣金点数</TableHead>
+                        <TableHead className="w-[120px]">店铺地址</TableHead>
+                        <TableHead className="w-[80px]">状态</TableHead>
+                        <TableHead className="w-[80px]">项目等级</TableHead>
+                        <TableHead className="w-[140px] text-center">排序</TableHead>
+                        <TableHead className="w-[100px] text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {showSkeleton ? (
                         Array.from({ length: 6 }).map((_, index) => (
-                          <tr
-                            key={`skeleton-${index}`}
-                            className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]"
-                          >
-                            <td colSpan={13} className="p-4 align-middle">
+                          <TableRow key={`skeleton-${index}`}>
+                            <TableCell colSpan={13} className="p-4">
                               <Skeleton className="h-6 w-full" />
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))
                       ) : items.length === 0 ? (
-                        <EmptyState colSpan={13} message="暂无项目数据，请先新增一个项目。" />
+                        <EmptyTableState colSpan={13} message="暂无项目数据，请先新增一个项目。" />
                       ) : (
                         items.map((item) => (
-                          <tr
-                            key={item.id}
-                            className="border-b transition-colors hover:bg-muted/50 dark:hover:bg-[hsl(var(--surface-strong)/0.35)]"
-                          >
-                            <td className="border-b border-r border-border/60 p-4 align-middle text-muted-foreground">
-                              {item.id}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
+                          <TableRow key={item.id}>
+                            <TableCell className="text-muted-foreground">{item.id}</TableCell>
+                            <TableCell>
                               <div className="flex items-center gap-2">
                                 {item.has_context && (
                                   <span
-                                    className="h-2 w-2 shrink-0 rounded-full bg-green-500"
+                                    className="h-2 w-2 shrink-0 rounded-full bg-[hsl(var(--data-positive))]"
                                     title="已配置项目背景"
                                   />
                                 )}
-                                <span className="font-medium text-foreground truncate">
+                                <span className="truncate font-medium text-foreground">
                                   {item.name}
                                 </span>
                               </div>
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
-                              {item.brand_name || '-'}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">
+                            </TableCell>
+                            <TableCell>{item.brand_name || '-'}</TableCell>
+                            <TableCell className="whitespace-pre-wrap break-words">
                               {item.project_operator || '-'}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle whitespace-pre-wrap break-words">
+                            </TableCell>
+                            <TableCell className="whitespace-pre-wrap break-words">
                               {item.assistant_operator || '-'}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
+                            </TableCell>
+                            <TableCell>
                               {item.commission_basis
                                 ? (COMMISSION_BASIS_LABEL[item.commission_basis] ??
                                   item.commission_basis)
                                 : '-'}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
+                            </TableCell>
+                            <TableCell className="tabular-nums">
                               {item.commission_basis === 'cash_received'
                                 ? '阶梯(7/10/13/15%)'
                                 : (toCommissionPoints(item.commission_rate) ?? '-')}
-                            </td>
-                            <td
-                              className="border-b border-r border-border/60 p-4 align-middle max-w-[120px] truncate"
+                            </TableCell>
+                            <TableCell
+                              className="max-w-[120px] truncate"
                               title={item.store_address || ''}
                             >
                               {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
-                              <Badge
-                                variant={item.is_active ? 'default' : 'secondary'}
-                                className={cn(
-                                  'text-xs font-medium',
-                                  item.is_active
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800'
-                                    : 'bg-muted text-muted-foreground'
-                                )}
-                              >
-                                {item.is_active ? '启用' : '停用'}
-                              </Badge>
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
+                            </TableCell>
+                            <TableCell>
+                              {item.is_active ? (
+                                <StatusPill status="success" label="启用" />
+                              ) : (
+                                <StatusPill status="neutral" label="停用" />
+                              )}
+                            </TableCell>
+                            <TableCell>
                               {item.project_tier ? (
                                 <Badge
                                   variant="outline"
@@ -899,8 +871,8 @@ export default function StoreInfoPage() {
                               ) : (
                                 <span className="text-xs text-muted-foreground">-</span>
                               )}
-                            </td>
-                            <td className="border-b border-r border-border/60 p-4 align-middle">
+                            </TableCell>
+                            <TableCell>
                               <div className="flex items-center justify-center gap-1">
                                 <Button
                                   type="button"
@@ -927,8 +899,8 @@ export default function StoreInfoPage() {
                                   <ChevronDown className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </td>
-                            <td className="border-b border-border/60 p-4 align-middle text-right">
+                            </TableCell>
+                            <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 <Button
                                   type="button"
@@ -953,12 +925,12 @@ export default function StoreInfoPage() {
                                   <PencilLine className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))
                       )}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </RefreshProgressBar>
               </div>
             </DataTableCardBody>

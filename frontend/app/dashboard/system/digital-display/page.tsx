@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { Monitor, RefreshCw, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   AreaChart,
   Area,
   XAxis,
@@ -123,7 +129,7 @@ function KpiCard({
   change?: string
 }) {
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5 text-center">
+    <div className="dashboard-surface p-5 text-center">
       <p className={cn('text-5xl font-bold tabular-nums', accent)}>{value}</p>
       <p className="mt-1 text-lg font-medium text-muted-foreground">{label}</p>
       {sub && <p className="mt-0.5 text-sm text-muted-foreground/60">{sub}</p>}
@@ -144,7 +150,7 @@ function BigKpiCard({
   accent?: string
 }) {
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-6 text-center">
+    <div className="dashboard-surface p-6 text-center">
       <p className={cn('text-7xl font-bold tabular-nums', accent)}>{value}</p>
       <p className="mt-2 text-2xl font-semibold text-muted-foreground">{label}</p>
       {sub && <p className="mt-1 text-lg text-muted-foreground/60">{sub}</p>}
@@ -154,7 +160,7 @@ function BigKpiCard({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5">
+    <div className="dashboard-surface p-5">
       <h3 className="mb-4 text-xl font-semibold text-muted-foreground">{title}</h3>
       {children}
     </div>
@@ -259,7 +265,7 @@ export default function DigitalDisplayPage() {
       {/* ── Header ── */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Monitor className="h-8 w-8 text-[#676cc3]" />
+          <Monitor className="h-8 w-8 text-[hsl(var(--primary))]" />
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
               {displayData?.project_name ?? '数字大屏'}
@@ -271,38 +277,29 @@ export default function DigitalDisplayPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Project selector */}
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowProjectMenu((v) => !v)}
-              className="gap-2"
-            >
-              {selectedProject?.project_name ?? '选择项目'}
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-            {showProjectMenu && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border bg-popover p-1 shadow-lg">
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    className={cn(
-                      'flex w-full items-center rounded-lg px-3 py-2 text-sm hover:bg-accent',
-                      p.id === selectedProjectId && 'bg-accent'
-                    )}
-                    onClick={() => {
-                      setSelectedProjectId(p.id)
-                      localStorage.setItem('digital-display-project', String(p.id))
-                      setShowProjectMenu(false)
-                    }}
-                  >
-                    {p.project_name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* 项目选择（DropdownMenu） */}
+          <DropdownMenu open={showProjectMenu} onOpenChange={setShowProjectMenu}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                {selectedProject?.project_name ?? '选择项目'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {projects.map((p) => (
+                <DropdownMenuItem
+                  key={p.id}
+                  onSelect={() => {
+                    setSelectedProjectId(p.id)
+                    localStorage.setItem('digital-display-project', String(p.id))
+                    setShowProjectMenu(false)
+                  }}
+                >
+                  {p.project_name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Refresh countdown */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -436,7 +433,7 @@ export default function DigitalDisplayPage() {
           {/* ── Bottom row: Inventory + Shipment + Ads ── */}
           <div className="grid grid-cols-4 gap-4">
             {/* Inventory */}
-            <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5">
+            <div className="dashboard-surface p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">库存概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -463,7 +460,7 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Shipment */}
-            <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5">
+            <div className="dashboard-surface p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">发货在途</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -482,7 +479,7 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Return */}
-            <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5">
+            <div className="dashboard-surface p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">退货概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
@@ -519,7 +516,7 @@ export default function DigitalDisplayPage() {
             </div>
 
             {/* Ads */}
-            <div className="rounded-2xl border border-[hsl(var(--border)/0.72)] bg-[hsl(var(--surface-panel))] p-5">
+            <div className="dashboard-surface p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">广告数据</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
