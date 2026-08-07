@@ -59,3 +59,8 @@ class AgentApiKey(Base):
     business_scope: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="*"
     )
+    # 软删除 tombstone（BLF-468）：保留审计轨迹，鉴权判定 not_found 在
+    # revoked 之前——已删除 Key 永不认证，即使 is_revoked 被误置回。
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

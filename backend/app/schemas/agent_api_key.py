@@ -56,10 +56,26 @@ class ApiKeyItem(BaseModel):
     expires_at: datetime | None
     created_at: datetime
     last_used_at: datetime | None
+    # 软删除 tombstone（BLF-468）；默认列表隐藏，``?include_deleted=true`` 全量
+    deleted_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ApiKeyRevokeResponse(BaseModel):
+    id: int
+    is_revoked: bool
+
+
+class ApiKeyDeactivateResponse(BaseModel):
+    """``POST .../{id}/deactivate`` 响应（BLF-468，``/revoke`` 兼容别名）。"""
+
+    id: int
+    is_revoked: bool
+
+
+class ApiKeyActivateResponse(BaseModel):
+    """``POST .../{id}/activate`` 响应（BLF-468）。"""
+
     id: int
     is_revoked: bool

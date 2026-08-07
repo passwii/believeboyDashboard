@@ -3372,6 +3372,25 @@
         "title": "AnnualProgressItem",
         "type": "object"
       },
+      "ApiKeyActivateResponse": {
+        "description": "``POST .../{id}/activate`` 响应（BLF-468）。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_revoked": {
+            "title": "Is Revoked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "is_revoked"
+        ],
+        "title": "ApiKeyActivateResponse",
+        "type": "object"
+      },
       "ApiKeyCreateRequest": {
         "properties": {
           "agent_id": {
@@ -3508,6 +3527,25 @@
         "title": "ApiKeyCreateResponse",
         "type": "object"
       },
+      "ApiKeyDeactivateResponse": {
+        "description": "``POST .../{id}/deactivate`` 响应（BLF-468，``/revoke`` 兼容别名）。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_revoked": {
+            "title": "Is Revoked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "is_revoked"
+        ],
+        "title": "ApiKeyDeactivateResponse",
+        "type": "object"
+      },
       "ApiKeyItem": {
         "properties": {
           "agent_id": {
@@ -3529,6 +3567,18 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
           },
           "expires_at": {
             "anyOf": [
@@ -60250,6 +60300,18 @@
         "operationId": "list_api_keys_api_v1_internal_api_keys_get",
         "parameters": [
           {
+            "description": "BLF-468：默认隐藏已删除 Key；true 返回全量（审计/回溯）。",
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "BLF-468：默认隐藏已删除 Key；true 返回全量（审计/回溯）。",
+              "title": "Include Deleted",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "header",
             "name": "X-Is-Admin",
             "required": false,
@@ -60375,8 +60437,257 @@
         ]
       }
     },
+    "/api/v1/internal/api-keys/{key_id}": {
+      "delete": {
+        "description": "软删除 Key（BLF-468，幂等）。\n\n鉴权加固：已删除 Key 在 ``resolve_key`` / ``resolve_key_for_agent`` 中\n判定为 ``not_found``，先于 revoked——防止删除后被误激活复活。",
+        "operationId": "delete_api_key_api_v1_internal_api_keys__key_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Api Key",
+        "tags": [
+          "internal-api-keys"
+        ]
+      }
+    },
+    "/api/v1/internal/api-keys/{key_id}/activate": {
+      "post": {
+        "description": "激活 Key（BLF-468）—— 取消停用，恢复访问权限。已删除 Key 不可激活。",
+        "operationId": "activate_api_key_api_v1_internal_api_keys__key_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyActivateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Api Key",
+        "tags": [
+          "internal-api-keys"
+        ]
+      }
+    },
+    "/api/v1/internal/api-keys/{key_id}/deactivate": {
+      "post": {
+        "description": "停用 Key（BLF-468；与 ``/revoke`` 同语义，前端主路径）。",
+        "operationId": "deactivate_api_key_api_v1_internal_api_keys__key_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyDeactivateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deactivate Api Key",
+        "tags": [
+          "internal-api-keys"
+        ]
+      }
+    },
     "/api/v1/internal/api-keys/{key_id}/revoke": {
       "post": {
+        "description": "兼容别名：BLF-468 前端走 ``/deactivate``，老客户端仍可用。",
         "operationId": "revoke_api_key_api_v1_internal_api_keys__key_id__revoke_post",
         "parameters": [
           {

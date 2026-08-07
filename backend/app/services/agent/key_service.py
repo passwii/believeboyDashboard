@@ -86,6 +86,10 @@ def resolve_key_for_agent(
     返回前将 row ``expunge`` 成 detached 快照（列属性已加载）——caller 关闭
     会话后仍可安全读 ``verdict.key``；stamp 先 flush 进当前事务，
     commit/rollback 仍由 caller 决定。
+
+    判定顺序（BLF-468）：``not_found → deleted → revoked → expired →
+    agent_mismatch``。已删除 Key 落入 ``not_found``（无认证机会），且
+    先于 revoked 判定——防止删除后被误激活的 Key 复活认证。
     """
     now = now or datetime.now(timezone.utc)
     row = db.scalars(
@@ -93,6 +97,10 @@ def resolve_key_for_agent(
     ).first()
     if row is None:
         return AgentKeyVerdict(status="not_found")
+    # 已删除 Key 永不认证（BLF-468），先于 revoked 判定
+    if row.deleted_at is not None:
+        db.expunge(row)
+        return AgentKeyVerdict(status="not_found", key=row)
     if row.is_revoked:
         db.expunge(row)
         return AgentKeyVerdict(status="revoked", key=row)
@@ -156,9 +164,16 @@ def create_api_key(
     return record, plaintext
 
 
-def list_api_keys(db: Session) -> list[AgentApiKey]:
-    """All keys, newest first (admin list view)."""
-    return list(db.scalars(select(AgentApiKey).order_by(AgentApiKey.created_at.desc())))
+def list_api_keys(db: Session, *, include_deleted: bool = False) -> list[AgentApiKey]:
+    """All keys, newest first (admin list view).
+
+    BLF-468：默认隐藏已删除 Key（``deleted_at IS NOT NULL``）；传
+    ``include_deleted=True`` 审计/回溯全量。
+    """
+    stmt = select(AgentApiKey).order_by(AgentApiKey.created_at.desc())
+    if not include_deleted:
+        stmt = stmt.where(AgentApiKey.deleted_at.is_(None))
+    return list(db.scalars(stmt))
 
 
 def list_agent_keys(db: Session) -> list[AgentApiKey]:
@@ -177,11 +192,47 @@ def get_api_key(db: Session, key_id: int) -> AgentApiKey | None:
 
 
 def revoke_api_key(db: Session, key_id: int) -> AgentApiKey | None:
-    """Soft-revoke a key (idempotent). Caller commits."""
+    """Soft-revoke a key（idempotent，已删除 Key 返 None）。Caller commits.
+
+    术语重命名（BLF-468）：语义即"停用 / Deactivate"，原 ``/revoke`` 端点保留
+    为兼容别名；新前端统一走 ``/deactivate``。
+    """
     record = db.get(AgentApiKey, key_id)
     if record is None:
         return None
+    # 已删除 Key 不允许重新启用后再停用——防止绕过删除保护（BLF-468 安全红线）
+    if record.deleted_at is not None:
+        return None
     record.is_revoked = True
+    return record
+
+
+def activate_api_key(db: Session, key_id: int) -> AgentApiKey | None:
+    """取消停用（BLF-468）。幂等；已删除 Key 返 None。
+
+    Caller commits。返回的 ``is_revoked=False``。
+    """
+    record = db.get(AgentApiKey, key_id)
+    if record is None:
+        return None
+    # 已删除 Key 不能激活——避免复活一个已删除的 Key 重新认证（设计稿 §5.3）
+    if record.deleted_at is not None:
+        return None
+    record.is_revoked = False
+    return record
+
+
+def delete_api_key(db: Session, key_id: int) -> AgentApiKey | None:
+    """软删除 Key（BLF-468，幂等）。
+
+    返回首次置 ``deleted_at`` 的行；若 Key 已是已删除状态，仍返回该行（调用方
+    可据此区分 200 vs 204）。不存在 Key 返 None。Caller commits。
+    """
+    record = db.get(AgentApiKey, key_id)
+    if record is None:
+        return None
+    if record.deleted_at is None:
+        record.deleted_at = datetime.now(timezone.utc)
     return record
 
 
@@ -191,6 +242,9 @@ def resolve_key(db: Session, candidates: list[str]) -> KeyVerdict:
     On a usable match the key's ``last_used_at`` is stamped (dirty on the
     session — caller commits). Revoked / expired keys are reported with
     their specific status so the API layer can return a clear 401.
+
+    判定顺序（BLF-468）：``not_found → deleted → revoked → expired``。已删除
+    Key 永不认证，且先于 revoked——避免删除后误激活复活。
     """
     if not candidates:
         return KeyVerdict(status="not_found")
@@ -209,6 +263,9 @@ def resolve_key(db: Session, candidates: list[str]) -> KeyVerdict:
         return KeyVerdict(status="not_found")
 
     key = rows[0]
+    # 已删除 Key 不认证（BLF-468），先于 revoked 判定
+    if key.deleted_at is not None:
+        return KeyVerdict(status="not_found", key=key)
     if key.is_revoked:
         return KeyVerdict(status="revoked", key=key)
     if key.expires_at is not None:
