@@ -55,6 +55,17 @@ export type CockpitRow = {
   inventory_state?: string
   replenishment_action?: string
   signals?: CockpitSignals | null
+  /** BLF-502：决策路径解释（为什么是这个 state/action） */
+  decision_path?: CockpitDecisionPath | null
+}
+
+/** BLF-502 S3/G1：后端 InventoryDecisionPath 的决策路径解释。 */
+export type CockpitDecisionPath = {
+  state_rule?: string | null
+  critical_subtype?: string | null
+  action_rule?: string | null
+  seasonal_override?: boolean
+  seasonal_phase_used?: string | null
 }
 
 export type CockpitSummary = {
@@ -220,4 +231,45 @@ export const MOMENTUM_LABELS: Record<string, string> = {
   accelerating: '加速走弱',
   decelerating: '趋缓回稳',
   stable: '平稳',
+}
+
+/** 状态判定规则（state_rule，P0-P13）→ 中文说明（BLF-502 decision_path） */
+export const STATE_RULE_LABELS: Record<string, string> = {
+  P0: 'DMS 数据缺失，无法判定',
+  P1: '调整后可售天数 < 14，立即断货风险',
+  P2: '调整后可售天数 14-30 且在售，断货风险',
+  P3: '存在库龄 365+ 的库存',
+  P4: '库龄 271-365 占 ≥50%',
+  P5: '库龄 181-270 占 ≥50%',
+  P6: '调整后可售天数 > 180 且慢销（积压）',
+  P7: '调整后可售天数 120-180 且慢销',
+  P8: '趋势下降明显 + 库龄 91+ ≥30% 或在途/可售 >3',
+  P9: '调整后可售天数 45-90 + 趋势下降明显',
+  P10: '调整后可售天数 30-45 + 趋势下降明显',
+  P11: '调整后可售天数 90-180',
+  P12: '其余情况 → 健康',
+}
+
+/** critical_subtype → 中文说明 */
+export const CRITICAL_SUBTYPE_LABELS: Record<string, string> = {
+  shortage: '断货风险',
+  aging: '库龄老化',
+  overstock: '积压滞销',
+}
+
+/** 行动判定分支（action_rule）→ 中文说明（BLF-502 decision_path） */
+export const ACTION_RULE_LABELS: Record<string, string> = {
+  'shortage-urgent': '调整后可售天数 < 14，需立即补货',
+  'shortage-normal-up': '趋势上升，按计划补货',
+  'shortage-normal-peak': '旺季覆盖 → 按计划补货',
+  'shortage-hold-down': '趋势下降且非旺季，暂停补货',
+  'aging-remove': '库龄老化，创建移除订单',
+  'overstock-reduce-decline': '趋势下降，降价清货',
+  'overstock-reduce-transit': '在途占比过高，降价清货',
+  'overstock-hold-trough': '淡季覆盖 → 暂停补货（季节性存量）',
+  'overstock-hold-stable': '存量偏高，暂停补货',
+  'deteriorating-hold-trough': '淡季覆盖 → 暂停补货',
+  'deteriorating-reduce': '趋势转差，降价清货',
+  'deteriorating-hold-stable': '趋势回升，暂停补货',
+  'no-action': '无需操作，保持现状',
 }
