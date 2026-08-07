@@ -19,6 +19,8 @@ export type AgentApiKeyItem = {
   expires_at: string | null
   created_at: string
   last_used_at: string | null
+  /** 软删除 tombstone（BLF-468）；默认列表隐藏，`?include_deleted=true` 全量 */
+  deleted_at: string | null
 }
 
 export type AgentApiKeyCreateResult = AgentApiKeyItem & {
@@ -47,8 +49,9 @@ export function normalizeBusinessScope(scope: string | undefined | null): string
   return trimmed
 }
 
-export async function listAgentApiKeys(): Promise<AgentApiKeyItem[]> {
-  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys`, {
+export async function listAgentApiKeys(includeDeleted = false): Promise<AgentApiKeyItem[]> {
+  const query = includeDeleted ? '?include_deleted=true' : ''
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys${query}`, {
     cache: 'no-store',
   })
   if (!res.ok) throw new Error(`凭据列表加载失败：HTTP ${res.status}`)
@@ -71,9 +74,28 @@ export async function createAgentApiKey(input: {
   return res.json()
 }
 
-export async function revokeAgentApiKey(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/revoke`, {
+export async function deactivateAgentApiKey(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/deactivate`, {
     method: 'POST',
   })
-  if (!res.ok) throw new Error(`凭据吊销失败：HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`凭据停用失败：HTTP ${res.status}`)
+}
+
+export async function activateAgentApiKey(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/activate`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(`凭据激活失败：HTTP ${res.status}`)
+}
+
+export async function deleteAgentApiKey(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error(`凭据删除失败：HTTP ${res.status}`)
+}
+
+/** 兼容别名（BLF-468）：旧调用方仍可用，语义等同停用。 */
+export async function revokeAgentApiKey(id: number): Promise<void> {
+  return deactivateAgentApiKey(id)
 }

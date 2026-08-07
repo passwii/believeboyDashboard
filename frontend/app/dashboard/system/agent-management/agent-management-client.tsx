@@ -26,10 +26,12 @@ import { MultiSelect, type Option as MultiSelectOption } from '@/components/ui/m
 import { cn } from '@/lib/utils'
 import {
   AgentApiKeyItem,
+  activateAgentApiKey,
   createAgentApiKey,
+  deactivateAgentApiKey,
+  deleteAgentApiKey,
   listAgentApiKeys,
   normalizeProjectScope,
-  revokeAgentApiKey,
 } from '@/lib/api/agent-key-admin'
 import {
   AGENT_DOMAINS,
@@ -49,6 +51,35 @@ type CreatedResult = {
   label: string
   project_scope: string
   business_scope: string
+}
+
+/** 凭据生命周期状态（BLF-468 §3）：由 is_revoked + expires_at + deleted_at 派生。 */
+type KeyStatus = 'active' | 'inactive' | 'expired' | 'deleted'
+
+function getKeyStatus(item: AgentApiKeyItem): KeyStatus {
+  if (item.deleted_at) return 'deleted'
+  if (
+    item.expires_at &&
+    new Date(item.expires_at).getTime() <= Date.now()
+  ) {
+    return 'expired'
+  }
+  if (item.is_revoked) return 'inactive'
+  return 'active'
+}
+
+const STATUS_META: Record<KeyStatus, { label: string; badgeClassName?: string; badgeVariant?: 'secondary' }> = {
+  active: {
+    label: '激活',
+    badgeClassName:
+      'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
+  inactive: { label: '停用', badgeVariant: 'secondary' },
+  expired: {
+    label: '已过期',
+    badgeClassName: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+  deleted: { label: '已删除', badgeVariant: 'secondary' },
 }
 
 /** 把后端 project_scope 值格式化成可读文案（* = 全部项目；否则映射项目名）。 */
@@ -81,6 +112,8 @@ export function AgentManagementClient() {
   const [businessScope, setBusinessScope] = useState('*')
   const [selectedDomainIds, setSelectedDomainIds] = useState<string[]>([])
   const [domainFilter, setDomainFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<KeyStatus | 'all'>('all')
+  const [includeDeleted, setIncludeDeleted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [created, setCreated] = useState<CreatedResult | null>(null)
   const [copied, setCopied] = useState(false)
@@ -89,7 +122,7 @@ export function AgentManagementClient() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      setKeys(await listAgentApiKeys())
+      setKeys(await listAgentApiKeys(includeDeleted))
     } catch (error) {
       notify({
         type: 'error',
@@ -98,7 +131,7 @@ export function AgentManagementClient() {
     } finally {
       setLoading(false)
     }
-  }, [notify])
+  }, [includeDeleted, notify])
 
   useEffect(() => {
     void refresh()
@@ -149,22 +182,64 @@ export function AgentManagementClient() {
     }
   }
 
-  const handleRevoke = async (item: AgentApiKeyItem) => {
+  const handleDeactivate = async (item: AgentApiKeyItem) => {
     const ok = await confirm({
-      title: `吊销凭据「${item.label}」？`,
-      description: '吊销后使用该凭据的 Agent 将立即无法访问，且不可恢复。',
-      confirmText: '吊销',
-      variant: 'destructive',
+      title: `停用凭据「${item.label}」？`,
+      description: '停用后使用该凭据的 Agent 将立即无法访问。可随时重新激活，凭据本身不会失效。',
+      confirmText: '停用',
     })
     if (!ok) return
     try {
-      await revokeAgentApiKey(item.id)
-      notify({ type: 'success', title: `已吊销：${item.label}` })
+      await deactivateAgentApiKey(item.id)
+      notify({ type: 'success', title: `已停用：${item.label}` })
       await refresh()
     } catch (error) {
       notify({
         type: 'error',
-        title: error instanceof Error ? `吊销失败：${error.message}` : '吊销失败',
+        title: error instanceof Error ? `停用失败：${error.message}` : '停用失败',
+      })
+    }
+  }
+
+  const handleActivate = async (item: AgentApiKeyItem) => {
+    const ok = await confirm({
+      title: `激活凭据「${item.label}」？`,
+      description:
+        '激活后该凭据恢复访问权限。⚠️ 若此前是因疑似泄露而停用，建议新建凭据轮换，而非复用旧 Key。',
+      confirmText: '激活',
+    })
+    if (!ok) return
+    try {
+      await activateAgentApiKey(item.id)
+      notify({ type: 'success', title: `已激活：${item.label}` })
+      await refresh()
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: error instanceof Error ? `激活失败：${error.message}` : '激活失败',
+      })
+    }
+  }
+
+  const handleDelete = async (item: AgentApiKeyItem) => {
+    const ok = await confirm({
+      title: `删除凭据「${item.label}」？`,
+      description:
+        '删除后不可恢复，使用该凭据的 Agent 将永久无法访问（审计日志保留）。',
+      confirmText: '删除',
+      variant: 'destructive',
+      inputLabel: `请输入 Key 前缀 ${item.key_prefix} 确认删除`,
+      expectedInput: item.key_prefix,
+    })
+    if (!ok) return
+    try {
+      await deleteAgentApiKey(item.id)
+      notify({ type: 'success', title: `已删除：${item.label}` })
+      await refresh()
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: error instanceof Error ? `删除失败：${error.message}` : '删除失败',
       })
     }
   }
@@ -191,11 +266,15 @@ export function AgentManagementClient() {
     setTimeout(() => setUsageCopied(false), 2000)
   }
 
-  // ── 凭据管理 Tab 数据（业务域筛选） ──────────────────────────────
+  // ── 凭据管理 Tab 数据（业务域 + 状态筛选） ────────────────
   const filteredKeys = useMemo(() => {
-    if (domainFilter === 'all') return keys
-    return keys.filter((k) => scopeHasDomain(k.business_scope, domainFilter))
-  }, [keys, domainFilter])
+    return keys.filter((k) => {
+      if (domainFilter !== 'all' && !scopeHasDomain(k.business_scope, domainFilter))
+        return false
+      if (statusFilter !== 'all' && getKeyStatus(k) !== statusFilter) return false
+      return true
+    })
+  }, [keys, domainFilter, statusFilter])
 
   // ── 业务域概览 Tab 数据（每域授权凭据数） ────────────────────────
   const domainStats = useMemo(() => {
@@ -317,6 +396,27 @@ export function AgentManagementClient() {
               <CardTitle className="flex items-center gap-2">
                 凭据列表
                 <span className="ml-auto flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeDeleted}
+                      onChange={(e) => setIncludeDeleted(e.target.checked)}
+                      className="h-4 w-4 rounded border-input accent-primary"
+                      aria-label="含已删除"
+                    />
+                    含已删除
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as KeyStatus | 'all')}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    aria-label="按状态筛选"
+                  >
+                    <option value="all">全部状态</option>
+                    <option value="active">激活</option>
+                    <option value="inactive">停用</option>
+                    <option value="expired">已过期</option>
+                  </select>
                   <select
                     value={domainFilter}
                     onChange={(e) => setDomainFilter(e.target.value)}
@@ -353,51 +453,83 @@ export function AgentManagementClient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredKeys.map((item) => (
-                      <tr key={item.id} className="border-b last:border-0">
-                        <td className="py-2 pr-4">{item.label}</td>
-                        <td className="py-2 pr-4 font-mono text-xs">
-                          {item.key_prefix}…
-                        </td>
-                        <td className="py-2 pr-4">
-                          {item.agent_id ? (
-                            <span className="font-mono text-xs">{item.agent_id}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—（未绑定）</span>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {formatProjectScope(item.project_scope, projects)}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {formatBusinessScope(item.business_scope)}
-                        </td>
-                        <td className="py-2 pr-4 text-muted-foreground">
-                          {item.last_used_at
-                            ? new Date(item.last_used_at).toLocaleString()
-                            : '从未使用'}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {item.is_revoked ? (
-                            <Badge variant="secondary">已吊销</Badge>
-                          ) : (
-                            <Badge variant="default">可用</Badge>
-                          )}
-                        </td>
-                        <td className="py-2">
-                          {!item.is_revoked && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive"
-                              onClick={() => handleRevoke(item)}
-                            >
-                              吊销
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredKeys.map((item) => {
+                      const status = getKeyStatus(item)
+                      const statusMeta = STATUS_META[status]
+                      return (
+                        <tr key={item.id} className="border-b last:border-0">
+                          <td className="py-2 pr-4">{item.label}</td>
+                          <td className="py-2 pr-4 font-mono text-xs">
+                            {item.key_prefix}…
+                          </td>
+                          <td className="py-2 pr-4">
+                            {item.agent_id ? (
+                              <span className="font-mono text-xs">{item.agent_id}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—（未绑定）</span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {formatProjectScope(item.project_scope, projects)}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {formatBusinessScope(item.business_scope)}
+                          </td>
+                          <td className="py-2 pr-4 text-muted-foreground">
+                            {item.last_used_at
+                              ? new Date(item.last_used_at).toLocaleString()
+                              : '从未使用'}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {statusMeta.badgeVariant ? (
+                              <Badge
+                                variant="secondary"
+                                className={status === 'deleted' ? 'line-through' : undefined}
+                              >
+                                {statusMeta.label}
+                              </Badge>
+                            ) : (
+                              <Badge className={statusMeta.badgeClassName}>
+                                {statusMeta.label}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            {status === 'deleted' ? null : (
+                              <div className="flex items-center gap-1">
+                                {status === 'active' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeactivate(item)}
+                                  >
+                                    停用
+                                  </Button>
+                                )}
+                                {status === 'inactive' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-emerald-700 dark:text-emerald-300"
+                                    onClick={() => handleActivate(item)}
+                                  >
+                                    激活
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive"
+                                  onClick={() => handleDelete(item)}
+                                >
+                                  删除
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                     {filteredKeys.length === 0 && (
                       <tr>
                         <td colSpan={8} className="py-8 text-center text-muted-foreground">

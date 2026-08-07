@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // ── 模块级 mock（防 effect 无限重跑：BLF-450 教训）───────────────────
@@ -17,6 +17,7 @@ const { mockKeys } = vi.hoisted(() => ({
       expires_at: null,
       created_at: '2026-08-01T00:00:00Z',
       last_used_at: '2026-08-05T00:00:00Z',
+      deleted_at: null,
     },
     {
       id: 2,
@@ -26,10 +27,11 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '12',
       business_scope: 'shop_calculations',
       agent_id: 'shop-calc-test',
-      is_revoked: false,
+      is_revoked: true,
       expires_at: null,
       created_at: '2026-08-02T00:00:00Z',
       last_used_at: null,
+      deleted_at: null,
     },
     {
       id: 3,
@@ -43,17 +45,65 @@ const { mockKeys } = vi.hoisted(() => ({
       expires_at: null,
       created_at: '2026-08-03T00:00:00Z',
       last_used_at: null,
+      deleted_at: null,
+    },
+    {
+      id: 4,
+      key_prefix: 'bbx_gh78',
+      label: '过期示例 Key',
+      scope: 'read',
+      project_scope: '*',
+      business_scope: '*',
+      agent_id: 'expired-key',
+      is_revoked: false,
+      expires_at: '2026-07-31T00:00:00Z',
+      created_at: '2026-07-01T00:00:00Z',
+      last_used_at: null,
+      deleted_at: null,
+    },
+    {
+      id: 5,
+      key_prefix: 'bbx_ij90',
+      label: '已删除示例 Key',
+      scope: 'read',
+      project_scope: '*',
+      business_scope: '*',
+      agent_id: 'deleted-key',
+      is_revoked: false,
+      expires_at: null,
+      created_at: '2026-06-01T00:00:00Z',
+      last_used_at: null,
+      deleted_at: '2026-08-01T00:00:00Z',
     },
   ],
 }))
 
+// listAgentApiKeys 模拟后端语义：include_deleted=false 默认隐藏已删除；
+// 返回值缓存稳定引用，避免 setKeys 每轮新数组导致 effect 无限重跑。
+const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgentApiKey, confirm, notify } =
+  vi.hoisted(() => {
+    const nonDeletedKeys = mockKeys.filter((k) => !k.deleted_at)
+    return {
+      listAgentApiKeys: vi.fn(async (includeDeleted = false) =>
+        includeDeleted ? mockKeys : nonDeletedKeys
+      ),
+      deactivateAgentApiKey: vi.fn().mockResolvedValue(undefined),
+      activateAgentApiKey: vi.fn().mockResolvedValue(undefined),
+      deleteAgentApiKey: vi.fn().mockResolvedValue(undefined),
+      confirm: vi.fn().mockResolvedValue(true),
+      notify: vi.fn(),
+    }
+  })
+
 vi.mock('@/lib/api/agent-key-admin', () => ({
-  listAgentApiKeys: vi.fn().mockResolvedValue(mockKeys),
+  listAgentApiKeys,
   createAgentApiKey: vi.fn().mockResolvedValue({
     ...mockKeys[0],
     plaintext_key: 'bbx_new_secret',
   }),
-  revokeAgentApiKey: vi.fn().mockResolvedValue(undefined),
+  deactivateAgentApiKey,
+  activateAgentApiKey,
+  deleteAgentApiKey,
   normalizeProjectScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
   normalizeBusinessScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
 }))
@@ -71,11 +121,11 @@ vi.mock('@/lib/hooks/use-managed-projects', () => ({
 }))
 
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: vi.fn() }),
+  useNotifications: () => ({ notify }),
 }))
 
 vi.mock('@/hooks/use-confirm', () => ({
-  useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),
+  useConfirm: () => ({ confirm }),
 }))
 
 vi.mock('./agent-usage-guide', () => ({
@@ -102,7 +152,12 @@ vi.mock('@/components/ui/multi-select', () => ({
 }))
 
 import { AgentManagementClient } from './agent-management-client'
-import { createAgentApiKey, listAgentApiKeys } from '@/lib/api/agent-key-admin'
+import { createAgentApiKey } from '@/lib/api/agent-key-admin'
+
+async function openCredentialsTab(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('tab', { name: /凭据管理/ }))
+  await waitFor(() => expect(screen.getByText('货件助理 (生产)')).toBeTruthy())
+}
 
 describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
   afterEach(() => {
@@ -134,8 +189,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     const user = userEvent.setup()
     render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
-
-    await user.click(screen.getByRole('tab', { name: /凭据管理/ }))
+    await openCredentialsTab(user)
 
     expect(screen.getByText('货件助理 (生产)')).toBeTruthy()
     // 「全部业务域」出现在筛选下拉与业务域列两处
@@ -147,8 +201,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     const user = userEvent.setup()
     render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
-    await user.click(screen.getByRole('tab', { name: /凭据管理/ }))
-    await waitFor(() => expect(screen.getByText('货件助理 (生产)')).toBeTruthy())
+    await openCredentialsTab(user)
 
     // 选店铺测算：全域(*) 与 shop_calculations 白名单可见；shipments 专用隐藏
     fireEvent.change(screen.getByLabelText('按业务域筛选'), {
@@ -201,5 +254,123 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
         expect.objectContaining({ business_scope: '*' })
       )
     )
+  })
+
+  // ── BLF-468 生命周期 ─────────────────────────────────────────
+
+  it('状态徽章：激活 / 停用 / 已过期 三态渲染，默认隐藏已删除', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    const table = screen.getByRole('table')
+    // 默认列表（include_deleted=false）：已删除行不可见
+    expect(within(table).queryByText('已删除')).toBeNull()
+    expect(screen.queryByText('已删除示例 Key')).toBeNull()
+
+    // 按行断言状态徽章（「停用」同时是激活行操作按钮文字，须限定行内）
+    const rowActive = screen.getByText('货件助理 (生产)').closest('tr')!
+    expect(within(rowActive).getByText('激活')).toBeTruthy()
+    const rowInactive = screen.getByText('测算 Agent (测试)').closest('tr')!
+    expect(within(rowInactive).getByText('停用')).toBeTruthy()
+    expect(within(rowInactive).getByRole('button', { name: '激活' })).toBeTruthy()
+    const rowExpired = screen.getByText('过期示例 Key').closest('tr')!
+    expect(within(rowExpired).getByText('已过期')).toBeTruthy()
+    // 过期行只有删除操作，无停用/激活按钮
+    expect(within(rowExpired).queryByRole('button', { name: '激活' })).toBeNull()
+    expect(within(rowExpired).queryByRole('button', { name: '停用' })).toBeNull()
+  })
+
+  it('状态筛选：按激活 / 停用 / 已过期过滤行', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    fireEvent.change(screen.getByLabelText('按状态筛选'), {
+      target: { value: 'inactive' },
+    })
+    expect(screen.getByText('测算 Agent (测试)')).toBeTruthy()
+    expect(screen.queryByText('货件助理 (生产)')).toBeNull()
+    expect(screen.queryByText('过期示例 Key')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('按状态筛选'), {
+      target: { value: 'expired' },
+    })
+    expect(screen.getByText('过期示例 Key')).toBeTruthy()
+    expect(screen.queryByText('货件助理 (生产)')).toBeNull()
+  })
+
+  it('含已删除开关：重拉 include_deleted=true 并展示已删除徽章', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getByLabelText('含已删除'))
+    await waitFor(() =>
+      expect(listAgentApiKeys).toHaveBeenLastCalledWith(true)
+    )
+    expect(screen.getByText('已删除示例 Key')).toBeTruthy()
+    expect(screen.getByText('已删除')).toBeTruthy()
+  })
+
+  it('停用流：确认后调 deactivate 端点（可逆，非 destructive 语义）', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getAllByRole('button', { name: '停用' })[0])
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining('停用凭据'), confirmText: '停用' })
+    )
+    await waitFor(() => expect(deactivateAgentApiKey).toHaveBeenCalledWith(1))
+  })
+
+  it('激活流：停用行的「激活」按钮调 activate 端点', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getAllByRole('button', { name: '激活' })[0])
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringContaining('激活凭据'), confirmText: '激活' })
+    )
+    await waitFor(() => expect(activateAgentApiKey).toHaveBeenCalledWith(2))
+  })
+
+  it('删除流：确认带键入 Key 前缀要求，确认后调 delete 端点', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getAllByRole('button', { name: '删除' })[0])
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('删除凭据'),
+        confirmText: '删除',
+        variant: 'destructive',
+        expectedInput: 'bbx_ab12',
+        inputLabel: expect.stringContaining('bbx_ab12'),
+      })
+    )
+    await waitFor(() => expect(deleteAgentApiKey).toHaveBeenCalledWith(1))
+  })
+
+  it('已删除行不展示任何操作按钮（只读）', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getByLabelText('含已删除'))
+    await waitFor(() => expect(screen.getByText('已删除示例 Key')).toBeTruthy())
+
+    const row = screen.getByText('已删除示例 Key').closest('tr')!
+    expect(within(row).queryByRole('button')).toBeNull()
   })
 })
