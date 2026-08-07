@@ -252,6 +252,90 @@ function buildInventoryGuide(opts: {
   （inventory-ledger）互相独立——不含 DMS、售罄日期、补货周期等。`
 }
 
+/** 库存台账域调用说明（BLF-485）：纯读 10 条路由，无确认流。 */
+function buildInventoryLedgerGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 查询有台账数据的月份（先拿月份，再按月份查）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/months" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回 YYYY-MM-DD 月份串列表（如 "2026-06-01"），可直接当作 ?period= 值。
+
+【3. 月度快照（SKU 期末余额 + 处置分布 + 完整性，月度对账主入口）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/snapshot?period=last_month" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  period 支持别名（7d/14d/28d/30d/60d/90d/this_month/last_month/ytd）与月份串
+  （YYYY-MM 或 YYYY-MM-DD）；period=custom 时须带 start_date/end_date。
+  解析到整月时自动附带 integrity 跨月连续性检查（上月期末 == 本月期初）。
+
+【4. 期间 SKU 事件汇总（收货/发货/退货/损坏/丢失/处置）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/events?period=2026-06" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【5. 收货簇（按日期×仓库聚类，识别同时到货的货件）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/receipt-clusters?period=30d" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【6. 跨月完整性检查（只接受整月 period，部分窗口返回 400）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/integrity?period=last_month" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  状态：OK / MISMATCH / PENDING（上月无数据）。
+
+【7. 多月趋势（?months=N 驱动，默认 6、最大 24，不用 period）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/trend?months=6" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【8. Detailed 视图事件级明细（可按 &msku= &fulfillment_center= &event_type= 过滤）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/detail?period=2026-06&msku=X-001" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【9. Summary 视图日水位明细（可按 &msku= &location= &disposition= 过滤）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/summary?period=2026-06&disposition=SELLABLE" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【10. CSV 上传批次追溯（文件指纹/行数/状态/对账结果，不用 period）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/batches?limit=20" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【11. Detail vs Summary 交叉对账（只接受整月 period）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory-ledger/consistency?period=last_month" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  状态：OK / MISMATCH / PENDING。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -294,6 +378,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildReturnAnalysisGuide({ key, agentId, apiBase })
   } else if (domain === 'inventory') {
     domainGuide = buildInventoryGuide({ key, agentId, apiBase })
+  } else if (domain === 'inventory_ledger') {
+    domainGuide = buildInventoryLedgerGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }
