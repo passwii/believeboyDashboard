@@ -278,3 +278,177 @@ class TestListEndpoint:
             assert item["deleted_at"] is None
         finally:
             _hard_cleanup(key["id"])
+
+
+# ─────────────────── PATCH 编辑权限 / 业务范围（BLF-480）────────────────────
+
+
+class TestUpdateEndpoint:
+    def test_update_scopes_and_label(self, client, admin_headers, make_api_key):
+        key = make_api_key(agent_id="u-agent")
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=admin_headers,
+                json={
+                    "label": "改名后",
+                    "project_scope": "12, 34",
+                    "business_scope": "shipments,shop_calculations",
+                },
+            )
+            assert resp.status_code == 200, resp.text
+            body = resp.json()
+            assert body["id"] == key["id"]
+            assert body["label"] == "改名后"
+            assert body["project_scope"] == "12, 34"
+            assert body["business_scope"] == "shipments,shop_calculations"
+            # 审计行
+            audit = _audit_action(key["id"], "api_key.update")
+            assert audit is not None
+            assert audit["target_type"] == "agent_api_key"
+        finally:
+            _hard_cleanup(key["id"])
+
+    def test_update_empty_scope_normalized_to_star(self, client, admin_headers, make_api_key):
+        key = make_api_key(agent_id="n-agent")
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=admin_headers,
+                json={"project_scope": "", "business_scope": ""},
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["project_scope"] == "*"
+            assert resp.json()["business_scope"] == "*"
+        finally:
+            _hard_cleanup(key["id"])
+
+    def test_update_partial_preserves_untouched(self, client, admin_headers, make_api_key):
+        key = make_api_key(agent_id="p-agent", project_scope="5", business_scope="inventory")
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=admin_headers,
+                json={"label": "仅改名称"},
+            )
+            assert resp.status_code == 200, resp.text
+            body = resp.json()
+            assert body["label"] == "仅改名称"
+            assert body["project_scope"] == "5"  # 未传 → 保持
+            assert body["business_scope"] == "inventory"  # 未传 → 保持
+        finally:
+            _hard_cleanup(key["id"])
+
+    def test_update_unknown_returns_404(self, client, admin_headers):
+        resp = client.patch(
+            "/api/v1/internal/api-keys/999999999",
+            headers=admin_headers,
+            json={"label": "x"},
+        )
+        assert resp.status_code == 404
+
+    def test_update_deleted_returns_404(self, client, admin_headers, make_api_key):
+        """BLF-480：已删除 Key 不可编辑（终态不复活，与激活红线一致）。"""
+        key = make_api_key(agent_id="ud-agent")
+        try:
+            deleted = client.delete(
+                f"/api/v1/internal/api-keys/{key['id']}", headers=admin_headers
+            )
+            assert deleted.status_code == 204
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=admin_headers,
+                json={"business_scope": "shipments"},
+            )
+            assert resp.status_code == 404
+        finally:
+            _hard_cleanup(key["id"])
+
+    def test_update_non_admin_forbidden(self, client, operator_headers, make_api_key):
+        key = make_api_key(agent_id="ua-agent")
+        try:
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=operator_headers,
+                json={"business_scope": "shipments"},
+            )
+            assert resp.status_code == 403
+        finally:
+            _hard_cleanup(key["id"])
+
+    def test_edit_scope_takes_effect_for_agent_auth(self, client, admin_headers, make_api_key):
+        """端到端：编辑 business_scope 后鉴权实时生效（无需重建凭据）。
+
+        初始全域（*）→ PATCH 收紧为 shipments → shop-calculations 域路由
+        返回 403（AGENT_BUSINESS_OUT_OF_SCOPE），shipments 域路由仍 200。
+        """
+        agent_id = "edit-scope-agent"
+        key = make_api_key(agent_id=agent_id, business_scope="*")
+        from fastapi import APIRouter, Depends, FastAPI
+        from app.api.agent.auth import require_agent_credential
+        from app.api.agent.errors import register_agent_error_handlers
+        from app.api.agent.rate_limit import require_agent_read_rate_limit
+        from app.api.agent.response import agent_ok
+        from app.api.agent.scope import require_business_scope
+
+        try:
+            # 先收紧业务范围
+            resp = client.patch(
+                f"/api/v1/internal/api-keys/{key['id']}",
+                headers=admin_headers,
+                json={"business_scope": "shipments"},
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["business_scope"] == "shipments"
+
+            # 用独立迷你 app 复刻 agent 命名空间接线（对齐 test_business_scope.py）
+            mini = FastAPI()
+            register_agent_error_handlers(mini)
+            router = APIRouter(
+                prefix="/api/v1/agent",
+                dependencies=[
+                    Depends(require_agent_credential),
+                    Depends(require_agent_read_rate_limit),
+                ],
+            )
+            shipments = APIRouter(
+                prefix="/projects/{project_id}/shipments",
+                dependencies=[Depends(require_business_scope("shipments"))],
+            )
+
+            @shipments.get("/scope-read")
+            def _ship_read(project_id: int) -> dict:
+                return agent_ok({"domain": "shipments"})
+
+            calcs = APIRouter(
+                prefix="/projects/{project_id}/shop-calculations",
+                dependencies=[Depends(require_business_scope("shop_calculations"))],
+            )
+
+            @calcs.get("/scope-read")
+            def _calc_read(project_id: int) -> dict:
+                return agent_ok({"domain": "shop_calculations"})
+
+            router.include_router(shipments)
+            router.include_router(calcs)
+            mini.include_router(router)
+            mini_client = TestClient(mini)
+
+            headers = {
+                "Authorization": f"Bearer {key['plaintext']}",
+                "X-Agent-Id": agent_id,
+            }
+            project_id = 900013
+            ok = mini_client.get(
+                f"/api/v1/agent/projects/{project_id}/shipments/scope-read",
+                headers=headers,
+            )
+            assert ok.status_code == 200, ok.text
+            blocked = mini_client.get(
+                f"/api/v1/agent/projects/{project_id}/shop-calculations/scope-read",
+                headers=headers,
+            )
+            assert blocked.status_code == 403, blocked.text
+            assert blocked.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
+        finally:
+            _hard_cleanup(key["id"])

@@ -74,6 +74,25 @@ export async function createAgentApiKey(input: {
   return res.json()
 }
 
+/**
+ * 编辑凭据的权限与业务范围（BLF-480）。
+ *
+ * PATCH 语义：仅更新显式传入的字段。后端把空串归一为 '*'（全项目 / 全域），
+ * 编辑即刻生效——鉴权路径每请求实时读列，无需重建凭据。
+ */
+export async function updateAgentApiKey(
+  id: number,
+  input: { label?: string; project_scope?: string; business_scope?: string }
+): Promise<AgentApiKeyItem> {
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error(`凭据更新失败：HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function deactivateAgentApiKey(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/deactivate`, {
     method: 'POST',

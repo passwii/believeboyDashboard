@@ -5,6 +5,7 @@ Admin-only CRUD for the credentials that guard ``/api/v1/external/*``
 
   POST   /api/v1/internal/api-keys                   create (returns plaintext once)
   GET    /api/v1/internal/api-keys                   list (no secrets; ?include_deleted=)
+  PATCH  /api/v1/internal/api-keys/{id}              edit label / project_scope / business_scope（BLF-480）
   POST   /api/v1/internal/api-keys/{id}/revoke       soft-revoke (兼容别名)
   POST   /api/v1/internal/api-keys/{id}/deactivate   停用（BLF-468，与 /revoke 同语义）
   POST   /api/v1/internal/api-keys/{id}/activate     激活（BLF-468）
@@ -42,6 +43,7 @@ from app.schemas.agent_api_key import (
     ApiKeyDeactivateResponse,
     ApiKeyItem,
     ApiKeyRevokeResponse,
+    ApiKeyUpdateRequest,
 )
 from app.services.agent import key_service
 from app.services.audit_log_service import append_operation_audit_log
@@ -120,6 +122,47 @@ def list_api_keys(
         ApiKeyItem.model_validate(k, from_attributes=True)
         for k in key_service.list_api_keys(db, include_deleted=include_deleted)
     ]
+
+
+@router.patch(
+    "/{key_id}",
+    response_model=ApiKeyItem,
+    dependencies=[Depends(_require_admin)],
+)
+def update_api_key(
+    key_id: int,
+    body: ApiKeyUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ApiKeyItem:
+    """编辑 Key 的权限与业务范围（BLF-480）。
+
+    PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope）。
+    项目范围与业务域范围变更即刻生效——鉴权路径（``scope.py``）每请求实时读列，
+    无需重建凭据。已删除 Key 不可编辑（404），与 deactivate / activate 一致。
+    """
+    record = key_service.update_api_key(
+        db,
+        key_id,
+        label=body.label,
+        project_scope=body.project_scope,
+        business_scope=body.business_scope,
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="API key not found")
+    append_operation_audit_log(
+        db,
+        action="api_key.update",
+        target_type="agent_api_key",
+        target_id=key_id,
+        operator=operator or "admin",
+        request=request,
+    )
+    db.commit()
+    db.refresh(record)
+    logger.info("API key updated id=%s", key_id)
+    return ApiKeyItem.model_validate(record, from_attributes=True)
 
 
 @router.post(

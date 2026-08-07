@@ -193,6 +193,39 @@ def get_api_key(db: Session, key_id: int) -> AgentApiKey | None:
     return db.get(AgentApiKey, key_id)
 
 
+def update_api_key(
+    db: Session,
+    key_id: int,
+    *,
+    label: str | None = None,
+    project_scope: str | None = None,
+    business_scope: str | None = None,
+) -> AgentApiKey | None:
+    """编辑 Key 的权限与业务范围（BLF-480）。
+
+    * 已删除 Key（``deleted_at`` 非空）不可编辑 → 返回 None（调用方 404），
+      与 deactivate / activate 的安全红线一致——删除是终态，不复活；
+    * PATCH 语义：只更新显式传入的字段（None = 不改）；
+    * ``project_scope`` / ``business_scope`` 空串归一为 ``*``（与 create 对齐）；
+    * ``label`` 传空串由 schema min_length 拦截，此处仅截断超长。
+
+    Caller commits。返回的 record 已写入新值，鉴权路径每请求实时读列，
+    编辑即刻生效，无需重建凭据。
+    """
+    record = db.get(AgentApiKey, key_id)
+    if record is None:
+        return None
+    if record.deleted_at is not None:
+        return None
+    if label is not None:
+        record.label = label[:128]
+    if project_scope is not None:
+        record.project_scope = (project_scope or "*")[:255]
+    if business_scope is not None:
+        record.business_scope = (business_scope or "*")[:255]
+    return record
+
+
 def revoke_api_key(db: Session, key_id: int) -> AgentApiKey | None:
     """Soft-revoke a key（idempotent，已删除 Key 返 None）。Caller commits.
 

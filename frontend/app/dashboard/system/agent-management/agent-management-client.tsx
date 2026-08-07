@@ -17,7 +17,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity } from 'lucide-react'
+import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
@@ -32,6 +32,7 @@ import {
   deleteAgentApiKey,
   listAgentApiKeys,
   normalizeProjectScope,
+  updateAgentApiKey,
 } from '@/lib/api/agent-key-admin'
 import {
   AGENT_DOMAINS,
@@ -98,6 +99,96 @@ function formatProjectScope(
     .join('、')
 }
 
+/** 解析 ',' 分隔的项目 scope 成 id 数组（'*' → 空，用于编辑 Dialog 预填）。 */
+function parseScopeIds(scope: string | null | undefined): string[] {
+  const normalized = normalizeProjectScope(scope)
+  if (normalized === '*') return []
+  return normalized.split(',').map((part) => part.trim()).filter(Boolean)
+}
+
+/** 解析 ',' 分隔的业务域 scope 成 code 数组（'*' → 空，用于编辑 Dialog 预填）。 */
+function parseScopeCodes(scope: string | null | undefined): string[] {
+  const normalized = normalizeBusinessScope(scope)
+  if (normalized === '*') return []
+  return normalized.split(',').map((part) => part.trim()).filter(Boolean)
+}
+
+/**
+ * 业务域范围多选控件（BLF-448 创建 Dialog 内联逻辑抽取，BLF-480 编辑复用）。
+ * 与 ProjectScopeSelect 同构：顶部「☑️ 全部业务域」首选项，勾选后禁用 MultiSelect；
+ * 提交时把空串归一为 '*'（由调用方在提交处归一）。
+ */
+function BusinessScopeField({
+  value,
+  selectedIds,
+  onValueChange,
+  onSelectedIdsChange,
+}: {
+  value: string
+  selectedIds: string[]
+  onValueChange: (v: string) => void
+  onSelectedIdsChange: (ids: string[]) => void
+}) {
+  const isAll = value === '*'
+  const domainOptions: MultiSelectOption[] = useMemo(
+    () => liveAgentDomains().map((d) => ({ value: d.code, label: d.label })),
+    []
+  )
+  const handleToggleAll = (checked: boolean) => {
+    if (checked) {
+      onValueChange('*')
+      onSelectedIdsChange([])
+    } else {
+      onValueChange(selectedIds.length > 0 ? selectedIds.join(',') : '')
+    }
+  }
+  const handleIdsChange = (next: string[]) => {
+    onSelectedIdsChange(next)
+    if (next.length === 0) {
+      onValueChange('')
+    } else {
+      onValueChange(next.join(','))
+    }
+  }
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => handleToggleAll(!isAll)}
+        className={cn(
+          'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
+          'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+          isAll && 'bg-accent'
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-4 w-4 items-center justify-center rounded-sm border',
+            isAll ? 'bg-primary border-primary text-primary-foreground' : 'border-input'
+          )}
+        >
+          {isAll && <Check className="h-3 w-3" />}
+        </div>
+        <span className="font-medium">全部业务域</span>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {isAll
+            ? '该凭据可访问所有已接入业务域'
+            : selectedIds.length > 0
+              ? `已选 ${selectedIds.length} 个业务域`
+              : '请选择具体业务域'}
+        </span>
+      </button>
+      <MultiSelect
+        options={domainOptions}
+        selected={selectedIds}
+        onChange={handleIdsChange}
+        placeholder="选择具体业务域..."
+        className={cn(isAll && 'opacity-50 pointer-events-none')}
+      />
+    </div>
+  )
+}
+
 export function AgentManagementClient() {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
@@ -118,6 +209,14 @@ export function AgentManagementClient() {
   const [created, setCreated] = useState<CreatedResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [usageCopied, setUsageCopied] = useState(false)
+  // ── 编辑态（BLF-480：创建后仍可改权限与业务范围） ────────────────
+  const [editing, setEditing] = useState<AgentApiKeyItem | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [editProjectScope, setEditProjectScope] = useState('*')
+  const [editSelectedProjectIds, setEditSelectedProjectIds] = useState<string[]>([])
+  const [editBusinessScope, setEditBusinessScope] = useState('*')
+  const [editSelectedDomainIds, setEditSelectedDomainIds] = useState<string[]>([])
+  const [editSubmitting, setEditSubmitting] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -179,6 +278,43 @@ export function AgentManagementClient() {
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openEdit = (item: AgentApiKeyItem) => {
+    setEditing(item)
+    setEditLabel(item.label)
+    setEditProjectScope(item.project_scope ?? '*')
+    setEditSelectedProjectIds(parseScopeIds(item.project_scope))
+    setEditBusinessScope(item.business_scope ?? '*')
+    setEditSelectedDomainIds(parseScopeCodes(item.business_scope))
+    setEditSubmitting(false)
+  }
+
+  const closeEdit = () => {
+    setEditing(null)
+    setEditSubmitting(false)
+  }
+
+  const handleUpdate = async () => {
+    if (!editing) return
+    setEditSubmitting(true)
+    try {
+      await updateAgentApiKey(editing.id, {
+        label: editLabel.trim(),
+        project_scope: normalizeProjectScope(editProjectScope),
+        business_scope: normalizeBusinessScope(editBusinessScope),
+      })
+      notify({ type: 'success', title: `已更新：${editLabel.trim() || editing.label}` })
+      setEditing(null)
+      await refresh()
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: error instanceof Error ? `更新失败：${error.message}` : '更新失败',
+      })
+    } finally {
+      setEditSubmitting(false)
     }
   }
 
@@ -283,29 +419,6 @@ export function AgentManagementClient() {
       keyCount: keys.filter((k) => scopeHasDomain(k.business_scope, domain.code)).length,
     }))
   }, [keys])
-
-  const domainOptions: MultiSelectOption[] = useMemo(
-    () => liveAgentDomains().map((d) => ({ value: d.code, label: d.label })),
-    []
-  )
-
-  const isBusinessAll = businessScope === '*'
-  const handleDomainToggleAll = (checked: boolean) => {
-    if (checked) {
-      setBusinessScope('*')
-      setSelectedDomainIds([])
-    } else {
-      setBusinessScope(selectedDomainIds.length > 0 ? selectedDomainIds.join(',') : '')
-    }
-  }
-  const handleDomainIdsChange = (next: string[]) => {
-    setSelectedDomainIds(next)
-    if (next.length === 0) {
-      setBusinessScope('')
-    } else {
-      setBusinessScope(next.join(','))
-    }
-  }
 
   return (
     <div className="p-6 space-y-4">
@@ -497,6 +610,14 @@ export function AgentManagementClient() {
                           <td className="py-2">
                             {status === 'deleted' ? null : (
                               <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEdit(item)}
+                                >
+                                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                                  编辑
+                                </Button>
                                 {status === 'active' && (
                                   <Button
                                     variant="ghost"
@@ -690,41 +811,12 @@ export function AgentManagementClient() {
                 <label className="text-sm font-medium">
                   业务域范围（空 = 全部业务域）
                 </label>
-                <div className="mt-1 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDomainToggleAll(!isBusinessAll)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
-                      'hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                      isBusinessAll && 'bg-accent'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'flex h-4 w-4 items-center justify-center rounded-sm border',
-                        isBusinessAll
-                          ? 'bg-primary border-primary text-primary-foreground'
-                          : 'border-input'
-                      )}
-                    >
-                      {isBusinessAll && <Check className="h-3 w-3" />}
-                    </div>
-                    <span className="font-medium">全部业务域</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {isBusinessAll
-                        ? '该凭据可访问所有已接入业务域'
-                        : selectedDomainIds.length > 0
-                          ? `已选 ${selectedDomainIds.length} 个业务域`
-                          : '请选择具体业务域'}
-                    </span>
-                  </button>
-                  <MultiSelect
-                    options={domainOptions}
-                    selected={selectedDomainIds}
-                    onChange={handleDomainIdsChange}
-                    placeholder="选择具体业务域..."
-                    className={cn(isBusinessAll && 'opacity-50 pointer-events-none')}
+                <div className="mt-1">
+                  <BusinessScopeField
+                    value={businessScope}
+                    selectedIds={selectedDomainIds}
+                    onValueChange={setBusinessScope}
+                    onSelectedIdsChange={setSelectedDomainIds}
                   />
                 </div>
               </div>
@@ -738,6 +830,82 @@ export function AgentManagementClient() {
                 >
                   {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
                   创建
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 编辑凭据权限 / 业务范围 Dialog（BLF-480） ─────────────── */}
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) closeEdit()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑凭据权限</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="edit-agent-key-label" className="text-sm font-medium">
+                  名称
+                </label>
+                <input
+                  id="edit-agent-key-label"
+                  className="mt-1 w-full rounded border bg-background p-2 text-sm"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                />
+              </div>
+              <div className="rounded bg-muted/40 p-3 text-sm">
+                <div className="text-muted-foreground">Agent ID（不可改，凭据绑定标识）</div>
+                <code className="font-mono text-xs">
+                  {editing.agent_id ?? '—（未绑定）'}
+                </code>
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  项目范围（空 = 全部项目）
+                </label>
+                <div className="mt-1">
+                  <ProjectScopeSelect
+                    value={editProjectScope}
+                    selectedIds={editSelectedProjectIds}
+                    onValueChange={setEditProjectScope}
+                    onSelectedIdsChange={setEditSelectedProjectIds}
+                    projects={projects}
+                    allHint="该凭据可访问所有项目的数据"
+                    specificHint="仅限所选项目，未选中的项目将返回 403"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  业务域范围（空 = 全部业务域）
+                </label>
+                <div className="mt-1">
+                  <BusinessScopeField
+                    value={editBusinessScope}
+                    selectedIds={editSelectedDomainIds}
+                    onValueChange={setEditBusinessScope}
+                    onSelectedIdsChange={setEditSelectedDomainIds}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={closeEdit}>
+                  取消
+                </Button>
+                <Button
+                  onClick={handleUpdate}
+                  disabled={editSubmitting || !editLabel.trim()}
+                >
+                  {editSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                  保存
                 </Button>
               </DialogFooter>
             </div>

@@ -30,6 +30,28 @@ class ApiKeyCreateRequest(BaseModel):
     )
 
 
+class ApiKeyUpdateRequest(BaseModel):
+    """编辑请求（BLF-480）：PATCH 语义，仅更新显式传入的字段。
+
+    ``label`` / ``project_scope`` / ``business_scope`` 均可缺省（None = 不改）；
+    空串归一为 ``*`` 在 service 层与 create 对齐。
+    """
+
+    label: str | None = Field(
+        default=None, min_length=1, max_length=128, description="人类可读标识"
+    )
+    project_scope: str | None = Field(
+        default=None,
+        max_length=255,
+        description="项目范围：'*' 全部，或 ',' 分隔的 project_id 白名单（空串按 '*' 处理）",
+    )
+    business_scope: str | None = Field(
+        default=None,
+        max_length=255,
+        description="业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）",
+    )
+
+
 class ApiKeyCreateResponse(BaseModel):
     id: int
     key_prefix: str
