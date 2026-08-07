@@ -59,8 +59,8 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     code: 'ad_analysis',
     label: '广告分析',
     description: '10 个广告域聚合（预算/搜索词/竞品份额）',
-    status: 'planned',
-    routeCount: 0,
+    status: 'live',
+    routeCount: 10,
     capabilities: { read: true, write: false },
   },
   {
