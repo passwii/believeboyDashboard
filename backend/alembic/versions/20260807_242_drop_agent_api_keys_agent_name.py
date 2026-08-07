@@ -1,7 +1,7 @@
 """drop agent_name from agent_api_keys (BLF-471 follow-up)
 
-Revision ID: 241
-Revises: 240
+Revision ID: 242
+Revises: 241
 Create Date: 2026-08-07
 
 用户反馈：Agent 接入管理页面的「名称」（``agent_api_keys.label``）字段本身就
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "241"
-down_revision: Union[str, None] = "240"
+revision: str = "242"
+down_revision: Union[str, None] = "241"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
