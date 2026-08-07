@@ -23,9 +23,6 @@ import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
@@ -877,9 +874,26 @@ export default function SkuInfoPage() {
 
   return (
     <div className="w-full space-y-6 text-foreground">
-      <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
-        <DataCardHeader title="筛选条件" />
-        <DataCardContent className="p-4 lg:p-6">
+      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <div className="relative z-10 max-w-2xl space-y-2.5">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Package2 className="h-3.5 w-3.5" />
+            供应链 · SKU 信息管理
+          </p>
+          <h1 className="text-lg font-semibold tracking-tight md:text-xl">SKU 信息管理</h1>
+          <p className="text-sm leading-6 text-muted-foreground md:text-base">
+            维护产品成本 / 尺寸 / 工厂属性 / 标签 / 图片，支持批量导入与首段物流成本同步。
+          </p>
+        </div>
+      </section>
+
+      {/* 筛选控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}
+      <div className="dashboard-surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 md:px-6">
+          <h2 className="text-sm font-semibold">筛选条件</h2>
+        </div>
+        <div className="p-4 lg:p-6">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end lg:gap-4">
             {projectsLoading ? (
               <div className="col-span-1">
@@ -969,10 +983,10 @@ export default function SkuInfoPage() {
               </Button>
             </div>
           </div>
-        </DataCardContent>
-      </DataCard>
+        </div>
+      </div>
 
-<Tabs
+      <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}
           className="space-y-4"

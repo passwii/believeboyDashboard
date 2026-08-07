@@ -65,7 +65,7 @@ function KpiCard({
   tone?: 'default' | 'positive' | 'negative' | 'warning'
 }) {
   return (
-    <Card className="gap-2 py-4">
+    <Card className="dashboard-surface gap-2 py-4">
       <CardHeader className="pb-0">
         <CardDescription className="text-xs">{label}</CardDescription>
       </CardHeader>
@@ -73,9 +73,9 @@ function KpiCard({
         <div
           className={cn(
             'text-2xl font-semibold tabular-nums',
-            tone === 'positive' && 'text-green-600',
-            tone === 'negative' && 'text-red-600',
-            tone === 'warning' && 'text-orange-600',
+            tone === 'positive' && 'text-[hsl(var(--data-positive))]',
+            tone === 'negative' && 'text-[hsl(var(--data-negative))]',
+            tone === 'warning' && 'text-[hsl(var(--data-warning))]',
           )}
         >
           {value}
@@ -219,7 +219,7 @@ export function LedgerOverview({
       {/* 图表区 */}
       <div className="grid gap-3 lg:grid-cols-2">
         {/* 近 N 月趋势 */}
-        <Card className="gap-2">
+        <Card className="dashboard-surface gap-2">
           <CardHeader>
             <CardTitle className="text-sm">近 {trendData.length} 月库存趋势</CardTitle>
             <CardDescription>项目级期末库存与损坏率（不受维度筛选影响）</CardDescription>
@@ -257,7 +257,7 @@ export function LedgerOverview({
         </Card>
 
         {/* 事件构成 */}
-        <Card className="gap-2">
+        <Card className="dashboard-surface gap-2">
           <CardHeader>
             <CardTitle className="text-sm">事件构成</CardTitle>
             <CardDescription>筛选范围内各事件类型条数</CardDescription>
@@ -291,7 +291,7 @@ export function LedgerOverview({
         </Card>
 
         {/* Disposition 构成 */}
-        <Card className="gap-2">
+        <Card className="dashboard-surface gap-2">
           <CardHeader>
             <CardTitle className="text-sm">期末 Disposition 构成</CardTitle>
             <CardDescription>筛选范围内期末库存按状态拆分</CardDescription>
@@ -312,7 +312,7 @@ export function LedgerOverview({
         </Card>
 
         {/* Top 仓库 */}
-        <Card className="gap-2">
+        <Card className="dashboard-surface gap-2">
           <CardHeader>
             <CardTitle className="text-sm">Top 仓库分布</CardTitle>
             <CardDescription>筛选范围内期末库存最多的仓库</CardDescription>

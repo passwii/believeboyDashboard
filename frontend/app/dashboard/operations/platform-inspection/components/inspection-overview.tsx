@@ -285,7 +285,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
   return (
     <Card
-      className={`cursor-pointer hover-lift ${CARD_SEVERITY_STYLES[cardSeverity]}`}
+      className={`dashboard-surface cursor-pointer hover-lift ${CARD_SEVERITY_STYLES[cardSeverity]}`}
       onClick={onClick}
     >
       {/* HEAD */}
@@ -435,7 +435,7 @@ function ProjectCard({ item, onClick, onPreviewScreenshot }: ProjectCardProps) {
 
 function ProjectCardSkeleton() {
   return (
-    <Card className="border-border/70">
+    <Card className="dashboard-surface border-border/70">
       <div className="space-y-3 p-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-32" />

@@ -130,7 +130,7 @@ export function LedgerDetailTab({
                     className={cn(
                       DENSE_CELL,
                       'text-right font-mono text-xs tabular-nums',
-                      r.quantity > 0 ? 'text-green-600' : r.quantity < 0 ? 'text-red-600' : undefined,
+                      r.quantity > 0 ? 'text-[hsl(var(--data-positive))]' : r.quantity < 0 ? 'text-[hsl(var(--data-negative))]' : undefined,
                     )}
                   >
                     {r.quantity > 0 ? `+${r.quantity}` : r.quantity}

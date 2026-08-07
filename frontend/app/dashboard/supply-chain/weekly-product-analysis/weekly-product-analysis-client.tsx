@@ -55,7 +55,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
-import { CountrySelect, FilterField, RefreshButton } from '@/components/dashboard/console'
+import { CountrySelect, RefreshButton } from '@/components/dashboard/console'
 
 type ProjectOption = {
   id: number | null
@@ -1722,55 +1722,67 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      <DataCard>
-        <DataCardContent className="flex flex-wrap items-end gap-3">
+      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <div className="relative z-10 max-w-2xl space-y-2.5">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            供应链 · 每周商品分析
+          </p>
+          <h1 className="text-lg font-semibold tracking-tight md:text-xl">每周商品分析</h1>
+          <p className="text-sm leading-6 text-muted-foreground md:text-base">
+            按周聚合商品销售 / 广告 / 库存表现，对比上周与四周均值，定位增长与风险 SKU。
+          </p>
+        </div>
+      </section>
+
+      {/* 控制台 — dashboard-surface 承载（去除 FilterField 标签，对齐 MOBILE 规则 9） */}
+      <div className="dashboard-surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 md:px-6">
+          <h2 className="text-sm font-semibold">控制台</h2>
+        </div>
+        <div className="dashboard-toolbar flex flex-col gap-3 rounded-lg px-4 py-4 border-0 shadow-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           {projectsLoading ? (
             <WeeklyFilterSkeleton width="min-w-[180px]" />
           ) : (
-            <FilterField label="店铺">
-              <Select
-                value={projectId}
-                onValueChange={setProjectId}
-                disabled={projects.length === 0}
-              >
-                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="请选择店铺" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={projects.length === 0}
+            >
+              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[180px]">
+                <SelectValue placeholder="选择店铺" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={String(project.id)}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
-          <FilterField label="国家站点">
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9"
-            />
-          </FilterField>
-          <FilterField label="日期范围">
-            <DateRangePicker
-              value={parseDateRangeInputValue(startDate, endDate)}
-              onChange={(range) => {
-                setStartDate(formatDateInputValue(range?.from))
-                setEndDate(formatDateInputValue(range?.to))
-              }}
-              className="h-9"
-            />
-          </FilterField>
+          <CountrySelect
+            value={country}
+            onChange={(value) => setCountry(value as CountryOption)}
+            triggerClassName="h-9 w-full sm:w-[150px]"
+          />
+          <DateRangePicker
+            value={parseDateRangeInputValue(startDate, endDate)}
+            onChange={(range) => {
+              setStartDate(formatDateInputValue(range?.from))
+              setEndDate(formatDateInputValue(range?.to))
+            }}
+            className="h-9 w-full sm:w-[220px]"
+          />
           <RefreshButton
             onClick={() => void loadWeeklyData({ force: true })}
             loading={loading}
             label="刷新数据"
             variant="outline"
-            className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-auto"
           />
-        </DataCardContent>
+        </div>
 
         {projectLoadError ? (
           <div className="border-t border-border/70 px-6 pb-4 pt-2">
@@ -1786,9 +1798,9 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           </div>
         ) : null}
-      </DataCard>
+      </div>
 
-      <DataCard>
+      <div className="dashboard-surface overflow-hidden">
         <DataCardHeader
           title="周度趋势"
           action={
@@ -2236,7 +2248,7 @@ export default function WeeklyProductAnalysisPage() {
             </LoadingScrim>
           ) : null}
         </div>
-      </DataCard>
+      </div>
 
       {/* 骨架屏过渡包装 */}
       <div
