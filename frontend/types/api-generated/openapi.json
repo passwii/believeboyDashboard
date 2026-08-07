@@ -39620,6 +39620,97 @@
         ]
       }
     },
+    "/api/v1/agent/projects/{project_id}/inventory": {
+      "get": {
+        "description": "R1 当前库存信息：与内部 ``/api/v1/inventory-analysis`` 同构。\n\n``?sku=`` 可查单个 SKU 数量（summary/action_options/shipment 列重算为\n过滤集）；``?report_date=`` 可查历史快照。响应含 report_date，Agent\n可据此判断数据新鲜度。",
+        "operationId": "get_inventory_api_v1_agent_projects__project_id__inventory_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku"
+            }
+          },
+          {
+            "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省返回最新业务日期",
+            "in": "query",
+            "name": "report_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省返回最新业务日期",
+              "title": "Report Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Inventory Api V1 Agent Projects  Project Id  Inventory Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Inventory",
+        "tags": [
+          "agent",
+          "agent-inventory"
+        ]
+      }
+    },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/batches": {
       "get": {
         "operationId": "agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get",

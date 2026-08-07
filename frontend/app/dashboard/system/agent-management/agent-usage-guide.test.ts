@@ -96,6 +96,21 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=inventory 输出库存信息示例（BLF-478）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'inventory',
+    })
+    expect(text).toContain('库存信息')
+    expect(text).toContain('/inventory?country=US')
+    expect(text).toContain('/inventory?country=US&sku=X-001')
+    expect(text).toContain('report_date')
+    expect(text).toContain('补货分析')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

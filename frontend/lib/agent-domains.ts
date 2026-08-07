@@ -48,6 +48,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'inventory',
+    label: '库存信息',
+    description: '当前库存快照：总量/库龄/缺货/单 SKU 数量（独立于补货分析）',
+    status: 'live',
+    routeCount: 1,
+    capabilities: { read: true, write: false },
+  },
+  {
     code: 'ad_analysis',
     label: '广告分析',
     description: '10 个广告域聚合（预算/搜索词/竞品份额）',

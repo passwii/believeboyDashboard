@@ -23,6 +23,62 @@
 
     GET /api/v1/agent/health    存活探针
 
+### 库存信息域（BLF-478）
+
+纯读 1 条路由，**独立于**补货分析（`replenishment-analysis`）与库存台账
+（`inventory-ledger`）——只读当前库存快照（总量/库龄/缺货/单 SKU 数量），
+服务于简短的临时性数量查看。
+
+    GET /api/v1/agent/projects/{project_id}/inventory
+
+Query 参数：
+
+| 参数 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `country` | str | `US` | 国家站点 |
+| `sku` | str | 无 | 单 SKU 数量查看：大小写不敏感子串匹配；summary/action_options/shipment 列重算为过滤集，查不到返回空 items（200） |
+| `report_date` | date | 最新业务日期 | `YYYY-MM-DD`，取该日或之前最近的快照 |
+
+响应 `data`（与内部 `/api/v1/inventory-analysis` 同构，共享 Redis 缓存）：
+
+```json
+{
+  "project_id": 1,
+  "project_name": "...",
+  "country": "US",
+  "report_date": "2026-08-06",
+  "summary": {
+    "sku_count": 12,
+    "out_of_stock_count": 1,
+    "aging_sku_count": 2,
+    "over_aged_sku_count": 1,
+    "total_available_qty": 580,
+    "total_age_0_90_qty": 300,
+    "total_age_91_180_qty": 150,
+    "total_age_181_270_qty": 80,
+    "total_age_271_365_qty": 30,
+    "total_age_365_plus_qty": 20,
+    "action_type_count": 3
+  },
+  "action_options": ["Liquidate", "Replenish"],
+  "items": [
+    {
+      "sku": "X-001",
+      "asin": "B0000001",
+      "product_name": "产品A",
+      "available_qty": 10,
+      "age_0_90_qty": 10,
+      "recommended_action": "Replenish",
+      "stock_status": "in_stock",
+      "aging_status": "fresh",
+      "shipment_quantities": {}
+    }
+  ],
+  "shipment_columns": [],
+  "shipment_column_totals": {}
+}
+```
+
 ### 货件域（P2）
 
     GET    /api/v1/agent/projects/{project_id}/shipments

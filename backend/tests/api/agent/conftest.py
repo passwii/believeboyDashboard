@@ -400,6 +400,89 @@ def seed_return_analysis(
         db.close()
 
 
+def seed_inventory_snapshot(
+    project_id: int,
+    *,
+    country: str = "US",
+    report_date=None,
+    snapshot_at=None,
+    rows: list[dict] | None = None,
+) -> int:
+    """Seed 一张 ``inventory_report`` source file + 库存快照行（BLF-478 基座）。
+
+    返回 source file id。``report_date`` 缺省昨天；``snapshot_at`` 缺省
+    当前时间。与 ``list_inventory_analysis`` 的读取路径完全对齐：
+    ``_load_base_skus`` 走 SkuRecord（shipment_env 已建 X-001/X-002），
+    ``_load_aggregated_rows`` 走 InventorySnapshotRow。
+    """
+    from datetime import datetime, timezone
+
+    from app.models import AnalysisSourceFile, InventorySnapshotRow
+
+    today = date.today() - timedelta(days=1)
+    report = report_date or today
+
+    db = SessionLocal()
+    try:
+        # 同一 (project, country) 只允许一个 is_current 的 inventory_report
+        # （部分唯一索引 uq_analysis_sources_inventory_current）——新快照先
+        # 把旧的置为非 current，模拟真实上报行为。
+        db.execute(
+            AnalysisSourceFile.__table__.update()
+            .where(
+                AnalysisSourceFile.project_id == project_id,
+                AnalysisSourceFile.report_type == "inventory_report",
+                AnalysisSourceFile.country == country,
+            )
+            .values(is_current=False)
+        )
+        source = AnalysisSourceFile(
+            project_id=project_id,
+            report_type="inventory_report",
+            country=country,
+            report_date=report,
+            snapshot_at=snapshot_at or datetime.now(timezone.utc),
+            version=1,
+            is_current=True,
+            upload_file_id=f"test_inv_{project_id}_{uuid.uuid4().hex[:6]}",
+            upload_file_path="/tmp/test_inv.csv",
+            original_filename="test_inv.csv",
+            stored_filename="test_inv.csv",
+            logical_filename="test_inv.csv",
+            storage_key="test_inv.csv",
+            ingestion_status="success",
+            row_count_total=len(rows or []),
+            row_count_included=len(rows or []),
+            created_by="pytest",
+        )
+        db.add(source)
+        db.flush()
+
+        for i, r in enumerate(rows or []):
+            db.add(
+                InventorySnapshotRow(
+                    source_file_id=source.id,
+                    source_row_no=i + 1,
+                    sku=r["sku"],
+                    asin=r.get("asin"),
+                    available_qty=r.get("available_qty", 0),
+                    age_0_90_qty=r.get("age_0_90_qty", 0),
+                    age_91_180_qty=r.get("age_91_180_qty", 0),
+                    age_181_270_qty=r.get("age_181_270_qty", 0),
+                    age_271_365_qty=r.get("age_271_365_qty", 0),
+                    age_365_plus_qty=r.get("age_365_plus_qty", 0),
+                    recommended_action=r.get("recommended_action"),
+                    stock_status=r.get("stock_status", "in_stock"),
+                    aging_status=r.get("aging_status", "fresh"),
+                    raw_row={},
+                )
+            )
+        db.commit()
+        return source.id
+    finally:
+        db.close()
+
+
 def seed_schedule(project_id: int, shipment_no: str) -> int:
     """建一张 draft 货件 + 2 行明细（X-001×100、X-002×50），返回 schedule id。
 
@@ -511,8 +594,19 @@ def shipment_env(make_api_key):
             AnalysisReturnRow,
             AnalysisSalesOrderRow,
             AnalysisSourceFile,
+            InventorySnapshotRow,
         )
 
+        # BLF-478：库存快照测试数据清理（FK 顺序：inventory_rows → source_files）
+        db.execute(
+            delete(InventorySnapshotRow).where(
+                InventorySnapshotRow.source_file_id.in_(
+                    select(AnalysisSourceFile.id).where(
+                        AnalysisSourceFile.project_id == project_id
+                    )
+                )
+            )
+        )
         # BLF-470：退货分析测试数据清理（FK 顺序：rows → source_files → aggregates）
         db.execute(
             delete(AnalysisReturnRow).where(AnalysisReturnRow.project_id == project_id)

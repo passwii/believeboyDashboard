@@ -77,10 +77,15 @@ describe('formatBusinessScope', () => {
 })
 
 describe('AGENT_DOMAINS 注册表', () => {
-  it('live 域包含 shipments、shop_calculations 与 return_analysis', () => {
+  it('live 域包含 shipments、shop_calculations、return_analysis 与 inventory', () => {
     const live = liveAgentDomains()
     expect(live.map((d) => d.code)).toEqual(
-      expect.arrayContaining(['shipments', 'shop_calculations', 'return_analysis'])
+      expect.arrayContaining([
+        'shipments',
+        'shop_calculations',
+        'return_analysis',
+        'inventory',
+      ])
     )
   })
 
@@ -88,6 +93,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     const domain = getAgentDomain('return_analysis')
     expect(domain?.status).toBe('live')
     expect(domain?.routeCount).toBe(5)
+    expect(domain?.capabilities).toEqual({ read: true, write: false })
+  })
+
+  it('inventory 已翻 live 且 routeCount=1、纯读（BLF-478）', () => {
+    const domain = getAgentDomain('inventory')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('库存信息')
+    expect(domain?.routeCount).toBe(1)
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
