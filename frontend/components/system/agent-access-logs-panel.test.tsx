@@ -64,7 +64,6 @@ const readRow = {
   ip_address: '1.2.3.4',
   api_key_id: 7,
   agent_id: 'shipment-assistant-prod',
-  agent_name: '货件助理',
   key_label: '货件助理 (生产)',
   project_id: 12,
   project_name: '测试项目',
@@ -80,7 +79,6 @@ const otherRow = {
   project_name: null,
   operation_type: null,
   agent_id: null,
-  agent_name: null,
   key_label: null,
 }
 
@@ -109,7 +107,6 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
         {
           agent_id: 'shipment-assistant-prod',
           key_label: '货件助理 (生产)',
-          agent_name: '货件助理',
           count: 1,
         },
       ],
@@ -128,7 +125,7 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     vi.clearAllMocks()
   })
 
-  it('展示项目列与操作类型列（BLF-471 Agent 中文名 / 项目名）', async () => {
+  it('展示项目列与操作类型列（BLF-471 follow-up：Agent 中文名即 key_label，仅用项目名）', async () => {
     render(<AgentAccessLogsPanel />)
 
     expect(await screen.findByText('项目')).toBeTruthy()
@@ -137,9 +134,10 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     // 有域的行 → 中文标签；无域的行 → '-'
     expect(screen.getAllByText('货件管理').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(1)
-    // BLF-471：Agent 中文名 + 项目名（name (id) 展示）
-    expect(screen.getAllByText('货件助理').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('测试项目 (12)').length).toBeGreaterThanOrEqual(1)
+    // 中文名即「名称」（key_label）
+    expect(screen.getAllByText('货件助理 (生产)').length).toBeGreaterThanOrEqual(1)
+    // 项目仅用名称（无 (id) 后缀）
+    expect(screen.getAllByText('测试项目').length).toBeGreaterThanOrEqual(1)
   })
 
   it('project_id / operation_type 筛选提交到请求参数', async () => {

@@ -124,7 +124,7 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
     expect((await screen.findAllByText('shipment-assistant-prod')).length).toBeGreaterThanOrEqual(1)
     // BLF-471：Agent 中文名 + 项目名 + 货件编号对象标识
     expect(screen.getAllByText('货件助理').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('测试项目 (12)').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('测试项目').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('#SH-1').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('货件状态变更').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('新建货件')).toBeTruthy()

@@ -85,7 +85,8 @@ def _apply_filters(
 
 
 def _base_stmt():
-    return select(_LOG, _KEY.agent_id, _KEY.label, _KEY.agent_name).outerjoin(
+    # BLF-471：Agent 中文名即「名称」（label），join 还原 key_label 即可。
+    return select(_LOG, _KEY.agent_id, _KEY.label).outerjoin(
         _KEY, _KEY.id == _LOG.api_key_id
     )
 
@@ -148,7 +149,7 @@ def list_agent_access_logs(
         stmt.order_by(_LOG.id.desc()).offset(offset).limit(page_size)
     ).all()
     project_names = _load_project_names(
-        db, {log.project_id for log, _, _, _ in rows if log.project_id is not None}
+        db, {log.project_id for log, _, _ in rows if log.project_id is not None}
     )
     items = [
         {
@@ -161,7 +162,6 @@ def list_agent_access_logs(
             "ip_address": log.ip_address,
             "api_key_id": log.api_key_id,
             "agent_id": agent_id,
-            "agent_name": agent_name,
             "key_label": label,
             "project_id": log.project_id,
             "project_name": (
@@ -171,7 +171,7 @@ def list_agent_access_logs(
             ),
             "operation_type": log.operation_type,
         }
-        for log, agent_id, label, agent_name in rows
+        for log, agent_id, label in rows
     ]
     return AgentAccessLogsResponse(
         items=items,
@@ -230,10 +230,10 @@ def agent_access_logs_summary(
         or 0
     )
     top_rows = db.execute(
-        select(sub.c.agent_id, sub.c.label, sub.c.agent_name, func.count().label("cnt"))
+        select(sub.c.agent_id, sub.c.label, func.count().label("cnt"))
         .select_from(sub)
         .where(sub.c.agent_id.is_not(None))
-        .group_by(sub.c.agent_id, sub.c.label, sub.c.agent_name)
+        .group_by(sub.c.agent_id, sub.c.label)
         .order_by(func.count().desc())
         .limit(10)
     ).all()
@@ -245,8 +245,8 @@ def agent_access_logs_summary(
         unique_agent_count=unique_agent_count,
         top_agents=[
             AgentAccessLogAgentSummaryItem(
-                agent_id=agent_id, key_label=label, agent_name=agent_name, count=count
+                agent_id=agent_id, key_label=label, count=count
             )
-            for agent_id, label, agent_name, count in top_rows
+            for agent_id, label, count in top_rows
         ],
     )

@@ -67,7 +67,6 @@ def make_api_key():
         expires_at=None,
         revoked: bool = False,
         agent_id: str | None = None,
-        agent_name: str | None = None,
         project_scope: str = "*",
         business_scope: str = "*",
     ) -> dict:
@@ -79,7 +78,6 @@ def make_api_key():
                 created_by="pytest",
                 expires_at=expires_at,
                 agent_id=agent_id,
-                agent_name=agent_name,
                 project_scope=project_scope,
                 business_scope=business_scope,
             )

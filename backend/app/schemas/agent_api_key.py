@@ -28,11 +28,6 @@ class ApiKeyCreateRequest(BaseModel):
         max_length=128,
         description="绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空",
     )
-    agent_name: str | None = Field(
-        default=None,
-        max_length=128,
-        description="Agent 中文显示名（BLF-471）；对应英文 agent_id，日志与前端展示用",
-    )
 
 
 class ApiKeyCreateResponse(BaseModel):
@@ -43,7 +38,6 @@ class ApiKeyCreateResponse(BaseModel):
     project_scope: str
     business_scope: str
     agent_id: str | None
-    agent_name: str | None = None
     expires_at: datetime | None
     created_at: datetime
     # Shown exactly once — the stored row only holds the SHA-256 hash.
@@ -58,7 +52,6 @@ class ApiKeyItem(BaseModel):
     project_scope: str
     business_scope: str
     agent_id: str | None
-    agent_name: str | None = None
     is_revoked: bool
     expires_at: datetime | None
     created_at: datetime
@@ -79,20 +72,6 @@ class ApiKeyDeactivateResponse(BaseModel):
 
     id: int
     is_revoked: bool
-
-
-class ApiKeyAgentNameUpdateRequest(BaseModel):
-    """``POST .../{id}/agent-name`` 请求体（BLF-471 改名）。"""
-
-    agent_name: str = Field(min_length=1, max_length=128)
-
-
-class ApiKeyAgentNameUpdateResponse(BaseModel):
-    """``POST .../{id}/agent-name`` 响应。"""
-
-    id: int
-    agent_id: str | None
-    agent_name: str | None
 
 
 class ApiKeyActivateResponse(BaseModel):

@@ -116,6 +116,9 @@ def append_operation_audit_log(
     agent_name: str | None = None,
     idempotency_key: str | None = None,
 ) -> None:
+    # ``agent_name`` 即 Agent 中文显示名（BLF-471）：写操作审计行在落库时
+    # 快照凭据「名称」（``agent_api_keys.label``）随行留存（该表无 api_key_id
+    # 可 join，必须随行）；访问日志则 join 还原 label。
     trace_id, request_method, request_path, ip_address = _extract_request_meta(request)
     # Agent 写调用缺 Idempotency-Key 时打风险标记（设计稿 §7.2），人事发起的写不受影响。
     after_payload = after

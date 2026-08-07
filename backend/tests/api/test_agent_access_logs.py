@@ -1,7 +1,7 @@
 """Agent 访问日志管理端端点测试（agent_api_audit_log 查询）。
 
-BLF-471 起列表还还原 agent_name（join agent_api_keys）与 project_name
-（查 projects 表），运营/管理员看中文名而非英文 ID。
+BLF-471：列表还原项目名（查 projects 表）；Agent 中文名即「名称」（label），
+join agent_api_keys 还原 key_label，运营/管理员看中文名而非英文 ID。
 """
 
 from __future__ import annotations
@@ -106,11 +106,9 @@ class TestAgentAccessLogsList:
         finally:
             _cleanup_logs()
 
-    def test_list_agent_name_and_project_name(self, client, make_api_key):
+    def test_list_label_and_project_name(self, client, make_api_key):
         project_id = _make_project("BLF471 访问日志项目")
-        key = make_api_key(
-            agent_id="access-test-agent", label="访问测试 key", agent_name="货件助理"
-        )
+        key = make_api_key(agent_id="access-test-agent", label="货件助理 (生产)")
         _insert_logs(
             [
                 {
@@ -140,12 +138,13 @@ class TestAgentAccessLogsList:
             assert resp.status_code == 200, resp.text
             by_path = {item["path"]: item for item in resp.json()["items"]}
             shipment = by_path[f"/api/v1/agent/projects/{project_id}/shipments"]
-            assert shipment["agent_name"] == "货件助理"
+            # 中文名即「名称」（label）
+            assert shipment["key_label"] == "货件助理 (生产)"
             assert shipment["project_name"] == "BLF471 访问日志项目"
             # 无项目路径 → project_name 为 null
             health = by_path["/api/v1/agent/health"]
             assert health["project_name"] is None
-            assert health["agent_name"] == "货件助理"
+            assert health["key_label"] == "货件助理 (生产)"
         finally:
             _cleanup_logs()
             _cleanup_projects([project_id])
