@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import { DispositionBadge } from './ledger-badges'
@@ -292,11 +293,7 @@ export function LedgerSummaryTab({
             </TableHeader>
             <TableBody>
               {pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                    {emptyText}
-                  </td>
-                </tr>
+                <EmptyTableState colSpan={columns.length} message={emptyText} />
               ) : (
                 pageRows.map((r) => (
                   <TableRow key={r.id}>

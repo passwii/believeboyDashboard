@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import { DispositionBadge } from './ledger-badges'
@@ -114,11 +115,7 @@ export function LedgerDetailTab({
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="h-24 text-center text-muted-foreground">
-                  {emptyText}
-                </td>
-              </tr>
+              <EmptyTableState colSpan={8} message={emptyText} />
             ) : (
               pageRows.map((r) => (
                 <TableRow key={r.id}>
