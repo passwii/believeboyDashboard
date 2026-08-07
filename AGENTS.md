@@ -46,6 +46,7 @@
   - **多 worktree 并行撞车时**（两分支迁移挂同一 `down_revision` → 多 head）：汇合后跑 `alembic merge heads --rev-id <下一序号> -m "merge xxx"` 生成合并迁移（`down_revision=(A, B)`）把单链接回，**不要**手工加 `b` 后缀或重排序号（历史 `20260415_095b`、重复 `114` 即手工躲撞的教训）。
   - **多 worktree 防撞流程（建迁移前必做）**：碰撞根因是建迁移时 `down_revision` 选错，故**建前先同步 main 取单链**——`git fetch origin && git rebase origin/main` → `alembic heads` 确认只有一个 head → 再 `alembic revision --rev-id <下一序号>`。建完**随 feature 分支同批合 main**（迁移与用它代码一起上线），**不要建完立即合 main**（会令 schema 先于业务代码触发 prod 部署）。其他 worktree 要用迁移前先 rebase/pull main 拿最新单链再重复。详见 [docs/REFERENCE.md](./docs/REFERENCE.md) §数据库与迁移。
   - **已部署到 prod 的迁移禁止改 revision id / 重命名**（prod `alembic_version` 按 id 追踪，改了会找不到版本）；仅未部署的可改。
+  - **机械检查**：push / 部署前自动跑 `backend/scripts/check_alembic.py`（单 head + 命名 + 无重复 id + 无孤儿；git deploy / pre-push hook / VPS 部署均挂载），失败即阻断并提示 `alembic merge heads` 修复；手动跑 `cd backend && python scripts/check_alembic.py`。
   - 主键统一 `Integer`（对齐 `alert_rule.py` 屋风与模型 `Mapped[int]`），勿用 `BigInteger`。
 
 ## 仓库根指针

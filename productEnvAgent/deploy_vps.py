@@ -35,6 +35,12 @@ PROJECT_DIR = "/root/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
 VENV_ACTIVATE = "source /root/believeboyDashboard/backend/.venv/bin/activate"
 
+# 迁移图前置检查（BLF-492）：多 head / 命名违规 / 重复 id 在跑迁移前拦截，
+# 避免 `alembic upgrade head` 因 "Multiple head revisions" 在改库前暴雷
+CHECK_MIGRATIONS_CMD = (
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && python scripts/check_alembic.py"
+)
+
 # 部署命令（在 VPS 上执行）
 # root 用户直跑 systemctl，无需 sudo；SSH 走密钥认证（无需密码）
 DEPLOY_COMMANDS = [
@@ -309,8 +315,22 @@ def deploy(dry_run=False, auto_confirm=False):
         save_report(logs, analysis, dry_run)
         return False
 
-    # 步骤 3: 运行数据库迁移
-    print("\n>>> 步骤 3: 运行数据库迁移...")
+    # 步骤 3: 迁移图前置检查（多 head / 命名违规 / 重复 id 在改库前拦截）
+    print("\n>>> 步骤 3: Alembic 迁移图检查...")
+    rc, out, err = run_ssh_command(CHECK_MIGRATIONS_CMD, dry_run=dry_run)
+    if rc == 0:
+        print(out if out.strip() else "✓ 迁移图检查通过")
+    else:
+        print(f"✗ Alembic 迁移图检查失败: {err or out}")
+        print(
+            "  修复提示: 多 head 时先在 main 侧跑 "
+            '`alembic merge heads --rev-id <下一序号> -m "merge xxx"` 合回单链，'
+            "再重新部署。"
+        )
+        return False
+
+    # 步骤 4: 安装后端依赖
+    print("\n>>> 步骤 4: 安装后端依赖...")
     rc, out, err = run_ssh_command(DEPLOY_COMMANDS[1], dry_run=dry_run)
     if rc == 0:
         print(out if out.strip() else "✓ 迁移完成")
@@ -322,16 +342,16 @@ def deploy(dry_run=False, auto_confirm=False):
         save_report(logs, analysis, dry_run)
         return False
 
-    # 步骤 4: 重启服务
-    print("\n>>> 步骤 4: 重启 believeboy-api 服务...")
+    # 步骤 5: 运行数据库迁移 + 重启服务
+    print("\n>>> 步骤 5: 运行数据库迁移并重启服务...")
     for cmd in DEPLOY_COMMANDS[2:]:
         rc, out, err = run_ssh_command(cmd, dry_run=dry_run)
         print(out)
         if err and "active" not in out.lower():
             print(err)
 
-    # 步骤 5: 验证服务状态
-    print("\n>>> 步骤 5: 验证部署结果...")
+    # 步骤 6: 验证服务状态
+    print("\n>>> 步骤 6: 验证部署结果...")
     is_active = False
     for cmd in CHECK_COMMANDS:
         rc, out, err = run_ssh_command(cmd, dry_run=dry_run)
@@ -342,7 +362,7 @@ def deploy(dry_run=False, auto_confirm=False):
             is_active = True
 
     # 检查服务是否真正启动
-    print("\n>>> 步骤 6: 确认服务健康状态...")
+    print("\n>>> 步骤 7: 确认服务健康状态...")
     rc, out, err = run_ssh_command(
         "curl -s -o /dev/null -w '%{http_code}' "
         "http://127.0.0.1:8100/api/v1/health || echo '000'",

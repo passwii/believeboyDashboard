@@ -114,6 +114,8 @@ cd backend && .venv/bin/alembic heads
 3. **真撞了（出现两个 head）**：在 main 侧 `alembic merge heads --rev-id <下一序号> -m "merge xxx"` 合回单链（见下）。
 4. **其他 worktree 要用迁移**：先 rebase/pull main 拿到最新单链，再重复步骤 1。
 
+**机械强制检查（BLF-492）**：`backend/scripts/check_alembic.py` 在 push / 部署前自动跑（git deploy、pre-push hook、VPS deploy 的 `alembic upgrade head` 之前），检查：单 head、文件名 `YYYYMMDD_NNN_...` 且 revision id 纯数字（兼容历史日期风格 `20260718_214`）、无重复 id、无孤儿/坏链。失败会阻断 push / 部署并给出 `alembic merge heads` 修复提示；历史遗留违规文件在白名单 `LEGACY_EXCEPTIONS`（只减不增）。手动运行：`cd backend && python scripts/check_alembic.py`。
+
 ---
 
 ## 广告数据说明（Ad Data）
