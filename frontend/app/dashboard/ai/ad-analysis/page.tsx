@@ -18,6 +18,12 @@ import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,9 +37,8 @@ import {
 } from '@/components/ui/date-picker'
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { HistoryList, ViewDialog, GenerationDialog } from '@/components/dashboard/ai-ad-analysis'
+import { HistoryList, GenerationDialog } from '@/components/dashboard/ai-ad-analysis'
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
-import { cn } from '@/lib/utils'
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -287,35 +292,29 @@ export default function AdAnalysisPage() {
         </p>
       </div>
 
-      <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))] p-1 w-fit">
-        <button
-          onClick={() => setActiveTab('history')}
-          className={cn(
-            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
-            activeTab === 'history'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <FileText className="h-4 w-4" />
-          历史记录
-        </button>
-        <button
-          onClick={() => setActiveTab('schedules')}
-          className={cn(
-            'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
-            activeTab === 'schedules'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <Clock className="h-4 w-4" />
-          定时任务
-        </button>
-      </div>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabKey)}
+        className="space-y-4"
+      >
+        <TabsList>
+          <TabsTrigger value="history">
+            <FileText className="mr-1.5 h-4 w-4" />
+            历史记录
+          </TabsTrigger>
+          <TabsTrigger value="schedules">
+            <Clock className="mr-1.5 h-4 w-4" />
+            定时任务
+          </TabsTrigger>
+        </TabsList>
 
-      {activeTab === 'history' && <HistoryTab />}
-      {activeTab === 'schedules' && <SchedulesTab />}
+        <TabsContent value="history">
+          <HistoryTab />
+        </TabsContent>
+        <TabsContent value="schedules">
+          <SchedulesTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

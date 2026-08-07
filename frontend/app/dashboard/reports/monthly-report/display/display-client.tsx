@@ -2809,7 +2809,7 @@ export default function DisplayTab() {
                             <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
                               {row.income_source || '\u00A0'}
                             </TableCell>
-                            <TableCell className="border-r bg-slate-100 px-2 py-2 text-center text-muted-foreground dark:bg-slate-800">
+                            <TableCell className="border-r bg-[hsl(var(--surface-subtle))] px-2 py-2 text-center text-muted-foreground">
                               |
                             </TableCell>
                             <TableCell className="border-r bg-rose-100 px-2 py-2 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100">

@@ -50,7 +50,7 @@ export default function DigitalEmployeesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-200/40 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-200/40 dark:border-blue-800/40 shadow-sm">
             <Users className="h-5 w-5 text-blue-600" />
           </div>
           <div>

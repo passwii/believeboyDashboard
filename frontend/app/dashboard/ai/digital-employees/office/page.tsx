@@ -93,19 +93,19 @@ export default function DigitalOfficePage() {
   // ── 投屏模式布局 ──
   if (isPresentation) {
     return (
-      <div className="min-h-screen bg-[#0f172a] p-8 text-slate-100">
+      <div className="min-h-screen bg-background p-8 text-foreground">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">虚拟办公室</h1>
-            <p className="mt-1 text-sm text-slate-400">{clock}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{clock}</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               {connected ? '🟢 实时同步中' : '🔌 连接中…'}
             </span>
             <button
               onClick={exitPresentation}
-              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
             >
               ESC 退出
             </button>

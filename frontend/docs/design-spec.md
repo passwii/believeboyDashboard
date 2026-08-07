@@ -12,10 +12,11 @@
 
 ### 1.1 AI Chat 玻璃岛（`components/chat/*`）
 
-- **范围**：`components/chat/ai-chat-window.tsx`、`conversation-sidebar.tsx`、`model-selector.tsx`、`token-footer.tsx` 等。
+- **范围**：`components/chat/ai-chat-window.tsx`、`conversation-sidebar.tsx`、`model-selector.tsx`、`token-footer.tsx` 等；`app/dashboard/ai/page.tsx`（AI 落地页 = 聊天入口，内嵌 `AIChatWindow` + 玻璃跳转按钮）与 `app/dashboard/ai/chat/*` 一并归入本例外。
 - **现状**：内部使用 `bg-white/[0.06]`、`border-white/[0.08]`、`text-[#8a8a8f]` / `text-[#5a5a5f]` 等**硬编码灰阶 + 白色透明度**，不走 CSS token。
 - **决策依据**：聊天区是**刻意设计的"暗色玻璃岛"**——独立于全站 light/dark 双主题，恒为深色玻璃质感（Raycast 风格）。页面 `app/dashboard/ai/chat/page.tsx` 通过 `useTheme` 在 mount/unmount 强制临时 `dark`，离开时还原，不污染其他页面。
-- **结论**：**保持现状**，不迁移到 token。若未来要统一，需先改页面级主题策略（整页恒暗 vs 跟随主题），再收口色值。
+- **BLF-501 决策（2026-08-07 用户拍板）**：AI 聊天区为**特殊设计，整体可与系统设计语言解耦**。BLF-501 页面收口任务**明确排除**聊天区（`app/dashboard/ai/chat/*`、`components/chat/*`、`app/dashboard/ai/page.tsx`），其余页面收口到 dashboard-surface。
+- **结论**：**保持现状**，不迁移到 token，不收口到 dashboard-surface。若未来要统一，需先改页面级主题策略（整页恒暗 vs 跟随主题），再收口色值。
 
 ### 1.2 文档渲染白底（`page-render` / `page-renderer`）
 
@@ -30,6 +31,12 @@
 
 - **现状**：页面在 mount 时强制 `document.documentElement.classList.add('dark')` 并请求全屏，**恒为暗色展示页**（无 light 态）。
 - **注意**：自 BLF-494 起，大屏卡片已从 `sidebar-foreground` 自制配方迁移到标准 surface token（`--surface-panel` / `--surface-subtle` + `--border`），与全站一致。
+
+### 1.4 数字员工办公室投屏模式（`app/dashboard/ai/digital-employees/office/page.tsx`）
+
+- **范围**：`?mode=presentation` 分支（全屏投屏视图）。普通模式走 `dashboard-page-shell` + token，与全站一致。
+- **现状**：投屏分支在 mount 时强制 `dark` 并请求全屏，**恒为暗色展示页**（无 light 态）。
+- **注意**：自 BLF-501 起，投屏颜色已从硬编码 slate 系（`bg-[#0f172a]` 等）迁移到标准 token（`bg-background` / `text-foreground` / `text-muted-foreground` / `border-border`），与全站一致；"恒暗"本身保留为刻意例外（展示类页面，与 §1.3 数字大屏并列）。
 
 ---
 
