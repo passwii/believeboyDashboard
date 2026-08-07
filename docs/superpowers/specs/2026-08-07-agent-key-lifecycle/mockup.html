@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent 凭据管理 · 设计稿（BLF-468）</title>
+<style>
+  :root {
+    --bg: #f3f6f9;            /* 210 28% 97% */
+    --fg: #222b35;            /* 214 18% 16% */
+    --card: #ffffff;
+    --muted: #f0f3f6;         /* 210 22% 94% */
+    --muted-fg: #5b6673;      /* 215 12% 42% */
+    --border: #c3ccd6;        /* 214 22% 84% */
+    --border-soft: #d4dbe3;
+    --primary: #0d67cd;       /* 214 89% 43% */
+    --primary-soft: #e7f0fb;
+    --destructive: #a04a45;   /* 3 46% 43% */
+    --destructive-soft: #f9eceb;
+    --success: #1f8a5b;       /* 160 74% 31% */
+    --success-soft: #e6f4ee;
+    --warning: #d98a1f;       /* 35 88% 44% */
+    --warning-soft: #faf0e0;
+    --radius: 0.75rem;
+    --radius-sm: 0.5rem;
+    --shadow-soft: 0 10px 30px -18px rgba(27,39,51,.16);
+    --shadow-overlay: 0 24px 60px -28px rgba(20,31,44,.26);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151b;
+      --fg: #e6ebf0;
+      --card: #171d24;
+      --muted: #1d242d;
+      --muted-fg: #9aa6b4;
+      --border: #2c3642;
+      --border-soft: #232c37;
+      --primary: #4d94e8;
+      --primary-soft: #16273d;
+      --destructive: #e08a85;
+      --destructive-soft: #2e1c1b;
+      --success: #55c592;
+      --success-soft: #12281e;
+      --warning: #e6ab52;
+      --warning-soft: #2b2114;
+      --shadow-soft: 0 10px 30px -18px rgba(0,0,0,.5);
+      --shadow-overlay: 0 24px 60px -28px rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ── 侧栏（示意） ─────────────────────────── */
+  .sidebar {
+    width: 228px; flex-shrink: 0; background: var(--card);
+    border-right: 1px solid var(--border-soft); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .logo { display: flex; align-items: center; gap: 8px; padding: 4px 10px 16px; font-weight: 600; }
+  .logo-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--primary); display: grid; place-items: center; color: #fff; font-size: 12px; }
+  .nav-item { padding: 8px 10px; border-radius: var(--radius-sm); color: var(--muted-fg); font-size: 13px; }
+  .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 500; }
+  .nav-group { padding: 12px 10px 4px; font-size: 11px; letter-spacing: .06em; color: var(--muted-fg); opacity: .7; }
+
+  /* ── 主区 ─────────────────────────────────── */
+  .main { flex: 1; padding: 22px 26px 48px; max-width: 1180px; }
+  .page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .page-title { font-size: 19px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .icon-key { color: var(--primary); }
+
+  .tabs { display: flex; gap: 2px; background: var(--muted); border: 1px solid var(--border-soft); border-radius: 1rem; padding: 4px; width: fit-content; margin-bottom: 20px; }
+  .tab { padding: 8px 16px; border-radius: .75rem; font-size: 13px; color: var(--muted-fg); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+  .tab.active { background: var(--card); color: var(--fg); font-weight: 500; box-shadow: var(--shadow-soft); }
+  .tab .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .card { background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius); box-shadow: var(--shadow-soft); overflow: hidden; }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap; }
+  .card-title { font-size: 14px; font-weight: 600; }
+
+  /* ── 筛选 ─────────────────────────────────── */
+  .filters { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+  .select, .btn {
+    height: 34px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--fg); font-size: 13px; padding: 0 10px; cursor: pointer;
+  }
+  .select:focus, .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted-fg); cursor: pointer; user-select: none; }
+  .checkbox-label input { accent-color: var(--primary); }
+  .btn-primary { background: var(--primary); color: #fff; border: none; padding: 0 14px; font-weight: 500; }
+  .btn-primary:hover { filter: brightness(1.06); }
+
+  /* ── 汇总条 ───────────────────────────────── */
+  .summary { display: flex; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--border-soft); font-size: 12.5px; color: var(--muted-fg); flex-wrap: wrap; }
+  .summary b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+  /* ── 表格 ─────────────────────────────────── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 980px; }
+  thead th { text-align: left; font-weight: 500; color: var(--muted-fg); padding: 10px 14px; border-bottom: 1px solid var(--border-soft); font-size: 12px; white-space: nowrap; }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--muted); }
+  tr.deleted-row td { opacity: .55; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  .cell-sub { color: var(--muted-fg); font-size: 12px; }
+  .strike { text-decoration: line-through; }
+
+  /* ── 徽章 ─────────────────────────────────── */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid transparent; }
+  .badge .b-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .b-active { background: var(--success-soft); color: var(--success); }
+  .b-active .b-dot { background: var(--success); }
+  .b-inactive { background: var(--muted); color: var(--muted-fg); border-color: var(--border-soft); }
+  .b-inactive .b-dot { background: var(--muted-fg); }
+  .b-expired { background: var(--warning-soft); color: var(--warning); }
+  .b-expired .b-dot { background: var(--warning); }
+  .b-deleted { background: var(--muted); color: var(--muted-fg); border-color: var(--border-soft); }
+
+  /* ── 行操作 ───────────────────────────────── */
+  .row-actions { display: flex; gap: 2px; }
+  .link-btn { border: none; background: none; padding: 5px 9px; border-radius: 6px; font-size: 12.5px; cursor: pointer; color: var(--primary); }
+  .link-btn:hover { background: var(--primary-soft); }
+  .link-btn.activate { color: var(--success); }
+  .link-btn.activate:hover { background: var(--success-soft); }
+  .link-btn.danger { color: var(--destructive); }
+  .link-btn.danger:hover { background: var(--destructive-soft); }
+  .link-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ── 弹窗 ─────────────────────────────────── */
+  .overlay { position: fixed; inset: 0; background: rgba(10,15,22,.45); display: none; align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(2px); }
+  .overlay.open { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border-soft); border-radius: var(--radius); box-shadow: var(--shadow-overlay); width: 420px; max-width: calc(100vw - 32px); animation: pop .18s ease; }
+  @keyframes pop { from { transform: scale(.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-head { padding: 16px 18px 0; }
+  .modal-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .modal-desc { margin-top: 6px; color: var(--muted-fg); font-size: 13px; line-height: 1.6; }
+  .modal-desc .mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; }
+  .modal-input { margin: 14px 18px 0; }
+  .modal-input label { display: block; font-size: 12.5px; color: var(--muted-fg); margin-bottom: 6px; }
+  .modal-input input {
+    width: 100%; height: 34px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--fg); padding: 0 10px; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px;
+  }
+  .modal-input input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .modal-input input.mismatch { border-color: var(--destructive); }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 18px 18px; }
+  .btn-ghost { background: none; border: 1px solid var(--border); }
+  .btn-danger { background: var(--destructive); color: #fff; border: none; font-weight: 500; }
+  .btn-danger:hover { filter: brightness(1.08); }
+  .btn-ghost:hover { background: var(--muted); }
+
+  /* ── Toast ────────────────────────────────── */
+  .toast-wrap { position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+  .toast { background: var(--card); border: 1px solid var(--border-soft); border-left: 3px solid var(--success); border-radius: 8px; padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow-overlay); animation: slide .2s ease; }
+  .toast.err { border-left-color: var(--destructive); }
+  @keyframes slide { from { transform: translateX(12px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  .placeholder { padding: 60px 20px; text-align: center; color: var(--muted-fg); font-size: 13px; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--muted-fg); }
+  .hint-tag { font-size: 11px; color: var(--muted-fg); background: var(--muted); border-radius: 4px; padding: 1px 6px; margin-left: 6px; font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- 侧栏（示意，非本设计重点） -->
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-mark">彼</div>彼励扶 Dashboard</div>
+    <div class="nav-item">总览</div>
+    <div class="nav-group">系统管理</div>
+    <div class="nav-item active">Agent 接入管理</div>
+    <div class="nav-item">用户与权限</div>
+    <div class="nav-item">操作审计</div>
+    <div class="nav-group">业务</div>
+    <div class="nav-item">货件管理</div>
+    <div class="nav-item">店铺测算</div>
+  </aside>
+
+  <!-- 主区 -->
+  <main class="main">
+    <div class="page-head">
+      <div class="page-title">
+        <svg class="icon-key" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        Agent 接入管理
+        <span class="hint-tag">设计稿 BLF-468 · 交互示意</span>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab">业务域概览</div>
+      <div class="tab active">凭据管理</div>
+      <div class="tab">调用指南</div>
+      <div class="tab">访问日志</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">凭据列表</div>
+        <div class="filters">
+          <label class="checkbox-label"><input type="checkbox" id="inclDeleted" /> 含已删除</label>
+          <select id="domainFilter" class="select" aria-label="按业务域筛选">
+            <option value="all">全部业务域</option>
+            <option value="shipments">货件管理</option>
+            <option value="shop_calculations">店铺测算</option>
+          </select>
+          <select id="statusFilter" class="select" aria-label="按状态筛选">
+            <option value="all">全部状态</option>
+            <option value="active">激活</option>
+            <option value="inactive">停用</option>
+            <option value="expired">已过期</option>
+          </select>
+          <button class="btn btn-primary" id="createBtn">创建凭据</button>
+        </div>
+      </div>
+
+      <div class="summary" id="summary"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>Key 前缀</th>
+              <th>Agent ID</th>
+              <th>项目范围</th>
+              <th>业务域范围</th>
+              <th>最近使用</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="empty" id="empty" style="display:none">没有符合条件的凭据</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title" id="mTitle"></div>
+      <div class="modal-desc" id="mDesc"></div>
+    </div>
+    <div class="modal-input" id="mInputWrap" style="display:none">
+      <label for="mInput">为确认删除，请输入该凭据的 Key 前缀</label>
+      <input id="mInput" autocomplete="off" spellcheck="false" />
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="mCancel">取消</button>
+      <button class="btn" id="mOk">确认</button>
+    </div>
+  </div>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+// ── 数据（示意，模拟后端返回）─────────────────────────
+// status 由 (is_revoked, expires_at, deleted_at) 派生，与设计稿 §3 一致
+let keys = [
+  { id: 1,  label: '货件助理 (生产)',     key_prefix: 'bbx_9f2kLm1', agent_id: 'shipment-assistant-prod',  project: '全部项目', domain: '货件管理',  domainCode: 'shipments',        lastUsed: '2026-08-06 14:32', is_revoked: false, deleted_at: null, expires_at: null },
+  { id: 2,  label: '店铺测算 (生产)',     key_prefix: 'bbx_7qXwZc3', agent_id: 'shop-calc-prod',          project: '3 个项目', domain: '店铺测算',  domainCode: 'shop_calculations', lastUsed: '2026-08-07 09:05', is_revoked: false, deleted_at: null, expires_at: null },
+  { id: 3,  label: '货件助理 (测试)',     key_prefix: 'bbx_kP4dRt8', agent_id: 'shipment-assistant-staging', project: '全部项目', domain: '货件管理', domainCode: 'shipments',       lastUsed: '2026-07-28 11:20', is_revoked: true,  deleted_at: null, expires_at: null },
+  { id: 4,  label: '店铺测算 (测试)',     key_prefix: 'bbx_vB2nSx9', agent_id: 'shop-calc-staging',      project: '全部项目', domain: '店铺测算',  domainCode: 'shop_calculations', lastUsed: '2026-07-15 16:44', is_revoked: true,  deleted_at: null, expires_at: null },
+  { id: 5,  label: '烟雾测试-01',         key_prefix: 'bbx_tY5mQe2', agent_id: 'smoke-test-01',          project: '全部项目', domain: '货件管理',  domainCode: 'shipments',        lastUsed: '从未使用', is_revoked: false, deleted_at: null, expires_at: null },
+  { id: 6,  label: '烟雾测试-02',         key_prefix: 'bbx_aW8dFg1', agent_id: 'smoke-test-02',          project: '全部项目', domain: '店铺测算',  domainCode: 'shop_calculations', lastUsed: '从未使用', is_revoked: false, deleted_at: null, expires_at: null },
+  { id: 7,  label: '旧 external 遗留',    key_prefix: 'bbx_zzXxYy0', agent_id: null,                    project: '全部项目', domain: '货件管理',  domainCode: 'shipments',        lastUsed: '2026-06-02 10:00', is_revoked: true,  deleted_at: null, expires_at: null },
+  { id: 8,  label: '演示-已删除',         key_prefix: 'bbx_qq11aa',  agent_id: 'demo-removed',          project: '全部项目', domain: '货件管理',  domainCode: 'shipments',        lastUsed: '2026-05-20 08:30', is_revoked: false, deleted_at: '2026-08-01 15:00', expires_at: null },
+  { id: 9,  label: '过期示例 (预留)',     key_prefix: 'bbx_ee44rr',  agent_id: 'expired-example',       project: '1 个项目', domain: '店铺测算',  domainCode: 'shop_calculations', lastUsed: '2026-07-01 10:00', is_revoked: false, deleted_at: null, expires_at: '2026-07-31 00:00' },
+];
+
+// ── 状态派生（设计稿 §3）─────────────────────────────
+function statusOf(k) {
+  if (k.deleted_at) return 'deleted';
+  if (k.expires_at && new Date(k.expires_at) < new Date()) return 'expired';
+  if (k.is_revoked) return 'inactive';
+  return 'active';
+}
+const STATUS_META = {
+  active:   { label: '激活',   cls: 'b-active' },
+  inactive: { label: '停用',   cls: 'b-inactive' },
+  expired:  { label: '已过期', cls: 'b-expired' },
+  deleted:  { label: '已删除', cls: 'b-deleted' },
+};
+
+// ── 筛选状态 ────────────────────────────────────────
+const ui = { status: 'all', domain: 'all', inclDeleted: false };
+
+function visibleKeys() {
+  return keys.filter((k) => {
+    if (k.deleted_at && !ui.inclDeleted) return false;
+    if (ui.status !== 'all' && statusOf(k) !== ui.status) return false;
+    if (ui.domain !== 'all' && k.domainCode !== ui.domain) return false;
+    return true;
+  });
+}
+
+// ── 渲染 ────────────────────────────────────────────
+function render() {
+  const list = visibleKeys();
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('empty');
+  tbody.innerHTML = '';
+  empty.style.display = list.length ? 'none' : 'block';
+
+  const counts = { active: 0, inactive: 0, expired: 0, deleted: 0 };
+  keys.forEach((k) => counts[statusOf(k)]++);
+  const total = keys.filter((k) => !k.deleted_at).length;
+  document.getElementById('summary').innerHTML =
+    `<span>共 <b>${total}</b> 张凭据</span>` +
+    `<span>激活 <b style="color:var(--success)">${counts.active}</b></span>` +
+    `<span>停用 <b style="color:var(--muted-fg)">${counts.inactive}</b></span>` +
+    `<span>已过期 <b style="color:var(--warning)">${counts.expired}</b></span>` +
+    (counts.deleted ? `<span>已删除 <b>${counts.deleted}</b></span>` : '');
+
+  list.forEach((k) => {
+    const st = statusOf(k);
+    const meta = STATUS_META[st];
+    const tr = document.createElement('tr');
+    if (st === 'deleted') tr.className = 'deleted-row';
+
+    const actions = actionButtons(k, st);
+    tr.innerHTML = `
+      <td>${esc(k.label)}</td>
+      <td class="mono">${esc(k.key_prefix)}…</td>
+      <td>${k.agent_id ? `<span class="mono">${esc(k.agent_id)}</span>` : '<span class="cell-sub">—（未绑定）</span>'}</td>
+      <td>${esc(k.project)}</td>
+      <td>${esc(k.domain)}</td>
+      <td class="cell-sub">${esc(k.lastUsed)}</td>
+      <td><span class="badge ${meta.cls}"><span class="b-dot"></span>${meta.label}${st === 'deleted' ? '' : ''}</span></td>
+      <td><div class="row-actions">${actions}</div></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function actionButtons(k, st) {
+  const btn = (text, cls, fn) => `<button class="link-btn ${cls}" data-id="${k.id}" data-act="${fn}">${text}</button>`;
+  switch (st) {
+    case 'active':   return btn('停用', '', 'deactivate') + btn('删除', 'danger', 'delete');
+    case 'inactive': return btn('激活', 'activate', 'activate') + btn('删除', 'danger', 'delete');
+    case 'expired':  return btn('删除', 'danger', 'delete');
+    case 'deleted':  return '';
+  }
+}
+
+// ── 确认弹窗 ────────────────────────────────────────
+const overlay = document.getElementById('overlay');
+let modalCtx = null; // { fn, variant, expectedInput }
+function openModal({ title, desc, okText, variant = 'default', fn, expectedInput = null }) {
+  document.getElementById('mTitle').innerHTML = title;
+  document.getElementById('mDesc').innerHTML = desc;
+  const ok = document.getElementById('mOk');
+  ok.textContent = okText;
+  ok.className = 'btn ' + (variant === 'danger' ? 'btn-danger' : 'btn-primary');
+  const wrap = document.getElementById('mInputWrap');
+  const input = document.getElementById('mInput');
+  if (expectedInput) {
+    wrap.style.display = 'block';
+    input.value = '';
+    input.className = '';
+    ok.disabled = true;
+    ok.style.opacity = '.45';
+    setTimeout(() => input.focus(), 50);
+  } else {
+    wrap.style.display = 'none';
+    ok.disabled = false;
+    ok.style.opacity = '';
+  }
+  modalCtx = { fn, expectedInput };
+  overlay.classList.add('open');
+  input.oninput = () => {
+    const ok2 = input.value.trim() === expectedInput;
+    input.className = input.value && !ok2 ? 'mismatch' : '';
+    ok.disabled = !ok2;
+    ok.style.opacity = ok2 ? '' : '.45';
+  };
+}
+function closeModal() { overlay.classList.remove('open'); modalCtx = null; }
+document.getElementById('mCancel').onclick = closeModal;
+overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
+document.getElementById('mOk').onclick = () => {
+  if (!modalCtx) return;
+  if (modalCtx.expectedInput && document.getElementById('mInput').value.trim() !== modalCtx.expectedInput) return;
+  modalCtx.fn();
+  closeModal();
+};
+
+// ── 动作 ────────────────────────────────────────────
+function toast(msg, err = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (err ? ' err' : '');
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function deactivateKey(k) {
+  k.is_revoked = true;
+  render();
+  toast(`已停用：${k.label}`);
+}
+function activateKey(k) {
+  k.is_revoked = false;
+  render();
+  toast(`已激活：${k.label}`);
+}
+function deleteKey(k) {
+  k.deleted_at = new Date().toISOString();
+  render();
+  toast(`已删除：${k.label}`);
+}
+
+document.getElementById('tbody').addEventListener('click', (e) => {
+  const btn = e.target.closest('.link-btn');
+  if (!btn) return;
+  const k = keys.find((x) => x.id === Number(btn.dataset.id));
+  if (!k) return;
+  const act = btn.dataset.act;
+
+  if (act === 'deactivate') {
+    openModal({
+      title: `停用凭据「${k.label}」？`,
+      desc: `停用后使用该凭据的 Agent 将立即无法访问。<b>可随时重新激活</b>，凭据本身不会失效。`,
+      okText: '停用',
+      fn: () => deactivateKey(k),
+    });
+  } else if (act === 'activate') {
+    openModal({
+      title: `激活凭据「${k.label}」？`,
+      desc: `激活后该凭据恢复访问权限。<br/>⚠️ 若此前是因<b>疑似泄露</b>而停用，建议改为新建凭据轮换，而非复用旧 Key。`,
+      okText: '激活',
+      fn: () => activateKey(k),
+    });
+  } else if (act === 'delete') {
+    openModal({
+      title: `删除凭据「${k.label}」？`,
+      desc: `删除后<b>不可恢复</b>，使用该凭据的 Agent 将永久无法访问（审计日志保留）。<br/>Key 前缀：<span class="mono">${esc(k.key_prefix)}</span>`,
+      okText: '删除',
+      variant: 'danger',
+      expectedInput: k.key_prefix,
+      fn: () => deleteKey(k),
+    });
+  }
+});
+
+// ── 筛选事件 ────────────────────────────────────────
+document.getElementById('statusFilter').onchange = (e) => { ui.status = e.target.value; render(); };
+document.getElementById('domainFilter').onchange = (e) => { ui.domain = e.target.value; render(); };
+document.getElementById('inclDeleted').onchange = (e) => { ui.inclDeleted = e.target.checked; render(); };
+document.getElementById('createBtn').onclick = () => toast('创建凭据流程保持不变（本期不改动）');
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ── 初始 ────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
