@@ -37,5 +37,7 @@ class OperationAuditLog(Base):
     before_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     after_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     agent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Agent 中文显示名（BLF-471）：写操作落库时随行快照（无 api_key_id 可 join）。
+    agent_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

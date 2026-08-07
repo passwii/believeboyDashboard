@@ -16,11 +16,18 @@ class AgentOperationLogItem(BaseModel):
     id: int
     created_at: str
     agent_id: str | None = None
+    # Agent 中文显示名（BLF-471）：写操作落库时随行快照，未填回退显示 agent_id。
+    agent_name: str | None = None
     action: str
     target_type: str
     target_id: str | None = None
+    # 人类可读对象标识（BLF-471）：货件域派生 shipment_no（如 SH-2026-01），
+    # 兜底 before/after 内嵌 shipment_no；无则 None（前端回退 #target_id）。
+    target_label: str | None = None
     result: str
     project_id: int | None = None
+    # 请求涉及的项目名（BLF-471）：由 project_id 查 projects 表还原，运营可读。
+    project_name: str | None = None
     operation_type: str | None = None
     request_path: str | None = None
     request_method: str | None = None
@@ -40,6 +47,7 @@ class AgentOperationLogsResponse(BaseModel):
 
 class AgentOperationLogSummaryItem(BaseModel):
     agent_id: str
+    agent_name: str | None = None
     count: int
 
 

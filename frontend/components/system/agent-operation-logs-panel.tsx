@@ -48,6 +48,7 @@ import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
 import { describeOperation, operationActionLabel, targetTypeLabel } from '@/lib/agent-operation-diff'
+import { AgentIdentityCell, formatProjectRef } from '@/lib/agent-display'
 
 const API_BASE = '/api/backend'
 
@@ -55,11 +56,17 @@ export type AgentOperationLogItem = {
   id: number
   created_at: string
   agent_id: string | null
+  /** Agent 中文显示名（BLF-471）：写操作落库时随行快照，未填回退 agent_id */
+  agent_name: string | null
   action: string
   target_type: string
   target_id: string | null
+  /** 人类可读对象标识（BLF-471）：货件域派生 shipment_no，无则回退 #target_id */
+  target_label: string | null
   result: string
   project_id: number | null
+  /** 请求涉及的项目名（BLF-471）：运营可读，未命中回退 #id */
+  project_name: string | null
   operation_type: string | null
   request_path: string | null
   request_method: string | null
@@ -77,7 +84,7 @@ type AgentOperationLogsResponse = {
   has_next: boolean
 }
 
-type AgentOperationLogSummaryItem = { agent_id: string; count: number }
+type AgentOperationLogSummaryItem = { agent_id: string; agent_name?: string | null; count: number }
 type AgentOperationLogActionSummaryItem = { action: string; count: number }
 
 type AgentOperationLogsSummaryResponse = {
@@ -273,10 +280,10 @@ export function AgentOperationLogsPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[170px]">时间</TableHead>
-                  <TableHead className="w-[140px]">Agent ID</TableHead>
+                  <TableHead className="w-[150px]">Agent</TableHead>
                   <TableHead className="w-[130px]">操作</TableHead>
-                  <TableHead className="w-[80px]">项目 ID</TableHead>
-                  <TableHead className="w-[110px]">对象</TableHead>
+                  <TableHead className="w-[150px]">项目</TableHead>
+                  <TableHead className="w-[150px]">对象</TableHead>
                   <TableHead className="w-[80px]">结果</TableHead>
                   <TableHead className="w-[80px] text-right">详情</TableHead>
                 </TableRow>
@@ -297,25 +304,23 @@ export function AgentOperationLogsPanel() {
                     <TableRow key={row.id}>
                       <TableCell>{formatDateTime(row.created_at)}</TableCell>
                       <TableCell>
-                        {row.agent_id ? (
-                          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                            {row.agent_id}
-                          </code>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        <AgentIdentityCell agentId={row.agent_id} agentName={row.agent_name} />
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono text-xs">
                           {operationActionLabel(row.action)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {row.project_id ?? '-'}
+                      <TableCell className="text-xs">
+                        {formatProjectRef(row.project_id, row.project_name)}
                       </TableCell>
-                      <TableCell className="max-w-[140px] truncate" title={row.target_id || '-'}>
+                      <TableCell className="max-w-[150px] truncate" title={row.target_label || row.target_id || '-'}>
                         {targetTypeLabel(row.target_type)}
-                        {row.target_id ? (
+                        {row.target_label ? (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {' '}#{row.target_label}
+                          </span>
+                        ) : row.target_id ? (
                           <span className="text-muted-foreground"> #{row.target_id}</span>
                         ) : null}
                       </TableCell>
@@ -427,17 +432,28 @@ export function AgentOperationLogsPanel() {
                   {formatDateTime(activeRow.created_at)}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Agent ID:</span>{' '}
-                  <code className="font-mono">{activeRow.agent_id || '-'}</code>
+                  <span className="text-muted-foreground">Agent:</span>{' '}
+                  {activeRow.agent_name ? (
+                    <span className="font-medium">{activeRow.agent_name} </span>
+                  ) : null}
+                  {activeRow.agent_id ? (
+                    <code className="font-mono">{activeRow.agent_id}</code>
+                  ) : (
+                    '-'
+                  )}
                 </p>
                 <p>
                   <span className="text-muted-foreground">对象:</span>{' '}
                   {targetTypeLabel(activeRow.target_type)}
-                  {activeRow.target_id ? ` #${activeRow.target_id}` : ''}
+                  {activeRow.target_label ? (
+                    <span className="font-mono"> #{activeRow.target_label}</span>
+                  ) : activeRow.target_id ? (
+                    <span className="font-mono"> #{activeRow.target_id}</span>
+                  ) : null}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">项目 ID:</span>{' '}
-                  <code className="font-mono">{activeRow.project_id ?? '-'}</code>
+                  <span className="text-muted-foreground">项目:</span>{' '}
+                  {formatProjectRef(activeRow.project_id, activeRow.project_name)}
                 </p>
                 <p>
                   <span className="text-muted-foreground">结果:</span>{' '}

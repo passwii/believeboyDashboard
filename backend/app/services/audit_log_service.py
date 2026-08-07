@@ -113,6 +113,7 @@ def append_operation_audit_log(
     error_message: str | None = None,
     request: Request | None = None,
     agent_id: str | None = None,
+    agent_name: str | None = None,
     idempotency_key: str | None = None,
 ) -> None:
     trace_id, request_method, request_path, ip_address = _extract_request_meta(request)
@@ -144,6 +145,7 @@ def append_operation_audit_log(
             after_json=_json_safe(after_payload),
             error_message=_clip(error_message, 4000),
             agent_id=_clip(agent_id, 128),
+            agent_name=_clip(agent_name, 128),
             idempotency_key=_clip(idempotency_key, 64),
         )
     )

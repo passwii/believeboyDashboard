@@ -13,6 +13,7 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '*',
       business_scope: '*',
       agent_id: 'shipment-assistant-prod',
+      agent_name: '货件助理',
       is_revoked: false,
       expires_at: null,
       created_at: '2026-08-01T00:00:00Z',
@@ -27,6 +28,7 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '12',
       business_scope: 'shop_calculations',
       agent_id: 'shop-calc-test',
+      agent_name: null,
       is_revoked: true,
       expires_at: null,
       created_at: '2026-08-02T00:00:00Z',
@@ -41,6 +43,7 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '*',
       business_scope: 'shipments',
       agent_id: 'shipment-readonly',
+      agent_name: null,
       is_revoked: false,
       expires_at: null,
       created_at: '2026-08-03T00:00:00Z',
@@ -55,6 +58,7 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '*',
       business_scope: '*',
       agent_id: 'expired-key',
+      agent_name: null,
       is_revoked: false,
       expires_at: '2026-07-31T00:00:00Z',
       created_at: '2026-07-01T00:00:00Z',
@@ -69,6 +73,7 @@ const { mockKeys } = vi.hoisted(() => ({
       project_scope: '*',
       business_scope: '*',
       agent_id: 'deleted-key',
+      agent_name: null,
       is_revoked: false,
       expires_at: null,
       created_at: '2026-06-01T00:00:00Z',
@@ -80,7 +85,7 @@ const { mockKeys } = vi.hoisted(() => ({
 
 // listAgentApiKeys 模拟后端语义：include_deleted=false 默认隐藏已删除；
 // 返回值缓存稳定引用，避免 setKeys 每轮新数组导致 effect 无限重跑。
-const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgentApiKey, confirm, notify } =
+const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgentApiKey, updateAgentApiKeyName, confirm, notify } =
   vi.hoisted(() => {
     const nonDeletedKeys = mockKeys.filter((k) => !k.deleted_at)
     return {
@@ -90,6 +95,11 @@ const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgen
       deactivateAgentApiKey: vi.fn().mockResolvedValue(undefined),
       activateAgentApiKey: vi.fn().mockResolvedValue(undefined),
       deleteAgentApiKey: vi.fn().mockResolvedValue(undefined),
+      updateAgentApiKeyName: vi.fn().mockResolvedValue({
+        id: 1,
+        agent_id: 'shipment-assistant-prod',
+        agent_name: '新名字',
+      }),
       confirm: vi.fn().mockResolvedValue(true),
       notify: vi.fn(),
     }
@@ -104,6 +114,7 @@ vi.mock('@/lib/api/agent-key-admin', () => ({
   deactivateAgentApiKey,
   activateAgentApiKey,
   deleteAgentApiKey,
+  updateAgentApiKeyName,
   normalizeProjectScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
   normalizeBusinessScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
 }))
@@ -237,22 +248,56 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     expect(screen.getByTestId('access-logs-panel')).toBeTruthy()
   })
 
-  it('创建凭据 Dialog 带业务域范围字段并透传 business_scope', async () => {
+  it('创建凭据 Dialog 带 Agent 中文名与业务域范围并透传', async () => {
     const user = userEvent.setup()
     render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
 
     await user.click(screen.getByRole('button', { name: '创建凭据' }))
     expect(screen.getByText('业务域范围（空 = 全部业务域）')).toBeTruthy()
+    expect(screen.getByText('Agent 名称（中文）')).toBeTruthy()
 
     await user.type(screen.getByLabelText('名称'), '新 Agent')
     await user.type(screen.getByLabelText('Agent ID'), 'new-agent')
+    await user.type(screen.getByLabelText('Agent 名称（中文）'), '货件助理')
     await user.click(screen.getByRole('button', { name: '创建', exact: true }))
 
     await waitFor(() =>
       expect(createAgentApiKey).toHaveBeenCalledWith(
-        expect.objectContaining({ business_scope: '*' })
+        expect.objectContaining({
+          business_scope: '*',
+          agent_name: '货件助理',
+        })
       )
+    )
+  })
+
+  it('凭据表 Agent 列展示中文名 + 英文 ID（BLF-471）', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    expect(screen.getByText('货件助理')).toBeTruthy()
+    expect(screen.getByText('shipment-assistant-prod')).toBeTruthy()
+  })
+
+  it('改名流：铅笔按钮打开 Dialog，保存后调 updateAgentApiKeyName 端点', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getByLabelText('编辑 shipment-assistant-prod 的中文名'))
+    expect(screen.getByText('编辑 Agent 中文名')).toBeTruthy()
+
+    const input = screen.getByLabelText('Agent 名称（中文）')
+    await user.clear(input)
+    await user.type(input, '新名字')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAgentApiKeyName).toHaveBeenCalledWith(1, '新名字')
     )
   })
 
