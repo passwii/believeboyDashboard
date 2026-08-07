@@ -259,15 +259,19 @@ def seed_return_analysis(
     try:
         # find-or-create：同一 (project, country, report_type, period) 的 source file
         # 复用（analysis_sources_period_version_key 唯一约束，多次 seed 不冲突）。
-        sf_ret = db.execute(
-            select(AnalysisSourceFile).where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "return_report",
-                AnalysisSourceFile.period_start_date == period_start,
-                AnalysisSourceFile.period_end_date == period_end,
+        sf_ret = (
+            db.execute(
+                select(AnalysisSourceFile).where(
+                    AnalysisSourceFile.project_id == project_id,
+                    AnalysisSourceFile.country == country,
+                    AnalysisSourceFile.report_type == "return_report",
+                    AnalysisSourceFile.period_start_date == period_start,
+                    AnalysisSourceFile.period_end_date == period_end,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if sf_ret is None:
             sf_ret = AnalysisSourceFile(
                 project_id=project_id,
@@ -289,15 +293,19 @@ def seed_return_analysis(
             db.add(sf_ret)
             db.flush()
 
-        sf_sales = db.execute(
-            select(AnalysisSourceFile).where(
-                AnalysisSourceFile.project_id == project_id,
-                AnalysisSourceFile.country == country,
-                AnalysisSourceFile.report_type == "sales_report",
-                AnalysisSourceFile.period_start_date == period_start,
-                AnalysisSourceFile.period_end_date == period_end,
+        sf_sales = (
+            db.execute(
+                select(AnalysisSourceFile).where(
+                    AnalysisSourceFile.project_id == project_id,
+                    AnalysisSourceFile.country == country,
+                    AnalysisSourceFile.report_type == "sales_report",
+                    AnalysisSourceFile.period_start_date == period_start,
+                    AnalysisSourceFile.period_end_date == period_end,
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if sf_sales is None:
             sf_sales = AnalysisSourceFile(
                 project_id=project_id,
@@ -483,6 +491,155 @@ def seed_inventory_snapshot(
         db.close()
 
 
+def seed_sales_order_rows(
+    project_id: int,
+    *,
+    country: str = "US",
+    sku_daily_qty: dict[str, int] | None = None,
+    days: int = 30,
+    start_date=None,
+) -> int:
+    """Seed ``analysis_sales_order_rows``（BLF-502 补货分析测试基座）。
+
+    每 SKU 每天 qty 一条（BEL-348 行级 upsert 语义，直接按行过滤，无需
+    source_file 版本选择）。``start_date`` 缺省昨天；横跨 ``days`` 天。
+    返回 sales source file id。
+    """
+    from datetime import datetime, time, timezone
+
+    from app.models import AnalysisSalesOrderRow, AnalysisSourceFile
+
+    # 销量行右端到「今天」（service DMS 窗口右端 = date.today()，缺省路径），
+    # 保证 30/14/7/3 窗口整窗命中（dms_N = qty 精确值，测试可断言）。
+    today = date.today()
+    first = start_date or (today - timedelta(days=days - 1))
+
+    db = SessionLocal()
+    try:
+        sf = AnalysisSourceFile(
+            project_id=project_id,
+            country=country,
+            report_type="sales_report",
+            period_start_date=first,
+            period_end_date=today,
+            upload_file_id=f"test_sales_{project_id}_{uuid.uuid4().hex[:6]}",
+            upload_file_path="/tmp/test_sales.csv",
+            original_filename="test_sales.csv",
+            stored_filename="test_sales.csv",
+            logical_filename="test_sales.csv",
+            storage_key="test_sales.csv",
+            is_current=True,
+            ingestion_status="success",
+            row_count_total=0,
+            created_by="pytest",
+        )
+        db.add(sf)
+        db.flush()
+
+        row_no = 1
+        for sku, qty in (sku_daily_qty or {}).items():
+            for i in range(days):
+                day = first + timedelta(days=i)
+                db.add(
+                    AnalysisSalesOrderRow(
+                        project_id=project_id,
+                        country=country,
+                        source_file_id=sf.id,
+                        source_row_no=row_no,
+                        amazon_order_id=f"ORD-{sku}-{i}",
+                        purchase_at_utc=datetime.combine(
+                            day, time.min, tzinfo=timezone.utc
+                        ),
+                        purchase_at_pt=datetime.combine(day, time.min),
+                        purchase_date_pt=day,
+                        sku=sku,
+                        quantity=qty,
+                        order_status="Shipped",
+                        is_counted_sales=True,
+                    )
+                )
+                row_no += 1
+        db.commit()
+        return sf.id
+    finally:
+        db.close()
+
+
+def seed_replenishment_sku(project_id: int, sku: str, *, country: str = "US") -> int:
+    """Seed 一条基表 SKU（BLF-502 测试基座；口径同 shipment_env 的 SkuRecord）。
+
+    返回 SkuRecord id。用于补货分析测试中追加基表 SKU（如无销量→unknown 的 SKU）。
+    """
+    from app.models import SkuRecord
+
+    db = SessionLocal()
+    try:
+        project = db.get(Project, project_id)
+        row = SkuRecord(
+            project_id=project_id,
+            project_name=project.project_name,
+            sku=sku,
+            asin=f"ASIN-{sku}",
+            country=country,
+            fob_unit_cost=10,
+            first_leg_cost_rmb=1,
+            package_length_cm=10,
+            package_width_cm=10,
+            package_height_cm=10,
+            weight_kg=0.5,
+            carton_length_cm=20,
+            carton_width_cm=20,
+            carton_height_cm=20,
+            carton_weight_kg=5,
+            units_per_carton=10,
+            currency="USD",
+            sort_order=0,
+            is_active=True,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row.id
+    finally:
+        db.close()
+
+
+def seed_replenishment_setting(
+    project_id: int,
+    sku: str,
+    *,
+    country: str = "US",
+    asin: str | None = None,
+    production_lead_days: int = 30,
+    shipping_days: int = 35,
+    safety_factor: float = 0.1,
+) -> int:
+    """Seed 一条补货设置（BLF-502 R5/R6 测试基座），返回设置 id。"""
+    from app.models import InventoryReplenishmentSetting
+
+    db = SessionLocal()
+    try:
+        project = db.get(Project, project_id)
+        row = InventoryReplenishmentSetting(
+            project_id=project_id,
+            project_name=project.project_name,
+            sku=sku,
+            country=country,
+            asin=asin,
+            production_lead_days=production_lead_days,
+            shipping_days=shipping_days,
+            safety_factor=safety_factor,
+            created_by="pytest",
+            updated_by="pytest",
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row.id
+    finally:
+        db.close()
+
+
 def seed_schedule(project_id: int, shipment_no: str) -> int:
     """建一张 draft 货件 + 2 行明细（X-001×100、X-002×50），返回 schedule id。
 
@@ -617,7 +774,9 @@ def shipment_env(make_api_key):
             )
         )
         db.execute(
-            delete(AnalysisSourceFile).where(AnalysisSourceFile.project_id == project_id)
+            delete(AnalysisSourceFile).where(
+                AnalysisSourceFile.project_id == project_id
+            )
         )
         db.execute(
             delete(AnalysisReturnAggregate).where(

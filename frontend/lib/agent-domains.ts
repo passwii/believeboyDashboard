@@ -80,6 +80,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'replenishment_analysis',
+    label: '补货分析',
+    description: '补货决策清单/单 SKU 深挖/项目总览/覆盖度/设置（三段式体系，BLF-502）',
+    status: 'live',
+    routeCount: 6,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',

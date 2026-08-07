@@ -3718,6 +3718,53 @@
         "title": "ApiKeyRevokeResponse",
         "type": "object"
       },
+      "ApiKeyUpdateRequest": {
+        "description": "编辑请求（BLF-480）：PATCH 语义，仅更新显式传入的字段。\n\n``label`` / ``project_scope`` / ``business_scope`` 均可缺省（None = 不改）；\n空串归一为 ``*`` 在 service 层与 create 对齐。",
+        "properties": {
+          "business_scope": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）",
+            "title": "Business Scope"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "人类可读标识",
+            "title": "Label"
+          },
+          "project_scope": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "项目范围：'*' 全部，或 ',' 分隔的 project_id 白名单（空串按 '*' 处理）",
+            "title": "Project Scope"
+          }
+        },
+        "title": "ApiKeyUpdateRequest",
+        "type": "object"
+      },
       "AuditLogItem": {
         "properties": {
           "action": {
@@ -4558,7 +4605,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4579,7 +4626,7 @@
       "Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4593,7 +4640,7 @@
       "Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4607,7 +4654,7 @@
       "Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4626,7 +4673,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4645,7 +4692,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4659,12 +4706,12 @@
       "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post": {
         "properties": {
           "excel_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Excel File",
             "type": "string"
           },
           "pdf_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4679,7 +4726,7 @@
       "Body_upload_api_v1_page_render_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4704,7 +4751,7 @@
       "Body_upload_avatar_api_v1_system_management_profile_avatar_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4718,7 +4765,7 @@
       "Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4732,7 +4779,7 @@
       "Body_upload_file_api_v1_uploads_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4756,7 +4803,7 @@
       "Body_upload_file_for_ai_api_v1_ai_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4770,7 +4817,7 @@
       "Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4784,7 +4831,7 @@
       "Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4803,7 +4850,7 @@
       "Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4817,11 +4864,11 @@
       "Body_upload_screenshot_api_v1_inspections_screenshots_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
-          "report_id_form": {
+          "report_id": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4830,7 +4877,7 @@
                 "type": "null"
               }
             ],
-            "title": "Report Id Form"
+            "title": "Report Id"
           }
         },
         "required": [
@@ -4842,7 +4889,7 @@
       "Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post": {
         "properties": {
           "pdf_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4856,7 +4903,7 @@
       "Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post": {
         "properties": {
           "csv_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Csv File",
             "type": "string"
           }
@@ -14801,6 +14848,62 @@
         "title": "InventoryAnalysisSummary",
         "type": "object"
       },
+      "InventoryDecisionPath": {
+        "description": "BLF-502 S3/G1：决策路径解释——为什么是这个 state/action。\n\n``state_rule`` ∈ P0..P13（spec §2.1 顺序短路命中规则）；\n``critical_subtype`` ∈ shortage/aging/overstock（仅 critical）；\n``action_rule`` 为决策表分支标识；``seasonal_override`` 表示季节性是否\n覆盖了动作判定。",
+        "properties": {
+          "action_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Rule"
+          },
+          "critical_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Subtype"
+          },
+          "seasonal_override": {
+            "default": false,
+            "title": "Seasonal Override",
+            "type": "boolean"
+          },
+          "seasonal_phase_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seasonal Phase Used"
+          },
+          "state_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Rule"
+          }
+        },
+        "title": "InventoryDecisionPath",
+        "type": "object"
+      },
       "InventoryReplenishmentListItem": {
         "properties": {
           "age_0_90_qty": {
@@ -14857,6 +14960,16 @@
           "country": {
             "title": "Country",
             "type": "string"
+          },
+          "decision_path": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InventoryDecisionPath"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "dms_14": {
             "anyOf": [
@@ -15852,6 +15965,13 @@
       },
       "InventoryReplenishmentSummary": {
         "properties": {
+          "action_distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Action Distribution",
+            "type": "object"
+          },
           "critical_count": {
             "default": 0,
             "title": "Critical Count",
@@ -15886,6 +16006,23 @@
           "slow_moving_count": {
             "title": "Slow Moving Count",
             "type": "integer"
+          },
+          "state_action_matrix": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "State Action Matrix",
+            "type": "object"
+          },
+          "state_distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "State Distribution",
+            "type": "object"
           },
           "total_available_inventory": {
             "title": "Total Available Inventory",
@@ -31569,6 +31706,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -40883,7 +41027,8 @@
     },
     "/api/v1/agent/projects/{project_id}/replenishment-analysis": {
       "get": {
-        "operationId": "agent_get_external_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get",
+        "description": "R1 决策清单：全量逐 SKU 分析（Agent 任务 T1）。\n\n与 internal/external 同源 service；默认路径（无新过滤/排序、detail=summary）\n与 detail=full 共享 5min Redis 缓存（key 含全部新参数，D10）。",
+        "operationId": "get_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get",
         "parameters": [
           {
             "in": "path",
@@ -40895,19 +41040,17 @@
             }
           },
           {
-            "description": "ISO-2 country code",
             "in": "query",
             "name": "country",
             "required": false,
             "schema": {
               "default": "US",
-              "description": "ISO-2 country code",
               "title": "Country",
               "type": "string"
             }
           },
           {
-            "description": "Filter by SKU or ASIN (substring match, case-insensitive)",
+            "description": "SKU/ASIN 子串过滤（大小写不敏感）",
             "in": "query",
             "name": "keyword",
             "required": false,
@@ -40920,12 +41063,48 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by SKU or ASIN (substring match, case-insensitive)",
+              "description": "SKU/ASIN 子串过滤（大小写不敏感）",
               "title": "Keyword"
             }
           },
           {
-            "description": "Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据",
+            "description": "三段式状态过滤（逗号分隔多值）：critical/deteriorating/watch/healthy/unknown",
+            "in": "query",
+            "name": "inventory_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "三段式状态过滤（逗号分隔多值）：critical/deteriorating/watch/healthy/unknown",
+              "title": "Inventory State"
+            }
+          },
+          {
+            "description": "三段式行动过滤（逗号分隔多值）：REPLENISH_NOW/REPLENISH_NORMAL/HOLD/REDUCE_PRICE/REMOVE/NO_ACTION",
+            "in": "query",
+            "name": "replenishment_action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "三段式行动过滤（逗号分隔多值）：REPLENISH_NOW/REPLENISH_NORMAL/HOLD/REDUCE_PRICE/REMOVE/NO_ACTION",
+              "title": "Replenishment Action"
+            }
+          },
+          {
+            "description": "老 4 类风险过滤（兼容既有消费者，新消费者优先用 inventory_state/replenishment_action）：断货风险|短期断货|长期断货|健康库存|滞销|严重滞销|待补数据",
             "in": "query",
             "name": "risk_status",
             "required": false,
@@ -40938,24 +41117,22 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据",
+              "description": "老 4 类风险过滤（兼容既有消费者，新消费者优先用 inventory_state/replenishment_action）：断货风险|短期断货|长期断货|健康库存|滞销|严重滞销|待补数据",
               "title": "Risk Status"
             }
           },
           {
-            "description": "Only SKUs with in-transit quantity > 0",
             "in": "query",
             "name": "in_transit_only",
             "required": false,
             "schema": {
               "default": false,
-              "description": "Only SKUs with in-transit quantity > 0",
               "title": "In Transit Only",
               "type": "boolean"
             }
           },
           {
-            "description": "Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today.",
+            "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
             "in": "query",
             "name": "report_date",
             "required": false,
@@ -40969,31 +41146,68 @@
                   "type": "null"
                 }
               ],
-              "description": "Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today.",
+              "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
               "title": "Report Date"
             }
           },
           {
-            "description": "Page number (1-based)",
+            "description": "排序字段（白名单）：sku/available_inventory/in_transit_quantity/weighted_dms/sellable_days/estimated_replenishment_quantity/risk_status/inventory_state/replenishment_action",
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "排序字段（白名单）：sku/available_inventory/in_transit_quantity/weighted_dms/sellable_days/estimated_replenishment_quantity/risk_status/inventory_state/replenishment_action",
+              "title": "Order By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_dir",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "pattern": "^(asc|desc)$",
+              "title": "Order Dir",
+              "type": "string"
+            }
+          },
+          {
+            "description": "summary（默认，轻量决策字段）/ full（完整行 + signals + decision_path）",
+            "in": "query",
+            "name": "detail",
+            "required": false,
+            "schema": {
+              "default": "summary",
+              "description": "summary（默认，轻量决策字段）/ full（完整行 + signals + decision_path）",
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "page",
             "required": false,
             "schema": {
               "default": 1,
-              "description": "Page number (1-based)",
               "minimum": 1,
               "title": "Page",
               "type": "integer"
             }
           },
           {
-            "description": "Items per page (max 200)",
             "in": "query",
             "name": "page_size",
             "required": false,
             "schema": {
               "default": 50,
-              "description": "Items per page (max 200)",
               "maximum": 200,
               "minimum": 1,
               "title": "Page Size",
@@ -41005,7 +41219,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replenishment Analysis Api V1 Agent Projects  Project Id  Replenishment Analysis Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41021,11 +41239,324 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/replenishment-analysis",
+        "summary": "Get Replenishment Analysis",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-replenishment-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/coverage": {
+      "get": {
+        "description": "R4 数据覆盖度 / 新鲜度（Agent 任务 T4）：快照 report_date + 销售跨度\n+ 设置覆盖 + unknown_rate（G4/G7）。Agent 判断「这份分析是否可信」。",
+        "operationId": "get_replenishment_analysis_coverage_api_v1_agent_projects__project_id__replenishment_analysis_coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replenishment Analysis Coverage Api V1 Agent Projects  Project Id  Replenishment Analysis Coverage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replenishment Analysis Coverage",
+        "tags": [
+          "agent",
+          "agent-replenishment-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/settings": {
+      "get": {
+        "description": "R5 设置列表（Agent 任务 T5 读侧，G8 配置审计）。",
+        "operationId": "get_replenishment_analysis_settings_api_v1_agent_projects__project_id__replenishment_analysis_settings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "description": "SKU 子串过滤（可选）",
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SKU 子串过滤（可选）",
+              "title": "Sku"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replenishment Analysis Settings Api V1 Agent Projects  Project Id  Replenishment Analysis Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replenishment Analysis Settings",
+        "tags": [
+          "agent",
+          "agent-replenishment-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/settings/{sku}": {
+      "put": {
+        "description": "R6 设置写（Agent 任务 T5 写侧）：confirm 预览 → 重放落库。\n\n审计 action ``inventory_replenishment_settings.upsert``（operator=NULL +\nagent_id 归因，对齐内部端点审计动作名）。",
+        "operationId": "update_replenishment_analysis_setting_api_v1_agent_projects__project_id__replenishment_analysis_settings__sku__put",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Replenishment Analysis Setting Api V1 Agent Projects  Project Id  Replenishment Analysis Settings  Sku  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Update Replenishment Analysis Setting",
+        "tags": [
+          "agent",
+          "agent-replenishment-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/skus/{sku}": {
+      "get": {
+        "description": "R2 单 SKU 深挖（Agent 任务 T2）：完整行 + signals + decision_path。\n\n无该 SKU → 200 + ``data: null``（D5：查询结果为空 ≠ 资源不存在）。",
+        "operationId": "get_replenishment_analysis_sku_api_v1_agent_projects__project_id__replenishment_analysis_skus__sku__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
+            "in": "query",
+            "name": "report_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
+              "title": "Report Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replenishment Analysis Sku Api V1 Agent Projects  Project Id  Replenishment Analysis Skus  Sku  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replenishment Analysis Sku",
+        "tags": [
+          "agent",
+          "agent-replenishment-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/summary": {
+      "get": {
+        "description": "R3 项目总览（Agent 任务 T3）：state/action 分布 + 交叉矩阵，无 items。\n\n与 R1 同计算源（service summary 已含 state_distribution /\naction_distribution / state_action_matrix，S6/G5）。",
+        "operationId": "get_replenishment_analysis_summary_api_v1_agent_projects__project_id__replenishment_analysis_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
+            "in": "query",
+            "name": "report_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新",
+              "title": "Report Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replenishment Analysis Summary Api V1 Agent Projects  Project Id  Replenishment Analysis Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replenishment Analysis Summary",
+        "tags": [
+          "agent",
+          "agent-replenishment-analysis"
         ]
       }
     },
@@ -42973,6 +43504,84 @@
           "agent",
           "agent-external-mirror",
           "agent-external-mirror"
+        ]
+      }
+    },
+    "/api/v1/agent/report-upload-status": {
+      "get": {
+        "description": "R1 报表上传状态：与内部 ``/api/v1/rpa-reports/status`` 同构 + summary。\n\nservice 返回全部项目（operator=None / is_admin=True，Agent 凭据无 operator\n语义）；再按 key 的 project_scope 过滤 items；``?project_id=`` 进一步收窄。",
+        "operationId": "get_report_upload_status_api_v1_agent_report_upload_status_get",
+        "parameters": [
+          {
+            "description": "业务日期（YYYY-MM-DD）",
+            "in": "query",
+            "name": "report_date",
+            "required": true,
+            "schema": {
+              "description": "业务日期（YYYY-MM-DD）",
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "Report Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "description": "可选：只看指定项目（凭据可见范围内）",
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "可选：只看指定项目（凭据可见范围内）",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Report Upload Status Api V1 Agent Report Upload Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Upload Status",
+        "tags": [
+          "agent",
+          "agent-report-upload-status"
         ]
       }
     },
@@ -60827,6 +61436,99 @@
           }
         },
         "summary": "Delete Api Key",
+        "tags": [
+          "internal-api-keys"
+        ]
+      },
+      "patch": {
+        "description": "编辑 Key 的权限与业务范围（BLF-480）。\n\nPATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope）。\n项目范围与业务域范围变更即刻生效——鉴权路径（``scope.py``）每请求实时读列，\n无需重建凭据。已删除 Key 不可编辑（404），与 deactivate / activate 一致。",
+        "operationId": "update_api_key_api_v1_internal_api_keys__key_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Api Key",
         "tags": [
           "internal-api-keys"
         ]

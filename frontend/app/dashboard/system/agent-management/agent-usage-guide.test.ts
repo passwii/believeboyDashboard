@@ -170,6 +170,25 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=replenishment_analysis 输出补货分析示例（BLF-502，6 条路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'replenishment_analysis',
+    })
+    expect(text).toContain('补货分析')
+    expect(text).toContain('/replenishment-analysis?country=US&inventory_state=critical')
+    expect(text).toContain('replenishment_action')
+    expect(text).toContain('/replenishment-analysis/skus/')
+    expect(text).toContain('/replenishment-analysis/summary')
+    expect(text).toContain('/replenishment-analysis/coverage')
+    expect(text).toContain('/replenishment-analysis/settings')
+    expect(text).toContain('confirm_token')
+    expect(text).toContain('decision_path')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

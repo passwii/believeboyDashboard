@@ -280,23 +280,27 @@ class TestThreeSegmentIntegrationNoDB:
             sellable_days=10,
             seasonal_factor=None,
         )
-        state, subtype = compute_inventory_state(item, "稳定", adjusted)
+        state, subtype, state_rule = compute_inventory_state(item, "稳定", adjusted)
         transit = (
             item.in_transit_qty / item.available_qty if item.available_qty else 0.0
         )
-        action = compute_replenishment_action(
+        action, action_rule, seasonal_override = compute_replenishment_action(
             state,
             subtype,
             "稳定",
             transit,
             "neutral",
+            adjusted_sellable_days=adjusted,
         )
         signals_dict = _build_signals_dict_for_item(item, None, "unknown", "neutral")
         signals_obj = InventorySignals(**signals_dict)
-        # DoH=10 < 14 → critical, subtype=shortage → REPLENISH_NORMAL（trend=上升/稳定）
+        # DoH=10 < 14 → critical, subtype=shortage → REPLENISH_NOW（D4：紧急补货落地）
         assert state == "critical"
         assert subtype == "shortage"
-        assert action == "REPLENISH_NORMAL"
+        assert state_rule == "P1"
+        assert action == "REPLENISH_NOW"
+        assert action_rule == "shortage-urgent"
+        assert seasonal_override is False
         assert signals_obj.seasonal_phase == "unknown"
 
 
@@ -314,12 +318,14 @@ class TestSeasonalAffectsState:
         )
         # 不调整：DoH=21，归 watch（doh 21 介于 14-30 之间）
         # 注意：dms_30=1.0 > 0，P2 触发（DoH<30 且 dms_30>0 → critical/subtype=shortage）
-        state_no_adj, _ = compute_inventory_state(item, "稳定", 21.0)
+        state_no_adj, _, _ = compute_inventory_state(item, "稳定", 21.0)
         assert state_no_adj == "critical"
 
         # 旺季调整：adjusted = 21/1.5 ≈ 14，P1 边界
         adjusted_peak = compute_seasonal_adjusted_sellable_days(21, 1.5)
-        state_peak, subtype_peak = compute_inventory_state(item, "稳定", adjusted_peak)
+        state_peak, subtype_peak, _ = compute_inventory_state(
+            item, "稳定", adjusted_peak
+        )
         # adjusted ≈ 14, 严格小于 14? 不等于 14.0（浮点可能等于）— 让它更小
         # 14/1.5 = 9.33 < 14 → critical, subtype=shortage
         assert state_peak == "critical"
@@ -335,7 +341,7 @@ class TestSeasonalAffectsState:
             age_0_90_qty=30,
         )
         # 不调整：DoH=30，dms_30>0 → P2 触发 critical (DoH<30)
-        state_no, _ = compute_inventory_state(item, "稳定", 30.0)
+        state_no, _, _ = compute_inventory_state(item, "稳定", 30.0)
         # 实际 DoH=30 不满足 <30（严格小于），所以走 P12 → healthy
         # 但 doh=30.0 实际是 < 30.0 False → 看 P10（30-45 + declining）但 trend 不是下降
         # → P12 → healthy
@@ -343,5 +349,5 @@ class TestSeasonalAffectsState:
 
         # 调整到淡季 factor=0.5 → adjusted = 60 (健康)
         adjusted_trough = compute_seasonal_adjusted_sellable_days(30, 0.5)
-        state_trough, _ = compute_inventory_state(item, "稳定", adjusted_trough)
+        state_trough, _, _ = compute_inventory_state(item, "稳定", adjusted_trough)
         assert state_trough in {"healthy", "watch"}

@@ -1097,8 +1097,123 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/replenishment-analysis */
-        get: operations["agent_get_external_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get"];
+        /**
+         * Get Replenishment Analysis
+         * @description R1 决策清单：全量逐 SKU 分析（Agent 任务 T1）。
+         *
+         *     与 internal/external 同源 service；默认路径（无新过滤/排序、detail=summary）
+         *     与 detail=full 共享 5min Redis 缓存（key 含全部新参数，D10）。
+         */
+        get: operations["get_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replenishment Analysis Coverage
+         * @description R4 数据覆盖度 / 新鲜度（Agent 任务 T4）：快照 report_date + 销售跨度
+         *     + 设置覆盖 + unknown_rate（G4/G7）。Agent 判断「这份分析是否可信」。
+         */
+        get: operations["get_replenishment_analysis_coverage_api_v1_agent_projects__project_id__replenishment_analysis_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replenishment Analysis Settings
+         * @description R5 设置列表（Agent 任务 T5 读侧，G8 配置审计）。
+         */
+        get: operations["get_replenishment_analysis_settings_api_v1_agent_projects__project_id__replenishment_analysis_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/settings/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Replenishment Analysis Setting
+         * @description R6 设置写（Agent 任务 T5 写侧）：confirm 预览 → 重放落库。
+         *
+         *     审计 action ``inventory_replenishment_settings.upsert``（operator=NULL +
+         *     agent_id 归因，对齐内部端点审计动作名）。
+         */
+        put: operations["update_replenishment_analysis_setting_api_v1_agent_projects__project_id__replenishment_analysis_settings__sku__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/skus/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replenishment Analysis Sku
+         * @description R2 单 SKU 深挖（Agent 任务 T2）：完整行 + signals + decision_path。
+         *
+         *     无该 SKU → 200 + ``data: null``（D5：查询结果为空 ≠ 资源不存在）。
+         */
+        get: operations["get_replenishment_analysis_sku_api_v1_agent_projects__project_id__replenishment_analysis_skus__sku__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/replenishment-analysis/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Replenishment Analysis Summary
+         * @description R3 项目总览（Agent 任务 T3）：state/action 分布 + 交叉矩阵，无 items。
+         *
+         *     与 R1 同计算源（service summary 已含 state_distribution /
+         *     action_distribution / state_action_matrix，S6/G5）。
+         */
+        get: operations["get_replenishment_analysis_summary_api_v1_agent_projects__project_id__replenishment_analysis_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1506,6 +1621,29 @@ export interface paths {
         };
         /** agent 镜像: /external/projects/{project_id}/sku-info */
         get: operations["agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/report-upload-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Report Upload Status
+         * @description R1 报表上传状态：与内部 ``/api/v1/rpa-reports/status`` 同构 + summary。
+         *
+         *     service 返回全部项目（operator=None / is_admin=True，Agent 凭据无 operator
+         *     语义）；再按 key 的 project_scope 过滤 items；``?project_id=`` 进一步收窄。
+         */
+        get: operations["get_report_upload_status_api_v1_agent_report_upload_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3700,7 +3838,15 @@ export interface paths {
         delete: operations["delete_api_key_api_v1_internal_api_keys__key_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Api Key
+         * @description 编辑 Key 的权限与业务范围（BLF-480）。
+         *
+         *     PATCH 语义：仅更新显式传入的字段（label / project_scope / business_scope）。
+         *     项目范围与业务域范围变更即刻生效——鉴权路径（``scope.py``）每请求实时读列，
+         *     无需重建凭据。已删除 Key 不可编辑（404），与 deactivate / activate 一致。
+         */
+        patch: operations["update_api_key_api_v1_internal_api_keys__key_id__patch"];
         trace?: never;
     };
     "/api/v1/internal/api-keys/{key_id}/activate": {
@@ -8602,6 +8748,30 @@ export interface components {
             /** Is Revoked */
             is_revoked: boolean;
         };
+        /**
+         * ApiKeyUpdateRequest
+         * @description 编辑请求（BLF-480）：PATCH 语义，仅更新显式传入的字段。
+         *
+         *     ``label`` / ``project_scope`` / ``business_scope`` 均可缺省（None = 不改）；
+         *     空串归一为 ``*`` 在 service 层与 create 对齐。
+         */
+        ApiKeyUpdateRequest: {
+            /**
+             * Business Scope
+             * @description 业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）
+             */
+            business_scope?: string | null;
+            /**
+             * Label
+             * @description 人类可读标识
+             */
+            label?: string | null;
+            /**
+             * Project Scope
+             * @description 项目范围：'*' 全部，或 ',' 分隔的 project_id 白名单（空串按 '*' 处理）
+             */
+            project_scope?: string | null;
+        };
         /** AuditLogItem */
         AuditLogItem: {
             /** Action */
@@ -8956,10 +9126,7 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Marketplace
@@ -8969,26 +9136,17 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -8998,10 +9156,7 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -9011,57 +9166,36 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /**
-             * Excel File
-             * Format: binary
-             */
+            /** Excel File */
             excel_file: string;
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
         };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Title */
             title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** File Type */
             file_type: string;
@@ -9070,62 +9204,41 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
-            /** Report Id Form */
-            report_id_form?: number | null;
+            /** Report Id */
+            report_id?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
         };
         /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
         Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
-            /**
-             * Csv File
-             * Format: binary
-             */
+            /** Csv File */
             csv_file: string;
         };
         /** CSVUploadResponse */
@@ -12605,6 +12718,30 @@ export interface components {
             /** Total Available Qty */
             total_available_qty: number;
         };
+        /**
+         * InventoryDecisionPath
+         * @description BLF-502 S3/G1：决策路径解释——为什么是这个 state/action。
+         *
+         *     ``state_rule`` ∈ P0..P13（spec §2.1 顺序短路命中规则）；
+         *     ``critical_subtype`` ∈ shortage/aging/overstock（仅 critical）；
+         *     ``action_rule`` 为决策表分支标识；``seasonal_override`` 表示季节性是否
+         *     覆盖了动作判定。
+         */
+        InventoryDecisionPath: {
+            /** Action Rule */
+            action_rule?: string | null;
+            /** Critical Subtype */
+            critical_subtype?: string | null;
+            /**
+             * Seasonal Override
+             * @default false
+             */
+            seasonal_override: boolean;
+            /** Seasonal Phase Used */
+            seasonal_phase_used?: string | null;
+            /** State Rule */
+            state_rule?: string | null;
+        };
         /** InventoryReplenishmentListItem */
         InventoryReplenishmentListItem: {
             /**
@@ -12640,6 +12777,7 @@ export interface components {
             base_dms?: number | null;
             /** Country */
             country: string;
+            decision_path?: components["schemas"]["InventoryDecisionPath"] | null;
             /** Dms 14 */
             dms_14?: number | null;
             /** Dms 3 */
@@ -12916,6 +13054,10 @@ export interface components {
         };
         /** InventoryReplenishmentSummary */
         InventoryReplenishmentSummary: {
+            /** Action Distribution */
+            action_distribution?: {
+                [key: string]: number;
+            };
             /**
              * Critical Count
              * @default 0
@@ -12941,6 +13083,16 @@ export interface components {
             sku_count: number;
             /** Slow Moving Count */
             slow_moving_count: number;
+            /** State Action Matrix */
+            state_action_matrix?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** State Distribution */
+            state_distribution?: {
+                [key: string]: number;
+            };
             /** Total Available Inventory */
             total_available_inventory: number;
             /** Total In Transit Quantity */
@@ -18609,6 +18761,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -21660,22 +21816,27 @@ export interface operations {
             };
         };
     };
-    agent_get_external_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get: {
+    get_replenishment_analysis_api_v1_agent_projects__project_id__replenishment_analysis_get: {
         parameters: {
             query?: {
-                /** @description ISO-2 country code */
                 country?: string;
-                /** @description Filter by SKU or ASIN (substring match, case-insensitive) */
+                /** @description SKU/ASIN 子串过滤（大小写不敏感） */
                 keyword?: string | null;
-                /** @description Filter by risk status: 断货风险 | 短期断货 | 长期断货 | 健康库存 | 滞销 | 严重滞销 | 待补数据 */
+                /** @description 三段式状态过滤（逗号分隔多值）：critical/deteriorating/watch/healthy/unknown */
+                inventory_state?: string | null;
+                /** @description 三段式行动过滤（逗号分隔多值）：REPLENISH_NOW/REPLENISH_NORMAL/HOLD/REDUCE_PRICE/REMOVE/NO_ACTION */
+                replenishment_action?: string | null;
+                /** @description 老 4 类风险过滤（兼容既有消费者，新消费者优先用 inventory_state/replenishment_action）：断货风险|短期断货|长期断货|健康库存|滞销|严重滞销|待补数据 */
                 risk_status?: string | null;
-                /** @description Only SKUs with in-transit quantity > 0 */
                 in_transit_only?: boolean;
-                /** @description Business date for historical snapshot (YYYY-MM-DD). When provided, uses the latest inventory snapshot on or before this date and anchors DMS/sellout calculations to it. Default: today. */
+                /** @description 业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新 */
                 report_date?: string | null;
-                /** @description Page number (1-based) */
+                /** @description 排序字段（白名单）：sku/available_inventory/in_transit_quantity/weighted_dms/sellable_days/estimated_replenishment_quantity/risk_status/inventory_state/replenishment_action */
+                order_by?: string | null;
+                order_dir?: string;
+                /** @description summary（默认，轻量决策字段）/ full（完整行 + signals + decision_path） */
+                detail?: string;
                 page?: number;
-                /** @description Items per page (max 200) */
                 page_size?: number;
             };
             header?: never;
@@ -21692,7 +21853,178 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replenishment_analysis_coverage_api_v1_agent_projects__project_id__replenishment_analysis_coverage_get: {
+        parameters: {
+            query?: {
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replenishment_analysis_settings_api_v1_agent_projects__project_id__replenishment_analysis_settings_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                /** @description SKU 子串过滤（可选） */
+                sku?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_replenishment_analysis_setting_api_v1_agent_projects__project_id__replenishment_analysis_settings__sku__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    get_replenishment_analysis_sku_api_v1_agent_projects__project_id__replenishment_analysis_skus__sku__get: {
+        parameters: {
+            query?: {
+                country?: string;
+                /** @description 业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新 */
+                report_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_replenishment_analysis_summary_api_v1_agent_projects__project_id__replenishment_analysis_summary_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                /** @description 业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省最新 */
+                report_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22545,6 +22877,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_upload_status_api_v1_agent_report_upload_status_get: {
+        parameters: {
+            query: {
+                /** @description 业务日期（YYYY-MM-DD） */
+                report_date: string;
+                country?: string;
+                /** @description 可选：只看指定项目（凭据可见范围内） */
+                project_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -28158,6 +28527,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_api_key_api_v1_internal_api_keys__key_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyItem"];
+                };
             };
             /** @description Validation Error */
             422: {

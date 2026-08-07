@@ -12,7 +12,7 @@ from typing import Any
 import warnings
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -58,6 +58,30 @@ RISK_HEALTHY = "健康库存"
 RISK_SLOW_MOVING = "滞销"
 RISK_SEVERE_SLOW_MOVING = "严重滞销"
 RISK_PENDING = "待补数据"
+
+# BLF-502: 三段式取值全集（summary 分布 / Agent 过滤白名单用）
+STATE_VALUES = ("critical", "deteriorating", "watch", "healthy", "unknown")
+ACTION_VALUES = (
+    "REPLENISH_NOW",
+    "REPLENISH_NORMAL",
+    "HOLD",
+    "REDUCE_PRICE",
+    "REMOVE",
+    "NO_ACTION",
+)
+
+# BLF-502: R1 order_by 白名单（Agent 排序用；实现时在白名单外忽略）
+REPLENISHMENT_ORDER_BY_FIELDS = (
+    "sku",
+    "available_inventory",
+    "in_transit_quantity",
+    "weighted_dms",
+    "sellable_days",
+    "estimated_replenishment_quantity",
+    "risk_status",
+    "inventory_state",
+    "replenishment_action",
+)
 
 
 @dataclass
@@ -640,11 +664,14 @@ def _load_seasonal_dms_map(
                 else_=0,
             )
         ).label(f"sum_{window_days}")
-    for window_days, since, _until in yoy_cases:
+    for window_days, since, until in yoy_cases:
         aggregates[f"sum_{window_days}_yoy"] = func.sum(
             case(
                 (
-                    AnalysisSalesOrderRow.purchase_date_pt >= since,
+                    and_(
+                        AnalysisSalesOrderRow.purchase_date_pt >= since,
+                        AnalysisSalesOrderRow.purchase_date_pt <= until,
+                    ),
                     AnalysisSalesOrderRow.quantity,
                 ),
                 else_=0,
@@ -927,10 +954,18 @@ def list_inventory_replenishment_analysis(
     page: int,
     page_size: int,
     report_date: date | None = None,
+    inventory_state: str | None = None,
+    replenishment_action: str | None = None,
+    order_by: str | None = None,
+    order_dir: str = "asc",
 ) -> tuple[list[dict[str, object]], dict[str, int], int, bool]:
     project = _get_project_or_404(db, project_id)
     normalized_country = normalize_country(country)
     today = report_date if report_date is not None else date.today()
+    # BLF-502 S4：真实快照新鲜度——库存快照实际使用的 report_date（≤ today 最近一份）
+    snapshot_age_days = _compute_snapshot_age_days(
+        db, project.id, normalized_country, today
+    )
     base_rows = _load_base_skus(db, project, normalized_country)
     settings_map = _load_settings_map(db, project.id, normalized_country)
     inventory_map = _load_inventory_map(
@@ -965,6 +1000,10 @@ def list_inventory_replenishment_analysis(
 
     keyword_text = (keyword or "").strip().lower()
     normalized_risk = (risk_status or "").strip()
+    state_filter = {s.strip() for s in (inventory_state or "").split(",") if s.strip()}
+    action_filter = {
+        a.strip() for a in (replenishment_action or "").split(",") if a.strip()
+    }
     rows: list[dict[str, object]] = []
 
     for base_row in base_rows:
@@ -1090,7 +1129,7 @@ def list_inventory_replenishment_analysis(
             in_transit_qty=in_transit_quantity,
         )
 
-        inventory_state, critical_subtype = compute_inventory_state(
+        inventory_state, critical_subtype, state_rule = compute_inventory_state(
             item_input, trend_label, adjusted_sellable_days
         )
 
@@ -1099,15 +1138,17 @@ def list_inventory_replenishment_analysis(
             if available_inventory > 0
             else 0.0
         )
-        replenishment_action = compute_replenishment_action(
-            inventory_state,
-            critical_subtype,
-            trend_label,
-            transit_ratio_value,
-            seasonal_phase,
+        replenishment_action, action_rule, seasonal_override = (
+            compute_replenishment_action(
+                inventory_state,
+                critical_subtype,
+                trend_label,
+                transit_ratio_value,
+                seasonal_phase,
+                adjusted_sellable_days=adjusted_sellable_days,
+            )
         )
 
-        snapshot_age_days = 0  # TODO: 未来从 source.report_date 计算
         signals_dict = compute_signals(
             item_input,
             trend_label,
@@ -1128,6 +1169,10 @@ def list_inventory_replenishment_analysis(
         if normalized_risk and normalized_risk != "all" and risk != normalized_risk:
             continue
         if in_transit_only and in_transit_quantity <= 0:
+            continue
+        if state_filter and inventory_state not in state_filter:
+            continue
+        if action_filter and replenishment_action not in action_filter:
             continue
 
         rows.append(
@@ -1173,7 +1218,14 @@ def list_inventory_replenishment_analysis(
                 "inventory_state": inventory_state,
                 "replenishment_action": replenishment_action,
                 "signals": signals_obj,
-                "_critical_subtype": critical_subtype,  # 用于 summary 计数，不返 API
+                # BLF-502 S3: 决策路径解释（G1）——rule 码供 Agent 解释"为什么这么判"
+                "decision_path": {
+                    "state_rule": state_rule,
+                    "critical_subtype": critical_subtype,
+                    "action_rule": action_rule,
+                    "seasonal_override": seasonal_override,
+                    "seasonal_phase_used": seasonal_phase,
+                },
             }
         )
 
@@ -1221,10 +1273,159 @@ def list_inventory_replenishment_analysis(
             1 for item in rows if item.get("inventory_state") == "unknown"
         ),
     }
+    # BLF-502 S6: 分布（G5）——state/action 单维 + state×action 交叉矩阵
+    state_distribution = {s: 0 for s in STATE_VALUES}
+    action_distribution = {a: 0 for a in ACTION_VALUES}
+    state_action_matrix = {s: {a: 0 for a in ACTION_VALUES} for s in STATE_VALUES}
+    for item in rows:
+        st = item.get("inventory_state") or "unknown"
+        act = item.get("replenishment_action") or "NO_ACTION"
+        if st in state_distribution:
+            state_distribution[st] += 1
+        if act in action_distribution:
+            action_distribution[act] += 1
+        if st in state_action_matrix and act in state_action_matrix[st]:
+            state_action_matrix[st][act] += 1
+    summary.update(
+        {
+            "state_distribution": state_distribution,
+            "action_distribution": action_distribution,
+            "state_action_matrix": state_action_matrix,
+        }
+    )
     total = len(rows)
+    if order_by and rows:
+        _sort_rows(rows, order_by, order_dir)
     paged = rows[(page - 1) * page_size : (page - 1) * page_size + page_size + 1]
     has_next = len(paged) > page_size
     return paged[:page_size], summary, total, has_next
+
+
+def _compute_snapshot_age_days(
+    db: Session, project_id: int, country: str, today: date
+) -> int:
+    """BLF-502 S4：库存快照实际使用日期的年龄（天）。
+
+    取 ``report_type='inventory_report'`` 且 report_date ≤ today 的最近一份；
+    无快照时返回 0（与缺失一致）。
+    """
+    row = db.execute(
+        select(func.max(AnalysisSourceFile.report_date)).where(
+            AnalysisSourceFile.project_id == project_id,
+            AnalysisSourceFile.country == country,
+            AnalysisSourceFile.report_type == "inventory_report",
+            AnalysisSourceFile.report_date.isnot(None),
+            AnalysisSourceFile.report_date <= today,
+        )
+    ).first()
+    snapshot_report_date = row[0] if row else None
+    if snapshot_report_date is None:
+        return 0
+    return max(0, (today - snapshot_report_date).days)
+
+
+def _sort_rows(rows: list[dict[str, object]], order_by: str, order_dir: str) -> None:
+    """BLF-502 S5：R1 排序（Python 侧，None 恒排后）。
+
+    白名单字段在 ``REPLENISHMENT_ORDER_BY_FIELDS``；不在白名单时保持原序。
+    """
+    if order_by not in REPLENISHMENT_ORDER_BY_FIELDS:
+        return
+    reverse = order_dir == "desc"
+
+    def key_fn(row: dict[str, object]) -> tuple[int, object]:
+        value = row.get(order_by)
+        return (1 if value is None else 0, value or "")
+
+    rows.sort(key=key_fn, reverse=reverse)
+
+
+def list_inventory_replenishment_settings(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = "US",
+    sku: str | None = None,
+) -> list[dict[str, object]]:
+    """BLF-502 S7/R5：补货设置列表（Agent 配置审计，G8）。"""
+    stmt = (
+        select(InventoryReplenishmentSetting)
+        .where(
+            InventoryReplenishmentSetting.project_id == project_id,
+            InventoryReplenishmentSetting.country == normalize_country(country),
+        )
+        .order_by(InventoryReplenishmentSetting.sku.asc())
+    )
+    if sku:
+        stmt = stmt.where(
+            InventoryReplenishmentSetting.sku.like(
+                f"%{_normalize_text(sku, max_length=128)}%"
+            )
+        )
+    return [
+        {
+            "project_id": r.project_id,
+            "project_name": r.project_name,
+            "sku": r.sku,
+            "country": r.country,
+            "asin": r.asin,
+            "production_lead_days": r.production_lead_days,
+            "shipping_days": r.shipping_days,
+            "safety_factor": float(r.safety_factor),
+        }
+        for r in db.scalars(stmt).all()
+    ]
+
+
+def count_replenishment_base_skus(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = "US",
+) -> int:
+    """BLF-502 R4：基表 SKU 数（ProductCost 启用项 ∪ 补货设置，口径同 _load_base_skus）。"""
+    project = _get_project_or_404(db, project_id)
+    return len(_load_base_skus(db, project, normalize_country(country)))
+
+
+def count_replenishment_configured_settings(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = "US",
+) -> int:
+    """BLF-502 R4：有自定义补货设置的 SKU 数。"""
+    return int(
+        db.execute(
+            select(func.count())
+            .select_from(InventoryReplenishmentSetting)
+            .where(
+                InventoryReplenishmentSetting.project_id == project_id,
+                InventoryReplenishmentSetting.country == normalize_country(country),
+            )
+        ).scalar_one()
+    )
+
+
+def get_sales_data_span(
+    db: Session,
+    *,
+    project_id: int,
+    country: str = "US",
+) -> dict[str, object]:
+    """BLF-502 S8/R4：销售数据跨度（已计入订单行的最大购买日期）。"""
+    row = db.execute(
+        select(func.max(AnalysisSalesOrderRow.purchase_date_pt)).where(
+            AnalysisSalesOrderRow.project_id == project_id,
+            AnalysisSalesOrderRow.country == normalize_country(country),
+            AnalysisSalesOrderRow.is_counted_sales.is_(True),
+        )
+    ).first()
+    max_date = row[0] if row else None
+    return {
+        "max_sales_date": max_date.isoformat() if max_date else None,
+        "window_days": RECENT_SALES_WINDOW_DAYS,
+    }
 
 
 def upsert_inventory_replenishment_setting(

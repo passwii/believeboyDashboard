@@ -111,6 +111,13 @@ def get_inventory_replenishment_cache(
     in_transit_only: bool,
     page: int,
     page_size: int,
+    *,
+    inventory_state: str | None = None,
+    replenishment_action: str | None = None,
+    order_by: str | None = None,
+    order_dir: str = "asc",
+    detail: str = "full",
+    report_date: str | None = None,
 ) -> dict | None:
     params_hash = _hash_params(
         str(project_id),
@@ -120,6 +127,13 @@ def get_inventory_replenishment_cache(
         str(in_transit_only),
         str(page),
         str(page_size),
+        # BLF-502 D10: 新参数全部进 key（过滤/排序/detail/report_date）
+        inventory_state or "",
+        replenishment_action or "",
+        order_by or "",
+        order_dir,
+        detail,
+        report_date or "",
     )
     key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
     return cache_get(key)
@@ -134,6 +148,13 @@ def set_inventory_replenishment_cache(
     page: int,
     page_size: int,
     data: dict,
+    *,
+    inventory_state: str | None = None,
+    replenishment_action: str | None = None,
+    order_by: str | None = None,
+    order_dir: str = "asc",
+    detail: str = "full",
+    report_date: str | None = None,
 ) -> None:
     params_hash = _hash_params(
         str(project_id),
@@ -143,6 +164,12 @@ def set_inventory_replenishment_cache(
         str(in_transit_only),
         str(page),
         str(page_size),
+        inventory_state or "",
+        replenishment_action or "",
+        order_by or "",
+        order_dir,
+        detail,
+        report_date or "",
     )
     key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
     cache_set(key, data, INVENTORY_REPLENISHMENT_TTL)
