@@ -16,6 +16,9 @@ from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
 from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
+from app.api.v1.endpoints.agent.replenishment_analysis import (
+    replenishment_analysis_router,
+)
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
@@ -60,6 +63,14 @@ agent_router.include_router(
 agent_router.include_router(
     report_upload_status_router,
     dependencies=[Depends(require_business_scope("report_upload_status"))],
+)
+# 补货分析域（BLF-502）：Agent 任务模型 6 路由（R1 决策清单 / R2 深挖 /
+# R3 总览 / R4 覆盖度 / R5 设置读 / R6 设置写 confirm），挂
+# business_scope("replenishment_analysis")（D3，与各域对齐）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    replenishment_analysis_router,
+    dependencies=[Depends(require_business_scope("replenishment_analysis"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。

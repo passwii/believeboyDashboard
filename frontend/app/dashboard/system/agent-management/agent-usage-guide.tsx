@@ -430,6 +430,76 @@ function buildReportUploadStatusGuide(opts: {
   明细）+ 顶层 project_count / missing_project_count——缺报清单可直接复述。`
 }
 
+/** 补货分析域调用说明（BLF-502）：6 条路由（R1 清单 / R2 深挖 / R3 总览 /
+ * R4 覆盖度 / R5 设置读 / R6 设置写 confirm）。 */
+function buildReplenishmentAnalysisGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 补货决策清单（R1，三段式：状态/行动/信号）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis?country=US&inventory_state=critical,deteriorating&detail=full" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  country 默认 US。三段式过滤（本域 Agent 化核心）：
+  &inventory_state= 逗号分隔多值 ∈ critical/deteriorating/watch/healthy/unknown；
+  &replenishment_action= 逗号分隔多值 ∈ REPLENISH_NOW/REPLENISH_NORMAL/HOLD/
+  REDUCE_PRICE/REMOVE/NO_ACTION（例："哪些 SKU 该补货/该降价"用
+  &replenishment_action=REPLENISH_NOW,REPLENISH_NORMAL,REDUCE_PRICE,REMOVE）。
+  &detail=summary（默认，轻量决策字段）| full（完整行 + signals + decision_path
+  解释"为什么这么判"）；&order_by= 白名单（sellable_days/weighted_dms/…）&
+  order_dir=asc|desc；&report_date= 历史快照；&page=&page_size= 分页。
+  risk_status 为兼容旧字段（老 4 类风险）。
+
+【3. 单 SKU 深挖（R2，含决策路径解释）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis/skus/X-001?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回该 SKU 完整行 + signals + decision_path（state_rule P0-P13 / critical_subtype /
+  action_rule / seasonal_override）；无该 SKU 返回 200 + data:null（不是 404）。
+
+【4. 项目总览（R3，state×action 分布矩阵）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis/summary?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回 summary（5 state 计数）+ state_distribution / action_distribution /
+  state_action_matrix（交叉矩阵）——项目级概括一次调用。
+
+【5. 数据覆盖度/新鲜度（R4，先自查可信度）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis/coverage?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回 inventory_snapshot（report_date/freshness_days）+ sales_data（销售跨度）+
+  base_skus（基表数/有设置数）+ unknown_rate（缺数据无法判定的占比）。
+
+【6. 补货设置（R5 读 / R6 写，写走确认流）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis/settings?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  写（调整补货周期/安全系数）分两步：先 PUT
+  "${apiBase}/api/v1/agent/projects/$PROJECT_ID/replenishment-analysis/settings/X-001?country=US"
+  （body: {"asin":"...","production_lead_days":35,"shipping_days":40,"safety_factor":0.2}，
+  带 Idempotency-Key）→ 返回 preview + confirm_token（不落库）→ 用同一
+  Idempotency-Key + X-Confirm-Token 重放才真正生效。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -478,6 +548,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildReportUploadStatusGuide({ key, agentId, apiBase })
   } else if (domain === 'ad_analysis') {
     domainGuide = buildAdAnalysisGuide({ key, agentId, apiBase })
+  } else if (domain === 'replenishment_analysis') {
+    domainGuide = buildReplenishmentAnalysisGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

@@ -388,6 +388,8 @@ class TestListInventoryReplenishmentAnalysis:
         mock_settings_result = MagicMock()
         mock_settings_result.scalars.return_value.all.return_value = []
         mock_settings_result.scalars.return_value.first.return_value = None
+        # BLF-502 S4：快照新鲜度查询（execute(...).first()）——无快照 → 0
+        mock_settings_result.first.return_value = None
 
         mock_empty_exec = MagicMock()
         mock_empty_exec.all.return_value = []
@@ -397,24 +399,24 @@ class TestListInventoryReplenishmentAnalysis:
         with (
             pytest.MonkeyPatch().context() as mp,
         ):
+
             def mock_today():
                 return date(2025, 6, 15)
+
             mp.setattr(
                 "app.services.inventory.replenishment.date",
                 type("mock_date", (), {"today": staticmethod(mock_today)})(),
             )
 
-            rows, summary, total, has_next = (
-                list_inventory_replenishment_analysis(
-                    db_session,
-                    project_id=1,
-                    country="US",
-                    keyword=None,
-                    risk_status=None,
-                    in_transit_only=False,
-                    page=1,
-                    page_size=50,
-                )
+            rows, summary, total, has_next = list_inventory_replenishment_analysis(
+                db_session,
+                project_id=1,
+                country="US",
+                keyword=None,
+                risk_status=None,
+                in_transit_only=False,
+                page=1,
+                page_size=50,
             )
 
         assert rows == []
@@ -552,9 +554,7 @@ class TestListInventoryReplenishmentShipments:
         db_session.get.return_value = project
 
         with pytest.raises(HTTPException) as exc_info:
-            list_inventory_replenishment_shipments(
-                db_session, project_id=1, sku="  "
-            )
+            list_inventory_replenishment_shipments(db_session, project_id=1, sku="  ")
         assert exc_info.value.status_code == 422
 
 

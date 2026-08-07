@@ -107,20 +107,20 @@ class TestComputeInventoryState:
     def test_state_unknown_when_dms30_missing(self):
         """dms_30=None → unknown"""
         item = ItemInput(available_qty=10, sellable_days=50, dms_30=None, dms_7=1.0)
-        state, _ = compute_inventory_state(item, "稳定", 50.0)
+        state, _, _ = compute_inventory_state(item, "稳定", 50.0)
         assert state == "unknown"
 
     def test_state_critical_when_doh_below_14(self):
         """DoH<14 → critical, subtype=shortage"""
         item = ItemInput(available_qty=10, sellable_days=10, dms_30=1.0, dms_7=1.0)
-        state, subtype = compute_inventory_state(item, "稳定", 10.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 10.0)
         assert state == "critical"
         assert subtype == "shortage"
 
     def test_state_critical_when_doh_14_30_with_sales(self):
         """DoH 14-30 且 dms_30>0 → critical, subtype=shortage"""
         item = ItemInput(available_qty=20, sellable_days=20, dms_30=1.0, dms_7=1.0)
-        state, subtype = compute_inventory_state(item, "稳定", 20.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 20.0)
         assert state == "critical"
         assert subtype == "shortage"
 
@@ -133,7 +133,7 @@ class TestComputeInventoryState:
             dms_7=1.0,
             age_365_plus_qty=5,
         )
-        state, subtype = compute_inventory_state(item, "稳定", 100.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 100.0)
         assert state == "critical"
         assert subtype == "aging"
 
@@ -147,7 +147,7 @@ class TestComputeInventoryState:
             age_271_365_qty=10,
             age_91_180_qty=5,
         )
-        state, subtype = compute_inventory_state(item, "稳定", 100.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 100.0)
         assert state == "critical"
         assert subtype == "aging"
 
@@ -161,21 +161,21 @@ class TestComputeInventoryState:
             age_181_270_qty=10,
             age_91_180_qty=3,
         )
-        state, subtype = compute_inventory_state(item, "稳定", 100.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 100.0)
         assert state == "critical"
         assert subtype == "aging"
 
     def test_state_critical_when_dead_stock_high_doh_low_dms(self):
         """DoH>180 且 dms_30<0.7 → critical, subtype=overstock"""
         item = ItemInput(available_qty=100, sellable_days=200, dms_30=0.5, dms_7=0.3)
-        state, subtype = compute_inventory_state(item, "下降明显", 200.0)
+        state, subtype, _ = compute_inventory_state(item, "下降明显", 200.0)
         assert state == "critical"
         assert subtype == "overstock"
 
     def test_state_deteriorating_when_doh_120_180_low_dms(self):
         """DoH 120-180 且 dms_30<0.7 → deteriorating"""
         item = ItemInput(available_qty=100, sellable_days=150, dms_30=0.5, dms_7=0.3)
-        state, _ = compute_inventory_state(item, "下降明显", 150.0)
+        state, _, _ = compute_inventory_state(item, "下降明显", 150.0)
         assert state == "deteriorating"
 
     def test_state_deteriorating_when_declining_trend_plus_aging(self):
@@ -188,7 +188,7 @@ class TestComputeInventoryState:
             age_91_180_qty=40,
             age_0_90_qty=60,
         )
-        state, _ = compute_inventory_state(item, "下降明显", 60.0)
+        state, _, _ = compute_inventory_state(item, "下降明显", 60.0)
         assert state == "deteriorating"
 
     def test_state_deteriorating_when_declining_trend_plus_high_transit(self):
@@ -201,19 +201,19 @@ class TestComputeInventoryState:
             age_0_90_qty=10,
             in_transit_qty=50,
         )
-        state, _ = compute_inventory_state(item, "下降明显", 60.0)
+        state, _, _ = compute_inventory_state(item, "下降明显", 60.0)
         assert state == "deteriorating"
 
     def test_state_deteriorating_when_doh_45_90_declining_trend(self):
         """DoH 45-90 + trend=下降明显 → deteriorating"""
         item = ItemInput(available_qty=50, sellable_days=70, dms_30=1.0, dms_7=0.5)
-        state, _ = compute_inventory_state(item, "下降明显", 70.0)
+        state, _, _ = compute_inventory_state(item, "下降明显", 70.0)
         assert state == "deteriorating"
 
     def test_state_watch_when_doh_30_45_declining_trend(self):
         """DoH 30-45 + trend=下降明显 → watch"""
         item = ItemInput(available_qty=40, sellable_days=40, dms_30=1.0, dms_7=0.5)
-        state, _ = compute_inventory_state(item, "下降明显", 40.0)
+        state, _, _ = compute_inventory_state(item, "下降明显", 40.0)
         assert state == "watch"
 
     def test_state_watch_when_doh_90_180_normal_aging(self):
@@ -225,7 +225,7 @@ class TestComputeInventoryState:
             dms_7=1.0,
             age_0_90_qty=100,
         )
-        state, _ = compute_inventory_state(item, "稳定", 120.0)
+        state, _, _ = compute_inventory_state(item, "稳定", 120.0)
         assert state == "watch"
 
     def test_state_healthy_default(self):
@@ -237,7 +237,7 @@ class TestComputeInventoryState:
             dms_7=1.0,
             age_0_90_qty=60,
         )
-        state, _ = compute_inventory_state(item, "稳定", 60.0)
+        state, _, _ = compute_inventory_state(item, "稳定", 60.0)
         assert state == "healthy"
 
     def test_state_shortage_priority_over_aging(self):
@@ -249,7 +249,7 @@ class TestComputeInventoryState:
             dms_7=1.0,
             age_365_plus_qty=5,
         )
-        state, subtype = compute_inventory_state(item, "稳定", 20.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 20.0)
         assert state == "critical"
         assert subtype == "shortage"
 
@@ -260,14 +260,14 @@ class TestComputeInventoryStateUsesAdjustedDOH:
     def test_state_critical_uses_adjusted_doh_in_peak(self):
         """原始 DoH=30, adjusted=23 (peak factor=1.3) → critical (subtype=shortage)"""
         item = ItemInput(available_qty=30, sellable_days=30, dms_30=1.0, dms_7=1.0)
-        state, subtype = compute_inventory_state(item, "稳定", 23.0)
+        state, subtype, _ = compute_inventory_state(item, "稳定", 23.0)
         assert state == "critical"
         assert subtype == "shortage"
 
     def test_state_healthy_in_trough_even_with_low_doh(self):
         """原始 DoH=30, adjusted=90 (trough factor=0.7) → healthy/watch"""
         item = ItemInput(available_qty=30, sellable_days=30, dms_30=1.0, dms_7=1.0)
-        state, _ = compute_inventory_state(item, "稳定", 90.0)
+        state, _, _ = compute_inventory_state(item, "稳定", 90.0)
         assert state in {"healthy", "watch"}
 
 
@@ -276,7 +276,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_replenish_now_for_doh_below_14(self):
         """critical (shortage, DoH<14) → REPLENISH_NORMAL（shortage 走 shortage 分支）"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="shortage",
             trend_label="稳定",
@@ -287,7 +287,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_remove_for_age_365_plus(self):
         """critical (库龄 365+, aging) → REMOVE"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="aging",
             trend_label="稳定",
@@ -298,7 +298,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_reduce_price_for_critical_overstock_declining(self):
         """critical (DoH>120 慢销, overstock) + trend=下降 → REDUCE_PRICE"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="overstock",
             trend_label="下降明显",
@@ -309,7 +309,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_hold_for_critical_overstock_stable_high_transit(self):
         """critical (overstock) + 稳定 + transit>3 → REDUCE_PRICE"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="overstock",
             trend_label="稳定",
@@ -320,7 +320,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_hold_for_critical_overstock_stable_low_transit(self):
         """critical (overstock) + 稳定 + transit≤3 → HOLD"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="overstock",
             trend_label="稳定",
@@ -331,7 +331,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_replenish_normal_for_critical_shortage_up_trend(self):
         """critical (shortage) + 上升 → REPLENISH_NORMAL"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="shortage",
             trend_label="上升",
@@ -342,7 +342,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_hold_for_critical_shortage_down_trend(self):
         """critical (shortage) + 下降 + neutral → HOLD"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="shortage",
             trend_label="下降明显",
@@ -353,7 +353,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_reduce_price_for_deteriorating_declining(self):
         """deteriorating + 下降 → REDUCE_PRICE"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="deteriorating",
             critical_subtype=None,
             trend_label="下降明显",
@@ -364,7 +364,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_hold_for_deteriorating_stable(self):
         """deteriorating + 稳定/上升 → HOLD"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="deteriorating",
             critical_subtype=None,
             trend_label="稳定",
@@ -375,7 +375,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_no_action_for_healthy(self):
         """healthy → NO_ACTION"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="healthy",
             critical_subtype=None,
             trend_label="稳定",
@@ -386,7 +386,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_no_action_for_watch(self):
         """watch → NO_ACTION"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="watch",
             critical_subtype=None,
             trend_label="稳定",
@@ -397,7 +397,7 @@ class TestComputeReplenishmentAction:
 
     def test_action_no_action_for_unknown(self):
         """unknown → NO_ACTION"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="unknown",
             critical_subtype=None,
             trend_label="稳定",
@@ -412,7 +412,7 @@ class TestComputeReplenishmentActionSeasonal:
 
     def test_action_hold_for_deteriorating_in_trough_phase(self):
         """deteriorating + 下降 + phase=trough → HOLD (避免误杀季节性回落)"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="deteriorating",
             critical_subtype=None,
             trend_label="下降明显",
@@ -423,7 +423,7 @@ class TestComputeReplenishmentActionSeasonal:
 
     def test_action_replenish_normal_for_critical_shortage_in_peak(self):
         """critical (shortage) + 下降 + phase=peak → REPLENISH_NORMAL (旺季覆盖)"""
-        action = compute_replenishment_action(
+        action, _, _ = compute_replenishment_action(
             state="critical",
             critical_subtype="shortage",
             trend_label="下降明显",

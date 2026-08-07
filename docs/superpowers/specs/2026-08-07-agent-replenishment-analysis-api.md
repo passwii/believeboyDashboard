@@ -1,8 +1,8 @@
-# Agent API · Replenishment Analysis（补货分析）API 设计规范（v0.2 重设计）
+# Agent API · Replenishment Analysis（补货分析）API 设计规范（v0.3 已拍板并实施）
 
-> **状态**：**设计草案 v0.2（BLF-502 重设计）**——按用户反馈（2026-08-07）：①不从 external 契约出发做修改，改为从 **Agent 任务模型**出发重新设计；②审计底层三段式分析模型（BEL-369）是否覆盖所有应考虑的点，并补强。D1–D10 待拍板；拍板后按 BLF-479「四件套」流程开执行子 issue 落地。
+> **状态**：**已拍板并实施**（2026-08-07）——用户「好的，全部按照你的推荐来」：D1–D10 全部按推荐拍板，随 BLF-502 直接实施（对齐 BLF-470 先例），实施记录见 §12。v0.2 为重设计版（从 Agent 任务模型出发，不锚 external；分析模型审计 G1–G8）。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（Agent API 全局设计稿 v0.7）、[`docs/superpowers/specs/2026-08-07-agent-return-analysis-api.md`](./2026-08-07-agent-return-analysis-api.md)（退货分析域 spec 定稿，路由风格模板）、[`docs/superpowers/specs/2026-08-01-replenish-2d-assessment-design.md`](./2026-08-01-replenish-2d-assessment-design.md)（三段式体系设计稿 v1.2，BEL-369）、[`backend/docs/external-api.md`](../../backend/docs/external-api.md)（external 读契约 §6——**本版不再以它为设计锚点**，仅作既有资产记录）。
-> **范围**：在 `/api/v1/agent/projects/{id}/replenishment-analysis*` 开放**补货分析域**的完整读面 + 设置读写。**本 spec 只设计，不实施**。
+> **范围**：在 `/api/v1/agent/projects/{id}/replenishment-analysis*` 开放**补货分析域**的完整读面 + 设置读写。
 > **前提**：`require_project_scope` / `require_business_scope` 已就绪；BLF-491 调研结论（三段式为现行行为、镜像缺独立域）为本版基线。代码核实基于 main @ cf99d794。
 
 ---
@@ -338,30 +338,56 @@ Content-Type: application/json
 
 ## 9. 决策记录（D1–D10 待拍板）
 
-| # | 决策点 | 选项 | 推荐 | 实施影响 |
-|---|---|---|---|---|
-| **D1** | **镜像去留**：R1 与镜像路径冲突 | A=原生迁移（mirror 排除 1 路径）；B=保留镜像仅新增 R2-R6 | **A（原生迁移）** | mirror 排除；原生模块；openapi 再生成 |
-| **D2** | **响应瘦身**：R1 是否默认 `detail=summary`（轻量行）而非全量 | 默认 summary + `?detail=full`（LLM token 优化）；或默认 full（兼容全量） | **默认 summary + detail=full** | schema 两档字段集；guide 标注 |
-| **D3** | **decision_path**：是否 v1 加入解释性字段（G1） | 加（service 小改 S1/S2/S3）/ 不加（仅 signals） | **加** | 2 个 compute 函数签名 + 测试适配 |
-| **D4** | **REPLENISH_NOW 判定修复**：决策表第 1/2 行是否落地（G2） | 修复（连带改 `test_action_replenish_now_for_doh_below_14`）/ 仅标注预留枚举 | **修复**（紧急补货是 Agent 最高价值动作，过滤才有意义） | `compute_replenishment_action` 逻辑 + 测试；R1 过滤从此可命中 REPLENISH_NOW |
-| **D5** | **设置写**：R6 是否开放 | 开放（confirm 流）/ 全读（设置暂由页面维护） | **开放** | 路由 +1；confirm + 写限流 + 审计 |
-| **D6** | **R3 独立总览 + 分布矩阵** | 独立（无 items 轻量 + state×action 矩阵）/ 并入 R1 summary | **独立** | 路由 +1；S6 聚合 |
-| **D7** | **R4 覆盖度 + data_freshness 修复** | 新增 R4；S4 修 TODO | **新增 + 修复** | 薄查询 S8；`data_freshness_days` 真实值 |
-| **D8** | **R7 快照对比 trend** | v1.1 预留 / 纳入 v1 | **v1.1**（双快照重算，需先定默认对比语义） | 路线图；可行性格外标注（G3） |
-| **D9** | **R8 预测 projection** | v1.1 预留（BEL-369 §10 思路C）/ 不纳入 | **v1.1 独立 spec** | 路线图 |
-| **D10** | **缓存策略**：R1 新参数（过滤/排序/detail/report_date）的缓存 key | A=扩展内部缓存 key + 内部端点透传（S5 双侧受益）；B=agent 侧独立 key | **A（评估兼容）** | 缓存 key 扩展；内部端点签名变化需回归 |
+| # | 决策点 | 选项 | 推荐 | 拍板 | 实施影响 |
+|---|---|---|---|---|---|
+| **D1** | **镜像去留**：R1 与镜像路径冲突 | A=原生迁移（mirror 排除 1 路径）；B=保留镜像仅新增 R2-R6 | **A（原生迁移）** | ✅ | mirror 排除；原生模块；openapi 再生成 |
+| **D2** | **响应瘦身**：R1 是否默认 `detail=summary`（轻量行）而非全量 | 默认 summary + `?detail=full`（LLM token 优化）；或默认 full（兼容全量） | **默认 summary + detail=full** | ✅ | schema 两档字段集；guide 标注 |
+| **D3** | **decision_path**：是否 v1 加入解释性字段（G1） | 加（service 小改 S1/S2/S3）/ 不加（仅 signals） | **加** | ✅ | 2 个 compute 函数签名 + 测试适配 |
+| **D4** | **REPLENISH_NOW 判定修复**：决策表第 1/2 行是否落地（G2） | 修复（连带改 `test_action_replenish_now_for_doh_below_14`）/ 仅标注预留枚举 | **修复** | ✅ | `compute_replenishment_action` 逻辑 + 测试；R1 过滤从此可命中 REPLENISH_NOW |
+| **D5** | **设置写**：R6 是否开放 | 开放（confirm 流）/ 全读 | **开放** | ✅ | 路由 +1；confirm + 写限流 + 审计 |
+| **D6** | **R3 独立总览 + 分布矩阵** | 独立（无 items 轻量 + state×action 矩阵）/ 并入 R1 summary | **独立** | ✅ | 路由 +1；S6 聚合 |
+| **D7** | **R4 覆盖度 + data_freshness 修复** | 新增 R4；S4 修 TODO | **新增 + 修复** | ✅ | 薄查询 S8；`data_freshness_days` 真实值 |
+| **D8** | **R7 快照对比 trend** | v1.1 预留 / 纳入 v1 | **v1.1** | ✅ | 路线图；可行性格外标注（G3） |
+| **D9** | **R8 预测 projection** | v1.1 预留（BEL-369 §10 思路C）/ 不纳入 | **v1.1 独立 spec** | ✅ | 路线图 |
+| **D10** | **缓存策略**：R1 新参数（过滤/排序/detail/report_date）的缓存 key | A=扩展内部缓存 key + 内部端点透传（S5 双侧受益）；B=agent 侧独立 key | **A（评估兼容）** | ✅ | 缓存 key 扩展；内部端点签名变化需回归 |
 
 ---
 
-## 10. 执行前置（拍板后）
+## 10. 执行前置（已全部完成 2026-08-07）
 
-- [ ] D1–D10 拍板（本 issue 置 in_review 待用户评审）
-- [ ] 拍板后按 BLF-479 流程开执行子 issue（或随拍板直接实施，对齐 BLF-470 先例）：`endpoints/agent/replenishment_analysis.py` + mirror 排除 + `__init__.py` 挂载 + 服务层补强 S1–S8 + R6 confirm + openapi/api.d.ts 再生成 + 测试
-- [ ] 仓库 main 已含：`require_project_scope` / `require_business_scope` / `_EXCLUDED_EXTERNAL_PATHS` precedent；本 spec 引用的复用函数均为真实存在的符号（CodeGraph 已核实）
+- [x] D1–D10 拍板（用户「好的，全部按照你的推荐来」= 推荐组合全量通过）
+- [x] 实施（随 BLF-502 直接实施，对齐 BLF-470 先例）：`endpoints/agent/replenishment_analysis.py` + mirror 排除 + `__init__.py` 挂载 + 服务层补强 S1–S8 + R6 confirm + openapi/api.d.ts 再生成 + 测试（见 §12）
+- [x] 仓库 main 已含：`require_project_scope` / `require_business_scope` / `_EXCLUDED_EXTERNAL_PATHS` precedent；本 spec 引用的复用函数均为真实存在的符号（CodeGraph 已核实）
+
+---
+
+## 12. 实施记录（BLF-502 落地）
+
+**2026-08-07**（设计拍板同日随 BLF-502 实施，未另开执行子 issue）：
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/services/inventory/state_action.py` | S1：`compute_inventory_state` 返回 `(state, critical_subtype, state_rule)`（P0–P13）；S2：`compute_replenishment_action` 返回 `(action, action_rule, seasonal_override)` + `adjusted_sellable_days` 参数 + **D4 REPLENISH_NOW 修复**（DoH<14 → 紧急补货） |
+| `backend/app/services/inventory/replenishment.py` | S3-S8：`decision_path` 入行、`data_freshness_days` 真实值（`_compute_snapshot_age_days`）、三段式过滤 + `order_by` 排序（`_sort_rows`）、summary 分布（state/action/交叉矩阵）、设置列表/基表计数/销售跨度查询；**顺带修复 BEL-369 遗留 YoY 窗口无上界 bug**（`_load_seasonal_dms_map` 去年同期 CASE 补 `<= until`，当年数据不再泄漏进 YoY 汇总） |
+| `backend/app/schemas/inventory_replenishment.py` | 新增 `InventoryDecisionPath`；item 加 `decision_path`；summary 加 `state_distribution` / `action_distribution` / `state_action_matrix` |
+| `backend/app/services/infra/inventory_cache.py` | D10：`get/set_inventory_replenishment_cache` key 扩展（过滤/排序/detail/report_date），内部端点默认 `detail=full` 与 agent `detail=full` 共享 |
+| `backend/app/api/v1/endpoints/agent/replenishment_analysis.py` | **新增**：R1 决策清单（detail 两档）/ R2 skus/{sku} / R3 summary / R4 coverage / R5 settings / R6 settings/{sku} confirm |
+| `backend/app/api/v1/endpoints/agent/external_mirror.py` | `_EXCLUDED_EXTERNAL_PATHS` 增加 replenishment-analysis（D1） |
+| `backend/app/api/v1/endpoints/agent/__init__.py` | include `replenishment_analysis_router` + `require_business_scope("replenishment_analysis")`（D3） |
+| `backend/tests/api/agent/` | 新增 `test_replenishment_read.py`（R1/R2/读不落审计）、`test_replenishment_summary.py`（R3/R4）、`test_replenishment_settings.py`（R5/R6 confirm）；conftest 新增 `seed_sales_order_rows` / `seed_replenishment_sku` / `seed_replenishment_setting`；适配 `test_external_mirror.py`（镜像排除） |
+| `backend/tests/api/conftest.py` | 新增 autouse `_cleanup_agent_audit_tables`（agent_api_audit_log + operation_audit_logs 全局清理——access/operation logs 测试做全局计数断言，防跨会话残留污染） |
+| `backend/tests/services/inventory/` | 适配 `test_state_action.py`（3 元组 + REPLENISH_NOW）、`test_three_segment_integration.py`（3 元组 + REPLENISH_NOW）、`test_inventory_replenishment.py`（快照新鲜度 mock） |
+| `frontend/types/api-generated/` | openapi 再生成（6 原生路由入列，镜像 operation 移除） |
+| `frontend/lib/agent-domains.ts` | 新增 `replenishment_analysis`（live，routeCount 6，读+写） |
+| `frontend/app/dashboard/system/agent-management/agent-usage-guide.tsx` | 新增 `buildReplenishmentAnalysisGuide()`（6 条路由 + 三段式过滤 + confirm 两段式示例） |
+| `frontend/lib/agent-domains.test.ts` / `agent-usage-guide.test.ts` | 新增域注册 + guide 断言 |
+
+测试验收：`backend` tests/api/agent 全绿 + tests/api 659 passed（13 failed 均为 main 既有：page_render 10 + profile_endpoints 3）+ tests/services/inventory 505 passed（2 failed 均为 main 既有）；frontend vitest 36 相关用例全绿 + lint 0 error。
 
 ---
 
 ## 修订记录
 
+- **v0.3（2026-08-07）**：**已拍板并实施**——用户「好的，全部按照你的推荐来」：§9 D1–D10 全部标拍板；§10 执行前置勾选；新增 §12 实施记录（服务层 S1-S8 + 6 路由 + mirror 排除 + business_scope + 测试 + openapi/api.d.ts + 前端 agent-domains/usage-guide）；**顺带修复 BEL-369 遗留 YoY 窗口无上界 bug**（当年数据泄漏进去年同期汇总）。
 - **v0.2（2026-08-07）**：**重设计**（BLF-502，按用户反馈「重新设计，而不是用 external 的来修改；之前的设计可能不全面」）——①新增 §1 分析模型审计（G1-G8：决策路径不可解释 / REPLENISH_NOW 未产出 / 无快照对比 / data_freshness_days=0 / 分布只有扁平计数 / 单国家粒度 / unknown 不可见 / 设置不可审计）；②§2 改为 Agent 任务模型驱动（T1-T7 → F1-F7 家族），不再以 external §6 契约为锚；③路由面 v1 从 4 条扩到 6 条（+R3 summary 分布矩阵 / +R5 设置列表），v1.1 预留 R7 trend / R8 projection；④新增 `decision_path` 解释性字段与 `detail` 响应瘦身两档；⑤D1-D7 → D1-D10（新增 D2 瘦身 / D3 decision_path / D4 REPLENISH_NOW 修复）；⑥服务层补强清单 S1-S8（含影响面核实）。
 - **v0.1（2026-08-07）**：初版（external 契约 + 三段式增强，3 读 + 1 可选写，D1-D7）。

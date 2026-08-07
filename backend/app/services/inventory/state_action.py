@@ -116,25 +116,26 @@ def compute_inventory_state(
     item: ItemInput,
     trend_label: str,
     adjusted_sellable_days: float | None,
-) -> tuple[str, str | None]:
-    """返回 (state, critical_subtype)。
+) -> tuple[str, str | None, str]:
+    """返回 ``(state, critical_subtype, state_rule)``。
 
     critical_subtype ∈ {'shortage', 'aging', 'overstock'} 仅当 state='critical'。
     其余 state 时 critical_subtype 为 None。
+    state_rule ∈ P0..P13（spec §2.1 顺序短路命中规则，供 Agent decision_path 解释）。
     """
     doh = adjusted_sellable_days  # 使用季节性调整后的 DoH
 
     # P0: 数据缺失（dms_30 是核心指标）
     if item.dms_30 is None:
-        return ("unknown", None)
+        return ("unknown", None, "P0")
 
     # P1: 立即断货风险（DoH<14）
     if doh is not None and doh < STATE_CRITICAL_DOH:
-        return ("critical", "shortage")
+        return ("critical", "shortage", "P1")
 
     # P2: DoH 14-30 且在卖
     if doh is not None and doh < STATE_CRITICAL_SHORTAGE_DOH and item.dms_30 > 0:
-        return ("critical", "shortage")
+        return ("critical", "shortage", "P2")
 
     # 计算 total_age
     total_age = (
@@ -147,15 +148,15 @@ def compute_inventory_state(
 
     # P3: 库龄 365+
     if item.age_365_plus_qty > 0:
-        return ("critical", "aging")
+        return ("critical", "aging", "P3")
 
     # P4: 库龄 271-365 占 ≥50%
     if total_age > 0 and (item.age_271_365_qty / total_age) >= AGING_271_RATIO:
-        return ("critical", "aging")
+        return ("critical", "aging", "P4")
 
     # P5: 库龄 181-270 占 ≥50%
     if total_age > 0 and (item.age_181_270_qty / total_age) >= AGING_181_RATIO:
-        return ("critical", "aging")
+        return ("critical", "aging", "P5")
 
     # P6: DoH>180 且慢销
     if (
@@ -163,7 +164,7 @@ def compute_inventory_state(
         and doh > STATE_OVERSTOCK_CRITICAL_DOH
         and item.dms_30 < VELOCITY_MID
     ):
-        return ("critical", "overstock")
+        return ("critical", "overstock", "P6")
 
     # P7: DoH 120-180 且慢销 → deteriorating
     if (
@@ -171,7 +172,7 @@ def compute_inventory_state(
         and STATE_OVERSTOCK_DETERIORATE_DOH < doh <= STATE_OVERSTOCK_CRITICAL_DOH
         and item.dms_30 < VELOCITY_MID
     ):
-        return ("deteriorating", None)
+        return ("deteriorating", None, "P7")
 
     # P8: trend=下降明显 + 库龄 91+ ≥30% 或 在途/可售>3
     if trend_label == "下降明显":
@@ -193,7 +194,7 @@ def compute_inventory_state(
             aging_91_plus_ratio >= AGING_91_DETERIORATE_RATIO
             or transit_ratio_local > TRANSIT_RATIO_DETERIORATE
         ):
-            return ("deteriorating", None)
+            return ("deteriorating", None, "P8")
 
     # P9: DoH 45-90 + trend=下降明显 → deteriorating
     if (
@@ -201,7 +202,7 @@ def compute_inventory_state(
         and 45 <= doh <= STATE_WATCH_DOH_MAX
         and trend_label == "下降明显"
     ):
-        return ("deteriorating", None)
+        return ("deteriorating", None, "P9")
 
     # P10: DoH 30-45 + trend=下降明显 → watch
     if (
@@ -209,14 +210,14 @@ def compute_inventory_state(
         and STATE_WATCH_DOH_MIN <= doh < 45
         and trend_label == "下降明显"
     ):
-        return ("watch", None)
+        return ("watch", None, "P10")
 
     # P11: DoH 90-180 + 库龄正常 → watch
     if doh is not None and STATE_WATCH_DOH_MAX < doh <= STATE_OVERSTOCK_CRITICAL_DOH:
-        return ("watch", None)
+        return ("watch", None, "P11")
 
     # P12/P13: 其余 → healthy
-    return ("healthy", None)
+    return ("healthy", None, "P12")
 
 
 # ============================================================================
@@ -233,54 +234,100 @@ def compute_replenishment_action(
     trend_label: str,
     transit_ratio: float,
     seasonal_phase: str,
-) -> str:
-    """决策表（spec §2.2）。
+    adjusted_sellable_days: float | None = None,
+) -> tuple[str, str, bool]:
+    """决策表（spec §2.2）。返回 ``(action, action_rule, seasonal_override)``。
 
     规则优先级：
-    1. critical + shortage → REPLENISH_NORMAL / HOLD（旺季覆盖）
+    1. critical + shortage：DoH<14 → REPLENISH_NOW（D4 修复，决策表第 1/2 行）；
+       DoH 14-30（或未知）→ REPLENISH_NORMAL / HOLD（旺季覆盖）
     2. critical + aging → REMOVE
     3. critical + overstock → REDUCE_PRICE / HOLD（淡季覆盖）
     4. deteriorating → REDUCE_PRICE / HOLD（淡季覆盖）
     5. watch / healthy / unknown → NO_ACTION
+
+    ``adjusted_sellable_days`` 为季节性调整后的 DoH（spec §2.1）；为 None 时
+    视为非紧急（≥14），保持历史 shortage 行为兼容。
     """
     trend_is_decline = trend_label in {"轻微下降", "下降明显"}
     trend_is_up = trend_label in {"上升", "稳定"}
+    urgent_shortage = (
+        adjusted_sellable_days is not None
+        and adjusted_sellable_days < STATE_CRITICAL_DOH
+    )
 
-    # 1. critical + shortage：DoH<14 和 DoH 14-30 在卖都走这里
+    # 1. critical + shortage：DoH<14 → REPLENISH_NOW（决策表第 1/2 行，D4 修复）
     if state == "critical" and critical_subtype == "shortage":
+        if urgent_shortage:
+            # 紧急补货：DoH<14，旺季（peak/rising）可标记，动作不变
+            return (
+                ReplenishmentAction.REPLENISH_NOW.value,
+                "shortage-urgent",
+                False,
+            )
         if trend_is_up:
-            return ReplenishmentAction.REPLENISH_NORMAL.value
+            return (
+                ReplenishmentAction.REPLENISH_NORMAL.value,
+                "shortage-normal-up",
+                False,
+            )
         # trend=下降；旺季覆盖 → REPLENISH_NORMAL（旺季"下降"可能是补货跟进问题）
         if seasonal_phase in PEAK_PHASES:
-            return ReplenishmentAction.REPLENISH_NORMAL.value
-        return ReplenishmentAction.HOLD.value
+            return (
+                ReplenishmentAction.REPLENISH_NORMAL.value,
+                "shortage-normal-peak",
+                True,
+            )
+        return (ReplenishmentAction.HOLD.value, "shortage-hold-down", False)
 
     # 2. critical + aging → REMOVE
     if state == "critical" and critical_subtype == "aging":
-        return ReplenishmentAction.REMOVE.value
+        return (ReplenishmentAction.REMOVE.value, "aging-remove", False)
 
     # 3. critical + overstock：DoH>120 慢销
     if state == "critical" and critical_subtype == "overstock":
         if trend_is_decline:
-            return ReplenishmentAction.REDUCE_PRICE.value
+            return (
+                ReplenishmentAction.REDUCE_PRICE.value,
+                "overstock-reduce-decline",
+                False,
+            )
         # trend_is_up
         if transit_ratio > 3.0:
-            return ReplenishmentAction.REDUCE_PRICE.value
+            return (
+                ReplenishmentAction.REDUCE_PRICE.value,
+                "overstock-reduce-transit",
+                False,
+            )
         # transit≤3；trough 覆盖 → HOLD（季节性存量）
-        return ReplenishmentAction.HOLD.value
+        if seasonal_phase in TROUGH_PHASES:
+            return (
+                ReplenishmentAction.HOLD.value,
+                "overstock-hold-trough",
+                True,
+            )
+        return (ReplenishmentAction.HOLD.value, "overstock-hold-stable", False)
 
     # 4. deteriorating
     if state == "deteriorating":
         if trend_is_decline:
             # trough 覆盖 → HOLD（避免误杀季节性回落）
             if seasonal_phase in TROUGH_PHASES:
-                return ReplenishmentAction.HOLD.value
-            return ReplenishmentAction.REDUCE_PRICE.value
+                return (
+                    ReplenishmentAction.HOLD.value,
+                    "deteriorating-hold-trough",
+                    True,
+                )
+            return (
+                ReplenishmentAction.REDUCE_PRICE.value,
+                "deteriorating-reduce",
+                False,
+            )
         # trend_is_up → HOLD
-        return ReplenishmentAction.HOLD.value
+        return (ReplenishmentAction.HOLD.value, "deteriorating-hold-stable", False)
 
     # 5. watch / healthy / unknown
-    return ReplenishmentAction.NO_ACTION.value
+    return (ReplenishmentAction.NO_ACTION.value, "no-action", False)
 
 
 # ============================================================================

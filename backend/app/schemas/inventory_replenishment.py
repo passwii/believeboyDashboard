@@ -5,6 +5,22 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 
+class InventoryDecisionPath(BaseModel):
+    """BLF-502 S3/G1：决策路径解释——为什么是这个 state/action。
+
+    ``state_rule`` ∈ P0..P13（spec §2.1 顺序短路命中规则）；
+    ``critical_subtype`` ∈ shortage/aging/overstock（仅 critical）；
+    ``action_rule`` 为决策表分支标识；``seasonal_override`` 表示季节性是否
+    覆盖了动作判定。
+    """
+
+    state_rule: str | None = None
+    critical_subtype: str | None = None
+    action_rule: str | None = None
+    seasonal_override: bool = False
+    seasonal_phase_used: str | None = None
+
+
 class InventorySignals(BaseModel):
     """inventory_state + action 决策依据的原始事实（透明度，spec §2.3）。
 
@@ -44,6 +60,10 @@ class InventoryReplenishmentSummary(BaseModel):
     watch_count: int = 0
     healthy_count_v2: int = 0
     unknown_count: int = 0
+    # BLF-502 S6/G5: 分布（state 单维 / action 单维 / state×action 交叉矩阵）
+    state_distribution: dict[str, int] = Field(default_factory=dict)
+    action_distribution: dict[str, int] = Field(default_factory=dict)
+    state_action_matrix: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 class InventoryReplenishmentListItem(BaseModel):
@@ -81,6 +101,8 @@ class InventoryReplenishmentListItem(BaseModel):
     replenishment_action: str = "NO_ACTION"  # ReplenishmentAction 枚举值
     # 透明度原始事实
     signals: InventorySignals | None = None
+    # BLF-502 S3/G1: 决策路径解释（why this state/action）
+    decision_path: InventoryDecisionPath | None = None
 
     # ── Age bucket (from FBA inventory snapshot) ──
     age_0_90_qty: int = 0

@@ -48,6 +48,8 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/new-product-calculations",
     "/external/projects/{project_id}/return-analysis",
     "/external/projects/{project_id}/return-analysis-raw",
+    # BLF-502 D1：补货分析已原生化（Agent 任务模型 6 路由）
+    "/external/projects/{project_id}/replenishment-analysis",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"
