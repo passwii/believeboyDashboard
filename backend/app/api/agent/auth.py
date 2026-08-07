@@ -36,6 +36,7 @@ class AgentCredential:
     key_id: int
     agent_id: str
     label: str
+    agent_name: str | None = None
 
 
 def _extract_bearer(request: Request) -> str | None:
@@ -66,9 +67,13 @@ def require_agent_credential(request: Request) -> AgentCredential:
             else:
                 db.rollback()  # 丢弃节流窗口内的 last_used_at 改动
             request.state.agent_id = agent_id
+            request.state.agent_name = verdict.key.agent_name
             request.state.agent_api_key_id = verdict.key.id
             return AgentCredential(
-                key_id=verdict.key.id, agent_id=agent_id, label=verdict.key.label
+                key_id=verdict.key.id,
+                agent_id=agent_id,
+                label=verdict.key.label,
+                agent_name=verdict.key.agent_name,
             )
         db.rollback()
         reason = _STATUS_TO_REASON.get(verdict.status, REASON_TOKEN_INVALID)

@@ -1,7 +1,8 @@
-"""Agent 操作日志管理端端点测试（BLF-460 写操作明细上架）。
+"""Agent 操作日志管理端端点测试（BLF-460 写操作明细上架 + BLF-471 可读性）。
 
 覆盖：列表（agent 行限定 / 人工行排除）、各过滤维度、project_id 派生
-（request_path 优先 / before 兜底）、operation_type 派生、summary、分页。
+（request_path 优先 / before 兜底）、operation_type 派生、agent_name /
+target_label / project_name（BLF-471）、summary、分页。
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from sqlalchemy import delete
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.operation_audit_log import OperationAuditLog
+from app.models.project import Project
 
 
 @pytest.fixture
@@ -39,6 +41,30 @@ def _cleanup_rows() -> None:
         db.close()
 
 
+def _make_project(name: str) -> int:
+    """插一个唯一 project 行，返回 DB 分配的 id（用于 project_name 断言）。"""
+    db = SessionLocal()
+    try:
+        project = Project(project_name=name, sort_order=0)
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        return int(project.id)
+    finally:
+        db.close()
+
+
+def _cleanup_projects(project_ids: list[int]) -> None:
+    if not project_ids:
+        return
+    db = SessionLocal()
+    try:
+        db.execute(delete(Project).where(Project.id.in_(project_ids)))
+        db.commit()
+    finally:
+        db.close()
+
+
 def _agent_row(**overrides) -> dict:
     base = {
         "action": "shipment.status.transition",
@@ -46,6 +72,7 @@ def _agent_row(**overrides) -> dict:
         "target_id": "42",
         "result": "success",
         "agent_id": "ops-agent-a",
+        "agent_name": "货件助理",
         "request_method": "POST",
         "request_path": "/api/v1/agent/projects/7/shipments/SHP001/status",
         "before_json": {"shipment_status": "in_transit"},
@@ -98,6 +125,9 @@ class TestAgentOperationLogsList:
             assert status_item["after_json"] == {"shipment_status": "complete"}
             assert status_item["idempotency_key"] == "idem-1"
             assert status_item["target_id"] == "42"
+            # BLF-471：agent 中文名 + 货件对象标识派生
+            assert status_item["agent_name"] == "货件助理"
+            assert status_item["target_label"] == "SHP001"
 
             create_item = next(
                 item for item in items if item["action"] == "shipment.create"
@@ -107,6 +137,51 @@ class TestAgentOperationLogsList:
             assert create_item["operation_type"] == "shipments"
         finally:
             _cleanup_rows()
+
+    def test_agent_name_and_project_name_and_target_label(self, client):
+        project_id = _make_project("BLF471 操作日志项目")
+        _insert_rows(
+            [
+                _agent_row(
+                    agent_name="货件助理",
+                    request_path=f"/api/v1/agent/projects/{project_id}/shipments/SHP001/status",
+                ),
+                # 未填 agent_name 的存量行回退 null；before/after 内嵌 shipment_no 优先
+                _agent_row(
+                    agent_id="ops-agent-c",
+                    agent_name=None,
+                    action="shipment.create",
+                    target_id="43",
+                    request_path=f"/api/v1/agent/projects/{project_id}/shipments",
+                    before_json=None,
+                    after_json={
+                        "shipment_no": "SHP002",
+                        "project_id": project_id,
+                        "status": "in_transit",
+                    },
+                ),
+            ]
+        )
+        try:
+            resp = client.get("/api/v1/system-management/agent-operation-logs")
+            assert resp.status_code == 200, resp.text
+            items = resp.json()["items"]
+            by_action = {item["action"]: item for item in items}
+
+            status_item = by_action["shipment.status.transition"]
+            assert status_item["agent_name"] == "货件助理"
+            assert status_item["project_name"] == "BLF471 操作日志项目"
+            # 状态推进无 shipment_no 落 JSON → path 派生
+            assert status_item["target_label"] == "SHP001"
+
+            create_item = by_action["shipment.create"]
+            assert create_item["agent_name"] is None
+            assert create_item["project_name"] == "BLF471 操作日志项目"
+            # create 无 /shipments/ 段 → before/after 内嵌 shipment_no 兜底
+            assert create_item["target_label"] == "SHP002"
+        finally:
+            _cleanup_rows()
+            _cleanup_projects([project_id])
 
     def test_filters_agent_project_action_result_keyword(self, client):
         _insert_rows(

@@ -3637,6 +3637,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/api-keys/{key_id}/agent-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Api Key Agent Name
+         * @description 更新 Agent 中文显示名（BLF-471）。
+         *
+         *     不触碰鉴权字段，仅改名——运营/管理员后续可随时修正/回填中文名，
+         *     日志（访问/写操作）与前端随即按新名显示。已删除 Key 返回 404。
+         */
+        post: operations["update_api_key_agent_name_api_v1_internal_api_keys__key_id__agent_name_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/api-keys/{key_id}/deactivate": {
         parameters: {
             query?: never;
@@ -7802,6 +7825,8 @@ export interface components {
         AgentAccessLogAgentSummaryItem: {
             /** Agent Id */
             agent_id: string;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Count */
             count: number;
             /** Key Label */
@@ -7811,6 +7836,8 @@ export interface components {
         AgentAccessLogItem: {
             /** Agent Id */
             agent_id?: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Api Key Id */
             api_key_id?: number | null;
             /** Created At */
@@ -7831,6 +7858,8 @@ export interface components {
             path: string;
             /** Project Id */
             project_id?: number | null;
+            /** Project Name */
+            project_name?: string | null;
             /** Status Code */
             status_code: number;
         };
@@ -7959,6 +7988,8 @@ export interface components {
             } | unknown[] | null;
             /** Agent Id */
             agent_id?: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Before Json */
             before_json?: {
                 [key: string]: unknown;
@@ -7975,6 +8006,8 @@ export interface components {
             operation_type?: string | null;
             /** Project Id */
             project_id?: number | null;
+            /** Project Name */
+            project_name?: string | null;
             /** Request Method */
             request_method?: string | null;
             /** Request Path */
@@ -7983,6 +8016,8 @@ export interface components {
             result: string;
             /** Target Id */
             target_id?: string | null;
+            /** Target Label */
+            target_label?: string | null;
             /** Target Type */
             target_type: string;
         };
@@ -7990,6 +8025,8 @@ export interface components {
         AgentOperationLogSummaryItem: {
             /** Agent Id */
             agent_id: string;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Count */
             count: number;
         };
@@ -8398,6 +8435,26 @@ export interface components {
             /** Is Revoked */
             is_revoked: boolean;
         };
+        /**
+         * ApiKeyAgentNameUpdateRequest
+         * @description ``POST .../{id}/agent-name`` 请求体（BLF-471 改名）。
+         */
+        ApiKeyAgentNameUpdateRequest: {
+            /** Agent Name */
+            agent_name: string;
+        };
+        /**
+         * ApiKeyAgentNameUpdateResponse
+         * @description ``POST .../{id}/agent-name`` 响应。
+         */
+        ApiKeyAgentNameUpdateResponse: {
+            /** Agent Id */
+            agent_id: string | null;
+            /** Agent Name */
+            agent_name: string | null;
+            /** Id */
+            id: number;
+        };
         /** ApiKeyCreateRequest */
         ApiKeyCreateRequest: {
             /**
@@ -8405,6 +8462,11 @@ export interface components {
              * @description 绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空
              */
             agent_id?: string | null;
+            /**
+             * Agent Name
+             * @description Agent 中文显示名（BLF-471）；对应英文 agent_id，日志与前端展示用
+             */
+            agent_name?: string | null;
             /**
              * Business Scope
              * @description 业务域范围：'*' 全部，或 ',' 分隔的域 code 白名单（空串按 '*' 处理）
@@ -8437,6 +8499,8 @@ export interface components {
         ApiKeyCreateResponse: {
             /** Agent Id */
             agent_id: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Business Scope */
             business_scope: string;
             /**
@@ -8473,6 +8537,8 @@ export interface components {
         ApiKeyItem: {
             /** Agent Id */
             agent_id: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
             /** Business Scope */
             business_scope: string;
             /**
@@ -27977,6 +28043,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyActivateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_api_key_agent_name_api_v1_internal_api_keys__key_id__agent_name_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyAgentNameUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyAgentNameUpdateResponse"];
                 };
             };
             /** @description Validation Error */

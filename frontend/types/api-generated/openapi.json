@@ -1629,6 +1629,17 @@
             "title": "Agent Id",
             "type": "string"
           },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
+          },
           "count": {
             "title": "Count",
             "type": "integer"
@@ -1664,6 +1675,17 @@
               }
             ],
             "title": "Agent Id"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
           },
           "api_key_id": {
             "anyOf": [
@@ -1739,6 +1761,17 @@
               }
             ],
             "title": "Project Id"
+          },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
           },
           "status_code": {
             "title": "Status Code",
@@ -2115,6 +2148,17 @@
             ],
             "title": "Agent Id"
           },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
+          },
           "before_json": {
             "anyOf": [
               {
@@ -2183,6 +2227,17 @@
             ],
             "title": "Project Id"
           },
+          "project_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Name"
+          },
           "request_method": {
             "anyOf": [
               {
@@ -2220,6 +2275,17 @@
             ],
             "title": "Target Id"
           },
+          "target_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Label"
+          },
           "target_type": {
             "title": "Target Type",
             "type": "string"
@@ -2240,6 +2306,17 @@
           "agent_id": {
             "title": "Agent Id",
             "type": "string"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
           },
           "count": {
             "title": "Count",
@@ -3391,6 +3468,60 @@
         "title": "ApiKeyActivateResponse",
         "type": "object"
       },
+      "ApiKeyAgentNameUpdateRequest": {
+        "description": "``POST .../{id}/agent-name`` 请求体（BLF-471 改名）。",
+        "properties": {
+          "agent_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Agent Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_name"
+        ],
+        "title": "ApiKeyAgentNameUpdateRequest",
+        "type": "object"
+      },
+      "ApiKeyAgentNameUpdateResponse": {
+        "description": "``POST .../{id}/agent-name`` 响应。",
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Id"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "agent_name"
+        ],
+        "title": "ApiKeyAgentNameUpdateResponse",
+        "type": "object"
+      },
       "ApiKeyCreateRequest": {
         "properties": {
           "agent_id": {
@@ -3405,6 +3536,19 @@
             ],
             "description": "绑定的 Agent 稳定标识；Agent 凭据必填，存量 external key 留空",
             "title": "Agent Id"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agent 中文显示名（BLF-471）；对应英文 agent_id，日志与前端展示用",
+            "title": "Agent Name"
           },
           "business_scope": {
             "default": "*",
@@ -3465,6 +3609,17 @@
               }
             ],
             "title": "Agent Id"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
           },
           "business_scope": {
             "title": "Business Scope",
@@ -3558,6 +3713,17 @@
               }
             ],
             "title": "Agent Id"
+          },
+          "agent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
           },
           "business_scope": {
             "title": "Business Scope",
@@ -60595,6 +60761,101 @@
           }
         },
         "summary": "Activate Api Key",
+        "tags": [
+          "internal-api-keys"
+        ]
+      }
+    },
+    "/api/v1/internal/api-keys/{key_id}/agent-name": {
+      "post": {
+        "description": "更新 Agent 中文显示名（BLF-471）。\n\n不触碰鉴权字段，仅改名——运营/管理员后续可随时修正/回填中文名，\n日志（访问/写操作）与前端随即按新名显示。已删除 Key 返回 404。",
+        "operationId": "update_api_key_agent_name_api_v1_internal_api_keys__key_id__agent_name_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Is-Admin",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyAgentNameUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyAgentNameUpdateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Api Key Agent Name",
         "tags": [
           "internal-api-keys"
         ]

@@ -1,4 +1,8 @@
-"""Agent 访问日志管理端端点测试（agent_api_audit_log 查询）。"""
+"""Agent 访问日志管理端端点测试（agent_api_audit_log 查询）。
+
+BLF-471 起列表还还原 agent_name（join agent_api_keys）与 project_name
+（查 projects 表），运营/管理员看中文名而非英文 ID。
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ from sqlalchemy import delete
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.agent_api_audit_log import AgentApiAuditLog
+from app.models.project import Project
 
 
 @pytest.fixture
@@ -30,6 +35,30 @@ def _cleanup_logs() -> None:
     db = SessionLocal()
     try:
         db.execute(delete(AgentApiAuditLog))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _make_project(name: str) -> int:
+    """插一个唯一 project 行，返回 DB 分配的 id（用于 project_name 断言）。"""
+    db = SessionLocal()
+    try:
+        project = Project(project_name=name, sort_order=0)
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        return int(project.id)
+    finally:
+        db.close()
+
+
+def _cleanup_projects(project_ids: list[int]) -> None:
+    if not project_ids:
+        return
+    db = SessionLocal()
+    try:
+        db.execute(delete(Project).where(Project.id.in_(project_ids)))
         db.commit()
     finally:
         db.close()
@@ -76,6 +105,50 @@ class TestAgentAccessLogsList:
             assert anon["api_key_id"] is None
         finally:
             _cleanup_logs()
+
+    def test_list_agent_name_and_project_name(self, client, make_api_key):
+        project_id = _make_project("BLF471 访问日志项目")
+        key = make_api_key(
+            agent_id="access-test-agent", label="访问测试 key", agent_name="货件助理"
+        )
+        _insert_logs(
+            [
+                {
+                    "method": "GET",
+                    "path": f"/api/v1/agent/projects/{project_id}/shipments",
+                    "api_key_id": key["id"],
+                    "project_id": project_id,
+                    "operation_type": "shipments",
+                    "status_code": 200,
+                    "latency_ms": 12,
+                    "ip_address": "1.2.3.4",
+                },
+                {
+                    "method": "GET",
+                    "path": "/api/v1/agent/health",
+                    "api_key_id": key["id"],
+                    "status_code": 200,
+                    "latency_ms": 3,
+                    "ip_address": None,
+                },
+            ]
+        )
+        try:
+            resp = client.get(
+                "/api/v1/system-management/agent-access-logs?page_size=50"
+            )
+            assert resp.status_code == 200, resp.text
+            by_path = {item["path"]: item for item in resp.json()["items"]}
+            shipment = by_path[f"/api/v1/agent/projects/{project_id}/shipments"]
+            assert shipment["agent_name"] == "货件助理"
+            assert shipment["project_name"] == "BLF471 访问日志项目"
+            # 无项目路径 → project_name 为 null
+            health = by_path["/api/v1/agent/health"]
+            assert health["project_name"] is None
+            assert health["agent_name"] == "货件助理"
+        finally:
+            _cleanup_logs()
+            _cleanup_projects([project_id])
 
     def test_filters_keyword_method_result(self, client, make_api_key):
         key = make_api_key(agent_id="filter-agent", label="过滤测试")

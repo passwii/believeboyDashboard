@@ -48,6 +48,7 @@ import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
 import { AGENT_DOMAINS, getAgentDomain } from '@/lib/agent-domains'
+import { AgentIdentityCell, formatProjectRef } from '@/lib/agent-display'
 
 const API_BASE = '/api/backend'
 
@@ -61,9 +62,13 @@ export type AgentAccessLogItem = {
   ip_address: string | null
   api_key_id: number | null
   agent_id: string | null
+  /** Agent 中文显示名（BLF-471）：join agent_api_keys 还原，未填回退 agent_id */
+  agent_name: string | null
   key_label: string | null
   /** BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析） */
   project_id: number | null
+  /** 请求涉及的项目名（BLF-471）：运营可读，未命中回退 #id */
+  project_name: string | null
   operation_type: string | null
 }
 
@@ -78,6 +83,7 @@ type AgentAccessLogsResponse = {
 export type AgentAccessLogAgentSummaryItem = {
   agent_id: string
   key_label: string | null
+  agent_name: string | null
   count: number
 }
 
@@ -255,6 +261,7 @@ export function AgentAccessLogsPanel() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-700 dark:text-indigo-300"
                   title={`${item.agent_id}（${item.key_label || '无标签'}）`}
                 >
+                  {item.agent_name ? <span>{item.agent_name}</span> : null}
                   <code className="font-mono">{item.agent_id}</code>
                   <span className="text-muted-foreground">×{item.count}</span>
                 </span>
@@ -280,11 +287,11 @@ export function AgentAccessLogsPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[170px]">时间</TableHead>
-                  <TableHead className="w-[150px]">Agent ID</TableHead>
+                  <TableHead className="w-[150px]">Agent</TableHead>
                   <TableHead className="w-[130px]">Key 标签</TableHead>
                   <TableHead className="w-[70px]">方法</TableHead>
                   <TableHead>路径</TableHead>
-                  <TableHead className="w-[90px]">项目 ID</TableHead>
+                  <TableHead className="w-[140px]">项目</TableHead>
                   <TableHead className="w-[110px]">操作类型</TableHead>
                   <TableHead className="w-[110px]">状态码</TableHead>
                   <TableHead className="w-[70px]">耗时</TableHead>
@@ -308,13 +315,7 @@ export function AgentAccessLogsPanel() {
                     <TableRow key={row.id}>
                       <TableCell>{formatDateTime(row.created_at)}</TableCell>
                       <TableCell>
-                        {row.agent_id ? (
-                          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                            {row.agent_id}
-                          </code>
-                        ) : (
-                          <span className="text-muted-foreground">未绑定 / 未鉴权</span>
-                        )}
+                        <AgentIdentityCell agentId={row.agent_id} agentName={row.agent_name} />
                       </TableCell>
                       <TableCell className="max-w-[130px] truncate" title={row.key_label || '-'}>
                         {row.key_label || '-'}
@@ -330,8 +331,8 @@ export function AgentAccessLogsPanel() {
                       >
                         {row.path}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {row.project_id ?? '-'}
+                      <TableCell className="text-xs">
+                        {formatProjectRef(row.project_id, row.project_name)}
                       </TableCell>
                       <TableCell>
                         {row.operation_type ? (
@@ -474,12 +475,21 @@ export function AgentAccessLogsPanel() {
                   {statusMeta(activeRow.status_code).label}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Agent ID:</span>{' '}
-                  <code className="font-mono">{activeRow.agent_id || '未绑定 / 未鉴权'}</code>
+                  <span className="text-muted-foreground">Agent:</span>{' '}
+                  {activeRow.agent_id ? (
+                    <>
+                      {activeRow.agent_name ? (
+                        <span className="font-medium">{activeRow.agent_name} </span>
+                      ) : null}
+                      <code className="font-mono">{activeRow.agent_id}</code>
+                    </>
+                  ) : (
+                    '未绑定 / 未鉴权'
+                  )}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">项目 ID:</span>{' '}
-                  <code className="font-mono">{activeRow.project_id ?? '-'}</code>
+                  <span className="text-muted-foreground">项目:</span>{' '}
+                  {formatProjectRef(activeRow.project_id, activeRow.project_name)}
                 </p>
                 <p>
                   <span className="text-muted-foreground">操作类型:</span>{' '}

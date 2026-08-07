@@ -64,8 +64,10 @@ const readRow = {
   ip_address: '1.2.3.4',
   api_key_id: 7,
   agent_id: 'shipment-assistant-prod',
+  agent_name: '货件助理',
   key_label: '货件助理 (生产)',
   project_id: 12,
+  project_name: '测试项目',
   operation_type: 'shipments',
 }
 
@@ -75,8 +77,10 @@ const otherRow = {
   path: '/api/v1/agent/projects',
   status_code: 404,
   project_id: null,
+  project_name: null,
   operation_type: null,
   agent_id: null,
+  agent_name: null,
   key_label: null,
 }
 
@@ -101,7 +105,14 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
       success_count: 1,
       error_count: 1,
       unique_agent_count: 1,
-      top_agents: [{ agent_id: 'shipment-assistant-prod', key_label: '货件助理 (生产)', count: 1 }],
+      top_agents: [
+        {
+          agent_id: 'shipment-assistant-prod',
+          key_label: '货件助理 (生产)',
+          agent_name: '货件助理',
+          count: 1,
+        },
+      ],
     }
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
@@ -117,20 +128,23 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     vi.clearAllMocks()
   })
 
-  it('展示项目 ID 列与操作类型列（域中文名映射）', async () => {
+  it('展示项目列与操作类型列（BLF-471 Agent 中文名 / 项目名）', async () => {
     render(<AgentAccessLogsPanel />)
 
-    expect(await screen.findByText('项目 ID')).toBeTruthy()
+    expect(await screen.findByText('项目')).toBeTruthy()
     // 表头 + 筛选下拉占位都有「操作类型」→ 用 getAll
     expect(screen.getAllByText('操作类型').length).toBeGreaterThanOrEqual(1)
     // 有域的行 → 中文标签；无域的行 → '-'
     expect(screen.getAllByText('货件管理').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(1)
+    // BLF-471：Agent 中文名 + 项目名（name (id) 展示）
+    expect(screen.getAllByText('货件助理').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('测试项目 (12)').length).toBeGreaterThanOrEqual(1)
   })
 
   it('project_id / operation_type 筛选提交到请求参数', async () => {
     render(<AgentAccessLogsPanel />)
-    await screen.findByText('项目 ID')
+    await screen.findByText('项目')
 
     fireEvent.change(screen.getByPlaceholderText('项目 ID（数字）'), {
       target: { value: '12' },

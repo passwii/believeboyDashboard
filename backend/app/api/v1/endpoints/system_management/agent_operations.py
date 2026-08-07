@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session
 from app.models.operation_audit_log import OperationAuditLog
+from app.models.project import Project
 from app.schemas.system_management.agent_operations import (
     AgentOperationLogActionSummaryItem,
     AgentOperationLogItem,
@@ -43,6 +44,10 @@ _ACTION_DOMAIN_PREFIXES: tuple[tuple[str, str], ...] = (
 )
 
 _PROJECT_ID_RE = re.compile(r"/projects/(\d+)")
+
+# 货件域对象标识派生：path 里 /shipments/{shipment_no} 段（写操作多数无
+# shipment_no 落 JSON，如状态推进 / 明细替换，但 path 恒带）。
+_SHIPMENT_NO_PATH_RE = re.compile(r"/shipments/([^/]+)")
 
 
 def _derive_operation_type(action: str) -> str | None:
@@ -72,6 +77,38 @@ def _derive_project_id(
                 except (TypeError, ValueError):
                     pass
     return None
+
+
+def _derive_target_label(
+    request_path: str | None,
+    before_json: dict | list | None,
+    after_json: dict | list | None,
+) -> str | None:
+    """派生人类可读对象标识（BLF-471）：货件域优先 before/after 内嵌
+    shipment_no，兜底 request_path 的 /shipments/{shipment_no} 段。"""
+    for payload in (before_json, after_json):
+        if isinstance(payload, dict):
+            value = payload.get("shipment_no")
+            if value:
+                return str(value)
+    if request_path:
+        match = _SHIPMENT_NO_PATH_RE.search(request_path)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _load_project_names(db: Session, project_ids: set[int]) -> dict[int, str]:
+    """一次查询把 project_id 集合还原为 {id: project_name}（BLF-471）。
+
+    空集合直接返回 {}（避免 ``IN ()`` 非法 SQL）。
+    """
+    if not project_ids:
+        return {}
+    rows = db.execute(
+        select(Project.id, Project.project_name).where(Project.id.in_(project_ids))
+    ).all()
+    return {int(row.id): str(row.project_name) for row in rows}
 
 
 def _apply_filters(
@@ -132,18 +169,24 @@ def _to_iso(value) -> str:
     return value.astimezone().isoformat(timespec="seconds")
 
 
-def _serialize(row: OperationAuditLog) -> dict:
+def _serialize(row: OperationAuditLog, project_names: dict[int, str]) -> dict:
+    project_id = _derive_project_id(
+        row.request_path, row.before_json, row.after_json
+    )
     return {
         "id": row.id,
         "created_at": _to_iso(row.created_at),
         "agent_id": row.agent_id,
+        "agent_name": row.agent_name,
         "action": row.action,
         "target_type": row.target_type,
         "target_id": row.target_id,
-        "result": row.result,
-        "project_id": _derive_project_id(
+        "target_label": _derive_target_label(
             row.request_path, row.before_json, row.after_json
         ),
+        "result": row.result,
+        "project_id": project_id,
+        "project_name": project_names.get(project_id) if project_id is not None else None,
         "operation_type": _derive_operation_type(row.action),
         "request_path": row.request_path,
         "request_method": row.request_method,
@@ -189,8 +232,16 @@ def list_agent_operation_logs(
         .scalars()
         .all()
     )
+    project_ids: set[int] = set()
+    for row in rows:
+        pid = _derive_project_id(row.request_path, row.before_json, row.after_json)
+        if pid is not None:
+            project_ids.add(pid)
+    project_names = _load_project_names(db, project_ids)
     return AgentOperationLogsResponse(
-        items=[AgentOperationLogItem(**_) for _ in map(_serialize, rows)],
+        items=[
+            AgentOperationLogItem(**_serialize(row, project_names)) for row in rows
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -240,10 +291,10 @@ def agent_operation_logs_summary(
         or 0
     )
     top_agent_rows = db.execute(
-        select(sub.c.agent_id, func.count().label("cnt"))
+        select(sub.c.agent_id, sub.c.agent_name, func.count().label("cnt"))
         .select_from(sub)
         .where(sub.c.agent_id.is_not(None))
-        .group_by(sub.c.agent_id)
+        .group_by(sub.c.agent_id, sub.c.agent_name)
         .order_by(func.count().desc())
         .limit(10)
     ).all()
@@ -261,8 +312,10 @@ def agent_operation_logs_summary(
         failure_count=failure_count,
         unique_agent_count=unique_agent_count,
         top_agents=[
-            AgentOperationLogSummaryItem(agent_id=agent_id, count=count)
-            for agent_id, count in top_agent_rows
+            AgentOperationLogSummaryItem(
+                agent_id=agent_id, agent_name=agent_name, count=count
+            )
+            for agent_id, agent_name, count in top_agent_rows
         ],
         top_actions=[
             AgentOperationLogActionSummaryItem(action=action, count=count)

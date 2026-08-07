@@ -81,6 +81,54 @@ class TestAgentKeyCreate:
         finally:
             _cleanup(key_id)
 
+    def test_create_with_agent_name(self, client, admin_headers):
+        created = client.post(
+            "/api/v1/internal/api-keys",
+            json={
+                "label": "货件助理 (测试)",
+                "agent_id": "shipment-assistant-test",
+                "agent_name": "货件助理",
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 201, created.text
+        body = created.json()
+        key_id = body["id"]
+        try:
+            assert body["agent_name"] == "货件助理"
+            listed = client.get("/api/v1/internal/api-keys", headers=admin_headers)
+            match = next(i for i in listed.json() if i["id"] == key_id)
+            assert match["agent_name"] == "货件助理"
+        finally:
+            _cleanup(key_id)
+
+    def test_update_agent_name_endpoint(self, client, admin_headers):
+        created = client.post(
+            "/api/v1/internal/api-keys",
+            json={
+                "label": "改名测试",
+                "agent_id": "rename-agent",
+                "agent_name": "旧名字",
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 201, created.text
+        key_id = created.json()["id"]
+        try:
+            renamed = client.post(
+                f"/api/v1/internal/api-keys/{key_id}/agent-name",
+                json={"agent_name": "新名字"},
+                headers=admin_headers,
+            )
+            assert renamed.status_code == 200, renamed.text
+            assert renamed.json()["agent_name"] == "新名字"
+            assert renamed.json()["agent_id"] == "rename-agent"
+            listed = client.get("/api/v1/internal/api-keys", headers=admin_headers)
+            match = next(i for i in listed.json() if i["id"] == key_id)
+            assert match["agent_name"] == "新名字"
+        finally:
+            _cleanup(key_id)
+
     def test_create_with_business_scope(self, client, admin_headers):
         created = client.post(
             "/api/v1/internal/api-keys",

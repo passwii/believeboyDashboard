@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_read_db_session
 from app.models.agent_api_audit_log import AgentApiAuditLog
 from app.models.agent_api_key import AgentApiKey
+from app.models.project import Project
 from app.schemas.system_management.agent_access_logs import (
     AgentAccessLogAgentSummaryItem,
     AgentAccessLogsResponse,
@@ -84,9 +85,22 @@ def _apply_filters(
 
 
 def _base_stmt():
-    return select(_LOG, _KEY.agent_id, _KEY.label).outerjoin(
+    return select(_LOG, _KEY.agent_id, _KEY.label, _KEY.agent_name).outerjoin(
         _KEY, _KEY.id == _LOG.api_key_id
     )
+
+
+def _load_project_names(db: Session, project_ids: set[int]) -> dict[int, str]:
+    """一次查询把 project_id 集合还原为 {id: project_name}（BLF-471）。
+
+    空集合直接返回 {}（避免 ``IN ()`` 非法 SQL）。
+    """
+    if not project_ids:
+        return {}
+    rows = db.execute(
+        select(Project.id, Project.project_name).where(Project.id.in_(project_ids))
+    ).all()
+    return {int(row.id): str(row.project_name) for row in rows}
 
 
 def _to_iso(value) -> str:
@@ -133,6 +147,9 @@ def list_agent_access_logs(
     rows = db.execute(
         stmt.order_by(_LOG.id.desc()).offset(offset).limit(page_size)
     ).all()
+    project_names = _load_project_names(
+        db, {log.project_id for log, _, _, _ in rows if log.project_id is not None}
+    )
     items = [
         {
             "id": log.id,
@@ -144,11 +161,17 @@ def list_agent_access_logs(
             "ip_address": log.ip_address,
             "api_key_id": log.api_key_id,
             "agent_id": agent_id,
+            "agent_name": agent_name,
             "key_label": label,
             "project_id": log.project_id,
+            "project_name": (
+                project_names.get(log.project_id)
+                if log.project_id is not None
+                else None
+            ),
             "operation_type": log.operation_type,
         }
-        for log, agent_id, label in rows
+        for log, agent_id, label, agent_name in rows
     ]
     return AgentAccessLogsResponse(
         items=items,
@@ -207,10 +230,10 @@ def agent_access_logs_summary(
         or 0
     )
     top_rows = db.execute(
-        select(sub.c.agent_id, sub.c.label, func.count().label("cnt"))
+        select(sub.c.agent_id, sub.c.label, sub.c.agent_name, func.count().label("cnt"))
         .select_from(sub)
         .where(sub.c.agent_id.is_not(None))
-        .group_by(sub.c.agent_id, sub.c.label)
+        .group_by(sub.c.agent_id, sub.c.label, sub.c.agent_name)
         .order_by(func.count().desc())
         .limit(10)
     ).all()
@@ -222,8 +245,8 @@ def agent_access_logs_summary(
         unique_agent_count=unique_agent_count,
         top_agents=[
             AgentAccessLogAgentSummaryItem(
-                agent_id=agent_id, key_label=label, count=count
+                agent_id=agent_id, key_label=label, agent_name=agent_name, count=count
             )
-            for agent_id, label, count in top_rows
+            for agent_id, label, agent_name, count in top_rows
         ],
     )

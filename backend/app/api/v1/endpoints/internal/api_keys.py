@@ -37,6 +37,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_primary_db_session, get_request_operator
 from app.schemas.agent_api_key import (
     ApiKeyActivateResponse,
+    ApiKeyAgentNameUpdateRequest,
+    ApiKeyAgentNameUpdateResponse,
     ApiKeyCreateRequest,
     ApiKeyCreateResponse,
     ApiKeyDeactivateResponse,
@@ -78,6 +80,7 @@ def create_api_key(
         business_scope=body.business_scope,
         expires_at=body.expires_at,
         agent_id=body.agent_id,
+        agent_name=body.agent_name,
     )
     append_operation_audit_log(
         db,
@@ -98,6 +101,7 @@ def create_api_key(
         project_scope=record.project_scope,
         business_scope=record.business_scope,
         agent_id=record.agent_id,
+        agent_name=record.agent_name,
         expires_at=record.expires_at,
         created_at=record.created_at,
         plaintext_key=plaintext,
@@ -204,6 +208,41 @@ def activate_api_key(
     db.commit()
     logger.info("API key activated id=%s", key_id)
     return ApiKeyActivateResponse(id=record.id, is_revoked=record.is_revoked)
+
+
+@router.post(
+    "/{key_id}/agent-name",
+    response_model=ApiKeyAgentNameUpdateResponse,
+    dependencies=[Depends(_require_admin)],
+)
+def update_api_key_agent_name(
+    key_id: int,
+    body: ApiKeyAgentNameUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ApiKeyAgentNameUpdateResponse:
+    """更新 Agent 中文显示名（BLF-471）。
+
+    不触碰鉴权字段，仅改名——运营/管理员后续可随时修正/回填中文名，
+    日志（访问/写操作）与前端随即按新名显示。已删除 Key 返回 404。
+    """
+    record = key_service.update_api_key_agent_name(db, key_id, body.agent_name)
+    if record is None:
+        raise HTTPException(status_code=404, detail="API key not found")
+    append_operation_audit_log(
+        db,
+        action="api_key.agent_name",
+        target_type="agent_api_key",
+        target_id=key_id,
+        operator=operator or "admin",
+        request=request,
+    )
+    db.commit()
+    logger.info("API key agent_name updated id=%s", key_id)
+    return ApiKeyAgentNameUpdateResponse(
+        id=record.id, agent_id=record.agent_id, agent_name=record.agent_name
+    )
 
 
 @router.delete(

@@ -24,11 +24,14 @@ const transitionRow = {
   id: 101,
   created_at: '2026-08-06T09:00:00Z',
   agent_id: 'shipment-assistant-prod',
+  agent_name: '货件助理',
   action: 'shipment.status.transition',
   target_type: 'shipment_schedule',
   target_id: '88',
+  target_label: 'SH-1',
   result: 'success',
   project_id: 12,
+  project_name: '测试项目',
   operation_type: 'shipments',
   request_path: '/api/v1/agent/projects/12/shipments/SH-1/status',
   request_method: 'POST',
@@ -42,11 +45,14 @@ const createRow = {
   id: 102,
   created_at: '2026-08-06T08:30:00Z',
   agent_id: 'shipment-assistant-prod',
+  agent_name: '货件助理',
   action: 'shipment.create',
   target_type: 'shipment_schedule',
   target_id: '90',
+  target_label: 'SH-2026-01',
   result: 'success',
   project_id: 12,
+  project_name: '测试项目',
   operation_type: 'shipments',
   request_path: '/api/v1/agent/projects/12/shipments',
   request_method: 'POST',
@@ -60,6 +66,7 @@ const failureRow = {
   ...transitionRow,
   id: 103,
   agent_id: 'shop-calc-test',
+  agent_name: null,
   action: 'shop_calculation.append',
   result: 'failure',
   error_message: '店铺不存在',
@@ -109,12 +116,16 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
     vi.clearAllMocks()
   })
 
-  it('渲染统计概览与列表（操作语义化标签 / 项目 ID / 结果）', async () => {
+  it('渲染统计概览与列表（操作语义化标签 / 项目 / Agent 中文名 / 结果）', async () => {
     render(<AgentOperationLogsPanel />)
 
     expect(await screen.findByText('写操作总量')).toBeTruthy()
     // 同一 Agent 在 top_agents 与列表行都可能出现 → 用 findAll 断言数量
     expect((await screen.findAllByText('shipment-assistant-prod')).length).toBeGreaterThanOrEqual(1)
+    // BLF-471：Agent 中文名 + 项目名 + 货件编号对象标识
+    expect(screen.getAllByText('货件助理').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('测试项目 (12)').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('#SH-1').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('货件状态变更').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('新建货件')).toBeTruthy()
     expect(screen.getAllByText('追加店铺测算').length).toBeGreaterThanOrEqual(1)

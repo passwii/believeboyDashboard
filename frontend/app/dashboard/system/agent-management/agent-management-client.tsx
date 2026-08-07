@@ -17,7 +17,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { Loader2, KeyRound, Copy, Check, LayoutGrid, Wrench, BookOpen, Activity } from 'lucide-react'
+import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
@@ -32,6 +32,7 @@ import {
   deleteAgentApiKey,
   listAgentApiKeys,
   normalizeProjectScope,
+  updateAgentApiKeyName,
 } from '@/lib/api/agent-key-admin'
 import {
   AGENT_DOMAINS,
@@ -48,6 +49,7 @@ import { AgentOperationLogsPanel } from '@/components/system/agent-operation-log
 type CreatedResult = {
   plaintext_key: string
   agent_id: string
+  agent_name: string | null
   label: string
   project_scope: string
   business_scope: string
@@ -107,6 +109,7 @@ export function AgentManagementClient() {
   const [createOpen, setCreateOpen] = useState(false)
   const [label, setLabel] = useState('')
   const [agentId, setAgentId] = useState('')
+  const [agentName, setAgentName] = useState('')
   const [projectScope, setProjectScope] = useState('*')
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
   const [businessScope, setBusinessScope] = useState('*')
@@ -118,6 +121,10 @@ export function AgentManagementClient() {
   const [created, setCreated] = useState<CreatedResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [usageCopied, setUsageCopied] = useState(false)
+  // BLF-471：改名 Dialog（运营/管理员回填/修正 Agent 中文名）
+  const [renameItem, setRenameItem] = useState<AgentApiKeyItem | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -140,6 +147,7 @@ export function AgentManagementClient() {
   const resetForm = useCallback(() => {
     setLabel('')
     setAgentId('')
+    setAgentName('')
     setProjectScope('*')
     setSelectedProjectIds([])
     setBusinessScope('*')
@@ -154,6 +162,7 @@ export function AgentManagementClient() {
       const result = await createAgentApiKey({
         label: label.trim(),
         agent_id: agentId.trim(),
+        agent_name: agentName.trim() || null,
         expires_at: null,
         project_scope: normalizeProjectScope(projectScope),
         business_scope: normalizeBusinessScope(businessScope),
@@ -161,12 +170,14 @@ export function AgentManagementClient() {
       setCreated({
         plaintext_key: result.plaintext_key,
         agent_id: result.agent_id ?? agentId.trim(),
+        agent_name: result.agent_name ?? (agentName.trim() || null),
         label: result.label,
         project_scope: result.project_scope ?? '*',
         business_scope: result.business_scope ?? '*',
       })
       setLabel('')
       setAgentId('')
+      setAgentName('')
       setProjectScope('*')
       setSelectedProjectIds([])
       setBusinessScope('*')
@@ -179,6 +190,29 @@ export function AgentManagementClient() {
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openRename = (item: AgentApiKeyItem) => {
+    setRenameItem(item)
+    setRenameValue(item.agent_name ?? '')
+  }
+
+  const handleRename = async () => {
+    if (!renameItem) return
+    setRenaming(true)
+    try {
+      await updateAgentApiKeyName(renameItem.id, renameValue.trim())
+      notify({ type: 'success', title: `已更新「${renameItem.agent_id}」的中文名` })
+      setRenameItem(null)
+      await refresh()
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: error instanceof Error ? `名称更新失败：${error.message}` : '名称更新失败',
+      })
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -444,7 +478,7 @@ export function AgentManagementClient() {
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-4 font-medium">名称</th>
                       <th className="py-2 pr-4 font-medium">Key 前缀</th>
-                      <th className="py-2 pr-4 font-medium">Agent ID</th>
+                      <th className="py-2 pr-4 font-medium">Agent</th>
                       <th className="py-2 pr-4 font-medium">项目范围</th>
                       <th className="py-2 pr-4 font-medium">业务域范围</th>
                       <th className="py-2 pr-4 font-medium">最近使用</th>
@@ -464,7 +498,27 @@ export function AgentManagementClient() {
                           </td>
                           <td className="py-2 pr-4">
                             {item.agent_id ? (
-                              <span className="font-mono text-xs">{item.agent_id}</span>
+                              <div className="flex items-start gap-2">
+                                <div>
+                                  {item.agent_name ? (
+                                    <div className="font-medium leading-tight">
+                                      {item.agent_name}
+                                    </div>
+                                  ) : null}
+                                  <code className="font-mono text-xs">{item.agent_id}</code>
+                                </div>
+                                {status !== 'deleted' ? (
+                                  <button
+                                    type="button"
+                                    className="mt-0.5 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                    title="编辑中文名"
+                                    aria-label={`编辑 ${item.agent_id} 的中文名`}
+                                    onClick={() => openRename(item)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                              </div>
                             ) : (
                               <span className="text-muted-foreground">—（未绑定）</span>
                             )}
@@ -605,6 +659,11 @@ export function AgentManagementClient() {
                 <code className="rounded bg-muted p-1 font-mono text-xs">
                   {created.agent_id}
                 </code>
+                {created.agent_name ? (
+                  <span className="ml-2 text-sm text-foreground">
+                    （{created.agent_name}）
+                  </span>
+                ) : null}
               </div>
               <div>
                 <div className="text-muted-foreground mb-1">项目范围</div>
@@ -666,6 +725,21 @@ export function AgentManagementClient() {
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
                 />
+              </div>
+              <div>
+                <label htmlFor="agent-key-agent-name" className="text-sm font-medium">
+                  Agent 名称（中文）
+                </label>
+                <input
+                  id="agent-key-agent-name"
+                  className="mt-1 w-full rounded border bg-background p-2 text-sm"
+                  placeholder="如：货件助理"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  可选。填写后日志与前端都以中文名展示，避免对着英文 ID 二次转换。
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium">
@@ -739,6 +813,57 @@ export function AgentManagementClient() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 改名 Dialog（BLF-471：回填/修正 Agent 中文名） ──────────── */}
+      <Dialog
+        open={Boolean(renameItem)}
+        onOpenChange={(open) => {
+          if (!open) setRenameItem(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑 Agent 中文名</DialogTitle>
+          </DialogHeader>
+          {renameItem ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Agent ID：
+                <code className="font-mono text-xs">{renameItem.agent_id || '—'}</code>
+                <span className="ml-2">（凭据标签：{renameItem.label}）</span>
+              </p>
+              <div>
+                <label htmlFor="agent-key-rename" className="text-sm font-medium">
+                  Agent 名称（中文）
+                </label>
+                <input
+                  id="agent-key-rename"
+                  className="mt-1 w-full rounded border bg-background p-2 text-sm"
+                  placeholder="如：货件助理"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  autoFocus
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  保存后日志（访问 / 写操作）与凭据列表随即按新名展示。
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRenameItem(null)}>
+                  取消
+                </Button>
+                <Button
+                  onClick={handleRename}
+                  disabled={renaming || !renameValue.trim()}
+                >
+                  {renaming && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                  保存
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

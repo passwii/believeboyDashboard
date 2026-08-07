@@ -15,6 +15,8 @@ export type AgentApiKeyItem = {
   project_scope: string
   business_scope: string
   agent_id: string | null
+  /** Agent 中文显示名（BLF-471）：英文 agent_id 的对应中文名，运营可读 */
+  agent_name: string | null
   is_revoked: boolean
   expires_at: string | null
   created_at: string
@@ -61,6 +63,7 @@ export async function listAgentApiKeys(includeDeleted = false): Promise<AgentApi
 export async function createAgentApiKey(input: {
   label: string
   agent_id: string
+  agent_name?: string | null
   expires_at: string | null
   project_scope: string
   business_scope: string
@@ -71,6 +74,20 @@ export async function createAgentApiKey(input: {
     body: JSON.stringify(input),
   })
   if (!res.ok) throw new Error(`凭据创建失败：HTTP ${res.status}`)
+  return res.json()
+}
+
+/** 更新 Agent 中文显示名（BLF-471）；运营/管理员可随时修正/回填中文名。 */
+export async function updateAgentApiKeyName(
+  id: number,
+  agentName: string
+): Promise<{ id: number; agent_id: string | null; agent_name: string | null }> {
+  const res = await fetch(`${API_BASE}/api/v1/internal/api-keys/${id}/agent-name`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_name: agentName }),
+  })
+  if (!res.ok) throw new Error(`Agent 名称更新失败：HTTP ${res.status}`)
   return res.json()
 }
 

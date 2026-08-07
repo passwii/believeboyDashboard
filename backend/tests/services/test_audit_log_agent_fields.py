@@ -57,11 +57,13 @@ def audit_row_factory():
 def test_agent_fields_persisted(audit_row_factory):
     row = audit_row_factory(
         agent_id="shipment-assistant-prod",
+        agent_name="货件助理",
         idempotency_key="idem-123",
         after={"k": "v"},
     )
     assert row.operator is None
     assert row.agent_id == "shipment-assistant-prod"
+    assert row.agent_name == "货件助理"
     assert row.idempotency_key == "idem-123"
     assert row.after_json == {"k": "v"}
 
