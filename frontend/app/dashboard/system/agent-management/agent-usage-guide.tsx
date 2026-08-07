@@ -336,6 +336,75 @@ function buildInventoryLedgerGuide(opts: {
   状态：OK / MISMATCH / PENDING。`
 }
 
+/** 广告分析域调用说明（BLF-490）：纯读 10 条聚合路由（镜像自 external，BLF-459）。 */
+function buildAdAnalysisGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  const auth = `-H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"`
+  const base = `${apiBase}/api/v1/agent/projects/$PROJECT_ID`
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 广告聚合端点（全部 10 条，同一套参数）】
+
+  公共参数：period（必填，7d/14d/28d/30d/60d/90d/this_month/last_month/ytd/custom，
+  period=custom 时须另带 start_date/end_date，均为 YYYY-MM-DD）+ country（必填，如 US）。
+  返回 {ok, data:{project_id, period, country, data[], summary}}，
+  summary 含总花费/点击/订单等聚合指标，可直接复述给用户。
+
+  ① 广告活动（campaign 粒度）：
+  curl "${base}/ad-campaigns?period=30d&country=US" \\
+    ${auth}
+
+  ② 搜索词（search term 粒度，可看关键词表现）：
+  curl "${base}/ad-search-terms?period=30d&country=US" \\
+    ${auth}
+
+  ③ 预算（budget 粒度）：
+  curl "${base}/ad-budgets?period=30d&country=US" \\
+    ${auth}
+
+  ④ 投放目标（target 粒度）：
+  curl "${base}/ad-targets?period=30d&country=US" \\
+    ${auth}
+
+  ⑤ 展示位置（placement 粒度）：
+  curl "${base}/ad-placements?period=30d&country=US" \\
+    ${auth}
+
+  ⑥ 推广商品（promoted product 粒度）：
+  curl "${base}/ad-promoted-products?period=30d&country=US" \\
+    ${auth}
+
+  ⑦ 时间趋势（按报告日期的日粒度，适合看走势）：
+  curl "${base}/ad-time-trends?period=30d&country=US" \\
+    ${auth}
+
+  ⑧ 搜索词份额（search term share 粒度）：
+  curl "${base}/ad-search-term-shares?period=30d&country=US" \\
+    ${auth}
+
+  ⑨ 无效流量（invalid traffic 粒度）：
+  curl "${base}/ad-invalid-traffic?period=30d&country=US" \\
+    ${auth}
+
+  ⑩ 购买商品（purchased product 粒度）：
+  curl "${base}/ad-purchased-products?period=30d&country=US" \\
+    ${auth}
+
+【3. 深挖明细（可选）】
+
+  每个聚合端点都有同名 -raw 变体（如 ad-campaigns-raw），返回原始行明细，
+  支持 &limit=（≤50000）&offset= 分页与 &order_by=&order_dir= 排序，适合深度诊断。`
+}
+
 /** 报表上传状态域调用说明（BLF-484）：纯读 1 条路由，无确认流。 */
 function buildReportUploadStatusGuide(opts: {
   key?: string
@@ -407,6 +476,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildInventoryLedgerGuide({ key, agentId, apiBase })
   } else if (domain === 'report_upload_status') {
     domainGuide = buildReportUploadStatusGuide({ key, agentId, apiBase })
+  } else if (domain === 'ad_analysis') {
+    domainGuide = buildAdAnalysisGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

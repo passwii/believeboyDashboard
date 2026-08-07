@@ -147,6 +147,29 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=ad_analysis 输出广告分析示例（BLF-490，10 条聚合路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'ad_analysis',
+    })
+    expect(text).toContain('广告分析')
+    expect(text).toContain('/ad-campaigns?period=30d&country=US')
+    expect(text).toContain('/ad-search-terms?period=30d&country=US')
+    expect(text).toContain('/ad-budgets?period=30d&country=US')
+    expect(text).toContain('/ad-targets?period=30d&country=US')
+    expect(text).toContain('/ad-placements?period=30d&country=US')
+    expect(text).toContain('/ad-promoted-products?period=30d&country=US')
+    expect(text).toContain('/ad-time-trends?period=30d&country=US')
+    expect(text).toContain('/ad-search-term-shares?period=30d&country=US')
+    expect(text).toContain('/ad-invalid-traffic?period=30d&country=US')
+    expect(text).toContain('/ad-purchased-products?period=30d&country=US')
+    expect(text).toContain('period=custom')
+    expect(text).toContain('ad-campaigns-raw')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
