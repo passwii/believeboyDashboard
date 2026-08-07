@@ -336,6 +336,31 @@ function buildInventoryLedgerGuide(opts: {
   状态：OK / MISMATCH / PENDING。`
 }
 
+/** 报表上传状态域调用说明（BLF-484）：纯读 1 条路由，无确认流。 */
+function buildReportUploadStatusGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 查询报表上传状态矩阵（RPA 各报表是否已上传，15 类活跃口径）】
+
+  curl "${apiBase}/api/v1/agent/report-upload-status?report_date=2026-06-15&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  report_date 必填（YYYY-MM-DD，非法 → 400）；country 默认 US；
+  &project_id=<ID> 可选（只看指定项目；不在凭据可见范围 → 404）。
+  返回 items（每项目 uploaded_report_count / missing_report_types / statuses
+  明细）+ 顶层 project_count / missing_project_count——缺报清单可直接复述。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -380,6 +405,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildInventoryGuide({ key, agentId, apiBase })
   } else if (domain === 'inventory_ledger') {
     domainGuide = buildInventoryLedgerGuide({ key, agentId, apiBase })
+  } else if (domain === 'report_upload_status') {
+    domainGuide = buildReportUploadStatusGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

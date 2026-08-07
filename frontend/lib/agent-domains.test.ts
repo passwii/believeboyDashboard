@@ -112,6 +112,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
+  it('report_upload_status 已接入且 routeCount=1、纯读（BLF-484）', () => {
+    const domain = getAgentDomain('report_upload_status')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('报表状态')
+    expect(domain?.routeCount).toBe(1)
+    expect(domain?.capabilities).toEqual({ read: true, write: false })
+  })
+
   it('注册表有规划中域（roadmap 待迁移）', () => {
     expect(AGENT_DOMAINS.some((d) => d.status === 'planned')).toBe(true)
   })

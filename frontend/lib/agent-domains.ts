@@ -72,6 +72,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'report_upload_status',
+    label: '报表状态',
+    description: 'RPA 报表上传状态矩阵：15 类活跃报表缺失统计',
+    status: 'live',
+    routeCount: 1,
+    capabilities: { read: true, write: false },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',

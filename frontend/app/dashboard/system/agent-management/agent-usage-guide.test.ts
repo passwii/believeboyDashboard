@@ -133,6 +133,20 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=report_upload_status 输出报表状态示例（BLF-484）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'report_upload_status',
+    })
+    expect(text).toContain('报表状态')
+    expect(text).toContain('/report-upload-status?report_date=2026-06-15&country=US')
+    expect(text).toContain('report_date')
+    expect(text).toContain('missing_report_types')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
