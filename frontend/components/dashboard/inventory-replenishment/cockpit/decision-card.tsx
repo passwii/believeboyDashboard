@@ -13,11 +13,16 @@
  * - 信号行：季节性 / 置信度 / 数据新鲜度
  * - 设置三件套（生产交货/运输/加权系数）+ 保存 + 查看发货
  */
-import { Loader2, Save, Send, TrendingDown, TrendingUp, Minus } from 'lucide-react'
+import { CircleHelp, Loader2, Save, Send, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -27,13 +32,17 @@ import {
 import { cn } from '@/lib/utils'
 import {
   ACTION_LABELS,
+  ACTION_RULE_LABELS,
   ACTION_THEME,
   CONFIDENCE_LABELS,
+  CRITICAL_SUBTYPE_LABELS,
   MOMENTUM_LABELS,
   SEASONAL_EMOJI,
   SEASONAL_LABELS,
   STATE_LABELS,
+  STATE_RULE_LABELS,
   STATE_THEME,
+  type CockpitDecisionPath,
   type CockpitRow,
 } from './cockpit-types'
 
@@ -327,6 +336,67 @@ function SignalRow({ row }: { row: CockpitRow }) {
   )
 }
 
+/** 决策依据（BLF-502 decision_path）：为什么是这个 state/action */
+function DecisionBasisChip({ path }: { path: CockpitDecisionPath }) {
+  const stateRule = path.state_rule
+  const actionRule = path.action_rule
+  const subtype = path.critical_subtype
+  const override = path.seasonal_override
+  const phase = path.seasonal_phase_used
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1 rounded-full border border-border/60 bg-[hsl(var(--surface-soft))] px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-[hsl(var(--surface-panel))] hover:text-foreground dark:border-border/80 dark:bg-[hsl(var(--surface-strong))] dark:hover:bg-[hsl(var(--surface-overlay))]"
+        >
+          <CircleHelp className="h-3 w-3" />
+          决策依据
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={6} className="w-[300px] space-y-2.5">
+        <div className="text-xs font-semibold text-foreground">决策依据 · 为什么这么判</div>
+        {stateRule ? (
+          <div className="space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              状态判定 · {stateRule}
+            </div>
+            <div className="text-xs text-foreground/90">
+              {STATE_RULE_LABELS[stateRule] ?? '未知规则'}
+            </div>
+          </div>
+        ) : null}
+        {subtype ? (
+          <div className="text-xs text-muted-foreground">
+            状态类型：{CRITICAL_SUBTYPE_LABELS[subtype] ?? subtype}
+          </div>
+        ) : null}
+        {actionRule ? (
+          <div className="space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              行动判定 · {actionRule}
+            </div>
+            <div className="text-xs text-foreground/90">
+              {ACTION_RULE_LABELS[actionRule] ?? '未知分支'}
+            </div>
+          </div>
+        ) : null}
+        {override ? (
+          <div className="rounded-md bg-amber-100/70 px-2 py-1.5 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+            {phase && phase !== 'unknown' ? (
+              <span className="mr-1">
+                {SEASONAL_EMOJI[phase] ?? '?'} {SEASONAL_LABELS[phase] ?? phase}
+              </span>
+            ) : null}
+            季节性覆盖：系统按季节策略调整了行动建议
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function DecisionCard({
   row,
   edit,
@@ -375,6 +445,7 @@ export function DecisionCard({
           <Badge variant="outline" className={cn('text-xs', actionTheme.badge)}>
             {ACTION_LABELS[action] ?? action}
           </Badge>
+          {row.decision_path ? <DecisionBasisChip path={row.decision_path} /> : null}
         </div>
       </div>
 

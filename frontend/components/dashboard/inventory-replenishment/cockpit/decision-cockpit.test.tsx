@@ -145,3 +145,60 @@ describe('DecisionCockpit 行动道分组（BLF-491）', () => {
     expect(onSaveRow).toHaveBeenCalledWith(row)
   })
 })
+
+describe('决策依据 chip（BLF-502 decision_path）', () => {
+  it('有 decision_path 时渲染「决策依据」，点击展示状态/行动判定规则', async () => {
+    const user = userEvent.setup()
+    const row = makeRow({
+      sku: 'DP-1',
+      replenishment_action: 'REPLENISH_NOW',
+      inventory_state: 'critical',
+      decision_path: {
+        state_rule: 'P1',
+        critical_subtype: 'shortage',
+        action_rule: 'shortage-urgent',
+        seasonal_override: false,
+        seasonal_phase_used: null,
+      },
+    })
+    render(<DecisionCockpit {...BASE_PROPS} rows={[row]} />)
+
+    const chip = screen.getByRole('button', { name: /决策依据/ })
+    expect(chip).toBeInTheDocument()
+
+    await user.click(chip)
+    // 状态规则 + 类型 + 行动分支说明
+    expect(screen.getByText(/状态判定 · P1/)).toBeInTheDocument()
+    expect(screen.getByText(/调整后可售天数 < 14，立即断货风险/)).toBeInTheDocument()
+    expect(screen.getByText(/状态类型：断货风险/)).toBeInTheDocument()
+    expect(screen.getByText(/行动判定 · shortage-urgent/)).toBeInTheDocument()
+    expect(screen.getByText(/需立即补货/)).toBeInTheDocument()
+  })
+
+  it('seasonal_override 时展示季节性覆盖提示', async () => {
+    const user = userEvent.setup()
+    const row = makeRow({
+      sku: 'DP-2',
+      replenishment_action: 'REPLENISH_NORMAL',
+      inventory_state: 'critical',
+      decision_path: {
+        state_rule: 'P2',
+        critical_subtype: 'shortage',
+        action_rule: 'shortage-normal-peak',
+        seasonal_override: true,
+        seasonal_phase_used: 'peak',
+      },
+    })
+    render(<DecisionCockpit {...BASE_PROPS} rows={[row]} />)
+
+    await user.click(screen.getByRole('button', { name: /决策依据/ }))
+    expect(screen.getByText(/季节性覆盖/)).toBeInTheDocument()
+    expect(screen.getByText('🔥 旺季')).toBeInTheDocument()
+  })
+
+  it('无 decision_path 时不渲染「决策依据」', () => {
+    const row = makeRow({ sku: 'DP-3', replenishment_action: 'HOLD' })
+    render(<DecisionCockpit {...BASE_PROPS} rows={[row]} />)
+    expect(screen.queryByRole('button', { name: /决策依据/ })).not.toBeInTheDocument()
+  })
+})

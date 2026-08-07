@@ -157,6 +157,14 @@ type AnalysisRow = {
     seasonal_phase?: string | null
     seasonal_source?: string | null
   } | null
+  // BLF-502：决策路径解释（为什么是这个 state/action）
+  decision_path?: {
+    state_rule?: string | null
+    critical_subtype?: string | null
+    action_rule?: string | null
+    seasonal_override?: boolean
+    seasonal_phase_used?: string | null
+  } | null
 }
 
 function rowKey(row: Pick<AnalysisRow, 'sku' | 'country'>): string {
