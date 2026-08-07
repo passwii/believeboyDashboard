@@ -1107,8 +1107,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/return-analysis */
-        get: operations["agent_get_external_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get"];
+        /**
+         * Get Return Analysis Aggregate
+         * @description R2 per-SKU 聚合：查询契约与 external §9 完全一致（原生替换镜像）。
+         *
+         *     每行补 ``product_name`` / ``reason_top1_display`` / ``disposition_top1_display``
+         *     （external-api.md §9 文档承诺过但代码未实现）。
+         */
+        get: operations["get_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1124,8 +1130,81 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/return-analysis-raw */
-        get: operations["agent_get_external_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get"];
+        /**
+         * Get Return Analysis Raw
+         * @description R3 raw 退货事件：PII 剥离契约保持不变（永不返回
+         *     customer_comments / raw_row / fnsku / license_plate_number）。
+         */
+        get: operations["get_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/return-analysis/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Return Analysis Coverage
+         * @description R5 数据覆盖度 / 快照新鲜度：报表上传历史 + 数据跨度 + snapshot fresh。
+         *
+         *     退货分析强烈依赖数据新鲜度（报表按周期上传、snapshot 每日刷新）——Agent
+         *     拿 overview 前可先自查「这份数据覆盖到哪天、快照是否过期」。
+         */
+        get: operations["get_return_analysis_coverage_api_v1_agent_projects__project_id__return_analysis_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/return-analysis/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Return Analysis Overview
+         * @description R1 全量退货分析：与内部端点同构的双段式（缓存 → snapshot-or-fallback）。
+         *
+         *     ``?sku=`` 可钻取单 SKU；``?include_comments=true`` 显式开启顾客评论
+         *     （默认剥离，D4 拍板）。
+         */
+        get: operations["get_return_analysis_overview_api_v1_agent_projects__project_id__return_analysis_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/return-analysis/skus/{sku}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Return Analysis Sku
+         * @description R4 单 SKU 钻取：R1 overview 的薄切片（``build_return_analysis(sku=...)``）。
+         *
+         *     无该 SKU 退货数据 → 200 + 空分布行（``summary.total_returns=0``），
+         *     不是 404——查询结果为空 ≠ 资源不存在（D6 拍板）。
+         */
+        get: operations["get_return_analysis_sku_api_v1_agent_projects__project_id__return_analysis_skus__sku__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -21608,7 +21687,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get: {
+    get_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21640,7 +21719,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21654,7 +21735,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get: {
+    get_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21680,7 +21761,122 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_return_analysis_coverage_api_v1_agent_projects__project_id__return_analysis_coverage_get: {
+        parameters: {
+            query?: {
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_return_analysis_overview_api_v1_agent_projects__project_id__return_analysis_overview_get: {
+        parameters: {
+            query: {
+                start_date: string;
+                end_date: string;
+                country?: string;
+                sku?: string | null;
+                include_comments?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_return_analysis_sku_api_v1_agent_projects__project_id__return_analysis_skus__sku__get: {
+        parameters: {
+            query: {
+                start_date: string;
+                end_date: string;
+                country?: string;
+                include_comments?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

@@ -40,9 +40,14 @@ from app.api.v1.endpoints.external.projects import get_external_projects
 from app.db.session import SessionLocal
 from app.models.agent_api_key import AgentApiKey
 
-# 已原生迁移（BLF-457 agent R1 同路径）→ 镜像排除。
+# 已原生迁移（BLF-457 agent R1 同路径 / BLF-470 退货分析域 R2/R3 原生替换）→
+# 镜像排除。new-product-calculations：agent R1 同路径存在。
+# return-analysis / return-analysis-raw：BLF-470 原生实现保持 external §9
+# 查询契约 + display 增强 + business_scope 挂载，避免双实现漂移。
 _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/new-product-calculations",
+    "/external/projects/{project_id}/return-analysis",
+    "/external/projects/{project_id}/return-analysis-raw",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"

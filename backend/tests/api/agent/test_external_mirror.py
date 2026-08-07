@@ -66,8 +66,6 @@ _MIRROR_PATHS = [
     "/external/projects/{pid}/inventory-ledger/summary",
     "/external/projects/{pid}/inventory-ledger/batches",
     "/external/projects/{pid}/inventory-ledger/consistency",
-    "/external/projects/{pid}/return-analysis",
-    "/external/projects/{pid}/return-analysis-raw",
     "/external/projects/{pid}/shop-calculation-history",
     "/external/projects/{pid}/shop-calculation/snapshots",
     "/external/projects/{pid}/pricing-snapshots",
@@ -117,8 +115,6 @@ _QUERY_PARAMS = {
     "orders/summary": "?period=7d&country=US",
     "business-summary": "?period=7d&country=US",
     "replenishment-analysis": "?country=US",
-    "return-analysis": "?period=7d&country=US",
-    "return-analysis-raw": "?period=7d&country=US",
     "shop-calculation-history": "?country=US",
     "shop-calculation/snapshots": "?country=US",
     "inventory-ledger/months": "",
@@ -241,7 +237,8 @@ def mirror_env(make_api_key):
 
 def test_all_external_get_routes_have_agent_mirror():
     """路由表级断言：external 每个 GET 路由（除已原生迁移的
-    new-product-calculations）都存在对应 /agent/* 镜像。"""
+    new-product-calculations 与 BLF-470 原生化的 return-analysis 两路径）
+    都存在对应 /agent/* 镜像。"""
     from app.api.v1.endpoints.agent.external_mirror import (
         _iter_external_apiroutes,
         external_mirror_router,
@@ -250,7 +247,11 @@ def test_all_external_get_routes_have_agent_mirror():
     # external_mirror_router.routes 是 add_api_route 直挂的 APIRoute，
     # 路径为相对路径（/projects/...，/agent 前缀由 agent_router 提供）。
     agent_paths = {r.path for r in external_mirror_router.routes}
-    excluded = {"/external/projects/{project_id}/new-product-calculations"}
+    excluded = {
+        "/external/projects/{project_id}/new-product-calculations",
+        "/external/projects/{project_id}/return-analysis",
+        "/external/projects/{project_id}/return-analysis-raw",
+    }
     for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):
             continue

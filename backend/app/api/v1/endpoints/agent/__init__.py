@@ -14,6 +14,7 @@ from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
+from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
 
@@ -38,6 +39,12 @@ agent_router.include_router(
 # 新品测算域（BLF-451）：只挂 require_project_scope；business_scope（BLF-448）
 # 暂不挂载，域 code 预留 new_product_calculations。
 agent_router.include_router(new_product_calculations_router)
+# 退货分析域（BLF-470）：纯读 5 条路由，挂 business_scope("return_analysis")
+# （D3 拍板，与 shipments/shop_calculations 对齐）。
+agent_router.include_router(
+    return_analysis_router,
+    dependencies=[Depends(require_business_scope("return_analysis"))],
+)
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
 agent_router.include_router(external_mirror_router)

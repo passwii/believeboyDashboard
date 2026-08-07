@@ -1,8 +1,8 @@
-# Agent API · Return/Refund Analysis（退货分析）API 实施规格（设计草案 v0.1）
+# Agent API · Return/Refund Analysis（退货分析）API 实施规格（设计定稿）
 
-> **状态**：**设计草案 v0.1**（BLF-470 产出：后端整体 Review + API 规范与端点设计；决策 D1–D7 待拍板）。
+> **状态**：**设计定稿**（2026-08-07 D1–D7 全部拍板：D1=A 原生迁移 / D2=全读 / D3=挂 business_scope / D4=评论默认剥离+显式开关 / D5=独立 R4 / D6=200 空结果 / D7=不纳入 Refund → 已实施，见 §12）。
 > **配套文档**：[`docs/agent-api-design.md`](../../agent-api-design.md)（Agent API 设计稿 v0.5）、[`docs/superpowers/specs/2026-08-06-agent-new-product-calculation-api.md`](./2026-08-06-agent-new-product-calculation-api.md)（新品测算域 spec 定稿，本 spec 的模板）、[`docs/superpowers/specs/2026-08-05-agent-shop-calculation-api.md`](./2026-08-05-agent-shop-calculation-api.md)（店铺测算域 spec 定稿）、[`backend/docs/external-api.md`](../../backend/docs/external-api.md)（external 读契约 §9 Return Analysis）。
-> **范围**：在 `/api/v1/agent/projects/{id}/return-analysis*` 开放**退货分析（Return/Refund Analysis）域**的读路由。**本 spec 只设计，不实施**（对齐 BLF-451 执行顺序：先 review + 设计，拍板后开执行子 issue）。
+> **范围**：在 `/api/v1/agent/projects/{id}/return-analysis*` 开放**退货分析（Return/Refund Analysis）域**的读路由。**本 spec 只设计，不实施**（对齐 BLF-451 执行顺序：先 review + 设计，拍板后开执行子 issue）。*（注：2026-08-07 拍板后已随 BLF-470 直接实施，见 §12。）*
 > **前提**：`require_project_scope`（commit `d5241993`）与 `require_business_scope`（commit `d94c7c90`）已合入 main；Agent 基建（鉴权/限流/响应壳/错误码/审计）全就绪，可直接复用。
 
 ---
@@ -273,28 +273,48 @@ GET /api/v1/agent/projects/{pid}/return-analysis/coverage?country=US
 
 ---
 
-## 9. 决策记录（待拍板）
+## 9. 决策记录（已拍板 2026-08-07）
 
-| # | 决策点 | 默认建议 | 实施影响 |
+| # | 决策点 | 拍板结论 | 实施影响 |
 |---|---|---|---|
-| **D1** | **镜像去留**：R2/R3 与镜像路径冲突。A=原生迁移（mirror 排除 2 路径，原生保持 external §9 契约 + 增强）；B=保留镜像两条，仅新增 R1/R4/R5 | **A（原生迁移）**：契约 parity + display 增强 + 统一挂 business_scope | mirror 排除 2 路径；原生模块 `endpoints/agent/return_analysis.py`；openapi 再生成 |
-| **D2** | **写路由**：退货分析域 v1 是否开放任何写能力 | **v1 全部读（推荐）**：raw 行不可变、无内部写操作对应；上传/标注/触发刷新立项评估 | 路由表 5 条全读；无 confirm/写桶/新错误码 |
-| **D3** | **business_scope**：是否挂 `require_business_scope("return_analysis")` | **挂（推荐）**：与 shipments/shop_calculations 对齐，域 code 预留 | 新域 code 字符串，无迁移；`errors.py` 已有 `AGENT_BUSINESS_OUT_OF_SCOPE` |
-| **D4** | **feedback_rows 顾客评论**：R1 overview 是否对 Agent 暴露 `customer_comment` 原文（PII） | **默认剥离 + `?include_comments=true` 显式开关（推荐）**；或完全剥离（对齐 external） | schema 加开关参数；Agent 调用说明文档标注 PII 注意 |
-| **D5** | **R4 单 SKU 钻取**：独立路由 vs 并入 R1 `?sku=` | **独立 R4（推荐）**：路径风格对齐店铺域 `skus/{sku}`，Agent 工具定义更清晰 | 路由表 +1（薄封装） |
-| **D6** | **R4 空结果语义**：无该 SKU 退货数据时 200 空 vs 404 | **200 空结果（推荐）**：查询结果为空 ≠ 资源不存在 | 不新增 `RETURN_ANALYSIS_NO_DATA` 错误码 |
-| **D7** | **Refund 财务侧范围**：`actual_refund_amount/_units`（PT1）是否纳入本域 | **不纳入（推荐）**：属支付报表分析（PT1）域，单独立项 | 本 spec 范围保持 return 核心；§1.6 记录相邻资产 |
+| **D1** | **镜像去留**：R2/R3 与镜像路径冲突。A=原生迁移（mirror 排除 2 路径，原生保持 external §9 契约 + 增强）；B=保留镜像两条，仅新增 R1/R4/R5 | **A（原生迁移）** ✅ | mirror 排除 2 路径；原生模块 `endpoints/agent/return_analysis.py`；openapi 再生成 |
+| **D2** | **写路由**：退货分析域 v1 是否开放任何写能力 | **v1 全部读** ✅ | 路由表 5 条全读；无 confirm/写桶/新错误码 |
+| **D3** | **business_scope**：是否挂 `require_business_scope("return_analysis")` | **挂** ✅ | 新域 code 字符串，无迁移；`errors.py` 已有 `AGENT_BUSINESS_OUT_OF_SCOPE` |
+| **D4** | **feedback_rows 顾客评论**：R1 overview 是否对 Agent 暴露 `customer_comment` 原文（PII） | **默认剥离 + `?include_comments=true` 显式开关** ✅ | schema 加开关参数；Agent 调用说明文档标注 PII 注意 |
+| **D5** | **R4 单 SKU 钻取**：独立路由 vs 并入 R1 `?sku=` | **独立 R4** ✅ | 路由表 +1（薄封装） |
+| **D6** | **R4 空结果语义**：无该 SKU 退货数据时 200 空 vs 404 | **200 空结果** ✅ | 不新增 `RETURN_ANALYSIS_NO_DATA` 错误码 |
+| **D7** | **Refund 财务侧范围**：`actual_refund_amount/_units`（PT1）是否纳入本域 | **不纳入** ✅ | 本 spec 范围保持 return 核心；§1.6 记录相邻资产 |
 
 ---
 
-## 10. 执行前置（writing-plans 前确认）
+## 10. 执行前置（已全部完成 2026-08-07）
 
-- [ ] D1–D7 拍板（reviewer / 用户）；推荐组合：D1=A / D2=全读 / D3=挂 / D4=开关 / D5=独立 R4 / D6=200 空 / D7=不纳入
-- [ ] 开执行子 issue：路由 5 条 + mirror 排除 2 路径 + R2/R3 原生化（契约 parity + display 增强）+ R5 覆盖度薄查询 + openapi 再生成 + 测试（§7 清单）
-- [ ] 仓库当前 main 已含：P2 货件域、店铺测算域、新品测算域、project_scope、business_scope、`_EXCLUDED_EXTERNAL_PATHS` precedent——本 spec 引用的复用函数均为真实存在的符号
+- [x] D1–D7 拍板（用户「OK 按照你推荐的全量推进」= 推荐组合全量通过）
+- [x] 实施（BLF-470 随设计一起落地）：路由 5 条 + mirror 排除 2 路径 + R2/R3 原生化（契约 parity + display 增强）+ R5 覆盖度薄查询 + openapi/api.d.ts 再生成 + 测试（§7 清单）
+- [x] 仓库 main 已含：P2 货件域、店铺测算域、新品测算域、project_scope、business_scope、`_EXCLUDED_EXTERNAL_PATHS` precedent——本 spec 引用的复用函数均为真实存在的符号
 
 ---
 
 ## 修订记录
 
+- **v0.2（2026-08-07）**：D1–D7 全部拍板（用户「全量推进」），spec 转「设计定稿」；§9 决策记录标注拍板结论；§10 执行前置勾选；新增 §12 实施记录。
 - **v0.1（2026-08-07）**：BLF-470 产出。后端整体 review（退货分析域 4 表 + 服务层 + 内部/镜像端点 + 契约偏差 `product_name`/`*_display` 未实现）；可给 Agent 的资产盘点（§1.1–1.6）；API 分类 4 家族 + 路由表 5 条（R1 overview / R2 per-SKU / R3 raw / R4 单 SKU / R5 coverage）；schema 草案；错误码零新增；权限矩阵；测试清单；D1–D7 待拍板。
+
+---
+
+## 12. 实施记录（BLF-470 落地）
+
+**2026-08-07**（设计拍板同日随 BLF-470 实施，未另开执行子 issue）：
+
+| 文件 | 变更 |
+|---|---|
+| `backend/app/api/v1/endpoints/agent/return_analysis.py` | **新增**：5 条读路由（R1 overview / R2 per-SKU / R3 raw / R4 skus/{sku} / R5 coverage） |
+| `backend/app/api/v1/endpoints/agent/external_mirror.py` | `_EXCLUDED_EXTERNAL_PATHS` 增加 return-analysis 两路径（对齐 new-product-calculations precedent） |
+| `backend/app/api/v1/endpoints/agent/__init__.py` | include `return_analysis_router` + `require_business_scope("return_analysis")`（D3） |
+| `backend/tests/api/agent/conftest.py` | `seed_return_analysis` 基座（source files + raw/sales/aggregate rows）+ `shipment_env` 清理补退货表 |
+| `backend/tests/api/agent/test_return_read.py` | **新增**：R1/R2/R3/R4 + PII 剥离 + 读不落审计 + 缓存命中 |
+| `backend/tests/api/agent/test_return_coverage.py` | **新增**：R5 覆盖度 + business_scope 放行/拒绝 |
+| `backend/tests/api/agent/test_external_mirror.py` | 移除 return-analysis 两路径（已原生化）+ 排除集更新 |
+| `frontend/types/api-generated/openapi.json` / `api.d.ts` | openapi 再生成（3 新路径 + 2 原生替换；移除 2 镜像 operation） |
+
+测试：`cd backend && pytest -q tests/api/agent` → **260 passed, 1 skipped**（读路由全绿；mirror 排除契约更新）。

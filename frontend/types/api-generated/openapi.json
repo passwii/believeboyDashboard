@@ -40979,7 +40979,8 @@
     },
     "/api/v1/agent/projects/{project_id}/return-analysis": {
       "get": {
-        "operationId": "agent_get_external_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get",
+        "description": "R2 per-SKU 聚合：查询契约与 external §9 完全一致（原生替换镜像）。\n\n每行补 ``product_name`` / ``reason_top1_display`` / ``disposition_top1_display``\n（external-api.md §9 文档承诺过但代码未实现）。",
+        "operationId": "get_return_analysis_aggregate_api_v1_agent_projects__project_id__return_analysis_get",
         "parameters": [
           {
             "in": "path",
@@ -41147,7 +41148,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Return Analysis Aggregate Api V1 Agent Projects  Project Id  Return Analysis Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41163,17 +41168,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/return-analysis",
+        "summary": "Get Return Analysis Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-return-analysis"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/return-analysis-raw": {
       "get": {
-        "operationId": "agent_get_external_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get",
+        "description": "R3 raw 退货事件：PII 剥离契约保持不变（永不返回\ncustomer_comments / raw_row / fnsku / license_plate_number）。",
+        "operationId": "get_return_analysis_raw_api_v1_agent_projects__project_id__return_analysis_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -41285,7 +41290,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Return Analysis Raw Api V1 Agent Projects  Project Id  Return Analysis Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41301,11 +41310,267 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/return-analysis-raw",
+        "summary": "Get Return Analysis Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-return-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/return-analysis/coverage": {
+      "get": {
+        "description": "R5 数据覆盖度 / 快照新鲜度：报表上传历史 + 数据跨度 + snapshot fresh。\n\n退货分析强烈依赖数据新鲜度（报表按周期上传、snapshot 每日刷新）——Agent\n拿 overview 前可先自查「这份数据覆盖到哪天、快照是否过期」。",
+        "operationId": "get_return_analysis_coverage_api_v1_agent_projects__project_id__return_analysis_coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Return Analysis Coverage Api V1 Agent Projects  Project Id  Return Analysis Coverage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Return Analysis Coverage",
+        "tags": [
+          "agent",
+          "agent-return-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/return-analysis/overview": {
+      "get": {
+        "description": "R1 全量退货分析：与内部端点同构的双段式（缓存 → snapshot-or-fallback）。\n\n``?sku=`` 可钻取单 SKU；``?include_comments=true`` 显式开启顾客评论\n（默认剥离，D4 拍板）。",
+        "operationId": "get_return_analysis_overview_api_v1_agent_projects__project_id__return_analysis_overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "Start Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_comments",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Comments",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Return Analysis Overview Api V1 Agent Projects  Project Id  Return Analysis Overview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Return Analysis Overview",
+        "tags": [
+          "agent",
+          "agent-return-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/return-analysis/skus/{sku}": {
+      "get": {
+        "description": "R4 单 SKU 钻取：R1 overview 的薄切片（``build_return_analysis(sku=...)``）。\n\n无该 SKU 退货数据 → 200 + 空分布行（``summary.total_returns=0``），\n不是 404——查询结果为空 ≠ 资源不存在（D6 拍板）。",
+        "operationId": "get_return_analysis_sku_api_v1_agent_projects__project_id__return_analysis_skus__sku__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "title": "Sku",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "Start Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 10,
+              "title": "End Date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "US",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_comments",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Comments",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Return Analysis Sku Api V1 Agent Projects  Project Id  Return Analysis Skus  Sku  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Return Analysis Sku",
+        "tags": [
+          "agent",
+          "agent-return-analysis"
         ]
       }
     },
