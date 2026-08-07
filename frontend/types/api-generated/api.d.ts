@@ -3594,6 +3594,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/internal/api-keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Api Key
+         * @description 软删除 Key（BLF-468，幂等）。
+         *
+         *     鉴权加固：已删除 Key 在 ``resolve_key`` / ``resolve_key_for_agent`` 中
+         *     判定为 ``not_found``，先于 revoked——防止删除后被误激活复活。
+         */
+        delete: operations["delete_api_key_api_v1_internal_api_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/api-keys/{key_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Api Key
+         * @description 激活 Key（BLF-468）—— 取消停用，恢复访问权限。已删除 Key 不可激活。
+         */
+        post: operations["activate_api_key_api_v1_internal_api_keys__key_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/api-keys/{key_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate Api Key
+         * @description 停用 Key（BLF-468；与 ``/revoke`` 同语义，前端主路径）。
+         */
+        post: operations["deactivate_api_key_api_v1_internal_api_keys__key_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/api-keys/{key_id}/revoke": {
         parameters: {
             query?: never;
@@ -3603,7 +3666,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke Api Key */
+        /**
+         * Revoke Api Key
+         * @description 兼容别名：BLF-468 前端走 ``/deactivate``，老客户端仍可用。
+         */
         post: operations["revoke_api_key_api_v1_internal_api_keys__key_id__revoke_post"];
         delete?: never;
         options?: never;
@@ -8322,6 +8388,16 @@ export interface components {
             /** Year */
             year: number;
         };
+        /**
+         * ApiKeyActivateResponse
+         * @description ``POST .../{id}/activate`` 响应（BLF-468）。
+         */
+        ApiKeyActivateResponse: {
+            /** Id */
+            id: number;
+            /** Is Revoked */
+            is_revoked: boolean;
+        };
         /** ApiKeyCreateRequest */
         ApiKeyCreateRequest: {
             /**
@@ -8383,6 +8459,16 @@ export interface components {
             /** Scope */
             scope: string;
         };
+        /**
+         * ApiKeyDeactivateResponse
+         * @description ``POST .../{id}/deactivate`` 响应（BLF-468，``/revoke`` 兼容别名）。
+         */
+        ApiKeyDeactivateResponse: {
+            /** Id */
+            id: number;
+            /** Is Revoked */
+            is_revoked: boolean;
+        };
         /** ApiKeyItem */
         ApiKeyItem: {
             /** Agent Id */
@@ -8394,6 +8480,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
             /** Expires At */
             expires_at: string | null;
             /** Id */
@@ -27765,7 +27853,10 @@ export interface operations {
     };
     list_api_keys_api_v1_internal_api_keys_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description BLF-468：默认隐藏已删除 Key；true 返回全量（审计/回溯）。 */
+                include_deleted?: boolean;
+            };
             header?: {
                 "X-Is-Admin"?: boolean;
             };
@@ -27818,6 +27909,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyCreateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_api_key_api_v1_internal_api_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_api_key_api_v1_internal_api_keys__key_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyActivateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_api_key_api_v1_internal_api_keys__key_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Is-Admin"?: boolean;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyDeactivateResponse"];
                 };
             };
             /** @description Validation Error */
