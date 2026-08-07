@@ -120,8 +120,8 @@ export default function CrmDashboardPage() {
                 </span>
               )}
               {discarded > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-0.5 text-xs text-slate-500">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-0.5 text-xs text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
                   本期弃置 {discarded}
                 </span>
               )}

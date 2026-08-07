@@ -125,7 +125,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         返回列表
       </Button>
 
-      <div className="rounded-2xl border bg-card p-6">
+      <div className="dashboard-surface p-6">
         <div className="flex items-center gap-5">
           <EmployeeAvatar
             employeeType={employee.employee_type}
@@ -169,7 +169,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
         <div className="space-y-4">
           {runningTask && (
-            <div className="rounded-xl border bg-card p-5">
+            <div className="dashboard-surface p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold">当前任务</h3>
                 <span className="text-xs text-muted-foreground">
@@ -190,7 +190,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
-          <div className="rounded-xl border bg-card p-5">
+          <div className="dashboard-surface p-5">
             <h3 className="text-sm font-semibold mb-4">任务历史</h3>
             {tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">暂无任务记录</p>
@@ -239,7 +239,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border bg-card p-5">
+          <div className="dashboard-surface p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -250,7 +250,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <LiveLog employeeId={employeeId} maxItems={20} className="max-h-[400px]" />
           </div>
 
-          <div className="rounded-xl border bg-card p-5">
+          <div className="dashboard-surface p-5">
             <h3 className="text-sm font-semibold mb-3">员工信息</h3>
             <div className="space-y-2.5 text-sm">
               <InfoRow
