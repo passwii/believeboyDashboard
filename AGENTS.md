@@ -31,6 +31,7 @@
 
 - 前端（顺序）：`pnpm lint` → `pnpm build` → `pnpm test`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
 - 后端：`cd backend && pytest`（单个 `pytest tests/path::test_x`）。
+- **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
 - 失败立即修；全过再走业务测试清单（交用户手动验）。完整规则见 `docs/REFERENCE.md`。
 
 ## 关键约定
