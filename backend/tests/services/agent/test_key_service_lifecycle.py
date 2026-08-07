@@ -190,6 +190,116 @@ class TestDelete:
             db.close()
 
 
+# ──────────────────── update_api_key（BLF-480 编辑权限/业务范围）─────────────────
+
+
+class TestUpdate:
+    def test_update_scopes_and_label(self, agent_key):
+        db = SessionLocal()
+        try:
+            record = key_service.update_api_key(
+                db,
+                agent_key["id"],
+                label="新名称",
+                project_scope="12, 34",
+                business_scope="shipments,shop_calculations",
+            )
+            db.commit()
+            assert record is not None
+            assert record.label == "新名称"
+            assert record.project_scope == "12, 34"
+            assert record.business_scope == "shipments,shop_calculations"
+        finally:
+            db.close()
+
+    def test_update_empty_scope_normalized_to_star(self, agent_key):
+        """空串归一为 '*'（与 create 对齐）。"""
+        db = SessionLocal()
+        try:
+            record = key_service.update_api_key(
+                db,
+                agent_key["id"],
+                project_scope="",
+                business_scope="",
+            )
+            db.commit()
+            assert record is not None
+            assert record.project_scope == "*"
+            assert record.business_scope == "*"
+        finally:
+            db.close()
+
+    def test_update_partial_fields_preserves_untouched(self, agent_key):
+        """PATCH 语义：只改显式传入字段，其余保持不变。"""
+        db = SessionLocal()
+        try:
+            record = key_service.update_api_key(
+                db,
+                agent_key["id"],
+                label="仅改名称",
+            )
+            db.commit()
+            assert record is not None
+            assert record.label == "仅改名称"
+            assert record.project_scope == "*"  # 原值保持
+            assert record.business_scope == "*"  # 原值保持
+        finally:
+            db.close()
+
+    def test_update_unknown_key_returns_none(self):
+        db = SessionLocal()
+        try:
+            assert (
+                key_service.update_api_key(
+                    db, 999_999_999, label="x"
+                )
+                is None
+            )
+        finally:
+            db.close()
+
+    def test_update_deleted_key_returns_none(self, agent_key):
+        """BLF-480 安全红线：已删除 Key 不可编辑（终态不复活）。"""
+        db = SessionLocal()
+        try:
+            key_service.delete_api_key(db, agent_key["id"])
+            db.commit()
+            record = key_service.update_api_key(
+                db, agent_key["id"], label="不应生效"
+            )
+            assert record is None
+            db.rollback()
+        finally:
+            db.close()
+
+    def test_updated_scope_takes_effect_for_auth(self, agent_key):
+        """端到端：改 project_scope / business_scope 后鉴权实时生效。
+
+        原 key 为全域（*）；收紧到具体白名单后，域外路由应 403
+        （由 scope.py 每请求实时读列决定，无需重建凭据）。
+        """
+        db = SessionLocal()
+        try:
+            key_service.update_api_key(
+                db,
+                agent_key["id"],
+                project_scope="12",
+                business_scope="shipments",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        db = SessionLocal()
+        try:
+            row = db.get(AgentApiKey, agent_key["id"])
+            assert row is not None
+            assert row.project_scope == "12"
+            assert row.business_scope == "shipments"
+        finally:
+            db.close()
+
+
 # ─────────────────────────── 鉴权加固（核心安全）───────────────────────────
 
 

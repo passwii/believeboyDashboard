@@ -80,7 +80,7 @@ const { mockKeys } = vi.hoisted(() => ({
 
 // listAgentApiKeys 模拟后端语义：include_deleted=false 默认隐藏已删除；
 // 返回值缓存稳定引用，避免 setKeys 每轮新数组导致 effect 无限重跑。
-const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgentApiKey, confirm, notify } =
+const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgentApiKey, updateAgentApiKey, confirm, notify } =
   vi.hoisted(() => {
     const nonDeletedKeys = mockKeys.filter((k) => !k.deleted_at)
     return {
@@ -90,6 +90,7 @@ const { listAgentApiKeys, deactivateAgentApiKey, activateAgentApiKey, deleteAgen
       deactivateAgentApiKey: vi.fn().mockResolvedValue(undefined),
       activateAgentApiKey: vi.fn().mockResolvedValue(undefined),
       deleteAgentApiKey: vi.fn().mockResolvedValue(undefined),
+      updateAgentApiKey: vi.fn().mockResolvedValue(mockKeys[0]),
       confirm: vi.fn().mockResolvedValue(true),
       notify: vi.fn(),
     }
@@ -104,6 +105,7 @@ vi.mock('@/lib/api/agent-key-admin', () => ({
   deactivateAgentApiKey,
   activateAgentApiKey,
   deleteAgentApiKey,
+  updateAgentApiKey,
   normalizeProjectScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
   normalizeBusinessScope: (s: string | null | undefined) => (s && s.trim() && s !== '*' ? s : '*'),
 }))
@@ -152,7 +154,7 @@ vi.mock('@/components/ui/multi-select', () => ({
 }))
 
 import { AgentManagementClient } from './agent-management-client'
-import { createAgentApiKey } from '@/lib/api/agent-key-admin'
+import { createAgentApiKey, updateAgentApiKey } from '@/lib/api/agent-key-admin'
 
 async function openCredentialsTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('tab', { name: /凭据管理/ }))
@@ -388,5 +390,96 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
 
     const row = screen.getByText('已删除示例 Key').closest('tr')!
     expect(within(row).queryByRole('button')).toBeNull()
+  })
+
+  // ── BLF-480 编辑权限 / 业务范围 ─────────────────────────────
+
+  it('编辑流：行内编辑按钮打开预填 Dialog，保存调用 updateAgentApiKey', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    const row = screen.getByText('货件助理 (生产)').closest('tr')!
+    await user.click(within(row).getByRole('button', { name: /编辑/ }))
+
+    // Dialog 打开 + 名称预填；Agent ID 只读展示
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeTruthy()
+    expect(within(dialog).getByText('编辑凭据权限')).toBeTruthy()
+    expect(within(dialog).getByLabelText('名称')).toHaveValue('货件助理 (生产)')
+    expect(within(dialog).getByText('shipment-assistant-prod')).toBeTruthy()
+
+    await user.clear(within(dialog).getByLabelText('名称'))
+    await user.type(within(dialog).getByLabelText('名称'), '货件助理 (改名)')
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAgentApiKey).toHaveBeenCalledWith(1, {
+        label: '货件助理 (改名)',
+        project_scope: '*',
+        business_scope: '*',
+      })
+    )
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }))
+    await waitFor(() => expect(screen.queryByText('编辑凭据权限')).toBeNull())
+  })
+
+  it('编辑流：预填具体项目/业务域白名单并原样保存', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    // 测算 Agent (测试)：project_scope='12', business_scope='shop_calculations'
+    const row = screen.getByText('测算 Agent (测试)').closest('tr')!
+    await user.click(within(row).getByRole('button', { name: /编辑/ }))
+
+    expect(screen.getByLabelText('名称')).toHaveValue('测算 Agent (测试)')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAgentApiKey).toHaveBeenCalledWith(2, {
+        label: '测算 Agent (测试)',
+        project_scope: '12',
+        business_scope: 'shop_calculations',
+      })
+    )
+  })
+
+  it('编辑流：点「全部业务域」toggle 后保存归一为 *', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    // 测算 Agent (测试)：business_scope='shop_calculations'，toggle 未勾选
+    const row = screen.getByText('测算 Agent (测试)').closest('tr')!
+    await user.click(within(row).getByRole('button', { name: /编辑/ }))
+
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /全部业务域/ }))
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(updateAgentApiKey).toHaveBeenCalledWith(2, {
+        label: '测算 Agent (测试)',
+        project_scope: '12',
+        business_scope: '*',
+      })
+    )
+  })
+
+  it('已删除行不展示编辑按钮', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    await user.click(screen.getByLabelText('含已删除'))
+    await waitFor(() => expect(screen.getByText('已删除示例 Key')).toBeTruthy())
+
+    const row = screen.getByText('已删除示例 Key').closest('tr')!
+    expect(within(row).queryByRole('button', { name: /编辑/ })).toBeNull()
   })
 })
