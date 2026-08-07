@@ -209,6 +209,49 @@ function buildReturnAnalysisGuide(opts: {
   data_span（数据跨度）。`
 }
 
+/** 库存信息域调用说明（BLF-478）：纯读 1 条路由，无确认流，独立于补货分析。 */
+function buildInventoryGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 查询当前库存信息（总量/库龄/缺货，含全部 SKU）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  country 默认 US；返回 report_date（数据是几号的）+ summary（SKU 总数/
+  缺货数/库龄分布/可售总量）+ items 明细（每 SKU 的 available_qty、各库龄
+  段数量、库存/库龄状态、在途数量）。Agent 可据此复述给用户。
+
+【3. 查看单个 SKU 的库存数量（简短临时性查看用这个）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory?country=US&sku=X-001" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  sku 为大小写不敏感子串匹配；summary/action_options/shipment 列会重算为
+  过滤集（返回的就是该 SKU 的贡献）。查不到返回空 items（不是 404）。
+
+【4. 查看历史业务日期的库存快照（可选）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/inventory?country=US&report_date=2026-07-01" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  report_date=YYYY-MM-DD，取该日或之前最近的快照；缺省返回最新业务日期。
+  注意：这是纯库存信息端口，与补货分析（replenishment-analysis）/库存台账
+  （inventory-ledger）互相独立——不含 DMS、售罄日期、补货周期等。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -249,6 +292,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildShopCalculationsGuide({ key, agentId, apiBase })
   } else if (domain === 'return_analysis') {
     domainGuide = buildReturnAnalysisGuide({ key, agentId, apiBase })
+  } else if (domain === 'inventory') {
+    domainGuide = buildInventoryGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

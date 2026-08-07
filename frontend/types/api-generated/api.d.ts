@@ -779,6 +779,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/projects/{project_id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Inventory
+         * @description R1 当前库存信息：与内部 ``/api/v1/inventory-analysis`` 同构。
+         *
+         *     ``?sku=`` 可查单个 SKU 数量（summary/action_options/shipment 列重算为
+         *     过滤集）；``?report_date=`` 可查历史快照。响应含 report_date，Agent
+         *     可据此判断数据新鲜度。
+         */
+        get: operations["get_inventory_api_v1_agent_projects__project_id__inventory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/projects/{project_id}/inventory-ledger/batches": {
         parameters: {
             query?: never;
@@ -21013,6 +21037,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_inventory_api_v1_agent_projects__project_id__inventory_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                sku?: string | null;
+                /** @description 业务日期（YYYY-MM-DD），取该日或之前最近的库存快照；缺省返回最新业务日期 */
+                report_date?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

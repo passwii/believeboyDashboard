@@ -11,6 +11,7 @@ from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
 from app.api.v1.endpoints.agent.external_mirror import external_mirror_router
 from app.api.v1.endpoints.agent.health import router as health_router
+from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
@@ -44,6 +45,12 @@ agent_router.include_router(new_product_calculations_router)
 agent_router.include_router(
     return_analysis_router,
     dependencies=[Depends(require_business_scope("return_analysis"))],
+)
+# 库存信息域（BLF-478）：纯读 1 条路由，挂 business_scope("inventory")——
+# 与补货/库存台账分析独立（只读当前库存快照，不含 DMS/补货周期）。
+agent_router.include_router(
+    inventory_router,
+    dependencies=[Depends(require_business_scope("inventory"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
