@@ -44,7 +44,7 @@ export function CommissionRulesCard() {
                 {PROJECT_COMMISSION_RULES.map((item) => (
                   <div
                     key={item.code}
-                    className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-3 py-2.5 dark:bg-[hsl(var(--surface-soft))]"
+                    className="flex items-center justify-between rounded-2xl bg-[hsl(var(--surface-soft))] px-3 py-2.5"
                   >
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-muted-foreground/70">
@@ -90,7 +90,7 @@ export function CommissionRulesCard() {
                       {item.title}
                     </h4>
                   </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/12 dark:text-slate-200">
+                  <span className="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--surface-soft))] px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/12 dark:text-slate-200">
                     {item.tag}
                   </span>
                 </div>

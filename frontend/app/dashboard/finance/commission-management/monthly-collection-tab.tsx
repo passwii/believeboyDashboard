@@ -92,20 +92,20 @@ function MonthlyCollectionSkeletonContent() {
         className={FULL_BLEED_TABLE_CLASS}
         containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
       >
-        <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+        <TableHeader className="bg-[hsl(var(--surface-subtle))]">
           <TableRow>
-            <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
+            <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
               项目名称
             </TableHead>
             {getYearMonths(new Date().getFullYear().toString()).map((m) => (
               <TableHead
                 key={m}
-                className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
+                className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
               >
                 {m.slice(5)}月
               </TableHead>
             ))}
-            <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+            <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
               年度汇总
             </TableHead>
           </TableRow>
@@ -118,7 +118,7 @@ function MonthlyCollectionSkeletonContent() {
       </Table>
 
       {/* 图例骨架 */}
-      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-slate-50/50 px-4 py-3 dark:bg-slate-900/30">
+      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-[hsl(var(--surface-subtle))] px-4 py-3">
         <Skeleton className="h-4 w-20" />
         <Skeleton className="h-4 w-12" />
         <Skeleton className="h-4 w-12" />
@@ -150,20 +150,20 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
           className={FULL_BLEED_TABLE_CLASS}
           containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
         >
-          <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+          <TableHeader className="bg-[hsl(var(--surface-subtle))]">
             <TableRow>
-              <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
+              <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
                 项目名称
               </TableHead>
               {getYearMonths(year).map((m) => (
                 <TableHead
                   key={m}
-                  className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
+                  className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
                 >
                   {m.slice(5)}月
                 </TableHead>
               ))}
-              <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+              <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
                 年度汇总
               </TableHead>
             </TableRow>
@@ -188,7 +188,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                             {formatPercent(monthData.receive_rate)}
                           </span>
                         ) : (
-                          <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">
+                          <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-[hsl(var(--surface-subtle))]">
                             -
                           </span>
                         )}
@@ -203,7 +203,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                         {formatPercent(project.receive_rate)}
                       </span>
                     ) : (
-                      <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800">
+                      <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-[hsl(var(--surface-subtle))]">
                         -
                       </span>
                     )}
@@ -215,7 +215,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
         </Table>
 
         {/* 图例 */}
-        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-slate-50/50 px-4 py-3 dark:bg-slate-900/30">
+        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-[hsl(var(--surface-subtle))] px-4 py-3">
           <span className="text-xs text-muted-foreground">回款率色块：</span>
           <div className="flex items-center gap-1.5">
             <span className="inline-block h-4 w-12 rounded bg-green-100 dark:bg-green-500/20" />

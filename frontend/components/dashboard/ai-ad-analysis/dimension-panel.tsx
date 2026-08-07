@@ -41,15 +41,15 @@ const SIGNAL_STYLES: Record<string, { bg: string; text: string; dot: string; lab
     label: '中',
   },
   weak: {
-    bg: 'bg-gray-50 dark:bg-gray-950/30',
-    text: 'text-gray-600 dark:text-gray-400',
-    dot: 'bg-gray-400',
+    bg: 'bg-[hsl(var(--muted))]',
+    text: 'text-[hsl(var(--muted-foreground))]',
+    dot: 'bg-[hsl(var(--data-neutral))]',
     label: '弱',
   },
   empty: {
-    bg: 'bg-gray-50 dark:bg-gray-950/30',
-    text: 'text-gray-400 dark:text-gray-500',
-    dot: 'bg-gray-300',
+    bg: 'bg-[hsl(var(--muted))]',
+    text: 'text-[hsl(var(--muted-foreground))]',
+    dot: 'bg-[hsl(var(--data-neutral))]',
     label: '无',
   },
 }

@@ -98,7 +98,7 @@ function DetailSkeletonContent() {
           className={FULL_BLEED_TABLE_CLASS}
           containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
         >
-          <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
+          <TableHeader className="sticky top-0 z-10 bg-[hsl(var(--surface-subtle))]">
             <TableRow>
               <TableHead className="text-center font-semibold text-foreground w-[200px]">
                 项目
@@ -299,7 +299,7 @@ export function DetailTab({
             className={FULL_BLEED_TABLE_CLASS}
             containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
           >
-            <TableHeader className="sticky top-0 z-10 bg-slate-100/80 dark:bg-slate-900/45">
+            <TableHeader className="sticky top-0 z-10 bg-[hsl(var(--surface-subtle))]">
               <TableRow>
                 <TableHead className="text-center font-semibold text-foreground w-[200px]">
                   项目

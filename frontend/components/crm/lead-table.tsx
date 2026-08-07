@@ -56,7 +56,7 @@ const columns: CrmColumnDef<Lead>[] = [
     enumMap: Object.fromEntries(
       (Object.keys(CUSTOMER_SOURCE_LABELS) as Array<keyof typeof CUSTOMER_SOURCE_LABELS>).map((k) => [
         k,
-        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-slate-100 text-slate-700' },
+        { label: CUSTOMER_SOURCE_LABELS[k], color: 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]' },
       ])
     ),
   },
