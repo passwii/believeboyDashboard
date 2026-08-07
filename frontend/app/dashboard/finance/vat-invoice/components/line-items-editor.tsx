@@ -177,7 +177,7 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       variant="ghost"
                       size="icon"
                       onClick={() => removeRow(idx)}
-                      className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       aria-label="删除该行"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

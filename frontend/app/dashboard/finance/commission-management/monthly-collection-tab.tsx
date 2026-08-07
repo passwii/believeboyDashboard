@@ -45,20 +45,16 @@ function getYearMonths(year: string): string[] {
 // 例如 0.999999... 应该显示绿色（≥100%），而不是橙色（50%~100%）
 const RATE_EPSILON = 1e-9
 
-function getReceiveRateColor(rate: number): { bg: string; text: string } {
+// 回款率色块：映射到 --data-* token（自动适配 dark，与 StatusPill 同源）
+// ≥100% 绿 / ≥50% 橙 / ≥20% 黄 / <20% 红（黄档无专用 token，保留 yellow 硬编码 + dark 变体）
+function getReceiveRateColor(rate: number): string {
   if (rate >= 1 - RATE_EPSILON)
-    return { bg: 'bg-green-100 dark:bg-green-500/20', text: 'text-green-700 dark:text-green-300' }
+    return 'bg-[hsl(var(--data-positive)/0.14)] text-[hsl(var(--data-positive))]'
   if (rate >= 0.5 - RATE_EPSILON)
-    return {
-      bg: 'bg-orange-100 dark:bg-orange-500/20',
-      text: 'text-orange-700 dark:text-orange-300',
-    }
+    return 'bg-[hsl(var(--data-warning)/0.16)] text-[hsl(var(--data-warning))]'
   if (rate >= 0.2 - RATE_EPSILON)
-    return {
-      bg: 'bg-yellow-100 dark:bg-yellow-500/20',
-      text: 'text-yellow-700 dark:text-yellow-300',
-    }
-  return { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-700 dark:text-red-300' }
+    return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-200'
+  return 'bg-[hsl(var(--data-negative)/0.12)] text-[hsl(var(--data-negative))]'
 }
 
 interface MonthlyCollectionTabProps {
@@ -185,13 +181,13 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                     const monthData = project.months[m]
                     return (
                       <TableCell key={m} className="text-center">
-                        {monthData ? (
-                          <span
-                            className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate).bg} ${getReceiveRateColor(monthData.receive_rate).text}`}
-                          >
-                            {formatPercent(monthData.receive_rate)}
-                          </span>
-                        ) : (
+                    {monthData ? (
+                      <span
+                        className={`inline-block min-w-[48px] rounded px-1.5 py-1 text-xs font-medium tabular-nums ${getReceiveRateColor(monthData.receive_rate)}`}
+                      >
+                        {formatPercent(monthData.receive_rate)}
+                      </span>
+                    ) : (
                           <span className="inline-block rounded px-1.5 py-0.5 text-xs text-muted-foreground bg-[hsl(var(--surface-subtle))]">
                             -
                           </span>
@@ -202,7 +198,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
                   <TableCell className="!pr-0 text-center">
                     {project.receive_rate > 0 ? (
                       <span
-                        className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate).bg} ${getReceiveRateColor(project.receive_rate).text}`}
+                        className={`inline-block min-w-[56px] rounded px-1.5 py-1 text-xs font-semibold tabular-nums ${getReceiveRateColor(project.receive_rate)}`}
                       >
                         {formatPercent(project.receive_rate)}
                       </span>
@@ -222,19 +218,19 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
         <div className="flex flex-wrap items-center justify-center gap-4 border-t border-border/50 bg-[hsl(var(--surface-subtle))] px-4 py-3">
           <span className="text-xs text-muted-foreground">回款率色块：</span>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-green-100 dark:bg-green-500/20" />
+            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-positive))]" />
             <span className="text-xs text-foreground">≥100%</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-orange-100 dark:bg-orange-500/20" />
+            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-warning))]" />
             <span className="text-xs text-foreground">50%~70%</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-yellow-100 dark:bg-yellow-500/20" />
+            <span className="inline-block h-4 w-12 rounded bg-yellow-400 dark:bg-yellow-500" />
             <span className="text-xs text-foreground">20%~50%</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-block h-4 w-12 rounded bg-red-100 dark:bg-red-500/20" />
+            <span className="inline-block h-4 w-12 rounded bg-[hsl(var(--data-negative))]" />
             <span className="text-xs text-foreground">&lt;20%</span>
           </div>
         </div>

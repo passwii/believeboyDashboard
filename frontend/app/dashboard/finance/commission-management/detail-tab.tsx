@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import {
+  STICKY_TOP_ROW,
   Table,
   TableBody,
   TableCell,
@@ -98,7 +99,7 @@ function DetailSkeletonContent() {
           className={FULL_BLEED_TABLE_CLASS}
           containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
         >
-          <TableHeader className="sticky top-0 z-10 bg-[hsl(var(--surface-subtle))]">
+          <TableHeader className={STICKY_TOP_ROW}>
             <TableRow>
               <TableHead className="text-center font-semibold text-foreground w-[200px]">
                 项目
@@ -210,7 +211,7 @@ export function DetailTab({
         <TableCell className="text-center">
           <div className="flex items-center justify-center gap-3">
             <span className={`h-2 w-2 rounded-full ${info.dotClass}`} />
-            <span className="text-xs font-medium text-slate-500">{info.label}</span>
+            <span className="text-xs font-medium text-muted-foreground">{info.label}</span>
           </div>
         </TableCell>
 
@@ -299,29 +300,29 @@ export function DetailTab({
             className={FULL_BLEED_TABLE_CLASS}
             containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
           >
-            <TableHeader className="sticky top-0 z-10 bg-[hsl(var(--surface-subtle))]">
-              <TableRow>
-                <TableHead className="text-center font-semibold text-foreground w-[200px]">
-                  项目
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  销售收入
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  佣金比例
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  工厂佣金(RMB)
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  已回款(RMB)
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground">
-                  回款状态
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+          <TableHeader className={STICKY_TOP_ROW}>
+            <TableRow>
+              <TableHead className="text-center font-semibold text-foreground w-[200px]">
+                项目
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">站点</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                销售收入
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                佣金比例
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                工厂佣金(RMB)
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                已回款(RMB)
+              </TableHead>
+              <TableHead className="text-center font-semibold text-foreground">
+                回款状态
+              </TableHead>
+            </TableRow>
+          </TableHeader>
             <TableBody>
               {projectRows.length === 0 ? (
                 <EmptyTableState colSpan={7} message="当前月份暂无数据，请先刷新核算" />
