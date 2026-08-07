@@ -58,7 +58,6 @@ class TestParseAuditPathMeta:
                 8,
                 "new_product_calculations",
             ),
-            ("/api/v1/external/projects/9/business-summary", 9, "finance_profit"),
             ("/api/v1/external/projects/10/orders/summary", 10, "finance_profit"),
             # 无项目 / 无域
             ("/api/v1/agent/projects", None, None),

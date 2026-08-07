@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.5 — 开放货件删除版）
+# Agent API 设计文档（v0.6 — 单域约束 + 删除 business-summary）
 
-> **状态**：v0.5 — 开放货件删除给 Agent（confirm 两步，§3.2 白名单同步），待评审通过后进入 P0 实施。
+> **状态**：v0.6 — 新增「单域端点」硬约束（§1.2 #7）；删除存量跨域端点 `business-summary`（BLF-476）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -26,6 +26,7 @@
 4. **审计归因简洁**：在现有 `operation_audit_logs` 上加字段即可，不引入额外维度。
 5. **路径迁移不破坏现有消费者**：双挂 + 301 重定向两阶段切换。
 6. **复用既有凭据基建（BEL-377）并同步改名**：仓库已有 `external_api_keys` 表 + `/api/v1/internal/api-keys` 管理端点 + `api_key_service`——Agent 凭据**改名 + 扩展这套**（`external_api_keys` → `agent_api_keys`），不另起炉灶（见 §4、§11）。
+7. **每个端点只服务单一业务域（BLF-476 决策）**：Agent API 按业务域拆，**不允许跨域聚合端点**——如「订单+库存+广告」一次返回的接口。域内聚合（如 `orders/summary` 把订单行聚合成统计）允许；跨域组合 / 业务编排归属于调用方（Agent 或上层应用），由调用方多次单域调用合成。这样别的 Agent 复用同一份域 API 时无需重新拆。存量跨域端点 `business-summary` 已删除（见修订记录 v0.6），后续如确需重建，走 BLF-479 下新的子 issue 单独规划。
 
 ---
 
@@ -391,7 +392,6 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
 | `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/orders/summary` | v1 双挂 |
-| `/external/projects/{project_id}/business-summary` | `/agent/projects/{project_id}/business-summary` | v1 双挂 |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
 | `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |
@@ -516,7 +516,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 |---|---|
 | `/api/v1/external/*` 路由 + `external_router` | 遗留读命名空间，按 §6.1 v2/v3 阶段退役 |
 | `app/api/v1/endpoints/external/`（25 模块） | 同上；P1 在 `/agent/*` 镜像挂载时再评估搬迁 |
-| `app/services/external/` 查询服务（aggregator / ad_rows_query / business_summary 等 12 个） | `/external/*` 的查询层，与命名空间同进退 |
+| `app/services/external/` 查询服务（aggregator / ad_rows_query 等 12 个） | `/external/*` 的查询层，与命名空间同进退（`business_summary` 服务已随端点一并删除，v0.6） |
 | `app/api/external_security.py`（`require_external_api_key` / `require_external_rate_limit` / `external_limiter`） | 专管 `/external/*` 过渡期鉴权；agent 通道用新的 `app/api/agent/auth.py` |
 | 配置 `external_api_require_auth` / `external_api_allow_skip_auth` / `external_api_rate_limit_enabled` / `external_api_rate_limit` | `/external/*` 专用开关；agent 通道鉴权 day-1 强制、限流用新配置 `agent_api_*`，不吃旧开关 |
 | 测试 `tests/api/test_external_auth.py` 等 | 跟随代码改动更新 import 与表名断言；测试场景本身保留 |
@@ -546,6 +546,9 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 ## 修订记录
 
+- **v0.6（2026-08-07）**：单域端点硬约束 + 删除 business-summary（BLF-476）——
+  1. §1.2 新增设计原则 #7：每个端点只服务单一业务域，不允许跨域聚合端点；跨域组合归调用方编排；
+  2. 删除存量跨域端点 `business-summary`（endpoint / service / schema / 审计域映射 / 测试 / openapi.json / api.d.ts 一并移除，§6.2 对照表与 §11.3 同步更新）；如确需重建，走 BLF-479 下新子 issue 规划。
 - **v0.5（2026-08-05）**：开放货件删除给 Agent——
   1. §3.2 白名单「删除 / 隐藏」拆行：删除货件（DELETE）开放并走 confirm 流（action `shipment.delete`，不可逆）；隐藏（shipment batch hidden）仍保持 admin only；
   2. 新增 Agent 端点 `DELETE /api/v1/agent/projects/{project_id}/shipments/{shipment_no}`：预览（含货件状态 / 明细条数 / 总量）→ token → 重放删除；审计 action `shipment.delete`（before 记录被删货件信息，operator=NULL + agent_id 归因）。
