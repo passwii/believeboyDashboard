@@ -39,18 +39,29 @@ else
     changed_files="$(git ls-tree -r --name-only HEAD)"
 fi
 
-# 3. push 到 origin（push 失败就中断，不进入 deploy）
+# 3. alembic 迁移图检查（backend/ 改动时，fail-fast 防坏链上 main）
+if printf '%s\n' "$changed_files" | grep -qE '^backend/'; then
+    repo_root="$(git rev-parse --show-toplevel)"
+    echo "→ Checking alembic migration graph..."
+    if ! python "$repo_root/backend/scripts/check_alembic.py"; then
+        echo "❌ Alembic 迁移图检查未通过，已中止 push（修复方法见上方输出）。" >&2
+        echo "   多 head 用：alembic merge heads --rev-id <下一序号> -m \"merge xxx\"" >&2
+        exit 1
+    fi
+fi
+
+# 4. push 到 origin（push 失败就中断，不进入 deploy）
 echo "→ Pushing main to origin..."
 git push origin main
 
-# 4. 判断是否需要 deploy
+# 5. 判断是否需要 deploy
 if ! printf '%s\n' "$changed_files" | grep -qE '^backend/'; then
     echo "→ No backend/ changes in this push; skipping VPS deploy"
     echo "  (前端改动由 Vercel 自动部署，无需后端操作)"
     exit 0
 fi
 
-# 5. deploy 到 VPS
+# 6. deploy 到 VPS
 repo_root="$(git rev-parse --show-toplevel)"
 echo "→ Backend changes detected, deploying to VPS..."
 if ! python "$repo_root/productEnvAgent/deploy_vps.py" --auto; then
