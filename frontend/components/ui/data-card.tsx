@@ -2,9 +2,11 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-// 表格密集单元格间距常量（供所有表格卡片使用）
-export const DENSE_CELL = '!p-2'
-export const DENSE_HEAD = '!px-2'
+// 表格密集档位常量（= table-presets 的 densityHead.compact / densityCell.compact，单一配方）。
+// BLF-496 起 DENSE_* 从 '!p-2' / '!px-2' 收敛为 compact 档位（表头 h-9 + 0.66rem，数字格 13px），
+// 存量 100+ 处用法视觉向基线 compact 对齐；新代码请直接用 densityHead.compact / densityCell.compact。
+export const DENSE_HEAD = '!h-9 !px-3 !text-[0.66rem] !tracking-[0.14em]'
+export const DENSE_CELL = '!px-3 !py-2 !text-[13px]'
 
 // ========================
 // DataCard — 普通内容卡片

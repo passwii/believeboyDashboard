@@ -27,7 +27,7 @@ import {
   type TableStatus,
 } from '@/components/ui/table-presets'
 
-// ── 共享 mock 数据（三个方向用同一份，保证可比） ──
+// ── 共享 mock 数据（所有方向用同一份，保证可比） ──
 type Order = {
   id: string
   customer: string
@@ -56,13 +56,13 @@ const ROW_BASE =
   'transition-colors hover:bg-[hsl(var(--surface-subtle))] data-[state=selected]:bg-primary/8'
 
 // ============================================================
-// Direction A — shadcn-minimal（克制统一）
+// 变体 A — 宽松密度（cozy）：常规列表/展示型表格用
 // ============================================================
-function DirectionMinimal() {
+function DirectionCozy() {
   return (
     <DataTableFrame
       title="发票列表"
-      description="shadcn-minimal · 克制统一，零动效"
+      description="变体 A · 宽松密度（cozy）· 克制统一，零动效"
       action={<Button variant="outline" size="sm">导出</Button>}
       footer={
         <>
@@ -100,9 +100,10 @@ function DirectionMinimal() {
 }
 
 // ============================================================
-// Direction B — tablecn-dense（高密度数据网格 + 排序 + 选择）
+// 基线 — 高密度数据网格（compact）：数据密集型列表的默认配方
+// 全站默认：密度 compact + 排序 + 多选 + sticky 表头 + 数字列右对齐
 // ============================================================
-function DirectionDense() {
+function BaselineDense() {
   const [sort, setSort] = React.useState<{ key: keyof Order; dir: 1 | -1 }>({
     key: 'date',
     dir: -1,
@@ -142,7 +143,7 @@ function DirectionDense() {
   return (
     <DataTableFrame
       title="发票列表"
-      description="tablecn-dense · 紧凑网格 + 排序 + 多选"
+      description="基线 · 高密度数据网格（compact）· 排序 + 多选 + sticky 表头"
       toolbar={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative max-w-xs">
@@ -228,8 +229,8 @@ function DirectionDense() {
 }
 
 // ============================================================
-// Direction C — 21st.dev 风格（动效 + 状态色 + 行展开）· 参考占位
-// 你带具体 21st.dev 链接来，我据此精修视觉。
+// 变体 C — 动效增强（行展开）· 可选增强，非默认
+// 需用户提供具体 21st.dev 参考链接后再精修视觉。
 // ============================================================
 function DirectionMotion() {
   const [open, setOpen] = React.useState<string | null>(ORDERS[0].id)
@@ -237,7 +238,7 @@ function DirectionMotion() {
   return (
     <DataTableFrame
       title="发票列表"
-      description="21st.dev-style · 行展开动效 + 状态色 + sticky"
+      description="变体 C · 动效增强（行展开）· 可选，需 21st.dev 参考精修"
       action={<Button size="sm">新建发票</Button>}
       maxHeight={360}
     >
@@ -332,40 +333,200 @@ function DirectionMotion() {
 }
 
 // ============================================================
-// Showcase 页
+// 规范速览（Spec Quick Reference）— 本页自身也用统一配方实现
 // ============================================================
-const DIRECTIONS: { id: string; name: string; desc: string; tag: string; node: React.ReactNode }[] = [
-  { id: 'A', name: 'Direction A · shadcn-minimal', desc: '克制统一，零动效。作为"基线"——所有表都长这样，但不惊艳。', tag: 'baseline', node: <DirectionMinimal /> },
-  { id: 'B', name: 'Direction B · tablecn-dense', desc: '高密度数据网格：紧凑间距 + 点击排序 + 多选 + sticky 表头 + 入场微动效。适合数据量大的列表。', tag: 'data-grid', node: <DirectionDense /> },
-  { id: 'C', name: 'Direction C · 21st.dev 风格（参考占位）', desc: '动效 + 状态色 + 行展开。带具体 21st.dev 链接来我据此精修。', tag: 'motion', node: <DirectionMotion /> },
+const SPEC_ROWS: { item: string; rule: string }[] = [
+  { item: '密度档位', rule: 'compact（默认，数据密集）/ cozy（宽松，展示型）→ densityHead / densityCell' },
+  { item: '表头规则', rule: 'uppercase + tracking-[0.16em] + surface-subtle 底；compact 档 text-[0.66rem]，cozy 档 text-[0.6875rem]' },
+  { item: '数字列对齐', rule: '右对齐 + tabular-nums + font-medium → numericCell / numericHead（金额、数量、比率）' },
+  { item: '状态色', rule: 'StatusPill（success / warning / negative / neutral / info），映射 --data-* token，自动适配 dark' },
+  { item: 'Sticky 行为', rule: '表头 STICKY_TOP_ROW（z-40）；左列 STICKY_LEFT_HEAD_CELL（z-50）/ STICKY_LEFT_CELL（z-30），实体不透明背景' },
+  { item: '空状态', rule: '表格空态 EmptyTableState（colSpan）；图表空态 EmptyChartState（height）' },
+  { item: 'Mobile 降级', rule: '容器 overflow-x-auto 横向滚动；操作列保留；关键列可 sticky left-0' },
 ]
 
+function SpecQuickReference() {
+  return (
+    <DataTableFrame
+      title="表格规范速览"
+      description="全站表格的唯一配方：DataTableCard / DataTableFrame 外壳 + table-presets 预设"
+      maxHeight={360}
+    >
+      <Table>
+        <TableHeader>
+          <TableRow className={STICKY_TOP_ROW}>
+            <TableHead className={cn(densityHead.compact, 'w-36')}>规则项</TableHead>
+            <TableHead className={densityHead.compact}>约定</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {SPEC_ROWS.map((r) => (
+            <TableRow key={r.item}>
+              <TableCell className={cn(densityCell.compact, 'font-medium')}>{r.item}</TableCell>
+              <TableCell className={cn(densityCell.compact, 'text-muted-foreground')}>{r.rule}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </DataTableFrame>
+  )
+}
+
+// ============================================================
+// 方向差异表 — 基线 vs 变体（明确多方向定位，便于按场景选型）
+// ============================================================
+const DIFF_ROWS: { dim: string; baseline: string; cozy: string; motion: string }[] = [
+  { dim: '定位', baseline: '全站默认基线', cozy: '展示型列表变体', motion: '动效增强变体（可选）' },
+  { dim: '密度', baseline: 'compact（h-9 表头）', cozy: 'cozy（h-11 表头）', motion: 'cozy' },
+  { dim: '排序', baseline: '支持（点击表头）', cozy: '—', motion: '—' },
+  { dim: '多选', baseline: '支持', cozy: '—', motion: '—' },
+  { dim: 'Sticky 表头', baseline: '支持', cozy: '—', motion: '支持' },
+  { dim: '行展开', baseline: '—', cozy: '—', motion: '支持（动效）' },
+  { dim: '入场动效', baseline: '极轻（0.25s 淡入）', cozy: '无', motion: '行展开 + 旋转' },
+  { dim: '适用场景', baseline: '数据密集型列表（财务/库存/报表）', cozy: '常规列表、低密度展示', motion: '需要交互反馈的列表' },
+]
+
+function DirectionDiffTable() {
+  return (
+    <DataTableFrame
+      title="方向差异表"
+      description="基线（高密度数据网格）为全站默认；变体按场景选型，实现均走同一配方"
+      maxHeight={360}
+    >
+      <Table>
+        <TableHeader>
+          <TableRow className={STICKY_TOP_ROW}>
+            <TableHead className={cn(densityHead.compact, 'w-28')}>维度</TableHead>
+            <TableHead className={densityHead.compact}>基线 · 高密度数据网格（默认）</TableHead>
+            <TableHead className={densityHead.compact}>变体 A · 宽松密度</TableHead>
+            <TableHead className={densityHead.compact}>变体 C · 动效增强</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {DIFF_ROWS.map((r) => (
+            <TableRow key={r.dim}>
+              <TableCell className={cn(densityCell.compact, 'font-medium')}>{r.dim}</TableCell>
+              <TableCell className={cn(densityCell.compact, 'text-foreground')}>{r.baseline}</TableCell>
+              <TableCell className={cn(densityCell.compact, 'text-muted-foreground')}>{r.cozy}</TableCell>
+              <TableCell className={cn(densityCell.compact, 'text-muted-foreground')}>{r.motion}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </DataTableFrame>
+  )
+}
+
+// ============================================================
+// Showcase 页 — 全站表格规范展示页
+// ============================================================
 export default function TableShowcasePage() {
   return (
-    <div className="dashboard-page-shell mx-auto w-full max-w-6xl space-y-10 px-4 py-8 md:px-6">
+    <div className="dashboard-page-shell mx-auto w-full max-w-6xl space-y-12 px-4 py-8 md:px-6">
       <header className="space-y-3">
         <div className="dashboard-kicker">Design System · Table</div>
         <h1 className="dashboard-display">Table 设计统一 · Showcase</h1>
         <p className="max-w-2xl text-muted-foreground">
-          三个方向共享同一份 mock 数据、同一套设计 token（{'`--surface-subtle`'} / {'`--border`'} / dark 玻璃边 / {'`--data-*`'} 状态色），
-          仅视觉语言不同。右上角切换主题可看 dark 效果。带 21st.dev 链接来可对齐精修 Direction C，或新增方向。
+          表格是全站最高频组件，已定稿为<b className="font-semibold text-foreground">单一配方</b>：
+          <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">
+            DataTableCard / DataTableFrame
+          </code>
+          外壳 +{' '}
+          <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">
+            table-presets
+          </code>
+          的 density / numeric / StatusPill 预设。以下展示基线（默认）与两个变体的实际效果，
+          全部共享同一份 mock 数据与同一套设计 token，右上角切换主题可看 dark 效果。
+          规范文档见 <code className="rounded bg-[hsl(var(--surface-subtle))] px-1.5 py-0.5 text-[0.8em]">frontend/docs/table-spec.md</code>。
         </p>
       </header>
 
-      <div className="space-y-12">
-        {DIRECTIONS.map((d) => (
-          <section key={d.id} className="space-y-4">
-            <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
-              <span className="rounded-md bg-[hsl(var(--primary)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--primary))]">
-                {d.tag}
-              </span>
-              <h2 className="text-lg font-semibold tracking-tight">{d.name}</h2>
-            </div>
-            <p className="max-w-3xl text-sm text-muted-foreground">{d.desc}</p>
-            <div className="animate-fade-slide-up">{d.node}</div>
-          </section>
-        ))}
-      </div>
+      {/* 规范速览 */}
+      <section className="space-y-4">
+        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+          <span className="rounded-md bg-[hsl(var(--primary)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--primary))]">
+            spec
+          </span>
+          <h2 className="text-lg font-semibold tracking-tight">规范速览</h2>
+        </div>
+        <div className="animate-fade-slide-up">
+          <SpecQuickReference />
+        </div>
+      </section>
+
+      {/* 基线 */}
+      <section className="space-y-4">
+        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+          <span className="rounded-md bg-[hsl(var(--data-positive)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--data-positive))]">
+            baseline
+          </span>
+          <h2 className="text-lg font-semibold tracking-tight">基线 · 高密度数据网格（全站默认）</h2>
+        </div>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          数据密集型列表（财务、库存、报表、佣金）的默认配方：compact 密度 + 点击排序 +
+          多选 + sticky 表头 + 数字列右对齐 + 状态徽章。所有新表格优先按此实现。
+        </p>
+        <div className="animate-fade-slide-up">
+          <BaselineDense />
+        </div>
+      </section>
+
+      {/* 变体 */}
+      <section className="space-y-12">
+        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+          <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
+            variants
+          </span>
+          <h2 className="text-lg font-semibold tracking-tight">变体（按场景选型）</h2>
+        </div>
+        <p className="-mt-6 max-w-3xl text-sm text-muted-foreground">
+          变体仅调整密度 / 交互层，底层仍是同一套配方。需要动效增强时，
+          请提供具体 21st.dev 参考链接，据此精修变体 C 的视觉。
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+            <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
+              variant A
+            </span>
+            <h3 className="text-base font-semibold tracking-tight">宽松密度（cozy）· 展示型</h3>
+          </div>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            常规列表 / 低密度展示：cozy 档位（h-11 表头），零动效，克制统一。
+          </p>
+          <div className="animate-fade-slide-up">
+            <DirectionCozy />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+            <span className="rounded-md bg-[hsl(var(--surface-strong))] px-2 py-0.5 text-xs font-semibold text-foreground">
+              variant C
+            </span>
+            <h3 className="text-base font-semibold tracking-tight">动效增强（行展开）· 占位</h3>
+          </div>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            动效 + 状态色 + 行展开。带具体 21st.dev 链接来可据此精修视觉；未提供前保持占位，不作为默认。
+          </p>
+          <div className="animate-fade-slide-up">
+            <DirectionMotion />
+          </div>
+        </div>
+      </section>
+
+      {/* 方向差异表 */}
+      <section className="space-y-4">
+        <div className="flex items-baseline gap-3 border-b border-border/60 pb-2">
+          <span className="rounded-md bg-[hsl(var(--primary)/0.12)] px-2 py-0.5 text-xs font-semibold text-[hsl(var(--primary))]">
+            matrix
+          </span>
+          <h2 className="text-lg font-semibold tracking-tight">方向差异表</h2>
+        </div>
+        <div className="animate-fade-slide-up">
+          <DirectionDiffTable />
+        </div>
+      </section>
     </div>
   )
 }

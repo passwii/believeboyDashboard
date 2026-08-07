@@ -1,6 +1,8 @@
 'use client'
 
 import {
+  STICKY_LEFT_CELL,
+  STICKY_LEFT_HEAD_CELL,
   Table,
   TableBody,
   TableCell,
@@ -10,6 +12,8 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { cn } from '@/lib/utils'
+
 import { formatPercent } from './utils'
 
 const FULL_BLEED_TABLE_CLASS = '[&_th]:px-0 [&_th]:py-3 [&_td]:px-0 [&_td]:py-3'
@@ -71,7 +75,7 @@ function MonthlyCollectionSkeletonRow() {
   return (
     <TableRow className="animate-pulse">
       {/* 项目名称列（sticky） */}
-      <TableCell className="sticky left-0 bg-background z-20">
+      <TableCell className={STICKY_LEFT_CELL}>
         <Skeleton className="h-5 w-20 mx-auto" />
       </TableCell>
       {/* 数据列：12个月 + 1个汇总列 */}
@@ -94,7 +98,7 @@ function MonthlyCollectionSkeletonContent() {
       >
         <TableHeader className="bg-[hsl(var(--surface-subtle))]">
           <TableRow>
-            <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
+            <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
               项目名称
             </TableHead>
             {getYearMonths(new Date().getFullYear().toString()).map((m) => (
@@ -152,7 +156,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
         >
           <TableHeader className="bg-[hsl(var(--surface-subtle))]">
             <TableRow>
-              <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
+              <TableHead className={cn(STICKY_LEFT_HEAD_CELL, '!pl-0 text-center text-foreground')}>
                 项目名称
               </TableHead>
               {getYearMonths(year).map((m) => (
@@ -174,7 +178,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
             ) : (
               items.map((project) => (
                 <TableRow key={project.project_id}>
-                  <TableCell className="!pl-0 sticky left-0 bg-background z-20 font-medium text-center">
+                  <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 font-medium text-center')}>
                     {project.project_name}
                   </TableCell>
                   {getYearMonths(year).map((m) => {

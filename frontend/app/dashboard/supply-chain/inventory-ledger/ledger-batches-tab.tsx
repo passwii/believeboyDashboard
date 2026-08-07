@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import type { IngestBatchInfo } from './ledger-types'
@@ -56,11 +57,7 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
           </TableHeader>
           <TableBody>
             {batches.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="h-24 text-center text-muted-foreground">
-                  {emptyText}
-                </td>
-              </tr>
+              <EmptyTableState colSpan={10} message={emptyText} />
             ) : (
               batches.map((b) => {
                 const st = BATCH_STATUS_LABELS[b.status] ?? {

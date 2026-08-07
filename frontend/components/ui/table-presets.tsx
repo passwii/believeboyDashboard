@@ -7,6 +7,8 @@ import {
   DataTableCard,
   DataTableCardBody,
   DataTableCardHeader,
+  DENSE_CELL,
+  DENSE_HEAD,
 } from '@/components/ui/data-card'
 
 // ============================================================
@@ -20,13 +22,14 @@ export type TableDensity = 'compact' | 'cozy'
 
 /** 表头单元格密度（覆写 TableHead 默认 h-11/px-4） */
 export const densityHead: Record<TableDensity, string> = {
-  compact: '!h-9 !px-3 !text-[0.66rem] !tracking-[0.14em]',
+  // compact 与历史 DENSE_HEAD 同源（data-card），存量表格与基线 compact 档位收敛为同一套类
+  compact: DENSE_HEAD,
   cozy: '!h-11 !px-4 !text-[0.6875rem]',
 }
 
 /** 数据单元格密度（覆写 TableCell 默认 p-4） */
 export const densityCell: Record<TableDensity, string> = {
-  compact: '!px-3 !py-2 !text-[13px]',
+  compact: DENSE_CELL,
   cozy: '!px-4 !py-3 !text-sm',
 }
 

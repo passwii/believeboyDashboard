@@ -450,7 +450,7 @@ export function ShopCalculationEuTable({
               {/* SKU / 项目 */}
               <TableCell
                 className={cn(
-                  'sticky left-0 z-20 whitespace-nowrap border-r bg-white px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-[hsl(var(--surface-base))]',
+                  'sticky left-0 z-20 whitespace-nowrap border-r bg-[hsl(var(--surface-panel))] px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-[hsl(var(--surface-base))]',
                   getGroupStyle('店铺产品', 'sub')
                 )}
               >
