@@ -762,23 +762,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agent/projects/{project_id}/business-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** agent 镜像: /external/projects/{project_id}/business-summary */
-        get: operations["agent_get_external_business_summary_api_v1_agent_projects__project_id__business_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/agent/projects/{project_id}/inventory": {
         parameters: {
             query?: never;
@@ -20985,42 +20968,6 @@ export interface operations {
                 offset?: number;
                 order_by?: string;
                 order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_business_summary_api_v1_agent_projects__project_id__business_summary_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
             };
             header?: never;
             path: {

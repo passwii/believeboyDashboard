@@ -16,7 +16,9 @@
 
 - **广告 Agent** —— 10 个广告域（ad_budgets / ad_campaigns / ad_invalid_traffic / ad_placements / ad_promoted_products / ad_purchased_products / ad_search_term_shares / ad_search_terms / ad_targets / ad_time_trends，均为 aggregate + raw 双端点）
 - **供应链 Agent** —— inventory_ledger（库存台账，5 端点）/ replenishment_analysis（补货）/ sku_info（主数据）
-- **通用** —— projects（项目列表）/ business_summary / orders_summary（订单销售汇总）
+- **通用** —— projects（项目列表）/ orders_summary（订单销售汇总）
+
+> **BLF-476（2026-08-07）**：`business-summary` 已删除——跨域聚合端点不符合「单域」设计原则（见 `docs/agent-api-design.md` §1.2 #7）。
 
 本轮扩展的本质：把消费方从广告 + 供应链，扩到**客服 / 财务 / 合规 / 选品 / 经营管理**。
 
@@ -104,6 +106,6 @@
 - 库存：`inventory-ledger`（months / snapshot / events / receipt-clusters / integrity）
 - 补货：`replenishment-analysis`
 - 主数据：`sku-info`、`projects`
-- 汇总：`business-summary`、`orders/summary`
+- 汇总：`orders/summary`
 
 设计模式约定：aggregate + raw 双端点、`period` / `start_date` / `end_date` 时间窗、`country` 过滤、白名单 `order_by`、`limit` / `offset` 分页、`include_total`。新增 L1 端点沿用此模式。

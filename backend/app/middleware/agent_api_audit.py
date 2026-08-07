@@ -45,7 +45,6 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/replenishment-analysis", "inventory_ledger"),
     ("/inventory-ledger", "inventory_ledger"),
     ("/sku-info", "inventory_ledger"),
-    ("/business-summary", "finance_profit"),
     ("/orders/", "finance_profit"),
     ("/ad-", "ad_analysis"),
     ("/shipments", "shipments"),

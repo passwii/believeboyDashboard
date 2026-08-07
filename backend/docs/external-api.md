@@ -24,9 +24,8 @@ JSON, with snake_case field names.
 |---|---|---|---|
 | 1 | GET | `/external/projects` | List projects (filterable by `status=active\|archived\|all`) |
 | 2 | GET | `/external/projects/{id}/orders/summary` | Deduplicated orders/sales for TACoS |
-| 3 | GET | `/external/projects/{id}/business-summary` | Business dashboard (traffic + cost/profit) |
-| 4 | GET | `/external/projects/{id}/sku-info` | SKU master data (pricing, dimensions, carton specs) |
-| 5 | GET | `/external/projects/{id}/replenishment-analysis` | **NEW** Inventory health + DMS + replenishment (see §6) |
+| 3 | GET | `/external/projects/{id}/sku-info` | SKU master data (pricing, dimensions, carton specs) |
+| 4 | GET | `/external/projects/{id}/replenishment-analysis` | **NEW** Inventory health + DMS + replenishment (see §6) |
 
 ### 1.2 Row data (10 report types)
 
@@ -203,63 +202,6 @@ Returns deduplicated real orders/sales data for TACoS calculation.
 ```
 
 ---
-
-## 5. Business Summary — `GET /external/projects/{id}/business-summary`
-
-Returns business dashboard data: traffic quality (PV, sessions, CVR) aggregated by ASIN from `analysis_business_rows`, plus cost/profit/breakeven from `shop_calculation` snapshot.
-
-### 5.1 Query parameters
-
-| Param | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `period` | ✅ | — | Same aliases as orders/summary |
-| `start_date` | `custom` only | — | `YYYY-MM-DD` |
-| `end_date` | `custom` only | — | `YYYY-MM-DD` |
-| `country` | ✅ | — | ISO-2 code — **must be supplied** |
-
-### 5.2 Core logic
-
-1. Select current `business_report` files (same version selection as ad endpoints)
-2. `GROUP BY asin` on `AnalysisBusinessRow` → SUM `page_views`, `sessions`, `units_ordered`, `ordered_sales_amount`
-3. Compute `CVR = units / sessions * 100` (percent)
-4. Join latest `ShopCalculation` per `(project_id, asin, country)` for cost/profit/breakeven
-5. Return detail rows + aggregate totals
-
-### 5.3 Response shape (200)
-
-```json
-{
-  "project_id": 1,
-  "period": { "type": "relative", "value": "14d", "start_date": "2026-06-01", "end_date": "2026-06-14" },
-  "country": "US",
-  "detail": [
-    {
-      "asin": "B0000001",
-      "page_views": 1250,
-      "sessions": 480,
-      "units_ordered": 95,
-      "ordered_sales_amount": 2849.05,
-      "cvr": 19.79,
-      "cost_total": 1420.00,
-      "profit": 420.50,
-      "profit_rate": 14.76,
-      "breakeven_units": 72
-    }
-  ],
-  "aggregate": {
-    "total_asins": 12,
-    "total_page_views": 15000,
-    "total_sessions": 5800,
-    "total_units_ordered": 1150,
-    "total_sales_amount": 34500.0,
-    "total_cost": 18200.0,
-    "total_profit": 4200.0,
-    "overall_cvr": 19.83,
-    "overall_profit_rate": 12.17
-  },
-  "summary": { "...": "alias of aggregate" }
-}
-```
 
 ---
 
