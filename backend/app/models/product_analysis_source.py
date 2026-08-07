@@ -400,6 +400,10 @@ class AnalysisSalesOrderRow(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     item_price: Mapped[Decimal] = _money_column()
     shipping_price: Mapped[Decimal] = _money_column()
+    # BLF-475: 订单报表的 VAT 列（item-tax / shipping-tax）。DE/UK 为含税口径，
+    # 定时报告销售额聚合 = item + shipping + tax；US 报表通常无该列，为 0。
+    item_tax: Mapped[Decimal] = _money_column()
+    shipping_tax: Mapped[Decimal] = _money_column()
     currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
     is_counted_sales: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false')
     status_rule_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default='1')

@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **定时报告销售口径含税化（BLF-475）**：`analysis_sales_order_rows` 新增 `item_tax` / `shipping_tax` 列（迁移 241，含 `raw_row` 存量回填）；解析器开始读取订单报表的 `item-tax` / `shipping-tax`；日/周/月定时报告销售额聚合改为 DE/UK 含税（净额 + VAT）、其余站点保持净额，与财务月报口径对齐
 - `app/dashboard/layout.tsx` — 接入 `<PageTransition>` + 拆除 `isNavigationLoading` 整页 swap，改由 PageTransition 包裹 children
 - `app/dashboard/data-analysis/ad-analysis/layout.tsx` — 拆除嵌套 `<AdAnalysisPageTransition>`，children 直接交给全局 `<PageTransition>`
 - `components/ui/dropdown-menu.tsx` / `tabs.tsx` / `combobox.tsx` / `calendar.tsx` / `popover.tsx` / `dialog.tsx` / `sheet.tsx` / `tooltip.tsx` / `toggle.tsx` / `checkbox.tsx` / `switch.tsx` — 接入 motion token

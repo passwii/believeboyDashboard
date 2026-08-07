@@ -601,6 +601,10 @@ def parse_sales_rows(
                 "quantity": _to_int(row.get("quantity")),
                 "item_price": _to_decimal(row.get("item-price")),
                 "shipping_price": _to_decimal(row.get("shipping-price")),
+                # BLF-475: VAT 列。DE/UK 订单报表 item-tax / shipping-tax 为含税
+                # 口径的组成部分，聚合销售额时需加回；US 报表通常无此列 → 0。
+                "item_tax": _to_decimal(row.get("item-tax")),
+                "shipping_tax": _to_decimal(row.get("shipping-tax")),
                 "currency": _normalize_text(row.get("currency")),
                 "is_counted_sales": counted,
                 "status_rule_version": 1,
