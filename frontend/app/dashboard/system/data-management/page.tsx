@@ -21,7 +21,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  STICKY_TOP_ROW,
 } from '@/components/ui/table'
+import { densityCell, densityHead } from '@/components/ui/table-presets'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
@@ -354,14 +356,14 @@ export default function SystemDataManagementPage() {
           </div>
         </DataTableCardHeader>
         <DataTableCardBody className="overflow-auto" style={{ maxHeight: '600px' }}>
-          <Table className="[&_td]:!py-2.5">
-            <TableHeader className="sticky top-0 z-10">
-              <TableRow>
-                <TableHead>表名</TableHead>
-                <TableHead>中文名</TableHead>
-                <TableHead>行数</TableHead>
-                <TableHead>最后更新</TableHead>
-                <TableHead>状态</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow className={STICKY_TOP_ROW}>
+                <TableHead className={densityHead.compact}>表名</TableHead>
+                <TableHead className={densityHead.compact}>中文名</TableHead>
+                <TableHead className={densityHead.compact}>行数</TableHead>
+                <TableHead className={densityHead.compact}>最后更新</TableHead>
+                <TableHead className={densityHead.compact}>状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -378,13 +380,19 @@ export default function SystemDataManagementPage() {
               ) : (
                 overview.tables.map((item) => (
                   <TableRow key={item.table_name}>
-                    <TableCell className="font-medium">{item.table_name}</TableCell>
-                    <TableCell>{item.table_name_cn ?? '-'}</TableCell>
-                    <TableCell>
+                    <TableCell className={cn(densityCell.compact, 'font-medium')}>
+                      {item.table_name}
+                    </TableCell>
+                    <TableCell className={densityCell.compact}>
+                      {item.table_name_cn ?? '-'}
+                    </TableCell>
+                    <TableCell className={cn(densityCell.compact, 'tabular-nums')}>
                       {item.row_count == null ? '-' : formatNumber(item.row_count)}
                     </TableCell>
-                    <TableCell>{formatDateTime(item.last_updated_at)}</TableCell>
-                    <TableCell>
+                    <TableCell className={densityCell.compact}>
+                      {formatDateTime(item.last_updated_at)}
+                    </TableCell>
+                    <TableCell className={densityCell.compact}>
                       <span
                         className={cn(
                           'inline-flex items-center rounded-full border px-2 py-0.5 text-xs',

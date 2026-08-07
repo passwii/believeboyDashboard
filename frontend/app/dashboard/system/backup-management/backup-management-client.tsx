@@ -2,7 +2,6 @@
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -13,6 +12,24 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  DataCard,
+  DataCardContent,
+  DataCardHeader,
+  DataTableCard,
+  DataTableCardBody,
+  DataTableCardHeader,
+} from '@/components/ui/data-card'
+import { EmptyTableState } from '@/components/ui/empty-state'
+import { StatusPill, type TableStatus } from '@/components/ui/table-presets'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   Loader2,
   Database,
@@ -83,11 +100,11 @@ type BackupInfo = {
   }>
 }
 
-const STATUS_COLORS: Record<BackupStatus, string> = {
-  pending: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  running: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  failed: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+const STATUS_COLORS: Record<BackupStatus, TableStatus> = {
+  pending: 'neutral',
+  running: 'info',
+  completed: 'success',
+  failed: 'negative',
 }
 
 const STATUS_LABELS: Record<BackupStatus, string> = {
@@ -206,7 +223,7 @@ function BackupRecordDetail({
         </div>
       </div>
       {record.error_message && (
-        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-md p-2">
+        <div className="rounded-md border border-[hsl(var(--data-negative)/0.3)] bg-[hsl(var(--data-negative)/0.08)] p-2 text-sm text-[hsl(var(--data-negative))]">
           {record.error_message}
         </div>
       )}
@@ -398,13 +415,20 @@ export function BackupManagementClient() {
   }, [activeTab])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">备份管理</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            PostgreSQL 数据库备份到 Cloudflare R2
+    <div className="w-full space-y-6">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（FRONTEND-DESIGN-SPEC §4.1） ── */}
+      <section className="flex flex-wrap items-start justify-between gap-5">
+        <div className="max-w-2xl space-y-3">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Shield className="h-3.5 w-3.5" />
+            系统管理 · 备份管理
           </p>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">备份管理</h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              PostgreSQL 数据库定时备份到 Cloudflare R2，支持全量 / 增量 / WAL 归档。
+            </p>
+          </div>
         </div>
         <Button
           onClick={() => setShowTriggerDialog(true)}
@@ -413,103 +437,99 @@ export function BackupManagementClient() {
           <Database className="mr-2 h-4 w-4" />
           {statusSummary?.is_backup_running ? '备份进行中...' : '手动备份'}
         </Button>
-      </div>
+      </section>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
-                <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+      {/* ── 备份概览 KPI（surface token 图标块 + dashboard-panel 瓦片） ── */}
+      <DataCard>
+        <DataCardHeader title="备份概览" description="备份任务累计与当前执行状态" />
+        <DataCardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="dashboard-panel flex items-center gap-3">
+              <div className="rounded-lg bg-[hsl(var(--primary)/0.12)] p-2 text-[hsl(var(--primary))]">
+                <Database className="h-5 w-5" />
               </div>
-              <div>
-                <p className="text-2xl font-semibold">{statusSummary?.total_backups ?? '-'}</p>
-                <p className="text-sm text-muted-foreground">总备份数</p>
+              <div className="min-w-0">
+                <p className="text-2xl font-semibold tabular-nums leading-tight">
+                  {statusSummary?.total_backups ?? '-'}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">总备份数</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900">
-                <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="dashboard-panel flex items-center gap-3">
+              <div className="rounded-lg bg-[hsl(var(--data-positive)/0.12)] p-2 text-[hsl(var(--data-positive))]">
+                <CheckCircle className="h-5 w-5" />
               </div>
-              <div>
-                <p className="text-2xl font-semibold">{statusSummary?.successful_backups ?? '-'}</p>
-                <p className="text-sm text-muted-foreground">成功</p>
+              <div className="min-w-0">
+                <p className="text-2xl font-semibold tabular-nums leading-tight">
+                  {statusSummary?.successful_backups ?? '-'}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">成功</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900">
-                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <div className="dashboard-panel flex items-center gap-3">
+              <div className="rounded-lg bg-[hsl(var(--data-negative)/0.12)] p-2 text-[hsl(var(--data-negative))]">
+                <XCircle className="h-5 w-5" />
               </div>
-              <div>
-                <p className="text-2xl font-semibold">{statusSummary?.failed_backups ?? '-'}</p>
-                <p className="text-sm text-muted-foreground">失败</p>
+              <div className="min-w-0">
+                <p className="text-2xl font-semibold tabular-nums leading-tight">
+                  {statusSummary?.failed_backups ?? '-'}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">失败</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
+            <div className="dashboard-panel flex items-center gap-3">
               <div
                 className={cn(
-                  'p-2 rounded-lg',
+                  'rounded-lg p-2',
                   statusSummary?.is_backup_running
-                    ? 'bg-blue-100 dark:bg-blue-900'
-                    : 'bg-slate-100 dark:bg-slate-800'
+                    ? 'bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]'
+                    : 'bg-[hsl(var(--data-neutral)/0.12)] text-[hsl(var(--data-neutral))]'
                 )}
               >
                 <RefreshCw
                   className={cn(
                     'h-5 w-5',
-                    statusSummary?.is_backup_running
-                      ? 'text-blue-600 dark:text-blue-400 animate-spin'
-                      : 'text-slate-600 dark:text-slate-400'
+                    statusSummary?.is_backup_running && 'animate-spin'
                   )}
                 />
               </div>
-              <div>
-                <p className="text-2xl font-semibold">
+              <div className="min-w-0">
+                <p className="text-2xl font-semibold tabular-nums leading-tight">
                   {statusSummary?.is_backup_running ? '进行中' : '空闲'}
                 </p>
-                <p className="text-sm text-muted-foreground">当前状态</p>
+                <p className="truncate text-sm text-muted-foreground">当前状态</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </DataCardContent>
+      </DataCard>
 
-      {/* Last Backup Info */}
+      {/* ── 最近备份 ── */}
       {statusSummary?.last_backup && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              最近备份
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4 text-sm">
+        <DataCard>
+          <DataTableCardHeader>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-base font-semibold leading-none text-foreground">最近备份</h2>
+            </div>
+          </DataTableCardHeader>
+          <DataCardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
               <div>
                 <p className="text-muted-foreground">备份类型</p>
-                <p className="font-medium">{TYPE_LABELS[statusSummary.last_backup.backup_type]}</p>
+                <p className="font-medium">
+                  {TYPE_LABELS[statusSummary.last_backup.backup_type]}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground">状态</p>
-                <Badge className={STATUS_COLORS[statusSummary.last_backup.status as BackupStatus]}>
-                  {STATUS_LABELS[statusSummary.last_backup.status as BackupStatus]}
-                </Badge>
+                <StatusPill
+                  status={STATUS_COLORS[statusSummary.last_backup.status as BackupStatus]}
+                  label={STATUS_LABELS[statusSummary.last_backup.status as BackupStatus]}
+                />
               </div>
               <div>
                 <p className="text-muted-foreground">备份时间</p>
@@ -519,19 +539,25 @@ export function BackupManagementClient() {
               </div>
               <div>
                 <p className="text-muted-foreground">大小</p>
-                <p className="font-medium">{formatBytes(statusSummary.last_backup.size_bytes)}</p>
+                <p className="font-medium">
+                  {formatBytes(statusSummary.last_backup.size_bytes)}
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </DataCardContent>
+        </DataCard>
       )}
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between mb-4">
-          <TabsList>
-            <TabsTrigger value="records">📋 备份记录</TabsTrigger>
-            <TabsTrigger value="info">🔍 pgBackRest 信息</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:w-auto">
+            <TabsTrigger value="records" className="min-h-10 px-5 py-2 text-sm">
+              📋 备份记录
+            </TabsTrigger>
+            <TabsTrigger value="info" className="min-h-10 px-5 py-2 text-sm">
+              🔍 pgBackRest 信息
+            </TabsTrigger>
           </TabsList>
           <Button size="sm" variant="outline" onClick={handleVerifyBackups}>
             <Shield className="mr-1 h-4 w-4" />
@@ -540,121 +566,222 @@ export function BackupManagementClient() {
         </div>
 
         <TabsContent value="records">
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : records.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Database className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground mb-2">暂无备份记录</p>
-                <p className="text-sm text-muted-foreground/70">
-                  点击「手动备份」创建第一个备份，或等待每天凌晨 3:00 的自动备份
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">ID</th>
-                      <th className="text-left py-3 px-4 font-medium">类型</th>
-                      <th className="text-left py-3 px-4 font-medium">状态</th>
-                      <th className="text-left py-3 px-4 font-medium">开始时间</th>
-                      <th className="text-left py-3 px-4 font-medium">完成时间</th>
-                      <th className="text-left py-3 px-4 font-medium">大小</th>
-                      <th className="text-left py-3 px-4 font-medium">耗时</th>
-                      <th className="text-left py-3 px-4 font-medium">触发</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((record) => (
-                      <Fragment key={record.id}>
-                        <tr
-                          className="border-b border-border/30 cursor-pointer hover:bg-muted/40 transition-colors"
-                          onClick={() => setExpandedId(expandedId === record.id ? null : record.id)}
-                        >
-                          <td className="py-3 px-4 text-muted-foreground">#{record.id}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant="outline">
-                              {TYPE_LABELS[record.backup_type] || record.backup_type}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="space-y-1">
-                              <Badge className={STATUS_COLORS[record.status as BackupStatus]}>
-                                {STATUS_LABELS[record.status as BackupStatus]}
-                              </Badge>
-                              {(record.status === 'pending' || record.status === 'running') && (
-                                <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
-                                    <div
-                                      className={cn(
-                                        'h-full rounded-full transition-all duration-500',
-                                        PHASE_BAR_COLORS[record.phase] || 'bg-slate-400'
-                                      )}
-                                      style={{ width: `${PHASE_PROGRESS[record.phase] ?? 10}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {PHASE_LABELS[record.phase] || record.phase}
-                                  </span>
+          <DataTableCard>
+            <DataTableCardHeader
+              title="备份记录"
+              description="最近 50 条备份记录，含阶段进度与 R2 归档状态"
+            />
+            <DataTableCardBody>
+              {loading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {/* 桌面端：完整表格（MOBILE_ADAPTATION_RULES 规则 1） */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[64px]">ID</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>状态</TableHead>
+                          <TableHead>开始时间</TableHead>
+                          <TableHead>完成时间</TableHead>
+                          <TableHead>大小</TableHead>
+                          <TableHead>耗时</TableHead>
+                          <TableHead>触发</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {records.map((record) => (
+                          <Fragment key={record.id}>
+                            <TableRow
+                              className="cursor-pointer"
+                              onClick={() =>
+                                setExpandedId(expandedId === record.id ? null : record.id)
+                              }
+                            >
+                              <TableCell className="text-muted-foreground">#{record.id}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {TYPE_LABELS[record.backup_type] || record.backup_type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <StatusPill
+                                    status={STATUS_COLORS[record.status as BackupStatus]}
+                                    label={STATUS_LABELS[record.status as BackupStatus]}
+                                  />
+                                  {(record.status === 'pending' || record.status === 'running') && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                                        <div
+                                          className={cn(
+                                            'h-full rounded-full transition-all duration-500',
+                                            PHASE_BAR_COLORS[record.phase] || 'bg-slate-400'
+                                          )}
+                                          style={{
+                                            width: `${PHASE_PROGRESS[record.phase] ?? 10}%`,
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        {PHASE_LABELS[record.phase] || record.phase}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </TableCell>
+                              <TableCell>{formatDatetime(record.started_at)}</TableCell>
+                              <TableCell>{formatDatetime(record.completed_at)}</TableCell>
+                              <TableCell className="tabular-nums">
+                                {formatBytes(record.size_bytes)}
+                              </TableCell>
+                              <TableCell className="tabular-nums">
+                                {formatDuration(record.duration_seconds)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {record.triggered_by === 'auto' ? '自动' : '手动'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                            {expandedId === record.id && (
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={8} className="px-6 py-4">
+                                  <BackupRecordDetail
+                                    record={record}
+                                    onDownload={handleDownload}
+                                    onRestore={handleRestoreCommand}
+                                    onDelete={handleDeleteBackup}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        ))}
+                        {records.length === 0 && (
+                          <EmptyTableState colSpan={8} message="暂无备份记录" />
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* 手机端：卡片列表（规则 1） */}
+                  <div className="md:hidden space-y-3 p-4">
+                    {records.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <Database className="mb-4 h-12 w-12 text-muted-foreground/50" />
+                        <p className="mb-2 text-muted-foreground">暂无备份记录</p>
+                        <p className="text-sm text-muted-foreground/70">
+                          点击「手动备份」创建第一个备份，或等待每天凌晨 3:00 的自动备份
+                        </p>
+                      </div>
+                    ) : (
+                      records.map((record) => (
+                        <div key={record.id} className="dashboard-surface space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold">
+                                #{record.id} · {TYPE_LABELS[record.backup_type] || record.backup_type}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDatetime(record.started_at)}
+                              </div>
                             </div>
-                          </td>
-                          <td className="py-3 px-4">{formatDatetime(record.started_at)}</td>
-                          <td className="py-3 px-4">{formatDatetime(record.completed_at)}</td>
-                          <td className="py-3 px-4">{formatBytes(record.size_bytes)}</td>
-                          <td className="py-3 px-4">{formatDuration(record.duration_seconds)}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant="outline">
-                              {record.triggered_by === 'auto' ? '自动' : '手动'}
-                            </Badge>
-                          </td>
-                        </tr>
-                        {expandedId === record.id && (
-                          <tr className="border-b border-border/30 bg-muted/30">
-                            <td colSpan={8} className="px-6 py-4">
+                            <StatusPill
+                              status={STATUS_COLORS[record.status as BackupStatus]}
+                              label={STATUS_LABELS[record.status as BackupStatus]}
+                            />
+                          </div>
+                          {(record.status === 'pending' || record.status === 'running') && (
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-full max-w-[9rem] overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full transition-all duration-500',
+                                    PHASE_BAR_COLORS[record.phase] || 'bg-slate-400'
+                                  )}
+                                  style={{ width: `${PHASE_PROGRESS[record.phase] ?? 10}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {PHASE_LABELS[record.phase] || record.phase}
+                              </span>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            <div>
+                              <span className="text-xs text-muted-foreground">完成时间</span>
+                              <div>{formatDatetime(record.completed_at)}</div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">大小</span>
+                              <div className="tabular-nums">{formatBytes(record.size_bytes)}</div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">耗时</span>
+                              <div className="tabular-nums">
+                                {formatDuration(record.duration_seconds)}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs text-muted-foreground">触发</span>
+                              <div>{record.triggered_by === 'auto' ? '自动' : '手动'}</div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 min-h-[44px] w-full"
+                            onClick={() =>
+                              setExpandedId(expandedId === record.id ? null : record.id)
+                            }
+                          >
+                            {expandedId === record.id ? '收起详情' : '查看详情'}
+                          </Button>
+                          {expandedId === record.id && (
+                            <div className="border-t border-border/70 pt-3">
                               <BackupRecordDetail
                                 record={record}
                                 onDownload={handleDownload}
                                 onRestore={handleRestoreCommand}
                                 onDelete={handleDeleteBackup}
                               />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </DataTableCardBody>
+          </DataTableCard>
         </TabsContent>
 
         <TabsContent value="info">
           {backupInfo ? (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Info className="h-4 w-4" />
-                  pgBackRest 备份信息
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-96">
+            <DataCard>
+              <DataTableCardHeader>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-base font-semibold leading-none text-foreground">
+                    pgBackRest 备份信息
+                  </h2>
+                </div>
+              </DataTableCardHeader>
+              <DataCardContent>
+                <pre className="max-h-96 overflow-auto rounded-lg bg-muted p-4 text-xs">
                   {JSON.stringify(backupInfo.backups, null, 2)}
                 </pre>
-              </CardContent>
-            </Card>
+              </DataCardContent>
+            </DataCard>
           ) : (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
         </TabsContent>
@@ -723,7 +850,7 @@ export function BackupManagementClient() {
             <DialogTitle>恢复命令预览</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-md p-3">
+            <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--data-warning)/0.3)] bg-[hsl(var(--data-warning)/0.08)] p-3 text-sm text-[hsl(var(--data-warning))]">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>此操作会覆盖目标数据库，生产环境执行前请先在测试环境验证。命令仅供复制，本页不会执行。</span>
             </div>

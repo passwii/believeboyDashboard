@@ -51,7 +51,7 @@ function SourceLogsSection({ logs }: { logs: string[] }) {
       </button>
       <div
         className={cn(
-          'overflow-hidden rounded-3xl border border-dashed border-border/70 bg-background/56 transition-all duration-300 dark:border-border/90 dark:bg-[hsl(var(--surface-panel)/0.52)]',
+          'overflow-hidden rounded-xl border border-dashed border-border/70 bg-[hsl(var(--surface-soft)/0.8)] transition-all duration-300',
           isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
@@ -84,9 +84,25 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述（FRONTEND-DESIGN-SPEC §4.1） ── */}
+      <section className="flex flex-wrap items-start justify-between gap-5">
+        <div className="max-w-2xl space-y-3">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Waypoints className="h-3.5 w-3.5" />
+            系统管理 · 更新日志
+          </p>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">更新日志</h1>
+            <p className="text-sm leading-6 text-muted-foreground">
+              记录 Dashboard 各版本的关键能力建设与原始变更线索。
+            </p>
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+          <Card className="dashboard-surface">
             <CardContent className="space-y-4 p-4">
               <div className="space-y-1">
                 <div className="text-[0.72rem] uppercase tracking-[0.16em] text-muted-foreground">
@@ -101,7 +117,7 @@ export default function ChangelogPage() {
                   <a
                     key={release.version}
                     href={`#${release.version.toLowerCase()}`}
-                    className="group flex cursor-pointer items-center justify-between rounded-2xl border border-border/70 bg-background/72 px-3 py-3 transition-colors duration-200 hover:border-primary/35 hover:bg-primary/5 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.8)] dark:hover:border-primary/30 dark:hover:bg-primary/10"
+                    className="group flex cursor-pointer items-center justify-between rounded-lg border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] px-3 py-3 transition-colors duration-200 hover:border-primary/35 hover:bg-primary/5"
                   >
                     <div className="min-w-0">
                       <div className="font-mono text-sm font-semibold text-foreground">
@@ -126,7 +142,7 @@ export default function ChangelogPage() {
               id={release.version.toLowerCase()}
               className="scroll-mt-24"
             >
-              <Card className="relative overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+              <Card className="dashboard-surface relative overflow-hidden">
                 <div
                   className={cn(
                     'pointer-events-none absolute inset-0 bg-gradient-to-br opacity-100',
@@ -152,13 +168,13 @@ export default function ChangelogPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 sm:max-w-[24rem] sm:self-stretch">
-                      <div className="rounded-2xl border border-border/70 bg-background/78 px-3 py-3 text-center dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
+                      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] px-3 py-3 text-center">
                         <div className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
                           模块
                         </div>
                         <div className="mt-2 text-lg font-semibold">{release.focus.length}</div>
                       </div>
-                      <div className="rounded-2xl border border-border/70 bg-background/78 px-3 py-3 text-center dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
+                      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] px-3 py-3 text-center">
                         <div className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
                           亮点
                         </div>
@@ -166,7 +182,7 @@ export default function ChangelogPage() {
                           {release.highlights.length}
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-border/70 bg-background/78 px-3 py-3 text-center dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)]">
+                      <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] px-3 py-3 text-center">
                         <div className="text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
                           线索
                         </div>
@@ -181,7 +197,7 @@ export default function ChangelogPage() {
                     {release.focus.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[0.72rem] text-foreground/85 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.78)]"
+                        className="rounded-full border border-border/70 bg-[hsl(var(--surface-soft)/0.8)] px-3 py-1 text-[0.72rem] text-foreground/85"
                       >
                         {item}
                       </span>
@@ -192,10 +208,10 @@ export default function ChangelogPage() {
                     {release.highlights.map((highlight) => (
                       <article
                         key={`${release.version}-${highlight.title}`}
-                        className="rounded-[1.35rem] border border-border/70 bg-background/78 p-4 transition-colors duration-200 hover:border-primary/30 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.84)] dark:hover:border-primary/30"
+                        className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] p-4 transition-colors duration-200 hover:border-primary/30"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 rounded-2xl border border-primary/15 bg-primary/10 p-2 text-primary dark:border-primary/20 dark:bg-primary/12">
+                          <div className="mt-0.5 rounded-lg border border-primary/15 bg-primary/10 p-2 text-primary dark:border-primary/20 dark:bg-primary/12">
                             <Layers3 className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 space-y-2">
@@ -224,7 +240,7 @@ export default function ChangelogPage() {
                         <Blocks className="h-4 w-4 text-primary" />
                         版本定位
                       </div>
-                      <div className="rounded-3xl border border-border/70 bg-background/72 p-4 dark:border-border/90 dark:bg-[hsl(var(--surface-soft)/0.8)]">
+                      <div className="rounded-xl border border-border/70 bg-[hsl(var(--surface-soft)/0.85)] p-4">
                         <p className="text-sm leading-6 text-muted-foreground">
                           {release.version} 主要聚焦{' '}
                           <span className="font-medium text-foreground">
