@@ -144,6 +144,8 @@ def _row_dict(*, project_id, source_file_id, order_id, sku="SKU-A", country="UK"
         "quantity": qty,
         "item_price": price,
         "shipping_price": "0.00",
+        "item_tax": "0.00",
+        "shipping_tax": "0.00",
         "currency": "GBP",
         "is_counted_sales": is_counted,
         "status_rule_version": 1,

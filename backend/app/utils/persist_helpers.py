@@ -79,6 +79,9 @@ _SALES_UPSERT_UPDATE_COLS = (
     'quantity',
     'item_price',
     'shipping_price',
+    # BLF-475: 价格相关的可变字段，随最新版本一起刷新。
+    'item_tax',
+    'shipping_tax',
     'currency',
     'is_counted_sales',
     'status_rule_version',

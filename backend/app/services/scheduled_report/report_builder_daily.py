@@ -14,6 +14,7 @@ from app.models.project import Project
 from app.models.shipment_schedule import ShipmentSchedule, ShipmentScheduleItem
 from app.models.sku_info import SkuRecord
 from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
+from app.services.scheduled_report._sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
@@ -73,9 +74,7 @@ def _query_sales_snapshot(
             trend_map[current] = {"order_qty": 0, "sales_amount": 0.0}
             current += timedelta(days=1)
 
-        amount_expr = func.coalesce(AnalysisSalesOrderRow.item_price, 0) + func.coalesce(
-            AnalysisSalesOrderRow.shipping_price, 0
-        )
+        amount_expr = sales_amount_expr(country)
         # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
         # 销售订单行已改为行级 upsert，旧 is_current 版本口径会漏掉
         # 同订单在更早、更全版本里的行，导致定时报告丢单。
@@ -579,10 +578,7 @@ def _query_top_skus(
             db.query(
                 AnalysisSalesOrderRow.sku,
                 func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
-                func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
-                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
-                ).label("total_amount"),
+                func.sum(sales_amount_expr(country)).label("total_amount"),
             )
         # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
         .filter(
@@ -793,10 +789,7 @@ def _query_period_sales(
         query = (
             db.query(
                 func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
-                func.coalesce(func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
-                    func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
-                ), 0).label("amount"),
+                func.coalesce(func.sum(sales_amount_expr(country)), 0).label("amount"),
             )
         # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
         .filter(
@@ -947,10 +940,7 @@ def _query_sku_sales_detail(
             db.query(
                 AnalysisSalesOrderRow.sku,
                 func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
-                func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
-                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
-                ).label("total_amount"),
+                func.sum(sales_amount_expr(country)).label("total_amount"),
             )
         # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
         .filter(

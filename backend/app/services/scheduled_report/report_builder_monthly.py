@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
+from app.services.scheduled_report._sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
@@ -128,8 +129,7 @@ def _aggregate_monthly_sales(
             db.query(
                 func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
                 func.coalesce(func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
-                    func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+                    sales_amount_expr(country)
                 ), 0).label("amount"),
                 func.count(func.distinct(AnalysisSalesOrderRow.purchase_date_pt)).label("active_days"),
             )
@@ -182,8 +182,7 @@ def _query_sku_sales_detail(
                 AnalysisSalesOrderRow.sku,
                 func.sum(AnalysisSalesOrderRow.quantity).label("total_qty"),
                 func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0)
-                    + func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
+                    sales_amount_expr(country)
                 ).label("total_amount"),
             )
             # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
@@ -321,7 +320,7 @@ def _get_top_skus_monthly_comparison(
                 func.sum(
                     case(
                         (AnalysisSalesOrderRow.purchase_date_pt.between(curr_start, curr_end),
-                         AnalysisSalesOrderRow.item_price + AnalysisSalesOrderRow.shipping_price),
+                         sales_amount_expr(country)),
                         else_=0,
                     )
                 ).label("curr_amount"),
@@ -334,7 +333,7 @@ def _get_top_skus_monthly_comparison(
                 func.sum(
                     case(
                         (AnalysisSalesOrderRow.purchase_date_pt.between(yoy_start, yoy_end),
-                         AnalysisSalesOrderRow.item_price + AnalysisSalesOrderRow.shipping_price),
+                         sales_amount_expr(country)),
                         else_=0,
                     )
                 ).label("yoy_amount"),
