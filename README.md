@@ -161,8 +161,8 @@ believeboyDashboard/
 ### 环境要求
 - Node.js 18+
 - Python 3.9+
-- PostgreSQL 12+
-- Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew按需启停)）
+- PostgreSQL 12+（本机 brew `postgresql@18`，常驻运行，本地库即生产快照，详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）
+- Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew)）
 - pnpm（推荐）
 
 ### 前端设置
@@ -193,10 +193,21 @@ API 服务器将在 `http://localhost:8100` 启动。
 
 ### 数据库初始化
 
+本地 PostgreSQL（端口 5432）**常驻两个库**，绝大多数本地开发 / 测试**无需从零初始化**：
+
+- **`BLF`（主库 · 生产快照）** — 与生产端每日拉取同步的真实数据，用于本地 backend 读写 / 外部 API 集成 / 真实数据验证测试（详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）。
+- **`BLF_test`（测试库）** — 自动化 pytest 隔离专用，由 `backend/scripts/setup_test_db.py` 自动创建并 seed 测试账号。
+
+首次搭建（新机器 / 快照缺失时）：
+
 ```bash
 cd backend
 source .venv/bin/activate
 
+# 1) 初始化隔离测试库 + seed 测试账号（pytest 依赖）
+python scripts/setup_test_db.py
+
+# 2) 仅当本机还没有生产快照 BLF 时，才需要从零建库：
 # 运行数据库迁移
 alembic upgrade head
 
@@ -206,6 +217,16 @@ python scripts/seed_admin_user.py
 # 导入基础数据（可选）
 python scripts/init_and_import_projects.py
 ```
+
+## 🧪 本地数据库与测试
+
+**所有前后端测试都可以直接调用本地数据库完成**，不依赖远程 VPS 环境：
+
+- **本地 Postgres（端口 5432）常驻两个库**：
+  - `BLF` — **生产快照**：每天自动与生产端拉取同步，数据较为完备（真实项目 / 报表 / 广告 / 库存数据），适合本地进行**大量读写、外部 API 集成和真实数据验证**测试。
+  - `BLF_test` — **自动化测试隔离库**（pytest 用）：由 `backend/scripts/setup_test_db.py` 创建，schema 与生产同步、seed 测试账号。
+- **pytest 一律走 `BLF_test`，绝不写 `BLF`**（防止污染快照）；`BLF` 用于本地 backend 起服后的集成 / 手动读写 / Playwright 真实数据测试。
+- 前端测试（Vitest 单测 + Playwright E2E）与后端测试（pytest）的具体命令、架构与约定见 [TESTING.md](./TESTING.md)。
 
 ## 🔑 后端 API 端点
 
@@ -261,6 +282,7 @@ cd backend
 ## 📖 详细文档
 
 更多详细信息请参考：
+- [测试总览](./TESTING.md) - 测试架构、本地数据库与测试命令
 - [后端 README](./backend/README.md) - 后端详细文档
 - [Redis 恢复计划](./backend/REDIS_PLAN.md) - Redis 集成计划
 - [报告处理规范](./backend/docs/report-processing-sync-spec.md) - 报告处理同步规范
