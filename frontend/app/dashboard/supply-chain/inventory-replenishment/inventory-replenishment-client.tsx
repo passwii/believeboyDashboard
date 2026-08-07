@@ -5,11 +5,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   CalendarClock,
   FileDown,
+  Gauge,
+  LayoutGrid,
   Loader2,
   RefreshCw,
   Save,
   Send,
-  Table2,
   CalendarDays,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -61,6 +62,8 @@ import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment
 import { CreateSnapshotDialog } from '@/components/dashboard/inventory-replenishment/create-snapshot-dialog'
 import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishment/edit-snapshot-dialog'
 import type { SnapshotOption } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
+import { CockpitOverview } from '@/components/dashboard/inventory-replenishment/cockpit/cockpit-overview'
+import { DecisionCockpit } from '@/components/dashboard/inventory-replenishment/cockpit/decision-cockpit'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从 inventory 页面 bundle 拆出 recharts 主体
 // 日历视图只在切到「日历」Tab 时才需要，dynamic 化后默认 Tab 切换不会拉 recharts
@@ -456,6 +459,9 @@ export default function InventoryReplenishmentPage() {
   const initializedFromUrl = useRef(false)
   const [keyword, setKeyword] = useState('')
   const [riskFilter, setRiskFilter] = useState('all')
+  // BLF-491：三段式客户端筛选（后端只支持 risk_status 服务端过滤）
+  const [stateFilter, setStateFilter] = useState<string | null>(null)
+  const [actionFilter, setActionFilter] = useState<string | null>(null)
   const deferredKeyword = useDeferredValue(keyword)
 
   const [rows, setRows] = useState<AnalysisRow[]>([])
@@ -480,11 +486,21 @@ export default function InventoryReplenishmentPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingSnapshot, setEditingSnapshot] = useState<SnapshotOption | null>(null)
 
-  // View mode: table or calendar
-  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table')
+  // View mode: cockpit (default) / table / calendar
+  const [viewMode, setViewMode] = useState<'cockpit' | 'table' | 'calendar'>('cockpit')
 
   const isAdmin = Boolean(session?.user?.isAdmin)
   const isSnapshotMode = selectedSnapshotId !== null
+
+  // BLF-491：三段式 state/action 客户端叠加筛选（作用于工作台/表格/导出）
+  const filteredRows = useMemo(() => {
+    if (!stateFilter && !actionFilter) return rows
+    return rows.filter((row) => {
+      if (stateFilter && (row.inventory_state ?? 'unknown') !== stateFilter) return false
+      if (actionFilter && (row.replenishment_action ?? 'NO_ACTION') !== actionFilter) return false
+      return true
+    })
+  }, [actionFilter, rows, stateFilter])
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -801,7 +817,7 @@ export default function InventoryReplenishmentPage() {
   }
 
   async function exportToExcel() {
-    if (rows.length === 0) {
+    if (filteredRows.length === 0) {
       notify({ type: 'error', title: '当前没有可导出的补货分析数据' })
       return
     }
@@ -839,10 +855,12 @@ export default function InventoryReplenishmentPage() {
         { header: '发货指令', key: 'shipment_order_date', width: 14 },
         { header: '预计数量', key: 'estimated_replenishment_quantity', width: 12 },
         { header: '风险状态', key: 'risk_status', width: 12 },
-        // v1.2 三段式（spec §5.1）
+        // v1.2 三段式（spec §5.1）+ BLF-491 决策驾驶舱（趋势/置信度）
         { header: '状态', key: 'inventory_state', width: 12 },
         { header: '行动', key: 'replenishment_action', width: 14 },
+        { header: '趋势', key: 'signals.trend_label', width: 12 },
         { header: '季节性', key: 'signals.seasonal_phase', width: 12 },
+        { header: '置信度', key: 'signals.confidence', width: 10 },
       ] as const
 
       const selectedProjectName =
@@ -860,7 +878,7 @@ export default function InventoryReplenishmentPage() {
         applyHeaderBorder(cell)
       })
 
-      rows.forEach((row, index) => {
+      filteredRows.forEach((row, index) => {
         const sheetRow = worksheet.getRow(index + 2)
         sheetRow.values = [
           row.sku,
@@ -887,7 +905,9 @@ export default function InventoryReplenishmentPage() {
           // v1.2 三段式
           row.inventory_state || '-',
           row.replenishment_action || '-',
+          row.signals?.trend_label || '-',
           row.signals?.seasonal_phase || '-',
+          row.signals?.confidence || '-',
         ]
 
         // 显式遍历 1-21 列应用样式和边框：
@@ -895,7 +915,7 @@ export default function InventoryReplenishmentPage() {
         // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少边框。
         // 改成 for 循环 + getCell(col) 可以保证每个单元格都被处理（与 totalRow 的
         // applyRowBorder(totalRow, 1, 24) 保持一致），且不改变原始数据（null 仍为 null）。
-        for (let col = 1; col <= 24; col++) {
+        for (let col = 1; col <= 26; col++) {
           const cell = sheetRow.getCell(col)
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
@@ -938,7 +958,7 @@ export default function InventoryReplenishmentPage() {
         }
       })
 
-      const totalRow = worksheet.getRow(rows.length + 2)
+      const totalRow = worksheet.getRow(filteredRows.length + 2)
       totalRow.getCell(1).value = '筛选结果合计'
       totalRow.getCell(3).value = tableTotals.available_inventory
       totalRow.getCell(4).value = tableTotals.in_transit_quantity
@@ -950,7 +970,7 @@ export default function InventoryReplenishmentPage() {
       totalRow.getCell(11).value = tableTotals.weighted_dms
       totalRow.getCell(20).value = tableTotals.estimated_replenishment_quantity
       totalRow.getCell(21).value = `SKU: ${summary.sku_count}`
-      applyRowBorder(totalRow, 1, 24)
+      applyRowBorder(totalRow, 1, 26)
       totalRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
         cell.alignment = { vertical: 'middle', wrapText: true }
@@ -989,7 +1009,7 @@ export default function InventoryReplenishmentPage() {
           country,
           keyword: keyword.trim() || null,
           risk_status: riskFilter === 'all' ? null : riskFilter,
-          row_count: rows.length,
+          row_count: filteredRows.length,
           filename: link.download,
         },
       })
@@ -1003,24 +1023,6 @@ export default function InventoryReplenishmentPage() {
       setExporting(false)
     }
   }
-
-  const statBarItems = [
-    { label: 'SKU 总数', value: formatInt(summary.sku_count), highlight: false },
-    {
-      label: '危险',
-      value: formatInt(summary.critical_count ?? 0),
-      highlight: (summary.critical_count ?? 0) > 0,
-    },
-    {
-      label: '趋势转差',
-      value: formatInt(summary.deteriorating_count ?? 0),
-      highlight: (summary.deteriorating_count ?? 0) > 0,
-    },
-    { label: '总店铺库存', value: formatInt(summary.total_available_inventory), highlight: false },
-    { label: '总在途库存', value: formatInt(summary.total_in_transit_quantity), highlight: false },
-    { label: '健康', value: formatInt(summary.healthy_count_v2 ?? 0), highlight: false },
-    { label: '待补数据', value: formatInt(summary.unknown_count ?? 0), highlight: false },
-  ]
 
   return (
     <div className="w-full space-y-6">
@@ -1132,48 +1134,29 @@ export default function InventoryReplenishmentPage() {
           </div>
         </div>
 
-        {/* 统计条 */}
+        {/* 统计条 → 三段式指挥带（BLF-491） */}
         <div className="border-t border-border/70 px-4 py-3">
-          {loading && rows.length === 0 ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-xl" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:divide-x lg:divide-border/60">
-              {statBarItems.map((item, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    'flex flex-col items-center justify-center rounded-lg border border-border/70 py-2.5 lg:flex-1 lg:rounded-none lg:border-0',
-                    i === 0 && 'lg:pl-4',
-                    i === statBarItems.length - 1 && 'lg:pr-4'
-                  )}
-                >
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                    {item.label}
-                  </div>
-                  <div
-                    className={cn(
-                      'mt-0.5 text-xl font-semibold leading-tight',
-                      item.highlight ? 'text-primary' : 'text-foreground'
-                    )}
-                  >
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <CockpitOverview
+            rows={filteredRows}
+            summary={summary}
+            loading={loading}
+            stateFilter={stateFilter}
+            actionFilter={actionFilter}
+            onStateFilter={setStateFilter}
+            onActionFilter={setActionFilter}
+          />
         </div>
       </div>
 
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'calendar')}>
+      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cockpit' | 'table' | 'calendar')}>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
+            <TabsTrigger value="cockpit" className="gap-1.5">
+              <Gauge className="h-4 w-4" />
+              决策工作台
+            </TabsTrigger>
             <TabsTrigger value="table" className="gap-1.5">
-              <Table2 className="h-4 w-4" />
+              <LayoutGrid className="h-4 w-4" />
               表格视图
             </TabsTrigger>
             <TabsTrigger value="calendar" className="gap-1.5">
@@ -1181,12 +1164,12 @@ export default function InventoryReplenishmentPage() {
               日历视图
             </TabsTrigger>
           </TabsList>
-          {viewMode === 'table' && (
+          {viewMode !== 'calendar' && (
             <Button
               variant="outline"
               size="sm"
               className="w-full sm:w-auto"
-              disabled={loading || exporting || rows.length === 0}
+              disabled={loading || exporting || filteredRows.length === 0}
               onClick={() => void exportToExcel()}
             >
               <FileDown className="h-3.5 w-3.5" />
@@ -1194,6 +1177,38 @@ export default function InventoryReplenishmentPage() {
             </Button>
           )}
         </div>
+
+        <TabsContent value="cockpit">
+          {!currentProjectId && !projectsLoading ? (
+            <div className="dashboard-surface px-6 py-16 text-center text-sm text-muted-foreground">
+              请先选择项目。
+            </div>
+          ) : loading && filteredRows.length === 0 ? (
+            <div className="dashboard-surface space-y-3 p-6">
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          ) : (
+            <DecisionCockpit
+              rows={filteredRows}
+              isSnapshotMode={isSnapshotMode}
+              edits={edits}
+              savingSku={savingSku}
+              rowKeyOf={rowKey}
+              onEditChange={(key, patch) =>
+                setEdits((prev) => {
+                  const existing = prev[key]
+                  if (existing) return { ...prev, [key]: { ...existing, ...patch } }
+                  const row = rows.find((r) => rowKey(r) === key)
+                  if (!row) return prev
+                  return { ...prev, [key]: { ...buildEditState(row), ...patch } }
+                })
+              }
+              onSaveRow={(row) => void saveRow(row)}
+              onOpenShipments={(row) => void openShipments(row)}
+            />
+          )}
+        </TabsContent>
 
         <TabsContent value="table">
           {/* 共享的加载/空状态 */}
