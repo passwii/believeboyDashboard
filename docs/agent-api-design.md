@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.6 — 单域约束 + 删除 business-summary）
+# Agent API 设计文档（v0.7 — 新增报表上传状态域）
 
-> **状态**：v0.6 — 新增「单域端点」硬约束（§1.2 #7）；删除存量跨域端点 `business-summary`（BLF-476）。
+> **状态**：v0.7 — 新增报表上传状态域（BLF-484，1 条读路由）；v0.6 新增「单域端点」硬约束 + 删除存量跨域端点 `business-summary`（BLF-476）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -551,6 +551,8 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 ## 修订记录
 
+- **v0.7（2026-08-07）**：新增报表上传状态域（BLF-484）——
+  1. 新增 Agent 端点 `GET /api/v1/agent/report-upload-status`（域 code `report_upload_status`，1 条纯读路由）：RPA 报表状态矩阵，复用内部 `/api/v1/rpa-reports/status` 的 `get_report_status_for_date`，派生 summary（`uploaded_report_count` / `missing_report_types` / 顶层 `missing_project_count` / `project_count`）；`report_date` 非法 → 400 `VALIDATION_FAILED`（内部端点现状静默返回全红，Agent 通道显式报错）；项目范围按 key 的 project_scope 过滤 items（对齐 external_mirror `/projects` 列表的 L2 门禁语义）。
 - **v0.6（2026-08-07）**：单域端点硬约束 + 删除 business-summary（BLF-476）——
   1. §1.2 新增设计原则 #7 三条硬约束：①单域（不允许跨域返回，域内聚合允许）②编排归调用方 ③新增端点评审显式标注「单域/跨域」；
   2. 删除存量跨域端点 `business-summary`（endpoint / service / schema / 审计域映射 / 测试 / openapi.json / api.d.ts 一并移除，§6.2 对照表与 §11.3 同步更新）；如确需重建，走 BLF-479 下新子 issue 规划。

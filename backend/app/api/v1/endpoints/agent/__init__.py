@@ -15,6 +15,7 @@ from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
+from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
@@ -51,6 +52,14 @@ agent_router.include_router(
 agent_router.include_router(
     inventory_router,
     dependencies=[Depends(require_business_scope("inventory"))],
+)
+# 报表上传状态域（BLF-484）：纯读 1 条路由，挂 business_scope(
+# "report_upload_status")。project_id 不在路径 → 项目范围过滤在 handler 内
+# 按 key 的 project_scope 做（对齐 external_mirror /projects 列表 L2 语义）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    report_upload_status_router,
+    dependencies=[Depends(require_business_scope("report_upload_status"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
