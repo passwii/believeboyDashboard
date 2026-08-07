@@ -237,50 +237,60 @@ export default function InventoryLedgerPage() {
   ).length
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-3">
-        <ClipboardCheck className="h-5 w-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">库存分类账</h1>
+    <div className="flex flex-col gap-4">
+      {/* 页面头部：eyebrow + 标题 + 描述 + 操作区（对齐 site-navigation / portfolio-overview 页头模式） */}
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl space-y-2.5">
+            <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              供应链 · 库存分类账
+            </p>
+            <h1 className="text-lg font-semibold tracking-tight md:text-xl">库存分类账</h1>
+            <p className="text-sm leading-6 text-muted-foreground md:text-base">
+              按月对账 Amazon Inventory Ledger：汇总水位 / 事件明细 / 上传批次，支持跨月连续性与双表一致性校验。
+            </p>
+          </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="选择项目" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="选择项目" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="选择月份" />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="选择月份" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Button variant="outline" size="icon" onClick={loadData} disabled={loading}>
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </Button>
+            <Button variant="outline" size="icon" onClick={loadData} disabled={loading}>
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            </Button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* 全局维度筛选条（唯一筛选真相源） */}
-      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-3 py-2">
-        <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+      {/* 全局维度筛选条（唯一筛选真相源）— dashboard-toolbar，手机端自动换行堆叠 */}
+      <div className="dashboard-toolbar flex flex-col gap-2 rounded-lg px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+        <Filter className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
         <Select value={filters.msku} onValueChange={(v) => setFilters({ msku: v })}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full sm:w-[150px]">
             <SelectValue placeholder="全部 SKU" />
           </SelectTrigger>
           <SelectContent>
@@ -294,7 +304,7 @@ export default function InventoryLedgerPage() {
         </Select>
 
         <Select value={filters.fc} onValueChange={(v) => setFilters({ fc: v })}>
-          <SelectTrigger className="w-[130px]">
+          <SelectTrigger className="w-full sm:w-[130px]">
             <SelectValue placeholder="全部仓库" />
           </SelectTrigger>
           <SelectContent>
@@ -308,7 +318,7 @@ export default function InventoryLedgerPage() {
         </Select>
 
         <Select value={filters.disp} onValueChange={(v) => setFilters({ disp: v })}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-full sm:w-[140px]">
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent>
@@ -322,7 +332,7 @@ export default function InventoryLedgerPage() {
         </Select>
 
         <Select value={filters.evt} onValueChange={(v) => setFilters({ evt: v })}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-full sm:w-[140px]">
             <SelectValue placeholder="全部事件类型" />
           </SelectTrigger>
           <SelectContent>
@@ -347,9 +357,9 @@ export default function InventoryLedgerPage() {
         )}
       </div>
 
-      {/* Load error banner（BEL-417：真实错误 + 重试，不再静默假空态） */}
+      {/* Load error banner（BEL-417：真实错误 + 重试，不再静默假空态；destructive token 自动适配 dark） */}
       {loadError && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>{loadError}</span>

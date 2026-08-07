@@ -63,7 +63,7 @@ type ColumnDef = {
 }
 
 const num = (v: number) => (
-  <span className={cn('tabular-nums', v > 0 && 'text-green-600', v < 0 && 'text-red-600')}>
+  <span className={cn('tabular-nums', v > 0 && 'text-[hsl(var(--data-positive))]', v < 0 && 'text-[hsl(var(--data-negative))]')}>
     {v}
   </span>
 )

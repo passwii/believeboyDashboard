@@ -15,6 +15,7 @@ import {
   ChevronsUpDown,
   Check,
   Tag,
+  Ship,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -26,8 +27,6 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CardTitle } from '@/components/ui/card'
 import {
-  DataCard,
-  DataCardHeader,
   DataCardContent,
   DataTableCard,
   DataTableCardHeader,
@@ -2843,8 +2842,71 @@ export default function ShipmentManagementPage() {
 
   return (
     <div className="min-w-0 space-y-6 text-foreground">
-      <DataCard>
-        <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
+      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <div className="relative z-10 max-w-2xl space-y-2.5">
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Ship className="h-3.5 w-3.5" />
+            供应链 · 货件管理
+          </p>
+          <h1 className="text-lg font-semibold tracking-tight md:text-xl">货件管理</h1>
+          <p className="text-sm leading-6 text-muted-foreground md:text-base">
+            跟踪发货批次全流程：总览 / 发货费用 / SKU 汇总 / FBA 箱单明细，支持新建批次与批量导入。
+          </p>
+        </div>
+      </section>
+
+      {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}
+      <div className="dashboard-surface overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
+          <h2 className="text-sm font-semibold">控制台</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => void loadList(1)}
+              className="h-9 gap-1.5 px-3 text-xs"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              刷新
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={openCreateDialog}
+              className="h-9 gap-1.5 px-3 text-xs"
+            >
+              <Plus className="h-4 w-4" />
+              新建批次
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={downloadBatchTemplate}
+              className="h-9 gap-1.5 px-3 text-xs"
+            >
+              <FileDown className="h-4 w-4" />
+              下载模板
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              disabled={batchImporting}
+              className="h-9 gap-1.5 px-3 text-xs"
+            >
+              <label>
+                <Upload className="h-4 w-4" />
+                {batchImporting ? '导入中...' : '批量导入'}
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleBatchImportFile}
+                />
+              </label>
+            </Button>
+          </div>
+        </div>
         <DataCardContent className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-5">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:col-span-1 [&>div]:min-w-0">
             {projectsLoading ? (
@@ -2913,57 +2975,8 @@ export default function ShipmentManagementPage() {
               />
             </div>
           </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                size="sm"
-                onClick={() => void loadList(1)}
-                className="h-9 gap-1.5 px-3 text-xs"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                刷新
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={openCreateDialog}
-                className="h-9 gap-1.5 px-3 text-xs"
-              >
-                <Plus className="h-4 w-4" />
-                新建批次
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={downloadBatchTemplate}
-                className="h-9 gap-1.5 px-3 text-xs"
-              >
-                <FileDown className="h-4 w-4" />
-                下载模板
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                disabled={batchImporting}
-                className="h-9 gap-1.5 px-3 text-xs"
-              >
-                <label>
-                  <Upload className="h-4 w-4" />
-                  {batchImporting ? '导入中...' : '批量导入'}
-                  <input
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={handleBatchImportFile}
-                  />
-                </label>
-              </Button>
-            </div>
-          </div>
         </DataCardContent>
-      </DataCard>
+      </div>
 
       <div className="grid min-w-0 gap-6">
         <Tabs
