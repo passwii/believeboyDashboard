@@ -836,7 +836,7 @@ export default function OperatorManagementPage() {
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
                 <Table>
-                  <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+                  <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                     <TableRow>
                       <TableHead>人员</TableHead>
                       <TableHead>项目</TableHead>
@@ -1004,7 +1004,7 @@ export default function OperatorManagementPage() {
               </DataTableCardHeader>
               <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
                 <Table>
-                  <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+                  <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                     <TableRow>
                       <TableHead>人员</TableHead>
                       <TableHead>项目</TableHead>
@@ -1214,7 +1214,7 @@ export default function OperatorManagementPage() {
                 {/* 桌面端：完整表格 */}
                 <div className="hidden lg:block">
                   <Table>
-                    <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+                    <TableHeader className="bg-[hsl(var(--surface-subtle))]">
                       <TableRow>
                         <TableHead>人员</TableHead>
                         <TableHead>项目</TableHead>

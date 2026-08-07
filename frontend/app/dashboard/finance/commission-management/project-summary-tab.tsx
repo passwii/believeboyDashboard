@@ -72,26 +72,26 @@ function ProjectSummarySkeletonContent() {
         className={FULL_BLEED_TABLE_CLASS}
         containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
       >
-        <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+        <TableHeader className="bg-[hsl(var(--surface-subtle))]">
           <TableRow>
-            <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
+            <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
               项目名称
             </TableHead>
             {getYearMonths(new Date().getFullYear().toString()).map((m) => (
               <TableHead
                 key={m}
-                className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
+                className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
               >
                 {m.slice(5)}月
               </TableHead>
             ))}
-            <TableHead className="z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+            <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
               年度佣金合计
             </TableHead>
-            <TableHead className="z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+            <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
               年度回款
             </TableHead>
-            <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+            <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
               回款率
             </TableHead>
           </TableRow>
@@ -127,26 +127,26 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
           className={FULL_BLEED_TABLE_CLASS}
           containerClassName={`${FULL_BLEED_TABLE_CONTAINER_CLASS} overflow-auto`}
         >
-          <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45">
+          <TableHeader className="bg-[hsl(var(--surface-subtle))]">
             <TableRow>
-              <TableHead className="!pl-0 sticky left-0 z-30 bg-slate-100/90 font-semibold text-foreground text-center">
+              <TableHead className="!pl-0 sticky left-0 z-30 bg-[hsl(var(--surface-subtle))] font-semibold text-foreground text-center">
                 项目名称
               </TableHead>
               {getYearMonths(year).map((m) => (
                 <TableHead
                   key={m}
-                  className="z-20 bg-slate-100/90 text-center text-xs font-semibold text-foreground"
+                  className="z-20 bg-[hsl(var(--surface-subtle))] text-center text-xs font-semibold text-foreground"
                 >
                   {m.slice(5)}月
                 </TableHead>
               ))}
-              <TableHead className="z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+              <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
                 年度佣金合计
               </TableHead>
-              <TableHead className="z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+              <TableHead className="z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
                 年度回款
               </TableHead>
-              <TableHead className="!pr-0 z-20 bg-slate-100/90 text-center font-semibold text-foreground">
+              <TableHead className="!pr-0 z-20 bg-[hsl(var(--surface-subtle))] text-center font-semibold text-foreground">
                 回款率
               </TableHead>
             </TableRow>

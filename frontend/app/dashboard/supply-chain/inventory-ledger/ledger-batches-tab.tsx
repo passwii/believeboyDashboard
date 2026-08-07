@@ -2,7 +2,7 @@
  * 上传批次 tab（BLF-428 前端重构：从 v1 页面原样迁移，降级为运维/追溯视图）。
  */
 
-import { Badge } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import {
   DataTableCard,
   DataTableCardBody,
@@ -22,12 +22,12 @@ import { cn } from '@/lib/utils'
 
 import type { IngestBatchInfo } from './ledger-types'
 
-const BATCH_STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  success: { label: '成功', className: 'border-green-200 bg-green-50 text-green-700' },
-  failed: { label: '失败', className: 'border-red-200 bg-red-50 text-red-700' },
-  running: { label: '处理中', className: 'border-blue-200 bg-blue-50 text-blue-700' },
-  pending: { label: '等待中', className: 'border-yellow-200 bg-yellow-50 text-yellow-700' },
-  partial: { label: '部分成功', className: 'border-yellow-200 bg-yellow-50 text-yellow-700' },
+const BATCH_STATUS_LABELS: Record<string, { label: string; variant: NonNullable<BadgeProps['variant']> }> = {
+  success: { label: '成功', variant: 'success' },
+  failed: { label: '失败', variant: 'destructive' },
+  running: { label: '处理中', variant: 'info' },
+  pending: { label: '等待中', variant: 'warning' },
+  partial: { label: '部分成功', variant: 'warning' },
 }
 
 export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo[]; failed?: boolean }) {
@@ -65,7 +65,7 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
               batches.map((b) => {
                 const st = BATCH_STATUS_LABELS[b.status] ?? {
                   label: b.status,
-                  className: 'border-gray-200 bg-gray-50 text-gray-700',
+                  variant: 'outline' as const,
                 }
                 return (
                   <TableRow key={b.id}>
@@ -92,18 +92,18 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
                       {b.rows_written_detail}
                     </TableCell>
                     <TableCell className={DENSE_CELL}>
-                      <Badge variant="outline" className={cn('text-xs', st.className)}>
+                      <Badge className="text-xs" variant={st.variant}>
                         {st.label}
                       </Badge>
                     </TableCell>
                     <TableCell className={DENSE_CELL}>
                       {b.consistency_check ? (
                         b.consistency_check === 'ok' ? (
-                          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700 text-xs">
+                          <Badge variant="success" className="text-xs">
                             OK
                           </Badge>
                         ) : b.consistency_check === 'mismatch' ? (
-                          <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700 text-xs">
+                          <Badge variant="destructive" className="text-xs">
                             异常（{b.consistency_mismatch_count}）
                           </Badge>
                         ) : (

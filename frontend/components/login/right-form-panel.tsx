@@ -108,7 +108,7 @@ const RightFormPanel = ({
               placeholder="请输入企业邮箱"
               required
               autoComplete="email"
-              className="flex h-10 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--muted))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))]"
+              className="flex h-10 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))]"
             />
           </div>
 
@@ -128,7 +128,7 @@ const RightFormPanel = ({
                 placeholder="请输入登录密码"
                 required
                 autoComplete="current-password"
-                className="flex h-10 w-full rounded-md border border-gray-200 bg-gray-50 pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[hsl(var(--border))] dark:bg-[hsl(var(--muted))] dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))]"
+                className="flex h-10 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] pr-10 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[hsl(var(--foreground))] dark:placeholder:text-[hsl(var(--muted-foreground))]"
               />
               <button
                 type="button"

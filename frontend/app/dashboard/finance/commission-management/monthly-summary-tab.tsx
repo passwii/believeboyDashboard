@@ -65,7 +65,7 @@ function MonthlySummarySkeletonContent() {
           className={FULL_BLEED_TABLE_CLASS}
           containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
         >
-          <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
+          <TableHeader className="bg-[hsl(var(--surface-subtle))] sticky top-0 z-10">
             <TableRow>
               <TableHead className="!pl-0 text-center font-semibold text-foreground">
                 月份
@@ -120,7 +120,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
             className={FULL_BLEED_TABLE_CLASS}
             containerClassName={FULL_BLEED_TABLE_CONTAINER_CLASS}
           >
-            <TableHeader className="bg-slate-100/80 dark:bg-slate-900/45 sticky top-0 z-10">
+            <TableHeader className="bg-[hsl(var(--surface-subtle))] sticky top-0 z-10">
               <TableRow>
                 <TableHead className="!pl-0 text-center font-semibold text-foreground">
                   月份
