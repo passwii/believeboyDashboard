@@ -1,16 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
+import { useMemo, useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
 import {
   Select,
   SelectContent,
@@ -18,6 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
 interface PortfolioTrendChartProps {
@@ -61,6 +60,16 @@ function formatMetricValue(value: number, metric: MetricKey, country: string): s
 
 export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartProps) {
   const [metric, setMetric] = useState<MetricKey>('sales_amount')
+
+  // 图例/tooltip 的 label 解析：ChartLegendContent 走 item.value（= name），
+  // ChartTooltipContent 走 item.name —— 都以项目名为 config key。
+  const chartConfig = useMemo<ChartConfig>(() => {
+    const cfg: ChartConfig = {}
+    projects.forEach((p) => {
+      cfg[p.project_name] = { label: p.project_name }
+    })
+    return cfg
+  }, [projects])
 
   // Build chart data: merge all project daily trends by date
   const chartData = (() => {
@@ -108,7 +117,7 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
           </SelectContent>
         </Select>
       </div>
-      <ResponsiveContainer width="100%" height={350}>
+      <ChartContainer config={chartConfig} className="h-[350px] w-full">
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
@@ -116,11 +125,22 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
             tick={{ fontSize: 11 }}
             tickFormatter={(v) => formatMetricValue(v, metric, country)}
           />
-          <Tooltip
-            formatter={(value: number) => [formatMetricValue(value, metric, country), '']}
-            labelFormatter={(label) => `日期: ${label}`}
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(label) => `日期: ${label}`}
+                formatter={(value, name) => (
+                  <div className="flex w-full items-center justify-between gap-4">
+                    <span className="text-muted-foreground">{String(name)}</span>
+                    <span className="font-medium tabular-nums">
+                      {formatMetricValue(Number(value), metric, country)}
+                    </span>
+                  </div>
+                )}
+              />
+            }
           />
-          <Legend />
+          <ChartLegend content={<ChartLegendContent />} />
           {projects.map((p, i) => (
             <Line
               key={p.project_id}
@@ -133,7 +153,7 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
             />
           ))}
         </LineChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     </div>
   )
 }

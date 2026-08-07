@@ -1034,7 +1034,7 @@ export default function ReturnAnalysisPage() {
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: '#71717a' }}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                               tickFormatter={(value) => {
                                 const [, month, day] = String(value).split('-')
                                 return `${month}/${day}`
@@ -1044,7 +1044,7 @@ export default function ReturnAnalysisPage() {
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: '#71717a' }}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                               yAxisId="left"
                               width={35}
                             />
@@ -1052,7 +1052,7 @@ export default function ReturnAnalysisPage() {
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: '#71717a' }}
+                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                               yAxisId="right"
                               orientation="right"
                               tickFormatter={(value) => `${value}%`}

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useMemo, useState } from 'react'
+import { PieChart, Pie, Cell } from 'recharts'
 import {
   Select,
   SelectContent,
@@ -9,7 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
 interface PortfolioPieChartProps {
@@ -50,28 +57,18 @@ function formatValue(value: number, metric: MetricKey, country: string): string 
   return value.toLocaleString('zh-CN')
 }
 
-interface TooltipPayloadItem {
-  name: string
-  value: number
-  payload: {
-    contribution: number
-  }
-}
-
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayloadItem[] }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-lg border bg-background/95 px-3 py-2 shadow-md backdrop-blur-sm">
-      <p className="text-sm font-medium">{payload[0].name}</p>
-      <p className="text-xs text-muted-foreground">
-        贡献占比: {payload[0].payload.contribution.toFixed(1)}%
-      </p>
-    </div>
-  )
-}
-
 export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps) {
   const [metric, setMetric] = useState<MetricKey>('sales_amount')
+
+  // 图例/tooltip 的 label 解析：ChartLegendContent 走 item.value（= 项目名），
+  // ChartTooltipContent 走 item.name（= 项目名）——都以项目名为 config key。
+  const chartConfig = useMemo<ChartConfig>(() => {
+    const cfg: ChartConfig = {}
+    projects.forEach((p) => {
+      cfg[p.project_name] = { label: p.project_name }
+    })
+    return cfg
+  }, [projects])
 
   const pieData = projects.map((p) => ({
     name: p.project_name,
@@ -110,7 +107,7 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
           </SelectContent>
         </Select>
       </div>
-      <ResponsiveContainer width="100%" height={350}>
+      <ChartContainer config={chartConfig} className="h-[350px] w-full">
         <PieChart>
           <Pie
             data={pieData}
@@ -122,14 +119,34 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
             dataKey="value"
             nameKey="name"
           >
-            {pieData.map((_, i) => (
-              <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+            {pieData.map((d, i) => (
+              <Cell key={d.name} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend formatter={(value) => <span className="text-xs">{value}</span>} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, _name, item) => {
+                  const payload = item?.payload as { contribution?: number } | undefined
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium tabular-nums">
+                        {formatValue(Number(value), metric, country)}
+                      </span>
+                      {payload?.contribution !== undefined && (
+                        <span className="text-muted-foreground">
+                          ({payload.contribution.toFixed(1)}%)
+                        </span>
+                      )}
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
         </PieChart>
-      </ResponsiveContainer>
+      </ChartContainer>
       {/* Contribution table below */}
       <div className="mt-4">
         <div className="flex items-center justify-between border-b px-2 py-1 text-xs font-medium text-muted-foreground">

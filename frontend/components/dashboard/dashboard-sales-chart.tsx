@@ -229,7 +229,7 @@ export function DashboardSalesChart({
                   axisLine={false}
                   tickLine={false}
                   tickMargin={8}
-                  tick={{ fontSize: 11, fill: '#71717a' }}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(value) => {
                     const [, month, day] = String(value).split('-')
                     return `${month}/${day}`
@@ -240,7 +240,7 @@ export function DashboardSalesChart({
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
                   width={isMobile ? 0 : 36}
                 />
@@ -250,7 +250,7 @@ export function DashboardSalesChart({
                   axisLine={false}
                   tickLine={false}
                   tickMargin={4}
-                  tick={isMobile ? false : { fontSize: 10, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => Number(v).toLocaleString('zh-CN')}
                   width={isMobile ? 0 : 32}
                 />
