@@ -9,6 +9,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { Download, Loader2 } from 'lucide-react'
 import { getInvoiceDetail, downloadInvoicePdf, type VatInvoiceDetail } from '../lib/vat-history-api'
 
@@ -83,62 +92,76 @@ export function InvoiceDetailDialog({ invoiceId, open, onOpenChange }: Props) {
             <section>
               <h3 className="mb-1 text-sm font-semibold">明细行</h3>
               <div className="overflow-x-auto rounded border border-border/60">
-                <table className="w-full text-sm">
-                  <thead className="bg-[hsl(var(--surface-subtle))]">
-                    <tr>
-                      <th className="px-2 py-1 text-left">#</th>
-                      <th className="px-2 py-1 text-left">描述</th>
-                      <th className="px-2 py-1 text-left">ASIN</th>
-                      <th className="px-2 py-1 text-right">数量</th>
-                      <th className="px-2 py-1 text-right">含税单价</th>
-                      <th className="px-2 py-1 text-right">VAT%</th>
-                      <th className="px-2 py-1 text-right">小计</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="min-w-[520px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 py-1 text-left">#</TableHead>
+                      <TableHead className="px-2 py-1 text-left">描述</TableHead>
+                      <TableHead className="px-2 py-1 text-left">ASIN</TableHead>
+                      <TableHead className="px-2 py-1 text-right">数量</TableHead>
+                      <TableHead className="px-2 py-1 text-right">含税单价</TableHead>
+                      <TableHead className="px-2 py-1 text-right">VAT%</TableHead>
+                      <TableHead className="px-2 py-1 text-right">小计</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {detail.lines.map((l) => (
-                      <tr key={l.id} className="border-t border-border/40">
-                        <td className="px-2 py-1">{l.line_no}</td>
-                        <td className="px-2 py-1">{l.description}</td>
-                        <td className="px-2 py-1 font-mono text-xs">{l.asin || '—'}</td>
-                        <td className="px-2 py-1 text-right">{l.qty}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{l.unit_price_incl_vat}</td>
-                        <td className="px-2 py-1 text-right">{l.vat_rate}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{l.line_incl}</td>
-                      </tr>
+                      <TableRow key={l.id}>
+                        <TableCell className="px-2 py-1">{l.line_no}</TableCell>
+                        <TableCell className="px-2 py-1">{l.description}</TableCell>
+                        <TableCell className="px-2 py-1 font-mono text-xs">{l.asin || '—'}</TableCell>
+                        <TableCell className="px-2 py-1 text-right">{l.qty}</TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {l.unit_price_incl_vat}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 text-right">{l.vat_rate}</TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {l.line_incl}
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </section>
 
             <section>
               <h3 className="mb-1 text-sm font-semibold">按 VAT 率汇总</h3>
               <div className="overflow-x-auto rounded border border-border/60">
-                <table className="w-full text-sm">
-                  <thead className="bg-[hsl(var(--surface-subtle))]">
-                    <tr>
-                      <th className="px-2 py-1 text-left">VAT%</th>
-                      <th className="px-2 py-1 text-right">商品 excl</th>
-                      <th className="px-2 py-1 text-right">商品 VAT</th>
-                      <th className="px-2 py-1 text-right">运费 excl</th>
-                      <th className="px-2 py-1 text-right">运费 VAT</th>
-                      <th className="px-2 py-1 text-right">合计</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="min-w-[480px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 py-1 text-left">VAT%</TableHead>
+                      <TableHead className="px-2 py-1 text-right">商品 excl</TableHead>
+                      <TableHead className="px-2 py-1 text-right">商品 VAT</TableHead>
+                      <TableHead className="px-2 py-1 text-right">运费 excl</TableHead>
+                      <TableHead className="px-2 py-1 text-right">运费 VAT</TableHead>
+                      <TableHead className="px-2 py-1 text-right">合计</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {detail.summary_by_rate.map((row, idx) => (
-                      <tr key={idx} className="border-t border-border/40">
-                        <td className="px-2 py-1">{String(row.rate)}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{String(row.item_excl ?? '')}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{String(row.item_vat ?? '')}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{String(row.shipping_excl ?? '')}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{String(row.shipping_vat ?? '')}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{String(row.total ?? '')}</td>
-                      </tr>
+                      <TableRow key={idx}>
+                        <TableCell className="px-2 py-1">{String(row.rate)}</TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {String(row.item_excl ?? '')}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {String(row.item_vat ?? '')}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {String(row.shipping_excl ?? '')}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {String(row.shipping_vat ?? '')}
+                        </TableCell>
+                        <TableCell className="px-2 py-1 text-right tabular-nums">
+                          {String(row.total ?? '')}
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
                 <Field label="不含税合计" value={detail.subtotal_excl} />
@@ -148,7 +171,7 @@ export function InvoiceDetailDialog({ invoiceId, open, onOpenChange }: Props) {
             </section>
 
             {detail.void_reason && (
-              <p className="text-xs text-red-600">作废原因：{detail.void_reason}</p>
+              <p className="text-xs text-destructive">作废原因：{detail.void_reason}</p>
             )}
           </div>
         )}

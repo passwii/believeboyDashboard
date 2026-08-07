@@ -126,89 +126,91 @@ export default function VatInvoiceClient() {
   const invoiceTotal = useMemo(() => computeInvoiceTotal(form), [form])
 
   return (
-    <div className="space-y-4 px-1 py-1">
-      {/* 页面 Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">VAT 发票</h1>
-        <p className="text-sm text-muted-foreground">
-          为欧洲订单生成 VAT 发票，并查看已签发/草稿/作废的发票历史。
-        </p>
-      </div>
+    <div className="dashboard-page-shell">
+      <div className="space-y-4">
+        {/* 页面 Header */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">VAT 发票</h1>
+          <p className="text-sm text-muted-foreground">
+            为欧洲订单生成 VAT 发票，并查看已签发/草稿/作废的发票历史。
+          </p>
+        </div>
 
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList>
-          <TabsTrigger value="create">新建发票</TabsTrigger>
-          <TabsTrigger value="history">发票历史</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="create" className="mt-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* 左：表单（占 2/3） */}
-            <div className="space-y-4 lg:col-span-2">
-              <SellerCard
-                selectedProjectId={form.project_id}
-                sellers={sellers}
-                selectedCountry={selectedCountry}
-                onSellersChange={setSellers}
-                onCountryChange={setSelectedCountry}
-                onSelectProject={(id) => setForm({ ...form, project_id: id })}
-              />
-
-              <InvoiceFormSection form={form} onChange={setForm} />
-              <LineItemsEditor form={form} currencySymbol={symbol} onChange={setForm} />
-            </div>
-
-            {/* 右：实时汇总 + 预览按钮 */}
-            <div className="space-y-4">
-              <div className="sticky top-4 space-y-4">
-                <InvoiceSummary form={form} />
-                <Button
-                  className="w-full"
-                  size="lg"
-                  disabled={!canPreview}
-                  onClick={() => setPreviewOpen(true)}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  预览并导出 PDF
-                </Button>
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  size="lg"
-                  disabled={!canPreview || savingDraft}
-                  onClick={saveDraft}
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {savingDraft ? '保存中…' : '保存草稿'}
-                </Button>
-                {!canPreview && (
-                  <p className="text-xs text-muted-foreground">
-                    请先选择店铺、选择国家、填写订单、买方和至少一行商品。
-                  </p>
-                )}
-                {canPreview && (
-                  <p className="text-xs text-muted-foreground">
-                    预计发票总额：{symbol}
-                    {invoiceTotal.toFixed(2)}
-                  </p>
-                )}
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList>
+            <TabsTrigger value="create">新建发票</TabsTrigger>
+            <TabsTrigger value="history">发票历史</TabsTrigger>
+          </TabsList>
+  
+          <TabsContent value="create" className="mt-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              {/* 左：表单（占 2/3） */}
+              <div className="space-y-4 lg:col-span-2">
+                <SellerCard
+                  selectedProjectId={form.project_id}
+                  sellers={sellers}
+                  selectedCountry={selectedCountry}
+                  onSellersChange={setSellers}
+                  onCountryChange={setSelectedCountry}
+                  onSelectProject={(id) => setForm({ ...form, project_id: id })}
+                />
+  
+                <InvoiceFormSection form={form} onChange={setForm} />
+                <LineItemsEditor form={form} currencySymbol={symbol} onChange={setForm} />
+              </div>
+  
+              {/* 右：实时汇总 + 预览按钮 */}
+              <div className="space-y-4">
+                <div className="sticky top-4 space-y-4">
+                  <InvoiceSummary form={form} />
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    disabled={!canPreview}
+                    onClick={() => setPreviewOpen(true)}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    预览并导出 PDF
+                  </Button>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    size="lg"
+                    disabled={!canPreview || savingDraft}
+                    onClick={saveDraft}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {savingDraft ? '保存中…' : '保存草稿'}
+                  </Button>
+                  {!canPreview && (
+                    <p className="text-xs text-muted-foreground">
+                      请先选择店铺、选择国家、填写订单、买方和至少一行商品。
+                    </p>
+                  )}
+                  {canPreview && (
+                    <p className="text-xs text-muted-foreground">
+                      预计发票总额：{symbol}
+                      {invoiceTotal.toFixed(2)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-          <InvoicePreviewDialog
-            open={previewOpen}
-            onOpenChange={setPreviewOpen}
-            seller={seller ? toInvoiceSellerEntry(seller) : emptySellerEntry}
-            form={form}
-            sellerEntityId={sellerEntityId}
-          />
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-4">
-          <VatInvoiceHistoryPanel />
-        </TabsContent>
-      </Tabs>
+  
+            <InvoicePreviewDialog
+              open={previewOpen}
+              onOpenChange={setPreviewOpen}
+              seller={seller ? toInvoiceSellerEntry(seller) : emptySellerEntry}
+              form={form}
+              sellerEntityId={sellerEntityId}
+            />
+          </TabsContent>
+  
+          <TabsContent value="history" className="mt-4">
+            <VatInvoiceHistoryPanel />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

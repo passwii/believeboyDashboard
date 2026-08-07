@@ -310,7 +310,7 @@ export function SellerCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-red-600"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => confirmDelete(selectedCountry)}
                   disabled={saving}
                   title={`删除 ${selectedCountry} Seller`}
@@ -321,7 +321,7 @@ export function SellerCard({
             </div>
           </div>
         ) : selectedProjectId != null && !loadingEntities ? (
-          <div className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--data-warning)/0.4)] bg-[hsl(var(--data-warning)/0.08)] px-3 py-2 text-xs text-[hsl(var(--data-warning))]">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。</div>
           </div>
