@@ -148,6 +148,67 @@ function buildShopCalculationsGuide(opts: {
     -H "X-Confirm-Token: <第一步返回的 confirm_token>"`
 }
 
+/** 退货分析域调用说明（BLF-474）：纯读 5 条路由，无确认流。 */
+function buildReturnAnalysisGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 全量退货分析（R1，summary_text 可直接复述给用户）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/return-analysis/overview?start_date=2026-06-01&end_date=2026-06-30&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  start_date/end_date 必填（YYYY-MM-DD）；country 默认 US；可加 &sku=<SKU> 钻取单 SKU；
+  &include_comments=true 才返回顾客评论（默认剥离 PII）。
+
+【3. per-SKU 风险清单（R2，哪些 SKU 该处理）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/return-analysis?period=30d&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  period 支持 7d/14d/30d/60d/90d/this_month/last_month/ytd/custom（custom 需带
+  start_date/end_date）；country 必填；可按 &sku= &min_return_rate= &risk_level=
+  （critical/warning/normal/no_data）过滤，&limit=50（≤500）&offset=0 分页，
+  &order_by=&order_dir= 排序。每行含 product_name / reason_top1_display /
+  disposition_top1_display。
+
+【4. raw 退货事件明细（R3，PII 永不返回）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/return-analysis-raw?period=30d&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  参数同 R2 的 period/country/分页/排序；limit 可到 50000。
+  customer_comments / raw_row / fnsku / license_plate_number 永不返回。
+
+【5. 单 SKU 钻取（R4）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/return-analysis/skus/{sku}?start_date=2026-06-01&end_date=2026-06-30&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  参数同 R1；该 SKU 无退货数据返回 200 + 空分布行（不是 404）。
+
+【6. 数据覆盖度/快照新鲜度（R5，分析前可先自查可信度）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/return-analysis/coverage?country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  country 默认 US；返回 report_uploads（上传历史）+ snapshot.fresh（新鲜度）+
+  data_span（数据跨度）。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -186,6 +247,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildShipmentsGuide({ key, agentId, apiBase })
   } else if (domain === 'shop_calculations') {
     domainGuide = buildShopCalculationsGuide({ key, agentId, apiBase })
+  } else if (domain === 'return_analysis') {
+    domainGuide = buildReturnAnalysisGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }
