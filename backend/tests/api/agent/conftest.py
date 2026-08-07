@@ -7,9 +7,10 @@ shipment_env：临时项目 + 2 个 SKU（X-001/X-002，US，装箱率 10）+ �
 from __future__ import annotations
 
 import uuid
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.models import Project
@@ -228,6 +229,177 @@ def seed_new_product_calculation(
         db.close()
 
 
+def seed_return_analysis(
+    project_id: int,
+    *,
+    country: str = "US",
+    return_rows: list[dict] | None = None,
+    sales_rows: list[dict] | None = None,
+    aggregate_rows: list[dict] | None = None,
+) -> None:
+    """Seed return analysis data（BLF-470 测试基座）。
+
+    建一张 ``return_report`` source file（is_current=True）+ 可选 raw rows /
+    sales rows / aggregate rows。返回 (return_source_file_id, sales_source_file_id)。
+    ``computed_at`` 缺省走 server_default=now() → aggregate 视为「新鲜」，
+    可让 ``is_snapshot_fresh_for_range`` 命中 snapshot 路径。
+    """
+    from app.models import (
+        AnalysisReturnAggregate,
+        AnalysisReturnRow,
+        AnalysisSalesOrderRow,
+        AnalysisSourceFile,
+    )
+
+    today = date.today() - timedelta(days=1)
+    period_start = today - timedelta(days=6)
+    period_end = today
+
+    db = SessionLocal()
+    try:
+        # find-or-create：同一 (project, country, report_type, period) 的 source file
+        # 复用（analysis_sources_period_version_key 唯一约束，多次 seed 不冲突）。
+        sf_ret = db.execute(
+            select(AnalysisSourceFile).where(
+                AnalysisSourceFile.project_id == project_id,
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "return_report",
+                AnalysisSourceFile.period_start_date == period_start,
+                AnalysisSourceFile.period_end_date == period_end,
+            )
+        ).scalars().first()
+        if sf_ret is None:
+            sf_ret = AnalysisSourceFile(
+                project_id=project_id,
+                country=country,
+                report_type="return_report",
+                upload_file_id=f"test_ret_{project_id}_{uuid.uuid4().hex[:6]}",
+                upload_file_path="/tmp/test_ret.csv",
+                original_filename="test_ret.csv",
+                stored_filename="test_ret.csv",
+                logical_filename="test_ret.csv",
+                storage_key="test_ret.csv",
+                period_start_date=period_start,
+                period_end_date=period_end,
+                is_current=True,
+                ingestion_status="success",
+                row_count_total=0,
+                created_by="pytest",
+            )
+            db.add(sf_ret)
+            db.flush()
+
+        sf_sales = db.execute(
+            select(AnalysisSourceFile).where(
+                AnalysisSourceFile.project_id == project_id,
+                AnalysisSourceFile.country == country,
+                AnalysisSourceFile.report_type == "sales_report",
+                AnalysisSourceFile.period_start_date == period_start,
+                AnalysisSourceFile.period_end_date == period_end,
+            )
+        ).scalars().first()
+        if sf_sales is None:
+            sf_sales = AnalysisSourceFile(
+                project_id=project_id,
+                country=country,
+                report_type="sales_report",
+                upload_file_id=f"test_sales_{project_id}_{uuid.uuid4().hex[:6]}",
+                upload_file_path="/tmp/test_sales.csv",
+                original_filename="test_sales.csv",
+                stored_filename="test_sales.csv",
+                logical_filename="test_sales.csv",
+                storage_key="test_sales.csv",
+                period_start_date=period_start,
+                period_end_date=period_end,
+                is_current=True,
+                ingestion_status="success",
+                created_by="pytest",
+            )
+            db.add(sf_sales)
+            db.flush()
+
+        for i, r in enumerate(return_rows or []):
+            db.add(
+                AnalysisReturnRow(
+                    project_id=project_id,
+                    country=country,
+                    source_file_id=sf_ret.id,
+                    source_row_no=i + 1,
+                    return_date=r["return_date"],
+                    order_id=r["order_id"],
+                    sku=r["sku"],
+                    asin=r.get("asin"),
+                    product_name=r.get("product_name"),
+                    quantity=r.get("quantity", 1),
+                    fulfillment_center_id=r.get("fulfillment_center_id"),
+                    detailed_disposition=r.get("detailed_disposition", "SELLABLE"),
+                    reason=r.get("reason", "NOT_AS_DESCRIBED"),
+                    status=r.get("status", "PROCESSED"),
+                    license_plate_number=r.get(
+                        "license_plate_number", f"LP-{project_id}-{i}"
+                    ),
+                    original_return_datetime=r.get(
+                        "original_return_datetime",
+                        f"{r['return_date']}T10:00:00+00:00",
+                    ),
+                    customer_comments=r.get("customer_comments"),
+                    raw_row={},
+                )
+            )
+
+        for i, s in enumerate(sales_rows or []):
+            db.add(
+                AnalysisSalesOrderRow(
+                    project_id=project_id,
+                    country=country,
+                    source_file_id=sf_sales.id,
+                    source_row_no=i + 1,
+                    amazon_order_id=s["order_id"],
+                    purchase_at_utc=datetime.now(timezone.utc),
+                    purchase_at_pt=datetime.now(timezone.utc),
+                    purchase_date_pt=s["purchase_date_pt"],
+                    order_status=s.get("order_status", "Shipped"),
+                    sku=s["sku"],
+                    asin=s.get("asin"),
+                    quantity=s["quantity"],
+                    item_price=s.get("item_price", 10),
+                    shipping_price=0,
+                    currency="USD",
+                    is_counted_sales=True,
+                    raw_row={},
+                )
+            )
+
+        for i, a in enumerate(aggregate_rows or []):
+            db.add(
+                AnalysisReturnAggregate(
+                    project_id=project_id,
+                    country=country,
+                    sku=a["sku"],
+                    asin=a.get("asin"),
+                    data_date=a["data_date"],
+                    return_count=a.get("return_count", 1),
+                    return_quantity=a.get("return_quantity", 1),
+                    sales_quantity=a.get("sales_quantity", 10),
+                    return_rate=a.get("return_rate", 0),
+                    cycle_avg_days=a.get("cycle_avg_days"),
+                    cycle_min_days=a.get("cycle_min_days"),
+                    cycle_max_days=a.get("cycle_max_days"),
+                    reason_top1=a.get("reason_top1"),
+                    disposition_top1=a.get("disposition_top1"),
+                    dominant_fc_id=a.get("dominant_fc_id"),
+                    risk_level=a.get("risk_level", "normal"),
+                    wilson_lower=a.get("wilson_lower"),
+                    computed_at=a.get("computed_at"),
+                )
+            )
+
+        sf_ret.row_count_total = len(return_rows or [])
+        db.commit()
+    finally:
+        db.close()
+
+
 def seed_schedule(project_id: int, shipment_no: str) -> int:
     """建一张 draft 货件 + 2 行明细（X-001×100、X-002×50），返回 schedule id。
 
@@ -334,6 +506,30 @@ def shipment_env(make_api_key):
 
     db = SessionLocal()
     try:
+        from app.models import (
+            AnalysisReturnAggregate,
+            AnalysisReturnRow,
+            AnalysisSalesOrderRow,
+            AnalysisSourceFile,
+        )
+
+        # BLF-470：退货分析测试数据清理（FK 顺序：rows → source_files → aggregates）
+        db.execute(
+            delete(AnalysisReturnRow).where(AnalysisReturnRow.project_id == project_id)
+        )
+        db.execute(
+            delete(AnalysisSalesOrderRow).where(
+                AnalysisSalesOrderRow.project_id == project_id
+            )
+        )
+        db.execute(
+            delete(AnalysisSourceFile).where(AnalysisSourceFile.project_id == project_id)
+        )
+        db.execute(
+            delete(AnalysisReturnAggregate).where(
+                AnalysisReturnAggregate.project_id == project_id
+            )
+        )
         db.execute(
             delete(ShipmentScheduleItem).where(
                 ShipmentScheduleItem.project_id == project_id
