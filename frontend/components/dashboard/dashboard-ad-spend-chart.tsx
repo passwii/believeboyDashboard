@@ -162,7 +162,7 @@ export function DashboardAdSpendChart({
                   axisLine={false}
                   tickLine={false}
                   tickMargin={8}
-                  tick={{ fontSize: 11, fill: '#71717a' }}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => {
                     const [, m, d] = String(v).split('-')
                     return `${m}/${d}`
@@ -175,7 +175,7 @@ export function DashboardAdSpendChart({
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
                   width={isMobile ? 0 : 36}
-                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 />
                 <YAxis
                   yAxisId="ad_spend"
@@ -184,7 +184,7 @@ export function DashboardAdSpendChart({
                   tickLine={false}
                   tickFormatter={(v) => formatAxisMoney(Number(v))}
                   width={isMobile ? 0 : 36}
-                  tick={isMobile ? false : { fontSize: 11, fill: '#71717a' }}
+                  tick={isMobile ? false : { fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 />
                 <ChartTooltip
                   cursor={{ stroke: 'rgba(15,23,42,0.18)', strokeDasharray: '4 4' }}

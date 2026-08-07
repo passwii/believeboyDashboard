@@ -1703,7 +1703,7 @@ export default function DailyAnalysisPage() {
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${Math.min(goalProgress.completion_vs_monthly * 100, 100)}%`,
-                      background: goalProgress.completion_vs_monthly >= 1 ? '#22c55e' : '#3b82f6',
+                      background: goalProgress.completion_vs_monthly >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-1))',
                     }}
                   />
                 </div>
@@ -1717,7 +1717,7 @@ export default function DailyAnalysisPage() {
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${Math.min(goalProgress.completion_vs_daily * 100, 100)}%`,
-                      background: goalProgress.completion_vs_daily >= 1 ? '#22c55e' : '#8b5cf6',
+                      background: goalProgress.completion_vs_daily >= 1 ? 'hsl(var(--success))' : 'hsl(var(--chart-7))',
                     }}
                   />
                 </div>

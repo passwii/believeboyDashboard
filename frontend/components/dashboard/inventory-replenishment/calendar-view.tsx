@@ -104,7 +104,7 @@ interface GanttBarProps {
 }
 
 function GanttBar(props: GanttBarProps) {
-  const { x = 0, y = 0, width = 0, height = 0, fill = '#3b82f6' } = props
+  const { x = 0, y = 0, width = 0, height = 0, fill = 'hsl(var(--chart-1))' } = props
   if (width <= 0 || height <= 0) return null
   return (
     <g>
@@ -136,7 +136,7 @@ function CustomBar(props: {
       y={y + height * 0.2}
       width={Math.max(width, 12)}
       height={height * 0.6}
-      fill={props.fill || '#3b82f6'}
+      fill={props.fill || 'hsl(var(--chart-1))'}
       rx={3}
       ry={3}
     />
@@ -218,7 +218,7 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
       let orderWidth: number | null = null
       let warehouseX: number | null = null
       let selloutX: number | null = null
-      let transitColor = '#3b82f6'
+      let transitColor = 'hsl(var(--chart-1))'
 
       if (row.order_date && row.warehouse_entry_date) {
         const orderDate = parseDate(row.order_date)
@@ -240,11 +240,11 @@ export function CalendarView({ projectId, country }: CalendarViewProps) {
 
       // Color coding
       if (row.is_critical) {
-        transitColor = '#ef4444'
+        transitColor = 'hsl(var(--destructive))'
       } else if (row.is_slow_moving) {
-        transitColor = '#f59e0b'
+        transitColor = 'hsl(var(--warning))'
       } else if (row.risk_status === '健康库存') {
-        transitColor = '#10b981'
+        transitColor = 'hsl(var(--success))'
       }
 
       return {
