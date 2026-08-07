@@ -20,7 +20,7 @@
 | 排序（order_by） | ❌ 无（rows 按基表 `sort_order` 顺序） | ❌ | **R1 增强** |
 | 单 SKU 钻取 | ⚠️ 仅 `?keyword=` 子串过滤（非精确语义） | ❌ | **R2 独立路由** |
 | 数据覆盖度 / 快照新鲜度 | ⚠️ `GET /api/v1/inventory-snapshot-options`（report_date 列表） | ❌ | **R3 coverage（新增，Agent-only）** |
-| `signals.data_freshness_days` | ⚠️ **恒 0**（`replenishment.py:1107` TODO「未来从 source.report_date 计算」） | ⚠️ 同 | **R3 提供真实新鲜度** |
+| `signals.data_freshness_days` | ⚠️ **恒 0**（`replenishment.py:1110` TODO「未来从 source.report_date 计算」） | ⚠️ 同 | **R3 提供真实新鲜度** |
 | 补货设置读 | ⚠️ 无独立 GET（设置已内嵌在分析行：`production_lead_days/shipping_days/safety_factor/asin`） | ⚠️ R1 行已含 | 无需独立路由 |
 | 补货设置写 | ✅ `PUT /api/v1/inventory-replenishment-settings/{project_id}/{sku}`（upsert + 审计 `inventory_replenishment_settings.upsert`） | ❌ | **R4 设置写（D2 待拍板，confirm 流）** |
 
@@ -57,7 +57,7 @@
 | `list_inventory_replenishment_analysis(db, *, project_id, country, keyword, risk_status, in_transit_only, page, page_size, report_date)` | `services/inventory/replenishment.py:919` | 全量逐 SKU 计算（三段式 state/action/signals + 老 4 类 risk + 补货时间轴 + 库龄）+ 过滤（keyword/risk_status/in_transit_only）+ summary + 分页 | **R1/R2 核心**（R2 = `keyword=sku` 精确钻取薄封装或复用同函数） |
 | `compute_inventory_state` / `compute_replenishment_action` / `compute_signals` / `compute_trend_label` / `compute_trend_momentum` / `compute_seasonal_adjusted_sellable_days` | `services/inventory/state_action.py` | 三段式判定（5 state + 6 action + signals）；`ReplenishmentAction` 枚举 6 值 | 已封装在 service 内，Agent 侧**无需重算** |
 | `compute_seasonal_factor` | `services/inventory/seasonal_factor.py` | YoY 季节性因子/相位 | 同上 |
-| `upsert_inventory_replenishment_setting(...)` | `replenishment.py:1243` | 设置 upsert（`asin/production_lead_days/shipping_days/safety_factor`） | **R4 核心**（D2） |
+| `upsert_inventory_replenishment_setting(...)` | `replenishment.py:1230` | 设置 upsert（`asin/production_lead_days/shipping_days/safety_factor`） | **R4 核心**（D2） |
 | `list_snapshot_options(db, *, project_id, country)` | `replenishment.py:863` | 库存快照 `report_date` 列表 + `is_current`（`analysis_source_files`） | **R3 核心**（快照新鲜度） |
 | `get/set_inventory_replenishment_cache` | `services/infra/inventory_cache.py:106/128` | Redis 5min 缓存，key=`(project_id, country, keyword, risk_status, in_transit_only, page, page_size)` | R1 复用（**key 不含 report_date / 三段式过滤 / 排序**——见 D7） |
 | `get/set_inventory_snapshot_options_cache` | `inventory_cache.py` | 快照选项 10min 缓存 | R3 复用 |
@@ -84,7 +84,7 @@
 1. **三段式过滤缺失**：external 的 `risk_status` 是**老 4 类风险**（断货风险/短期断货/长期断货/健康库存/滞销/严重滞销/待补数据）；新体系 5 state（critical/deteriorating/watch/healthy/unknown）+ 6 action（REPLENISH_NOW/REPLENISH_NORMAL/HOLD/REDUCE_PRICE/REMOVE/NO_ACTION）**没有服务端过滤**——前端 cockpit 是 client 侧过滤（`inventory-replenishment-client.tsx:499`）。Agent 问「哪些 SKU 该紧急补货 / 该降价 / 该移除」必须自己拉全量再筛。
 2. **排序缺失**：rows 按基表 `sort_order` 顺序，无 `order_by`——Agent 无法按 sellable_days / weighted_dms / state 排序取 Top-N。
 3. **无单 SKU 钻取**：`?keyword=` 是子串过滤（语义不精确、返回列表），无「精确 SKU 完整行」语义。
-4. **新鲜度失真**：`signals.data_freshness_days` 恒 0（`replenishment.py:1107` TODO 未实现）——Agent 无法判断「这份分析基于几号的库存数据」。
+4. **新鲜度失真**：`signals.data_freshness_days` 恒 0（`replenishment.py:1110` TODO 未实现）——Agent 无法判断「这份分析基于几号的库存数据」。
 5. **无设置写**：Agent 发现「SKU 快断货但补货周期未配置」后无法闭环（改设置 → 重算建议）。
 
 ### 1.5 Agent 基建（已就绪，直接复用）
@@ -288,7 +288,7 @@ Content-Type: application/json
 4. **前端 agent-domains 注册（BLF-474/490 模式，四件套第 4 件）**：
    - `frontend/lib/agent-domains.ts` 新增：`{ code: 'replenishment_analysis', label: '补货分析', description: '补货决策清单：三段式状态/行动/signals + 覆盖度（独立于库存信息）', status: 'live'（实施后从 planned 翻）, routeCount: 3（或 4，D2 后）, capabilities: { read: true, write: <D2 决定> } }`。
    - `frontend/app/dashboard/system/agent-management/agent-usage-guide.tsx` 新增 `buildReplenishmentAnalysisGuide()`：示例 curl（R1 带 `inventory_state=critical` / `replenishment_action=REDUCE_PRICE` 过滤、R2 钻取、R3 覆盖度）；标注「`REPLENISH_NOW` 为枚举预留值，当前实现不产出；`risk_status` 为兼容旧字段」。
-5. **服务层顺带修复**：R3 实施时把 `signals.data_freshness_days` 的 TODO（`replenishment.py:1107`）补上真实值（`today - inventory snapshot report_date`）——Agent 与前端同时受益。
+5. **服务层顺带修复**：R3 实施时把 `signals.data_freshness_days` 的 TODO（`replenishment.py:1110`）补上真实值（`today - inventory snapshot report_date`）——Agent 与前端同时受益。
 
 ---
 
@@ -301,7 +301,7 @@ Content-Type: application/json
 | **D3** | **business_scope**：是否挂 `require_business_scope("replenishment_analysis")` | 挂 / 不挂（仅 project_scope） | **挂** ✅ | 新域 code 字符串，无迁移；与 shipments/shop/return/inventory 对齐 |
 | **D4** | **三段式过滤 + 排序**：R1 是否新增 `inventory_state` / `replenishment_action` 多值过滤 + `order_by` 白名单 | 加（Agent 决策清单核心能力）/ 不加（保持镜像契约） | **加** | 服务层加过滤/排序参数（Python 侧排序）；白名单校验；内部端点可同步透传（D7 方案 A） |
 | **D5** | **R2 单 SKU 钻取 + 空结果语义**：独立路由 vs 并入 R1 `?keyword=`；无该 SKU 时 200 null vs 404 | **独立 R2 + 200 `data:null`** | 路由 +1；不新增错误码（对齐 return-analysis D5/D6） |
-| **D6** | **R3 覆盖度 + data_freshness 修复**：是否新增 coverage 端点；是否顺带修 `signals.data_freshness_days=0` TODO | **新增 R3 + 顺带修复** | 薄查询 +1；`replenishment.py:1107` TODO 落地（服务层小改） |
+| **D6** | **R3 覆盖度 + data_freshness 修复**：是否新增 coverage 端点；是否顺带修 `signals.data_freshness_days=0` TODO | **新增 R3 + 顺带修复** | 薄查询 +1；`replenishment.py:1110` TODO 落地（服务层小改） |
 | **D7** | **缓存策略**：R1 默认路径复用内部 5min 缓存；新参数（report_date/过滤/排序）的缓存 key 处理 | A=扩展内部缓存函数签名 + 内部端点透传（一处实现、双侧受益）；B=agent 侧独立 key | **A（推荐，评估兼容）** | 缓存 key 扩展 5 参数；内部端点签名变化需回归 |
 
 ---
