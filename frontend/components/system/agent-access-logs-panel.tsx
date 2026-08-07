@@ -62,12 +62,11 @@ export type AgentAccessLogItem = {
   ip_address: string | null
   api_key_id: number | null
   agent_id: string | null
-  /** Agent 中文显示名（BLF-471）：join agent_api_keys 还原，未填回退 agent_id */
-  agent_name: string | null
+  // Agent 中文名即「名称」（BLF-471 follow-up）：join agent_api_keys 还原 key_label。
   key_label: string | null
   /** BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析） */
   project_id: number | null
-  /** 请求涉及的项目名（BLF-471）：运营可读，未命中回退 #id */
+  /** 请求涉及的项目名（BLF-471 follow-up）：仅用名称（运营不用编号） */
   project_name: string | null
   operation_type: string | null
 }
@@ -83,7 +82,6 @@ type AgentAccessLogsResponse = {
 export type AgentAccessLogAgentSummaryItem = {
   agent_id: string
   key_label: string | null
-  agent_name: string | null
   count: number
 }
 
@@ -261,7 +259,7 @@ export function AgentAccessLogsPanel() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-700 dark:text-indigo-300"
                   title={`${item.agent_id}（${item.key_label || '无标签'}）`}
                 >
-                  {item.agent_name ? <span>{item.agent_name}</span> : null}
+                  {item.key_label ? <span>{item.key_label}</span> : null}
                   <code className="font-mono">{item.agent_id}</code>
                   <span className="text-muted-foreground">×{item.count}</span>
                 </span>
@@ -287,8 +285,7 @@ export function AgentAccessLogsPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[170px]">时间</TableHead>
-                  <TableHead className="w-[150px]">Agent</TableHead>
-                  <TableHead className="w-[130px]">Key 标签</TableHead>
+                  <TableHead className="w-[180px]">Agent</TableHead>
                   <TableHead className="w-[70px]">方法</TableHead>
                   <TableHead>路径</TableHead>
                   <TableHead className="w-[140px]">项目</TableHead>
@@ -303,22 +300,19 @@ export function AgentAccessLogsPanel() {
                 {rows.length === 0 ? (
                   loading ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground">
                         加载中...
                       </TableCell>
                     </TableRow>
                   ) : (
-                    <EmptyTableState colSpan={11} message="暂无 Agent 访问记录" />
+                    <EmptyTableState colSpan={10} message="暂无 Agent 访问记录" />
                   )
                 ) : (
                   rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>{formatDateTime(row.created_at)}</TableCell>
                       <TableCell>
-                        <AgentIdentityCell agentId={row.agent_id} agentName={row.agent_name} />
-                      </TableCell>
-                      <TableCell className="max-w-[130px] truncate" title={row.key_label || '-'}>
-                        {row.key_label || '-'}
+                        <AgentIdentityCell agentId={row.agent_id} agentName={row.key_label} />
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
@@ -478,8 +472,8 @@ export function AgentAccessLogsPanel() {
                   <span className="text-muted-foreground">Agent:</span>{' '}
                   {activeRow.agent_id ? (
                     <>
-                      {activeRow.agent_name ? (
-                        <span className="font-medium">{activeRow.agent_name} </span>
+                      {activeRow.key_label ? (
+                        <span className="font-medium">{activeRow.key_label} </span>
                       ) : null}
                       <code className="font-mono">{activeRow.agent_id}</code>
                     </>
@@ -498,7 +492,7 @@ export function AgentAccessLogsPanel() {
                     : '-'}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Key 标签:</span>{' '}
+                  <span className="text-muted-foreground">凭据标签:</span>{' '}
                   {activeRow.key_label || '-'}
                 </p>
                 <p>

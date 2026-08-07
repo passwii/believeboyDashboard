@@ -50,9 +50,6 @@ class AgentApiKey(Base):
     # 绑定的 Agent 稳定标识（业务主键，外部 Agent 平台生成）。
     # 存量 external key 为 NULL → 只能读遗留 /external/* 命名空间。
     agent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    # Agent 中文显示名（BLF-471）：英文 agent_id 对应的中文名，运营/管理员
-    # 在日志与前端查看时使用；未填写（存量）时前端回退显示 agent_id。
-    agent_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # 预留授权范围（设计稿 §9 #2），P0 不强制校验。
     project_scope: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="*"

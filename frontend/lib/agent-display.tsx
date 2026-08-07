@@ -1,10 +1,11 @@
 'use client'
 
 /**
- * Agent 日志面板共用展示 helper（BLF-471）。
+ * Agent 日志面板共用展示 helper（BLF-471 follow-up）。
  *
- * 访问日志 / 写操作日志两处面板都展示 Agent（中文名 + 英文 ID）与项目
- * （项目名 + ID），抽到一处避免两份漂移。
+ * Agent 中文名即「名称」（凭据 label）：访问日志 join agent_api_keys 还原
+ * key_label；写操作日志按 label 落库快照。日志面板统一展示「中文名 + 英文 ID」。
+ * 项目仅用 project_name（查 projects 表还原），不再带编号。
  */
 
 /** Agent 展示：中文名 + 英文 ID（未填名只显示 ID）。 */
@@ -24,8 +25,11 @@ export function AgentIdentityCell({
   )
 }
 
-/** 项目展示：项目名 + (ID)（未命中回退 #ID）。 */
+/** 项目展示：仅 project_name（BLF-471 follow-up，运营不用编号）。
+ * 未命中回退 #id（项目被删但仍记录于审计）。
+ */
 export function formatProjectRef(projectId: number | null, projectName: string | null): string {
-  if (projectId == null) return '-'
-  return projectName ? `${projectName} (${projectId})` : `#${projectId}`
+  if (projectName) return projectName
+  if (projectId != null) return `#${projectId}`
+  return '-'
 }

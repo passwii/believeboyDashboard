@@ -21,8 +21,7 @@ class AgentAccessLogItem(BaseModel):
     ip_address: str | None = None
     api_key_id: int | None = None
     agent_id: str | None = None
-    # Agent 中文显示名（BLF-471）：join agent_api_keys 还原，未填回退 agent_id。
-    agent_name: str | None = None
+    # Agent 中文名即「名称」（BLF-471）：join agent_api_keys 还原 key_label。
     key_label: str | None = None
     # BLF-460 读操作明细：请求涉及的项目 ID 与业务域（中间件从 path 解析）。
     project_id: int | None = None
@@ -42,7 +41,6 @@ class AgentAccessLogsResponse(BaseModel):
 class AgentAccessLogAgentSummaryItem(BaseModel):
     agent_id: str
     key_label: str | None = None
-    agent_name: str | None = None
     count: int
 
 

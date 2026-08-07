@@ -225,7 +225,7 @@ def _audit_kwargs(request: Request) -> dict:
     """agent 写审计归因（设计稿 §4.2：operator=NULL，agent_id/idempotency_key 归因）。"""
     return {
         "agent_id": getattr(request.state, "agent_id", None),
-        "agent_name": getattr(request.state, "agent_name", None),
+        "agent_name": getattr(request.state, "agent_label", None),
         "idempotency_key": request.headers.get("idempotency-key") or None,
         "request": request,
     }

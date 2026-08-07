@@ -137,7 +137,6 @@ def create_api_key(
     business_scope: str = "*",
     expires_at: datetime | None = None,
     agent_id: str | None = None,
-    agent_name: str | None = None,
 ) -> tuple[AgentApiKey, str]:
     """Create a key and return ``(record, plaintext)``.
 
@@ -146,9 +145,9 @@ def create_api_key(
     留空为存量 external 语义。``project_scope`` 为项目范围白名单
     （"," 分隔 project_id；"*" = 全部，即本任务启用前的存量语义）；
     ``business_scope`` 为业务域范围白名单（"," 分隔域 code；"*" = 全部）；
-    ``agent_name`` 为 Agent 中文显示名（BLF-471，英文 agent_id 的对应中文名，
-    运营/管理员在日志与前端查看用）。校验逻辑见 ``app/api/agent/scope.py``。
-    Caller commits.
+    ``label`` 即「名称」，也是 Agent 的中文显示名（BLF-471：运营对接时在
+    「名称」字段写好对应名称，日志与前端按 label 展示）。
+    校验逻辑见 ``app/api/agent/scope.py``。Caller commits.
     """
     plaintext, key_hash, key_prefix = generate_key()
     record = AgentApiKey(
@@ -161,26 +160,10 @@ def create_api_key(
         expires_at=expires_at,
         created_by=created_by[:128],
         agent_id=agent_id[:128] if agent_id else None,
-        agent_name=agent_name[:128] if agent_name else None,
     )
     db.add(record)
     db.flush()  # populate record.id before the caller commits
     return record, plaintext
-
-
-def update_api_key_agent_name(
-    db: Session, key_id: int, agent_name: str
-) -> AgentApiKey | None:
-    """更新 Key 的 Agent 中文显示名（BLF-471）。Caller commits。
-
-    仅改 ``agent_name``，不动鉴权相关字段；已删除 Key 返回 None。
-    幂等：同名再设直接返回当前行。
-    """
-    record = db.get(AgentApiKey, key_id)
-    if record is None or record.deleted_at is not None:
-        return None
-    record.agent_name = agent_name[:128]
-    return record
 
 
 def list_api_keys(db: Session, *, include_deleted: bool = False) -> list[AgentApiKey]:
