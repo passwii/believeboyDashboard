@@ -53,6 +53,7 @@ from app.schemas.crm import (
     LeadItem,
     LeadListResponse,
     LeadUpdate,
+    PerformanceBoard,
     StageDetail,
     TaskCreate,
     TaskCompleteRequest,
@@ -867,6 +868,43 @@ def get_funnel_stage_detail(
             stuck_days=stuck_days,
             page=page,
             page_size=page_size,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------- 业绩看板（P8, BLF-519） ----------
+@router.get("/dashboard/performance", response_model=PerformanceBoard)
+def get_performance_board(
+    scope: Literal["mine", "all"] = Query(
+        "mine",
+        description="mine=个人业绩（员工看自己，任何人可访问）；all=全局+排名表（仅管理员）",
+    ),
+    month: str | None = Query(
+        None, description="YYYY-MM，缺省当前月（Asia/Shanghai 口径）"
+    ),
+    sort_by: Literal[
+        "converted_count", "new_customers", "follow_count", "completion_rate"
+    ] = Query(
+        "converted_count",
+        description="排名主键：转化数（默认）/新增客户/跟进数/完成率",
+    ),
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """业绩看板：本月新增客户/转化数/跟进数/完成率 + 按人排名（BLF-519）。
+
+    权限：scope=mine 员工看自己；scope=all 仅管理员（非 admin → 403）。
+    """
+    try:
+        return dashboard_service.get_performance_board(
+            db,
+            user_id=user_id,
+            is_admin=is_admin,
+            scope=scope,
+            month=month,
+            sort_by=sort_by,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
