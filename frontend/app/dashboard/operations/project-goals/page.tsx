@@ -11,7 +11,6 @@ import {
   TrendingUp,
   Calendar,
   DollarSign,
-  AlertCircle,
   BarChart3,
   Layers,
 } from 'lucide-react'
@@ -37,7 +36,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatCard } from '@/components/ui/stat-card'
 import {
   Table,
   TableBody,
@@ -48,6 +46,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
+import { GoalProgressRings, projectedMonthlyRate } from '@/components/ui/goal-progress-rings'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { clearOpsClientCaches, fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
@@ -470,7 +469,7 @@ export default function ProjectGoalsPage() {
               <div>
                 <h2 className="text-2xl font-semibold text-foreground lg:text-[2rem]">控制台</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  追踪项目在选定国家站点的月度与年度销售目标完成进度，支持快速设置与调整目标。
+                  实时追踪项目在选定国家站点的销售目标完成进度：截止今日完成率、实际月度进度与预估月度完成率，支持快速设置与调整目标。
                 </p>
               </div>
             </div>
@@ -579,7 +578,7 @@ export default function ProjectGoalsPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* ── Month Progress Stats ─────────────────────────────────────── */}
+          {/* ── 实时目标进度：三环指标 + 明细条 ────────────────────────── */}
           {currentMonthProgress && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -588,68 +587,166 @@ export default function ProjectGoalsPage() {
                   本月进度 · {currentMonthProgress.month_label}
                 </h2>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StatCard
-                  title="月度完成率"
-                  value={formatPercent(currentMonthProgress.completion_vs_monthly)}
-                  icon={<Target className="h-4 w-4" />}
-                  color={
-                    currentMonthProgress.completion_vs_monthly >= 1
-                      ? 'emerald'
-                      : currentMonthProgress.completion_vs_monthly >= 0.8
-                        ? 'amber'
-                        : 'sky'
-                  }
-                  trendLabel={`目标 ${currencySymbol}${formatMoney(currentMonthProgress.target_amount)}`}
-                />
-                <StatCard
-                  title="日均完成率"
-                  value={formatPercent(currentMonthProgress.completion_vs_daily)}
-                  icon={<Calendar className="h-4 w-4" />}
-                  color={
-                    currentMonthProgress.completion_vs_daily >= 1
-                      ? 'emerald'
-                      : currentMonthProgress.completion_vs_daily >= 0.8
-                        ? 'amber'
-                        : 'sky'
-                  }
-                  trendLabel={`累计目标 ${currencySymbol}${formatMoney(currentMonthProgress.cumulative_daily_target)}`}
-                />
-                <StatCard
-                  title="日目标"
-                  value={`${currencySymbol}${formatMoney(currentMonthProgress.daily_target)}`}
-                  icon={<DollarSign className="h-4 w-4" />}
-                  color="amber"
-                  trendLabel={`第 ${currentMonthProgress.today_day} / ${currentMonthProgress.days_in_month} 天`}
-                />
-                {annualProgress ? (
-                  <StatCard
-                    title="年度完成率"
-                    value={formatPercent(annualProgress.completion_rate)}
-                    icon={<TrendingUp className="h-4 w-4" />}
-                    color={
-                      annualProgress.completion_rate >= 1
-                        ? 'emerald'
-                        : annualProgress.completion_rate >= 0.8
-                          ? 'amber'
-                          : 'rose'
-                    }
-                    trendLabel={`目标 ${currencySymbol}${formatMoney(annualProgress.target_amount)}`}
+
+              <div className="dashboard-surface relative overflow-hidden">
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <div className="absolute -right-10 -top-14 h-56 w-56 rounded-full bg-[radial-gradient(circle,hsl(var(--chart-1)/0.10),transparent_70%)] dark:bg-[radial-gradient(circle,hsl(var(--chart-1)/0.16),transparent_70%)]" />
+                </div>
+                <div className="relative space-y-5 px-4 py-5">
+                  <GoalProgressRings
+                    items={[
+                      {
+                        key: 'pace',
+                        label: '截止今日完成率',
+                        value: currentMonthProgress.completion_vs_daily,
+                        display: formatPercent(currentMonthProgress.completion_vs_daily),
+                        caption:
+                          currentMonthProgress.target_amount > 0
+                            ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 应完成 ${currencySymbol}${formatMoney(currentMonthProgress.cumulative_daily_target)}`
+                            : '未设置本月目标',
+                        note:
+                          currentMonthProgress.target_amount > 0
+                            ? '当前完成 ÷ 按日摊派的累计目标'
+                            : '前往「目标管理」设置月度目标',
+                        color: 'hsl(var(--chart-1))',
+                      },
+                      {
+                        key: 'monthly',
+                        label: '实际月度进度',
+                        value: currentMonthProgress.completion_vs_monthly,
+                        display: formatPercent(currentMonthProgress.completion_vs_monthly),
+                        caption:
+                          currentMonthProgress.target_amount > 0
+                            ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 目标 ${currencySymbol}${formatMoney(currentMonthProgress.target_amount)}`
+                            : '未设置本月目标',
+                        note:
+                          currentMonthProgress.target_amount > 0
+                            ? '占整月目标的实际比例'
+                            : '前往「目标管理」设置月度目标',
+                        color: 'hsl(var(--chart-2))',
+                      },
+                      {
+                        key: 'projected',
+                        label: '预估月度完成率',
+                        value: projectedMonthlyRate(
+                          currentMonthProgress.completion_vs_monthly,
+                          currentMonthProgress.days_in_month,
+                          currentMonthProgress.today_day
+                        ),
+                        display: formatPercent(
+                          projectedMonthlyRate(
+                            currentMonthProgress.completion_vs_monthly,
+                            currentMonthProgress.days_in_month,
+                            currentMonthProgress.today_day
+                          )
+                        ),
+                        caption:
+                          currentMonthProgress.target_amount > 0
+                            ? '按当前完成节奏外推至月末'
+                            : '未设置本月目标',
+                        note:
+                          currentMonthProgress.target_amount > 0 &&
+                          currentMonthProgress.today_day > 0
+                            ? `线性预估（第 ${currentMonthProgress.today_day} / ${currentMonthProgress.days_in_month} 天）`
+                            : '前往「目标管理」设置月度目标',
+                        color: 'hsl(var(--chart-3))',
+                      },
+                    ]}
                   />
-                ) : (
-                  <div className="dashboard-surface flex flex-col items-center justify-center gap-2 rounded-xl p-4 text-center">
-                    <AlertCircle className="h-6 w-6 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">未设置年度目标</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openCreateDialog('annual')}
-                      className="w-full"
-                    >
-                      <Plus className="mr-1 h-3 w-3" /> 设置年度目标
-                    </Button>
+
+                  <div className="h-px bg-border/60" />
+
+                  {/* 明细条：年度完成率 / 已达成 / 月度目标 / 日目标 */}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        年度完成率
+                      </div>
+                      {annualProgress ? (
+                        <>
+                          <p className="mt-1 text-lg font-semibold tabular-nums">
+                            {formatPercent(annualProgress.completion_rate)}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground/70">
+                            目标 {currencySymbol}
+                            {formatMoney(annualProgress.target_amount)}
+                          </p>
+                        </>
+                      ) : (
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-sm text-muted-foreground">未设置</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openCreateDialog('annual')}
+                            className="h-8 min-h-[44px] px-2.5 sm:min-h-8"
+                          >
+                            <Plus className="mr-1 h-3 w-3" /> 设置
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        本月已达成
+                      </div>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {currencySymbol}{' '}
+                        {formatMoney(currentMonthProgress.achieved_amount)}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground/70">
+                        当月实际销售额（截至今日）
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Target className="h-3.5 w-3.5" />
+                        月度目标
+                      </div>
+                      {currentMonthProgress.target_amount > 0 ? (
+                        <>
+                          <p className="mt-1 text-lg font-semibold tabular-nums">
+                            {currencySymbol}{' '}
+                            {formatMoney(currentMonthProgress.target_amount)}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground/70">
+                            整月销售目标金额
+                          </p>
+                        </>
+                      ) : (
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-sm text-muted-foreground">未设置</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveTab('goals')}
+                            className="h-8 min-h-[44px] px-2.5 sm:min-h-8"
+                          >
+                            <Plus className="mr-1 h-3 w-3" /> 去设置
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-border/70 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        日目标
+                      </div>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {currencySymbol} {formatMoney(currentMonthProgress.daily_target)}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground/70">
+                        第 {currentMonthProgress.today_day} / {currentMonthProgress.days_in_month} 天
+                        · 目标 ÷ 天数
+                      </p>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}
