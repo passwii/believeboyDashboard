@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import text
 
 from app.models.crm import CrmTask
-from app.schemas.crm import TaskCreate, TaskUpdate
+from app.schemas.crm import TaskCompleteRequest, TaskCreate, TaskUpdate
 from app.services.crm.task_service import (
     cancel_task,
     complete_task,
@@ -386,12 +386,197 @@ def test_set_task_status_invalid_value(db_session):
     assert ei.value.status_code == 400
 
 
-def test_complete_task_not_create_follow_yet(db_session):
-    """§3.3 done 联动生成 follow 属 BLF-515，本期不生成 follow。"""
+def test_complete_follow_up_creates_note_follow_on_customer(db_session):
+    """§3.3 联动：follow_up → follow type=note，content=任务标题。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(
+        db_session, type="follow_up", customer_id=cust.id, title="回访客户A"
+    )
+    complete_task(db_session, task, user_id=ALICE)
+    row = db_session.execute(
+        text(
+            "select entity_type, entity_id, type, content from crm_follows "
+            "order by id desc limit 1"
+        )
+    ).first()
+    assert row == ("customer", cust.id, "note", "回访客户A")
+
+
+def test_complete_call_creates_phone_follow(db_session):
+    """§3.3 联动：call → follow type=phone。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(db_session, type="call", customer_id=cust.id)
+    complete_task(db_session, task, user_id=ALICE)
+    ftype = db_session.execute(
+        text("select type from crm_follows order by id desc limit 1")
+    ).scalar_one()
+    assert ftype == "phone"
+
+
+def test_complete_visit_creates_visit_follow(db_session):
+    """§3.3 联动：visit → follow type=visit。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(db_session, type="visit", customer_id=cust.id)
+    complete_task(db_session, task, user_id=ALICE)
+    ftype = db_session.execute(
+        text("select type from crm_follows order by id desc limit 1")
+    ).scalar_one()
+    assert ftype == "visit"
+
+
+def test_complete_custom_task_no_follow(db_session):
+    """custom 类不联动：done 不生成 follow（可手动补跟进）。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(db_session, type="custom", customer_id=cust.id)
+    complete_task(db_session, task, user_id=ALICE)
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+
+
+def test_complete_task_without_entity_no_follow(db_session):
+    """无实体（customer/lead 均空）的任务无 follow 可挂靠，不生成。"""
     task = _mk_task(db_session, type="call")
     complete_task(db_session, task, user_id=ALICE)
-    follows = db_session.execute(text("select count(*) from crm_follows")).scalar_one()
-    assert follows == 0
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+
+
+def test_complete_with_note_appends_content(db_session):
+    """完成备注追加到 follow content（标题：备注）。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(db_session, type="call", customer_id=cust.id, title="电话沟通")
+    complete_task(
+        db_session,
+        task,
+        user_id=ALICE,
+        payload=TaskCompleteRequest(note="确认了方案"),
+    )
+    content = db_session.execute(
+        text("select content from crm_follows order by id desc limit 1")
+    ).scalar_one()
+    assert content == "电话沟通：确认了方案"
+
+
+def test_complete_sets_customer_last_and_next_follow_at(db_session):
+    """完成表单填了「下次跟进时间」→ 回写客户 last_follow_at=now + next_follow_at。"""
+    cust = _mk_customer(db_session)
+    next_at = datetime.now(timezone.utc) + timedelta(days=3)
+    task = _mk_task(db_session, type="visit", customer_id=cust.id)
+    complete_task(
+        db_session,
+        task,
+        user_id=ALICE,
+        payload=TaskCompleteRequest(next_follow_at=next_at),
+    )
+    db_session.refresh(cust)
+    assert cust.last_follow_at is not None
+    assert cust.next_follow_at is not None
+    assert abs((cust.next_follow_at - next_at).total_seconds()) < 60
+
+
+def test_complete_without_next_clears_customer_next_follow_at(db_session):
+    """完成表单未填「下次跟进时间」→ 清空客户 next_follow_at（与 create_follow 语义一致）。"""
+    cust = _mk_customer(db_session)
+    cust.next_follow_at = datetime.now(timezone.utc) + timedelta(days=1)
+    db_session.commit()
+    task = _mk_task(db_session, type="call", customer_id=cust.id)
+    complete_task(db_session, task, user_id=ALICE)
+    db_session.refresh(cust)
+    assert cust.last_follow_at is not None
+    assert cust.next_follow_at is None
+
+
+def test_complete_on_lead_creates_follow_and_sets_next(db_session):
+    """线索任务完成：生成 follow（call→phone）+ 回写 lead.next_follow_at（带下次时间）。"""
+    lead = _mk_lead(db_session)
+    nxt = datetime.now(timezone.utc) + timedelta(days=2)
+    task = _mk_task(db_session, type="call", lead_id=lead.id)
+    complete_task(
+        db_session,
+        task,
+        user_id=ALICE,
+        payload=TaskCompleteRequest(next_follow_at=nxt),
+    )
+    db_session.refresh(lead)
+    assert lead.next_follow_at is not None
+    assert abs((lead.next_follow_at - nxt).total_seconds()) < 60
+    ftype = db_session.execute(
+        text("select type from crm_follows order by id desc limit 1")
+    ).scalar_one()
+    assert ftype == "phone"
+
+
+def test_complete_done_task_conflict(db_session):
+    """已完成任务不可重复完成（防止重复生成 follow）。"""
+    task = _mk_task(db_session, status="done")
+    with pytest.raises(HTTPException) as ei:
+        complete_task(db_session, task, user_id=ALICE)
+    assert ei.value.status_code == 409
+
+
+def test_complete_linkage_rolls_back_all_on_failure(db_session, monkeypatch):
+    """联动原子性：follow 创建失败 → task done / follow / 实体回写 全部回滚（同事务）。"""
+    cust = _mk_customer(db_session)
+    cust.next_follow_at = datetime.now(timezone.utc) + timedelta(days=1)
+    db_session.commit()
+    last_before = cust.last_follow_at
+    next_before = cust.next_follow_at
+    task = _mk_task(db_session, type="call", customer_id=cust.id)
+
+    from app.services.crm import follow_service
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("follow 创建失败")
+
+    monkeypatch.setattr(follow_service, "create_follow", boom)
+    with pytest.raises(RuntimeError):
+        complete_task(db_session, task, user_id=ALICE, commit=False)
+    db_session.rollback()
+
+    db_session.refresh(task)
+    assert task.status == "pending"
+    assert task.completed_at is None
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+    db_session.refresh(cust)
+    assert cust.last_follow_at == last_before
+    assert cust.next_follow_at == next_before
+
+
+def test_complete_linkage_uncommitted_until_endpoint_commit(db_session):
+    """P5-6 强一致：commit=False 仅 flush（端点审计后统一 commit）；回滚则全部消失。"""
+    cust = _mk_customer(db_session)
+    task = _mk_task(db_session, type="visit", customer_id=cust.id)
+    item = complete_task(db_session, task, user_id=ALICE, commit=False)
+    assert item.status == "done"
+    # 会话内已 flush：follow 可见、客户已回写
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 1
+    )
+    db_session.rollback()
+    db_session.expire_all()
+    # 回滚后全部消失：任务回 pending、无 follow
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+    reloaded = db_session.execute(
+        text("select status from crm_tasks where id = :tid"), {"tid": task.id}
+    ).scalar_one()
+    assert reloaded == "pending"
+
+
+def test_complete_task_not_create_follow_for_unlinked_call(db_session):
+    """§3.3 边界：call 任务但无实体 → 状态流转成功、不生成 follow。"""
+    task = _mk_task(db_session, type="call")
+    item = complete_task(db_session, task, user_id=ALICE)
+    assert item.status == "done"
+    assert item.completed_at is not None
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
 
 
 def test_list_tasks_pagination(db_session):

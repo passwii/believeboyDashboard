@@ -420,15 +420,120 @@ def test_task_actions_write_audit_log(client, admin_headers):
     assert all(log["entity_type"] == "task" for log in logs)
 
 
-def test_complete_task_does_not_create_follow_yet(client, admin_headers):
-    """§3.3 done 联动属 BLF-515，本期不生成 follow。"""
-    task = _mk_task(client, admin_headers, type="call")
-    client.post(f"/api/v1/crm/tasks/{task['id']}/complete", headers=admin_headers)
+def test_complete_call_task_creates_follow_and_writeback(client, admin_headers):
+    """§3.3 联动端到端：complete 带 next_follow_at + note → follow 生成 + 客户回写 + 审计。"""
+    cust = _mk_customer(client, admin_headers)
+    task = _mk_task(
+        client, admin_headers, type="call", customer_id=cust["id"], title="电话沟通"
+    )
+    r = client.post(
+        f"/api/v1/crm/tasks/{task['id']}/complete",
+        headers=admin_headers,
+        json={"next_follow_at": "2026-09-01T10:00:00Z", "note": "确认了方案"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "done"
+    assert body["completed_at"] is not None
+
+    # 自动生成 follow：call→phone，content=标题：备注
     lst = client.get(
-        "/api/v1/crm/follows?entity_type=customer&entity_id=1", headers=admin_headers
+        "/api/v1/crm/follows",
+        params={"entity_type": "customer", "entity_id": cust["id"]},
+        headers=admin_headers,
     )
     assert lst.status_code == 200
+    follows = lst.json()
+    assert len(follows) == 1
+    assert follows[0]["type"] == "phone"
+    assert follows[0]["content"] == "电话沟通：确认了方案"
+    assert follows[0]["next_follow_at"] is not None
+
+    # 客户 last_follow_at/next_follow_at 回写
+    detail = client.get(
+        f"/api/v1/crm/customers/{cust['id']}", headers=admin_headers
+    ).json()
+    assert detail["last_follow_at"] is not None
+    assert detail["next_follow_at"] is not None
+
+    # 审计 action=complete
+    logs = client.get(
+        "/api/v1/crm/audit-logs",
+        params={"entity_type": "task", "entity_id": task["id"]},
+        headers=admin_headers,
+    ).json()["items"]
+    assert any(log["action"] == "complete" for log in logs)
+
+
+def test_complete_custom_task_no_follow_api(client, admin_headers):
+    """custom 类完成不联动生成 follow。"""
+    cust = _mk_customer(client, admin_headers)
+    task = _mk_task(client, admin_headers, type="custom", customer_id=cust["id"])
+    r = client.post(f"/api/v1/crm/tasks/{task['id']}/complete", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    lst = client.get(
+        "/api/v1/crm/follows",
+        params={"entity_type": "customer", "entity_id": cust["id"]},
+        headers=admin_headers,
+    )
     assert lst.json() == []
+
+
+def test_complete_task_clears_next_follow_at(client, admin_headers):
+    """未填「下次跟进时间」→ 清空实体 next_follow_at（与 create_follow 语义一致）。"""
+    cust = _mk_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/crm/follows",
+        headers=admin_headers,
+        json={
+            "entity_type": "customer",
+            "entity_id": cust["id"],
+            "type": "note",
+            "content": "先约下次",
+            "next_follow_at": "2026-09-01T10:00:00Z",
+        },
+    )
+    assert r.status_code == 201, r.text
+    detail = client.get(
+        f"/api/v1/crm/customers/{cust['id']}", headers=admin_headers
+    ).json()
+    assert detail["next_follow_at"] is not None
+
+    task = _mk_task(client, admin_headers, type="call", customer_id=cust["id"])
+    r = client.post(f"/api/v1/crm/tasks/{task['id']}/complete", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    detail2 = client.get(
+        f"/api/v1/crm/customers/{cust['id']}", headers=admin_headers
+    ).json()
+    assert detail2["last_follow_at"] is not None
+    assert detail2["next_follow_at"] is None
+
+
+def test_task_update_summary_covers_priority_due_owner(
+    client, admin_headers, operator_headers
+):
+    """审计 update 摘要覆盖 优先级/截止/负责人 变更（summarize_update 模式）。"""
+    task = _mk_task(client, admin_headers)
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={
+            "priority": "urgent",
+            "due_date": "2026-09-10T00:00:00Z",
+            "owner_id": operator_headers["X-User-Id"],
+        },
+    )
+    assert r.status_code == 200, r.text
+    logs = client.get(
+        "/api/v1/crm/audit-logs",
+        params={"entity_type": "task", "entity_id": task["id"]},
+        headers=admin_headers,
+    ).json()["items"]
+    update_log = next((l for l in logs if l["action"] == "update"), None)
+    assert update_log is not None
+    assert "优先级" in update_log["summary"]
+    assert "截止" in update_log["summary"]
+    assert "负责人" in update_log["summary"]
 
 
 def test_task_audit_in_drawer_scope(client, admin_headers):

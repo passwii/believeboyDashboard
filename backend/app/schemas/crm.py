@@ -482,6 +482,18 @@ class TaskStatusUpdate(BaseModel):
     status: Literal["pending", "in_progress", "done"]
 
 
+class TaskCompleteRequest(BaseModel):
+    """完成任务表单（P7-6 §3.3 完成联动）。
+
+    next_follow_at: 可选「下次跟进时间」；带值→回写实体，未填（None）→清空实体
+    （与 follow_service.create_follow 语义一致）。
+    note: 完成备注，追加到自动生成的 follow content（"任务标题：备注"）。
+    """
+
+    next_follow_at: datetime | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+
 class TaskListResponse(BaseModel):
     items: list[TaskItem]
     total: int

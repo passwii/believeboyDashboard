@@ -1,4 +1,5 @@
 """follow_service TDD tests — 列表/创建/回写客户 last_follow_at/created_by_name join。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -51,7 +52,9 @@ def _mk_lead(db, name="线索A", owner=ALICE):
 
 def _real_user(db):
     row = db.execute(
-        text("select id::text, name from public.user_accounts where is_active = true order by name limit 1")
+        text(
+            "select id::text, name from public.user_accounts where is_active = true order by name limit 1"
+        )
     ).first()
     return (row[0], row[1]) if row else None
 
@@ -60,7 +63,9 @@ def test_create_follow_basic(db_session):
     cust = _mk_customer(db_session)
     item = create_follow(
         db_session,
-        FollowCreate(entity_type="customer", entity_id=cust.id, type="phone", content="首次电话"),
+        FollowCreate(
+            entity_type="customer", entity_id=cust.id, type="phone", content="首次电话"
+        ),
         user_id=ALICE,
     )
     assert item.entity_type == "customer"
@@ -77,7 +82,7 @@ def test_create_follow_defaults_and_optional_next(db_session):
         FollowCreate(entity_type="customer", entity_id=cust.id, content="备注"),
         user_id=ALICE,
     )
-    assert item.type == "note"          # 默认 note
+    assert item.type == "note"  # 默认 note
     assert item.next_follow_at is None  # 下次跟进可空
 
 
@@ -97,7 +102,9 @@ def test_create_follow_on_lead_no_error(db_session):
     lead = _mk_lead(db_session)
     item = create_follow(
         db_session,
-        FollowCreate(entity_type="lead", entity_id=lead.id, type="wechat", content="微信沟通"),
+        FollowCreate(
+            entity_type="lead", entity_id=lead.id, type="wechat", content="微信沟通"
+        ),
         user_id=BOB,
     )
     assert item.entity_type == "lead"
@@ -107,9 +114,21 @@ def test_create_follow_on_lead_no_error(db_session):
 def test_list_follows_order_desc_and_isolated(db_session):
     cust = _mk_customer(db_session)
     other = _mk_customer(db_session, name="客户B")
-    create_follow(db_session, FollowCreate(entity_type="customer", entity_id=cust.id, content="第一条"), user_id=ALICE)
-    create_follow(db_session, FollowCreate(entity_type="customer", entity_id=cust.id, content="第二条"), user_id=ALICE)
-    create_follow(db_session, FollowCreate(entity_type="customer", entity_id=other.id, content="别的客户"), user_id=ALICE)
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=cust.id, content="第一条"),
+        user_id=ALICE,
+    )
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=cust.id, content="第二条"),
+        user_id=ALICE,
+    )
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=other.id, content="别的客户"),
+        user_id=ALICE,
+    )
 
     items = list_follows(db_session, "customer", cust.id)
     assert len(items) == 2
@@ -146,7 +165,12 @@ def test_create_follow_sets_customer_next_follow_at(db_session):
     nxt = datetime.now(timezone.utc) + timedelta(days=3)
     create_follow(
         db_session,
-        FollowCreate(entity_type="customer", entity_id=cust.id, content="约下次", next_follow_at=nxt),
+        FollowCreate(
+            entity_type="customer",
+            entity_id=cust.id,
+            content="约下次",
+            next_follow_at=nxt,
+        ),
         user_id=ALICE,
     )
     db_session.refresh(cust)
@@ -161,7 +185,9 @@ def test_create_follow_clears_customer_next_follow_at_when_absent(db_session):
     # 再记一条不带 next_follow_at 的跟进 → 清空（没约下次）
     create_follow(
         db_session,
-        FollowCreate(entity_type="customer", entity_id=cust.id, content="跟进了没约下次"),
+        FollowCreate(
+            entity_type="customer", entity_id=cust.id, content="跟进了没约下次"
+        ),
         user_id=ALICE,
     )
     db_session.refresh(cust)
@@ -173,7 +199,9 @@ def test_create_follow_sets_lead_next_follow_at(db_session):
     nxt = datetime.now(timezone.utc) + timedelta(days=2)
     create_follow(
         db_session,
-        FollowCreate(entity_type="lead", entity_id=lead.id, content="约下次", next_follow_at=nxt),
+        FollowCreate(
+            entity_type="lead", entity_id=lead.id, content="约下次", next_follow_at=nxt
+        ),
         user_id=BOB,
     )
     db_session.refresh(lead)
@@ -192,3 +220,28 @@ def test_create_follow_clears_lead_next_follow_at_when_absent(db_session):
     )
     db_session.refresh(lead)
     assert lead.next_follow_at is None
+
+
+def test_create_follow_commit_false_uncommitted_until_commit(db_session):
+    """P7-6 (BLF-515): commit=False 仅 flush（端点统一 commit）；回滚则 follow + 回写全消失。"""
+    cust = _mk_customer(db_session)
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="customer", entity_id=cust.id, content="联动场景"),
+        user_id=ALICE,
+        commit=False,
+    )
+    # 会话内已 flush：follow 可见、客户已回写
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 1
+    )
+    db_session.refresh(cust)
+    assert cust.last_follow_at is not None
+    # 回滚 → 全部消失（task + follow + 回写 + 审计同事务的前提）
+    db_session.rollback()
+    db_session.expire_all()
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+    db_session.refresh(cust)
+    assert cust.last_follow_at is None

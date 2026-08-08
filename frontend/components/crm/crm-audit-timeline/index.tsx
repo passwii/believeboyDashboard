@@ -20,16 +20,19 @@ export const ACTION_BADGE: Record<AuditAction, string> = {
   move_sea: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   claim: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200',
   convert: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
+  complete: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+  cancel: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300',
+  status: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
 }
 
 interface CrmAuditTimelineProps {
-  entityType: 'customer' | 'lead' | 'contact'
+  entityType: 'customer' | 'lead' | 'contact' | 'task'
   entityId: string
   /**
    * P5-9: 可选附加过滤。多值传入时与 entityType/entityId 合并（AND 关系）。
    * 用于客户抽屉同时展示客户审计 + 该客户下联系人的审计。
    */
-  extraEntityTypes?: ('customer' | 'contact' | 'lead')[]
+  extraEntityTypes?: ('customer' | 'contact' | 'lead' | 'task')[]
   extraEntityIds?: number[]
 }
 

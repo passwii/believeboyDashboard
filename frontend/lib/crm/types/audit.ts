@@ -14,11 +14,14 @@ export type AuditAction =
   | 'move_sea'
   | 'claim'
   | 'convert'
+  | 'complete'
+  | 'cancel'
+  | 'status'
 
 /** 一条审计日志（前端视角）。 */
 export interface AuditLog {
   id: string
-  entityType: 'customer' | 'lead' | 'contact'
+  entityType: 'customer' | 'lead' | 'contact' | 'task'
   entityId: string
   action: AuditAction
   actorId: string | null
@@ -49,4 +52,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   move_sea: '释放公海',
   claim: '领取',
   convert: '转化',
+  complete: '完成',
+  cancel: '取消',
+  status: '状态变更',
 }

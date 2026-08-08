@@ -49,6 +49,7 @@ from app.schemas.crm import (
     LeadListResponse,
     LeadUpdate,
     TaskCreate,
+    TaskCompleteRequest,
     TaskItem,
     TaskListResponse,
     TaskStatusUpdate,
@@ -968,13 +969,17 @@ def set_task_status(
 @router.post("/tasks/{task_id}/complete", response_model=TaskItem)
 def complete_task(
     task_id: int,
+    payload: TaskCompleteRequest | None = None,
     db: Session = Depends(get_primary_db_session),
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """完成：status→done + completed_at。
+    """完成任务：status→done + completed_at + §3.3 完成联动。
 
-    §3.3「done 联动生成 follow」属 BLF-515 决策落地，本期只做状态流转 + completed_at。
+    §3.3 方案 A（用户已拍板）：互动类任务（follow_up/call/visit）完成时同一事务内
+    自动生成 follow（type 映射 call→phone / visit→visit / follow_up→note，content=
+    任务标题可带完成备注）+ 回写实体 last_follow_at=now + next_follow_at 设值/未填清空
+    （完成表单可选「下次跟进时间」）。custom 类不联动（可手动补跟进）。
     """
     task = task_service.get_task_orm(db, task_id)
     if task is None:
@@ -982,7 +987,9 @@ def complete_task(
             status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
         )
     require_owner_or_admin(task.owner_id, user_id, is_admin)
-    item = task_service.complete_task(db, task, user_id=user_id, commit=False)
+    item = task_service.complete_task(
+        db, task, user_id=user_id, payload=payload, commit=False
+    )
     audit_service.record_log(
         db,
         entity_type="task",
