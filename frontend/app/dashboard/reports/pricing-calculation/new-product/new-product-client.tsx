@@ -1122,7 +1122,6 @@ async function exportComparisonMatrixToExcel(
 
   const prefix = productNamePrefix ?? '测算对比'
   const sections = getExportComparisonSections()
-  const lastColumn = runs.length + 2
 
   const columnLabelWidth = 14
   const columnSubWidth = 20
@@ -1283,128 +1282,6 @@ async function exportComparisonMatrixToExcel(
     }
     applyHeaderBorder(sectionCell)
   })
-
-  if (runs.length >= 2) {
-    currentRowIndex += 1
-    const summaryStartRow = currentRowIndex
-    const profitRates = runs.map((run) => run.profit.profit_rate)
-    const profits = runs.map((run) => run.profit.profit_usd)
-    const bestRate = Math.max(...profitRates)
-    const worstRate = Math.min(...profitRates)
-    const bestProfit = Math.max(...profits)
-    const worstProfit = Math.min(...profits)
-    const bestRateIdx = profitRates.indexOf(bestRate)
-    const worstRateIdx = profitRates.indexOf(worstRate)
-    const bestProfitIdx = profits.indexOf(bestProfit)
-    const worstProfitIdx = profits.indexOf(worstProfit)
-    const totalRows = runs.length
-
-    const summaryTitleRow = worksheet.getRow(currentRowIndex)
-    worksheet.mergeCells(currentRowIndex, 1, currentRowIndex, lastColumn)
-    summaryTitleRow.getCell(1).value = '📊 综合对比摘要'
-    summaryTitleRow.getCell(1).font = {
-      name: 'Microsoft YaHei',
-      size: 13,
-      bold: true,
-      color: { argb: 'FF0F172A' },
-    }
-    summaryTitleRow.getCell(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFF1F5F9' },
-    }
-    summaryTitleRow.getCell(1).alignment = {
-      vertical: 'middle',
-      horizontal: 'left',
-    }
-    summaryTitleRow.height = 28
-    applyHeaderBorder(summaryTitleRow.getCell(1))
-    currentRowIndex += 1
-
-    const summaryRows: Array<{
-      label: string
-      values: (string | number)[]
-      valueType?: 'currency_usd' | 'currency_rmb' | 'percent' | 'number'
-    }> = [
-      {
-        label: '最高利润率',
-        values: [runs[bestRateIdx].product_name, bestRate],
-        valueType: 'percent',
-      },
-      {
-        label: '最低利润率',
-        values: [runs[worstRateIdx].product_name, worstRate],
-        valueType: 'percent',
-      },
-      {
-        label: '最大利润',
-        values: [runs[bestProfitIdx].product_name, bestProfit],
-        valueType: 'currency_usd',
-      },
-      {
-        label: '最小利润',
-        values: [runs[worstProfitIdx].product_name, worstProfit],
-        valueType: 'currency_usd',
-      },
-    ]
-
-    summaryRows.forEach((row) => {
-      const excelRow = worksheet.getRow(currentRowIndex)
-      worksheet.mergeCells(currentRowIndex, 1, currentRowIndex, 2)
-      excelRow.getCell(1).value = row.label
-      excelRow.getCell(1).font = {
-        name: 'Microsoft YaHei',
-        bold: true,
-        color: { argb: 'FF334155' },
-      }
-      excelRow.getCell(1).alignment = {
-        vertical: 'middle',
-        horizontal: 'left',
-      }
-      excelRow.getCell(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFF8FAFC' },
-      }
-
-      excelRow.getCell(3).value = row.values[0]
-      excelRow.getCell(3).font = {
-        name: 'Microsoft YaHei',
-        color: { argb: 'FF64748B' },
-      }
-      excelRow.getCell(3).alignment = {
-        vertical: 'middle',
-        horizontal: 'left',
-      }
-
-      const valCell = excelRow.getCell(4)
-      valCell.value = row.values[1]
-      valCell.font = {
-        name: 'Microsoft YaHei',
-        size: 11,
-        bold: true,
-        color: {
-          argb: row.label.includes('最高') || row.label.includes('最大') ? 'FF047857' : 'FFBE123C',
-        },
-      }
-      valCell.alignment = {
-        vertical: 'middle',
-        horizontal: 'right',
-      }
-      if (typeof row.values[1] === 'number') {
-        if (row.valueType === 'percent') valCell.numFmt = '0.00%'
-        if (row.valueType === 'currency_usd') valCell.numFmt = '$#,##0.00'
-      }
-
-      excelRow.eachCell((cell, colNumber) => {
-        if (colNumber <= 4) {
-          applyBorder(cell)
-        }
-      })
-
-      currentRowIndex += 1
-    })
-  }
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], {
