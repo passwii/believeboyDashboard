@@ -20,6 +20,7 @@ import type {
   FollowUpItem,
   Lead,
   LeadInput,
+  Task,
   User,
 } from '@/lib/crm/types'
 
@@ -164,6 +165,27 @@ export interface AuditLogDto {
   actor_name?: string | null
   summary?: string | null
   created_at: string
+}
+
+export interface TaskDto {
+  id: number
+  title: string
+  description?: string | null
+  due_date?: string | null
+  priority: string
+  status: string
+  type: string
+  owner_id?: string | null
+  owner_name?: string | null
+  customer_id?: number | null
+  customer_name?: string | null
+  lead_id?: number | null
+  lead_name?: string | null
+  reminded_at?: string | null
+  created_by?: string | null
+  completed_at?: string | null
+  created_at: string
+  updated_at: string
 }
 
 // ---------- 出站映射（snake → camel，int → string） ----------
@@ -325,6 +347,30 @@ export function mapAuditLog(dto: AuditLogDto): AuditLog {
     actorName: dto.actor_name ?? null,
     summary: dto.summary ?? null,
     createdAt: dto.created_at,
+  }
+}
+
+/** 任务出站映射（snake → camel，int → string；null → undefined，ownerId 保留 null）。 */
+export function mapTask(dto: TaskDto): Task {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    description: dto.description ?? undefined,
+    dueDate: dto.due_date ?? undefined,
+    priority: dto.priority as Task['priority'],
+    status: dto.status as Task['status'],
+    type: dto.type as Task['type'],
+    ownerId: dto.owner_id ?? null,
+    ownerName: dto.owner_name ?? undefined,
+    customerId: dto.customer_id != null ? String(dto.customer_id) : undefined,
+    customerName: dto.customer_name ?? undefined,
+    leadId: dto.lead_id != null ? String(dto.lead_id) : undefined,
+    leadName: dto.lead_name ?? undefined,
+    remindedAt: dto.reminded_at ?? undefined,
+    createdBy: dto.created_by ?? undefined,
+    completedAt: dto.completed_at ?? undefined,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   }
 }
 

@@ -17,6 +17,9 @@ import type {
   FollowUpItem,
   Lead,
   LeadInput,
+  Task,
+  TaskListParams,
+  TaskStatus,
   User,
   ValueScoresInput,
 } from '@/lib/crm/types'
@@ -25,6 +28,7 @@ import {
   CUSTOMERS_FIXTURE,
   LEADS_FIXTURE,
   FOLLOWS_FIXTURE,
+  TASKS_FIXTURE,
   USERS_FIXTURE,
 } from './mock-data'
 
@@ -41,6 +45,7 @@ interface MockState {
   contacts: Contact[]
   users: User[]
   audits: AuditLog[]
+  tasks: Task[]
 }
 
 function isE2E(): boolean {
@@ -78,6 +83,7 @@ function loadState(): MockState {
       contacts: [],
       users: [...USERS_FIXTURE],
       audits: [],
+      tasks: [...TASKS_FIXTURE],
     }
   }
   try {
@@ -90,6 +96,7 @@ function loadState(): MockState {
         contacts: [],
         users: [...USERS_FIXTURE],
         audits: [],
+        tasks: [...TASKS_FIXTURE],
       }
     }
     const parsed = JSON.parse(raw) as Partial<MockState>
@@ -100,6 +107,7 @@ function loadState(): MockState {
       contacts: parsed.contacts ?? [],
       users: parsed.users ?? [...USERS_FIXTURE],
       audits: parsed.audits ?? [],
+      tasks: parsed.tasks ?? [...TASKS_FIXTURE],
     }
   } catch {
     return {
@@ -109,6 +117,7 @@ function loadState(): MockState {
       contacts: [],
       users: [...USERS_FIXTURE],
       audits: [],
+      tasks: [...TASKS_FIXTURE],
     }
   }
 }
@@ -847,5 +856,44 @@ export class MockCrmClient implements CrmClient {
       page,
       pageSize,
     }
+  }
+
+  // ===== Task（P7，BLF-512） =====
+
+  async listTasks(params: TaskListParams): Promise<Paginated<Task>> {
+    await this.delay('listTasks')
+    let items = this.state.tasks
+    if (params.type) items = items.filter((t) => t.type === params.type)
+    if (params.status) items = items.filter((t) => t.status === params.status)
+    if (params.priority) items = items.filter((t) => t.priority === params.priority)
+    if (params.ownerId) items = items.filter((t) => t.ownerId === params.ownerId)
+    if (params.customerId) items = items.filter((t) => t.customerId === params.customerId)
+    if (params.leadId) items = items.filter((t) => t.leadId === params.leadId)
+    items = applyScope(items, params.scope, this.currentUserId, 'ownerId')
+    // 默认按截止时间升序、无截止排最后（与后端 list_tasks 一致）
+    const sorted = [...items].sort((a, b) => {
+      const da = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY
+      const db = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY
+      if (da !== db) return params.sortOrder === 'desc' ? db - da : da - db
+      return a.id.localeCompare(b.id)
+    })
+    return paginate(sorted, params.page, params.pageSize)
+  }
+
+  async setTaskStatus(id: string, status: TaskStatus): Promise<Task> {
+    await this.delay('setTaskStatus')
+    const idx = this.state.tasks.findIndex((t) => t.id === id)
+    if (idx === -1) throw new Error(`任务不存在: ${id}`)
+    const prev = this.state.tasks[idx]
+    const updated: Task = {
+      ...prev,
+      status,
+      completedAt:
+        status === 'done' ? (prev.completedAt ?? new Date().toISOString()) : undefined,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.tasks[idx] = updated
+    persistState(this.state)
+    return updated
   }
 }

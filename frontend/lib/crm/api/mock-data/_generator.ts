@@ -16,6 +16,10 @@ import type {
   Lead,
   LeadIntent,
   LeadStatus,
+  Task,
+  TaskPriority,
+  TaskStatus,
+  TaskType,
   User,
 } from '@/lib/crm/types'
 
@@ -215,6 +219,39 @@ const FOLLOW_TYPES: readonly FollowType[] = [
   'phone',
   'wechat',
 ]
+const TASK_STATUSES: readonly TaskStatus[] = [
+  'pending',
+  'pending',
+  'pending',
+  'in_progress',
+  'in_progress',
+  'done',
+  'done',
+  'cancelled',
+]
+const TASK_TYPES: readonly TaskType[] = ['follow_up', 'call', 'visit', 'custom']
+const TASK_PRIORITIES: readonly TaskPriority[] = [
+  'low',
+  'medium',
+  'medium',
+  'high',
+  'high',
+  'urgent',
+]
+const TASK_TITLES = [
+  '确认报价单并发送客户',
+  '安排样品寄送',
+  '跟进合同签署进度',
+  '电话回访老客户',
+  '安排上门拜访',
+  '整理客户需求清单',
+  '发送产品目录',
+  '确认付款计划',
+  '对接物流方案',
+  '新品推荐沟通',
+  '跟进售后反馈',
+  '预约下次沟通时间',
+] as const
 
 function genName(rand: () => number): string {
   return `${pick(rand, LAST_NAMES)}${pick(rand, FIRST_NAMES)}`
@@ -402,6 +439,59 @@ export function generateFollows(
       createdBy: owner?.id ?? 'u-001',
       createdByName: owner?.name,
       createdAt: daysAgo(rand, 60),
+    })
+  }
+  return out
+}
+
+export function generateTasks(
+  count: number,
+  seed = 7007,
+  users: User[] = [],
+  customers: Customer[] = [],
+  leads: Lead[] = []
+): Task[] {
+  const rand = mulberry32(seed)
+  const ownerCandidates = users.length > 0 ? users : []
+  const out: Task[] = []
+  for (let i = 0; i < count; i++) {
+    const id = `t-${String(i + 1).padStart(4, '0')}`
+    const status = pick(rand, TASK_STATUSES)
+    // 关联：约 4 成挂客户、3 成挂线索、其余无关联（客户/线索名走 chips）
+    const linked = rand()
+    const customer =
+      linked < 0.4 && customers.length > 0 ? pick(rand, customers) : null
+    const lead =
+      !customer && linked < 0.7 && leads.length > 0 ? pick(rand, leads) : null
+    const owner = ownerCandidates.length > 0 ? pick(rand, ownerCandidates) : null
+    // 截止：约 3 成已逾期、1.5 成今天、3.5 成未来、2 成无截止（覆盖逾期红/今日黄）
+    const dueRoll = rand()
+    const dueDate =
+      dueRoll < 0.3
+        ? daysAgo(rand, 5)
+        : dueRoll < 0.45
+          ? new Date().toISOString()
+          : dueRoll < 0.8
+            ? daysAgo(rand, -14)
+            : undefined
+    const createdAt = daysAgo(rand, 60)
+    out.push({
+      id,
+      title: pick(rand, TASK_TITLES),
+      description: rand() > 0.5 ? '客户提出初步意向，需要持续跟进推动落地' : undefined,
+      dueDate,
+      priority: pick(rand, TASK_PRIORITIES),
+      status,
+      type: pick(rand, TASK_TYPES),
+      ownerId: owner?.id ?? null,
+      ownerName: owner?.name,
+      customerId: customer?.id,
+      customerName: customer?.name,
+      leadId: lead?.id,
+      leadName: lead?.name,
+      createdAt,
+      updatedAt: daysAgo(rand, 15),
+      completedAt: status === 'done' ? daysAgo(rand, 10) : undefined,
     })
   }
   return out

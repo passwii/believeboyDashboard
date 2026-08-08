@@ -21,6 +21,8 @@
     "perf:lhci:assert": "lhci assert --config=./.lighthouserc.json"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
     "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "^5.4.0",
     "@pdf-lib/fontkit": "^1.1.1",
