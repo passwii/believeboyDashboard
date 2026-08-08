@@ -32,6 +32,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
@@ -1567,10 +1568,32 @@ export default function DailyAnalysisPage() {
       <DataCard>
         <DataCardHeader title="控制台" titleClassName="text-2xl tracking-tight" />
         <div className="space-y-0">
-          {/* 筛选区 — 桌面端横向排列（无标签） */}
-          <div className="dashboard-toolbar hidden md:flex flex-wrap items-center gap-3 px-4 py-4 lg:px-6 lg:py-5">
+          {/* BLF-503 试点：筛选工具栏统一走 FilterToolbar（桌面横向 / 手机 2 列网格） */}
+          <FilterToolbar
+            actions={
+              <>
+                <RefreshButton
+                  onClick={() => void loadData(undefined, true)}
+                  loading={loading || projectsLoading}
+                  label="刷新数据"
+                  size="default"
+                  variant="outline"
+                  className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
+                  className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 md:hidden"
+                >
+                  近7天
+                </Button>
+              </>
+            }
+          >
             <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-9 w-[140px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay)]">
+              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none [&>span]:truncate dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
                 <SelectValue placeholder="选择项目" />
               </SelectTrigger>
               <SelectContent>
@@ -1585,7 +1608,7 @@ export default function DailyAnalysisPage() {
             <CountrySelect
               value={country}
               onChange={(value) => setCountry(value as CountryOption)}
-              triggerClassName="h-9 w-[160px]"
+              triggerClassName="h-9 md:w-[160px]"
             />
             <SearchableSkuField
               value={selectedSku}
@@ -1606,88 +1629,11 @@ export default function DailyAnalysisPage() {
                 setDateRange(range)
                 setDatePresetKey(meta?.presetKey)
               }}
-              className="h-9 w-[220px]"
+              className="h-9 w-full md:w-[220px]"
               timezone={COUNTRY_TIMEZONE_MAP[country]}
               onApply={() => void loadData()}
             />
-            <RefreshButton
-              onClick={() => void loadData(undefined, true)}
-              loading={loading || projectsLoading}
-              label="刷新数据"
-              size="default"
-              variant="outline"
-              className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-            />
-          </div>
-          {/* 筛选区 — 手机端 2 列网格（无标签） */}
-          <div className="dashboard-toolbar md:hidden px-4 py-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部项目</SelectItem>
-                  {projects.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <CountrySelect
-                value={country}
-                onChange={(value) => setCountry(value as CountryOption)}
-                triggerClassName="h-9"
-              />
-            </div>
-            <div className="mt-2">
-              <div className="grid grid-cols-2 gap-2">
-                <SearchableSkuField
-                  value={selectedSku}
-                  options={skuOptions}
-                  loading={skuLoading}
-                  disabled={country === 'ALL'}
-                  onOpen={ensureSkuOptions}
-                  onChange={(value) => {
-                    selectedSkuRef.current = value
-                    setSelectedSku(value)
-                    setActiveTab('summary')
-                    void loadData()
-                  }}
-                />
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={(range, meta) => {
-                    setDateRange(range)
-                    setDatePresetKey(meta?.presetKey)
-                  }}
-                  className="h-9 w-full"
-                  timezone={COUNTRY_TIMEZONE_MAP[country]}
-                  onApply={() => void loadData()}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <RefreshButton
-                onClick={() => void loadData(undefined, true)}
-                loading={loading || projectsLoading}
-                label="刷新"
-                size="sm"
-                variant="outline"
-                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void handleQuickRange(lastSevenDaysRange(country))}
-                className="flex-1 h-9 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85"
-              >
-                近7天
-              </Button>
-            </div>
-          </div>
+          </FilterToolbar>
           {goalProgress && goalProgress.target_amount > 0 && (
             <div className="dashboard-toolbar flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/50 px-4 py-3 md:px-6">
               <Target className="h-4 w-4 shrink-0 text-blue-500" />
