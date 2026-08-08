@@ -58,6 +58,10 @@ productEnvAgent/.[!.]*
 !productEnvAgent/README.md
 !productEnvAgent/config.json
 !productEnvAgent/post-push.sh
+# BLF-524：回滚协议工具（回滚脚本 / 告警助手 / 操作手册）
+!productEnvAgent/rollback.py
+!productEnvAgent/alerting.py
+!productEnvAgent/ROLLBACK.md
 !productEnvAgent/.gitignore
 
 # Logs
@@ -183,3 +187,6 @@ db_capacity_results.json
 
 openSourceProjects/
 .worktrees
+
+# 部署/回滚运行产物（deploy_vps / rollback / alerting 运行时写入）
+productEnvAgent/logs/
