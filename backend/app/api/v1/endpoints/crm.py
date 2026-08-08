@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from datetime import date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -23,6 +25,7 @@ from app.api.deps import (
     get_request_user_id,
     protected,
 )
+from app.db.session import SessionLocal
 from app.models.crm import CrmCustomer, CrmLead
 from app.schemas.crm import (
     AuditLogListResponse,
@@ -77,6 +80,8 @@ from app.services.crm.permissions import (
     require_owner_or_admin,
     resolve_scope,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/crm", tags=["crm"], dependencies=[Depends(protected)])
 
@@ -845,6 +850,75 @@ def list_tasks(
         # 非白名单筛选/排序字段 → 400
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return TaskListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+# ---------- Task 提醒 SSE（P7-4, BLF-513） ----------
+# 轮询间隔：每 60s 查一次当前用户应提醒任务（每小时级低频事件，延迟可接受）
+TASK_REMINDER_TICK_SECONDS = 60
+
+
+def _fetch_user_reminders(user_id: str | None) -> list[dict]:
+    """SSE 每 tick 的同步查询：当前用户应提醒且未过期的任务（独立 session，用完即关）。
+
+    返回 [{task_id, title, due_date}]，供流式推送（数字员工 _build_tick_sync 同款模式）。
+    """
+    db = SessionLocal()
+    try:
+        rows = task_service.list_user_reminder_tasks(db, user_id=user_id)
+        return [
+            {
+                "task_id": t.id,
+                "title": t.title,
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+            }
+            for t in rows
+        ]
+    finally:
+        db.close()
+
+
+async def _task_reminder_stream(request: Request, user_id: str | None):
+    """SSE 生成器：每 tick 在线程池查 DB，diff 后只推送新增的提醒，不阻塞事件循环。
+
+    - 首次连接即推送当前全部应提醒任务（重放离线期错过的提醒）；
+    - 之后仅推送新出现的 task_id（同一连接内不重复轰炸）；
+    - keep-alive 注释行防代理超时；is_disconnected 断连退出。
+    """
+    pushed_ids: set[int] = set()
+    while True:
+        # 客户端断连 → 退出
+        if await request.is_disconnected():
+            break
+        try:
+            reminders = await asyncio.to_thread(_fetch_user_reminders, user_id)
+            fresh = [r for r in reminders if r["task_id"] not in pushed_ids]
+            for r in fresh:
+                pushed_ids.add(r["task_id"])
+                yield f"event: task_reminder\ndata: {json.dumps(r, ensure_ascii=False)}\n\n"
+        except Exception:
+            logger.exception("task reminder stream tick failed")
+            # 发注释行保持连接，不断流
+            yield ": tick-error\n\n"
+        # keep-alive 注释行（防代理 60s 超时）
+        yield ": keep-alive\n\n"
+        await asyncio.sleep(TASK_REMINDER_TICK_SECONDS)
+
+
+@router.get("/tasks/reminders/stream")
+async def task_reminders_stream(
+    request: Request,
+    user_id: str | None = Depends(get_request_user_id),
+):
+    """任务到期提醒 SSE：event: task_reminder + {task_id, title, due_date}（登录态）。"""
+    return StreamingResponse(
+        _task_reminder_stream(request, user_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/tasks", response_model=TaskItem, status_code=status.HTTP_201_CREATED)

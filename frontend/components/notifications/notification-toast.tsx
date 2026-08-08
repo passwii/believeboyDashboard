@@ -58,8 +58,10 @@ function ToastItem({ notification }: ToastItemProps) {
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 40, scale: 0.95 }}
       transition={{ duration: DURATION.springPress, ease: 'easeOut' }}
+      onClick={() => notification.onClick?.()}
       className={cn(
         'pointer-events-auto flex w-72 items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm',
+        notification.onClick ? 'cursor-pointer' : undefined,
         config.className
       )}
     >
@@ -83,7 +85,10 @@ function ToastItem({ notification }: ToastItemProps) {
       </div>
       <button
         type="button"
-        onClick={() => dismissToast(notification.id)}
+        onClick={(e) => {
+          e.stopPropagation()
+          dismissToast(notification.id)
+        }}
         className={cn(
           'mt-0.5 shrink-0 rounded-md p-0.5 transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           typeTextClassName[notification.type]

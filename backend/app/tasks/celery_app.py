@@ -47,6 +47,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.ai_summary",
             "app.celery_tasks.office_tick",
             "app.celery_tasks.crm_sea_reclaim",
+            "app.celery_tasks.crm_task_reminder",
             "app.celery_tasks.alert_detection",
             # BEL-373：每日 03:00 UTC 刷新退货分析物化表
             "app.celery_tasks.return_analysis_refresh",
@@ -87,6 +88,8 @@ def _build_celery_app() -> Celery:
             "office_tick": {"queue": "default"},
             # CRM 公海自动回收（P3a）：default 队列（每日一次短任务）
             "crm_sea_reclaim": {"queue": "default"},
+            # CRM 任务到期提醒扫描（BLF-513）：default 队列（每小时一次短任务）
+            "crm_task_reminder": {"queue": "default"},
             # 告警定时检测（P1）：default 队列（短任务，每 15 分钟）
             "alert_detect": {"queue": "default"},
             # BEL-377：agent API 审计日志保留清理：default 队列（每日一次短任务）
@@ -109,6 +112,11 @@ def _build_celery_app() -> Celery:
             "crm-sea-reclaim": {
                 "task": "crm_sea_reclaim",
                 "schedule": crontab(hour=3, minute=0),
+            },
+            # CRM 任务到期提醒（BLF-513）：每小时 :05 扫描截止前 24h 内未提醒任务（错开整点）
+            "crm-task-reminder": {
+                "task": "crm_task_reminder",
+                "schedule": crontab(minute=5),
             },
             # 告警定时检测（P1）：每 15 分钟跑全量规则检测 + 分发
             "alert-detect": {
