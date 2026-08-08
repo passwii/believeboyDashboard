@@ -289,3 +289,77 @@ describe('MockCrmClient · Task (P7)', () => {
     await expect(client.setTaskStatus('t-9999', 'done')).rejects.toThrow(/任务不存在/)
   })
 })
+
+describe('MockCrmClient · Task 创建/编辑/完成/取消（BLF-514）', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('createTask 默认 owner=当前用户，返回完整实体', async () => {
+    const created = await client.createTask({
+      title: '测试新建任务',
+      type: 'call',
+      priority: 'high',
+    })
+    expect(created.id).toMatch(/^t-/)
+    expect(created.ownerId).toBe(TEST_USER)
+    expect(created.status).toBe('pending')
+    expect(created.type).toBe('call')
+    expect(created.priority).toBe('high')
+    // 已入列表
+    const page = await client.listTasks({ pageSize: 100 })
+    expect(page.items.some((t) => t.id === created.id)).toBe(true)
+  })
+
+  it('createTask 关联客户时回填 customerName', async () => {
+    const target = CUSTOMERS_FIXTURE[0]
+    const created = await client.createTask({
+      title: '关联客户任务',
+      type: 'follow_up',
+      priority: 'medium',
+      customerId: target.id,
+    })
+    expect(created.customerId).toBe(target.id)
+    expect(created.customerName).toBe(target.name)
+  })
+
+  it('updateTask 修改字段并 bump updatedAt', async () => {
+    const target = TASKS_FIXTURE[0]
+    const updated = await client.updateTask(target.id, {
+      title: '改后的标题',
+      priority: 'urgent',
+    })
+    expect(updated.title).toBe('改后的标题')
+    expect(updated.priority).toBe('urgent')
+    expect(updated.updatedAt >= target.updatedAt).toBe(true)
+  })
+
+  it('completeTask 置 done + completed_at', async () => {
+    const target = TASKS_FIXTURE.find((t) => t.status === 'pending')!
+    const updated = await client.completeTask(target.id)
+    expect(updated.status).toBe('done')
+    expect(updated.completedAt).toBeTruthy()
+    const page = await client.listTasks({ status: 'done', pageSize: 100 })
+    expect(page.items.some((t) => t.id === target.id)).toBe(true)
+  })
+
+  it('cancelTask 置 cancelled 并清空 completed_at', async () => {
+    const target = TASKS_FIXTURE.find((t) => t.status === 'pending')!
+    const done = await client.completeTask(target.id)
+    expect(done.completedAt).toBeTruthy()
+    const cancelled = await client.cancelTask(target.id)
+    expect(cancelled.status).toBe('cancelled')
+    expect(cancelled.completedAt).toBeUndefined()
+  })
+
+  it('操作未知任务抛错', async () => {
+    await expect(client.completeTask('t-9999')).rejects.toThrow(/任务不存在/)
+    await expect(client.cancelTask('t-9998')).rejects.toThrow(/任务不存在/)
+    await expect(client.updateTask('t-9997', { title: 'x' })).rejects.toThrow(/任务不存在/)
+  })
+})

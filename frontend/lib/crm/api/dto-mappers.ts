@@ -21,6 +21,7 @@ import type {
   Lead,
   LeadInput,
   Task,
+  TaskInput,
   User,
 } from '@/lib/crm/types'
 
@@ -496,5 +497,19 @@ export function toContactPayload(input: ContactInput): Record<string, unknown> {
     title: input.title,
     is_primary: input.isPrimary,
     remark: input.remark,
+  })
+}
+
+/** 任务创建/更新入参（camel → snake；customer_id/lead_id 转 int；owner_id 保留字符串）。 */
+export function toTaskPayload(input: Partial<TaskInput>): Record<string, unknown> {
+  return stripUndefined({
+    title: input.title,
+    description: input.description,
+    due_date: input.dueDate,
+    priority: input.priority,
+    type: input.type,
+    owner_id: input.ownerId,
+    customer_id: input.customerId != null ? Number(input.customerId) : input.customerId,
+    lead_id: input.leadId != null ? Number(input.leadId) : input.leadId,
   })
 }

@@ -12,6 +12,7 @@ import {
   toFollowPayload,
   toImportRowPayload,
   toLeadPayload,
+  toTaskPayload,
   type CustomerDto,
   type FollowDto,
   type FollowUpGroupsDto,
@@ -164,6 +165,31 @@ describe('mapTask (P7)', () => {
 })
 
 describe('入站映射', () => {
+  it('toTaskPayload 驼峰转下划线、id 转 int、undefined 剔除', () => {
+    const p = toTaskPayload({
+      title: '确认报价单',
+      type: 'follow_up',
+      priority: 'high',
+      dueDate: '2026-08-10T00:00:00+00:00',
+      customerId: '42',
+      ownerId: 'uuid-1',
+    })
+    expect(p).toEqual({
+      title: '确认报价单',
+      type: 'follow_up',
+      priority: 'high',
+      due_date: '2026-08-10T00:00:00+00:00',
+      customer_id: 42,
+      owner_id: 'uuid-1',
+    })
+    expect(p).not.toHaveProperty('lead_id')
+  })
+  it('toTaskPayload leadId 转 int、可空字段缺省剔除', () => {
+    const p = toTaskPayload({ title: 'x', leadId: '7' })
+    expect(p.lead_id).toBe(7)
+    expect(p).not.toHaveProperty('customer_id')
+  })
+
   it('toCustomerPayload 携带 contact 字段（修复丢失联系人）', () => {
     const p = toCustomerPayload({
       name: 'X',
