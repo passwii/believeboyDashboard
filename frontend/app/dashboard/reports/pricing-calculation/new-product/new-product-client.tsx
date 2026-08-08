@@ -238,7 +238,7 @@ type NewProductCalculationSnapshotItem = {
   sku: string
   asin: string | null
   country: string | null
-  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse'
+  calculation_type: 'profit_calc' | 'profit_reverse' | 'cost_reverse' | 'fbm_calc'
   package_length_cm: number
   package_width_cm: number
   package_height_cm: number
@@ -469,11 +469,22 @@ function buildInitialStoreDraft(
   }
 }
 
+// 前端测算模式 → 后端 calculation_type 映射（BLF-526：4 种全可存，对齐 AgentCalculationType）。
+const CALCULATION_TYPE_BY_MODE: Record<
+  CalculationMode,
+  NewProductCalculationSnapshotItem['calculation_type']
+> = {
+  'profit-calc': 'profit_calc',
+  'profit-reverse': 'profit_reverse',
+  'cost-reverse': 'cost_reverse',
+  'fbm-calc': 'fbm_calc',
+}
+
 // 将计算结果转换为快照格式
 function buildSnapshotPayload(
   item: ProductCostItem,
   result: PricingCalculationRunItem,
-  calculationType: 'profit-calc' | 'profit-reverse',
+  calculationType: CalculationMode,
   projectId: number
 ): NewProductCalculationSnapshotItem {
   return {
@@ -483,7 +494,7 @@ function buildSnapshotPayload(
     sku: item.sku,
     asin: item.asin,
     country: item.country,
-    calculation_type: calculationType === 'profit-calc' ? 'profit_calc' : 'profit_reverse',
+    calculation_type: CALCULATION_TYPE_BY_MODE[calculationType],
     package_length_cm: result.package_length_cm,
     package_width_cm: result.package_width_cm,
     package_height_cm: result.package_height_cm,
@@ -529,8 +540,7 @@ function convertSnapshotToResult(snapshot: NewProductCalculationSnapshotItem): P
     id: snapshot.id,
     country: snapshot.country ?? '',
     product_name: `${snapshot.project_name} / ${snapshot.sku}`,
-    calculation_type:
-      snapshot.calculation_type === 'profit_reverse' ? 'profit_reverse' : 'profit_calc',
+    calculation_type: snapshot.calculation_type,
     project_id: snapshot.project_id,
     sku: snapshot.sku,
     package_length_cm: snapshot.package_length_cm,
@@ -2377,7 +2387,7 @@ export default function PricingCalculationPage() {
 
   async function handleStoreSkuCalculate(
     item: ProductCostItem,
-    calculationMode: 'profit-calc' | 'profit-reverse' = 'profit-calc'
+    calculationMode: CalculationMode = 'profit-calc'
   ) {
     const rowState = storeRows[item.id]
     if (!rowState) return

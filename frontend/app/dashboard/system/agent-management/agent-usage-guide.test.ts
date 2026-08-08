@@ -189,6 +189,23 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=new_product_calculations 输出新品测算示例（BLF-526，5 条路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'new_product_calculations',
+    })
+    expect(text).toContain('新品测算')
+    expect(text).toContain('/new-product-calculations?calculation_type=profit_calc')
+    expect(text).toContain('/new-product-calculations/skus/{sku}')
+    expect(text).toContain('/new-product-calculations/skus/{sku}/audit')
+    expect(text).toContain('/new-product-calculations/compute')
+    expect(text).toContain('confirm_token')
+    expect(text).toContain('fbm_calc')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
