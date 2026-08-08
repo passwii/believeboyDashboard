@@ -115,21 +115,62 @@ def test_create_task_non_admin_assign_owner_forbidden(db_session):
     assert ei.value.status_code == 403
 
 
-def test_create_task_with_customer_lead_links(db_session):
-    cust = _mk_customer(db_session)
-    lead = _mk_lead(db_session)
+def test_create_task_with_customer_link_joins_name(db_session):
+    """BLF-511 联查：customer_name 详情返回（批量 map，防 N+1）。"""
+    cust = _mk_customer(db_session, name="客户A")
     item = create_task(
-        db_session,
-        TaskCreate(title="拜访客户", customer_id=cust.id, lead_id=lead.id),
-        user_id=ALICE,
+        db_session, TaskCreate(title="拜访客户", customer_id=cust.id), user_id=ALICE
     )
     assert item.customer_id == cust.id
-    assert item.lead_id == lead.id
-    # 联查字段（BLF-511 预留：本期 schema 已含 join 字段）
+    assert item.lead_id is None
     got = get_task(db_session, item.id)
     assert got is not None
     assert got.customer_name == "客户A"
+    assert got.lead_name is None
+
+
+def test_create_task_with_lead_link_joins_name(db_session):
+    """BLF-511 联查：lead_name 详情返回。"""
+    lead = _mk_lead(db_session, name="线索A")
+    item = create_task(
+        db_session, TaskCreate(title="跟进线索", lead_id=lead.id), user_id=ALICE
+    )
+    assert item.lead_id == lead.id
+    assert item.customer_id is None
+    got = get_task(db_session, item.id)
+    assert got is not None
     assert got.lead_name == "线索A"
+    assert got.customer_name is None
+
+
+def test_list_tasks_joins_customer_lead_names(db_session):
+    """BLF-511 列表联查：同页多条任务批量解析 customer/lead 名。"""
+    cust = _mk_customer(db_session, name="客户甲")
+    lead = _mk_lead(db_session, name="线索乙")
+    t1 = _mk_task(db_session, owner=ALICE, customer_id=cust.id)
+    t2 = _mk_task(db_session, owner=ALICE, lead_id=lead.id)
+    items, _ = list_tasks(db_session, user_id=ALICE, scope="all")
+    by_id = {i.id: i for i in items}
+    assert by_id[t1.id].customer_name == "客户甲"
+    assert by_id[t1.id].lead_name is None
+    assert by_id[t2.id].lead_name == "线索乙"
+    assert by_id[t2.id].customer_name is None
+
+
+def test_update_task_switches_customer_to_lead_join(db_session):
+    """BLF-511 更新关联后联查字段同步（customer → lead）。"""
+    cust = _mk_customer(db_session, name="客户A")
+    lead = _mk_lead(db_session, name="线索丁")
+    task = _mk_task(db_session, owner=ALICE, customer_id=cust.id)
+    item = update_task(
+        db_session,
+        task,
+        TaskUpdate(customer_id=None, lead_id=lead.id),
+        user_id=ALICE,
+    )
+    assert item.customer_id is None
+    assert item.lead_id == lead.id
+    assert item.lead_name == "线索丁"
 
 
 def test_create_task_with_customer_links_owner_name(db_session):
