@@ -486,6 +486,55 @@ class StageDetail(BaseModel):
     total: int = 0
 
 
+# ---------- 业绩看板（P8, BLF-519） ----------
+class PerformanceMetrics(BaseModel):
+    """业绩指标（个人或全局，Asia/Shanghai 本月口径）。
+
+    - new_customers：本月新增客户（created_at ∈ 本月，未删除）。
+    - converted_count：本月转化数（converted_at ∈ 本月，未删除）。
+    - follow_count：本月跟进数（CrmFollow.created_at ∈ 本月；个人口径按 created_by 归属）。
+    - completion_rate：本月任务完成率 = 本月完成 / (本月完成 + 当前未完成)，
+      无任务（分母为 0）时 None。任务来自 P7 crm_tasks（排除 cancelled）。
+    """
+
+    new_customers: int = 0
+    converted_count: int = 0
+    follow_count: int = 0
+    completion_rate: float | None = None
+
+
+class PerformanceRankItem(BaseModel):
+    """排名表一行（按人）。"""
+
+    rank: int
+    owner_id: str
+    owner_name: str | None = None
+    new_customers: int = 0
+    converted_count: int = 0
+    follow_count: int = 0
+    completion_rate: float | None = None
+
+
+class PerformanceBoard(BaseModel):
+    """业绩看板（P8, BLF-519）。
+
+    - scope=mine（任何人可访问）：mine=我的指标 + my_rank/total_users；ranking 为空
+      （员工只见自己，不泄露他人明细）。
+    - scope=all（仅管理员）：mine 仍返回（管理员自己的指标），另附 global_metrics
+      （全员合计）与 ranking（全员排名表，参与人数 = total_users）。
+    """
+
+    scope: Literal["mine", "all"]
+    month: str  # YYYY-MM（Asia/Shanghai 口径）
+    mine: PerformanceMetrics = Field(default_factory=PerformanceMetrics)
+    my_rank: int | None = (
+        None  # 我的排名（按 sort_by 主键降序，1-based）；不在排名名单则 None
+    )
+    total_users: int = 0  # 参与排名的人数（活跃非管理员用户）
+    global_metrics: PerformanceMetrics | None = None  # 全员合计（仅 scope=all）
+    ranking: list[PerformanceRankItem] = []  # 全员排名表（仅 scope=all）
+
+
 # ---------- Audit Log (P4) ----------
 class AuditLogItem(BaseModel):
     id: int

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmCustomer, CrmFollow, CrmLead
+from app.models.crm import CrmCustomer, CrmFollow, CrmLead, CrmTask
 from app.schemas.crm import (
     DashboardStats,
     FollowActivity,
@@ -20,6 +20,9 @@ from app.schemas.crm import (
     FunnelMetrics,
     NewThisMonth,
     OwnerPerformance,
+    PerformanceBoard,
+    PerformanceMetrics,
+    PerformanceRankItem,
     StageDetail,
     StageLeadItem,
 )
@@ -425,4 +428,250 @@ def get_stage_detail(
         page=page,
         page_size=page_size,
         total=int(total),
+    )
+
+
+# =====================================================================
+# P8 业绩看板（BLF-519）— 个人 + 全局业绩指标 + 按人排名
+#
+# 口径（Asia/Shanghai「本月」）：
+#   - 本月新增客户：crm_customers.created_at ∈ 本月（未删除），按 owner_id 归属
+#   - 转化数：crm_leads.converted_at ∈ 本月（未删除），按 owner_id 归属
+#   - 跟进数：crm_follows.created_at ∈ 本月，按 created_by 归属（谁做的跟进）
+#   - 完成率：crm_tasks（P7）本月任务完成率 =
+#       本月完成(status=done 且 completed_at ∈ 本月) / (本月完成 + 当前未完成)
+#       （未完成 = pending/in_progress；cancelled 排除；分母 0 → None）
+# 权限：scope=mine 任何人（员工看自己）；scope=all 仅管理员（403）。
+# =====================================================================
+
+
+def _parse_month(
+    month: str | None, ref: datetime | None
+) -> tuple[datetime, datetime, str]:
+    """解析 YYYY-MM → (month_start, month_end, label)。缺省 = ref 所在月。"""
+    base = (ref or datetime.now(SHANGHAI)).astimezone(SHANGHAI)
+    if month:
+        try:
+            y, m = (int(x) for x in month.split("-"))
+            start = datetime(y, m, 1, tzinfo=SHANGHAI)
+        except ValueError as e:
+            raise ValueError("month 须为 YYYY-MM 格式") from e
+    else:
+        start = base.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = datetime(start.year + 1, 1, 1, tzinfo=SHANGHAI)
+    else:
+        end = datetime(start.year, start.month + 1, 1, tzinfo=SHANGHAI)
+    return start, end, start.strftime("%Y-%m")
+
+
+def _active_user_roster(db: Session) -> list[tuple[str, str]]:
+    """活跃用户 (id::text, name)，排名名单与总人数口径。"""
+    rows = (
+        db.execute(
+            text(
+                "select id::text as id, name from public.user_accounts "
+                "where is_active = true order by name"
+            )
+        )
+        .mappings()
+        .all()
+    )
+    return [(str(r["id"]), r["name"]) for r in rows]
+
+
+def get_performance_board(
+    db: Session,
+    *,
+    user_id: str | None,
+    is_admin: bool,
+    scope: str = "mine",
+    month: str | None = None,
+    sort_by: str = "converted_count",
+    now: datetime | None = None,
+) -> PerformanceBoard:
+    """业绩看板：个人/全局业绩指标 + 按人排名（BLF-519）。
+
+    - scope=mine：任何人可看自己的指标与排名（不泄露他人明细，ranking 为空）。
+    - scope=all：仅管理员（require_admin 403）；返回全员合计 + 全员排名表。
+    - sort_by ∈ {converted_count, new_customers, follow_count, completion_rate}：
+      排名主键（默认转化数，最核心业绩）；并列时依次比转化/新增/跟进/完成率。
+    """
+    if scope == "all":
+        require_admin(is_admin)
+    month_start, month_end, month_label = _parse_month(month, now)
+
+    # ---- 按人聚合（一条 SQL 各取一次，避免 N+1）----
+    cust_rows = db.execute(
+        select(CrmCustomer.owner_id, func.count())
+        .where(
+            CrmCustomer.is_deleted.is_(False),
+            CrmCustomer.created_at >= month_start,
+            CrmCustomer.created_at < month_end,
+            CrmCustomer.owner_id.is_not(None),
+        )
+        .group_by(CrmCustomer.owner_id)
+    ).all()
+    new_by_owner = {str(oid): int(c) for oid, c in cust_rows}
+
+    conv_rows = db.execute(
+        select(CrmLead.owner_id, func.count())
+        .where(
+            CrmLead.is_deleted.is_(False),
+            CrmLead.converted_at >= month_start,
+            CrmLead.converted_at < month_end,
+            CrmLead.owner_id.is_not(None),
+        )
+        .group_by(CrmLead.owner_id)
+    ).all()
+    conv_by_owner = {str(oid): int(c) for oid, c in conv_rows}
+
+    follow_rows = db.execute(
+        select(CrmFollow.created_by, func.count())
+        .where(
+            CrmFollow.created_at >= month_start,
+            CrmFollow.created_at < month_end,
+            CrmFollow.created_by.is_not(None),
+        )
+        .group_by(CrmFollow.created_by)
+    ).all()
+    follow_by_creator = {str(cid): int(c) for cid, c in follow_rows}
+
+    done_rows = db.execute(
+        select(CrmTask.owner_id, func.count())
+        .where(
+            CrmTask.status == "done",
+            CrmTask.completed_at >= month_start,
+            CrmTask.completed_at < month_end,
+            CrmTask.owner_id.is_not(None),
+        )
+        .group_by(CrmTask.owner_id)
+    ).all()
+    done_by_owner = {str(oid): int(c) for oid, c in done_rows}
+
+    open_rows = db.execute(
+        select(CrmTask.owner_id, func.count())
+        .where(
+            CrmTask.status.in_(("pending", "in_progress")),
+            CrmTask.owner_id.is_not(None),
+        )
+        .group_by(CrmTask.owner_id)
+    ).all()
+    open_by_owner = {str(oid): int(c) for oid, c in open_rows}
+
+    def _metrics(oid: str) -> PerformanceMetrics:
+        done = done_by_owner.get(oid, 0)
+        open_ = open_by_owner.get(oid, 0)
+        denom = done + open_
+        return PerformanceMetrics(
+            new_customers=new_by_owner.get(oid, 0),
+            converted_count=conv_by_owner.get(oid, 0),
+            follow_count=follow_by_creator.get(oid, 0),
+            completion_rate=round(done / denom, 4) if denom > 0 else None,
+        )
+
+    # ---- 排名名单：活跃用户全员（含 0 业绩者，admin 看全局时可见）----
+    roster = _active_user_roster(db)
+    _SORT_KEYS = ("converted_count", "new_customers", "follow_count", "completion_rate")
+    if sort_by not in _SORT_KEYS:
+        raise ValueError(f"sort_by 须为 {_SORT_KEYS} 之一")
+    primary = sort_by
+
+    def _sort_key(item: tuple[PerformanceMetrics, str, str]) -> tuple:
+        m, name, oid = item
+        # 主键降序；completion_rate None 排最后；并列依次比转化/新增/跟进，再按姓名
+        prim = (
+            m.completion_rate if primary == "completion_rate" else getattr(m, primary)
+        )
+        # 升序 + 取负实现降序；None → +inf 排最后（避免 -1.0 排在 -0.5 前面）
+        prim_key = float("inf") if prim is None else -prim
+        return (
+            prim_key,
+            -m.converted_count,
+            -m.new_customers,
+            -m.follow_count,
+            name or oid,
+        )
+
+    scored = sorted([(_metrics(oid), name, oid) for oid, name in roster], key=_sort_key)
+    ranking = [
+        PerformanceRankItem(
+            rank=i + 1,
+            owner_id=oid,
+            owner_name=name or None,
+            new_customers=m.new_customers,
+            converted_count=m.converted_count,
+            follow_count=m.follow_count,
+            completion_rate=m.completion_rate,
+        )
+        for i, (m, name, oid) in enumerate(scored)
+    ]
+    total_users = len(roster)
+
+    # ---- 我的指标 + 排名 ----
+    mine = _metrics(user_id) if user_id else PerformanceMetrics()
+    my_rank = next((r.rank for r in ranking if r.owner_id == user_id), None)
+
+    if scope == "mine":
+        return PerformanceBoard(
+            scope="mine",
+            month=month_label,
+            mine=mine,
+            my_rank=my_rank,
+            total_users=total_users,
+        )
+
+    # ---- scope=all：全局合计 ----
+    global_done = db.execute(
+        select(func.count())
+        .select_from(CrmTask)
+        .where(
+            CrmTask.status == "done",
+            CrmTask.completed_at >= month_start,
+            CrmTask.completed_at < month_end,
+        )
+    ).scalar_one()
+    global_open = db.execute(
+        select(func.count())
+        .select_from(CrmTask)
+        .where(CrmTask.status.in_(("pending", "in_progress")))
+    ).scalar_one()
+    global_new = db.execute(
+        select(func.count())
+        .select_from(CrmCustomer)
+        .where(
+            CrmCustomer.is_deleted.is_(False),
+            CrmCustomer.created_at >= month_start,
+            CrmCustomer.created_at < month_end,
+        )
+    ).scalar_one()
+    global_conv = db.execute(
+        select(func.count())
+        .select_from(CrmLead)
+        .where(
+            CrmLead.is_deleted.is_(False),
+            CrmLead.converted_at >= month_start,
+            CrmLead.converted_at < month_end,
+        )
+    ).scalar_one()
+    global_follow = db.execute(
+        select(func.count())
+        .select_from(CrmFollow)
+        .where(CrmFollow.created_at >= month_start, CrmFollow.created_at < month_end)
+    ).scalar_one()
+    gdenom = int(global_done) + int(global_open)
+    global_metrics = PerformanceMetrics(
+        new_customers=int(global_new),
+        converted_count=int(global_conv),
+        follow_count=int(global_follow),
+        completion_rate=round(int(global_done) / gdenom, 4) if gdenom > 0 else None,
+    )
+    return PerformanceBoard(
+        scope="all",
+        month=month_label,
+        mine=mine,
+        my_rank=my_rank,
+        total_users=total_users,
+        global_metrics=global_metrics,
+        ranking=ranking,
     )
