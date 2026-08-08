@@ -4,8 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { BarChart3, RefreshCcw, Sparkles, TrendingUp, Users } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { DashboardStats } from '@/lib/crm/types'
-import { StatCard } from '@/components/ui/stat-card'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatCard, StatCardRow } from '@/components/ui/stat-card'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/error-state'
+import { numericCell } from '@/components/ui/table-presets'
 import {
   Table,
   TableBody,
@@ -50,32 +53,29 @@ export default function CrmDashboardPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">CRM 数据看板</h1>
-          <p className="text-sm text-muted-foreground">
-            线索漏斗 / 本月新增 / 跟进活跃度 / 每销售业绩（仅管理员可见）
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-        >
-          <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-          刷新
-        </button>
-      </div>
+      {/* §8.1 PageHeader 原语：标题 + 描述 + 操作区 */}
+      <PageHeader
+        kicker="CRM"
+        title="数据看板"
+        description="线索漏斗 / 本月新增 / 跟进活跃度 / 每销售业绩（仅管理员可见）"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            刷新
+          </Button>
+        }
+      />
 
-      {error && (
-        <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
-          {error}
-        </div>
-      )}
+      {error && <ErrorState title="加载失败" message={error} onRetry={() => void load()} />}
 
-      {/* 本月新增 + 跟进活跃度 */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 本月新增 + 跟进活跃度（§8.3 StatCardRow 指标卡行） */}
+      <StatCardRow>
         <StatCard
           title="本月新增客户"
           value={String(stats?.newThisMonth.newCustomers ?? 0)}
@@ -100,35 +100,33 @@ export default function CrmDashboardPage() {
           icon={<BarChart3 className="h-4 w-4" />}
           color="rose"
         />
-      </div>
+      </StatCardRow>
 
       {/* 线索漏斗（累计转化口径） */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="space-y-0.5">
-              <CardTitle className="text-base">线索漏斗</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                累计口径：每层 = 到达该阶段及以上的线索数，逐级收窄
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {convRate !== null && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  <TrendingUp className="h-3 w-3" />
-                  整体转化率 {(convRate * 100).toFixed(1)}%
-                </span>
-              )}
-              {discarded > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-0.5 text-xs text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
-                  本期弃置 {discarded}
-                </span>
-              )}
-            </div>
+      <div className="dashboard-surface">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-5">
+          <div className="space-y-0.5">
+            <h2 className="text-base font-semibold tracking-tight">线索漏斗</h2>
+            <p className="text-xs text-muted-foreground">
+              累计口径：每层 = 到达该阶段及以上的线索数，逐级收窄
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
+          <div className="flex items-center gap-2">
+            {convRate !== null && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <TrendingUp className="h-3 w-3" />
+                整体转化率 {(convRate * 100).toFixed(1)}%
+              </span>
+            )}
+            {discarded > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-0.5 text-xs text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+                本期弃置 {discarded}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="p-5 pt-4">
           {funnelTotal > 0 ? (
             <>
               <FunnelChart
@@ -175,15 +173,15 @@ export default function CrmDashboardPage() {
               {loading ? '加载中…' : '暂无漏斗数据'}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* 每销售业绩 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">每销售业绩</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="dashboard-surface">
+        <div className="flex items-center justify-between px-5 pt-5">
+          <h2 className="text-base font-semibold tracking-tight">每销售业绩</h2>
+        </div>
+        <div className="p-5 pt-4">
           {stats && stats.perOwner.length > 0 ? (
             <Table>
               <TableHeader>
@@ -197,8 +195,8 @@ export default function CrmDashboardPage() {
                 {stats.perOwner.map((p) => (
                   <TableRow key={p.ownerId}>
                     <TableCell className="font-medium">{p.ownerName ?? p.ownerId}</TableCell>
-                    <TableCell className="text-right">{p.customerCount}</TableCell>
-                    <TableCell className="text-right">{p.convertedThisMonth}</TableCell>
+                    <TableCell className={numericCell}>{p.customerCount}</TableCell>
+                    <TableCell className={numericCell}>{p.convertedThisMonth}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -208,8 +206,8 @@ export default function CrmDashboardPage() {
               {loading ? '加载中…' : '暂无业绩数据'}
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

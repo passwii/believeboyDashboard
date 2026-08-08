@@ -6,6 +6,7 @@ import { CrmLeadTable } from '@/components/crm/lead-table'
 import { CrmLeadForm } from '@/components/crm/crm-lead-form'
 import { ScopeToggle } from '../customers/components/scope-toggle'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Sheet,
   SheetContent,
@@ -31,18 +32,20 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">线索管理</h1>
-          <p className="text-sm text-muted-foreground">线索列表、详情、跟进与转化为客户</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ScopeToggle />
-          <Button size="sm" onClick={() => setOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" /> 新建线索
-          </Button>
-        </div>
-      </div>
+      {/* §8.1 PageHeader 原语 */}
+      <PageHeader
+        kicker="CRM"
+        title="线索管理"
+        description="线索列表、详情、跟进与转化为客户"
+        actions={
+          <>
+            <ScopeToggle />
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" /> 新建线索
+            </Button>
+          </>
+        }
+      />
       <CrmLeadTable />
 
       <Sheet open={open} onOpenChange={setOpen}>

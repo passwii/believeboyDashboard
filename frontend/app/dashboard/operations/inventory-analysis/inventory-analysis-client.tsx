@@ -7,7 +7,6 @@ import { useSession } from 'next-auth/react'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   DataTableCard,
   DataTableCardHeader,
@@ -16,6 +15,7 @@ import {
   DENSE_HEAD,
 } from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import {
   Select,
   SelectContent,
@@ -32,6 +32,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  numericCell,
+  numericHead,
+  StatusPill,
+  type TableStatus,
+} from '@/components/ui/table-presets'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
@@ -124,19 +130,12 @@ function formatBusinessDate(value: string | null): string {
   return `${year}年${month}月${day}日`
 }
 
-function stockMeta(status: string): { label: string; className: string } {
-  if (status === 'out_of_stock') {
-    return {
-      label: '缺货',
-      className:
-        'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/50 dark:text-rose-300',
-    }
-  }
-  return {
-    label: '有货',
-    className:
-      'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300',
-  }
+function stockStatus(status: string): TableStatus {
+  return status === 'out_of_stock' ? 'negative' : 'success'
+}
+
+function stockStatusLabel(status: string): string {
+  return status === 'out_of_stock' ? '缺货' : '有货'
 }
 
 function stockExcelFontColor(status: string): string {
@@ -144,26 +143,16 @@ function stockExcelFontColor(status: string): string {
   return 'FF15803D'
 }
 
-function agingMeta(status: string): { label: string; className: string } {
-  if (status === 'over_aged') {
-    return {
-      label: '超龄',
-      className:
-        'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/50 dark:text-rose-300',
-    }
-  }
-  if (status === 'aging') {
-    return {
-      label: '偏高',
-      className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300',
-    }
-  }
-  return {
-    label: '正常',
-    className:
-      'border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/70 dark:bg-sky-950/50 dark:text-sky-300',
-  }
+function agingStatus(status: string): TableStatus {
+  if (status === 'over_aged') return 'negative'
+  if (status === 'aging') return 'warning'
+  return 'info'
+}
+
+function agingStatusLabel(status: string): string {
+  if (status === 'over_aged') return '超龄'
+  if (status === 'aging') return '偏高'
+  return '正常'
 }
 
 function agingExcelFontColor(status: string): string {
@@ -390,8 +379,6 @@ export default function InventoryAnalysisPage() {
       })
 
       rows.forEach((row, index) => {
-        const stock = stockMeta(row.stock_status)
-        const aging = agingMeta(row.aging_status)
         const excelRow = worksheet.getRow(index + 2)
         excelRow.values = [
           row.sku,
@@ -404,8 +391,8 @@ export default function InventoryAnalysisPage() {
           row.age_271_365_qty,
           row.age_365_plus_qty,
           row.recommended_action_label || '--',
-          stock.label,
-          aging.label,
+          stockStatusLabel(row.stock_status),
+          agingStatusLabel(row.aging_status),
           ...shipmentColumns.map((col) => row.shipment_quantities?.[col.shipment_no] ?? ''),
         ]
 
@@ -504,87 +491,70 @@ export default function InventoryAnalysisPage() {
 
   return (
     <div className="space-y-4 lg:space-y-6">
-      {/* 控制台：dashboard-surface 直接承载筛选项 + 业务日期 */}
-      <div className="dashboard-surface px-4 py-4 lg:px-6 lg:py-5">
-        {/* 筛选项：手机 2×2 网格无标签；桌面横向 */}
-        <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
+      {/* 控制台：筛选项统一 FilterToolbar（§8.2，桌面横向 / 手机 2 列网格）+ 统计条 */}
+      <div className="dashboard-surface overflow-hidden">
+        <FilterToolbar
+          actions={
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex h-9 min-h-[44px] w-full items-center gap-2 rounded-lg border border-input bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] px-3 dark:border-border/95 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))] md:w-auto">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                  <Clock4 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="hidden sm:inline">业务日期</span>
+                </div>
+                <div className="min-w-0 truncate text-sm font-bold text-blue-900 dark:text-blue-100">
+                  {formatBusinessDate(reportDate)}
+                </div>
+              </div>
+            </div>
+          }
+        >
           {/* 项目 */}
-          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[140px] lg:flex-shrink-0">
-            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              项目
-            </div>
-            {projectsLoading ? (
-              <Skeleton className="h-9 w-full" />
-            ) : (
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                  <SelectValue placeholder="请选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          {/* 国家站点 */}
-          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[120px] lg:flex-shrink-0">
-            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              国家站点
-            </div>
-            <CountrySelect
-              value={country}
-              onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-              triggerClassName="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-            />
-          </div>
-          {/* 业务日期 */}
-          <div className="space-y-1.5 lg:space-y-1.5 lg:min-w-[140px] lg:flex-shrink-0">
-            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              业务日期
-            </div>
-            <Select
-              value={selectedSnapshotDate}
-              onValueChange={setSelectedSnapshotDate}
-              open={snapshotSelectOpen}
-              onOpenChange={setSnapshotSelectOpen}
-            >
-              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                <SelectValue placeholder="选择业务日期" />
+          {projectsLoading ? (
+            <Skeleton className="h-9 w-full md:w-[140px]" />
+          ) : (
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
+                <SelectValue placeholder="请选择项目" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="current">最新业务日期</SelectItem>
-                {snapshotOptions.map((option) => (
-                  <SelectItem key={option.report_date} value={option.report_date}>
-                    {formatBusinessDate(option.report_date)}
-                    {option.is_current ? ' (当前)' : ''}
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={String(project.id)}>
+                    {project.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          {/* 当前业务日期 */}
-          <div className="space-y-1.5 lg:space-y-1.5 lg:w-auto lg:min-w-[180px] lg:flex-shrink-0">
-            <div className="hidden lg:block text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              当前业务日期
-            </div>
-            <div className="flex h-9 min-h-[44px] w-full items-center gap-2 rounded-lg border border-input bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(var(--surface-subtle))/0.96)] px-3 dark:border-border/95 dark:bg-[linear-gradient(135deg,hsl(var(--surface-overlay)),hsl(var(--surface-strong))]">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
-                <Clock4 className="h-3.5 w-3.5 shrink-0" />
-                <span className="hidden sm:inline">业务日期</span>
-              </div>
-              <div className="min-w-0 flex-1 truncate text-sm font-bold text-blue-900 dark:text-blue-100 sm:text-base">
-                {formatBusinessDate(reportDate)}
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+          {/* 国家站点 */}
+          <CountrySelect
+            value={country}
+            onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+            triggerClassName="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]"
+          />
+          {/* 业务日期 */}
+          <Select
+            value={selectedSnapshotDate}
+            onValueChange={setSelectedSnapshotDate}
+            open={snapshotSelectOpen}
+            onOpenChange={setSnapshotSelectOpen}
+          >
+            <SelectTrigger className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[180px]">
+              <SelectValue placeholder="选择业务日期" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current">最新业务日期</SelectItem>
+              {snapshotOptions.map((option) => (
+                <SelectItem key={option.report_date} value={option.report_date}>
+                  {formatBusinessDate(option.report_date)}
+                  {option.is_current ? ' (当前)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterToolbar>
 
-        {/* 统计条：手机 2×2 网格（严格各占一行两个）；桌面横向 */}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-row sm:gap-0 lg:mt-5">
+        {/* 统计条：手机 2×2 网格（各占一行两个）；桌面横向 divide 分隔 */}
+        <div className="grid grid-cols-2 gap-2 border-t border-border/50 px-4 py-4 sm:flex sm:flex-row sm:gap-0 sm:divide-x sm:divide-border/60 md:px-6">
           <div className="flex w-full flex-col items-center justify-center rounded-lg border border-border/70 bg-[hsl(var(--surface-soft))]/70 py-2.5 px-2 sm:flex-1 sm:border-0 sm:bg-transparent sm:py-3">
             <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
               SKU 总数
@@ -663,19 +633,19 @@ export default function InventoryAnalysisPage() {
                 <TableHead className={DENSE_HEAD}>SKU</TableHead>
                 <TableHead className={DENSE_HEAD}>ASIN</TableHead>
                 <TableHead className={DENSE_HEAD}>品名</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>库存</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>0-90天</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>91-180天</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>181-270天</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>271-365天</TableHead>
-                <TableHead className={`text-right ${DENSE_HEAD}`}>超过365天</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>库存</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>0-90天</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>91-180天</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>181-270天</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>271-365天</TableHead>
+                <TableHead className={`${numericHead} ${DENSE_HEAD}`}>超过365天</TableHead>
                 <TableHead className={DENSE_HEAD}>建议操作</TableHead>
                 <TableHead className={DENSE_HEAD}>库存状态</TableHead>
                 <TableHead className={DENSE_HEAD}>库龄状态</TableHead>
                 {shipmentColumns.map((col) => (
                   <TableHead
                     key={col.shipment_no}
-                    className={`text-right ${DENSE_HEAD}`}
+                    className={`${numericHead} ${DENSE_HEAD}`}
                     title={[
                       col.shipment_no,
                       col.eta_date ? `预计 ${col.eta_date.slice(5)} 到港` : '预计到港未知',
@@ -707,50 +677,50 @@ export default function InventoryAnalysisPage() {
               ) : (
                 <>
                   {rows.map((row) => {
-                    const stock = stockMeta(row.stock_status)
-                    const aging = agingMeta(row.aging_status)
                     return (
                       <TableRow key={`${row.sku}::${row.asin || 'na'}`}>
                         <TableCell className={`font-medium ${DENSE_CELL}`}>{row.sku}</TableCell>
                         <TableCell className={DENSE_CELL}>{row.asin || '--'}</TableCell>
                         <TableCell className={DENSE_CELL}>{row.product_name || '--'}</TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.available_qty)}
                         </TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.age_0_90_qty)}
                         </TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.age_91_180_qty)}
                         </TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.age_181_270_qty)}
                         </TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.age_271_365_qty)}
                         </TableCell>
-                        <TableCell className={`text-right ${DENSE_CELL}`}>
+                        <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                           {formatInt(row.age_365_plus_qty)}
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
                           {row.recommended_action_label || '--'}
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
-                          <Badge variant="outline" className={stock.className}>
-                            {stock.label}
-                          </Badge>
+                          <StatusPill
+                            status={stockStatus(row.stock_status)}
+                            label={stockStatusLabel(row.stock_status)}
+                          />
                         </TableCell>
                         <TableCell className={DENSE_CELL}>
-                          <Badge variant="outline" className={aging.className}>
-                            {aging.label}
-                          </Badge>
+                          <StatusPill
+                            status={agingStatus(row.aging_status)}
+                            label={agingStatusLabel(row.aging_status)}
+                          />
                         </TableCell>
                         {shipmentColumns.map((col) => {
                           const qty = row.shipment_quantities?.[col.shipment_no]
                           return (
                             <TableCell
                               key={col.shipment_no}
-                              className={`text-right tabular-nums ${DENSE_CELL}`}
+                              className={`${numericCell} ${DENSE_CELL}`}
                             >
                               {qty !== undefined ? formatInt(qty) : '--'}
                             </TableCell>
@@ -763,29 +733,29 @@ export default function InventoryAnalysisPage() {
                     <TableCell colSpan={3} className={DENSE_CELL}>
                       合计
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.available_qty)}
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.age_0_90_qty)}
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.age_91_180_qty)}
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.age_181_270_qty)}
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.age_271_365_qty)}
                     </TableCell>
-                    <TableCell className={`text-right ${DENSE_CELL}`}>
+                    <TableCell className={`${numericCell} ${DENSE_CELL}`}>
                       {formatInt(detailTotals.age_365_plus_qty)}
                     </TableCell>
                     <TableCell colSpan={3} className={DENSE_CELL} />
                     {shipmentColumns.map((col) => (
                       <TableCell
                         key={col.shipment_no}
-                        className={`text-right tabular-nums ${DENSE_CELL}`}
+                        className={`${numericCell} ${DENSE_CELL}`}
                       >
                         {shipmentColumnTotals[col.shipment_no]
                           ? formatInt(shipmentColumnTotals[col.shipment_no])

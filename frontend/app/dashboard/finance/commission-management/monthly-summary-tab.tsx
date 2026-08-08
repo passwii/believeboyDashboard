@@ -100,6 +100,18 @@ function MonthlySummarySkeletonContent() {
 }
 
 export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabProps) {
+  // BLF-504：年度合计行（汇总行模式），回款率 = 年度已回款 / 年度工厂佣金(RMB)
+  const totals = items.reduce(
+    (acc, item) => ({
+      income: acc.income + item.income_total_usd,
+      commissionUsd: acc.commissionUsd + item.factory_commission_usd,
+      commissionRmb: acc.commissionRmb + item.factory_commission_rmb,
+      received: acc.received + item.received_rmb,
+    }),
+    { income: 0, commissionUsd: 0, commissionRmb: 0, received: 0 }
+  )
+  const totalsRate = totals.commissionRmb > 0 ? totals.received / totals.commissionRmb : 0
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
       {/* 骨架屏层 */}
@@ -147,28 +159,49 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
               {items.length === 0 ? (
                 <EmptyTableState colSpan={6} message={`${year}年暂无数据`} />
               ) : (
-                items.map((item) => (
-                  <TableRow key={item.report_month}>
-                    <TableCell className="!pl-0 text-center font-medium">
-                      {item.report_month}
+                <>
+                  {items.map((item) => (
+                    <TableRow key={item.report_month}>
+                      <TableCell className="!pl-0 text-center font-medium">
+                        {item.report_month}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatUsd(item.income_total_usd)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatUsd(item.factory_commission_usd)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatRmb(item.factory_commission_rmb)}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums">
+                        {formatRmb(item.received_rmb)}
+                      </TableCell>
+                      <TableCell className="!pr-0 text-center tabular-nums">
+                        {formatPercent(item.receive_rate)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {/* 年度合计行（BLF-504 汇总行） */}
+                  <TableRow className="border-t border-border/80 bg-muted/40 font-semibold">
+                    <TableCell className="!pl-0 text-center text-foreground">合计</TableCell>
+                    <TableCell className="text-center tabular-nums text-foreground">
+                      {formatUsd(totals.income)}
                     </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatUsd(item.income_total_usd)}
+                    <TableCell className="text-center tabular-nums text-foreground">
+                      {formatUsd(totals.commissionUsd)}
                     </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatUsd(item.factory_commission_usd)}
+                    <TableCell className="text-center tabular-nums text-foreground">
+                      {formatRmb(totals.commissionRmb)}
                     </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatRmb(item.factory_commission_rmb)}
+                    <TableCell className="text-center tabular-nums text-foreground">
+                      {formatRmb(totals.received)}
                     </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {formatRmb(item.received_rmb)}
-                    </TableCell>
-                    <TableCell className="!pr-0 text-center tabular-nums">
-                      {formatPercent(item.receive_rate)}
+                    <TableCell className="!pr-0 text-center tabular-nums text-foreground">
+                      {formatPercent(totalsRate)}
                     </TableCell>
                   </TableRow>
-                ))
+                </>
               )}
             </TableBody>
           </Table>

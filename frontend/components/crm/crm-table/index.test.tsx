@@ -131,15 +131,16 @@ describe('CrmTable · 渲染', () => {
  expect(screen.getByText('客户二')).toBeInTheDocument()
  })
 
- it('出错时显示错误提示 + 重试按钮', () => {
- mockUseCrmTableReturn.error = new Error('加载失败')
- render(
- <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
- )
- expect(screen.getByText(/加载失败/)).toBeInTheDocument()
- fireEvent.click(screen.getByRole('button', { name: /重试/ }))
- expect(mockRefresh).toHaveBeenCalledTimes(1)
- })
+  it('出错时显示错误提示 + 重试按钮', () => {
+    mockUseCrmTableReturn.error = new Error('加载失败')
+    render(
+      <CrmTable queryKey="x" fetchPage={vi.fn()} columns={sampleColumns} rowKey="id" />,
+    )
+    // 统一 ErrorState（§8.4）：标题 + 详情都含「加载失败」
+    expect(screen.getAllByText(/加载失败/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: /重试/ }))
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('CrmTable · 列渲染', () => {
