@@ -16,6 +16,7 @@ import { CrmValueProfileCard } from '@/components/crm/crm-value-profile-card'
 import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
 import { CrmContactList } from '@/components/crm/crm-contact-list'
 import { CrmAuditTimeline } from '@/components/crm/crm-audit-timeline'
+import { CrmTaskTab } from '@/components/crm/crm-task-tab'
 import { cn } from '@/lib/utils'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 import type { CrmOverviewDrawerProps } from './types'
@@ -107,10 +108,11 @@ export function CrmOverviewDrawer<T extends object>({
 
         <Tabs defaultValue="detail" className="flex h-full flex-col">
           <div className="px-5 pt-3">
-            <TabsList className={cn('grid w-full', isCustomer ? 'grid-cols-5' : 'grid-cols-4')}>
+            <TabsList className={cn('grid w-full', isCustomer ? 'grid-cols-6' : 'grid-cols-5')}>
               <TabsTrigger value="detail">详情</TabsTrigger>
               <TabsTrigger value="follow">跟进</TabsTrigger>
               {isCustomer && <TabsTrigger value="contacts">联系人</TabsTrigger>}
+              <TabsTrigger value="tasks">任务</TabsTrigger>
               <TabsTrigger value="audit">操作记录</TabsTrigger>
               <TabsTrigger value="edit">编辑</TabsTrigger>
             </TabsList>
@@ -147,6 +149,10 @@ export function CrmOverviewDrawer<T extends object>({
                 <CrmContactList customerId={entityId} />
               </TabsContent>
             )}
+
+            <TabsContent value="tasks" className="mt-0">
+              <CrmTaskTab entityType={entityType} entityId={entityId} />
+            </TabsContent>
 
             <TabsContent value="audit" className="mt-0">
               <CrmAuditTimeline entityType={entityType} entityId={entityId} />

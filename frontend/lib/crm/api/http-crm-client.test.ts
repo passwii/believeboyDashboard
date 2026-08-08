@@ -211,3 +211,79 @@ describe('HttpCrmClient Task (P7, BLF-512)', () => {
     expect(updated.status).toBe('done')
   })
 })
+
+describe('HttpCrmClient Task 创建/编辑/完成/取消（BLF-514）', () => {
+  let originalFetch: typeof fetch
+  let lastUrl: string | null = null
+  let lastInit: RequestInit | undefined
+
+  function taskDto(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 9,
+      title: '确认报价单',
+      priority: 'medium',
+      status: 'pending',
+      type: 'follow_up',
+      owner_id: 'u1',
+      created_at: '2026-08-01T00:00:00+00:00',
+      updated_at: '2026-08-08T00:00:00+00:00',
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    lastUrl = null
+    lastInit = undefined
+    globalThis.fetch = vi.fn(async (url, init) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(JSON.stringify(taskDto()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('createTask POST /tasks with snake_case payload（customer_id 转 int）', async () => {
+    const client = new HttpCrmClient()
+    const created = await client.createTask({
+      title: '新任务',
+      type: 'call',
+      priority: 'high',
+      customerId: '42',
+    })
+    expect(lastUrl).toBe('/api/backend/v1/crm/tasks')
+    expect(lastInit?.method).toBe('POST')
+    const body = JSON.parse(String(lastInit?.body))
+    expect(body).toMatchObject({ title: '新任务', type: 'call', priority: 'high', customer_id: 42 })
+    expect(created.id).toBe('9')
+  })
+
+  it('updateTask PATCH /tasks/{id} with partial payload', async () => {
+    const client = new HttpCrmClient()
+    await client.updateTask('9', { title: '改后', priority: 'urgent' })
+    expect(lastUrl).toBe('/api/backend/v1/crm/tasks/9')
+    expect(lastInit?.method).toBe('PATCH')
+    const body = JSON.parse(String(lastInit?.body))
+    expect(body).toEqual({ title: '改后', priority: 'urgent' })
+  })
+
+  it('completeTask POST /tasks/{id}/complete', async () => {
+    const client = new HttpCrmClient()
+    await client.completeTask('9')
+    expect(lastUrl).toBe('/api/backend/v1/crm/tasks/9/complete')
+    expect(lastInit?.method).toBe('POST')
+  })
+
+  it('cancelTask POST /tasks/{id}/cancel', async () => {
+    const client = new HttpCrmClient()
+    await client.cancelTask('9')
+    expect(lastUrl).toBe('/api/backend/v1/crm/tasks/9/cancel')
+    expect(lastInit?.method).toBe('POST')
+  })
+})

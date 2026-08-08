@@ -30,6 +30,28 @@ export interface Task {
   updatedAt: string
 }
 
+/**
+ * 任务创建/更新入参（后端 TaskCreate/TaskUpdate；customer_id/lead_id 转 int，
+ * owner_id 仅 admin 可指派他人，null=未指派）。
+ */
+export type TaskInput = Omit<
+  Task,
+  | 'id'
+  | 'ownerName'
+  | 'customerName'
+  | 'leadName'
+  | 'remindedAt'
+  | 'createdBy'
+  | 'completedAt'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'status'
+> & {
+  ownerId?: string | null
+  customerId?: string | null
+  leadId?: string | null
+}
+
 /** 任务列表查询参数（与后端 list_tasks 白名单筛选对齐，设计 §8.2/§8.3）。 */
 export interface TaskListParams {
   scope?: 'mine' | 'all'

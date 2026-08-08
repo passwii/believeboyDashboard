@@ -16,6 +16,7 @@ import type {
   Lead,
   LeadInput,
   Task,
+  TaskInput,
   TaskListParams,
   TaskStatus,
   User,
@@ -38,6 +39,7 @@ import {
   toFollowPayload,
   toImportRowPayload,
   toLeadPayload,
+  toTaskPayload,
   type AuditLogDto,
   type ContactDto,
   type CustomerDto,
@@ -346,5 +348,29 @@ export class HttpCrmClient implements CrmClient {
         body: JSON.stringify({ status }),
       })
     )
+  }
+
+  // ===== Task 创建/编辑/完成/取消（P7，BLF-514） =====
+  async createTask(input: TaskInput): Promise<Task> {
+    return mapTask(
+      await request<TaskDto>('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(toTaskPayload(input)),
+      })
+    )
+  }
+  async updateTask(id: string, input: Partial<TaskInput>): Promise<Task> {
+    return mapTask(
+      await request<TaskDto>(`/tasks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(toTaskPayload(input)),
+      })
+    )
+  }
+  async completeTask(id: string): Promise<Task> {
+    return mapTask(await request<TaskDto>(`/tasks/${id}/complete`, { method: 'POST' }))
+  }
+  async cancelTask(id: string): Promise<Task> {
+    return mapTask(await request<TaskDto>(`/tasks/${id}/cancel`, { method: 'POST' }))
   }
 }

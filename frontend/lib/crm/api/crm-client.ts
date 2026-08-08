@@ -17,6 +17,7 @@ import type {
   CustomerSeaImportResult,
   ValueScoresInput,
   Task,
+  TaskInput,
   TaskListParams,
   TaskStatus,
 } from '@/lib/crm/types'
@@ -89,4 +90,14 @@ export interface CrmClient {
   listTasks(params: TaskListParams): Promise<Paginated<Task>>
   /** 看板拖拽流转状态（pending/in_progress/done）。 */
   setTaskStatus(id: string, status: TaskStatus): Promise<Task>
+
+  // ===== Task 创建/编辑/完成/取消（P7，BLF-514） =====
+  /** 新建任务（owner 默认=当前用户；admin 可指派他人）。 */
+  createTask(input: TaskInput): Promise<Task>
+  /** 编辑任务（title/description/due_date/priority/type/owner_id）。 */
+  updateTask(id: string, input: Partial<TaskInput>): Promise<Task>
+  /** 完成：status→done + completed_at。 */
+  completeTask(id: string): Promise<Task>
+  /** 取消：status→cancelled。 */
+  cancelTask(id: string): Promise<Task>
 }

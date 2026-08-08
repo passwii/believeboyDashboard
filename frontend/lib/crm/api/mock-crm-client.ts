@@ -18,6 +18,7 @@ import type {
   Lead,
   LeadInput,
   Task,
+  TaskInput,
   TaskListParams,
   TaskStatus,
   User,
@@ -890,6 +891,99 @@ export class MockCrmClient implements CrmClient {
       status,
       completedAt:
         status === 'done' ? (prev.completedAt ?? new Date().toISOString()) : undefined,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.tasks[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  // ===== Task 创建/编辑/完成/取消（P7，BLF-514） =====
+
+  async createTask(input: TaskInput): Promise<Task> {
+    await this.delay('createTask')
+    const now = new Date().toISOString()
+    const id = genId('t')
+    const owner = input.ownerId
+      ? this.state.users.find((u) => u.id === input.ownerId)
+      : null
+    const customer = input.customerId
+      ? this.state.customers.find((c) => c.id === input.customerId)
+      : null
+    const lead = input.leadId ? this.state.leads.find((l) => l.id === input.leadId) : null
+    const task: Task = {
+      ...input,
+      id,
+      status: 'pending',
+      ownerId: input.ownerId ?? this.currentUserId,
+      ownerName: input.ownerId ? owner?.name : undefined,
+      customerId: input.customerId ?? undefined,
+      customerName: customer?.name,
+      leadId: input.leadId ?? undefined,
+      leadName: lead?.name,
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.state.tasks.unshift(task)
+    persistState(this.state)
+    return task
+  }
+
+  async updateTask(id: string, input: Partial<TaskInput>): Promise<Task> {
+    await this.delay('updateTask')
+    const idx = this.state.tasks.findIndex((t) => t.id === id)
+    if (idx === -1) throw new Error(`任务不存在: ${id}`)
+    const prev = this.state.tasks[idx]
+    const owner =
+      input.ownerId !== undefined
+        ? (this.state.users.find((u) => u.id === input.ownerId) ?? null)
+        : null
+    const customer =
+      input.customerId !== undefined
+        ? (this.state.customers.find((c) => c.id === input.customerId) ?? null)
+        : null
+    const lead =
+      input.leadId !== undefined
+        ? (this.state.leads.find((l) => l.id === input.leadId) ?? null)
+        : null
+    const updated: Task = {
+      ...prev,
+      ...input,
+      ownerName: input.ownerId !== undefined ? owner?.name : prev.ownerName,
+      customerName: input.customerId !== undefined ? customer?.name : prev.customerName,
+      leadName: input.leadId !== undefined ? lead?.name : prev.leadName,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.tasks[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  async completeTask(id: string): Promise<Task> {
+    await this.delay('completeTask')
+    const idx = this.state.tasks.findIndex((t) => t.id === id)
+    if (idx === -1) throw new Error(`任务不存在: ${id}`)
+    const prev = this.state.tasks[idx]
+    const updated: Task = {
+      ...prev,
+      status: 'done',
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.tasks[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  async cancelTask(id: string): Promise<Task> {
+    await this.delay('cancelTask')
+    const idx = this.state.tasks.findIndex((t) => t.id === id)
+    if (idx === -1) throw new Error(`任务不存在: ${id}`)
+    const prev = this.state.tasks[idx]
+    const updated: Task = {
+      ...prev,
+      status: 'cancelled',
+      completedAt: undefined,
       updatedAt: new Date().toISOString(),
     }
     this.state.tasks[idx] = updated
