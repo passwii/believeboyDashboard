@@ -247,10 +247,11 @@ export function MetricSwitcherCard<K extends string>({
           </div>
         </CardHeader>
       )}
-      {/* BLF-529：CardHeader 基类自带 md:px-7（md+ 左右 1.75rem 内边距），单独 p-0
-          只会被 tailwind-merge 抵消无响应式的 px-6/pt-6/pb-3，md 变体原样保留。
-          必须补 md:px-0 才能在 md+ 断点也做到左右无内边距 —— 指标卡片占满两侧。 */}
-      <CardHeader className="p-0 md:px-0">
+      {/* BLF-529：CardHeader 基类自带 md:px-7 md:pt-7（md+ 左右 1.75rem / 顶部 1.75rem 内边距），
+          单独 p-0 只会被 tailwind-merge 抵消无响应式的 px-6/pt-6/pb-3，md 变体原样保留。
+          必须补 md:px-0 + md:pt-0 才能在 md+ 断点做到左右无内边距、卡片占满两侧且顶对齐。
+          md:pb-3（底部 0.75rem）保留 —— 给“形态”切换行留一点呼吸空间。 */}
+      <CardHeader className="p-0 md:px-0 md:pt-0">
         <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-border/60">
           {metrics.map((m) => {
             return (
