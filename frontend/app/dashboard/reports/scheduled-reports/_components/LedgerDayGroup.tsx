@@ -215,6 +215,7 @@ export function LedgerDayGroup({
                   </TableCell>
                   <TableCell>
                     <span
+                      title={item.status === 'failed' ? item.error_message || '发送失败' : undefined}
                       className={cn(
                         'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px]',
                         STATUS_BG[item.status]

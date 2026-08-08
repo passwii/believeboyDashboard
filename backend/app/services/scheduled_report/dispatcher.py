@@ -32,7 +32,9 @@ from app.services.scheduled_report.email_sender_daily import send_scheduled_repo
 from app.services.scheduled_report.email_sender_monthly import send_monthly_report_email
 from app.services.scheduled_report.email_sender_weekly import send_weekly_report_email
 from app.services.scheduled_report.report_builder_daily import build_report_email_data
-from app.services.scheduled_report.report_builder_monthly import build_monthly_report_data
+from app.services.scheduled_report.report_builder_monthly import (
+    build_monthly_report_data,
+)
 from app.services.scheduled_report.report_builder_weekly import build_weekly_report_data
 from app.services.scheduled_report.subscription_service import (
     create_delivery_log,
@@ -135,7 +137,10 @@ def _build_report_data_with_timeout(
     Uses signal.SIGALRM on UNIX platforms (non-blocking per-call alarm).
     Falls back to direct call on Windows or if signals are unavailable.
     """
-    if AI_SUMMARY_TIMEOUT_SEC <= 0 or threading.current_thread() is not threading.main_thread():
+    if (
+        AI_SUMMARY_TIMEOUT_SEC <= 0
+        or threading.current_thread() is not threading.main_thread()
+    ):
         return _do_build_report(
             project_ids,
             country,
@@ -177,9 +182,13 @@ def _build_report_data_with_timeout(
     except TimeoutError:
         logger.warning(
             "AI summary timed out for project=%s country=%s date=%s — using fallback",
-            project_ids, country, date_str,
+            project_ids,
+            country,
+            date_str,
         )
-        return _fallback_report_data(project_ids, country, frequency, reference_date=reference_date)
+        return _fallback_report_data(
+            project_ids, country, frequency, reference_date=reference_date
+        )
 
 
 def _do_build_report(
@@ -274,7 +283,10 @@ def _fallback_report_data(
         # If that also timed out, ai_summary will be the fallback text already.
         # If we still need to ensure no AI call was made, overwrite:
         if not data.get("ai_summary"):
-            from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
+            from app.services.scheduled_report.report_builder_daily import (
+                _generate_fallback_summary,
+            )
+
             data["ai_summary"] = _generate_fallback_summary(frequency, data)
         return data
     finally:
@@ -305,8 +317,13 @@ def _build_report_with_throttle(
 
     if not use_cache:
         return _build_report_data_with_timeout(
-            project_ids, country, frequency, date_str, ai_model=ai_model,
-            reference_date=reference_date, stage_callback=stage_callback,
+            project_ids,
+            country,
+            frequency,
+            date_str,
+            ai_model=ai_model,
+            reference_date=reference_date,
+            stage_callback=stage_callback,
             generate_ai_summary=generate_ai_summary,
         )
 
@@ -325,8 +342,13 @@ def _build_report_with_throttle(
                 return _summary_cache[key]
 
         report_data = _build_report_data_with_timeout(
-            project_ids, country, frequency, date_str, ai_model=ai_model,
-            reference_date=reference_date, stage_callback=stage_callback,
+            project_ids,
+            country,
+            frequency,
+            date_str,
+            ai_model=ai_model,
+            reference_date=reference_date,
+            stage_callback=stage_callback,
             generate_ai_summary=generate_ai_summary,
         )
 
@@ -359,9 +381,13 @@ def _build_multi_country_report(
     for country in country_list:
         try:
             data = _build_report_with_throttle(
-                project_ids, country, frequency,
-                ai_model=ai_model, reference_date=reference_date,
-                stage_callback=stage_callback, use_cache=use_cache,
+                project_ids,
+                country,
+                frequency,
+                ai_model=ai_model,
+                reference_date=reference_date,
+                stage_callback=stage_callback,
+                use_cache=use_cache,
                 generate_ai_summary=generate_ai_summary,
             )
             country_data[country] = data
@@ -369,17 +395,34 @@ def _build_multi_country_report(
             logger.warning("Failed to build report for country=%s: %s", country, e)
             if frequency == "weekly":
                 country_data[country] = {
-                    "current_week": {"qty": 0, "amount": 0.0, "orders": 0, "avg_price": 0.0},
-                    "prev_week": {"qty": 0, "amount": 0.0, "orders": 0, "avg_price": 0.0},
-                    "changes": {}, "attribution": [], "top_skus_comparison": [],
-                    "ads_comparison": {}, "inventory_alerts": [],
+                    "current_week": {
+                        "qty": 0,
+                        "amount": 0.0,
+                        "orders": 0,
+                        "avg_price": 0.0,
+                    },
+                    "prev_week": {
+                        "qty": 0,
+                        "amount": 0.0,
+                        "orders": 0,
+                        "avg_price": 0.0,
+                    },
+                    "changes": {},
+                    "attribution": [],
+                    "top_skus_comparison": [],
+                    "ads_comparison": {},
+                    "inventory_alerts": [],
                     "inventory_summary": {
-                        "sku_count": 0, "total_available": 0,
-                        "low_stock_count": 0, "oos_count": 0,
+                        "sku_count": 0,
+                        "total_available": 0,
+                        "low_stock_count": 0,
+                        "oos_count": 0,
                     },
                     "returns_data": {"qty": 0, "rate": 0.0},
-                    "daily_trend": [], "sku_sales_detail": [],
-                    "alerts": [], "action_items": [],
+                    "daily_trend": [],
+                    "sku_sales_detail": [],
+                    "alerts": [],
+                    "action_items": [],
                     "country": country,
                     "report_date": (reference_date or date.today()).isoformat(),
                     "date_range": "",
@@ -390,12 +433,17 @@ def _build_multi_country_report(
                     "current_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
                     "prev_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
                     "yoy_month": {"qty": 0, "amount": 0.0, "avg_price": 0.0},
-                    "mom_changes": {}, "yoy_changes": {},
-                    "attribution": [], "top_skus_comparison": [],
-                    "ads_comparison": {}, "inventory_alerts": [],
+                    "mom_changes": {},
+                    "yoy_changes": {},
+                    "attribution": [],
+                    "top_skus_comparison": [],
+                    "ads_comparison": {},
+                    "inventory_alerts": [],
                     "returns_data": {"qty": 0, "rate": 0.0},
-                    "weekly_trend": [], "sku_sales_detail": [],
-                    "alerts": [], "action_items": [],
+                    "weekly_trend": [],
+                    "sku_sales_detail": [],
+                    "alerts": [],
+                    "action_items": [],
                     "country": country,
                     "report_date": (reference_date or date.today()).isoformat(),
                     "month_label": "",
@@ -404,9 +452,15 @@ def _build_multi_country_report(
                 }
             else:
                 country_data[country] = {
-                    "sales": {}, "week_sales": {}, "prev_week_sales": {},
-                    "trend_days": [], "top_skus": [], "sku_sales_detail": [],
-                    "inventory": {}, "alert_rows": [], "ads": {},
+                    "sales": {},
+                    "week_sales": {},
+                    "prev_week_sales": {},
+                    "trend_days": [],
+                    "top_skus": [],
+                    "sku_sales_detail": [],
+                    "inventory": {},
+                    "alert_rows": [],
+                    "ads": {},
                     "returns": {"qty": 0, "rate": 0, "top_returns": []},
                     "country": country,
                     "report_date": (reference_date or date.today()).isoformat(),
@@ -421,7 +475,9 @@ def _build_multi_country_report(
     ai_summary = ""
     if generate_ai_summary:
         ai_summary = _generate_multi_country_summary(
-            frequency, country_data, ai_model=ai_model,
+            frequency,
+            country_data,
+            ai_model=ai_model,
         )
 
     # Build result dict — include keys from both daily and weekly formats
@@ -438,58 +494,71 @@ def _build_multi_country_report(
     }
 
     if frequency == "weekly":
-        result.update({
-            "current_week": first.get("current_week", {}),
-            "prev_week": first.get("prev_week", {}),
-            "changes": first.get("changes", {}),
-            "attribution": first.get("attribution", []),
-            "top_skus_comparison": first.get("top_skus_comparison", []),
-            "ads_comparison": first.get("ads_comparison", {}),
-            "inventory_alerts": first.get("inventory_alerts", []),
-            "inventory_summary": first.get("inventory_summary", {
-                "sku_count": 0, "total_available": 0,
-                "low_stock_count": 0, "oos_count": 0,
-            }),
-            "returns_data": first.get("returns_data", {}),
-            "daily_trend": first.get("daily_trend", []),
-            "sku_sales_detail": first.get("sku_sales_detail", []),
-            "alerts": first.get("alerts", []),
-            "action_items": first.get("action_items", []),
-            "week_number": first.get("week_number", ""),
-        })
+        result.update(
+            {
+                "current_week": first.get("current_week", {}),
+                "prev_week": first.get("prev_week", {}),
+                "changes": first.get("changes", {}),
+                "attribution": first.get("attribution", []),
+                "top_skus_comparison": first.get("top_skus_comparison", []),
+                "ads_comparison": first.get("ads_comparison", {}),
+                "inventory_alerts": first.get("inventory_alerts", []),
+                "inventory_summary": first.get(
+                    "inventory_summary",
+                    {
+                        "sku_count": 0,
+                        "total_available": 0,
+                        "low_stock_count": 0,
+                        "oos_count": 0,
+                    },
+                ),
+                "returns_data": first.get("returns_data", {}),
+                "daily_trend": first.get("daily_trend", []),
+                "sku_sales_detail": first.get("sku_sales_detail", []),
+                "alerts": first.get("alerts", []),
+                "action_items": first.get("action_items", []),
+                "week_number": first.get("week_number", ""),
+            }
+        )
     elif frequency == "monthly":
-        result.update({
-            "current_month": first.get("current_month", {}),
-            "prev_month": first.get("prev_month", {}),
-            "yoy_month": first.get("yoy_month", {}),
-            "mom_changes": first.get("mom_changes", {}),
-            "yoy_changes": first.get("yoy_changes", {}),
-            "attribution": first.get("attribution", []),
-            "top_skus_comparison": first.get("top_skus_comparison", []),
-            "ads_comparison": first.get("ads_comparison", {}),
-            "inventory_alerts": first.get("inventory_alerts", []),
-            "returns_data": first.get("returns_data", {}),
-            "weekly_trend": first.get("weekly_trend", []),
-            "sku_sales_detail": first.get("sku_sales_detail", []),
-            "alerts": first.get("alerts", []),
-            "action_items": first.get("action_items", []),
-            "month_label": first.get("month_label", ""),
-        })
+        result.update(
+            {
+                "current_month": first.get("current_month", {}),
+                "prev_month": first.get("prev_month", {}),
+                "yoy_month": first.get("yoy_month", {}),
+                "mom_changes": first.get("mom_changes", {}),
+                "yoy_changes": first.get("yoy_changes", {}),
+                "attribution": first.get("attribution", []),
+                "top_skus_comparison": first.get("top_skus_comparison", []),
+                "ads_comparison": first.get("ads_comparison", {}),
+                "inventory_alerts": first.get("inventory_alerts", []),
+                "returns_data": first.get("returns_data", {}),
+                "weekly_trend": first.get("weekly_trend", []),
+                "sku_sales_detail": first.get("sku_sales_detail", []),
+                "alerts": first.get("alerts", []),
+                "action_items": first.get("action_items", []),
+                "month_label": first.get("month_label", ""),
+            }
+        )
     else:
-        result.update({
-            "sales": first.get("sales", {}),
-            "week_sales": first.get("week_sales", {}),
-            "prev_week_sales": first.get("prev_week_sales", {}),
-            "period7d_change_pct": first.get("period7d_change_pct", 0),
-            "period7d_amount_change_pct": first.get("period7d_amount_change_pct", 0),
-            "trend_days": first.get("trend_days", []),
-            "top_skus": first.get("top_skus", []),
-            "sku_sales_detail": first.get("sku_sales_detail", []),
-            "inventory": first.get("inventory", {}),
-            "alert_rows": first.get("alert_rows", []),
-            "ads": first.get("ads", {}),
-            "returns": first.get("returns", {}),
-        })
+        result.update(
+            {
+                "sales": first.get("sales", {}),
+                "week_sales": first.get("week_sales", {}),
+                "prev_week_sales": first.get("prev_week_sales", {}),
+                "period7d_change_pct": first.get("period7d_change_pct", 0),
+                "period7d_amount_change_pct": first.get(
+                    "period7d_amount_change_pct", 0
+                ),
+                "trend_days": first.get("trend_days", []),
+                "top_skus": first.get("top_skus", []),
+                "sku_sales_detail": first.get("sku_sales_detail", []),
+                "inventory": first.get("inventory", {}),
+                "alert_rows": first.get("alert_rows", []),
+                "ads": first.get("ads", {}),
+                "returns": first.get("returns", {}),
+            }
+        )
 
     return result
 
@@ -507,7 +576,9 @@ def _generate_multi_country_summary(
     """
     from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
     from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
-    from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
+    from app.services.scheduled_report.report_builder_daily import (
+        _generate_fallback_summary,
+    )
 
     secs = timeout if timeout is not None else get_ai_timeout_sec(frequency)
 
@@ -518,6 +589,7 @@ def _generate_multi_country_summary(
 
     def _call_ai():
         from app.services.scheduled_report.ai_enhancer_daily import generate_ai_summary
+
         combined: dict[str, Any] = {
             "multi_country": True,
             "countries": {},
@@ -555,6 +627,7 @@ def _fallback_multi_country_summary(
 ) -> str:
     """Fallback multi-country summary when AI is unavailable or times out."""
     from app.services.scheduled_report.email_sender import _fmt_currency, _country_label
+
     parts: list[str] = []
     for country, data in country_data.items():
         label = _country_label(country)
@@ -594,11 +667,13 @@ def _should_sync_daily_fallback(frequency: str) -> bool:
     if frequency != "daily":
         return False
     from app.services.scheduled_report.ai_timeout import get_ai_timeout_sec
+
     return get_ai_timeout_sec("daily") <= 0
 
 
 def _build_daily_fallback_summary_from_report(
-    report_data: dict[str, Any], frequency: str,
+    report_data: dict[str, Any],
+    frequency: str,
 ) -> str:
     """从已构建的 report_data 同步生成日报 fallback 摘要（不重建数据、不调 AI）。
 
@@ -606,10 +681,14 @@ def _build_daily_fallback_summary_from_report(
     直接落库摘要——点完立即出结果，无需前端轮询 Celery 异步回填。
     多国家路径用 dispatcher 的折行 fallback；单国家路径复用 report_builder_daily。
     """
-    from app.services.scheduled_report.report_builder_daily import _generate_fallback_summary
+    from app.services.scheduled_report.report_builder_daily import (
+        _generate_fallback_summary,
+    )
 
     if report_data.get("is_multi_country"):
-        return _fallback_multi_country_summary(report_data.get("country_data", {}) or {})
+        return _fallback_multi_country_summary(
+            report_data.get("country_data", {}) or {}
+        )
 
     # 单国家：report_data 即 overview（含 sales/week_sales/inventory/country）
     return _generate_fallback_summary(frequency, report_data)
@@ -704,7 +783,9 @@ def _dispatch_one_task_body(
     db = SessionLocal()
     try:
         if triggered_by == "auto":
-            from app.services.scheduled_report.ledger_service import find_successful_manual_log
+            from app.services.scheduled_report.ledger_service import (
+                find_successful_manual_log,
+            )
 
             manual_log = find_successful_manual_log(
                 db,
@@ -713,18 +794,71 @@ def _dispatch_one_task_body(
                 report_date=report_date_key,
             )
             if manual_log is not None:
-                result.update({
-                    "success": True,
-                    "skipped": True,
-                    "skipped_reason": "manual_log_exists",
-                    "manual_log_id": manual_log.id,
-                })
+                result.update(
+                    {
+                        "success": True,
+                        "skipped": True,
+                        "skipped_reason": "manual_log_exists",
+                        "manual_log_id": manual_log.id,
+                    }
+                )
                 logger.info(
                     "Skip auto dispatch: sub=%d frequency=%s report_date=%s manual_log_id=%d",
                     subscription_id,
                     frequency,
                     report_date_key,
                     manual_log.id,
+                )
+                db.close()
+                return result
+
+            # ── BLF-533：当日写文件动作门禁（仅 auto 定时调度）──────────────
+            # 订阅覆盖的**全部项目 × 全部国家**在报告覆盖日期内都没有写文件动作
+            # （Write Log 为空）→ 不推进调度：直接标 failed（error_message 记录原因），
+            # 不拉数据、不渲染、不发邮件、不截图；台账显示"失败"且支持手动补发。
+            # 手动 trigger / ledger 补发（triggered_by=manual 或 pre_existing_log_id）
+            # 不受门禁影响——用户手动操作时可能已补传数据。
+            from app.services.scheduled_report.data_gate import has_write_action
+
+            gate_ok = has_write_action(
+                db,
+                project_ids=project_ids,
+                country=country,
+                frequency=frequency,
+                report_date=report_date_key,
+            )
+            if not gate_ok:
+                gate_reason = (
+                    "当日无数据写入动作（Write Log 为空），已跳过调度；"
+                    "上传数据后可手动补发"
+                )
+                log = create_delivery_log_with_stage(
+                    db=db,
+                    subscription_id=subscription_id,
+                    frequency=frequency,
+                    report_date=report_date_key,
+                    report_month=report_date_key[:7]
+                    if frequency == "monthly"
+                    else None,
+                    email=email,
+                    initial_stage=DeliveryStage.FAILED.value,
+                    triggered_by=triggered_by,
+                )
+                mark_delivery_failed(db, log.id, gate_reason)
+                result.update(
+                    {
+                        "success": False,
+                        "skipped": True,
+                        "skipped_reason": "no_write_action",
+                        "error": gate_reason,
+                        "delivery_log_id": log.id,
+                    }
+                )
+                logger.info(
+                    "Gate skip auto dispatch: sub=%d frequency=%s report_date=%s reason=no_write_action",
+                    subscription_id,
+                    frequency,
+                    report_date_key,
                 )
                 db.close()
                 return result
@@ -760,7 +894,9 @@ def _dispatch_one_task_body(
     try:
         # 阶段：获取数据 → AI 摘要（由 builder 内部回调）
         _stage_clock = [time.monotonic()]
-        _report_stage(db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock)
+        _report_stage(
+            db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock
+        )
 
         def _on_stage(stage_name: str) -> None:
             _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
@@ -776,30 +912,52 @@ def _dispatch_one_task_body(
             )
         if len(parsed_countries) > 1:
             report_data = _build_multi_country_report(
-                project_ids, parsed_countries, frequency,
-                ai_model=ai_model, reference_date=reference_date, stage_callback=_on_stage, use_cache=use_cache,
+                project_ids,
+                parsed_countries,
+                frequency,
+                ai_model=ai_model,
+                reference_date=reference_date,
+                stage_callback=_on_stage,
+                use_cache=use_cache,
                 generate_ai_summary=False,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
-                project_ids, single_country, frequency,
-                ai_model=ai_model, reference_date=reference_date, stage_callback=_on_stage, use_cache=use_cache,
+                project_ids,
+                single_country,
+                frequency,
+                ai_model=ai_model,
+                reference_date=reference_date,
+                stage_callback=_on_stage,
+                use_cache=use_cache,
                 generate_ai_summary=False,
             )
         # Pass log_id to report_data so email_sender can update screenshot info
         report_data["log_id"] = log_id
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
-        _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
+        _report_stage(
+            db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock
+        )
         # 订阅未填写邮箱时仅生成报告（数据/截图/AI 摘要），跳过 Resend 发送
         skip_email = not bool(email)
         if frequency == "monthly":
-            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage, skip_email=skip_email)
+            success, resend_id_or_error = send_monthly_report_email(
+                email, report_data, stage_callback=_on_stage, skip_email=skip_email
+            )
         elif frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage, skip_email=skip_email)
+            success, resend_id_or_error = send_weekly_report_email(
+                email, report_data, stage_callback=_on_stage, skip_email=skip_email
+            )
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage, skip_email=skip_email)
+            success, resend_id_or_error = send_scheduled_report_email(
+                email,
+                frequency,
+                report_data,
+                stage_callback=_on_stage,
+                skip_email=skip_email,
+            )
 
         if success:
             # 先写入 status/screenshot，再把 stage 置为 done，避免前端轮询竞态。
@@ -811,7 +969,10 @@ def _dispatch_one_task_body(
             screenshot_thumb_url = report_data.get("screenshot_r2_thumb_url")
             if screenshot_key and screenshot_url:
                 try:
-                    from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
+                    from app.services.scheduled_report.subscription_service import (
+                        update_delivery_log_screenshot,
+                    )
+
                     update_delivery_log_screenshot(
                         db=db,
                         log_id=log_id,
@@ -831,7 +992,9 @@ def _dispatch_one_task_body(
                 try:
                     _cleanup_old_log_screenshot(db, old_log_id)
                 except Exception as cleanup_err:
-                    logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
+                    logger.warning(
+                        "清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err
+                    )
 
             # AI 摘要派发：日报频次已关闭 AI（AI_SUMMARY_TIMEOUT_SEC_DAILY=0）时
             # **同步**生成 fallback 摘要写入 delivery_log（点完立即出摘要、零转圈），
@@ -842,21 +1005,31 @@ def _dispatch_one_task_body(
                 )
 
                 if _should_sync_daily_fallback(frequency):
-                    summary = _build_daily_fallback_summary_from_report(report_data, frequency)
+                    summary = _build_daily_fallback_summary_from_report(
+                        report_data, frequency
+                    )
                     if summary:
                         update_delivery_log_ai_summary(
-                            db, log_id, summary, ai_model=None,
+                            db,
+                            log_id,
+                            summary,
+                            ai_model=None,
                         )
                         logger.info(
                             "Daily sync fallback summary written: sub=%d log=%d",
-                            subscription_id, log_id,
+                            subscription_id,
+                            log_id,
                         )
                     else:
                         logger.warning(
                             "Daily fallback summary empty, enqueuing Celery: sub=%d log=%d",
-                            subscription_id, log_id,
+                            subscription_id,
+                            log_id,
                         )
-                        from app.celery_tasks.ai_summary import generate_delivery_summary
+                        from app.celery_tasks.ai_summary import (
+                            generate_delivery_summary,
+                        )
+
                         generate_delivery_summary.delay(
                             log_id=log_id,
                             ledger_key=None,
@@ -864,6 +1037,7 @@ def _dispatch_one_task_body(
                         )
                 else:
                     from app.celery_tasks.ai_summary import generate_delivery_summary
+
                     generate_delivery_summary.delay(
                         log_id=log_id,
                         ledger_key=None,
@@ -879,7 +1053,11 @@ def _dispatch_one_task_body(
             update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
             mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
             result["error"] = resend_id_or_error
-            logger.warning("Report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
+            logger.warning(
+                "Report send failed: sub=%d error=%s",
+                subscription_id,
+                resend_id_or_error,
+            )
     except (SoftTimeLimitExceeded, TimeLimitExceeded) as e:
         # Celery's generic ``except Exception`` writes FAILED but ``str(exc)``
         # is the unhelpful ``SoftTimeLimitExceeded('300s')`` repr — front-end
@@ -887,7 +1065,11 @@ def _dispatch_one_task_body(
         # alone. Surface the cause explicitly so the UI shows a useful error
         # string. Regression test: tests/services/scheduled_report/
         # test_resend_hang_regression.py.
-        timeout_kind = "soft time limit" if isinstance(e, SoftTimeLimitExceeded) else "hard time limit"
+        timeout_kind = (
+            "soft time limit"
+            if isinstance(e, SoftTimeLimitExceeded)
+            else "hard time limit"
+        )
         err = f"Dispatch hit {timeout_kind} ({e}); partial work discarded."
         update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
         mark_delivery_failed(db, log_id, err)
@@ -950,7 +1132,14 @@ def dispatch_reports(frequency: str, triggered_by: str = "auto") -> dict[str, An
 
     if not subscriptions:
         logger.info("No active %s subscriptions found", frequency)
-        return {"frequency": frequency, "total": 0, "sent": 0, "failed": 0, "skipped": 0, "errors": []}
+        return {
+            "frequency": frequency,
+            "total": 0,
+            "sent": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": [],
+        }
 
     # ── pre-warm cache for duplicate project+country combos ───────────────────
     combo_counts: dict[tuple[str, str, str, str], int] = {}
@@ -994,14 +1183,17 @@ def dispatch_reports(frequency: str, triggered_by: str = "auto") -> dict[str, An
                 task = futures[future]
                 logger.error(
                     "Unexpected error dispatching sub %d: %s",
-                    task["subscription_id"], e,
+                    task["subscription_id"],
+                    e,
                 )
-                results.append({
-                    "subscription_id": task["subscription_id"],
-                    "email": task["email"],
-                    "success": False,
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "subscription_id": task["subscription_id"],
+                        "email": task["email"],
+                        "success": False,
+                        "error": str(e),
+                    }
+                )
 
     skipped = sum(1 for r in results if r.get("skipped"))
     sent = sum(1 for r in results if r["success"] and not r.get("skipped"))
@@ -1012,7 +1204,8 @@ def dispatch_reports(frequency: str, triggered_by: str = "auto") -> dict[str, An
             "email": r["email"],
             "error": r["error"],
         }
-        for r in results if not r["success"]
+        for r in results
+        if not r["success"]
     ]
 
     summary = {
@@ -1053,7 +1246,9 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
     combo_keys = set()
     for sub in subscriptions:
         for c in sub.country_list:
-            combo_keys.add(_cache_key(sub.project_id_list or None, c, _dispatch_date_str, False))
+            combo_keys.add(
+                _cache_key(sub.project_id_list or None, c, _dispatch_date_str, False)
+            )
 
     _pre_warm_cache(list(combo_keys), frequency)
 
@@ -1061,7 +1256,9 @@ def prewarm_cache_for_frequency(frequency: str) -> dict[str, Any]:
     return {"frequency": frequency, "warmed": len(combo_keys)}
 
 
-def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "manual") -> dict[str, Any]:
+def dispatch_report_for_subscription(
+    subscription_id: int, triggered_by: str = "manual"
+) -> dict[str, Any]:
     """Dispatch a single subscription (used by manual trigger API).
 
     双分支（方案 §6 Phase 2 / 切片 3）：
@@ -1075,7 +1272,9 @@ def dispatch_report_for_subscription(subscription_id: int, triggered_by: str = "
     from datetime import date
 
     from app.core.config import get_settings
-    from app.services.scheduled_report.subscription_service import get_subscription_by_id
+    from app.services.scheduled_report.subscription_service import (
+        get_subscription_by_id,
+    )
 
     db = SessionLocal()
     try:
@@ -1159,7 +1358,9 @@ def _cleanup_old_log_screenshot(db: Session, old_log_id: int) -> None:
     if not old_log:
         return
     settings = get_settings()
-    keys_to_delete = [k for k in (old_log.screenshot_r2_key, old_log.screenshot_r2_thumb_key) if k]
+    keys_to_delete = [
+        k for k in (old_log.screenshot_r2_key, old_log.screenshot_r2_thumb_key) if k
+    ]
     if not keys_to_delete:
         return
     for key in keys_to_delete:
@@ -1196,7 +1397,9 @@ def _dispatch_one_async(
     try:
         # 阶段：获取数据 → AI 摘要（由 builder 内部回调）
         _stage_clock = [time.monotonic()]
-        _report_stage(db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock)
+        _report_stage(
+            db, log_id, DeliveryStage.FETCHING_DATA.value, _stage_started=_stage_clock
+        )
 
         def _on_stage(stage_name: str) -> None:
             _report_stage(db, log_id, stage_name, _stage_started=_stage_clock)
@@ -1214,28 +1417,46 @@ def _dispatch_one_async(
         parsed_countries = [c.strip().upper() for c in country.split(",") if c.strip()]
         if len(parsed_countries) > 1:
             report_data = _build_multi_country_report(
-                project_ids, parsed_countries, frequency,
-                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
+                project_ids,
+                parsed_countries,
+                frequency,
+                ai_model=ai_model,
+                reference_date=ref_date,
+                stage_callback=_on_stage,
+                use_cache=use_cache,
                 generate_ai_summary=False,
             )
         else:
             single_country = parsed_countries[0] if parsed_countries else "US"
             report_data = _build_report_with_throttle(
-                project_ids, single_country, frequency,
-                ai_model=ai_model, reference_date=ref_date, stage_callback=_on_stage, use_cache=use_cache,
+                project_ids,
+                single_country,
+                frequency,
+                ai_model=ai_model,
+                reference_date=ref_date,
+                stage_callback=_on_stage,
+                use_cache=use_cache,
                 generate_ai_summary=False,
             )
         report_data["log_id"] = log_id
 
         # 阶段：渲染 HTML → 截图 → 发送（由 email sender 内部回调推进）
-        _report_stage(db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock)
+        _report_stage(
+            db, log_id, DeliveryStage.RENDERING_HTML.value, _stage_started=_stage_clock
+        )
         # 补发（resend）按设计只重新生成报告、不发送邮件：强制 skip_email=True
         if frequency == "monthly":
-            success, resend_id_or_error = send_monthly_report_email(email, report_data, stage_callback=_on_stage, skip_email=True)
+            success, resend_id_or_error = send_monthly_report_email(
+                email, report_data, stage_callback=_on_stage, skip_email=True
+            )
         elif frequency == "weekly":
-            success, resend_id_or_error = send_weekly_report_email(email, report_data, stage_callback=_on_stage, skip_email=True)
+            success, resend_id_or_error = send_weekly_report_email(
+                email, report_data, stage_callback=_on_stage, skip_email=True
+            )
         else:
-            success, resend_id_or_error = send_scheduled_report_email(email, frequency, report_data, stage_callback=_on_stage, skip_email=True)
+            success, resend_id_or_error = send_scheduled_report_email(
+                email, frequency, report_data, stage_callback=_on_stage, skip_email=True
+            )
 
         if success:
             # 先更新 delivery_log 的 status='sent'（在 stage='done' 之前！）
@@ -1250,7 +1471,10 @@ def _dispatch_one_async(
             screenshot_thumb_url = report_data.get("screenshot_r2_thumb_url")
             if screenshot_key and screenshot_url:
                 try:
-                    from app.services.scheduled_report.subscription_service import update_delivery_log_screenshot
+                    from app.services.scheduled_report.subscription_service import (
+                        update_delivery_log_screenshot,
+                    )
+
                     update_delivery_log_screenshot(
                         db=db,
                         log_id=log_id,
@@ -1264,7 +1488,10 @@ def _dispatch_one_async(
 
             # AI 摘要改为后台异步生成，不阻塞补发主任务。
             try:
-                from app.services.scheduled_report.ledger_service import enqueue_ai_summary_generation
+                from app.services.scheduled_report.ledger_service import (
+                    enqueue_ai_summary_generation,
+                )
+
                 enqueue_ai_summary_generation(
                     db=db,
                     log_id=log_id,
@@ -1276,10 +1503,15 @@ def _dispatch_one_async(
 
             # 直接更新 ledger entry 状态（不依赖后续的 refresh_ledger）
             try:
-                ledger_entry = db.execute(
-                    sa_select(ScheduledReportLedgerEntry)
-                    .where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
-                ).scalars().first()
+                ledger_entry = (
+                    db.execute(
+                        sa_select(ScheduledReportLedgerEntry).where(
+                            ScheduledReportLedgerEntry.ledger_key == ledger_key
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
                 if ledger_entry:
                     log_obj = db.get(ScheduledReportDeliveryLog, log_id)
                     ledger_entry.status = LedgerStatus.SENT.value
@@ -1294,7 +1526,9 @@ def _dispatch_one_async(
                 try:
                     _cleanup_old_log_screenshot(db, old_log_id)
                 except Exception as cleanup_err:
-                    logger.warning("清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err)
+                    logger.warning(
+                        "清理旧截图失败 old_log_id=%d: %s", old_log_id, cleanup_err
+                    )
 
             # 最后设置 stage='done'（前端轮询的触发点）
             # 此时 status='sent' + 截图 + ledger entry 都已就绪；AI 摘要在后台继续生成。
@@ -1305,10 +1539,15 @@ def _dispatch_one_async(
             # 失败时也先更新 ledger entry 再设 stage
             mark_delivery_failed(db, log_id, resend_id_or_error or "Unknown error")
             try:
-                ledger_entry = db.execute(
-                    sa_select(ScheduledReportLedgerEntry)
-                    .where(ScheduledReportLedgerEntry.ledger_key == ledger_key)
-                ).scalars().first()
+                ledger_entry = (
+                    db.execute(
+                        sa_select(ScheduledReportLedgerEntry).where(
+                            ScheduledReportLedgerEntry.ledger_key == ledger_key
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
                 if ledger_entry:
                     ledger_entry.status = LedgerStatus.FAILED.value
                     ledger_entry.error_message = resend_id_or_error or "Unknown error"
@@ -1316,7 +1555,11 @@ def _dispatch_one_async(
             except Exception as le_err:
                 logger.warning("直接更新 ledger entry 失败状态失败: %s", le_err)
             update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
-            logger.warning("Async report send failed: sub=%d error=%s", subscription_id, resend_id_or_error)
+            logger.warning(
+                "Async report send failed: sub=%d error=%s",
+                subscription_id,
+                resend_id_or_error,
+            )
     except Exception as e:
         mark_delivery_failed(db, log_id, str(e))
         update_delivery_log_stage(db, log_id, DeliveryStage.FAILED.value)
@@ -1327,9 +1570,15 @@ def _dispatch_one_async(
     # 更新 ledger entry（作为兜底，确保 refresh_ledger 也能正确同步）
     try:
         from app.services.scheduled_report.ledger_service import refresh_ledger
+
         refresh_db = SessionLocal()
         try:
-            refresh_ledger(refresh_db, start_date=expected_date, end_date=expected_date, frequency=expected_frequency)
+            refresh_ledger(
+                refresh_db,
+                start_date=expected_date,
+                end_date=expected_date,
+                frequency=expected_frequency,
+            )
         finally:
             refresh_db.close()
     except Exception as refresh_err:
