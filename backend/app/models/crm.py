@@ -294,3 +294,78 @@ class CrmAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class CrmTaskStatus(str):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class CrmTaskPriority(str):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+class CrmTaskType(str):
+    FOLLOW_UP = "follow_up"
+    CALL = "call"
+    VISIT = "visit"
+    CUSTOM = "custom"
+
+
+class CrmTask(Base):
+    """P7 任务（BLF-510）：待办管理载体。
+
+    owner_id 为 user_accounts.id UUID；null = 未指派（不参与提醒）。
+    customer_id/lead_id 关联客户/线索（FK ON DELETE CASCADE）；
+    业务删除以软删为主，任务保留。
+    """
+
+    __tablename__ = "crm_tasks"
+    __table_args__ = (
+        Index("idx_ct_owner_status", "owner_id", "status"),
+        Index("idx_ct_due_date", "due_date"),
+        Index("idx_ct_customer", "customer_id"),
+        Index("idx_ct_lead", "lead_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    priority: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=CrmTaskPriority.MEDIUM
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmTaskStatus.PENDING
+    )
+    type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmTaskType.CUSTOM
+    )
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36)
+    )  # null = 未指派；user_accounts.id UUID
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("crm_customers.id", ondelete="CASCADE")
+    )
+    lead_id: Mapped[int | None] = mapped_column(
+        ForeignKey("crm_leads.id", ondelete="CASCADE")
+    )
+    reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )  # 已提醒标记（BLF-513 提醒去重用）
+    created_by: Mapped[str | None] = mapped_column(String(36))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
