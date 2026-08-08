@@ -2,6 +2,8 @@ import type { CrmClient, ListParams, Paginated } from './crm-client'
 import type {
   AuditLog,
   AuditLogQuery,
+  Category,
+  CategoryInput,
   Contact,
   ContactInput,
   Customer,
@@ -30,6 +32,7 @@ import type {
 } from '@/lib/crm/types'
 import {
   mapAuditLog,
+  mapCategory,
   mapContact,
   mapCustomer,
   mapDashboardStats,
@@ -43,6 +46,7 @@ import {
   mapRule,
   mapUser,
   mapWorkflowSettings,
+  toCategoryPayload,
   toContactPayload,
   toConvertPayload,
   toCustomerPayload,
@@ -53,6 +57,7 @@ import {
     toRulePayload,
     toWorkflowSettingsPayload,
   type AuditLogDto,
+  type CategoryDto,
   type ContactDto,
   type CustomerDto,
   type DashboardStatsDto,
@@ -222,6 +227,17 @@ export class HttpCrmClient implements CrmClient {
       })
     )
   }
+  async setCustomerCategories(
+    id: string,
+    categoryIds: string[]
+  ): Promise<Customer> {
+    return mapCustomer(
+      await request<CustomerDto>(`/customers/${id}/categories`, {
+        method: 'PUT',
+        body: JSON.stringify({ category_ids: categoryIds.map(Number) }),
+      })
+    )
+  }
   async deleteCustomer(id: string): Promise<void> {
     await request<void>(`/customers/${id}`, { method: 'DELETE' })
   }
@@ -337,6 +353,34 @@ export class HttpCrmClient implements CrmClient {
   }
   async getUser(id: string): Promise<User> {
     return mapUser(await request<UserDto>(`/users/${id}`))
+  }
+
+  // ===== P6b 产品类目 =====
+  async listCategories(): Promise<Category[]> {
+    const dto = await request<CategoryDto[]>('/categories')
+    return dto.map(mapCategory)
+  }
+  async createCategory(input: CategoryInput): Promise<Category> {
+    return mapCategory(
+      await request<CategoryDto>('/categories', {
+        method: 'POST',
+        body: JSON.stringify(toCategoryPayload(input)),
+      })
+    )
+  }
+  async updateCategory(
+    id: string,
+    input: Partial<CategoryInput>
+  ): Promise<Category> {
+    return mapCategory(
+      await request<CategoryDto>(`/categories/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(toCategoryPayload(input)),
+      })
+    )
+  }
+  async deleteCategory(id: string): Promise<void> {
+    await request<void>(`/categories/${id}`, { method: 'DELETE' })
   }
 
   // ===== Dashboard 数据看板（P3c） =====

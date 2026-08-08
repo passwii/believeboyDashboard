@@ -32,12 +32,16 @@ from app.schemas.crm import (
     AuditLogListResponse,
     BatchIdsRequest,
     BatchTransferRequest,
+    CategoryCreate,
+    CategoryItem,
+    CategoryUpdate,
     ContactCreate,
     ContactItem,
     ContactUpdate,
     ConvertLeadRequest,
     ConvertLeadResponse,
     CrmUserItem,
+    CustomerCategoriesUpdate,
     CustomerCreate,
     CustomerItem,
     CustomerListResponse,
@@ -71,6 +75,7 @@ from app.schemas.crm import (
 )
 from app.services.crm import (
     audit_service,
+    category_service,
     contact_service,
     customer_service,
     dashboard_service,
@@ -1543,3 +1548,132 @@ def update_workflow_settings(
     return WorkflowSettings(
         stale_days=row.stale_days, stale_email_enabled=row.stale_email_enabled
     )
+
+# ---------- P6b 产品类目 ----------
+@router.get("/categories", response_model=list[CategoryItem])
+def list_categories(db: Session = Depends(get_read_db_session)):
+    """列出全部产品类目（登录即可，供多选下拉）。"""
+    return category_service.list_categories(db)
+
+
+@router.post(
+    "/categories", response_model=CategoryItem, status_code=status.HTTP_201_CREATED
+)
+def create_category(
+    body: CategoryCreate,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    try:
+        cat = category_service.create_category(
+            db, body.name, sort_order=body.sort_order
+        )
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    audit_service.record_log(
+        db,
+        entity_type="category",
+        entity_id=cat.id,
+        action="create",
+        summary=f"新建产品类目「{cat.name}」",
+        actor_id=None,
+        commit=True,
+    )
+    return cat
+
+
+@router.patch("/categories/{category_id}", response_model=CategoryItem)
+def update_category(
+    category_id: int,
+    body: CategoryUpdate,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    try:
+        cat = category_service.update_category(
+            db, category_id, name=body.name, sort_order=body.sort_order
+        )
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    if cat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="类目不存在")
+    audit_service.record_log(
+        db,
+        entity_type="category",
+        entity_id=cat.id,
+        action="update",
+        summary=f"编辑产品类目「{cat.name}」",
+        actor_id=None,
+        commit=True,
+    )
+    return cat
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    cat = category_service.delete_category(db, category_id)
+    if cat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="类目不存在")
+    audit_service.record_log(
+        db,
+        entity_type="category",
+        entity_id=cat.id,
+        action="delete",
+        summary=f"删除产品类目「{cat.name}」",
+        actor_id=None,
+        commit=True,
+    )
+    return None
+
+
+@router.put("/customers/{customer_id}/categories", response_model=CustomerItem)
+def set_customer_categories(
+    customer_id: int,
+    body: CustomerCategoriesUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """整体替换客户类目集（幂等去重）。owner/admin 可操作。"""
+    existing = db.execute(
+        text(
+            "SELECT id, owner_id FROM crm_customers WHERE id = :id AND is_deleted = false"
+        ),
+        {"id": customer_id},
+    ).first()
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="客户不存在")
+    require_owner_or_admin(existing.owner_id, user_id, is_admin)
+    try:
+        _, diff, _cats = category_service.set_customer_categories(
+            db, customer_id, body.category_ids, commit=False
+        )
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    parts: list[str] = []
+    for name in diff["added"]:
+        parts.append(f"+{name}")
+    for name in diff["removed"]:
+        parts.append(f"-{name}")
+    summary = f"产品类目：{' '.join(parts)}" if parts else "产品类目：无变更"
+    audit_service.record_log(
+        db,
+        entity_type="customer",
+        entity_id=customer_id,
+        action="update",
+        summary=summary,
+        actor_id=user_id,
+        commit=False,
+    )
+    db.commit()
+    item = customer_service.get_customer(db, customer_id)

@@ -217,20 +217,74 @@ describe('MockCrmClient · Follow', () => {
 })
 
 describe('MockCrmClient · User', () => {
- it('listUsers returns 10 fixture rows', async () => {
- const client = new MockCrmClient(TEST_USER)
- const users = await client.listUsers()
- expect(users).toHaveLength(10)
- })
+  it('listUsers returns 10 fixture rows', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    const users = await client.listUsers()
+    expect(users).toHaveLength(10)
+  })
 
- it('getUser throws on unknown id', async () => {
- const client = new MockCrmClient(TEST_USER)
- await expect(client.getUser('nonexistent')).rejects.toThrow(/用户不存在/)
- })
+  it('getUser throws on unknown id', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    await expect(client.getUser('nonexistent')).rejects.toThrow(/用户不存在/)
+  })
 })
-describe('MockCrmClient · Task (P7)', () => {
-  let client: MockCrmClient
 
+describe('MockCrmClient · P6b 产品类目', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+  })
+
+  it('listCategories returns 9 seeded categories sorted', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    const cats = await client.listCategories()
+    expect(cats).toHaveLength(9)
+    expect(cats[0].name).toBe('家居')
+    const orders = cats.map((c) => c.sortOrder)
+    expect(orders).toEqual([...orders].sort((a, b) => a - b))
+  })
+
+  it('createCategory appends and rejects duplicate', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    const cat = await client.createCategory({ name: '宠物用品' })
+    expect(cat.id).toMatch(/^cat-/)
+    await expect(client.createCategory({ name: '宠物用品' })).rejects.toThrow(
+      /已存在/
+    )
+    expect(await client.listCategories()).toHaveLength(10)
+  })
+
+  it('updateCategory renames', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    const updated = await client.updateCategory('1', { name: '家具家居' })
+    expect(updated.name).toBe('家具家居')
+    await expect(client.updateCategory('1', { name: '3C' })).rejects.toThrow(
+      /已存在/
+    )
+  })
+
+  it('deleteCategory removes and detaches from customers', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    await client.setCustomerCategories('c-0001', ['1'])
+    let cust = await client.getCustomer('c-0001')
+    expect(cust.categories.map((c) => c.id)).toContain('1')
+    await client.deleteCategory('1')
+    cust = await client.getCustomer('c-0001')
+    expect(cust.categories.map((c) => c.id)).not.toContain('1')
+  })
+
+  it('setCustomerCategories replaces and filters to existing', async () => {
+    const client = new MockCrmClient(TEST_USER)
+    const updated = await client.setCustomerCategories('c-0001', ['1', '2'])
+    expect(updated.categories.map((c) => c.id)).toEqual(['1', '2'])
+    const after = await client.setCustomerCategories('c-0001', ['9'])
+    expect(after.categories.map((c) => c.id)).toEqual(['9'])
+  })
+})
+
+describe('MockCrmClient · Task 列表/看板（P7, BLF-512）', () => {
+  let client: MockCrmClient
   beforeEach(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.clear()
@@ -288,7 +342,9 @@ describe('MockCrmClient · Task (P7)', () => {
   })
 
   it('setTaskStatus 未知任务抛错', async () => {
-    await expect(client.setTaskStatus('t-9999', 'done')).rejects.toThrow(/任务不存在/)
+    await expect(client.setTaskStatus('t-9999', 'done')).rejects.toThrow(
+      /任务不存在/
+    )
   })
 })
 

@@ -1,5 +1,11 @@
 import type {
+  AuditLog,
+  AuditLogQuery,
+  Category,
+  CategoryInput,
   Customer,
+  CustomerSeaImportResult,
+  CustomerSeaImportRow,
   Lead,
   Follow,
   User,
@@ -14,19 +20,15 @@ import type {
   FunnelStageDetail,
   FunnelStageQuery,
   LifecycleBoard,
-  AuditLog,
-  AuditLogQuery,
-  CustomerSeaImportRow,
-  CustomerSeaImportResult,
   ValueScoresInput,
   Task,
-   TaskInput,
-   TaskListParams,
-   TaskStatus,
-   Rule,
-   RuleInput,
-   WorkflowSettings,
- } from '@/lib/crm/types'
+  TaskInput,
+  TaskListParams,
+  TaskStatus,
+  Rule,
+  RuleInput,
+  WorkflowSettings,
+} from '@/lib/crm/types'
 
 export interface ListParams {
   keyword?: string
@@ -60,11 +62,17 @@ export interface CrmClient {
   createCustomer(input: CustomerInput): Promise<Customer>
   updateCustomer(id: string, input: Partial<CustomerInput>): Promise<Customer>
   updateValueScores(id: string, input: ValueScoresInput): Promise<Customer>
+  setCustomerCategories(id: string, categoryIds: string[]): Promise<Customer>
   deleteCustomer(id: string): Promise<void>
   batchTransferCustomers(ids: string[], toOwnerId: string): Promise<void>
   batchMoveToSea(ids: string[]): Promise<void>
   claimFromSea(id: string): Promise<Customer>
   importCustomersToSea(rows: CustomerSeaImportRow[]): Promise<CustomerSeaImportResult>
+
+  listCategories(): Promise<Category[]>
+  createCategory(input: CategoryInput): Promise<Category>
+  updateCategory(id: string, input: Partial<CategoryInput>): Promise<Category>
+  deleteCategory(id: string): Promise<void>
 
   listLeads(params: ListParams): Promise<Paginated<Lead>>
   getLead(id: string): Promise<Lead>

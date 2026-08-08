@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { CrmRulesPanel } from '@/components/crm/crm-rules-panel'
+import { CrmCategoryManager } from '@/components/crm/crm-category-manager'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useNotifications } from '@/components/notifications'
 import { Button } from '@/components/ui/button'
@@ -123,6 +124,8 @@ export default function SettingsPage() {
       </div>
 
       <CrmRulesPanel />
+
+      <CrmCategoryManager />
 
       <Card className="max-w-2xl">
         <CardHeader>

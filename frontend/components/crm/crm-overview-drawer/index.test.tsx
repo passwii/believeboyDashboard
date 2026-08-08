@@ -6,13 +6,18 @@ import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 
 vi.mock('@/lib/crm/api/crm-client-provider', () => ({
-  useCrmClient: () => ({ updateValueScores: vi.fn() }),
+  useCrmClient: () => ({
+    updateValueScores: vi.fn(),
+    listCategories: vi.fn().mockResolvedValue([]),
+    setCustomerCategories: vi.fn(),
+  }),
 }))
 
 const customer: Customer = {
   id: 'c1',
   name: '测试客户',
   rating: 'A',
+  categories: [],
   status: 'active',
   source: 'referral',
   ownerId: 'u1',
