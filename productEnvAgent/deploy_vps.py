@@ -28,6 +28,12 @@ import datetime
 import json
 import os
 
+# BLF-524：部署失败告警（复用 workspace 内 multica issue 评论渠道）
+from alerting import (
+    resolve_alert_issue_id,
+    send_deploy_failure_alert,
+)
+
 # VPS 配置
 VPS_HOST = "145.79.143.98"
 VPS_USER = "root"
@@ -109,6 +115,47 @@ def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeou
         return -1, "", "命令执行超时（120秒）"
     except Exception as e:
         return -1, "", str(e)
+
+
+def detect_bad_sha():
+    """定位本次部署的目标 commit（本地仓库 HEAD，即刚推送/正在部署的提交）。
+
+    在无法定位（如 CI 环境无仓库）时返回 None，告警里显示 unknown。
+    """
+    try:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=repo_root,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def handle_deploy_failure(stage, dry_run=False, error=""):
+    """部署失败统一出口：收集日志 → 保存报告 → 记录 bad-sha → 发告警（BLF-524）。
+
+    告警内容含受影响 PR 与回滚命令；dry-run 模式只打印不发送。
+    """
+    logs = collect_failure_logs(stage, dry_run=dry_run)
+    analysis = analyze_logs(logs)
+    print(format_report(logs, analysis))
+    save_report(logs, analysis, dry_run)
+
+    bad_sha = detect_bad_sha()
+    alert_issue = resolve_alert_issue_id()
+    send_deploy_failure_alert(
+        bad_sha=bad_sha,
+        stage=stage,
+        error=error or analysis["summary"],
+        issue_id=alert_issue,
+        dry_run=dry_run,
+    )
+    return analysis
 
 
 def collect_failure_logs(stage_name, dry_run=False):
@@ -309,10 +356,8 @@ def deploy(dry_run=False, auto_confirm=False):
         print(out if out.strip() else "✓ 代码已更新")
     else:
         print(f"✗ Git pull 失败: {err}")
-        logs = collect_failure_logs("git pull", dry_run=dry_run)
-        analysis = analyze_logs(logs)
-        print(format_report(logs, analysis))
-        save_report(logs, analysis, dry_run)
+        # BLF-524：失败统一出口（记录 bad-sha + 告警）
+        handle_deploy_failure("git pull", dry_run=dry_run, error=err)
         return False
 
     # 步骤 3: 迁移图前置检查（多 head / 命名违规 / 重复 id 在改库前拦截）
@@ -327,19 +372,20 @@ def deploy(dry_run=False, auto_confirm=False):
             '`alembic merge heads --rev-id <下一序号> -m "merge xxx"` 合回单链，'
             "再重新部署。"
         )
+        # BLF-524：迁移图被拦截是高风险失败，同样走告警
+        handle_deploy_failure(
+            "alembic migration graph check", dry_run=dry_run, error=err or out
+        )
         return False
 
     # 步骤 4: 安装后端依赖
     print("\n>>> 步骤 4: 安装后端依赖...")
     rc, out, err = run_ssh_command(DEPLOY_COMMANDS[1], dry_run=dry_run)
     if rc == 0:
-        print(out if out.strip() else "✓ 迁移完成")
+        print(out if out.strip() else "✓ 依赖安装完成")
     else:
-        print(f"✗ Alembic 迁移失败: {err}")
-        logs = collect_failure_logs("alembic upgrade", dry_run=dry_run)
-        analysis = analyze_logs(logs)
-        print(format_report(logs, analysis))
-        save_report(logs, analysis, dry_run)
+        print(f"✗ 依赖安装失败: {err}")
+        handle_deploy_failure("pip install", dry_run=dry_run, error=err)
         return False
 
     # 步骤 5: 运行数据库迁移 + 重启服务
@@ -349,6 +395,14 @@ def deploy(dry_run=False, auto_confirm=False):
         print(out)
         if err and "active" not in out.lower():
             print(err)
+        # BLF-524：迁移/重启任一命令失败立即拦截（原逻辑只打印不判断 rc）
+        if rc != 0 and not dry_run:
+            print(f"✗ 命令失败 (exit {rc}): {cmd[:160]}")
+            print(f"  错误: {err.strip()[:800] or out.strip()[:800]}")
+            handle_deploy_failure(
+                "deploy commands (migrate/restart)", dry_run=dry_run, error=err
+            )
+            return False
 
     # 步骤 6: 验证服务状态
     print("\n>>> 步骤 6: 验证部署结果...")
@@ -375,10 +429,7 @@ def deploy(dry_run=False, auto_confirm=False):
         print(f"  ✓ API 健康检查通过 (HTTP {code})")
     else:
         print(f"  ✗ API 健康检查失败 (HTTP {code})，收集诊断信息...")
-        logs = collect_failure_logs("API health check", dry_run=dry_run)
-        analysis = analyze_logs(logs)
-        print(format_report(logs, analysis))
-        save_report(logs, analysis, dry_run)
+        handle_deploy_failure("API health check", dry_run=dry_run, error=f"HTTP {code}")
         return False
 
     if not dry_run:
