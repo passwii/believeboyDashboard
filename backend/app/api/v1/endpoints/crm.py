@@ -907,9 +907,15 @@ def update_task(
             status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
         )
     require_owner_or_admin(task.owner_id, user_id, is_admin)
-    _validate_task_links(db, payload.customer_id, payload.lead_id)
+    # 二选一校验按“合并后状态”算（未传字段沿用任务现有关联；显式 null 视为清除）
+    data = payload.model_dump(exclude_unset=True)
+    _validate_task_links(
+        db,
+        data.get("customer_id", task.customer_id),
+        data.get("lead_id", task.lead_id),
+    )
     # 先快照改前值（update_task 会原地改 ORM 对象），再调 service
-    before = {k: getattr(task, k, None) for k in payload.model_dump(exclude_unset=True)}
+    before = {k: getattr(task, k, None) for k in data}
     try:
         item = task_service.update_task(
             db, task, payload, user_id=user_id, commit=False, is_admin=is_admin
@@ -1019,7 +1025,16 @@ def cancel_task(
 def _validate_task_links(
     db: Session, customer_id: int | None, lead_id: int | None
 ) -> None:
-    """关联客户/线索须存在；不存在 → 404（设计文档 §6.2）。"""
+    """任务关联校验（设计文档 §6.2 / BLF-511）：
+
+    - 同时关联客户与线索 → 400（业务上二选一；update 传合并后状态）。
+    - 关联的客户/线索不存在 → 404。
+    """
+    if customer_id is not None and lead_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="任务只能关联客户或线索之一（二选一）",
+        )
     if customer_id is not None:
         exists = db.execute(
             text("select 1 from crm_customers where id = :cid limit 1"),

@@ -65,7 +65,8 @@ def test_create_task_non_admin_assign_owner_forbidden(client, operator_headers):
     assert r.status_code == 403
 
 
-def test_create_task_with_customer_and_lead(client, admin_headers):
+def test_create_task_both_customer_and_lead_400(client, admin_headers):
+    """业务上二选一：同时传 customer_id + lead_id → 400（BLF-511）。"""
     cust = _mk_customer(client, admin_headers)
     lead = _mk_lead(client, admin_headers)
     r = client.post(
@@ -73,12 +74,37 @@ def test_create_task_with_customer_and_lead(client, admin_headers):
         headers=admin_headers,
         json={"title": "拜访", "customer_id": cust["id"], "lead_id": lead["id"]},
     )
+    assert r.status_code == 400, r.text
+
+
+def test_create_task_with_customer_returns_name(client, admin_headers):
+    cust = _mk_customer(client, admin_headers)
+    r = client.post(
+        "/api/v1/crm/tasks",
+        headers=admin_headers,
+        json={"title": "拜访客户", "customer_id": cust["id"]},
+    )
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["customer_id"] == cust["id"]
     assert body["customer_name"] == "客户A"
+    assert body["lead_id"] is None
+    assert body["lead_name"] is None
+
+
+def test_create_task_with_lead_returns_name(client, admin_headers):
+    lead = _mk_lead(client, admin_headers)
+    r = client.post(
+        "/api/v1/crm/tasks",
+        headers=admin_headers,
+        json={"title": "跟进线索", "lead_id": lead["id"]},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
     assert body["lead_id"] == lead["id"]
     assert body["lead_name"] == "线索A"
+    assert body["customer_id"] is None
+    assert body["customer_name"] is None
 
 
 def test_create_task_missing_customer_404(client, admin_headers):
@@ -213,6 +239,95 @@ def test_update_task_owner_non_admin_forbidden(client, admin_headers, operator_h
         json={"owner_id": operator_headers["X-User-Id"]},
     )
     assert r.status_code == 403
+
+
+def test_list_tasks_joins_customer_lead_names(client, admin_headers):
+    """列表联查：customer_name / lead_name 批量填充（防 N+1）。"""
+    cust = _mk_customer(client, admin_headers, name="客户甲")
+    lead = _mk_lead(client, admin_headers, name="线索乙")
+    t1 = _mk_task(client, admin_headers, title="拜访甲", customer_id=cust["id"])
+    t2 = _mk_task(client, admin_headers, title="跟进乙", lead_id=lead["id"])
+    lst = client.get("/api/v1/crm/tasks?scope=all", headers=admin_headers).json()
+    by_id = {i["id"]: i for i in lst["items"]}
+    assert by_id[t1["id"]]["customer_name"] == "客户甲"
+    assert by_id[t1["id"]]["lead_name"] is None
+    assert by_id[t2["id"]]["lead_name"] == "线索乙"
+    assert by_id[t2["id"]]["customer_name"] is None
+
+
+def test_get_task_joins_customer_lead_names(client, admin_headers):
+    cust = _mk_customer(client, admin_headers, name="客户丙")
+    task = _mk_task(client, admin_headers, title="回访丙", customer_id=cust["id"])
+    body = client.get(f"/api/v1/crm/tasks/{task['id']}", headers=admin_headers).json()
+    assert body["customer_name"] == "客户丙"
+
+
+def test_update_task_missing_lead_404(client, admin_headers):
+    task = _mk_task(client, admin_headers)
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={"lead_id": 999999},
+    )
+    assert r.status_code == 404
+
+
+def test_update_task_both_customer_and_lead_400(client, admin_headers):
+    cust = _mk_customer(client, admin_headers)
+    lead = _mk_lead(client, admin_headers)
+    task = _mk_task(client, admin_headers)
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={"customer_id": cust["id"], "lead_id": lead["id"]},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_update_task_adding_lead_when_customer_linked_400(client, admin_headers):
+    """已关联客户的任务再关联线索（合并后二选一被破坏）→ 400。"""
+    cust = _mk_customer(client, admin_headers)
+    lead = _mk_lead(client, admin_headers)
+    task = _mk_task(client, admin_headers, customer_id=cust["id"])
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={"lead_id": lead["id"]},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_update_task_switch_customer_to_lead_ok(client, admin_headers):
+    """显式清空 customer 后关联 lead（换关联）→ 200，联查字段同步切换。"""
+    cust = _mk_customer(client, admin_headers)
+    lead = _mk_lead(client, admin_headers, name="线索丁")
+    task = _mk_task(client, admin_headers, customer_id=cust["id"])
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={"customer_id": None, "lead_id": lead["id"]},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["customer_id"] is None
+    assert body["customer_name"] is None
+    assert body["lead_id"] == lead["id"]
+    assert body["lead_name"] == "线索丁"
+
+
+def test_update_task_clear_customer_link_ok(client, admin_headers):
+    """仅清空关联（customer_id=null）→ 200，任务保留不关联任何实体。"""
+    cust = _mk_customer(client, admin_headers)
+    task = _mk_task(client, admin_headers, customer_id=cust["id"])
+    r = client.patch(
+        f"/api/v1/crm/tasks/{task['id']}",
+        headers=admin_headers,
+        json={"customer_id": None},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["customer_id"] is None
+    assert body["customer_name"] is None
 
 
 def test_update_task_missing_customer_404(client, admin_headers):
