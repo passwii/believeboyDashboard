@@ -15,6 +15,8 @@ import type {
   FollowInput,
   FollowUpGroups,
   FollowUpItem,
+  FunnelStageDetail,
+  FunnelStageQuery,
   Lead,
   LeadInput,
   Task,
@@ -830,6 +832,84 @@ export class MockCrmClient implements CrmClient {
       newThisMonth: { newCustomers, newLeads, convertedCount },
       followActivity: { followCount7d },
       perOwner,
+    }
+  }
+
+  // ===== 漏斗二层复盘面板（P8，BLF-518） =====
+
+  async getFunnelStageDetail(params: FunnelStageQuery): Promise<FunnelStageDetail> {
+    await this.delay('getFunnelStageDetail')
+    const { stage, sortBy = 'dwell', stuckDays = 7 } = params
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 50
+
+    // 该阶段的线索（模拟 entered_stage_at：无字段时用 updatedAt 兜底，与后端口径一致）
+    const inStage = this.state.leads.filter((l) => l.status === stage && l.id.startsWith('l-'))
+    const followByLead = (leadId: string) =>
+      this.state.follows
+        .filter((f) => f.entityType === 'lead' && f.entityId === leadId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+    const now = Date.now()
+    const dwellOf = (l: Lead) => {
+      const ref = l.updatedAt ?? l.createdAt
+      return Math.max(0, Math.floor((now - new Date(ref).getTime()) / (1000 * 60 * 60 * 24)))
+    }
+
+    const rows = inStage.map((l) => {
+      const last = followByLead(l.id)[0]
+      const dwell = dwellOf(l)
+      return {
+        lead: l,
+        dwell,
+        lastActionAt: last?.createdAt,
+        lastActionContent: last?.content,
+        isStuck: dwell > stuckDays,
+      }
+    })
+
+    const total = rows.length
+    const sorted = [...rows].sort((a, b) =>
+      sortBy === 'recent'
+        ? (b.lastActionAt ?? '').localeCompare(a.lastActionAt ?? '') || a.dwell - b.dwell
+        : b.dwell - a.dwell || (b.lastActionAt ?? '').localeCompare(a.lastActionAt ?? '')
+    )
+    const paged = sorted.slice((page - 1) * pageSize, page * pageSize)
+
+    const ownerName = (id: string | null) =>
+      id ? this.state.users.find((u) => u.id === id)?.name : undefined
+
+    const avgDwell =
+      rows.length > 0
+        ? Math.round((rows.reduce((s, r) => s + r.dwell, 0) / rows.length) * 10) / 10
+        : undefined
+
+    return {
+      stage,
+      count: total,
+      avgDwellDays: avgDwell,
+      stuckCount: rows.filter((r) => r.isStuck).length,
+      inflow: total,
+      outflow: undefined,
+      stuckDays,
+      page,
+      pageSize,
+      total,
+      leads: paged.map((r) => ({
+        id: r.lead.id,
+        name: r.lead.name,
+        company: r.lead.company,
+        ownerId: r.lead.ownerId,
+        ownerName: ownerName(r.lead.ownerId),
+        source: r.lead.source,
+        intent: r.lead.intent,
+        enteredStageAt: r.lead.updatedAt,
+        lastActionAt: r.lastActionAt,
+        lastActionContent: r.lastActionContent,
+        nextFollowAt: r.lead.nextFollowAt,
+        dwellDays: r.dwell,
+        isStuck: r.isStuck,
+      })),
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { FunnelChart } from "@/components/ui/funnel-chart";
 
 // jsdom 不实现 ResizeObserver，FunnelChart 内部依赖它来测量容器尺寸
@@ -58,5 +58,37 @@ describe("FunnelChart", () => {
     // 标称尺寸兜底应让漏斗 svg 立即出现，而非空白等测量后再弹出。
     const { container } = render(<FunnelChart data={data} />);
     expect(container.querySelector("svg")).not.toBeNull();
+  });
+
+  it("onStageClick 存在时点击某档触发对应 index（BLF-518）", () => {
+    const data = [
+      { label: "A", value: 100 },
+      { label: "B", value: 60 },
+      { label: "C", value: 30 },
+      { label: "D", value: 10 },
+    ];
+    const onStageClick = vi.fn();
+    const { getAllByRole } = render(<FunnelChart data={data} onStageClick={onStageClick} />);
+    // 每档 label overlay 都是一个 button（共 4 个）
+    const stageBtns = getAllByRole("button");
+    expect(stageBtns).toHaveLength(4);
+    expect(stageBtns[3]).toHaveAttribute("title", "查看D阶段明细");
+    fireEvent.click(stageBtns[3]);
+    expect(onStageClick).toHaveBeenCalledWith(3);
+  });
+
+  it("未传 onStageClick 时不渲染 button 角色（纯展示）", () => {
+    const data = [{ label: "A", value: 100 }];
+    const { queryByRole } = render(<FunnelChart data={data} />);
+    expect(queryByRole("button")).toBeNull();
+  });
+
+  it("键盘 Enter 触发 onStageClick（可访问性）", () => {
+    const data = [{ label: "A", value: 100 }];
+    const onStageClick = vi.fn();
+    const { getByRole } = render(<FunnelChart data={data} onStageClick={onStageClick} />);
+    const btn = getByRole("button");
+    fireEvent.keyDown(btn, { key: "Enter" });
+    expect(onStageClick).toHaveBeenCalledWith(0);
   });
 });

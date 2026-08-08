@@ -11,6 +11,8 @@ import type {
   FollowUpGroups,
   ContactInput,
   DashboardStats,
+  FunnelStageDetail,
+  FunnelStageQuery,
   AuditLog,
   AuditLogQuery,
   CustomerSeaImportRow,
@@ -82,6 +84,9 @@ export interface CrmClient {
   getUser(id: string): Promise<User>
 
   getDashboardStats(): Promise<DashboardStats>
+
+  /** 漏斗二层复盘面板：某阶段的停留/卡点明细（BLF-518）。 */
+  getFunnelStageDetail(params: FunnelStageQuery): Promise<FunnelStageDetail>
 
   listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>>
 

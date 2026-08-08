@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildLeadFunnelStages, leadConversionRate, leadFunnelStepRates } from './lead-funnel'
+import { buildLeadFunnelStages, buildLeadStageFunnel, leadConversionRate, leadFunnelStepRates } from './lead-funnel'
 
 describe('buildLeadFunnelStages（累计转化漏斗）', () => {
   it('各层按累计口径计算：每层 = 该阶段及以上之和', () => {
@@ -41,6 +41,42 @@ describe('buildLeadFunnelStages（累计转化漏斗）', () => {
       expect(s.gradient?.[0].offset).toBe(0)
       expect(s.gradient?.[1].offset).toBe(1)
     }
+  })
+})
+
+describe('buildLeadStageFunnel（阶段漏斗 raw 口径，BLF-516 决策 4）', () => {
+  it('每层直接取当前状态计数（不累计），顺序固定 新线索→联系中→已验证→已转化', () => {
+    const stages = buildLeadStageFunnel({
+      new: 18,
+      contacting: 14,
+      qualified: 9,
+      converted: 4,
+      discarded: 5,
+    })
+    expect(stages.map((s) => s.value)).toEqual([18, 14, 9, 4])
+    expect(stages.map((s) => s.label)).toEqual(['新线索', '联系中', '已验证', '已转化'])
+  })
+
+  it('每档携带后端 stage key（供点击打开二层面板）', () => {
+    const stages = buildLeadStageFunnel({ new: 1 })
+    expect(stages.map((s) => s.stage)).toEqual(['new', 'contacting', 'qualified', 'converted'])
+  })
+
+  it('discarded 不计入主漏斗', () => {
+    const stages = buildLeadStageFunnel({ discarded: 10 })
+    expect(stages.map((s) => s.value)).toEqual([0, 0, 0, 0])
+  })
+
+  it('空输入返回全 0 但保留四档结构', () => {
+    const stages = buildLeadStageFunnel({})
+    expect(stages).toHaveLength(4)
+    expect(stages.every((s) => s.value === 0)).toBe(true)
+  })
+
+  it('raw 口径下后层可大于前层（宽度即堆量信号，不复现累计单调约束）', () => {
+    const stages = buildLeadStageFunnel({ new: 3, contacting: 20, qualified: 8, converted: 6 })
+    expect(stages[1]?.value).toBe(20)
+    expect(stages[1]?.value).toBeGreaterThan(stages[0]?.value ?? 0)
   })
 })
 

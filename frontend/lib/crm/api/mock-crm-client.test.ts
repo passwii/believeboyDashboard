@@ -363,3 +363,56 @@ describe('MockCrmClient · Task 创建/编辑/完成/取消（BLF-514）', () =>
     await expect(client.updateTask('t-9997', { title: 'x' })).rejects.toThrow(/任务不存在/)
   })
 })
+
+describe('MockCrmClient · 漏斗二层复盘面板 getFunnelStageDetail (BLF-518)', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('返回指定阶段的线索明细，count = 该状态线索数', async () => {
+    const expectedCount = LEADS_FIXTURE.filter((l) => l.status === 'contacting').length
+    const d = await client.getFunnelStageDetail({ stage: 'contacting' })
+    expect(d.stage).toBe('contacting')
+    expect(d.count).toBe(expectedCount)
+    expect(d.total).toBe(expectedCount)
+    expect(d.stuckDays).toBe(7)
+    expect(d.leads.every((l) => l.id.startsWith('l-'))).toBe(true)
+  })
+
+  it('默认按停留时长降序（卡最久在前）', async () => {
+    const d = await client.getFunnelStageDetail({ stage: 'qualified' })
+    const dwells = d.leads.map((l) => l.dwellDays ?? 0)
+    expect([...dwells]).toEqual([...dwells].sort((a, b) => b - a))
+  })
+
+  it('sort_by=recent 按最后动作倒序', async () => {
+    const d = await client.getFunnelStageDetail({ stage: 'qualified', sortBy: 'recent' })
+    const times = d.leads.map((l) => l.lastActionAt ?? '')
+    expect([...times]).toEqual([...times].sort((a, b) => b.localeCompare(a)))
+  })
+
+  it('isStuck 阈值 = dwell > stuckDays，stuckCount 汇总正确', async () => {
+    const d = await client.getFunnelStageDetail({ stage: 'new', stuckDays: 5 })
+    const stuckLeads = d.leads.filter((l) => l.isStuck)
+    expect(stuckLeads.every((l) => (l.dwellDays ?? 0) > 5)).toBe(true)
+    expect(d.stuckCount).toBeGreaterThanOrEqual(stuckLeads.length)
+  })
+
+  it('分页生效：page_size=5 返回 5 条且 total 不变', async () => {
+    const d = await client.getFunnelStageDetail({ stage: 'contacting', page: 1, pageSize: 5 })
+    expect(d.leads.length).toBeLessThanOrEqual(5)
+    expect(d.pageSize).toBe(5)
+    expect(d.page).toBe(1)
+  })
+
+  it('未知阶段返回空明细（count=0）', async () => {
+    const d = await client.getFunnelStageDetail({ stage: 'nope' })
+    expect(d.count).toBe(0)
+    expect(d.leads).toHaveLength(0)
+  })
+})

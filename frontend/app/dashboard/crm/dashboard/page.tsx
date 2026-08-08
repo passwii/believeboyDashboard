@@ -18,16 +18,26 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { FunnelChart } from '@/components/ui/funnel-chart'
-import { buildLeadFunnelStages, leadConversionRate, leadFunnelStepRates } from '@/lib/crm/method/lead-funnel'
+import { buildLeadStageFunnel, leadConversionRate, leadFunnelStepRates } from '@/lib/crm/method/lead-funnel'
+import { FunnelStageDrawer } from '@/components/crm/funnel-stage-drawer'
 
 /** 数字紧凑显示：12400 → "1.2万"，小数字原样。 */
 const compact = (v: number) => new Intl.NumberFormat('zh-CN', { notation: 'compact' }).format(v)
+
+/** 后端阶段 key → 展示名（与 LEAD_STATUS_LABELS 一致，BLF-516 决策 1）。 */
+const STAGE_LABELS: Record<string, string> = {
+  new: '新线索',
+  contacting: '联系中',
+  qualified: '已验证',
+  converted: '已转化',
+}
 
 export default function CrmDashboardPage() {
   const client = useCrmClient()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedStage, setSelectedStage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -45,9 +55,10 @@ export default function CrmDashboardPage() {
     void load()
   }, [load])
 
-  // 漏斗：累计转化口径（线索总量 → 跟进联系 → 验证 → 转化），恒单调收窄。
-  const funnelStages = buildLeadFunnelStages(stats?.leadFunnel ?? {})
-  const funnelTotal = funnelStages[0]?.value ?? 0
+  // 漏斗：阶段漏斗（raw counts，不累计）——BLF-516 决策 4：raw 宽度直接看出
+  // 「哪一级堆了人、哪一级掉得快」，4 级粗粒度下不会忽宽忽窄。
+  const funnelStages = buildLeadStageFunnel(stats?.leadFunnel ?? {})
+  const funnelTotal = funnelStages.reduce((s, st) => s + st.value, 0)
   const discarded = stats?.leadFunnel.discarded ?? 0
   const convRate = leadConversionRate(stats?.leadFunnel ?? {})
 
@@ -102,13 +113,13 @@ export default function CrmDashboardPage() {
         />
       </StatCardRow>
 
-      {/* 线索漏斗（累计转化口径） */}
+      {/* 线索漏斗（阶段口径：各状态当前计数） */}
       <div className="dashboard-surface">
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-5">
           <div className="space-y-0.5">
             <h2 className="text-base font-semibold tracking-tight">线索漏斗</h2>
             <p className="text-xs text-muted-foreground">
-              累计口径：每层 = 到达该阶段及以上的线索数，逐级收窄
+              阶段口径：各阶段当前线索数，点击某级查看停留时长 / 卡点复盘明细
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -135,6 +146,10 @@ export default function CrmDashboardPage() {
                 color="var(--chart-1)"
                 edges="curved"
                 layers={2}
+                onStageClick={(i) => {
+                  const stageKey = funnelStages[i]?.stage
+                  if (stageKey) setSelectedStage(stageKey)
+                }}
                 orientation="horizontal"
                 formatValue={compact}
               />
@@ -208,6 +223,16 @@ export default function CrmDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* 漏斗二层复盘面板（BLF-518）：点击漏斗某级展开 */}
+      <FunnelStageDrawer
+        open={selectedStage !== null}
+        onOpenChange={(o) => {
+          if (!o) setSelectedStage(null)
+        }}
+        stage={selectedStage ?? ''}
+        stageLabel={selectedStage ? (STAGE_LABELS[selectedStage] ?? selectedStage) : ''}
+      />
     </div>
   )
 }

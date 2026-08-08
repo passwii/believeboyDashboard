@@ -4,6 +4,7 @@ import {
   mapFollow,
   mapFollowUp,
   mapFollowUpGroups,
+  mapFunnelStageDetail,
   mapLead,
   mapTask,
   mapUser,
@@ -17,6 +18,7 @@ import {
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
+  type StageDetailDto,
   type TaskDto,
 } from './dto-mappers'
 
@@ -317,5 +319,93 @@ describe('mapFollowUp / mapFollowUpGroups', () => {
     expect(groups.totalCount).toBe(2)
     expect(groups.overdue[0].entityId).toBe('7')
     expect(groups.today[0].entityType).toBe('lead')
+  })
+})
+
+describe('mapFunnelStageDetail（漏斗二层复盘面板，BLF-518）', () => {
+  const stageDto: StageDetailDto = {
+    stage: 'contacting',
+    count: 2,
+    avg_dwell_days: 5.4,
+    stuck_count: 1,
+    inflow: 2,
+    outflow: 3,
+    stuck_days: 7,
+    page: 1,
+    page_size: 10,
+    total: 2,
+    leads: [
+      {
+        id: 7,
+        name: '王五',
+        company: '某贸易',
+        owner_id: 'uuid-1',
+        owner_name: '张三',
+        source: 'referral',
+        intent: 'high',
+        entered_stage_at: '2026-08-01T00:00:00+00:00',
+        last_action_at: '2026-08-02T00:00:00+00:00',
+        last_action_content: '电话沟通 30 分钟',
+        next_follow_at: '2026-08-10T00:00:00+00:00',
+        dwell_days: 7.5,
+        is_stuck: true,
+      },
+      {
+        id: 8,
+        name: '李四',
+        owner_id: null,
+        dwell_days: null,
+        is_stuck: false,
+      },
+    ],
+  }
+
+  it('int 主键转 string、snake 转 camel、null → undefined', () => {
+    const d = mapFunnelStageDetail(stageDto)
+    expect(d.stage).toBe('contacting')
+    expect(d.count).toBe(2)
+    expect(d.avgDwellDays).toBe(5.4)
+    expect(d.stuckCount).toBe(1)
+    expect(d.inflow).toBe(2)
+    expect(d.outflow).toBe(3)
+    expect(d.stuckDays).toBe(7)
+    expect(d.page).toBe(1)
+    expect(d.pageSize).toBe(10)
+    expect(d.total).toBe(2)
+  })
+
+  it('leads 逐条映射：id/name/owner/dwell/isStuck + 可空字段缺省', () => {
+    const d = mapFunnelStageDetail(stageDto)
+    expect(d.leads).toHaveLength(2)
+    const first = d.leads[0]
+    expect(first.id).toBe('7')
+    expect(first.name).toBe('王五')
+    expect(first.company).toBe('某贸易')
+    expect(first.ownerId).toBe('uuid-1')
+    expect(first.ownerName).toBe('张三')
+    expect(first.source).toBe('referral')
+    expect(first.intent).toBe('high')
+    expect(first.enteredStageAt).toBe('2026-08-01T00:00:00+00:00')
+    expect(first.lastActionAt).toBe('2026-08-02T00:00:00+00:00')
+    expect(first.lastActionContent).toBe('电话沟通 30 分钟')
+    expect(first.nextFollowAt).toBe('2026-08-10T00:00:00+00:00')
+    expect(first.dwellDays).toBe(7.5)
+    expect(first.isStuck).toBe(true)
+
+    const second = d.leads[1]
+    expect(second.id).toBe('8')
+    expect(second.company).toBeUndefined()
+    expect(second.ownerId).toBeNull()
+    expect(second.ownerName).toBeUndefined()
+    expect(second.enteredStageAt).toBeUndefined()
+    expect(second.lastActionAt).toBeUndefined()
+    expect(second.dwellDays).toBeUndefined()
+    expect(second.isStuck).toBe(false)
+  })
+
+  it('outflow / avgDwellDays 为 null 时转 undefined', () => {
+    const d = mapFunnelStageDetail({ ...stageDto, outflow: null, avg_dwell_days: null, leads: [] })
+    expect(d.outflow).toBeUndefined()
+    expect(d.avgDwellDays).toBeUndefined()
   })
 })

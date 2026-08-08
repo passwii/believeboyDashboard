@@ -51,6 +51,24 @@ export function leadConversionRate(counts: LeadFunnelCounts): number | null {
   return (counts.converted ?? 0) / total
 }
 
+/**
+ * 阶段漏斗（raw counts，不累计）——BLF-516 决策 4 定稿口径。
+ *
+ * 与 buildLeadFunnelStages（累计）的区别：每一层直接取当前状态计数
+ * （new / contacting / qualified / converted），宽度即「哪一级堆了人、
+ * 哪一级掉得快」，是复盘面板要的信号。4 级粗粒度下 raw 宽度不会像
+ * 细粒度那样忽宽忽窄。每档携带后端 stage key，供 FunnelChart 点击
+ * 打开二层复盘抽屉。
+ */
+export function buildLeadStageFunnel(counts: LeadFunnelCounts): FunnelStage[] {
+  return [
+    { stage: 'new', label: '新线索', value: counts.new ?? 0, gradient: gradient('#38bdf8', '#0ea5e9') },
+    { stage: 'contacting', label: '联系中', value: counts.contacting ?? 0, gradient: gradient('#22d3ee', '#06b6d4') },
+    { stage: 'qualified', label: '已验证', value: counts.qualified ?? 0, gradient: gradient('#2dd4bf', '#14b8a6') },
+    { stage: 'converted', label: '已转化', value: counts.converted ?? 0, gradient: gradient('#34d399', '#10b981') },
+  ]
+}
+
 
 /**
  * 相邻阶段的逐级转化率：第 i 项 = stages[i+1].value / stages[i].value。
