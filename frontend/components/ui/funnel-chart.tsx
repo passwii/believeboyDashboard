@@ -100,6 +100,8 @@ export interface FunnelStage {
   displayValue?: string
   color?: string
   gradient?: FunnelGradientStop[]
+  /** 可选：后端阶段 key（如 'contacting'），用于点击打开二层面板。 */
+  stage?: string
 }
 
 export interface FunnelChartProps {
@@ -114,6 +116,7 @@ export interface FunnelChartProps {
   showLabels?: boolean
   hoveredIndex?: number | null
   onHoverChange?: (index: number | null) => void
+  onStageClick?: (index: number) => void
   formatPercentage?: (pct: number) => string
   formatValue?: (value: number) => string
   staggerDelay?: number
@@ -677,6 +680,7 @@ export function FunnelChart({
   showLabels = true,
   hoveredIndex: hoveredIndexProp,
   onHoverChange,
+  onStageClick,
   formatPercentage = fmtPct,
   formatValue = fmtVal,
   staggerDelay = 0.12,
@@ -911,9 +915,23 @@ export function FunnelChart({
                 animate={{ opacity: isDimmed ? 0.4 : 1 }}
                 className="absolute cursor-pointer"
                 key={`lbl-${stage.label}`}
+                onClick={onStageClick ? () => onStageClick(i) : undefined}
+                onKeyDown={
+                  onStageClick
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onStageClick(i)
+                        }
+                      }
+                    : undefined
+                }
                 onMouseEnter={() => setHoveredIndex(i)}
                 onMouseLeave={() => setHoveredIndex(null)}
+                role={onStageClick ? 'button' : undefined}
                 style={{ ...posStyle, zIndex: 20 }}
+                tabIndex={onStageClick ? 0 : undefined}
+                title={onStageClick ? `查看${stage.label}阶段明细` : undefined}
                 transition={{ type: 'spring', stiffness: 300, damping: 24 }}
               >
                 <SegmentLabel

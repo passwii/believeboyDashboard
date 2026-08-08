@@ -13,6 +13,8 @@ import type {
   FollowEntityType,
   FollowInput,
   FollowUpGroups,
+  FunnelStageDetail,
+  FunnelStageQuery,
   Lead,
   LeadInput,
   Task,
@@ -29,6 +31,7 @@ import {
   mapDashboardStats,
   mapFollow,
   mapFollowUpGroups,
+  mapFunnelStageDetail,
   mapImportResult,
   mapLead,
   mapTask,
@@ -46,6 +49,7 @@ import {
   type DashboardStatsDto,
   type FollowDto,
   type FollowUpGroupsDto,
+  type StageDetailDto,
   type LeadDto,
   type TaskDto,
   type UserDto,
@@ -326,6 +330,18 @@ export class HttpCrmClient implements CrmClient {
   // ===== Dashboard 数据看板（P3c） =====
   async getDashboardStats(): Promise<DashboardStats> {
     return mapDashboardStats(await request<DashboardStatsDto>('/dashboard/stats'))
+  }
+
+  // ===== 漏斗二层复盘面板（P8，BLF-518） =====
+  async getFunnelStageDetail(params: FunnelStageQuery): Promise<FunnelStageDetail> {
+    const qs = new URLSearchParams()
+    qs.set('sort_by', params.sortBy ?? 'dwell')
+    qs.set('stuck_days', String(params.stuckDays ?? 7))
+    if (params.page != null) qs.set('page', String(params.page))
+    if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
+    return mapFunnelStageDetail(
+      await request<StageDetailDto>(`/dashboard/funnel/stage/${params.stage}?${qs.toString()}`)
+    )
   }
 
   // ===== Audit Log 操作审计日志（P4 + P5-9/P5-11） =====

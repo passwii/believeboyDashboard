@@ -287,3 +287,47 @@ describe('HttpCrmClient Task 创建/编辑/完成/取消（BLF-514）', () => {
     expect(lastInit?.method).toBe('POST')
   })
 })
+
+describe('HttpCrmClient.getFunnelStageDetail (BLF-518)', () => {
+  let originalFetch: typeof fetch
+  let lastUrl: string | null = null
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    lastUrl = null
+    globalThis.fetch = vi.fn(async (url) => {
+      lastUrl = String(url)
+      return new Response(
+        JSON.stringify({
+          stage: 'contacting',
+          count: 0,
+          stuck_count: 0,
+          inflow: 0,
+          outflow: null,
+          stuck_days: 7,
+          leads: [],
+          page: 1,
+          page_size: 10,
+          total: 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('serializes stage + sort_by + stuck_days + pagination', async () => {
+    const client = new HttpCrmClient()
+    await client.getFunnelStageDetail({ stage: 'contacting', sortBy: 'dwell', stuckDays: 7, page: 2, pageSize: 10 })
+    expect(lastUrl).toBe('/api/backend/v1/crm/dashboard/funnel/stage/contacting?sort_by=dwell&stuck_days=7&page=2&page_size=10')
+  })
+
+  it('defaults to sort_by=dwell & stuck_days=7', async () => {
+    const client = new HttpCrmClient()
+    await client.getFunnelStageDetail({ stage: 'new' })
+    expect(lastUrl).toBe('/api/backend/v1/crm/dashboard/funnel/stage/new?sort_by=dwell&stuck_days=7')
+  })
+})

@@ -28,3 +28,57 @@ export interface DashboardStats {
   followActivity: FollowActivity
   perOwner: OwnerPerformance[]
 }
+
+// ---------- 漏斗二层复盘面板（P8，BLF-518） ----------
+
+/** 阶段明细查询参数（对应后端 GET /crm/dashboard/funnel/stage/{stage}）。 */
+export interface FunnelStageQuery {
+  stage: string
+  /** dwell=按停留时长降序（默认）/ recent=按最后动作倒序。 */
+  sortBy?: 'dwell' | 'recent'
+  /** 卡点阈值（天），默认 7（与 P9 无跟进提醒阈值一致）。 */
+  stuckDays?: number
+  page?: number
+  pageSize?: number
+}
+
+/** 阶段明细里的单条线索（漏斗二层复盘面板用）。 */
+export interface StageLeadItem {
+  id: string
+  name: string
+  company?: string
+  ownerId: string | null
+  ownerName?: string
+  source?: string
+  intent?: string
+  enteredStageAt?: string
+  /** 最后动作时间 = 最近一条跟进；无跟进为 undefined。 */
+  lastActionAt?: string
+  /** 最近一条跟进内容（面板展示，前端截断）。 */
+  lastActionContent?: string
+  nextFollowAt?: string
+  /** 停留天数（可能为小数，前端取整展示）。 */
+  dwellDays?: number
+  /** 停留 > stuckDays 即视为卡住。 */
+  isStuck: boolean
+}
+
+/** 某阶段的复盘明细（漏斗二层面板）。 */
+export interface FunnelStageDetail {
+  stage: string
+  /** 当前处于该阶段的线索数（未删除）。 */
+  count: number
+  /** 平均停留天数（无数据为 undefined）。 */
+  avgDwellDays?: number
+  /** 停留 > stuckDays 的条数。 */
+  stuckCount: number
+  /** 本期流入；无时间范围 = 全部成员。 */
+  inflow: number
+  /** 本期流失（近似）；无时间范围为 undefined。 */
+  outflow?: number
+  stuckDays: number
+  leads: StageLeadItem[]
+  page: number
+  pageSize: number
+  total: number
+}

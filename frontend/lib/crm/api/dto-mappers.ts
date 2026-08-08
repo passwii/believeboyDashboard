@@ -18,6 +18,7 @@ import type {
   FollowInput,
   FollowUpGroups,
   FollowUpItem,
+  FunnelStageDetail,
   Lead,
   LeadInput,
   Task,
@@ -155,6 +156,37 @@ export interface DashboardStatsDto {
     customer_count: number
     converted_this_month: number
   }[]
+}
+
+/** 漏斗二层面板：阶段明细 DTO（BLF-517 后端 StageDetail）。 */
+export interface StageLeadItemDto {
+  id: number
+  name: string
+  company?: string | null
+  owner_id?: string | null
+  owner_name?: string | null
+  source?: string | null
+  intent?: string | null
+  entered_stage_at?: string | null
+  last_action_at?: string | null
+  last_action_content?: string | null
+  next_follow_at?: string | null
+  dwell_days?: number | null
+  is_stuck: boolean
+}
+
+export interface StageDetailDto {
+  stage: string
+  count: number
+  avg_dwell_days?: number | null
+  stuck_count: number
+  inflow: number
+  outflow?: number | null
+  stuck_days: number
+  leads: StageLeadItemDto[]
+  page: number
+  page_size: number
+  total: number
 }
 
 export interface AuditLogDto {
@@ -333,6 +365,37 @@ export function mapDashboardStats(dto: DashboardStatsDto): DashboardStats {
       ownerName: p.owner_name ?? undefined,
       customerCount: p.customer_count,
       convertedThisMonth: p.converted_this_month,
+    })),
+  }
+}
+
+/** 漏斗二层面板：阶段明细 DTO → 前端类型（BLF-518）。 */
+export function mapFunnelStageDetail(dto: StageDetailDto): FunnelStageDetail {
+  return {
+    stage: dto.stage,
+    count: dto.count,
+    avgDwellDays: dto.avg_dwell_days ?? undefined,
+    stuckCount: dto.stuck_count,
+    inflow: dto.inflow,
+    outflow: dto.outflow ?? undefined,
+    stuckDays: dto.stuck_days,
+    page: dto.page,
+    pageSize: dto.page_size,
+    total: dto.total,
+    leads: dto.leads.map((l) => ({
+      id: String(l.id),
+      name: l.name,
+      company: l.company ?? undefined,
+      ownerId: l.owner_id ?? null,
+      ownerName: l.owner_name ?? undefined,
+      source: l.source ?? undefined,
+      intent: l.intent ?? undefined,
+      enteredStageAt: l.entered_stage_at ?? undefined,
+      lastActionAt: l.last_action_at ?? undefined,
+      lastActionContent: l.last_action_content ?? undefined,
+      nextFollowAt: l.next_follow_at ?? undefined,
+      dwellDays: l.dwell_days ?? undefined,
+      isStuck: l.is_stuck,
     })),
   }
 }
