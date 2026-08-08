@@ -455,8 +455,8 @@ def apply_filters(query, conditions, depth=0):
 
 # Phase P7 · 任务系统（设计纲要）
 
-> **✅ 设计已完成（2026-08-08 brainstorming）**：→ `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`。
-> 待用户拍板 2 个决策点（§3 跟进是否并入 task → 推荐「并存+完成联动双写」；§4 提醒机制 → 推荐「DB 标记 + SSE 轮询」）后进 writing-plans。
+> **✅ 设计已完成（2026-08-08 brainstorming，用户已拍板方案 A）**：→ `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`。
+> 决策点已拍板：§3 跟进整合 →「并存 + 完成联动双写」；§4 提醒机制 →「DB 标记 + SSE 轮询」。进 writing-plans 拆实现计划。
 > 子 issue：BLF-510/511（stage1）、BLF-512/513（stage2）、BLF-514/515（stage3）。
 
 ## P7 设计方向
@@ -588,7 +588,7 @@ def apply_filters(query, conditions, depth=0):
 | P4 | ✅ 完成 | df31d105 | 220 | 2026-07-25 |
 | P5 | ✅ 完成 | 918c019c + 6e5121b8（尾巴）| 220 | 12 项 deferred 全清；P5-6a 审计强一致 + P5-9 抽屉联系人审计 2026-07-29 补完 |
 | P6 | 📐 纲要 | - | - | 数据建模深化，brainstorming 后展开 |
-| P7 | 📐 设计完成（待拍板） | - | - | 2026-08-08 brainstorming；设计文档 `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`；子 issue BLF-510~515 |
+| P7 | 📐 设计完成（已拍板，方案 A） | - | - | 2026-08-08 拍板；设计文档 `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`；子 issue BLF-510~515 |
 | P8 | 📐 纲要 | - | - | 数据看板强化，brainstorming 后展开 |
 | P9 | 📐 纲要 | - | - | 工作流自动化，brainstorming 后展开 |
 
