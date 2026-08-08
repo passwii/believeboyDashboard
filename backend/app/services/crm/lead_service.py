@@ -20,6 +20,17 @@ class LeadAlreadyConverted(Exception):
     """线索已转化过，不能重复转化。"""
 
 
+def _apply_status_change(lead: CrmLead, new_status: str) -> None:
+    """P8 (BLF-517, 决策 #5)：状态变更统一写入点。
+
+    - 只有 status 真的变化时才重记 entered_stage_at（同一状态重复写入不更新）；
+    - 所有改变 CrmLead.status 的路径（update_lead / convert_lead）收敛到这里。
+    """
+    if new_status != lead.status:
+        lead.status = new_status
+        lead.entered_stage_at = datetime.now(timezone.utc)
+
+
 def _current_user_id(user_id: str | None) -> str | None:
     if user_id is None:
         return None
@@ -69,6 +80,7 @@ def _to_item(db: Session, lead: CrmLead, owner_names: dict[str, str]):
         next_follow_at=lead.next_follow_at,
         converted_to_customer_id=lead.converted_to_customer_id,
         converted_at=lead.converted_at,
+        entered_stage_at=lead.entered_stage_at,
         created_by=lead.created_by,
         created_at=lead.created_at,
         updated_at=lead.updated_at,
@@ -135,6 +147,8 @@ def create_lead(
     lead = CrmLead(**payload.model_dump(exclude_unset=True), created_by=cur)
     if lead.owner_id is None and cur is not None:
         lead.owner_id = cur  # 默认归创建人
+    # P8 (BLF-517): 创建即进入当前状态（默认 new），记录进入时间
+    lead.entered_stage_at = datetime.now(timezone.utc)
     db.add(lead)
     db.flush()
     if commit:
@@ -149,7 +163,11 @@ def update_lead(db: Session, lead_id: int, payload: LeadUpdate, *, commit: bool 
     ).scalar_one_or_none()
     if lead is None:
         return None
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    status = updates.pop("status", None)
+    if status is not None:
+        _apply_status_change(lead, status)
+    for key, value in updates.items():
         setattr(lead, key, value)
     db.flush()
     if commit:
@@ -278,7 +296,7 @@ def convert_lead(
     )
 
     # 标记线索已转化
-    lead.status = "converted"
+    _apply_status_change(lead, "converted")
     lead.converted_to_customer_id = cust.id
     lead.converted_at = datetime.now(timezone.utc)
 

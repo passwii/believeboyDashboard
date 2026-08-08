@@ -233,6 +233,7 @@ class LeadItem(BaseModel):
     next_follow_at: datetime | None = None
     converted_to_customer_id: int | None = None
     converted_at: datetime | None = None
+    entered_stage_at: datetime | None = None  # P8 (BLF-517): 进入当前阶段时间戳
     created_by: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -411,6 +412,78 @@ class DashboardStats(BaseModel):
     new_this_month: NewThisMonth = Field(default_factory=NewThisMonth)
     follow_activity: FollowActivity = Field(default_factory=FollowActivity)
     per_owner: list[OwnerPerformance] = []
+
+
+# ---------- 漏斗指标（P8, BLF-517） ----------
+class FunnelDimensionItem(BaseModel):
+    """按某维度聚合的一段漏斗：key=维度键，label=展示名（owner 姓名 / source / 月份）。
+
+    funnel 永远是该 key 下 5 状态计数（new/contacting/qualified/converted/discarded），
+    顺序与 _LEAD_STATUS_ORDER 一致（dict 顺序即展示顺序）。
+    """
+
+    key: str
+    label: str | None = None
+    funnel: dict[str, int] = {}
+
+
+class FunnelMetrics(BaseModel):
+    """按 时间/角色/来源 聚合的漏斗数据（P8, BLF-517）。
+
+    - total：全部线索 5 状态快照（应用了 owner/source 过滤；time 过滤时按
+      entered_stage_at ∈ [start_at, end_at) 计，未给时间范围则按当前状态快照）。
+    - items：按 dimension 拆分（owner / source / time 分桶）。
+      dimension=time 时基于 entered_stage_at（新字段，历史数据 NULL 不计入分桶，
+      但计入 total 快照——这是「本期流入动态」与「当前存量」的差异，属预期）。
+    """
+
+    dimension: Literal["owner", "source", "time"]
+    total: dict[str, int] = {}
+    items: list[FunnelDimensionItem] = []
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+
+
+class StageLeadItem(BaseModel):
+    """阶段明细里的单条线索（漏斗二层复盘面板用）。
+
+    dwell_days = (now - coalesce(entered_stage_at, updated_at)) 的天数；
+    is_stuck = dwell_days > stuck_days（默认 7 天，与 P9 无跟进提醒阈值一致）。
+    """
+
+    id: int
+    name: str
+    company: str | None = None
+    owner_id: str | None = None
+    owner_name: str | None = None
+    source: str | None = None
+    intent: str | None = None
+    entered_stage_at: datetime | None = None
+    last_action_at: datetime | None = None  # = max(CrmFollow.created_at)，无跟进为 None
+    last_action_content: str | None = None  # 最近一条跟进内容（面板展示，前端截断）
+    next_follow_at: datetime | None = None
+    dwell_days: float | None = None
+    is_stuck: bool = False
+
+
+class StageDetail(BaseModel):
+    """某阶段的复盘明细（漏斗二层面板）。"""
+
+    stage: str
+    count: int = 0  # 当前处于该阶段的线索数（未删除）
+    avg_dwell_days: float | None = None  # 平均停留天数（无数据为 None）
+    stuck_count: int = 0  # 停留 > stuck_days 的条数
+    inflow: int = (
+        0  # 本期流入 = entered_stage_at ∈ period 的当前成员数；无 period = 全部成员
+    )
+    outflow: int | None = (
+        None  # 本期流失（近似）：晋级后续阶段(entered_stage_at∈period) + 弃置(updated_at∈period)；无 period=None
+    )
+    stuck_days: int = 7
+    leads: list[StageLeadItem] = []
+    page: int = 1
+    page_size: int = 50
+    total: int = 0
 
 
 # ---------- Audit Log (P4) ----------

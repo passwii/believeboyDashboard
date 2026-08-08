@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -47,10 +48,12 @@ from app.schemas.crm import (
     FollowCreate,
     FollowItem,
     FollowUpGroups,
+    FunnelMetrics,
     LeadCreate,
     LeadItem,
     LeadListResponse,
     LeadUpdate,
+    StageDetail,
     TaskCreate,
     TaskCompleteRequest,
     TaskItem,
@@ -798,6 +801,75 @@ def get_dashboard_stats(
 ):
     require_admin(is_admin)
     return dashboard_service.get_dashboard_stats(db, is_admin=is_admin)
+
+
+# ---------- 漏斗指标（P8, BLF-517，仅管理员） ----------
+@router.get("/dashboard/funnel", response_model=FunnelMetrics)
+def get_funnel_metrics(
+    dimension: Literal["owner", "source", "time"] = Query(
+        ..., description="聚合维度：owner=按负责人 / source=按来源 / time=按月份"
+    ),
+    start_at: datetime | None = Query(
+        None, description="时间范围起点（Asia/Shanghai，含）；按 entered_stage_at 计"
+    ),
+    end_at: datetime | None = Query(
+        None, description="时间范围终点（Asia/Shanghai，不含）"
+    ),
+    owner_id: str | None = Query(None, description="只看某负责人"),
+    source: str | None = Query(None, description="只看某来源"),
+    db: Session = Depends(get_read_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """按 时间/角色/来源 聚合的漏斗数据（漏斗二层设计决策，BLF-517）。"""
+    require_admin(is_admin)
+    try:
+        return dashboard_service.get_funnel_metrics(
+            db,
+            is_admin=is_admin,
+            dimension=dimension,
+            start_at=start_at,
+            end_at=end_at,
+            owner_id=owner_id,
+            source=source,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/dashboard/funnel/stage/{stage}", response_model=StageDetail)
+def get_funnel_stage_detail(
+    stage: str,
+    sort_by: Literal["dwell", "recent"] = Query(
+        "dwell", description="dwell=按停留时长降序（默认）/ recent=按最后动作倒序"
+    ),
+    stuck_days: int = Query(7, ge=1, le=365, description="卡点阈值（天）"),
+    start_at: datetime | None = Query(None),
+    end_at: datetime | None = Query(None),
+    owner_id: str | None = Query(None),
+    source: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_read_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """某阶段的复盘明细（漏斗二层面板数据，BLF-517）。"""
+    require_admin(is_admin)
+    try:
+        return dashboard_service.get_stage_detail(
+            db,
+            is_admin=is_admin,
+            stage=stage,
+            sort_by=sort_by,
+            start_at=start_at,
+            end_at=end_at,
+            owner_id=owner_id,
+            source=source,
+            stuck_days=stuck_days,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ---------- Task (P7, BLF-510) ----------
