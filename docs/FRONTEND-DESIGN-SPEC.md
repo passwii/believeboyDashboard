@@ -1,6 +1,6 @@
 # 前端设计规范（FRONTEND-DESIGN-SPEC）
 
-> **适用版本：** v1.0（BLF-497 定稿，2026-08-07）
+> **适用版本：** v1.1（BLF-497 定稿 v1.0，2026-08-07；BLF-503 增补 §8 页面模式，2026-08-08）
 > **适用对象：** 在 `frontend/` 下新增 / 修改 UI 的工程师
 > **定位：** 全站前端设计的**总纲与对照基准**。所有页面打磨子 issue（BLF-498 ~ 501）以本文档为验收对照。
 > **原则：** 文档与实际代码一致（每个条目都指向真实代码位置）；可执行、不空谈。
@@ -192,21 +192,18 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ### 4.1 页面头部模式
 
-标准结构 = **eyebrow（可选）+ 标题 + 描述 + 操作区**，两种形态：
+标准结构 = **eyebrow（可选）+ 标题 + 描述 + 操作区**，**已收口为 `PageHeader` 原语**（`components/ui/page-header.tsx`，规则见 §8.1），两种形态：
 
-1. **Eyebrow pill 形态**（参考 `app/dashboard/operations/site-navigation/page.tsx:137-140`）：
+1. **Eyebrow pill 形态**（`PageHeader` 的 `eyebrow` prop，参考 `app/dashboard/operations/site-navigation/page.tsx:138`）：
    ```tsx
-   <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-     <Store className="h-3.5 w-3.5" /> 运营导航 · 站点导航
-   </p>
+   <PageHeader eyebrow={<><Store className="h-3.5 w-3.5" /> 运营导航 · 站点导航</>} description="..." actions={...} />
    ```
-2. **Kicker 小标形态**（`dashboard-kicker` 类，参考 `app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx` 的 `DataTableCardHeader` 内用法）：
+2. **Kicker 小标形态**（`PageHeader` 的 `kicker` prop + `title`，`dashboard-kicker` 类，参考 `app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx` 的 `DataTableCardHeader` 内用法）：
    ```tsx
-   <p className="dashboard-kicker">操作台账</p>
-   <div className="text-base font-semibold text-foreground">库存明细表</div>
+   <PageHeader kicker="操作台账" title="库存明细表" description="..." />
    ```
 
-**页面级头部布局**：`flex flex-wrap items-start justify-between gap-5`（标题/描述在左，操作/统计在右，参考 site-navigation:134-135）。区块标题用 `flex items-end justify-between`（`h2 text-lg font-semibold tracking-tight md:text-xl` + `text-xs text-muted-foreground` 描述，site-navigation:162-165）。
+**页面级头部布局**：`flex flex-wrap items-start justify-between gap-5`（标题/描述在左，操作/统计在右，由 `PageHeader` 内置，参考 site-navigation:138-166）。区块标题用 `flex items-end justify-between`（`h2 text-lg font-semibold tracking-tight md:text-xl` + `text-xs text-muted-foreground` 描述，site-navigation:162-165）。
 
 ### 4.2 页面壳
 
@@ -259,7 +256,11 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | `empty-state.tsx` | `EmptyState` / `EmptyTableState` / `EmptyChartState` | 空态（loading 不算） |
 | `chart.tsx` | `ChartContainer` / `ChartTooltip` / `ChartTooltipContent` / `ChartLegend` / `ChartLegendContent` | **图表唯一体系** |
 | `funnel-chart.tsx` | 漏斗图 | — |
-| `stat-card.tsx` | `StatCard` 统计卡 | emerald/rose/sky/amber 四色 + trend |
+| `stat-card.tsx` | `StatCard` 统计卡 + `StatCardRow` 指标卡行 | emerald/rose/sky/amber 四色 + trend（涨跌走 Delta） |
+| `delta.tsx` | `Delta` / `DeltaIcon` / `DeltaValue` 涨跌原语 | 正值 emerald / 负值 rose，主页 v2-delta 为其 re-export |
+| `page-header.tsx` | `PageHeader` 页面头部 | §4.1/§8.1：eyebrow pill + kicker 两种形态 + 操作区 |
+| `filter-toolbar.tsx` | `FilterToolbar` 筛选工具栏 | §8.2：桌面横向 / 手机 2 列网格 |
+| `error-state.tsx` | `ErrorState` 错误态 | §8.4 三态之错误：可带重试、表格内 colSpan |
 | `dialog.tsx` / `alert-dialog.tsx` / `sheet.tsx` | 弹窗 / 确认框 / 侧滑 | 统一动效 |
 | `dropdown-menu.tsx` / `popover.tsx` / `select.tsx` / `command.tsx` / `combobox.tsx` / `multi-select.tsx` | 各类选择器 | 页面内选择一律用这些 |
 | `tabs.tsx` / `accordion.tsx` / `collapsible.tsx` / `breadcrumb.tsx` / `tooltip.tsx` / `hover-card.tsx` | 导航 / 收纳 / 提示 | — |
@@ -318,3 +319,73 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 7. **移动端**：对照 `MOBILE_ADAPTATION_RULES.md` 9 条规则逐项过。
 8. **组件**：新能力优先复用 §6 清单中的组件；确需新增先与设计规范对齐。
 9. **动效**：时长/缓动取 `--motion-*` 或 `lib/motion/tokens.ts`，不另起节奏；新交互满足 `prefers-reduced-motion` 降级。
+
+---
+
+## 8. 页面模式（Page Patterns）
+
+> BLF-503 定稿（2026-08-08）。本节把**高频页面组合**收口为可复用原语 + 规则，是 Stage 4 后续"高频页精修 / 长尾页扫尾"（BLF-504+）的统一模板。每个模式 = 规则 + 组件引用 + 真实页面示例；**新页面优先按本节组合，不再逐页手写**。
+
+### 8.1 PageHeader 页面头部
+
+**规则**：页面级头部 = eyebrow（可选）+ 标题（可选）+ 描述 + 操作区，布局 `flex flex-wrap items-start justify-between gap-5`（标题/描述在左，操作/统计在右）。
+
+| 项 | 规则 | 实现 |
+|---|---|---|
+| 组件 | `PageHeader`（`components/ui/page-header.tsx:31`），不包卡片外壳，页面按需包 `dashboard-surface` | — |
+| 形态 1（主） | `kicker`：`dashboard-kicker` 小标 + `title`（h1，`--font-display` 自动）+ `description` | `ui/page-header.tsx` |
+| 形态 2（变体） | `eyebrow`：§4.1 pill 胶囊小标（可带 icon），`title` 可省略（如 site-navigation 只有 pill+描述） | `ui/page-header.tsx` |
+| 操作区 | `actions` 放右侧（按钮 / 轻量统计 chips），自动 flex-wrap；轻量统计用 chips 网格（`grid grid-cols-3 gap-2.5 max-w-sm`）而非 StatCard | — |
+
+**示例**：`app/dashboard/operations/site-navigation/page.tsx:138`（pill 形态 + 右侧 3 个统计 chips）。存量 kicker 形态参照 `app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx`（`dashboard-kicker` + DataTableCardHeader 内用法）。
+
+### 8.2 FilterToolbar 筛选工具栏
+
+**规则**：筛选区统一 = 项目下拉 + 国家站点 + 日期范围 + SKU/其他 + 刷新按钮，间距 `gap-3`、容器 `dashboard-toolbar`、`px-4 py-4 lg:px-6 lg:py-5`。
+
+| 项 | 规则 | 实现 |
+|---|---|---|
+| 组件 | `FilterToolbar`（`components/ui/filter-toolbar.tsx:37`），children = 字段，`actions` = 右侧操作（刷新等） | — |
+| 桌面 | `md:flex md:flex-wrap md:items-center md:gap-3`，字段横向排列自动换行，actions `md:ml-auto` 靠右 | `ui/filter-toolbar.tsx` |
+| 手机 | 自动折叠 `grid grid-cols-2 gap-2`（移动规则 2），actions `col-span-2` 占一行 | `ui/filter-toolbar.tsx` |
+| 字段宽度 | 桌面固定宽（项目 140px / 国家 160px / 日期 220px），手机交给网格撑满：写 `w-full md:w-[140px]` 这类响应式宽度 | — |
+| 手机专属操作 | 只在手机出现的按钮（如"近7天"）加 `md:hidden`，放 actions 内 | — |
+
+**示例**：`app/dashboard/operations/daily-analysis/daily-analysis-client.tsx:1572`（项目 + 国家 + SKU + 日期 + 刷新，手机端 2 列网格 + 近7天）。
+**备注**：`components/dashboard/console/filter-toolbar.tsx`（carded 形态：Card 包头 + 筛选）为存量变体，供 portfolio-overview 使用；新页面优先用本节的 strip 形态。
+
+### 8.3 指标卡行（label-value-delta）
+
+**规则**：统计卡统一 `StatCard`（label 大写小标 + 大数字 + 涨跌），涨跌统一走 `Delta` 原语；整行用 `StatCardRow` 栅格。
+
+| 项 | 规则 | 实现 |
+|---|---|---|
+| 单卡 | `StatCard`（`components/ui/stat-card.tsx:48`）：四色 icon 变体 + `dashboard-surface` + hover-lift；trend 渲染走 `Delta` | `ui/stat-card.tsx` |
+| 涨跌 | `Delta` / `DeltaIcon` / `DeltaValue`（`components/ui/delta.tsx`，BLF-503 从 v2-delta 上移全站通用）：正值 emerald / 负值 rose / 0 中性；`DeltaValue` 默认绝对值+% | `ui/delta.tsx` |
+| 整行 | `StatCardRow`（`components/ui/stat-card.tsx:104`）：`grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5`，gap 3→4 | — |
+| 边界 | >6 卡用水平滑动（移动规则 7）；Dashboard 主页仍用 v2 系列（§6.2，主页外禁止 import） | — |
+
+**示例**：`app/dashboard/operations/project-goals/page.tsx`（StatCard 年度目标卡）；存量手写 delta（`v2-stats` 以外）迁移时改用 `Delta` 组合。
+
+### 8.4 三态统一（loading / empty / error）
+
+**规则**：每个数据区块必须覆盖三态；加载不算空态，错误不等于空态。
+
+| 状态 | 配方 | 实现 |
+|---|---|---|
+| 加载 | 页面级骨架用 `page-skeletons.tsx`（`PageHeaderSkeleton` / `FilterBarSkeleton` / `KpiCardsSkeleton` / `DataTableSkeleton` / `ChartPanelSkeleton`，`components/dashboard/page-skeletons.tsx:23-205`）；表格行内骨架用 `table-skeleton.tsx` | — |
+| 空态 | `EmptyState` / `EmptyTableState` / `EmptyChartState`（`components/ui/empty-state.tsx`）；表格内传 `colSpan` | — |
+| 错误 | `ErrorState`（`components/ui/error-state.tsx:34`）：页面级默认带虚线边框 + 重试按钮；表格内传 `colSpan` 渲染错误行 | `ui/error-state.tsx` |
+
+**示例**：loading 见 `app/dashboard/operations/` 各路由 `loading.tsx`（TablePageLoading/AnalyticsPageLoading）；空态见 daily-analysis 表格 `EmptyTableState colSpan`；错误态新代码统一 `ErrorState`（存量页面的手写错误块按本模式迁移）。
+
+### 8.5 模式落地清单
+
+| 模式 | 原语 | 试点页面（已落地） | 待铺开 |
+|---|---|---|---|
+| 页面头部 | `PageHeader` | site-navigation（pill 形态） | 其余业务页头部 |
+| 筛选工具栏 | `FilterToolbar` | daily-analysis | inventory-analysis / inventory-ledger / weekly-product-analysis / portfolio-overview |
+| 指标卡行 | `StatCardRow` + `Delta` | StatCard 已统一 Delta（project-goals 等存量卡自动生效） | 各页 KPI 行 |
+| 三态 | `ErrorState` + 骨架 + 空态 | — | 存量手写错误块迁移 |
+
+> 后续页面打磨子 issue 以本节为验收模板：目标页面头部/筛选/指标卡/三态必须命中上表原语，否则视为未收口。

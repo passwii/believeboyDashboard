@@ -1,6 +1,6 @@
-import * as React from 'react'
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import type * as React from 'react'
 
+import { Delta, DeltaIcon, DeltaValue } from '@/components/ui/delta'
 import { cn } from '@/lib/utils'
 
 interface StatCardProps {
@@ -78,21 +78,11 @@ function StatCard({ title, value, icon, color, trend, trendLabel, className }: S
         </div>
         {trend !== undefined ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            <span
-              className={cn(
-                'inline-flex items-center',
-                trend >= 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-rose-600 dark:text-rose-400'
-              )}
-            >
-              {trend >= 0 ? (
-                <ArrowUpRight className="mr-1 h-3 w-3" />
-              ) : (
-                <ArrowDownRight className="mr-1 h-3 w-3" />
-              )}
-              {Math.abs(trend).toFixed(1)}%
-            </span>
+            {/* 涨跌逻辑统一走 Delta 原语（ui/delta.tsx）：正值 emerald / 负值 rose / 0 中性 */}
+            <Delta value={trend}>
+              <DeltaIcon variant="arrow" />
+              <DeltaValue />
+            </Delta>
             <span className="ml-1">{trendLabel || '较上期'}</span>
           </p>
         ) : null}
@@ -101,5 +91,28 @@ function StatCard({ title, value, icon, color, trend, trendLabel, className }: S
   )
 }
 
-export { StatCard }
-export type { StatCardProps }
+/**
+ * 指标卡行（BLF-503 §8 页面模式）：统一 label-value-delta 卡片行的栅格与间距。
+ * 默认 2/3/4/5 列响应式（移动规则 4：`grid-cols-2 sm:grid-cols-3 md:grid-cols-5`），
+ * 卡片数超过 6 时改用水平滑动（移动规则 7），详见 `docs/FRONTEND-DESIGN-SPEC.md` §8.3。
+ */
+interface StatCardRowProps {
+  children: React.ReactNode
+  className?: string
+}
+
+function StatCardRow({ children, className }: StatCardRowProps) {
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 xl:gap-4',
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+export { StatCard, StatCardRow }
+export type { StatCardProps, StatCardRowProps }

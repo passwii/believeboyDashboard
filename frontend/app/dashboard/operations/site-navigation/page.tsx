@@ -1,5 +1,7 @@
 import { ArrowUpRight, Building2, Globe2, ShoppingBag, Store, Tag } from 'lucide-react'
 
+import { PageHeader } from '@/components/ui/page-header'
+
 type Platform = {
   name: string
   href: string
@@ -132,29 +134,31 @@ export default function SiteNavigationPage() {
   return (
     <div className="space-y-6 md:space-y-7">
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-2xl space-y-3">
-            <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+        {/* BLF-503 试点：页面头部统一走 PageHeader（pill 形态） */}
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
               <Store className="h-3.5 w-3.5" />
               运营导航 · 站点导航
-            </p>
-            <p className="text-sm leading-6 text-muted-foreground md:text-base">
-              聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。
-            </p>
-          </div>
-          <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">
-            {stats.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]"
-              >
-                <item.icon className="mx-auto mb-1 h-4 w-4 text-primary/85" />
-                <p className="text-base font-semibold leading-tight">{item.value}</p>
-                <p className="text-[11px] text-muted-foreground">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+            </>
+          }
+          description="聚合主流跨境电商平台与运营入口，做成可视化书签卡片，方便团队一键直达高频站点。"
+          actions={
+            <div className="grid w-full max-w-sm grid-cols-3 gap-2.5">
+              {stats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-border/70 bg-background/80 p-3 text-center dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]"
+                >
+                  <item.icon className="mx-auto mb-1 h-4 w-4 text-primary/85" />
+                  <p className="text-base font-semibold leading-tight">{item.value}</p>
+                  <p className="text-[11px] text-muted-foreground">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          }
+        />
       </section>
 
       <section className="space-y-3">
