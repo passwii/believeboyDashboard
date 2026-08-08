@@ -5,6 +5,7 @@ import {
   mapFollowUp,
   mapFollowUpGroups,
   mapLead,
+  mapTask,
   mapUser,
   toConvertPayload,
   toCustomerPayload,
@@ -15,6 +16,7 @@ import {
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
+  type TaskDto,
 } from './dto-mappers'
 
 const customerDto: CustomerDto = {
@@ -106,6 +108,58 @@ describe('mapUser', () => {
     expect(mapUser({ id: 'u1', name: 'a', email: 'a@x.com', is_active: true }).roleType).toBe(
       'operator'
     )
+  })
+})
+
+describe('mapTask (P7)', () => {
+  it('int 主键转 string、snake 转 camel、联查名映射', () => {
+    const dto: TaskDto = {
+      id: 9,
+      title: '确认报价单',
+      due_date: '2026-08-10T00:00:00+00:00',
+      priority: 'high',
+      status: 'in_progress',
+      type: 'follow_up',
+      owner_id: 'uuid-1',
+      owner_name: '张三',
+      customer_id: 42,
+      customer_name: '某工厂',
+      lead_id: null,
+      created_by: 'uuid-9',
+      completed_at: null,
+      created_at: '2026-08-01T00:00:00+00:00',
+      updated_at: '2026-08-02T00:00:00+00:00',
+    }
+    const t = mapTask(dto)
+    expect(t.id).toBe('9')
+    expect(t.customerId).toBe('42')
+    expect(t.customerName).toBe('某工厂')
+    expect(t.ownerName).toBe('张三')
+    expect(t.priority).toBe('high')
+    expect(t.type).toBe('follow_up')
+    expect(t.dueDate).toBe('2026-08-10T00:00:00+00:00')
+    expect(t.leadId).toBeUndefined()
+    expect(t.completedAt).toBeUndefined()
+  })
+  it('ownerId 保留 null；线索关联映射', () => {
+    const dto: TaskDto = {
+      id: 3,
+      title: '电话回访',
+      priority: 'medium',
+      status: 'pending',
+      type: 'call',
+      owner_id: null,
+      lead_id: 7,
+      lead_name: '王五',
+      created_at: '2026-08-01T00:00:00+00:00',
+      updated_at: '2026-08-01T00:00:00+00:00',
+    }
+    const t = mapTask(dto)
+    expect(t.ownerId).toBeNull()
+    expect(t.ownerName).toBeUndefined()
+    expect(t.leadId).toBe('7')
+    expect(t.leadName).toBe('王五')
+    expect(t.customerId).toBeUndefined()
   })
 })
 

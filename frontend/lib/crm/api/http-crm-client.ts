@@ -15,6 +15,9 @@ import type {
   FollowUpGroups,
   Lead,
   LeadInput,
+  Task,
+  TaskListParams,
+  TaskStatus,
   User,
   ValueScoresInput,
 } from '@/lib/crm/types'
@@ -27,6 +30,7 @@ import {
   mapFollowUpGroups,
   mapImportResult,
   mapLead,
+  mapTask,
   mapUser,
   toContactPayload,
   toConvertPayload,
@@ -41,6 +45,7 @@ import {
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
+  type TaskDto,
   type UserDto,
 } from './dto-mappers'
 
@@ -146,6 +151,24 @@ function toAuditQueryString(params: AuditLogQuery): string {
 
 function mapPage<TDto, T>(dto: ListResponseDto<TDto>, map: (d: TDto) => T): Paginated<T> {
   return { items: dto.items.map(map), total: dto.total, page: dto.page, pageSize: dto.page_size }
+}
+
+/** 任务列表参数 → 后端 query string（白名单筛选字段直接透传）。 */
+function toTaskQueryString(params: TaskListParams): string {
+  const qs = new URLSearchParams()
+  if (params.scope) qs.set('scope', params.scope)
+  if (params.type) qs.set('type', params.type)
+  if (params.status) qs.set('status', params.status)
+  if (params.priority) qs.set('priority', params.priority)
+  if (params.ownerId) qs.set('owner_id', params.ownerId)
+  if (params.customerId) qs.set('customer_id', params.customerId)
+  if (params.leadId) qs.set('lead_id', params.leadId)
+  if (params.page != null) qs.set('page', String(params.page))
+  if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
+  if (params.sortBy) qs.set('sort_by', params.sortBy)
+  if (params.sortOrder) qs.set('sort_order', params.sortOrder)
+  const s = qs.toString()
+  return s ? `?${s}` : ''
 }
 
 export class HttpCrmClient implements CrmClient {
@@ -309,5 +332,19 @@ export class HttpCrmClient implements CrmClient {
       `/audit-logs${toAuditQueryString(params)}`
     )
     return mapPage(dto, mapAuditLog)
+  }
+
+  // ===== Task（P7，BLF-512） =====
+  async listTasks(params: TaskListParams): Promise<Paginated<Task>> {
+    const dto = await request<ListResponseDto<TaskDto>>(`/tasks${toTaskQueryString(params)}`)
+    return mapPage(dto, mapTask)
+  }
+  async setTaskStatus(id: string, status: TaskStatus): Promise<Task> {
+    return mapTask(
+      await request<TaskDto>(`/tasks/${id}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      })
+    )
   }
 }

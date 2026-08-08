@@ -8,6 +8,7 @@ import {
   CalendarRange,
   ChartColumnBig,
   ClipboardCheck,
+  CheckSquare,
   Coins,
   Database,
   DollarSign,
@@ -91,6 +92,7 @@ const IconMap = {
   FileBarChart,
   BarChart3,
   ClipboardCheck,
+  CheckSquare,
   Coins,
   History,
   Package,
@@ -306,6 +308,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         url: '/dashboard/crm/leads',
         icon: IconMap.Sparkles,
         matchPrefixes: ['/dashboard/crm/leads'],
+      },
+      {
+        title: '任务',
+        url: '/dashboard/crm/tasks',
+        icon: IconMap.CheckSquare,
+        matchPrefixes: ['/dashboard/crm/tasks'],
       },
       {
         title: '操作日志',

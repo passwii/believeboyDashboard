@@ -137,3 +137,77 @@ describe('HttpCrmClient.updateValueScores (P6a)', () => {
     })
   })
 })
+describe('HttpCrmClient Task (P7, BLF-512)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  let client: HttpCrmClient
+  let lastUrl: string | null
+  let lastInit: RequestInit | undefined
+
+  beforeEach(() => {
+    lastUrl = null
+    lastInit = undefined
+    fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(
+        JSON.stringify({
+          items: [],
+          total: 0,
+          page: 1,
+          page_size: 20,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    client = new HttpCrmClient()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('listTasks 序列化 scope + type + page_size', async () => {
+    await client.listTasks({ scope: 'all', type: 'call', pageSize: 50 })
+    expect(lastUrl).toContain('/tasks?')
+    const qs = lastUrl!.split('?')[1] ?? ''
+    const params = new URLSearchParams(qs)
+    expect(params.get('scope')).toBe('all')
+    expect(params.get('type')).toBe('call')
+    expect(params.get('page_size')).toBe('50')
+  })
+
+  it('listTasks 缺省筛选不序列化', async () => {
+    await client.listTasks({})
+    const qs = lastUrl!.split('?')[1] ?? ''
+    const params = new URLSearchParams(qs)
+    expect(params.has('type')).toBe(false)
+    expect(params.has('status')).toBe(false)
+  })
+
+  it('setTaskStatus POST /tasks/{id}/status with {status}', async () => {
+    fetchMock.mockImplementationOnce(async (url: RequestInfo | URL, init?: RequestInit) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(
+        JSON.stringify({
+          id: 9,
+          title: '确认报价单',
+          priority: 'medium',
+          status: 'done',
+          type: 'follow_up',
+          owner_id: 'u1',
+          created_at: '2026-08-01T00:00:00+00:00',
+          updated_at: '2026-08-08T00:00:00+00:00',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    })
+    const updated = await client.setTaskStatus('9', 'done')
+    expect(lastUrl).toBe('/api/backend/v1/crm/tasks/9/status')
+    expect(lastInit?.method).toBe('POST')
+    expect(JSON.parse(String(lastInit?.body))).toEqual({ status: 'done' })
+    expect(updated.id).toBe('9')
+    expect(updated.status).toBe('done')
+  })
+})

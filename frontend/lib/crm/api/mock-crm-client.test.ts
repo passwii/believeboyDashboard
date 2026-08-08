@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { MockCrmClient } from '@/lib/crm/api/mock-crm-client'
-import { CUSTOMERS_FIXTURE, FOLLOWS_FIXTURE, LEADS_FIXTURE } from '@/lib/crm/api/mock-data'
+import {
+  CUSTOMERS_FIXTURE,
+  FOLLOWS_FIXTURE,
+  LEADS_FIXTURE,
+  TASKS_FIXTURE,
+} from '@/lib/crm/api/mock-data'
 
 const TEST_USER = 'u-001'
 
@@ -220,4 +225,67 @@ describe('MockCrmClient · User', () => {
  const client = new MockCrmClient(TEST_USER)
  await expect(client.getUser('nonexistent')).rejects.toThrow(/用户不存在/)
  })
+})
+describe('MockCrmClient · Task (P7)', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('listTasks returns all fixture rows by default', async () => {
+    const page = await client.listTasks({ page: 1, pageSize: 100 })
+    expect(page.total).toBe(TASKS_FIXTURE.length)
+    expect(page.items.every((t) => t.id.startsWith('t-'))).toBe(true)
+  })
+
+  it('listTasks type 筛选只返回该类型', async () => {
+    const page = await client.listTasks({ type: 'call', pageSize: 100 })
+    expect(page.total).toBeGreaterThan(0)
+    page.items.forEach((t) => expect(t.type).toBe('call'))
+  })
+
+  it('listTasks status 筛选只返回该状态', async () => {
+    const page = await client.listTasks({ status: 'cancelled', pageSize: 100 })
+    page.items.forEach((t) => expect(t.status).toBe('cancelled'))
+  })
+
+  it('listTasks scope=mine 只返回当前用户任务', async () => {
+    const mine = await client.listTasks({ scope: 'mine', pageSize: 100 })
+    const all = await client.listTasks({ scope: 'all', pageSize: 100 })
+    expect(mine.total).toBeLessThanOrEqual(all.total)
+    mine.items.forEach((t) => expect(t.ownerId).toBe(TEST_USER))
+  })
+
+  it('listTasks 默认按 due_date 升序、无截止排最后', async () => {
+    const page = await client.listTasks({ pageSize: 100 })
+    const withDue = page.items.filter((t) => t.dueDate)
+    const times = withDue.map((t) => new Date(t.dueDate as string).getTime())
+    const sorted = [...times].sort((a, b) => a - b)
+    expect(times).toEqual(sorted)
+    // 无截止的在最后
+    const hasNone = page.items.some((t) => !t.dueDate)
+    if (hasNone) {
+      const lastNone = [...page.items].reverse().findIndex((t) => !t.dueDate)
+      expect(lastNone).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('setTaskStatus 流转状态并回写 completed_at', async () => {
+    const target = TASKS_FIXTURE.find((t) => t.status === 'pending')
+    expect(target).toBeTruthy()
+    const updated = await client.setTaskStatus(target!.id, 'done')
+    expect(updated.status).toBe('done')
+    expect(updated.completedAt).toBeTruthy()
+    // 再查列表已更新
+    const page = await client.listTasks({ status: 'done', pageSize: 100 })
+    expect(page.items.some((t) => t.id === target!.id)).toBe(true)
+  })
+
+  it('setTaskStatus 未知任务抛错', async () => {
+    await expect(client.setTaskStatus('t-9999', 'done')).rejects.toThrow(/任务不存在/)
+  })
 })

@@ -16,6 +16,9 @@ import type {
   CustomerSeaImportRow,
   CustomerSeaImportResult,
   ValueScoresInput,
+  Task,
+  TaskListParams,
+  TaskStatus,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -80,4 +83,10 @@ export interface CrmClient {
   getDashboardStats(): Promise<DashboardStats>
 
   listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>>
+
+  // ===== Task（P7，BLF-512） =====
+  /** 任务列表（scope mine/all + type/status/priority 等白名单筛选）。 */
+  listTasks(params: TaskListParams): Promise<Paginated<Task>>
+  /** 看板拖拽流转状态（pending/in_progress/done）。 */
+  setTaskStatus(id: string, status: TaskStatus): Promise<Task>
 }
