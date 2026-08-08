@@ -35,6 +35,11 @@ TASK_SORT_FIELDS = ("due_date", "priority", "created_at", "completed_at")
 # 状态流转终态：done/cancelled 后不可再流转（设计文档 §9）
 TERMINAL_STATUSES = {"done", "cancelled"}
 
+# §3.3 完成联动（方案 A）：互动类任务 type → 自动生成的 follow type 映射
+TASK_FOLLOW_TYPE_MAP = {"call": "phone", "visit": "visit", "follow_up": "note"}
+# 互动类任务：done 时自动生成 follow + 回写实体；custom 不联动（可手动补跟进）
+INTERACTIVE_TYPES = frozenset({"follow_up", "call", "visit"})
+
 # priority 排序权重（urgent > high > medium > low）
 _PRIORITY_RANK = case(
     (CrmTask.priority == "urgent", 4),
@@ -277,14 +282,26 @@ def complete_task(
     task: CrmTask,
     *,
     user_id: str | None,
+    payload=None,
     commit: bool = True,
 ) -> TaskItem:
-    """完成：status→done + completed_at。
+    """完成：status→done + completed_at + §3.3 完成联动（互动类自动生成 follow + 回写实体）。
 
-    §3.3「done 联动生成 follow」属 BLF-515 决策落地，本期只做状态流转 + completed_at。
+    §3.3 方案 A（设计文档默认，用户已拍板）：互动类任务（follow_up/call/visit）完成时
+    同一事务内：① status→done + completed_at；② 自动创建 follow（type 映射
+    call→phone / visit→visit / follow_up→note，content=任务标题，可带完成备注）；
+    ③ 回写实体 last_follow_at=now + next_follow_at 设值/未填清空（与
+    follow_service.create_follow 语义一致）；custom 类不联动（可手动补跟进）。
+
+    联动仅在有实体（customer_id/lead_id）时生效——无实体的任务没有可挂靠的 follow。
+    payload: TaskCompleteRequest | None（next_follow_at + note，见 schemas.crm）。
     """
     from fastapi import HTTPException, status
 
+    if task.status == "done":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="任务已完成，不可重复完成"
+        )
     if task.status == "cancelled":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="任务已取消，不可完成"
@@ -292,10 +309,45 @@ def complete_task(
     task.status = "done"
     task.completed_at = datetime.now(timezone.utc)
     db.flush()
+    _maybe_link_completion(db, task, payload, user_id=user_id)
     if commit:
         db.commit()
     db.refresh(task)
     return _hydrate(db, task)
+
+
+def _maybe_link_completion(
+    db: Session, task: CrmTask, payload, *, user_id: str | None
+) -> None:
+    """§3.3 完成联动：互动类 + 有实体 → 自动生成 follow + 回写（同事务，commit=False）。
+
+    follow_service.create_follow 在事务内 flush 并回写实体（commit=False 由端点统一
+    commit），保证 task + follow + 回写 + 审计单事务（P5-6 强一致）。
+    """
+    from app.schemas.crm import FollowCreate
+    from app.services.crm import follow_service
+
+    if task.type not in INTERACTIVE_TYPES:
+        return
+    if task.customer_id is None and task.lead_id is None:
+        return  # 无实体可挂 follow（设计：联动写实体的跟进时间线）
+
+    next_follow_at = (
+        getattr(payload, "next_follow_at", None) if payload is not None else None
+    )
+    note = (getattr(payload, "note", None) or "").strip() if payload is not None else ""
+    content = task.title if not note else f"{task.title}：{note}"
+    entity_type = "customer" if task.customer_id is not None else "lead"
+    entity_id = task.customer_id if task.customer_id is not None else task.lead_id
+
+    follow_payload = FollowCreate(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        type=TASK_FOLLOW_TYPE_MAP[task.type],
+        content=content,
+        next_follow_at=next_follow_at,
+    )
+    follow_service.create_follow(db, follow_payload, user_id=user_id, commit=False)
 
 
 def cancel_task(

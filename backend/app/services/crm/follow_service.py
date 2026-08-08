@@ -1,4 +1,5 @@
 """Follow service: 跟进记录列表/创建 + 回写客户 last_follow_at。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -49,7 +50,9 @@ def list_follows(db: Session, entity_type: str, entity_id: int) -> list[FollowIt
     rows = (
         db.execute(
             select(CrmFollow)
-            .where(CrmFollow.entity_type == entity_type, CrmFollow.entity_id == entity_id)
+            .where(
+                CrmFollow.entity_type == entity_type, CrmFollow.entity_id == entity_id
+            )
             .order_by(CrmFollow.created_at.desc(), CrmFollow.id.desc())
         )
         .scalars()
@@ -59,10 +62,20 @@ def list_follows(db: Session, entity_type: str, entity_id: int) -> list[FollowIt
     return [_to_item(db, r, names) for r in rows]
 
 
-def create_follow(db: Session, payload: FollowCreate, *, user_id: str | None) -> FollowItem:
+def create_follow(
+    db: Session,
+    payload: FollowCreate,
+    *,
+    user_id: str | None,
+    commit: bool = True,
+) -> FollowItem:
     """创建跟进；回写实体的 last_follow_at（客户）与 next_follow_at（客户+线索，P2b）。
 
     next_follow_at 回写规则：payload 带值→设入实体；不带（None）→清空实体（表示这次跟进了、没约下次）。
+
+    P7-6 (BLF-515): 抽 commit= 参数（P5-6 强一致）——默认 True 兼容旧调用；
+    任务 done 联动场景传 commit=False，由端点统一 commit，保证
+    task + follow + 实体回写 + 审计同事务（任一失败全部回滚）。
     """
     cur = _current_user_id(user_id)
     follow = CrmFollow(
@@ -88,7 +101,9 @@ def create_follow(db: Session, payload: FollowCreate, *, user_id: str | None) ->
         ).scalar_one_or_none()
         if lead is not None:
             lead.next_follow_at = payload.next_follow_at
-    db.commit()
+    db.flush()  # 实体回写也 flush（autoflush=False：commit=False 时由端点统一 commit）
+    if commit:
+        db.commit()
     db.refresh(follow)
     names = _created_by_name_map(db, {cur} if cur else set())
     return _to_item(db, follow, names)

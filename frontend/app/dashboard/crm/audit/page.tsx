@@ -32,6 +32,7 @@ const ENTITY_LABELS: Record<string, string> = {
   customer: '客户',
   lead: '线索',
   contact: '联系人',
+  task: '任务',
 }
 
 /** 筛选「全部」的 Radix Select 哨兵值（Radix 不允许空字符串 value）。 */
