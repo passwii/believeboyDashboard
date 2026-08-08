@@ -541,3 +541,32 @@ describe('MockCrmClient · Rule（P9 规则引擎，BLF-545）', () => {
     await expect(client.deleteRule(id)).rejects.toThrow('规则不存在')
   })
 })
+
+describe('MockCrmClient · 工作流设置（BLF-540）', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('getWorkflowSettings 默认 7 天 + 开关开', async () => {
+    const settings = await client.getWorkflowSettings()
+    expect(settings).toEqual({ staleDays: 7, staleEmailEnabled: true })
+  })
+
+  it('updateWorkflowSettings 部分更新并持久化', async () => {
+    const updated = await client.updateWorkflowSettings({ staleDays: 14 })
+    expect(updated).toEqual({ staleDays: 14, staleEmailEnabled: true })
+    const again = await client.updateWorkflowSettings({ staleEmailEnabled: false })
+    expect(again).toEqual({ staleDays: 14, staleEmailEnabled: false })
+    // 新实例读回同一持久化状态
+    const fresh = new MockCrmClient(TEST_USER)
+    expect(await fresh.getWorkflowSettings()).toEqual({
+      staleDays: 14,
+      staleEmailEnabled: false,
+    })
+  })
+})

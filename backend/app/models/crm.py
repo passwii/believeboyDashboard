@@ -123,6 +123,11 @@ class CrmCustomer(Base):
     next_follow_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )  # 下次跟进时间（P2b 待跟进视图）
+    # P9-2 (BLF-540): 无跟进提醒邮件已发送时间戳（去重标记，null=未提醒）。
+    # 提醒后置位；实体重新跟进（last_follow_at 前移）后进入新一轮提醒。
+    stale_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -202,6 +207,11 @@ class CrmLead(Base):
     )  # 下次跟进时间（P2b 待跟进视图）
     # P9-4 (BLF-542): 最近一次跟进时间（跟进成功刷新，公海回收计时基准，镜像客户）
     last_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # P9-2 (BLF-540): 无跟进提醒邮件已发送时间戳（去重标记，null=未提醒）。
+    # 提醒后置位；线索重新跟进（next_follow_at 前移）后进入新一轮提醒。
+    stale_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     converted_to_customer_id: Mapped[int | None] = mapped_column(Integer)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # P8 (BLF-517): 进入当前阶段的时间戳（status 变更时写入，nullable 兼容历史数据）
@@ -344,6 +354,23 @@ class CrmReminderLog(Base):
     reminded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )  # scan 发提醒时间
+
+
+class CrmWorkflowSetting(Base):
+    """P9 工作流自动化单行配置（BLF-540）。
+
+    id 恒为 1（单行表）；字段：
+    - stale_days: 无跟进提醒阈值天数（默认 7，1-365）
+    - stale_email_enabled: 提醒邮件总开关（默认开）
+    """
+
+    __tablename__ = "crm_workflow_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stale_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    stale_email_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

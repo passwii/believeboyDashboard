@@ -66,6 +66,8 @@ from app.schemas.crm import (
     TaskStatusUpdate,
     TaskUpdate,
     ValueScoresUpdate,
+    WorkflowSettings,
+    WorkflowSettingsUpdate,
 )
 from app.services.crm import (
     audit_service,
@@ -77,6 +79,7 @@ from app.services.crm import (
     follow_up_service,
     lead_service,
     rule_crud_service,
+    stale_email_service,
     task_service,
     user_service,
     value_score_service,
@@ -1508,3 +1511,35 @@ def delete_rule(
         summary=f"删除规则「{rule.name}」",
     )
     db.commit()
+
+
+# ---------- P9 工作流自动化设置（BLF-540） ----------
+@router.get("/settings/workflow", response_model=WorkflowSettings)
+def get_workflow_settings(
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """工作流自动化设置（7 天无跟进提醒邮件阈值/开关）。仅管理员。"""
+    require_admin(is_admin)
+    row = stale_email_service.get_workflow_settings(db)
+    return WorkflowSettings(
+        stale_days=row.stale_days, stale_email_enabled=row.stale_email_enabled
+    )
+
+
+@router.put("/settings/workflow", response_model=WorkflowSettings)
+def update_workflow_settings(
+    payload: WorkflowSettingsUpdate,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """更新工作流自动化设置（部分更新）。仅管理员。"""
+    require_admin(is_admin)
+    row = stale_email_service.update_workflow_settings(
+        db,
+        stale_days=payload.stale_days,
+        stale_email_enabled=payload.stale_email_enabled,
+    )
+    return WorkflowSettings(
+        stale_days=row.stale_days, stale_email_enabled=row.stale_email_enabled
+    )

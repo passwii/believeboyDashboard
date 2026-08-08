@@ -10,6 +10,7 @@ import {
   mapTask,
   mapUser,
   mapRule,
+  mapWorkflowSettings,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
@@ -17,6 +18,7 @@ import {
   toLeadPayload,
   toTaskPayload,
   toRulePayload,
+  toWorkflowSettingsPayload,
   type CustomerDto,
   type FollowDto,
   type FollowUpGroupsDto,
@@ -541,5 +543,31 @@ describe('mapRule / toRulePayload (P9 规则引擎，BLF-543/545)', () => {
       ],
       actions: [{ action_type: 'notify_owner', params: null, sort_order: 0 }],
     })
+  })
+})
+
+
+describe('mapWorkflowSettings / toWorkflowSettingsPayload（P9-2，BLF-540）', () => {
+  it('snake → camel 映射', () => {
+    expect(mapWorkflowSettings({ stale_days: 14, stale_email_enabled: false })).toEqual({
+      staleDays: 14,
+      staleEmailEnabled: false,
+    })
+    expect(mapWorkflowSettings({ stale_days: 7, stale_email_enabled: true })).toEqual({
+      staleDays: 7,
+      staleEmailEnabled: true,
+    })
+  })
+
+  it('camel → snake 只带改动字段', () => {
+    expect(toWorkflowSettingsPayload({ staleDays: 3 })).toEqual({ stale_days: 3 })
+    expect(toWorkflowSettingsPayload({ staleEmailEnabled: false })).toEqual({
+      stale_email_enabled: false,
+    })
+    expect(toWorkflowSettingsPayload({ staleDays: 10, staleEmailEnabled: true })).toEqual({
+      stale_days: 10,
+      stale_email_enabled: true,
+    })
+    expect(toWorkflowSettingsPayload({})).toEqual({})
   })
 })

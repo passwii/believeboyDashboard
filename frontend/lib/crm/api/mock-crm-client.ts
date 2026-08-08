@@ -29,6 +29,7 @@ import type {
   RuleInput,
   User,
   ValueScoresInput,
+  WorkflowSettings,
 } from '@/lib/crm/types'
 import { computeRating } from '@/lib/crm/constants/value-score'
 import {
@@ -46,6 +47,11 @@ const LATENCY_MAX = 400
 const E2E_LATENCY_MS = 200
 const ERROR_RATE = 0.05
 
+const DEFAULT_WORKFLOW_SETTINGS: WorkflowSettings = {
+  staleDays: 7,
+  staleEmailEnabled: true,
+}
+
 interface MockState {
   customers: Customer[]
   leads: Lead[]
@@ -55,6 +61,7 @@ interface MockState {
   audits: AuditLog[]
   tasks: Task[]
   rules: Rule[]
+  workflowSettings: WorkflowSettings
 }
 
 function isE2E(): boolean {
@@ -94,6 +101,7 @@ function loadState(): MockState {
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
+      workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   }
   try {
@@ -108,6 +116,7 @@ function loadState(): MockState {
         audits: [],
         tasks: [...TASKS_FIXTURE],
         rules: [...RULES_FIXTURE],
+        workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
       }
     }
     const parsed = JSON.parse(raw) as Partial<MockState>
@@ -120,6 +129,7 @@ function loadState(): MockState {
       audits: parsed.audits ?? [],
       tasks: parsed.tasks ?? [...TASKS_FIXTURE],
       rules: parsed.rules ?? [...RULES_FIXTURE],
+      workflowSettings: parsed.workflowSettings ?? { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   } catch {
     return {
@@ -131,6 +141,7 @@ function loadState(): MockState {
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
+      workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   }
 }
@@ -1241,5 +1252,24 @@ export class MockCrmClient implements CrmClient {
     if (idx === -1) throw new Error(`规则不存在: ${id}`)
     this.state.rules.splice(idx, 1)
     persistState(this.state)
+  }
+
+  // ===== P9 工作流自动化设置（BLF-540） =====
+  async getWorkflowSettings(): Promise<WorkflowSettings> {
+    await this.delay('getWorkflowSettings')
+    return { ...this.state.workflowSettings }
+  }
+
+  async updateWorkflowSettings(input: Partial<WorkflowSettings>): Promise<WorkflowSettings> {
+    await this.delay('updateWorkflowSettings')
+    const next: WorkflowSettings = {
+      ...this.state.workflowSettings,
+      staleDays: input.staleDays ?? this.state.workflowSettings.staleDays,
+      staleEmailEnabled:
+        input.staleEmailEnabled ?? this.state.workflowSettings.staleEmailEnabled,
+    }
+    this.state.workflowSettings = next
+    persistState(this.state)
+    return { ...next }
   }
 }

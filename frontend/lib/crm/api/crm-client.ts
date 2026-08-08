@@ -20,12 +20,13 @@ import type {
   CustomerSeaImportResult,
   ValueScoresInput,
   Task,
-  TaskInput,
-  TaskListParams,
-  TaskStatus,
-  Rule,
-  RuleInput,
-} from '@/lib/crm/types'
+   TaskInput,
+   TaskListParams,
+   TaskStatus,
+   Rule,
+   RuleInput,
+   WorkflowSettings,
+ } from '@/lib/crm/types'
 
 export interface ListParams {
   keyword?: string
@@ -121,4 +122,10 @@ export interface CrmClient {
   updateRule(id: number, input: Partial<RuleInput>): Promise<Rule>
   /** 删除规则（CASCADE 子表）。 */
   deleteRule(id: number): Promise<void>
+
+  // ===== P9 工作流自动化设置（BLF-540） =====
+  /** 读工作流设置（无跟进提醒阈值/开关）。仅管理员。 */
+  getWorkflowSettings(): Promise<WorkflowSettings>
+  /** 更新工作流设置（部分更新）。仅管理员。 */
+  updateWorkflowSettings(input: Partial<WorkflowSettings>): Promise<WorkflowSettings>
 }

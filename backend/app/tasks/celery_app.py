@@ -50,6 +50,7 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.crm_task_reminder",
             "app.celery_tasks.crm_follow_up_reminder",
             "app.celery_tasks.crm_rule_engine",
+            "app.celery_tasks.crm_stale_email",
             "app.celery_tasks.alert_detection",
             # BEL-373：每日 03:00 UTC 刷新退货分析物化表
             "app.celery_tasks.return_analysis_refresh",
@@ -96,6 +97,8 @@ def _build_celery_app() -> Celery:
             "crm_follow_up_reminder": {"queue": "default"},
             # CRM 规则引擎执行器（BLF-544）：default 队列（每日一次短任务）
             "crm_rule_engine": {"queue": "default"},
+            # CRM 无跟进提醒邮件（BLF-540）：default 队列（每日 09:10 一次短任务）
+            "crm_stale_email": {"queue": "default"},
             # 告警定时检测（P1）：default 队列（短任务，每 15 分钟）
             "alert_detect": {"queue": "default"},
             # BEL-377：agent API 审计日志保留清理：default 队列（每日一次短任务）
@@ -133,6 +136,11 @@ def _build_celery_app() -> Celery:
             "crm-rule-engine": {
                 "task": "crm_rule_engine",
                 "schedule": crontab(hour=9, minute=5),
+            },
+            # CRM 无跟进提醒邮件（BLF-540）：每日 09:10 扫描超期实体并按负责人发提醒邮件（错开 09:00/09:05）
+            "crm-stale-email": {
+                "task": "crm_stale_email",
+                "schedule": crontab(hour=9, minute=10),
             },
             # 告警定时检测（P1）：每 15 分钟跑全量规则检测 + 分发
             "alert-detect": {
