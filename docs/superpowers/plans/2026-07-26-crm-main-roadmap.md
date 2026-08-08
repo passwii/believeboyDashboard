@@ -588,7 +588,7 @@ def apply_filters(query, conditions, depth=0):
 | P4 | ✅ 完成 | df31d105 | 220 | 2026-07-25 |
 | P5 | ✅ 完成 | 918c019c + 6e5121b8（尾巴）| 220 | 12 项 deferred 全清；P5-6a 审计强一致 + P5-9 抽屉联系人审计 2026-07-29 补完 |
 | P6 | 📐 纲要 | - | - | 数据建模深化，brainstorming 后展开 |
-| P7 | 📐 设计完成（已拍板，方案 A） | - | - | 2026-08-08 拍板；设计文档 `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`；子 issue BLF-510~515 |
+| P7 | ✅ 完成 | #180~182/185~187（6 PR） | 243 | 2026-08-08 交付：任务实体/关联/看板/提醒/抽屉筛选/跟进联动全量上线（BLF-510~515） |
 | P8 | 📐 纲要 | - | - | 数据看板强化，brainstorming 后展开 |
 | P9 | 📐 纲要 | - | - | 工作流自动化，brainstorming 后展开 |
 
