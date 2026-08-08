@@ -186,14 +186,21 @@ def list_tasks(
     else:
         ordered = [col.desc().nulls_last()]
 
-    # 默认排序（due_date 主序）：due_date ASC NULLS LAST + priority 权重 DESC
-    # + created_at DESC 兜底（设计文档 §6.1）。其余排序字段只用单一键。
+    # 默认排序（due_date 主序）：设计文档 §6.1 — due_date + priority 权重 + created_at 兜底。
+    # 三键随 sort_order 同步反向（保证 tie-breaker 与主序方向一致，避免不稳定排序）。
     if sort_by == "due_date":
-        ordered = [
-            CrmTask.due_date.asc().nulls_last(),
-            _PRIORITY_RANK.desc(),
-            CrmTask.created_at.desc(),
-        ]
+        if sort_order == "asc":
+            ordered = [
+                CrmTask.due_date.asc().nulls_last(),
+                _PRIORITY_RANK.desc(),
+                CrmTask.created_at.desc(),
+            ]
+        else:
+            ordered = [
+                CrmTask.due_date.desc().nulls_last(),
+                _PRIORITY_RANK.asc(),
+                CrmTask.created_at.asc(),
+            ]
     stmt = stmt.order_by(*ordered)
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(stmt).scalars().all()

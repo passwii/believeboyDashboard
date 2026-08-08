@@ -273,6 +273,26 @@ def test_list_tasks_default_sort_due_date_asc_priority_desc(db_session):
     assert titles.index("中优-远") < titles.index("低优-远")
 
 
+def test_list_tasks_due_date_desc_reverses_order(db_session):
+    # 覆盖 Kilo WARNING: sort_order=desc 时 due_date 必须真正反转（包括 NULL 位置）
+    far = datetime.now(timezone.utc) + timedelta(days=5)
+    near = datetime.now(timezone.utc) + timedelta(days=1)
+    _mk_task(db_session, owner=ALICE, title="高优-近", priority="high", due_date=near)
+    _mk_task(db_session, owner=ALICE, title="低优-远", priority="low", due_date=far)
+    _mk_task(
+        db_session, owner=ALICE, title="无截止-急", priority="urgent", due_date=None
+    )
+
+    items, _ = list_tasks(
+        db_session, user_id=ALICE, scope="all", sort_by="due_date", sort_order="desc"
+    )
+    titles = [i.title for i in items]
+    # desc: 远的在前；同截止 priority asc（远的是 low, 没有 tie 可验, 改以 null 位置为准）
+    assert titles[0] == "低优-远"
+    # NULLS LAST: 无截止垫底
+    assert titles[-1] == "无截止-急"
+
+
 def test_complete_task_sets_done_and_completed_at(db_session):
     task = _mk_task(db_session)
     assert task.completed_at is None
