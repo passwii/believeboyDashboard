@@ -111,6 +111,24 @@ function ProjectSummarySkeletonContent() {
 }
 
 export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabProps) {
+  // BLF-504：年度合计行（汇总行模式）—— 按月列加总工厂佣金(RMB) + 年度汇总列
+  const totals = items.reduce(
+    (acc, project) => {
+      let monthSum = 0
+      for (const m of getYearMonths(year)) {
+        const monthData = project.months[m]
+        const v = monthData?.factory_commission_rmb ?? 0
+        monthSum += v
+        acc.months[m] = (acc.months[m] ?? 0) + v
+      }
+      acc.commission = acc.commission + project.total_commission_rmb
+      acc.received = acc.received + project.total_received_rmb
+      return acc
+    },
+    { months: {} as Record<string, number>, commission: 0, received: 0 }
+  )
+  const totalsRate = totals.commission > 0 ? totals.received / totals.commission : 0
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
       {/* 骨架屏层 */}
@@ -159,30 +177,54 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
             {items.length === 0 ? (
               <EmptyTableState colSpan={DATA_COLS} message={`${year}年暂无数据`} />
             ) : (
-              items.map((project) => (
-                <TableRow key={project.project_id}>
-                  <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 font-medium text-center')}>
-                    {project.project_name}
+              <>
+                {items.map((project) => (
+                  <TableRow key={project.project_id}>
+                    <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 font-medium text-center')}>
+                      {project.project_name}
+                    </TableCell>
+                    {getYearMonths(year).map((m) => {
+                      const monthData = project.months[m]
+                      return (
+                        <TableCell key={m} className="text-center tabular-nums text-xs">
+                          {monthData ? formatRmb(monthData.factory_commission_rmb) : '-'}
+                        </TableCell>
+                      )
+                    })}
+                    <TableCell className="text-center tabular-nums font-medium">
+                      {formatRmb(project.total_commission_rmb)}
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums">
+                      {formatRmb(project.total_received_rmb)}
+                    </TableCell>
+                    <TableCell className="!pr-0 text-center tabular-nums">
+                      {formatPercent(project.receive_rate)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {/* 年度合计行（BLF-504 汇总行） */}
+                <TableRow className="border-t border-border/80 bg-muted/40 font-semibold">
+                  <TableCell className={cn(STICKY_LEFT_CELL, '!pl-0 text-center text-foreground')}>
+                    合计
                   </TableCell>
-                  {getYearMonths(year).map((m) => {
-                    const monthData = project.months[m]
-                    return (
-                      <TableCell key={m} className="text-center tabular-nums text-xs">
-                        {monthData ? formatRmb(monthData.factory_commission_rmb) : '-'}
-                      </TableCell>
-                    )
-                  })}
-                  <TableCell className="text-center tabular-nums font-medium">
-                    {formatRmb(project.total_commission_rmb)}
+                  {getYearMonths(year).map((m) => (
+                    <TableCell key={m} className="text-center tabular-nums text-xs text-foreground">
+                      {totals.months[m] !== undefined && totals.months[m] > 0
+                        ? formatRmb(totals.months[m])
+                        : '-'}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-center tabular-nums text-foreground">
+                    {formatRmb(totals.commission)}
                   </TableCell>
-                  <TableCell className="text-center tabular-nums">
-                    {formatRmb(project.total_received_rmb)}
+                  <TableCell className="text-center tabular-nums text-foreground">
+                    {formatRmb(totals.received)}
                   </TableCell>
-                  <TableCell className="!pr-0 text-center tabular-nums">
-                    {formatPercent(project.receive_rate)}
+                  <TableCell className="!pr-0 text-center tabular-nums text-foreground">
+                    {formatPercent(totalsRate)}
                   </TableCell>
                 </TableRow>
-              ))
+              </>
             )}
           </TableBody>
         </Table>

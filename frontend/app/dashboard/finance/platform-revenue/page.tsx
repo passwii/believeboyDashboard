@@ -21,6 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import {
   Dialog,
@@ -1025,10 +1026,10 @@ export default function PlatformRevenuePage() {
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardContent className="p-0">
           <div className="border-border/70 bg-[hsl(var(--surface-panel))]">
-            {/* 桌面端：完整表格 */}
+            {/* 桌面端：完整表格（BLF-504：maxHeight 滚动体 + STICKY_TOP_ROW 粘性表头） */}
             <div className="hidden lg:block">
-              <Table>
-                <TableHeader className="bg-[hsl(var(--surface-subtle))]">
+              <Table containerClassName="max-h-[calc(100vh-24rem)] overflow-auto">
+                <TableHeader className={STICKY_TOP_ROW}>
                   <TableRow>
                     <TableHead>回款日期</TableHead>
                     <TableHead>项目</TableHead>

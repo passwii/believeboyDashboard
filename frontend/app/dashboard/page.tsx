@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 import { DashboardPageLoading } from '@/components/dashboard/dashboard-page-loading'
+import { V2Card } from '@/components/dashboard-v2/v2-card'
 import { V2Grid } from '@/components/dashboard-v2/v2-grid'
 import { V2Stats } from '@/components/dashboard-v2/v2-stats'
 import { V2TopProjects } from '@/components/dashboard-v2/v2-top-projects'
@@ -22,17 +23,34 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从首屏 bundle 拆出 ~400KB recharts 主体
+// 骨架与正式卡（V2Card gap-0 + md:col-span-2）同构：BLF-504 修复加载骨架与正式卡不一致
+function V2ChartSkeleton({
+  titleWidth = 'w-24',
+  descWidth = 'w-40',
+  chartClass = 'h-60 w-full md:h-80',
+}: {
+  titleWidth?: string
+  descWidth?: string
+  chartClass?: string
+}) {
+  return (
+    <V2Card className="gap-0 md:col-span-2">
+      <div className="flex flex-col gap-1 p-6">
+        <Skeleton className={`h-5 ${titleWidth}`} />
+        <Skeleton className={`h-3 ${descWidth}`} />
+      </div>
+      <div className="px-6 pb-6 pt-2">
+        <Skeleton className={chartClass} />
+      </div>
+    </V2Card>
+  )
+}
+
 const LazyV2RevenueChart = dynamic(
   () => import('@/components/dashboard-v2/v2-revenue-chart').then((m) => m.V2RevenueChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-24" />
-        <Skeleton className="mb-4 h-3 w-40" />
-        <Skeleton className="h-60 w-full md:h-80" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-24" descWidth="w-40" chartClass="h-60 w-full md:h-80" />,
   }
 )
 
@@ -40,13 +58,7 @@ const LazyV2ChannelChart = dynamic(
   () => import('@/components/dashboard-v2/v2-channel-chart').then((m) => m.V2ChannelChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-40" />
-        <Skeleton className="mb-4 h-3 w-48" />
-        <Skeleton className="h-60 w-full md:h-80" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-40" descWidth="w-48" chartClass="h-60 w-full md:h-80" />,
   }
 )
 
@@ -54,13 +66,7 @@ const LazyV2ProjectChart = dynamic(
   () => import('@/components/dashboard-v2/v2-project-chart').then((m) => m.V2ProjectChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-40" />
-        <Skeleton className="mb-4 h-3 w-48" />
-        <Skeleton className="h-52 w-full" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-40" descWidth="w-48" chartClass="h-52 w-full md:h-64" />,
   }
 )
 
@@ -68,13 +74,7 @@ const LazyV2CountryChart = dynamic(
   () => import('@/components/dashboard-v2/v2-country-chart').then((m) => m.V2CountryChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-40" />
-        <Skeleton className="mb-4 h-3 w-48" />
-        <Skeleton className="h-52 w-full" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-40" descWidth="w-48" chartClass="h-52 w-full md:h-64" />,
   }
 )
 
@@ -82,13 +82,7 @@ const LazyV2StockChart = dynamic(
   () => import('@/components/dashboard-v2/v2-stock-chart').then((m) => m.V2StockChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-24" />
-        <Skeleton className="mb-4 h-3 w-40" />
-        <Skeleton className="h-52 w-full" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-24" descWidth="w-40" chartClass="h-52 w-full md:h-64" />,
   }
 )
 
@@ -96,13 +90,7 @@ const LazyV2TrafficChart = dynamic(
   () => import('@/components/dashboard-v2/v2-traffic-chart').then((m) => m.V2TrafficChart),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-blue-50/60 p-5 md:col-span-2 dark:bg-blue-950/30">
-        <Skeleton className="mb-2 h-5 w-40" />
-        <Skeleton className="mb-4 h-3 w-48" />
-        <Skeleton className="h-52 w-full" />
-      </div>
-    ),
+    loading: () => <V2ChartSkeleton titleWidth="w-40" descWidth="w-48" chartClass="h-52 w-full md:h-64" />,
   }
 )
 
@@ -401,12 +389,14 @@ export default function DashboardV2Page() {
             <LazyV2TrafficChart currentRows={currentRows} loading={dataLoading} />
           </>
         ) : (
-          <div className="col-span-full flex flex-col items-center justify-center gap-3 bg-blue-50/60 py-16 text-sm text-muted-foreground dark:bg-blue-950/30">
-            <span>暂无销售数据</span>
-            <Button onClick={() => void loadData()} size="sm" variant="outline">
-              重试
-            </Button>
-          </div>
+          <V2Card className="col-span-full gap-0">
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
+              <span>暂无销售数据</span>
+              <Button onClick={() => void loadData()} size="sm" variant="outline">
+                重试
+              </Button>
+            </div>
+          </V2Card>
         )}
         <V2TopProjects
           projectBreakdown={projectBreakdown}

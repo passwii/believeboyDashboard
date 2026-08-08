@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/command'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { numericCell, numericHead } from '@/components/ui/table-presets'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
@@ -1796,18 +1797,18 @@ export default function DailyAnalysisPage() {
                       <TableHeader className={STICKY_TOP_ROW}>
                         <TableRow className="border-0 hover:bg-transparent">
                           <TableHead className="min-w-[120px]">日期</TableHead>
-                          <TableHead>订单量</TableHead>
-                          <TableHead>销售额</TableHead>
-                          <TableHead>曝光量</TableHead>
-                          <TableHead>点击量</TableHead>
-                          <TableHead>CPC</TableHead>
-                          <TableHead>广告花费</TableHead>
-                          <TableHead>广告订单</TableHead>
-                          <TableHead>可售库存</TableHead>
-                          <TableHead>页面浏览量</TableHead>
-                          <TableHead>销量</TableHead>
-                          <TableHead>访问量</TableHead>
-                          <TableHead>转化率</TableHead>
+                          <TableHead className={numericHead}>订单量</TableHead>
+                          <TableHead className={numericHead}>销售额</TableHead>
+                          <TableHead className={numericHead}>曝光量</TableHead>
+                          <TableHead className={numericHead}>点击量</TableHead>
+                          <TableHead className={numericHead}>CPC</TableHead>
+                          <TableHead className={numericHead}>广告花费</TableHead>
+                          <TableHead className={numericHead}>广告订单</TableHead>
+                          <TableHead className={numericHead}>可售库存</TableHead>
+                          <TableHead className={numericHead}>页面浏览量</TableHead>
+                          <TableHead className={numericHead}>销量</TableHead>
+                          <TableHead className={numericHead}>访问量</TableHead>
+                          <TableHead className={numericHead}>转化率</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1830,18 +1831,18 @@ export default function DailyAnalysisPage() {
                               <TableCell className="font-medium text-foreground">
                                 {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                               </TableCell>
-                              <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{formatMoney(row.sales_amount)}</TableCell>
-                              <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{formatMoney(row.cpc)}</TableCell>
-                              <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                              <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                              <TableCell>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                              <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
+                              <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
+                              <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
+                              <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
+                              <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -1861,19 +1862,19 @@ export default function DailyAnalysisPage() {
                           </TableHead>
                           <TableHead className="min-w-[200px]">SKU</TableHead>
                           <TableHead className="min-w-[200px]">品名</TableHead>
-                          <TableHead>订单量</TableHead>
-                          <TableHead>销售额</TableHead>
-                          <TableHead>曝光量</TableHead>
-                          <TableHead>点击量</TableHead>
-                          <TableHead>CPC</TableHead>
-                          <TableHead>广告花费</TableHead>
-                          <TableHead>广告订单</TableHead>
-                          <TableHead>可售库存</TableHead>
-                          <TableHead>在途数量</TableHead>
-                          <TableHead>页面浏览量</TableHead>
-                          <TableHead>销量</TableHead>
-                          <TableHead>访问量</TableHead>
-                          <TableHead>转化率</TableHead>
+                          <TableHead className={numericHead}>订单量</TableHead>
+                          <TableHead className={numericHead}>销售额</TableHead>
+                          <TableHead className={numericHead}>曝光量</TableHead>
+                          <TableHead className={numericHead}>点击量</TableHead>
+                          <TableHead className={numericHead}>CPC</TableHead>
+                          <TableHead className={numericHead}>广告花费</TableHead>
+                          <TableHead className={numericHead}>广告订单</TableHead>
+                          <TableHead className={numericHead}>可售库存</TableHead>
+                          <TableHead className={numericHead}>在途数量</TableHead>
+                          <TableHead className={numericHead}>页面浏览量</TableHead>
+                          <TableHead className={numericHead}>销量</TableHead>
+                          <TableHead className={numericHead}>访问量</TableHead>
+                          <TableHead className={numericHead}>转化率</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1912,15 +1913,15 @@ export default function DailyAnalysisPage() {
                                 <TableCell className="max-w-[200px] truncate text-muted-foreground">
                                   {productName || '--'}
                                 </TableCell>
-                                <TableCell>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{formatMoney(row.sales_amount)}</TableCell>
-                                <TableCell>{row.impressions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{row.clicks.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{formatMoney(row.cpc)}</TableCell>
-                                <TableCell>{formatMoney(row.ad_spend)}</TableCell>
-                                <TableCell>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>
+                                <TableCell className={numericCell}>{row.order_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{formatMoney(row.sales_amount)}</TableCell>
+                                <TableCell className={numericCell}>{row.impressions.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{row.clicks.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{formatMoney(row.cpc)}</TableCell>
+                                <TableCell className={numericCell}>{formatMoney(row.ad_spend)}</TableCell>
+                                <TableCell className={numericCell}>{row.ad_orders.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{row.available_qty.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>
                                   {row.in_transit_qty > 0 ? (
                                     <span className="font-medium text-blue-600 dark:text-blue-400">
                                       {row.in_transit_qty.toLocaleString('zh-CN')}
@@ -1929,10 +1930,10 @@ export default function DailyAnalysisPage() {
                                     <span className="text-muted-foreground">--</span>
                                   )}
                                 </TableCell>
-                                <TableCell>{row.page_views.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{row.sessions.toLocaleString('zh-CN')}</TableCell>
-                                <TableCell>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
+                                <TableCell className={numericCell}>{row.page_views.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{row.units_ordered.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{row.sessions.toLocaleString('zh-CN')}</TableCell>
+                                <TableCell className={numericCell}>{(row.conversion_rate * 100).toFixed(2)}%</TableCell>
                               </TableRow>
                             )
                           )

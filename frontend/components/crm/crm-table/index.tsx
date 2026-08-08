@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from 'lucide-react'
+import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useCrmTable } from './use-crm-table'
 import { CrmSearchInput } from './crm-search-input'
 import type { CrmColumnDef, CrmTableProps, FilterCondition } from './types'
@@ -12,9 +12,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyState } from '@/components/ui/empty-state'
+import { EmptyTableState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { cn } from '@/lib/utils'
 
 /**
@@ -207,12 +209,7 @@ export function CrmTable<T extends { id?: string | number }>({
   // error
   if (table.error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-6 text-center dark:border-rose-900/40 dark:bg-rose-950/30">
-        <p className="text-sm text-rose-700 dark:text-rose-300">加载失败：{table.error.message}</p>
-        <Button variant="outline" size="sm" onClick={() => void table.refresh()}>
-          <RefreshCw className="mr-1 h-3 w-3" /> 重试
-        </Button>
-      </div>
+      <ErrorState title="加载失败" message={table.error.message} onRetry={() => void table.refresh()} />
     )
   }
 
@@ -251,7 +248,7 @@ export function CrmTable<T extends { id?: string | number }>({
       )}
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/60">
         <Table>
-          <TableHeader className="sticky top-0 z-10 bg-background">
+          <TableHeader className={STICKY_TOP_ROW}>
             <TableRow>
               {selectable && (
                 <TableHead className="w-10">
@@ -296,14 +293,7 @@ export function CrmTable<T extends { id?: string | number }>({
           </TableHeader>
           <TableBody>
             {(table.data ?? []).length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length + (selectable ? 1 : 0)}
-                  className="h-32 text-center"
-                >
-                  <EmptyState message={emptyText} rowHeight="lg" />
-                </TableCell>
-              </TableRow>
+              <EmptyTableState colSpan={columns.length + (selectable ? 1 : 0)} message={emptyText} />
             ) : (
               (table.data ?? []).map((row) => {
                 const id = String(row[rowKey])
