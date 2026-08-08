@@ -430,3 +430,60 @@ class AuditLogListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------- Task (P7, BLF-510) ----------
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    due_date: datetime | None = None
+    priority: Literal["low", "medium", "high", "urgent"] = "medium"
+    type: Literal["follow_up", "call", "visit", "custom"] = "custom"
+    owner_id: str | None = None  # 仅 admin 可指派他人；null=未指派
+    customer_id: int | None = None
+    lead_id: int | None = None
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    due_date: datetime | None = None
+    priority: Literal["low", "medium", "high", "urgent"] | None = None
+    type: Literal["follow_up", "call", "visit", "custom"] | None = None
+    owner_id: str | None = None  # 仅 admin 可改（非 admin 传 → 403）
+    customer_id: int | None = None
+    lead_id: int | None = None
+
+
+class TaskItem(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    due_date: datetime | None = None
+    priority: str
+    status: str
+    type: str
+    owner_id: str | None = None
+    owner_name: str | None = None
+    customer_id: int | None = None
+    customer_name: str | None = None
+    lead_id: int | None = None
+    lead_name: str | None = None
+    reminded_at: datetime | None = None
+    created_by: str | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TaskStatusUpdate(BaseModel):
+    status: Literal["pending", "in_progress", "done"]
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskItem]
+    total: int
+    page: int
+    page_size: int

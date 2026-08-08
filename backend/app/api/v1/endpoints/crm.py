@@ -48,6 +48,11 @@ from app.schemas.crm import (
     LeadItem,
     LeadListResponse,
     LeadUpdate,
+    TaskCreate,
+    TaskItem,
+    TaskListResponse,
+    TaskStatusUpdate,
+    TaskUpdate,
     ValueScoresUpdate,
 )
 from app.services.crm import (
@@ -59,6 +64,7 @@ from app.services.crm import (
     follow_service,
     follow_up_service,
     lead_service,
+    task_service,
     user_service,
     value_score_service,
 )
@@ -786,3 +792,277 @@ def get_dashboard_stats(
 ):
     require_admin(is_admin)
     return dashboard_service.get_dashboard_stats(db, is_admin=is_admin)
+
+
+# ---------- Task (P7, BLF-510) ----------
+@router.get("/tasks", response_model=TaskListResponse)
+def list_tasks(
+    scope: str = Query("mine"),
+    type: str | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+    priority: str | None = Query(None),
+    owner_id: str | None = Query(None),
+    customer_id: int | None = Query(None),
+    lead_id: int | None = Query(None),
+    sort_by: str = "due_date",
+    sort_order: str = "asc",
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """任务列表：scope=mine/all（非 admin 的 all 降级 mine）+ 筛选白名单 + 排序白名单。
+
+    owner_id 筛选仅管理员可用（非 admin scope 已降级 mine，再按他人过滤会串权 → 403）。
+    """
+    if owner_id is not None and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="owner_id 筛选仅管理员可用"
+        )
+    filters = {
+        "type": type,
+        "status": status_filter,
+        "priority": priority,
+        "owner_id": owner_id,
+        "customer_id": customer_id,
+        "lead_id": lead_id,
+    }
+    try:
+        items, total = task_service.list_tasks(
+            db,
+            user_id=user_id,
+            scope=resolve_scope(scope, is_admin),
+            filters=filters,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            page=page,
+            page_size=page_size,
+            is_admin=is_admin,
+        )
+    except ValueError as e:
+        # 非白名单筛选/排序字段 → 400
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return TaskListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.post("/tasks", response_model=TaskItem, status_code=status.HTTP_201_CREATED)
+def create_task(
+    payload: TaskCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """建任务；owner 默认=自己；admin 可指派他人；关联客户/线索须存在（404）。"""
+    _validate_task_links(db, payload.customer_id, payload.lead_id)
+    try:
+        item = task_service.create_task(
+            db, payload, user_id=user_id, is_admin=is_admin, commit=False
+        )
+    except HTTPException:
+        raise
+    audit_service.record_log(
+        db,
+        entity_type="task",
+        entity_id=item.id,
+        action="create",
+        actor_id=user_id,
+        summary=f"新建任务 {item.title}",
+    )
+    db.commit()
+    return item
+
+
+@router.get("/tasks/{task_id}", response_model=TaskItem)
+def get_task(
+    task_id: int,
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """任务详情（联查客户名/线索名/owner 名）；owner/admin 可见。"""
+    task = task_service.get_task_orm(db, task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    require_owner_or_admin(task.owner_id, user_id, is_admin)
+    return task_service.get_task(db, task_id)
+
+
+@router.patch("/tasks/{task_id}", response_model=TaskItem)
+def update_task(
+    task_id: int,
+    payload: TaskUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """改 title/description/due_date/priority/type/customer_id/lead_id；
+    owner_id 仅 admin 可改（非 admin 传 owner_id → 403）。
+    """
+    task = task_service.get_task_orm(db, task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    require_owner_or_admin(task.owner_id, user_id, is_admin)
+    _validate_task_links(db, payload.customer_id, payload.lead_id)
+    # 先快照改前值（update_task 会原地改 ORM 对象），再调 service
+    before = {k: getattr(task, k, None) for k in payload.model_dump(exclude_unset=True)}
+    try:
+        item = task_service.update_task(
+            db, task, payload, user_id=user_id, commit=False, is_admin=is_admin
+        )
+    except HTTPException:
+        raise
+    summary = _summarize_task_update(before, payload)
+    audit_service.record_log(
+        db,
+        entity_type="task",
+        entity_id=task_id,
+        action="update",
+        actor_id=user_id,
+        summary=summary or f"编辑任务 {task.title}",
+    )
+    db.commit()
+    return item
+
+
+@router.post("/tasks/{task_id}/status", response_model=TaskItem)
+def set_task_status(
+    task_id: int,
+    payload: TaskStatusUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """看板拖拽流转：{status} ∈ pending/in_progress/done（done/cancelled 后不可再流转）。"""
+    task = task_service.get_task_orm(db, task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    require_owner_or_admin(task.owner_id, user_id, is_admin)
+    item = task_service.set_task_status(
+        db, task, payload.status, user_id=user_id, commit=False
+    )
+    audit_service.record_log(
+        db,
+        entity_type="task",
+        entity_id=task_id,
+        action="status",
+        actor_id=user_id,
+        summary=f"状态变更: {task.title}",
+    )
+    db.commit()
+    return item
+
+
+@router.post("/tasks/{task_id}/complete", response_model=TaskItem)
+def complete_task(
+    task_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """完成：status→done + completed_at。
+
+    §3.3「done 联动生成 follow」属 BLF-515 决策落地，本期只做状态流转 + completed_at。
+    """
+    task = task_service.get_task_orm(db, task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    require_owner_or_admin(task.owner_id, user_id, is_admin)
+    item = task_service.complete_task(db, task, user_id=user_id, commit=False)
+    audit_service.record_log(
+        db,
+        entity_type="task",
+        entity_id=task_id,
+        action="complete",
+        actor_id=user_id,
+        summary=f"完成任务 {task.title}",
+    )
+    db.commit()
+    return item
+
+
+@router.post("/tasks/{task_id}/cancel", response_model=TaskItem)
+def cancel_task(
+    task_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """取消：status→cancelled。"""
+    task = task_service.get_task_orm(db, task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    require_owner_or_admin(task.owner_id, user_id, is_admin)
+    item = task_service.cancel_task(db, task, user_id=user_id, commit=False)
+    audit_service.record_log(
+        db,
+        entity_type="task",
+        entity_id=task_id,
+        action="cancel",
+        actor_id=user_id,
+        summary=f"取消任务 {task.title}",
+    )
+    db.commit()
+    return item
+
+
+def _validate_task_links(
+    db: Session, customer_id: int | None, lead_id: int | None
+) -> None:
+    """关联客户/线索须存在；不存在 → 404（设计文档 §6.2）。"""
+    if customer_id is not None:
+        exists = db.execute(
+            text("select 1 from crm_customers where id = :cid limit 1"),
+            {"cid": customer_id},
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found"
+            )
+    if lead_id is not None:
+        exists = db.execute(
+            text("select 1 from crm_leads where id = :lid limit 1"),
+            {"lid": lead_id},
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
+            )
+
+
+def _summarize_task_update(before: dict, payload: TaskUpdate) -> str | None:
+    """任务 update 中文变更摘要（只列有变化的字段）。before 为改前快照。"""
+    labels = {
+        "title": "标题",
+        "description": "描述",
+        "due_date": "截止",
+        "priority": "优先级",
+        "type": "类型",
+        "owner_id": "负责人",
+        "customer_id": "关联客户",
+        "lead_id": "关联线索",
+    }
+    parts: list[str] = []
+    for key, new in payload.model_dump(exclude_unset=True).items():
+        old = before.get(key)
+        if old == new:
+            continue
+        label = labels.get(key, key)
+        parts.append(f"{label}: {_fmt_task_val(old)}→{_fmt_task_val(new)}")
+    return "; ".join(parts) if parts else None
+
+
+def _fmt_task_val(value) -> str:
+    if value is None or value == "":
+        return "空"
+    return str(value)
