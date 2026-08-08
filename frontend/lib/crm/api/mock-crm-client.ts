@@ -19,6 +19,8 @@ import type {
   FunnelStageQuery,
   Lead,
   LeadInput,
+  LifecycleBoard,
+  LifecycleDistribution,
   Task,
   TaskInput,
   TaskListParams,
@@ -910,6 +912,117 @@ export class MockCrmClient implements CrmClient {
         dwellDays: r.dwell,
         isStuck: r.isStuck,
       })),
+    }
+  }
+
+  // ===== 生命周期看板（P8，BLF-520） =====
+
+  async getLifecycleBoard(): Promise<LifecycleBoard> {
+    await this.delay('getLifecycleBoard')
+
+    const DAY = 1000 * 60 * 60 * 24
+    const days = (from: string, to: string) =>
+      Math.max(0, (new Date(to).getTime() - new Date(from).getTime()) / DAY)
+
+    // first_follow：客户创建 → 第一条跟进（与后端口径一致，取最早）
+    const customers = [...this.state.customers]
+    const followByCustomer = (id: string) =>
+      this.state.follows
+        .filter((f) => f.entityType === 'customer' && f.entityId === id)
+        .map((f) => f.createdAt)
+        .sort()
+    const firstFollowDays: number[] = []
+    for (const c of customers) {
+      const first = followByCustomer(c.id)[0]
+      if (first) firstFollowDays.push(days(c.createdAt, first))
+    }
+
+    // conversion：线索创建 → converted_at
+    const leads = [...this.state.leads]
+    const conversionDays: number[] = []
+    for (const l of leads) {
+      if (l.convertedAt) conversionDays.push(days(l.createdAt, l.convertedAt))
+    }
+
+    // churn：公海客户 mock 合成回公海事件（创建后 (id 哈希 % 45) 天），
+    // 演示用——mock 无审计日志，用确定性假事件铺出分布形状。
+    const churnDays: number[] = []
+    for (const c of customers) {
+      if (c.ownerId) continue
+      const hash = [...c.id].reduce((s, ch) => s + ch.charCodeAt(0), 0)
+      churnDays.push(Math.max(1, hash % 45))
+    }
+
+    const bucketize = (durations: number[]) => {
+      const edges = [1, 3, 7, 14, 30]
+      const labels = ['1 天内', '1-3 天', '3-7 天', '7-14 天', '14-30 天', '30 天以上']
+      const counts = labels.map(() => 0)
+      for (const d of durations) {
+        const i = edges.findIndex((e) => d < e)
+        counts[i === -1 ? labels.length - 1 : i] += 1
+      }
+      const n = Math.max(durations.length, 1)
+      let cumulative = 0
+      return labels.map((label, i) => {
+        cumulative += counts[i]
+        return {
+          label,
+          minDays: i === 0 ? 0 : edges[i - 1],
+          maxDays: i === labels.length - 1 ? undefined : edges[i],
+          count: counts[i],
+          pct: Math.round((counts[i] / n) * 10000) / 10000,
+          cumulativePct: Math.round((cumulative / n) * 10000) / 10000,
+        }
+      })
+    }
+
+    const summary = (durations: number[]) => {
+      const ordered = [...durations].sort((a, b) => a - b)
+      const n = ordered.length
+      if (n === 0) return { sampleCount: 0, avgDays: undefined, medianDays: undefined, p90Days: undefined, maxDays: undefined }
+      const mid = Math.floor(n / 2)
+      const median = n % 2 ? ordered[mid] : (ordered[mid - 1] + ordered[mid]) / 2
+      const round1 = (v: number) => Math.round(v * 10) / 10
+      return {
+        sampleCount: n,
+        avgDays: round1(ordered.reduce((s, d) => s + d, 0) / n),
+        medianDays: round1(median),
+        p90Days: round1(ordered[Math.min(n - 1, Math.floor(n * 0.9))]),
+        maxDays: round1(ordered[n - 1]),
+      }
+    }
+
+    const dist = (
+      metric: LifecycleBoard['firstFollow']['metric'],
+      label: string,
+      description: string,
+      durations: number[],
+      totalCount: number
+    ): LifecycleDistribution => ({
+      metric,
+      label,
+      description,
+      buckets: bucketize(durations),
+      summary: { ...summary(durations), totalCount },
+    })
+
+    return {
+      firstFollow: dist(
+        'first_follow',
+        '首次跟进',
+        '客户创建 → 第一条跟进记录',
+        firstFollowDays,
+        customers.length
+      ),
+      conversion: dist(
+        'conversion',
+        '转化',
+        '线索创建 → 转化完成（线索转客户）',
+        conversionDays,
+        leads.length
+      ),
+      churn: dist('churn', '流失', '客户创建 → 首次回公海', churnDays, customers.length),
+      nowInSea: customers.filter((c) => !c.ownerId).length,
     }
   }
 

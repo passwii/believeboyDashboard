@@ -6,6 +6,7 @@ import {
   mapFollowUpGroups,
   mapFunnelStageDetail,
   mapLead,
+  mapLifecycleBoard,
   mapTask,
   mapUser,
   toConvertPayload,
@@ -18,6 +19,7 @@ import {
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
+  type LifecycleBoardDto,
   type StageDetailDto,
   type TaskDto,
 } from './dto-mappers'
@@ -407,5 +409,51 @@ describe('mapFunnelStageDetail（漏斗二层复盘面板，BLF-518）', () => {
     const d = mapFunnelStageDetail({ ...stageDto, outflow: null, avg_dwell_days: null, leads: [] })
     expect(d.outflow).toBeUndefined()
     expect(d.avgDwellDays).toBeUndefined()
+  })
+})
+
+describe('mapLifecycleBoard（生命周期看板，BLF-520）', () => {
+  const boardDto: LifecycleBoardDto = {
+    first_follow: {
+      metric: 'first_follow',
+      label: '首次跟进',
+      description: '客户创建 → 第一条跟进记录',
+      buckets: [
+        { label: '1 天内', min_days: 0, max_days: 1, count: 3, pct: 0.6, cumulative_pct: 0.6 },
+        { label: '30 天以上', min_days: 30, max_days: null, count: 2, pct: 0.4, cumulative_pct: 1.0 },
+      ],
+      summary: { sample_count: 5, total_count: 8, avg_days: 2.5, median_days: 1.0, p90_days: 9.9, max_days: 40.0 },
+    },
+    conversion: {
+      metric: 'conversion',
+      label: '转化',
+      description: '线索创建 → 转化完成（线索转客户）',
+      buckets: [],
+      summary: { sample_count: 0, total_count: 10 },
+    },
+    churn: {
+      metric: 'churn',
+      label: '流失',
+      description: '客户创建 → 首次回公海',
+      buckets: [],
+      summary: { sample_count: 0, total_count: 8 },
+    },
+    now_in_sea: 2,
+  }
+
+  it('snake → camel、null → undefined、nowInSea 透传', () => {
+    const board = mapLifecycleBoard(boardDto)
+    expect(board.nowInSea).toBe(2)
+    expect(board.firstFollow.metric).toBe('first_follow')
+    expect(board.firstFollow.label).toBe('首次跟进')
+    expect(board.firstFollow.summary.sampleCount).toBe(5)
+    expect(board.firstFollow.summary.totalCount).toBe(8)
+    expect(board.firstFollow.summary.avgDays).toBe(2.5)
+    expect(board.firstFollow.buckets[0]?.maxDays).toBe(1)
+    expect(board.firstFollow.buckets[0]?.cumulativePct).toBe(0.6)
+    expect(board.firstFollow.buckets[1]?.maxDays).toBeUndefined()
+    expect(board.firstFollow.buckets[1]?.cumulativePct).toBe(1.0)
+    expect(board.conversion.summary.sampleCount).toBe(0)
+    expect(board.churn.summary.totalCount).toBe(8)
   })
 })

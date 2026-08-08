@@ -82,3 +82,48 @@ export interface FunnelStageDetail {
   pageSize: number
   total: number
 }
+
+// ---------- 生命周期看板（P8，BLF-520） ----------
+
+/** 生命周期分布的一个天数分桶（直方图柱）。 */
+export interface LifecycleBucket {
+  label: string
+  minDays: number
+  /** 无上限桶（30 天以上）无 maxDays。 */
+  maxDays?: number
+  count: number
+  /** 占样本比例（0-1）。 */
+  pct: number
+  /** 累计占比（0-1，漏斗叠加用：N 天内完成的比例）。 */
+  cumulativePct: number
+}
+
+/** 生命周期分布的摘要统计（天数）。 */
+export interface LifecycleSummary {
+  /** 有该事件的数据数（分布主体）。 */
+  sampleCount: number
+  /** 口径总体（如全部未删除客户数）。 */
+  totalCount: number
+  avgDays?: number
+  medianDays?: number
+  p90Days?: number
+  maxDays?: number
+}
+
+/** 一种「从创建到事件」的时间分布（BLF-520）。 */
+export interface LifecycleDistribution {
+  metric: 'first_follow' | 'conversion' | 'churn'
+  label: string
+  description: string
+  buckets: LifecycleBucket[]
+  summary: LifecycleSummary
+}
+
+/** 生命周期看板聚合结果（客户创建 → 首次跟进/转化/流失 的时间分布）。 */
+export interface LifecycleBoard {
+  firstFollow: LifecycleDistribution
+  conversion: LifecycleDistribution
+  churn: LifecycleDistribution
+  /** 当前在公海的客户数（owner 为空）。 */
+  nowInSea: number
+}

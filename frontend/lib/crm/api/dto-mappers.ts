@@ -21,6 +21,8 @@ import type {
   FunnelStageDetail,
   Lead,
   LeadInput,
+  LifecycleBoard,
+  LifecycleDistribution,
   Task,
   TaskInput,
   User,
@@ -187,6 +189,40 @@ export interface StageDetailDto {
   page: number
   page_size: number
   total: number
+}
+
+/** 生命周期看板 DTO（BLF-520 后端 LifecycleBoard）。 */
+export interface LifecycleBucketDto {
+  label: string
+  min_days: number
+  max_days?: number | null
+  count: number
+  pct: number
+  cumulative_pct: number
+}
+
+export interface LifecycleSummaryDto {
+  sample_count: number
+  total_count: number
+  avg_days?: number | null
+  median_days?: number | null
+  p90_days?: number | null
+  max_days?: number | null
+}
+
+export interface LifecycleDistributionDto {
+  metric: string
+  label: string
+  description: string
+  buckets: LifecycleBucketDto[]
+  summary: LifecycleSummaryDto
+}
+
+export interface LifecycleBoardDto {
+  first_follow: LifecycleDistributionDto
+  conversion: LifecycleDistributionDto
+  churn: LifecycleDistributionDto
+  now_in_sea: number
 }
 
 export interface AuditLogDto {
@@ -397,6 +433,40 @@ export function mapFunnelStageDetail(dto: StageDetailDto): FunnelStageDetail {
       dwellDays: l.dwell_days ?? undefined,
       isStuck: l.is_stuck,
     })),
+  }
+}
+
+/** 生命周期看板映射（BLF-520）：snake → camel；null → undefined。 */
+export function mapLifecycleDistribution(dto: LifecycleDistributionDto): LifecycleDistribution {
+  return {
+    metric: dto.metric as LifecycleDistribution['metric'],
+    label: dto.label,
+    description: dto.description,
+    buckets: dto.buckets.map((b) => ({
+      label: b.label,
+      minDays: b.min_days,
+      maxDays: b.max_days ?? undefined,
+      count: b.count,
+      pct: b.pct,
+      cumulativePct: b.cumulative_pct,
+    })),
+    summary: {
+      sampleCount: dto.summary.sample_count,
+      totalCount: dto.summary.total_count,
+      avgDays: dto.summary.avg_days ?? undefined,
+      medianDays: dto.summary.median_days ?? undefined,
+      p90Days: dto.summary.p90_days ?? undefined,
+      maxDays: dto.summary.max_days ?? undefined,
+    },
+  }
+}
+
+export function mapLifecycleBoard(dto: LifecycleBoardDto): LifecycleBoard {
+  return {
+    firstFollow: mapLifecycleDistribution(dto.first_follow),
+    conversion: mapLifecycleDistribution(dto.conversion),
+    churn: mapLifecycleDistribution(dto.churn),
+    nowInSea: dto.now_in_sea,
   }
 }
 

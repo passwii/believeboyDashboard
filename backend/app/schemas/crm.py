@@ -535,6 +535,63 @@ class PerformanceBoard(BaseModel):
     ranking: list[PerformanceRankItem] = []  # 全员排名表（仅 scope=all）
 
 
+# ---------- 生命周期看板（P8, BLF-520） ----------
+class LifecycleBucket(BaseModel):
+    """一个天数分桶（直方图柱）。
+
+    - pct：占 sample_count 比例（保留 4 位小数）。
+    - cumulative_pct：累计占比 = 该桶及之前所有桶合计 / sample_count
+      （前端「转化时间漏斗叠加」用它画漏斗）。
+    """
+
+    label: str  # 桶名（如 "1 天内" / "3-7 天" / "30 天以上"）
+    min_days: float
+    max_days: float | None = None  # None = 无上限桶
+    count: int = 0
+    pct: float = 0.0
+    cumulative_pct: float = 0.0
+
+
+class LifecycleSummary(BaseModel):
+    """生命周期分布的摘要统计（天数）。
+
+    sample_count = 有该事件的数据数（分布主体）；total_count = 口径总体
+    （如全部未删除客户数），供前端展示覆盖率。
+    """
+
+    sample_count: int = 0
+    total_count: int = 0
+    avg_days: float | None = None
+    median_days: float | None = None  # P50
+    p90_days: float | None = None
+    max_days: float | None = None
+
+
+class LifecycleDistribution(BaseModel):
+    """一种「从创建到事件」的时间分布（BLF-520）。"""
+
+    metric: Literal["first_follow", "conversion", "churn"]
+    label: str  # 中文展示名（首次跟进 / 转化 / 流失）
+    description: str  # 口径说明
+    buckets: list[LifecycleBucket] = []
+    summary: LifecycleSummary = Field(default_factory=LifecycleSummary)
+
+
+class LifecycleBoard(BaseModel):
+    """生命周期看板（P8, BLF-520，仅管理员）。
+
+    - first_follow：客户创建 → 第一条跟进（crm_follows entity_type=customer）。
+    - conversion：线索创建 → 转化（crm_leads.converted_at）。
+    - churn：客户创建 → 首次回公海（审计 move_sea / 系统回收跟进，取较早）。
+    - now_in_sea：当前在公海的客户数（owner_id 为空，公海现状快照）。
+    """
+
+    first_follow: LifecycleDistribution = Field(default_factory=LifecycleDistribution)
+    conversion: LifecycleDistribution = Field(default_factory=LifecycleDistribution)
+    churn: LifecycleDistribution = Field(default_factory=LifecycleDistribution)
+    now_in_sea: int = 0
+
+
 # ---------- Audit Log (P4) ----------
 class AuditLogItem(BaseModel):
     id: int

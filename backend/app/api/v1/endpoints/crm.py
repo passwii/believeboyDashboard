@@ -53,6 +53,7 @@ from app.schemas.crm import (
     LeadItem,
     LeadListResponse,
     LeadUpdate,
+    LifecycleBoard,
     PerformanceBoard,
     StageDetail,
     TaskCreate,
@@ -908,6 +909,21 @@ def get_performance_board(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------- 生命周期看板（P8, BLF-520，仅管理员） ----------
+@router.get("/dashboard/lifecycle", response_model=LifecycleBoard)
+def get_lifecycle_board(
+    db: Session = Depends(get_read_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """生命周期看板：客户从创建到 首次跟进/转化/流失 的时间分布（BLF-520）。
+
+    仅管理员。三种分布（分桶直方图 + 均值/中位/P90）+ 当前公海客户数；
+    前端渲染直方图 + 转化时间漏斗叠加。
+    """
+    require_admin(is_admin)
+    return dashboard_service.get_lifecycle_board(db, is_admin=is_admin)
 
 
 # ---------- Task (P7, BLF-510) ----------
