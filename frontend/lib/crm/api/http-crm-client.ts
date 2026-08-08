@@ -17,6 +17,7 @@ import type {
   FunnelStageQuery,
   Lead,
   LeadInput,
+  LifecycleBoard,
   Task,
   TaskInput,
   TaskListParams,
@@ -34,6 +35,7 @@ import {
   mapFunnelStageDetail,
   mapImportResult,
   mapLead,
+  mapLifecycleBoard,
   mapTask,
   mapUser,
   toContactPayload,
@@ -51,6 +53,7 @@ import {
   type FollowUpGroupsDto,
   type StageDetailDto,
   type LeadDto,
+  type LifecycleBoardDto,
   type TaskDto,
   type UserDto,
 } from './dto-mappers'
@@ -342,6 +345,11 @@ export class HttpCrmClient implements CrmClient {
     return mapFunnelStageDetail(
       await request<StageDetailDto>(`/dashboard/funnel/stage/${params.stage}?${qs.toString()}`)
     )
+  }
+
+  // ===== 生命周期看板（P8，BLF-520） =====
+  async getLifecycleBoard(): Promise<LifecycleBoard> {
+    return mapLifecycleBoard(await request<LifecycleBoardDto>('/dashboard/lifecycle'))
   }
 
   // ===== Audit Log 操作审计日志（P4 + P5-9/P5-11） =====

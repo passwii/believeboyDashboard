@@ -13,6 +13,7 @@ import type {
   DashboardStats,
   FunnelStageDetail,
   FunnelStageQuery,
+  LifecycleBoard,
   AuditLog,
   AuditLogQuery,
   CustomerSeaImportRow,
@@ -87,6 +88,9 @@ export interface CrmClient {
 
   /** 漏斗二层复盘面板：某阶段的停留/卡点明细（BLF-518）。 */
   getFunnelStageDetail(params: FunnelStageQuery): Promise<FunnelStageDetail>
+
+  /** 生命周期看板：客户创建 → 首次跟进/转化/流失 的时间分布（BLF-520）。 */
+  getLifecycleBoard(): Promise<LifecycleBoard>
 
   listAuditLogs(params: AuditLogQuery): Promise<Paginated<AuditLog>>
 

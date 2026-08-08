@@ -331,3 +331,60 @@ describe('HttpCrmClient.getFunnelStageDetail (BLF-518)', () => {
     expect(lastUrl).toBe('/api/backend/v1/crm/dashboard/funnel/stage/new?sort_by=dwell&stuck_days=7')
   })
 })
+
+describe('HttpCrmClient.getLifecycleBoard (BLF-520)', () => {
+  let originalFetch: typeof fetch
+  let lastUrl: string | null = null
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    lastUrl = null
+    globalThis.fetch = vi.fn(async (url) => {
+      lastUrl = String(url)
+      return new Response(
+        JSON.stringify({
+          first_follow: {
+            metric: 'first_follow',
+            label: '首次跟进',
+            description: 'x',
+            buckets: [
+              { label: '1 天内', min_days: 0, max_days: 1, count: 2, pct: 1, cumulative_pct: 1 },
+            ],
+            summary: { sample_count: 2, total_count: 2, avg_days: 0.5 },
+          },
+          conversion: {
+            metric: 'conversion',
+            label: '转化',
+            description: 'x',
+            buckets: [],
+            summary: { sample_count: 0, total_count: 1 },
+          },
+          churn: {
+            metric: 'churn',
+            label: '流失',
+            description: 'x',
+            buckets: [],
+            summary: { sample_count: 0, total_count: 2 },
+          },
+          now_in_sea: 3,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('请求 /dashboard/lifecycle 并 camel 化映射', async () => {
+    const client = new HttpCrmClient()
+    const board = await client.getLifecycleBoard()
+    expect(lastUrl).toBe('/api/backend/v1/crm/dashboard/lifecycle')
+    expect(board.nowInSea).toBe(3)
+    expect(board.firstFollow.metric).toBe('first_follow')
+    expect(board.firstFollow.summary.sampleCount).toBe(2)
+    expect(board.firstFollow.buckets[0]?.maxDays).toBe(1)
+    expect(board.conversion.summary.sampleCount).toBe(0)
+  })
+})

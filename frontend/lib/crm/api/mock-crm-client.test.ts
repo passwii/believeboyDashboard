@@ -416,3 +416,57 @@ describe('MockCrmClient · 漏斗二层复盘面板 getFunnelStageDetail (BLF-51
     expect(d.leads).toHaveLength(0)
   })
 })
+
+describe('MockCrmClient · 生命周期看板 getLifecycleBoard (BLF-520)', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.clear()
+    }
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('返回三种分布，各 6 桶，nowInSea = 无负责人客户数', async () => {
+    const board = await client.getLifecycleBoard()
+    expect(board.nowInSea).toBe(CUSTOMERS_FIXTURE.filter((c) => !c.ownerId).length)
+    for (const key of ['firstFollow', 'conversion', 'churn'] as const) {
+      const dist = board[key]
+      expect(dist.buckets).toHaveLength(6)
+      expect(dist.buckets[5].maxDays).toBeUndefined() // 无上限桶
+      // 累计占比单调不减
+      for (let i = 1; i < dist.buckets.length; i++) {
+        expect(dist.buckets[i].cumulativePct).toBeGreaterThanOrEqual(
+          dist.buckets[i - 1].cumulativePct
+        )
+      }
+    }
+  })
+
+  it('first_follow 样本 = 有跟进客户数，且时长非负', async () => {
+    const board = await client.getLifecycleBoard()
+    const withFollow = CUSTOMERS_FIXTURE.filter((c) =>
+      FOLLOWS_FIXTURE.some((f) => f.entityType === 'customer' && f.entityId === c.id)
+    ).length
+    expect(board.firstFollow.summary.sampleCount).toBe(withFollow)
+    expect(board.firstFollow.summary.totalCount).toBe(CUSTOMERS_FIXTURE.length)
+    // 桶计数合计 = 样本数
+    const total = board.firstFollow.buckets.reduce((s, b) => s + b.count, 0)
+    expect(total).toBe(withFollow)
+  })
+
+  it('conversion 样本 = 已转化线索数', async () => {
+    const board = await client.getLifecycleBoard()
+    const converted = LEADS_FIXTURE.filter((l) => l.convertedAt).length
+    expect(board.conversion.summary.sampleCount).toBe(converted)
+    expect(board.conversion.summary.totalCount).toBe(LEADS_FIXTURE.length)
+  })
+
+  it('churn 样本 = 公海客户数（mock 合成事件），摘要含中位/P90', async () => {
+    const board = await client.getLifecycleBoard()
+    const seaCount = CUSTOMERS_FIXTURE.filter((c) => !c.ownerId).length
+    expect(board.churn.summary.sampleCount).toBe(seaCount)
+    expect(board.churn.summary.medianDays).toBeDefined()
+    expect(board.churn.summary.p90Days).toBeDefined()
+  })
+})

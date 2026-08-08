@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BarChart3, RefreshCcw, Sparkles, TrendingUp, Users } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
-import type { DashboardStats } from '@/lib/crm/types'
+import type { DashboardStats, LifecycleBoard } from '@/lib/crm/types'
 import { StatCard, StatCardRow } from '@/components/ui/stat-card'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import {
 import { FunnelChart } from '@/components/ui/funnel-chart'
 import { buildLeadStageFunnel, leadConversionRate, leadFunnelStepRates } from '@/lib/crm/method/lead-funnel'
 import { FunnelStageDrawer } from '@/components/crm/funnel-stage-drawer'
+import { LifecycleBoardSection } from '@/components/crm/lifecycle-board'
 
 /** 数字紧凑显示：12400 → "1.2万"，小数字原样。 */
 const compact = (v: number) => new Intl.NumberFormat('zh-CN', { notation: 'compact' }).format(v)
@@ -35,6 +36,7 @@ const STAGE_LABELS: Record<string, string> = {
 export default function CrmDashboardPage() {
   const client = useCrmClient()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [lifecycle, setLifecycle] = useState<LifecycleBoard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStage, setSelectedStage] = useState<string | null>(null)
@@ -43,7 +45,12 @@ export default function CrmDashboardPage() {
     setLoading(true)
     setError(null)
     try {
-      setStats(await client.getDashboardStats())
+      const [statsRes, lifecycleRes] = await Promise.all([
+        client.getDashboardStats(),
+        client.getLifecycleBoard(),
+      ])
+      setStats(statsRes)
+      setLifecycle(lifecycleRes)
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载看板失败')
     } finally {
@@ -223,6 +230,9 @@ export default function CrmDashboardPage() {
           )}
         </div>
       </div>
+
+      {/* 生命周期（P8，BLF-520）：创建 → 首次跟进/转化/流失 时间分布 */}
+      <LifecycleBoardSection board={lifecycle} loading={loading} />
 
       {/* 漏斗二层复盘面板（BLF-518）：点击漏斗某级展开 */}
       <FunnelStageDrawer

@@ -12,12 +12,16 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmCustomer, CrmFollow, CrmLead, CrmTask
+from app.models.crm import CrmAuditLog, CrmCustomer, CrmFollow, CrmLead, CrmTask
 from app.schemas.crm import (
     DashboardStats,
     FollowActivity,
     FunnelDimensionItem,
     FunnelMetrics,
+    LifecycleBoard,
+    LifecycleBucket,
+    LifecycleDistribution,
+    LifecycleSummary,
     NewThisMonth,
     OwnerPerformance,
     PerformanceBoard,
@@ -674,4 +678,216 @@ def get_performance_board(
         total_users=total_users,
         global_metrics=global_metrics,
         ranking=ranking,
+    )
+
+
+# =====================================================================
+# P8 生命周期看板（BLF-520）— 客户从创建到里程碑事件的时间分布
+#
+# 口径（天数 = 事件时间 - 创建时间，向下钳制到 0，Asia/Shanghai 不参与计算）：
+#   - first_follow（首次跟进）：客户创建 → 第一条跟进（crm_follows
+#     entity_type='customer'）。线索转化时跟进会 re-parent 到客户
+#     （created_at 早于客户创建），时长钳制到 0（同一天）即可，不扭曲分布。
+#   - conversion（转化）：线索创建 → 转化（crm_leads.converted_at）。
+#     客户自身无 converted_at，线索转客户是系统里唯一的转化事件。
+#   - churn（流失）：客户创建 → 首次回公海。公海事件 = 审计 action='move_sea'
+#     （手动释放）与系统回收跟进（created_by 为空且内容含「回收至公海」，
+#     P3a 自动回收，见 sea_reclaim_service）中较早者；多次回公海取首次。
+# 分桶边界（天）：[0,1) [1,3) [3,7) [7,14) [14,30) [30,∞) → 6 桶。
+# =====================================================================
+
+# 桶上界（天）；6 桶 = 5 个边界 + 无上限桶
+_LIFECYCLE_BUCKET_EDGES = (1.0, 3.0, 7.0, 14.0, 30.0)
+_LIFECYCLE_BUCKET_LABELS = (
+    "1 天内",
+    "1-3 天",
+    "3-7 天",
+    "7-14 天",
+    "14-30 天",
+    "30 天以上",
+)
+# P3a 自动回收系统跟进的内容标记（sea_reclaim_service._write_system_follow）
+_SEA_RECLAIM_FOLLOW_MARK = "回收至公海"
+
+
+def _lifecycle_bucket_index(days: float) -> int:
+    """天数 → 桶下标（0..5）。"""
+    for i, edge in enumerate(_LIFECYCLE_BUCKET_EDGES):
+        if days < edge:
+            return i
+    return len(_LIFECYCLE_BUCKET_EDGES)
+
+
+def _days_between(start: datetime, end: datetime) -> float:
+    """两个时间点之间的天数；任一缺失或负值 → 0（钳制，避免 re-parent 噪音）。"""
+    if start is None or end is None:
+        return 0.0
+    return max(0.0, (end - start).total_seconds() / 86400.0)
+
+
+def _duration_summary(durations: list[float]) -> LifecycleSummary:
+    """时长列表 → 摘要（均值 / 中位 P50 / P90 / 最大值）。"""
+    if not durations:
+        return LifecycleSummary()
+    ordered = sorted(durations)
+    n = len(ordered)
+    median = ordered[n // 2] if n % 2 else (ordered[n // 2 - 1] + ordered[n // 2]) / 2.0
+    p90 = ordered[min(n - 1, int(n * 0.9))]
+    return LifecycleSummary(
+        sample_count=n,
+        avg_days=round(sum(ordered) / n, 1),
+        median_days=round(median, 1),
+        p90_days=round(p90, 1),
+        max_days=round(ordered[-1], 1),
+    )
+
+
+def _buckets_from_durations(durations: list[float]) -> list[LifecycleBucket]:
+    """时长列表 → 直方图分桶（含累计占比，前端漏斗叠加用）。"""
+    n_buckets = len(_LIFECYCLE_BUCKET_EDGES) + 1
+    counts = [0] * n_buckets
+    for d in durations:
+        counts[_lifecycle_bucket_index(d)] += 1
+    n = max(len(durations), 1)
+    cumulative = 0
+    buckets = []
+    for i in range(n_buckets):
+        cumulative += counts[i]
+        buckets.append(
+            LifecycleBucket(
+                label=_LIFECYCLE_BUCKET_LABELS[i],
+                min_days=0.0 if i == 0 else _LIFECYCLE_BUCKET_EDGES[i - 1],
+                max_days=None if i == n_buckets - 1 else _LIFECYCLE_BUCKET_EDGES[i],
+                count=counts[i],
+                pct=round(counts[i] / n, 4),
+                cumulative_pct=round(cumulative / n, 4),
+            )
+        )
+    return buckets
+
+
+def _build_distribution(
+    metric: str,
+    label: str,
+    description: str,
+    durations: list[float],
+    total_count: int,
+) -> LifecycleDistribution:
+    summary = _duration_summary(durations)
+    summary.total_count = total_count
+    return LifecycleDistribution(
+        metric=metric,  # type: ignore[arg-type]
+        label=label,
+        description=description,
+        buckets=_buckets_from_durations(durations),
+        summary=summary,
+    )
+
+
+def get_lifecycle_board(
+    db: Session,
+    *,
+    is_admin: bool,
+) -> LifecycleBoard:
+    """生命周期看板：客户从创建到 首次跟进/转化/流失 的时间分布（BLF-520）。
+
+    仅管理员（require_admin）。三种分布各一条聚合查询，无 N+1；
+    时长只依赖事件时间差，不随"现在"漂移（区别于漏斗 dwell）。
+    """
+    require_admin(is_admin)
+
+    # ---- first_follow：客户创建 → 第一条跟进（LEFT JOIN 保无跟进客户）----
+    cust_rows = db.execute(
+        select(
+            CrmCustomer.created_at,
+            func.min(CrmFollow.created_at).label("first_follow_at"),
+        )
+        .select_from(CrmCustomer)
+        .outerjoin(
+            CrmFollow,
+            (CrmFollow.entity_type == "customer")
+            & (CrmFollow.entity_id == CrmCustomer.id),
+        )
+        .where(CrmCustomer.is_deleted.is_(False))
+        .group_by(CrmCustomer.id, CrmCustomer.created_at)
+    ).all()
+    total_customers = len(cust_rows)
+    ff_durations = [
+        _days_between(r.created_at, r.first_follow_at)
+        for r in cust_rows
+        if r.first_follow_at is not None
+    ]
+
+    # ---- conversion：线索创建 → 转化（converted_at 非空）----
+    conv_rows = db.execute(
+        select(CrmLead.created_at, CrmLead.converted_at)
+        .where(CrmLead.is_deleted.is_(False), CrmLead.converted_at.is_not(None))
+        .order_by(CrmLead.id)
+    ).all()
+    total_leads = db.execute(
+        select(func.count()).select_from(CrmLead).where(CrmLead.is_deleted.is_(False))
+    ).scalar_one()
+    conv_durations = [_days_between(r.created_at, r.converted_at) for r in conv_rows]
+
+    # ---- churn：客户创建 → 首次回公海（审计 move_sea ∪ 系统回收跟进，取较早）----
+    churn_events = (
+        select(CrmAuditLog.entity_id, CrmAuditLog.created_at)
+        .where(
+            CrmAuditLog.entity_type == "customer",
+            CrmAuditLog.action == "move_sea",
+        )
+        .union_all(
+            select(CrmFollow.entity_id, CrmFollow.created_at).where(
+                CrmFollow.entity_type == "customer",
+                CrmFollow.created_by.is_(None),
+                CrmFollow.content.contains(_SEA_RECLAIM_FOLLOW_MARK),
+            )
+        )
+        .subquery()
+    )
+    churn_rows = db.execute(
+        select(
+            CrmCustomer.created_at,
+            func.min(churn_events.c.created_at).label("churn_at"),
+        )
+        .select_from(CrmCustomer)
+        .outerjoin(churn_events, churn_events.c.entity_id == CrmCustomer.id)
+        .where(CrmCustomer.is_deleted.is_(False))
+        .group_by(CrmCustomer.id, CrmCustomer.created_at)
+    ).all()
+    churn_durations = [
+        _days_between(r.created_at, r.churn_at)
+        for r in churn_rows
+        if r.churn_at is not None
+    ]
+
+    now_in_sea = db.execute(
+        select(func.count())
+        .select_from(CrmCustomer)
+        .where(CrmCustomer.is_deleted.is_(False), CrmCustomer.owner_id.is_(None))
+    ).scalar_one()
+
+    return LifecycleBoard(
+        first_follow=_build_distribution(
+            "first_follow",
+            "首次跟进",
+            "客户创建 → 第一条跟进记录",
+            ff_durations,
+            total_customers,
+        ),
+        conversion=_build_distribution(
+            "conversion",
+            "转化",
+            "线索创建 → 转化完成（线索转客户）",
+            conv_durations,
+            total_leads,
+        ),
+        churn=_build_distribution(
+            "churn",
+            "流失",
+            "客户创建 → 首次回公海",
+            churn_durations,
+            total_customers,
+        ),
+        now_in_sea=int(now_in_sea),
     )
