@@ -1047,6 +1047,86 @@ async def task_reminders_stream(
     )
 
 
+# ---------- 7 天无跟进提醒 SSE（P9-1, BLF-539） ----------
+# 轮询间隔：每 60s 查一次当前用户应提醒的 stale 客户/线索（每日级低频事件，延迟可接受）
+FOLLOW_UP_REMINDER_TICK_SECONDS = 60
+
+
+def _fetch_user_follow_up_reminders(user_id: str | None) -> list[dict]:
+    """SSE 每 tick 的同步查询：当前用户应提醒的 stale 客户/线索（独立 session，用完即关）。
+
+    返回 [{entity_type, entity_id, name, days}]，供流式推送（数字员工
+    _build_tick_sync 同款模式）。days=实际未跟进天数。
+    """
+    from app.core.config import get_settings
+    from app.services.crm.follow_up_reminder_service import (
+        list_user_stale_reminders,
+    )
+
+    db = SessionLocal()
+    try:
+        return list_user_stale_reminders(
+            db,
+            user_id=user_id,
+            days=get_settings().crm_follow_up_reminder_days,
+        )
+    finally:
+        db.close()
+
+
+async def _follow_up_reminder_stream(request: Request, user_id: str | None):
+    """SSE 生成器：每 tick 在线程池查 DB，diff 后只推送新增提醒，不阻塞事件循环。
+
+    - 首次连接即推送当前全部应提醒实体（重放离线期错过的提醒）；
+    - 之后仅推送新出现的 (entity_type, entity_id)（同一连接内不重复轰炸）；
+    - keep-alive 注释行防代理超时；is_disconnected 断连退出。
+    """
+    pushed_keys: set[tuple[str, int]] = set()
+    while True:
+        # 客户端断连 → 退出
+        if await request.is_disconnected():
+            break
+        try:
+            reminders = await asyncio.to_thread(
+                _fetch_user_follow_up_reminders, user_id
+            )
+            fresh = [
+                r
+                for r in reminders
+                if (r["entity_type"], r["entity_id"]) not in pushed_keys
+            ]
+            for r in fresh:
+                pushed_keys.add((r["entity_type"], r["entity_id"]))
+                yield (
+                    f"event: follow_up_reminder\n"
+                    f"data: {json.dumps(r, ensure_ascii=False)}\n\n"
+                )
+        except Exception:
+            logger.exception("follow-up reminder stream tick failed")
+            # 发注释行保持连接，不断流
+            yield ": tick-error\n\n"
+        # keep-alive 注释行（防代理 60s 超时）
+        yield ": keep-alive\n\n"
+        await asyncio.sleep(FOLLOW_UP_REMINDER_TICK_SECONDS)
+
+
+@router.get("/follow-ups/reminders/stream")
+async def follow_up_reminders_stream(
+    request: Request,
+    user_id: str | None = Depends(get_request_user_id),
+):
+    """7 天无跟进提醒 SSE：event: follow_up_reminder + {entity_type, entity_id, name, days}（登录态）。"""
+    return StreamingResponse(
+        _follow_up_reminder_stream(request, user_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/tasks", response_model=TaskItem, status_code=status.HTTP_201_CREATED)
 def create_task(
     payload: TaskCreate,

@@ -200,6 +200,9 @@ class Settings(BaseSettings):
     # CRM 公海自动回收（P3a）：有主但超过 N 天未跟进的客户/线索自动掉公海。
     # 0 = 关闭自动回收。环境变量 CRM_SEA_RECLAIM_DAYS 可调。
     crm_sea_reclaim_days: int = Field(default=15, ge=0, le=365)
+    # CRM 7 天无跟进提醒（P9-1, BLF-539）：超过 N 天未跟进的客户/线索触发站内提醒。
+    # 0 = 关闭提醒。环境变量 CRM_FOLLOW_UP_REMINDER_DAYS 可调。
+    crm_follow_up_reminder_days: int = Field(default=7, ge=0, le=365)
     # BEL-55-P1 dual-write switch. When true, `job_service.enqueue_job`
     # dispatches via Celery; when false, it falls back to the in-process
     # daemon thread. Flip to false to roll back the Celery migration
