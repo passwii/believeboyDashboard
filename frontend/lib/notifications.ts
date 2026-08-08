@@ -8,6 +8,8 @@ export interface Notification {
   createdAt: number
   read: boolean
   skipHistory?: boolean
+  /** 点击 toast 时的回调（如跳转相关页面）；不传则点击无动作 */
+  onClick?: () => void
 }
 
 export type NotifyOptions = Omit<Notification, 'id' | 'createdAt' | 'read'>

@@ -12,12 +12,17 @@ P5-6 强一致：写操作默认 commit=False（仅 flush），由端点统一 c
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmCustomer, CrmLead, CrmTask
+from app.models.crm import (
+    CrmCustomer,
+    CrmLead,
+    CrmTask,
+    CrmTaskStatus,
+)
 from app.schemas.crm import TaskItem
 
 # 筛选白名单（防注入：未知字段直接 ValueError → 端点转 400）
@@ -39,6 +44,8 @@ TERMINAL_STATUSES = {"done", "cancelled"}
 TASK_FOLLOW_TYPE_MAP = {"call": "phone", "visit": "visit", "follow_up": "note"}
 # 互动类任务：done 时自动生成 follow + 回写实体；custom 不联动（可手动补跟进）
 INTERACTIVE_TYPES = frozenset({"follow_up", "call", "visit"})
+# 提醒提前量：截止前 24 小时（BLF-513，可配置，本期不开放 UI）
+REMIND_LEAD_HOURS = 24
 
 # priority 排序权重（urgent > high > medium > low）
 _PRIORITY_RANK = case(
@@ -401,3 +408,65 @@ def set_task_status(
         db.commit()
     db.refresh(task)
     return _hydrate(db, task)
+
+
+def mark_due_tasks_reminded(
+    db: Session,
+    *,
+    lead_hours: int = REMIND_LEAD_HOURS,
+    now: datetime | None = None,
+) -> int:
+    """扫描截止前 lead_hours 小时内未提醒的任务，置 reminded_at=now（BLF-513）。
+
+    条件：status ∈ {pending, in_progress} AND due_date IS NOT NULL
+          AND now < due_date <= now + lead_hours AND reminded_at IS NULL。
+    单次提醒：reminded_at 非空即跳过；done/cancelled 与逾期（due_date <= now）排除。
+    """
+    cur = now or datetime.now(timezone.utc)
+    window_end = cur + timedelta(hours=lead_hours)
+    stmt = (
+        select(CrmTask)
+        .where(
+            CrmTask.status.in_((CrmTaskStatus.PENDING, CrmTaskStatus.IN_PROGRESS)),
+            CrmTask.due_date.is_not(None),
+            CrmTask.due_date > cur,
+            CrmTask.due_date <= window_end,
+            CrmTask.reminded_at.is_(None),
+        )
+        .order_by(CrmTask.id)
+    )
+    rows = db.execute(stmt).scalars().all()
+    for task in rows:
+        task.reminded_at = cur
+    db.flush()
+    return len(rows)
+
+
+def list_user_reminder_tasks(
+    db: Session,
+    *,
+    user_id: str | None,
+    now: datetime | None = None,
+) -> list[CrmTask]:
+    """SSE 推送源（BLF-513）：当前用户「应提醒且未过期」的任务 ORM 列表。
+
+    条件：owner_id=user_id AND reminded_at IS NOT NULL AND due_date IS NOT NULL
+          AND due_date >= now AND status ∈ {pending, in_progress}。
+    未指派（owner 空）不提醒；逾期（due_date < now）不再推送。
+    """
+    cur = _current_user_id(user_id)
+    if cur is None:
+        return []
+    base = now or datetime.now(timezone.utc)
+    stmt = (
+        select(CrmTask)
+        .where(
+            CrmTask.owner_id == cur,
+            CrmTask.reminded_at.is_not(None),
+            CrmTask.due_date.is_not(None),
+            CrmTask.due_date >= base,
+            CrmTask.status.in_((CrmTaskStatus.PENDING, CrmTaskStatus.IN_PROGRESS)),
+        )
+        .order_by(CrmTask.due_date, CrmTask.id)
+    )
+    return list(db.execute(stmt).scalars().all())

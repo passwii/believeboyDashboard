@@ -4,6 +4,7 @@ import { CrmClientProvider } from '@/lib/crm/api/crm-client-provider'
 import { CrmDataScopeProvider } from '@/hooks/use-crm-data-scope'
 import { CrmUsersProvider } from '@/hooks/use-crm-users'
 import { FollowUpToast } from '@/components/crm/follow-up-toast'
+import { TaskReminderToast } from '@/components/crm/task-reminder-toast'
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
         <CrmDataScopeProvider>
           {children}
           <FollowUpToast />
+          <TaskReminderToast />
         </CrmDataScopeProvider>
       </CrmUsersProvider>
     </CrmClientProvider>
