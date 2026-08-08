@@ -455,7 +455,9 @@ def apply_filters(query, conditions, depth=0):
 
 # Phase P7 · 任务系统（设计纲要）
 
-> **⚠️ 本 phase 仅为设计纲要**。进 phase 前需 brainstorming 对齐：任务由谁创建、谁来认领、提醒机制、是否与跟进合并。
+> **✅ 设计已完成（2026-08-08 brainstorming）**：→ `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`。
+> 待用户拍板 2 个决策点（§3 跟进是否并入 task → 推荐「并存+完成联动双写」；§4 提醒机制 → 推荐「DB 标记 + SSE 轮询」）后进 writing-plans。
+> 子 issue：BLF-510/511（stage1）、BLF-512/513（stage2）、BLF-514/515（stage3）。
 
 ## P7 设计方向
 
@@ -586,7 +588,7 @@ def apply_filters(query, conditions, depth=0):
 | P4 | ✅ 完成 | df31d105 | 220 | 2026-07-25 |
 | P5 | ✅ 完成 | 918c019c + 6e5121b8（尾巴）| 220 | 12 项 deferred 全清；P5-6a 审计强一致 + P5-9 抽屉联系人审计 2026-07-29 补完 |
 | P6 | 📐 纲要 | - | - | 数据建模深化，brainstorming 后展开 |
-| P7 | 📐 纲要 | - | - | 任务系统，brainstorming 后展开 |
+| P7 | 📐 设计完成（待拍板） | - | - | 2026-08-08 brainstorming；设计文档 `docs/superpowers/specs/2026-08-08-crm-p7-task-system-design.md`；子 issue BLF-510~515 |
 | P8 | 📐 纲要 | - | - | 数据看板强化，brainstorming 后展开 |
 | P9 | 📐 纲要 | - | - | 工作流自动化，brainstorming 后展开 |
 
