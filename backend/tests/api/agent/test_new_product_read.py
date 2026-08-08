@@ -191,3 +191,38 @@ class TestR2SkuDetail:
         )
         assert resp.status_code == 404, resp.text
         assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+class TestBusinessScope:
+    """BLF-526 上线收尾：business_scope 门禁挂载后，域外 key → 403 壳。"""
+
+    def test_scope_allows_new_product_calculations(self, client, make_api_key):
+        """business_scope 含 new_product_calculations → 放行（进入项目校验）。"""
+        agent_id = "npc-scope-allow"
+        key = make_api_key(agent_id=agent_id, business_scope="new_product_calculations")
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": agent_id,
+        }
+        resp = client.get(
+            "/api/v1/agent/projects/99999999/new-product-calculations?page_size=1",
+            headers=headers,
+        )
+        # project 99999999 不存在 → 404 RESOURCE_NOT_FOUND（说明过了域校验）
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+    def test_scope_denies_other_domain(self, client, make_api_key):
+        """business_scope 不含 new_product_calculations → 403 AGENT_BUSINESS_OUT_OF_SCOPE。"""
+        agent_id = "npc-scope-deny"
+        key = make_api_key(agent_id=agent_id, business_scope="shipments")
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": agent_id,
+        }
+        resp = client.get(
+            "/api/v1/agent/projects/99999999/new-product-calculations?page_size=1",
+            headers=headers,
+        )
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"

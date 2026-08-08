@@ -510,6 +510,7 @@ def test_agent_mirror_400_validation_shell(client, mirror_env):
         "/api/v1/external/projects/1/ad-campaigns?period=7d&country=US",
         "/api/v1/external/projects/1/inventory-ledger/months",
         "/api/v1/external/projects/99999999/sku-info",
+        "/api/v1/external/projects/1/new-product-calculations",
     ],
 )
 def test_external_all_gone_410(client, url):
@@ -523,6 +524,8 @@ def test_external_all_gone_410(client, url):
     link = resp.headers.get("Link") or ""
     assert f"<{successor}>" in link
     assert 'rel="successor-version"' in link
+    # D4=A 契约：下线信号必须带 Deprecation: true 头（BLF-526 验收）。
+    assert resp.headers.get("Deprecation") == "true"
 
 
 def test_external_gone_successor_maps_same_suffix(client):

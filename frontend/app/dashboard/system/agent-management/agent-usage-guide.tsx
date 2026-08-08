@@ -500,6 +500,62 @@ function buildReplenishmentAnalysisGuide(opts: {
   Idempotency-Key + X-Confirm-Token 重放才真正生效。`
 }
 
+/** 新品测算域调用说明（BLF-526）：读3+写1+试算1，写走确认流。 */
+function buildNewProductCalculationsGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 快照列表（R1，calculation_type/country 过滤 + 分页）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/new-product-calculations?calculation_type=profit_calc&page_size=20" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【3. 单 SKU 详情（R2，calculation_type 缺省 profit_calc）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/new-product-calculations/skus/{sku}?calculation_type=profit_calc" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【4. SKU 审计轨迹（R3，upsert 覆盖历史）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/new-product-calculations/skus/{sku}/audit" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【5. 试算（C1，不落库；mode 支持 profit_calc / profit_reverse / cost_reverse / fbm_calc）】
+
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/new-product-calculations/compute" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Content-Type: application/json" \\
+    -d '{"mode":"profit_calc","sku":"X-001","country":"US","package_length_cm":10,"package_width_cm":8,"package_height_cm":5,"weight_kg":0.5,"fob_product_cost_rmb":20,"first_leg_cost_rmb":5,"sale_price_usd":19.99,"advertising_rate":0.12,"return_loss_rate":0.04,"storage_months":1}'
+
+  返回 {mode, calculation, snapshot}；不写库、不落审计，可放心反复试算。
+
+【6. 快照落库（W1，两步确认，第一次调用不会落库）】
+
+  第一步（预览，返回 confirm_token）：
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/new-product-calculations" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -H "Content-Type: application/json" \\
+    -d '{"sku":"X-001","asin":"ASIN-X-001","country":"US","calculation_type":"profit_calc","source":"agent_listing_pull","sale_price_usd":19.99,"profit_usd":4.8,"profit_rate":0.24}'
+
+  第二步（向用户确认后重放，请求体必须与第一步完全一致）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -550,6 +606,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildAdAnalysisGuide({ key, agentId, apiBase })
   } else if (domain === 'replenishment_analysis') {
     domainGuide = buildReplenishmentAnalysisGuide({ key, agentId, apiBase })
+  } else if (domain === 'new_product_calculations') {
+    domainGuide = buildNewProductCalculationsGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

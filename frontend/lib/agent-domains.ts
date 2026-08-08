@@ -88,6 +88,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: true },
   },
   {
+    code: 'new_product_calculations',
+    label: '新品测算',
+    description: '新品测算快照读写与试算：列表/SKU 详情/审计/落库/试算（读3+写1+试算1，BLF-526）',
+    status: 'live',
+    routeCount: 5,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',

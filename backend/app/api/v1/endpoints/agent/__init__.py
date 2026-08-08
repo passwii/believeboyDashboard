@@ -41,9 +41,13 @@ agent_router.include_router(
     shop_calculations_router,
     dependencies=[Depends(require_business_scope("shop_calculations"))],
 )
-# 新品测算域（BLF-451）：只挂 require_project_scope；business_scope（BLF-448）
-# 暂不挂载，域 code 预留 new_product_calculations。
-agent_router.include_router(new_product_calculations_router)
+# 新品测算域（BLF-451）：5 条路由（读3+写1+试算1），挂 business_scope(
+# "new_product_calculations")（BLF-526 上线收尾，与其它 live 域对齐）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    new_product_calculations_router,
+    dependencies=[Depends(require_business_scope("new_product_calculations"))],
+)
 # 退货分析域（BLF-470）：纯读 5 条路由，挂 business_scope("return_analysis")
 # （D3 拍板，与 shipments/shop_calculations 对齐）。
 agent_router.include_router(
