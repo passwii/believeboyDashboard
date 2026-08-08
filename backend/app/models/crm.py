@@ -299,6 +299,58 @@ class CrmAuditLog(Base):
     )
 
 
+class CrmReminderStatus(str):
+    ACTIVE = "active"
+    RESOLVED = "resolved"
+
+
+class CrmReminderType(str):
+    STALE_FOLLOW_UP = "stale_follow_up"
+
+
+class CrmReminderLog(Base):
+    """CRM 提醒记录（P9-1, BLF-539）：7 天无跟进提醒的去重/生命周期账本。
+
+    - celery 每日 scan 命中 N 天未跟进实体 → 无 active 记录则插一条（单次提醒语义）；
+    - 跟进成功（follow_service.create_follow）→ resolve 该实体 active 记录，
+      下次再 stale 可重新提醒（循环闭环）；
+    - SSE 端点只推送 active 记录，按实体当前 owner 过滤（换负责人即迁移提醒）。
+    """
+
+    __tablename__ = "crm_reminder_logs"
+    __table_args__ = (
+        Index("idx_crl_entity", "entity_type", "entity_id"),
+        Index("idx_crl_owner_status", "owner_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    entity_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # customer/lead
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    reminder_type: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=CrmReminderType.STALE_FOLLOW_UP
+    )
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36)
+    )  # 提醒时负责人快照；user_accounts.id UUID
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmReminderStatus.ACTIVE
+    )  # active/resolved
+    reminded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )  # scan 发提醒时间
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class CrmTaskStatus(str):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"

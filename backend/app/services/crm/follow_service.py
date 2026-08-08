@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.crm import CrmCustomer, CrmFollow, CrmLead
 from app.schemas.crm import FollowCreate, FollowItem
+from app.services.crm.follow_up_reminder_service import resolve_entity_reminders
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -95,12 +96,16 @@ def create_follow(
         if cust is not None:
             cust.last_follow_at = datetime.now(timezone.utc)
             cust.next_follow_at = payload.next_follow_at
+        # P9-1 (BLF-539): 跟进成功 → resolve 该实体 7 天无跟进提醒，下次再 stale 可重新提醒
+        resolve_entity_reminders(db, "customer", payload.entity_id)
     elif payload.entity_type == "lead":
         lead = db.execute(
             select(CrmLead).where(CrmLead.id == payload.entity_id)
         ).scalar_one_or_none()
         if lead is not None:
             lead.next_follow_at = payload.next_follow_at
+        # P9-1 (BLF-539): 同上，线索跟进也 resolve 提醒记录
+        resolve_entity_reminders(db, "lead", payload.entity_id)
     db.flush()  # 实体回写也 flush（autoflush=False：commit=False 时由端点统一 commit）
     if commit:
         db.commit()
