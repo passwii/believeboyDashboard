@@ -564,21 +564,42 @@ def test_legacy_mode_limit_default_unchanged(client, orders_env):
 # ---------------------------------------------------------------------------
 
 
-def test_mirror_exposes_group_by_params_on_handler_signature():
-    """镜像沿 __wrapped__ 保留原 handler 签名 → 新参数自动暴露（spec §3.3）。"""
+def test_orders_summary_native_route_exposes_params_and_mirror_excluded():
+    """BLF-560 v0.2：orders/summary 已原生化——原生路由带全部 group_by 参数，
+    镜像侧排除（无双挂冲突）。spec §7.8 权限门 + 镜像排除回归。
+    """
     import inspect
 
     from app.api.v1.endpoints.agent.external_mirror import (
-        _iter_external_apiroutes,
+        _EXCLUDED_EXTERNAL_PATHS,
+        external_mirror_router,
     )
+    from app.api.v1.endpoints.agent.orders import orders_router
 
-    for ext_path, route in _iter_external_apiroutes():
-        if ext_path == "/external/projects/{project_id}/orders/summary":
-            params = list(inspect.signature(route.endpoint).parameters)
-            for p in ("group_by", "order_by", "order_dir", "include_share"):
-                assert p in params, f"handler 缺少 {p}"
-            return
-    raise AssertionError("orders/summary 镜像路由未找到")
+    # 1) 镜像侧：orders/summary 已从 _EXCLUDED_EXTERNAL_PATHS 排除。
+    assert "/external/projects/{project_id}/orders/summary" in _EXCLUDED_EXTERNAL_PATHS
+    mirror_paths = {r.path for r in external_mirror_router.routes}
+    assert "/projects/{project_id}/orders/summary" not in mirror_paths
+
+    # 2) 原生路由：/orders/summary 存在且 handler 签名带全部参数。
+    native_routes = [
+        r
+        for r in orders_router.routes
+        if getattr(r, "path", "") == "/projects/{project_id}/orders/summary"
+    ]
+    assert len(native_routes) == 1, (
+        "agent/orders.py 应有且仅有一个 /orders/summary 路由"
+    )
+    params = list(inspect.signature(native_routes[0].endpoint).parameters)
+    for p in (
+        "group_by",
+        "order_by",
+        "order_dir",
+        "include_share",
+        "limit",
+        "offset",
+    ):
+        assert p in params, f"原生 handler 缺少 {p}"
 
 
 def test_mirror_agent_channel_group_by_parity(client, orders_env):

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.external._helpers import parse_country
+from app.api.v1.endpoints.external._helpers import parse_countries
 from app.api.v1.endpoints.external._period import parse_period_v2
 from app.schemas.external.orders_summary import (
     OrdersGroupedResponse,
@@ -47,7 +47,9 @@ def get_external_orders_summary(
 ) -> Union[OrdersSummaryResponse, OrdersGroupedResponse]:
     today_minus_one = date.today() - timedelta(days=1)
     try:
-        normalized_country = parse_country(country)
+        # BLF-560 v0.2：country 支持逗号分隔多站点（group_by 模式生效）；
+        # 单站点行为与 parse_country 完全一致（向后兼容）。
+        countries = parse_countries(country)
         period_info = parse_period_v2(
             period,
             start_date,
@@ -88,6 +90,16 @@ def get_external_orders_summary(
             )
     else:
         order_dir_norm = order_dir.lower()
+        # BLF-560 v0.2：多站点聚合仅 group_by 模式支持——非 group_by 模式
+        # （原始行 + 页内汇总）混币种无意义（不做跨币种求和），显式 400。
+        if len(countries) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "多站点聚合（country 逗号分隔多值）仅支持 group_by 模式；"
+                    f"收到 {country!r}"
+                ),
+            )
 
     if not projects_query.project_exists(db, project_id):
         raise HTTPException(status_code=404, detail=f"project {project_id} not found")
@@ -96,7 +108,7 @@ def get_external_orders_summary(
         rows, total_rows, agg = orders_summary.query_orders_summary_grouped(
             db,
             project_id=project_id,
-            country=normalized_country,
+            country=countries,
             date_from=period_info.start_date,
             date_to=period_info.end_date,
             include_cancelled=include_cancelled,
@@ -112,13 +124,15 @@ def get_external_orders_summary(
         return OrdersGroupedResponse(
             project_id=project_id,
             period=period_info,
-            country=normalized_country,
+            country=",".join(countries),
+            countries=countries,
             group_by=group_by,
             rows=rows,
             total_rows=total_rows,
             summary=agg,
         )
 
+    normalized_country = countries[0]
     rows, agg = orders_summary.query_orders_summary(
         db,
         project_id=project_id,
