@@ -556,6 +556,66 @@ function buildNewProductCalculationsGuide(opts: {
     -H "X-Confirm-Token: <第一步返回的 confirm_token>"`
 }
 
+/** 店铺合规健康域调用说明（BLF-551）：纯读 5 条路由，无确认流。 */
+function buildAccountHealthGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 巡检周期列表（R1，先拿周期 id 再查明细）】
+
+  curl "${apiBase}/api/v1/agent/account-health/periods?limit=20&offset=0" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  limit 默认 20（≤100）、offset 默认 0；返回 items（period_id/week_start/week_end/
+  deadline/submitted_count）+ total——submitted_count 可快速判断周完成度。
+
+【3. 当前周期（R2）】
+
+  curl "${apiBase}/api/v1/agent/account-health/periods/current" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  纯读（不新建周期）；无周期 → 404。
+
+【4. 周期概览（R3，项目级聚合）】
+
+  curl "${apiBase}/api/v1/agent/account-health/periods/{period_id}/overview" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回 period + items（每店拍平行：health 8 字段 + compliance 10 字段 +
+  compliance_total + screenshot_count）+ total_projects / submitted_count /
+  overdue_count。items 已按凭据 project_scope 过滤；周期不存在 → 404。
+
+【5. 单店明细（R4，深挖某店）】
+
+  curl "${apiBase}/api/v1/agent/account-health/periods/{period_id}/projects/{project_id}?include_summary=true" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  include_summary 可选（默认不返回 status_summary，覆盖率低）；项目不在凭据范围
+  或无报告 → 404。空值 = null 非 0（未录入 vs 录入为 0 要区分）。
+
+【6. 历史趋势（R5，跨周期对比）】
+
+  curl "${apiBase}/api/v1/agent/account-health/history?period_id=1&order_by=week_start&order_dir=desc&limit=50" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  period_id / project_id 可选筛选；order_by 白名单（week_start/project_name/
+  account_health_rating/compliance_total/submitted_at + 各数值列，非法 → 400）；
+  order_dir=asc|desc；limit 默认 50（≤200）。空结果 → 200 + 空 items。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -608,6 +668,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildReplenishmentAnalysisGuide({ key, agentId, apiBase })
   } else if (domain === 'new_product_calculations') {
     domainGuide = buildNewProductCalculationsGuide({ key, agentId, apiBase })
+  } else if (domain === 'account_health') {
+    domainGuide = buildAccountHealthGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }
