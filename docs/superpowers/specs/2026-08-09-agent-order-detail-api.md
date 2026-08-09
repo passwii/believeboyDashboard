@@ -115,7 +115,7 @@ GET /api/v1/agent/projects/{project_id}/orders/summary
     total_rows,                            # 全量聚合行数（不受 limit 影响）
     summary: {
         total_orders, total_quantity,      # 跨站点合计（订单数/数量可直接求和）
-        by_country: {                      # 金额类按国家分拆（币种独立，不做跨币种求和）
+        by_country: {                      # 多站点平行展示：金额逐站独立列出（币种独立，不做跨币种求和）
             "US": { currency, total_sales_amount, total_orders, total_quantity },
             "DE": { currency, total_sales_amount, total_orders, total_quantity }
         }
@@ -123,7 +123,7 @@ GET /api/v1/agent/projects/{project_id}/orders/summary
 } }
 ```
 
-> `summary.by_country`：**v0.2 金额语义核心**——跨站点 `total_sales_amount` 不提供（币种不可加），改为按国家分拆；`total_orders`/`total_quantity` 可跨站点直接求和（数量/去重订单数无量纲）。
+> `summary.by_country`：**v0.2 金额语义核心——「多站点金额不做跨币种求和，多站点平行展示」**（用户 2026-08-09 拍板）：跨站点 `total_sales_amount` 不提供（币种不可加），改为**逐站点平行列出**（每站独立货币、独立金额）；`total_orders`/`total_quantity` 可跨站点直接求和（数量/去重订单数无量纲）。行结构同样平行：多站点时每行带 `country`+`currency`，Agent 按国家取对应金额。
 
 ---
 
@@ -149,7 +149,7 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 | 口径点 | 决策 | 依据 |
 |---|---|---|
 | 销售额 | `sales_amount_expr(country)`（DE/UK 含税） | 与日/周/月定时报告统一（BLF-475），避免 Agent 与报表数字对不上 |
-| **跨站点金额** | **不做跨币种求和**，`summary.by_country` 按国家分拆 | 系统汇率服务仅 RMB→目标币（`convert_rmb_to_target_currency`），无通用 FX（USD→EUR 等）；跨币种求和会产生无意义数字（§1.2） |
+| **跨站点金额** | **不做跨币种求和，多站点平行展示**：`summary.by_country` 逐站独立列出 | 系统汇率服务仅 RMB→目标币（`convert_rmb_to_target_currency`），无通用 FX（USD→EUR 等）；跨币种求和会产生无意义数字（§1.2）；用户 2026-08-09 拍板「平行展示」 |
 | 订单数 | `count(distinct amazon_order_id)` | 语义正确；现有 aggregate 的 `total_orders` 是**行数**（多 SKU 订单计多行），spec 显式修正（仅 group_by 模式） |
 | 空值/空结果 | 数值 `0`（聚合天然无 null）；空结果 → **200 + 空 rows**（非 404） | 对齐 account_health 约定：只有资源不存在（项目）→ 404 |
 | 过滤 | `counted_sales_where`（is_counted_sales + 状态），country 用 `IN (...)` | 与 orders/summary 一致 |
@@ -220,4 +220,4 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 ## 版本记录
 
 - v0.1（2026-08-09）：BLF-557 深度讨论定稿——D1–D5 拍板 + 方案 A 端点设计 + 必要元素表 + 测试清单。
-- v0.2（2026-08-09）：用户追加拍板——① 单项目多站点聚合进 V1（country 多值 + by_country 分拆，不做跨币种求和）；② orders/summary 镜像族→原生 agent 域 + `business_scope("orders")` 权限门；③ 按新规则改造、存量不合规域调整（D6 记录，爆炸半径外）。
+- v0.2（2026-08-09）：用户追加拍板——① 单项目多站点聚合进 V1（country 多值 + by_country 平行展示，**不做跨币种求和**）；② orders/summary 镜像族→原生 agent 域 + `business_scope("orders")` 权限门；③ 按新规则改造、存量不合规域调整（D6 记录，爆炸半径外）。
