@@ -34,6 +34,7 @@ from app.utils.math_utils import (
     round_money,
     round_ratio,
     safe_ratio,
+    change_pct,
     decimal_to_float,
     int_to_decimal,
     round_decimal,
@@ -57,6 +58,7 @@ from app.utils.date_utils import (
     date_range,
     date_range_days,
     build_previous_period,
+    build_yoy_period,
 )
 
 from app.utils.period_comparison import (

@@ -209,25 +209,35 @@ def _generate_fallback_weekly_summary(report_data: dict[str, Any]) -> str:
     prev_amount = prev.get("amount", 0)
 
     # 变化方向
-    qty_change = changes.get("qty_change", 0)
-    amount_change = changes.get("amount_change", 0)
-    qty_dir = "↑" if qty_change >= 0 else "↓"
-    amount_dir = "↑" if amount_change >= 0 else "↓"
+    qty_change = changes.get("qty_change")
+    amount_change = changes.get("amount_change")
 
     # 构建摘要
     summary_parts = []
 
     # 销售概览
     summary_parts.append(f"本周销售 {curr_qty:,} 件，销售额 ${curr_amount:,.2f}。")
-    summary_parts.append(f"销量环比 {qty_dir} {abs(qty_change):.1f}%，销售额环比 {amount_dir} {abs(amount_change):.1f}%。")
+    if qty_change is None:
+        summary_parts.append("销量环比无上期基数（上周为 0，本周新增）。")
+    else:
+        qty_dir = "↑" if qty_change >= 0 else "↓"
+        summary_parts.append(f"销量环比 {qty_dir} {abs(qty_change):.1f}%。")
+    if amount_change is None:
+        summary_parts.append("销售额环比无上期基数（上周为 0，本周新增）。")
+    else:
+        amount_dir = "↑" if amount_change >= 0 else "↓"
+        summary_parts.append(f"销售额环比 {amount_dir} {abs(amount_change):.1f}%。")
 
     # Top SKU 亮点
     if top_skus:
         top_sku = top_skus[0]
         sku_name = top_sku.get("sku", "N/A")
-        sku_change = top_sku.get("change", 0)
-        sku_dir = "↑" if sku_change >= 0 else "↓"
-        summary_parts.append(f"热销 SKU：{sku_name}（{sku_dir} {abs(sku_change):.1f}%）。")
+        sku_change = top_sku.get("change")
+        if sku_change is None:
+            summary_parts.append(f"热销 SKU：{sku_name}（上周无销量，本周新增）。")
+        else:
+            sku_dir = "↑" if sku_change >= 0 else "↓"
+            summary_parts.append(f"热销 SKU：{sku_name}（{sku_dir} {abs(sku_change):.1f}%）。")
 
     # 预警提示
     if alerts:

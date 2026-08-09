@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 from typing import Any
-from calendar import monthrange
 
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
@@ -28,6 +27,7 @@ from app.models import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
+from app.utils.date_utils import build_yoy_period
 from app.utils.sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
@@ -71,12 +71,11 @@ def _get_prev_month(month_start: date) -> tuple[date, date]:
 
 
 def _get_yoy_month(month_start: date, month_end: date) -> tuple[date, date]:
-    """计算去年同月的起止日期。处理 2 月 29→28 边界。"""
-    yoy_start = month_start.replace(year=month_start.year - 1)
-    max_day = monthrange(yoy_start.year, yoy_start.month)[1]
-    yoy_end_day = min(month_end.day, max_day)
-    yoy_end = yoy_start.replace(day=yoy_end_day)
-    return yoy_start, yoy_end
+    """计算去年同月的起止日期（收编自 ``date_utils.build_yoy_period``，BLF-570）。
+
+    闰年 2 月 29 日 → 去年 2 月 28 日边界由公共函数统一处理。
+    """
+    return build_yoy_period(month_start, month_end)
 
 
 def _get_report_anchor_date(country: str) -> date:

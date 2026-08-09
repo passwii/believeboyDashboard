@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 # ─── 常量 ────────────────────────────────────────────────────────────────────
@@ -71,6 +71,46 @@ def safe_ratio(numerator: Decimal | Any, denominator: Decimal | int | Any) -> De
     if isinstance(denominator, Decimal) and denominator <= 0:
         return DECIMAL_ZERO
     return numerator / denominator
+
+
+def _as_decimal(value: Decimal | Any) -> Decimal:
+    """将 int/float/str/None 归一化为 Decimal（None 或不可解析按 0 处理）。"""
+    if isinstance(value, Decimal):
+        return value
+    if value is None:
+        return DECIMAL_ZERO
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return DECIMAL_ZERO
+
+
+def change_pct(current: Decimal | Any, prev: Decimal | Any) -> float | None:
+    """计算变化百分比（同比/环比的统一原子函数，BLF-570）。
+
+    边界语义（与业务确认中，最终以 BLF-570 用户确认结论为准）：
+
+    - ``prev > 0``：``(current - prev) / prev * 100``，四舍五入到 2 位小数（0.01%）；
+    - ``prev <= 0 且 current > 0``：返回 ``None`` —— 上期无有效基数（0 或负），
+      变化率数学上无定义。返回 0%（"持平"）或 100%（"翻倍"）都会误导，
+      消费方应显示 "—" / "新增" 等占位；
+    - ``prev <= 0 且 current <= 0``：返回 ``0.0`` —— 两期均无数据，视为无变化
+      （与 ``safe_ratio`` 分母 <= 0 返回 0 的底层语义一致）；
+    - ``None`` 输入按 ``0`` 处理（沿用本模块 ``round_money``/``to_float`` 惯例）。
+
+    Args:
+        current: 当前周期数值
+        prev: 上期/去年同期数值
+
+    Returns:
+        变化百分比（×100，2 位小数）；上期无基数且当前有值时返回 ``None``。
+    """
+    cur = _as_decimal(current)
+    pre = _as_decimal(prev)
+    if pre > 0:
+        ratio = (cur - pre) / pre * Decimal("100")
+        return float(ratio.quantize(TWO_DP, rounding=ROUND_HALF_UP))
+    return None if cur > 0 else 0.0
 
 
 def decimal_to_float(value: Decimal | None, digits: int = 2) -> float | None:

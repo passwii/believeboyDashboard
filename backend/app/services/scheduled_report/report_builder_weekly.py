@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
+from app.utils.math_utils import change_pct
 from app.utils.sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
@@ -72,11 +73,13 @@ def _get_report_anchor_date(country: str) -> date:
     return min(country_today, server_yesterday)
 
 
-def _calc_change_pct(current: float, prev: float) -> float:
-    """计算变化百分比。"""
-    if prev == 0:
-        return 0.0
-    return ((current - prev) / prev) * 100
+def _calc_change_pct(current: float, prev: float) -> float | None:
+    """计算变化百分比（统一走 ``math_utils.change_pct``，BLF-570）。
+
+    prev <= 0 且 current > 0 时返回 ``None``（上期无基数，变化率无意义），
+    消费方需按 ``or 0`` / "—" 兜底；两期均无数据时返回 0.0。
+    """
+    return change_pct(current, prev)
 
 
 def _format_date_range(start: date, end: date) -> str:
@@ -428,7 +431,7 @@ def _analyze_sku_attribution(
                 "contribution": change,
                 "pct": round(pct, 1),
                 "type": change_type,
-                "change_rate": round(change_rate, 1),
+                "change_rate": round(change_rate or 0, 1),
             })
 
         attribution.sort(key=lambda x: x["contribution"], reverse=True)
@@ -509,7 +512,9 @@ def _get_top_skus_with_comparison(
                 "sku": r.sku or "Unknown",
                 "current": current,
                 "prev": prev,
-                "change": round(change_rate, 1),
+                # BLF-570: 上期无基数（新品）时透传 None，模板渲染 "—" + NEW，
+                # 不再显示误导性的 "持平"（与 changes 顶层字段语义一致）
+                "change": None if change_rate is None else round(change_rate, 1),
                 "amount": float(r.current_amount or 0),
                 "new": is_new,
             })
@@ -1012,7 +1017,7 @@ def _build_positive_signals(
             "category": "growth",
         })
 
-    roas_change = ads_comparison.get("roas", {}).get("change", 0)
+    roas_change = ads_comparison.get("roas", {}).get("change") or 0
     if roas_change > 10:
         signals.append({
             "type": "positive",
