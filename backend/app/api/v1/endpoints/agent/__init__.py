@@ -86,7 +86,8 @@ agent_router.include_router(
     dependencies=[Depends(require_business_scope("account_health"))],
 )
 # 销售数据域（BLF-569）：orders/summary → sales/summary 路径 + 域 code
-# orders → sales 迁移（用户 2026-08-09 拍板）；旧路径双挂保留迁移提示期，
+# orders → sales 迁移（用户 2026-08-09 拍板）；v3 下线（BLF-571，2026-08-10
+# 用户拍板提前执行）后旧路径 /orders/summary 已移除，仅挂 /sales/summary。
 # 挂 business_scope("sales")。必须插在兜底路由之前，否则被静默吞成 404 壳。
 # 镜像侧已由 external_mirror._EXCLUDED_EXTERNAL_PATHS 排除，无双挂冲突。
 agent_router.include_router(
