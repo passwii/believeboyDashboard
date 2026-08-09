@@ -1,4 +1,5 @@
 """Orders Summary response schemas for the external API."""
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -65,3 +66,45 @@ class OrdersSummaryRawResponse(BaseModel):
     country: str
     data: List[OrdersSummaryRow]
     summary: dict = Field(default_factory=dict)
+
+
+class OrdersGroupedRow(BaseModel):
+    """group_by 模式聚合行（BLF-558 spec §5.1）。
+
+    字段按粒度选择性填充：
+    * ``asin`` / ``asin_day`` → ``asin`` + ``product_name``（组内 raw_row 任一非空名）；
+    * ``asin_day`` / ``day`` → ``date``（YYYY-MM-DD）；
+    * ``day`` → ``unique_asins``（去重 ASIN 数）；
+    * ``asin`` + ``include_share=true`` → ``share``（占全量销售额比，4 位小数）。
+
+    不适用粒度的字段为 null（缺省），调用方按 ``group_by`` 取值。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    asin: Optional[str] = None
+    product_name: Optional[str] = None
+    date: Optional[str] = None  # YYYY-MM-DD（asin_day / day）
+    quantity: int
+    sales_amount: float
+    order_count: int  # count(distinct amazon_order_id) 去重订单数
+    share: Optional[float] = None  # 仅 group_by=asin & include_share=true
+    unique_asins: Optional[int] = None  # 仅 group_by=day
+
+
+class OrdersGroupedResponse(BaseModel):
+    """orders/summary ``group_by`` 模式响应（BLF-558 spec §4.3）。
+
+    ``summary`` 复用 :class:`OrdersSummaryAggregateRow`（字段集相同），为
+    **SQL 全量汇总**（不受 limit/offset 影响），修复现有 aggregate「页内汇总」失真。
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    project_id: int
+    period: PeriodInfo
+    country: str
+    group_by: str
+    rows: List[OrdersGroupedRow]
+    total_rows: int
+    summary: OrdersSummaryAggregateRow
