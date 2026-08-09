@@ -18,6 +18,7 @@ from app.models import (
     Project,
 )
 from app.services.sales_query import counted_sales_where
+from app.utils.sales_amount import sales_amount_expr
 
 
 def _safe_rate(numerator: int, denominator: int) -> float:
@@ -77,7 +78,7 @@ def _build_sales_aggregates(
         AnalysisSalesOrderRow.sku,
         AnalysisSalesOrderRow.purchase_date_pt,
         AnalysisSalesOrderRow.quantity,
-        AnalysisSalesOrderRow.item_price,
+        sales_amount_expr(country).label("sales_amount"),
     ).filter(
         *counted_sales_where(
             project_id=project_id,
@@ -93,7 +94,7 @@ def _build_sales_aggregates(
     for row in q.all():
         sku = row.sku or ""
         date_str = row.purchase_date_pt.isoformat()
-        amount = float(row.item_price) if row.item_price else 0.0
+        amount = float(row.sales_amount or 0)
 
         if sku not in sku_sales:
             sku_sales[sku] = {"quantity": 0, "amount": 0.0}
