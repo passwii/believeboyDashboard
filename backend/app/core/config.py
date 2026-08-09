@@ -203,6 +203,9 @@ class Settings(BaseSettings):
     # CRM 7 天无跟进提醒（P9-1, BLF-539）：超过 N 天未跟进的客户/线索触发站内提醒。
     # 0 = 关闭提醒。环境变量 CRM_FOLLOW_UP_REMINDER_DAYS 可调。
     crm_follow_up_reminder_days: int = Field(default=7, ge=0, le=365)
+    # CRM 规则引擎执行器（P9-6, BLF-544）：全局开关（False = 停扫规则；
+    # 规则级启停仍由 crm_rules.enabled 控制）。环境变量 CRM_RULE_ENGINE_ENABLED 可调。
+    crm_rule_engine_enabled: bool = Field(default=True)
     # BEL-55-P1 dual-write switch. When true, `job_service.enqueue_job`
     # dispatches via Celery; when false, it falls back to the in-process
     # daemon thread. Flip to false to roll back the Celery migration
