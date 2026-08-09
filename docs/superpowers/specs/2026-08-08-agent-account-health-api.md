@@ -114,21 +114,21 @@
 ### R3 周期概览 — `GET /api/v1/agent/account-health/periods/{period_id}/overview`
 
 - 参数：`period_id`（路径）；无其它查询参数。
-- 复用：`inspection_service.get_overview`（纯读）→ 逐店行拍平（§7.3 字段）；按 `project_scope` 过滤 items。
+- 复用：`inspection_service.get_overview`（与内部 `/inspections/periods/{id}/overview` 同一函数；**past_deadline 时含 overdue 标记副作用**，见 §11 #4）→ 逐店行拍平（§7.3 字段）；按 `project_scope` 过滤 items。
 - 响应：`{ ok, data: { period, items: [ProjectReportRow], total_projects, submitted_count, overdue_count } }`。
 - 周期不存在 → 404 `RESOURCE_NOT_FOUND`。
 
 ### R4 单店报告明细 — `GET /api/v1/agent/account-health/periods/{period_id}/projects/{project_id}`
 
 - 参数：`period_id`、`project_id`（路径）；`include_summary`（可选，`status_summary` 默认不返回，`=true` 才返回）。
-- 复用：`inspection_service.get_report`（纯读）+ `project_service.ensure_project_access` 语义 → 项目不在凭据范围 → 404。
+- 复用：`inspection_service.get_report`（纯读）+ `project_service.ensure_project_access` 语义 → 项目不在凭据范围 → **404**（直取语义，与 R5 列表过滤 200+空 items 不同，spec 显式选择）。
 - 响应：单个报告行（§7.3 字段 + `status_summary?`）；无报告 → 404 `RESOURCE_NOT_FOUND`。
 
 ### R5 历史趋势 — `GET /api/v1/agent/account-health/history`
 
 - 参数：`period_id` / `project_id`（可选筛选）、`limit`（默认 50，≤200）、`offset`、`order_by` / `order_dir`。
 - `order_by` 白名单：`week_start` / `project_name` / `account_health_rating` / `compliance_total` / `submitted_at`（+ 各数值健康/合规列，实现时逐列枚举，非法值 → 400 `VALIDATION_FAILED`）。
-- 复用：`/api/v1/inspections/history` 同构查询（拍平 + `compliance_total` 派生）→ 按 `project_scope` 过滤。
+- 复用：`/api/v1/inspections/history` 同构查询（拍平 + `compliance_total` 派生）→ 按 `project_scope` 过滤（**列表过滤语义**：不在范围的项目不返回，空结果 → 200 + 空 items，与 R4 直取 404 不同）。
 - 响应：`{ ok, data: { items: [HistoryRow], total } }`。
 
 ### 公共约定（对齐 agent-api-design v0.7）
@@ -182,7 +182,7 @@ compliance_total          # 10 项合规计数求和（口径与内部 overview 
 
 ## 9. 影响面结论（BEL-93，CodeGraph 核实）
 
-- `inspection_service`：R2 需**新增**纯读函数（不改 `get_or_create_current_period` 签名与行为）；其余 R1/R3/R4/R5 直接复用现有 `list_periods` / `get_overview` / `get_report` / history 查询——**0 存量调用方受影响**（CodeGraph callers 核实上述函数仅被 `inspections.py` 内部端点调用）。
+- `inspection_service`：R2 需**新增**纯读函数（不改 `get_or_create_current_period` 签名与行为）；其余 R1/R3/R4/R5 直接复用现有 `list_periods` / `get_overview` / `get_report` / history 查询——**0 存量调用方受影响**（CodeGraph callers 核实上述函数仅被 `inspections.py` 内部端点调用）。注：R3 复用 `get_overview` 含 overdue 标记副作用（与内部端点一致），**不新增** pure-read 副本——判定理由见 §11 #4。
 - `agent/__init__.py`：追加一个 `include_router`（必须插在兜底路由之前）——纯增量。
 - `agent_api_keys.business_scope`：新增取值 `account_health`，字符串列无需迁移。
 - 前端 `lib/agent-domains.ts`：S4 注册表加一条（`status: 'live'` 在 S3 合入后）——纯增量。
@@ -200,8 +200,10 @@ compliance_total          # 10 项合规计数求和（口径与内部 overview 
 1. **R2 建行副作用**：必须新增纯读函数而不是复用 `get_or_create_current_period`——S3 实现时以测试锁契约（行数不变）。
 2. **`status_summary` 覆盖率低**（~23%）：默认不返回，`include_summary=true` 才带——避免 Agent 把低覆盖自由文本当事实。
 3. **`screenshot_count` 是否需要**：预留字段，默认返回（不暴露 URL）；如 Agent 无场景可在 S3 裁掉。
+4. **R3 复用 `get_overview` 的 overdue 标记副作用（判定：接受，不拆纯读副本）**：`get_overview` 在 `past_deadline=True` 时调用 `mark_overdue_reports` 写 overdue 行（`inspection_service.py:124-125`）。判定结论：**行为与内部 `/inspections/periods/{id}/overview` 完全一致**（同一 service 同一事务）——Agent 视角与 Dashboard 一致；overdue 标记是幂等状态归一化（非造数），仅对已过期周期触发；若新增 `get_overview_pure_read` 副本，Agent 视图将与 Dashboard 分歧（未归一化时 draft 与 overdue 不一致），且双路径需长期同步维护——收益（读侧"绝对无写"）不抵一致性风险。故**不拆**。R2 的纯读锁是必要例外（`get_or_create_current_period` 会无条件 INSERT 新周期）。
 
 ## 版本记录
 
 - v0.1（2026-08-08）：S1 拍板 D1–D5，设计定稿（BLF-549）。原始文件仅存于 S1 执行工作目录；因 S1 约束「本阶段无 commit」，2026-08-09 由 BLF-547 父 issue 运行重建落库（内容依据 BLF-549 完成汇报 + 二次代码核实）。
 - v0.2（2026-08-09）：按用户指示撤销全部 SP-API 内容（仓库无任何 SP-API 接口）——原 §4.1–§4.4 SP-API 可采字段评估删除，§4 改为「数据局限」；同步清理 §5 D1 / §10 / §11 的 SP-API 引用。
+- v0.3（2026-08-09）：修正 R3「纯读」措辞（`get_overview` 实含 overdue 标记副作用，与内部端点一致），§11 #4 记录判定结论（接受副作用、不新增 pure-read 副本）；§6 R4/R5 显式注明「R4 直取 404 vs R5 列表过滤」差异。
