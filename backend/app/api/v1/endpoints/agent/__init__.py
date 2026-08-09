@@ -12,6 +12,7 @@ from app.api.agent.scope import require_business_scope
 from app.api.v1.endpoints.agent.external_mirror import external_mirror_router
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.inventory import inventory_router
+from app.api.v1.endpoints.agent.account_health import account_health_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
@@ -75,6 +76,13 @@ agent_router.include_router(
 agent_router.include_router(
     replenishment_analysis_router,
     dependencies=[Depends(require_business_scope("replenishment_analysis"))],
+)
+# 店铺合规健康域（BLF-550）：纯读 5 条路由，挂 business_scope("account_health")。
+# 数据底座直接复用巡检数据（S2 结论）；project_scope 过滤在 handler 内做（对齐
+# report_upload_status 列表过滤语义）。必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    account_health_router,
+    dependencies=[Depends(require_business_scope("account_health"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
