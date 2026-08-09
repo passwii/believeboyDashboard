@@ -249,6 +249,9 @@ def test_all_external_get_routes_have_agent_mirror():
         "/external/projects/{project_id}/return-analysis-raw",
         # BLF-502 D1：补货分析已原生化（原生模块 6 路由）
         "/external/projects/{project_id}/replenishment-analysis",
+        # BLF-560 v0.2：orders/summary 已原生化（agent/orders.py 原生路由，
+        # 挂 business_scope("orders")）→ 镜像排除。
+        "/external/projects/{project_id}/orders/summary",
     }
     for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):

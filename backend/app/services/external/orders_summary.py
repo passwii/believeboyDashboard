@@ -7,14 +7,17 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Sequence, Union
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models import AnalysisSalesOrderRow, Project
 from app.services.sales_query import counted_sales_where
-from app.services.scheduled_report._sales_amount import sales_amount_expr
+from app.services.scheduled_report._sales_amount import (
+    sales_amount_expr,
+    sales_amount_expr_by_row,
+)
 from app.utils.math_utils import round_money, round_ratio, safe_ratio
 
 
@@ -145,7 +148,7 @@ def query_orders_summary_grouped(
     db: Session,
     *,
     project_id: int,
-    country: str,
+    country: Union[str, Sequence[str]],
     date_from: date,
     date_to: date,
     include_cancelled: bool = False,
@@ -157,12 +160,20 @@ def query_orders_summary_grouped(
     limit: int = 500,
     offset: int = 0,
 ) -> tuple[list[dict], int, dict]:
-    """SQL 侧 group-by 聚合已计入销售订单行（BLF-558 spec §4.2/§5）。
+    """SQL 侧 group-by 聚合已计入销售订单行（BLF-558 spec §4.2/§5；BLF-560 v0.2）。
 
     ``group_by`` 支持 ``asin``（TOP ASIN 排名）/ ``asin_day``（ASIN×日）/ ``day``
-    （日趋势）。销售额统一走 :func:`sales_amount_expr`（DE/UK 含税），订单数 =
+    （日趋势）。销售额统一走 :func:`sales_amount_expr`（DE/UK 含税）或
+    :func:`sales_amount_expr_by_row`（多站点时按行 CASE），订单数 =
     ``count(distinct amazon_order_id)``（去重），product_name 取组内
     ``raw_row->>'product_name'`` 任一非空值（不联表 sku_info，单域约束）。
+
+    ``country`` 接受单站点（str，行为与 v0.1 一致）或多站点序列
+    （BLF-560 v0.2 单项目多站点聚合）：多站点时按 (group 维度 × country) 分组，
+    行带 ``country``/``currency``，``summary.by_country`` 按国家分拆金额
+    （币种独立，**不做跨币种求和**——系统无通用 FX）；``total_orders`` /
+    ``total_quantity`` 为跨站点合计（无量纲可直接求和），顶层
+    ``total_sales_amount``/``currency`` 在多站点时为 ``None``。
 
     返回 ``(rows, total_rows, summary)``：
     * ``rows`` —— 按 ``order_by/order_dir`` 排序的聚合行（受 limit/offset 约束）；
@@ -179,35 +190,56 @@ def query_orders_summary_grouped(
     if order_dir not in ORDER_DIR_ALLOWED:
         raise ValueError(f"order_dir must be one of {sorted(ORDER_DIR_ALLOWED)}")
 
+    countries = [country] if isinstance(country, str) else list(country)
+    if not countries:
+        raise ValueError("country must not be empty")
+    multi = len(countries) > 1
+
     where = counted_sales_where(
         project_id=project_id,
-        country=country,
+        country=countries,
         date_from=date_from,
         date_to=date_to,
         include_pending=include_pending,
         include_cancelled=include_cancelled,
     )
 
+    # 金额表达式：单站点沿用 v0.1 的静态表达式（DE/UK 含税，与定时报表一致）；
+    # 多站点改为按行 CASE（每行按 row.country 决定含税与否），口径完全一致。
+    amount_expr = (
+        sales_amount_expr_by_row() if multi else sales_amount_expr(countries[0])
+    )
     qty_expr = func.sum(AnalysisSalesOrderRow.quantity).label("quantity")
-    amount_expr = func.sum(sales_amount_expr(country)).label("sales_amount")
+    amount_sum_expr = func.sum(amount_expr).label("sales_amount")
     order_count_expr = func.count(
         func.distinct(AnalysisSalesOrderRow.amazon_order_id)
     ).label("order_count")
 
     if group_by == "asin":
-        group_cols = [AnalysisSalesOrderRow.asin]
+        dim_cols = [AnalysisSalesOrderRow.asin]
     elif group_by == "asin_day":
-        group_cols = [
+        dim_cols = [
             AnalysisSalesOrderRow.purchase_date_pt,
             AnalysisSalesOrderRow.asin,
         ]
     else:  # day
-        group_cols = [AnalysisSalesOrderRow.purchase_date_pt]
+        dim_cols = [AnalysisSalesOrderRow.purchase_date_pt]
+
+    # 多站点：group 键 = (group 维度 × country)；单站点：维度分组不变，
+    # country 用 max() 常量选择（行为与 v0.1 一致，行仍带 country 增量字段）。
+    if multi:
+        group_cols = [*dim_cols, AnalysisSalesOrderRow.country]
+        country_sel = AnalysisSalesOrderRow.country
+    else:
+        group_cols = dim_cols
+        country_sel = func.max(AnalysisSalesOrderRow.country)
 
     select_cols = [
-        *group_cols,
+        *dim_cols,
+        country_sel.label("country"),
+        func.max(AnalysisSalesOrderRow.currency).label("currency"),
         qty_expr,
-        amount_expr,
+        amount_sum_expr,
         order_count_expr,
     ]
     if group_by in ("asin", "asin_day"):
@@ -222,7 +254,7 @@ def query_orders_summary_grouped(
         )
 
     order_expr_map = {
-        "sales_amount": amount_expr,
+        "sales_amount": amount_sum_expr,
         "quantity": qty_expr,
         "order_count": order_count_expr,
     }
@@ -253,11 +285,33 @@ def query_orders_summary_grouped(
         AnalysisSalesOrderRow.raw_row["fulfillment channel"].as_string(),
         "",
     )
-    summary_stmt = select(
-        order_count_expr.label("total_orders"),
-        func.sum(AnalysisSalesOrderRow.quantity).label("total_quantity"),
-        func.sum(sales_amount_expr(country)).label("total_sales_amount"),
-        func.max(AnalysisSalesOrderRow.currency).label("currency"),
+
+    # by_country 分拆（v0.2）：按国家分组 → 每站 currency/金额/订单数/数量。
+    # 金额按国家独立结算，不做跨币种求和（系统无通用 FX）。
+    by_country_stmt = (
+        select(
+            AnalysisSalesOrderRow.country.label("country"),
+            func.max(AnalysisSalesOrderRow.currency).label("currency"),
+            order_count_expr.label("total_orders"),
+            func.sum(AnalysisSalesOrderRow.quantity).label("total_quantity"),
+            func.sum(amount_expr).label("total_sales_amount"),
+        )
+        .where(*where)
+        .group_by(AnalysisSalesOrderRow.country)
+    )
+    by_country_rows = db.execute(by_country_stmt).all()
+    by_country: dict[str, dict] = {}
+    for r in by_country_rows:
+        by_country[r.country] = {
+            "currency": r.currency,
+            # 保留原始 Decimal 供 share 计算，序列化时再 round_money。
+            "total_sales_amount": r.total_sales_amount,
+            "total_orders": int(r.total_orders or 0),
+            "total_quantity": int(r.total_quantity or 0),
+        }
+
+    # 顶层 fba/fbm（无量纲计数，跨站点可合计；count distinct 订单号）。
+    fba_fbm_stmt = select(
         func.count(
             func.distinct(
                 case(
@@ -279,21 +333,61 @@ def query_orders_summary_grouped(
             )
         ).label("fbm_orders"),
     ).where(*where)
-    summary_row = db.execute(summary_stmt).one()
+    fba_fbm = db.execute(fba_fbm_stmt).one()
 
-    summary = {
-        "total_orders": int(summary_row.total_orders or 0),
-        "total_quantity": int(summary_row.total_quantity or 0),
-        "total_sales_amount": round_money(summary_row.total_sales_amount),
-        "currency": summary_row.currency,
-        "fba_orders": int(summary_row.fba_orders or 0),
-        "fbm_orders": int(summary_row.fbm_orders or 0),
-    }
+    if multi:
+        # 跨站点合计只含无量纲项（订单数/数量）；金额类按国家分拆在 by_country。
+        summary = {
+            "total_orders": sum(b["total_orders"] for b in by_country.values()),
+            "total_quantity": sum(b["total_quantity"] for b in by_country.values()),
+            "total_sales_amount": None,
+            "currency": None,
+            "fba_orders": int(fba_fbm.fba_orders or 0),
+            "fbm_orders": int(fba_fbm.fbm_orders or 0),
+            "by_country": {
+                c: {
+                    "currency": b["currency"],
+                    "total_sales_amount": round_money(b["total_sales_amount"]),
+                    "total_orders": b["total_orders"],
+                    "total_quantity": b["total_quantity"],
+                }
+                for c, b in by_country.items()
+            },
+        }
+    else:
+        c = countries[0]
+        b = by_country.get(c)
+        if b is None:
+            b = {
+                "currency": None,
+                "total_sales_amount": None,
+                "total_orders": 0,
+                "total_quantity": 0,
+            }
+        summary = {
+            "total_orders": b["total_orders"],
+            "total_quantity": b["total_quantity"],
+            "total_sales_amount": round_money(b["total_sales_amount"]),
+            "currency": b["currency"],
+            "fba_orders": int(fba_fbm.fba_orders or 0),
+            "fbm_orders": int(fba_fbm.fbm_orders or 0),
+            "by_country": {
+                c: {
+                    "currency": b["currency"],
+                    "total_sales_amount": round_money(b["total_sales_amount"]),
+                    "total_orders": b["total_orders"],
+                    "total_quantity": b["total_quantity"],
+                }
+            },
+        }
 
     rows: list[dict] = []
     for row in db.execute(stmt).all():
+        country_val = row.country
         if group_by == "asin":
             item: dict = {
+                "country": country_val,
+                "currency": row.currency,
                 "asin": row.asin,
                 "product_name": row.product_name,
                 "quantity": int(row.quantity or 0),
@@ -301,11 +395,13 @@ def query_orders_summary_grouped(
                 "order_count": int(row.order_count or 0),
             }
             if include_share:
-                item["share"] = round_ratio(
-                    safe_ratio(row.sales_amount, summary_row.total_sales_amount)
-                )
+                # v0.2：share 按国家内结算（sales_amount / Σ同国家 sales_amount）。
+                denom = by_country.get(country_val, {}).get("total_sales_amount")
+                item["share"] = round_ratio(safe_ratio(row.sales_amount, denom))
         elif group_by == "asin_day":
             item = {
+                "country": country_val,
+                "currency": row.currency,
                 "date": row.purchase_date_pt.isoformat(),
                 "asin": row.asin,
                 "product_name": row.product_name,
@@ -315,6 +411,8 @@ def query_orders_summary_grouped(
             }
         else:  # day
             item = {
+                "country": country_val,
+                "currency": row.currency,
                 "date": row.purchase_date_pt.isoformat(),
                 "quantity": int(row.quantity or 0),
                 "sales_amount": round_money(row.sales_amount),

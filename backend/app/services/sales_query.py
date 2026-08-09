@@ -5,20 +5,23 @@
 所有需要"已计入销售订单行"的服务都应走本模块的 ``counted_sales_where``，
 避免各自 JOIN source_file + is_current 导致丢单（见 BEL-348 根因）。
 """
+
 from __future__ import annotations
 
 from datetime import date
-from typing import List
+from typing import List, Sequence, Union
 
 from sqlalchemy import ColumnElement, and_
 
 from app.models import AnalysisSalesOrderRow
 
+CountryParam = Union[str, Sequence[str]]
+
 
 def counted_sales_where(
     *,
     project_id: int,
-    country: str,
+    country: CountryParam,
     date_from: date,
     date_to: date,
     include_pending: bool = True,
@@ -26,12 +29,24 @@ def counted_sales_where(
 ) -> ColumnElement:
     """返回过滤"已计入销售订单行"的 WHERE 子句（直接按行，不依赖 source_file 版本）。
 
-    过滤条件：同一项目 + 同一国家 + 购买日期在窗口内 + is_counted_sales。
+    过滤条件：同一项目 + 同一（些）国家 + 购买日期在窗口内 + is_counted_sales。
     可选排除 Cancelled / Pending。
+
+    ``country`` 接受单站点代码（str，行为与历史一致）或多站点代码序列
+    （BLF-560 单项目多站点聚合，spec v0.2 §5.2：多站点时用 ``IN (...)``）。
     """
+    if isinstance(country, str):
+        country_clause: ColumnElement = AnalysisSalesOrderRow.country == country
+    else:
+        country_list = list(country)
+        country_clause = (
+            AnalysisSalesOrderRow.country == country_list[0]
+            if len(country_list) == 1
+            else AnalysisSalesOrderRow.country.in_(country_list)
+        )
     clauses: List[ColumnElement] = [
         AnalysisSalesOrderRow.project_id == project_id,
-        AnalysisSalesOrderRow.country == country,
+        country_clause,
         AnalysisSalesOrderRow.purchase_date_pt >= date_from,
         AnalysisSalesOrderRow.purchase_date_pt <= date_to,
         AnalysisSalesOrderRow.is_counted_sales.is_(True),
