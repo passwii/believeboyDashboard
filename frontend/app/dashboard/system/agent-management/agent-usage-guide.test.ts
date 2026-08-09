@@ -206,6 +206,22 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=account_health 输出店铺合规健康示例（BLF-551，5 条纯读路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'account_health',
+    })
+    expect(text).toContain('店铺合规健康')
+    expect(text).toContain('/account-health/periods')
+    expect(text).toContain('/account-health/periods/current')
+    expect(text).toContain('/account-health/periods/{period_id}/overview')
+    expect(text).toContain('/account-health/periods/{period_id}/projects/{project_id}')
+    expect(text).toContain('/account-health/history')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

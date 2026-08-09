@@ -96,6 +96,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: true },
   },
   {
+    code: 'account_health',
+    label: '店铺合规健康',
+    description: '店铺合规/账户健康：周巡检周期列表/概览/单店明细/历史趋势（读 5 条，BLF-547）',
+    status: 'live',
+    routeCount: 5,
+    capabilities: { read: true, write: false },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',
