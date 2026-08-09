@@ -169,3 +169,29 @@ def build_previous_period(
     previous_end = date.fromordinal(date_from.toordinal() - 1)
     previous_start = date.fromordinal(previous_end.toordinal() - days + 1)
     return previous_start, previous_end
+
+
+def _shift_year_clamped(d: date) -> date:
+    """将日期年份减 1；2/29 在去年非闰年不存在时钳制到 2/28。"""
+    try:
+        return d.replace(year=d.year - 1)
+    except ValueError:
+        return d.replace(year=d.year - 1, day=28)
+
+
+def build_yoy_period(start: date, end: date) -> Tuple[date, date]:
+    """构建去年同期的起止日期（同比窗口）。
+
+    收编 ``report_builder_monthly._get_yoy_month`` 的成熟实现（BLF-570）：
+    逐日平移年份，闰年 2/29 → 去年 2/28 钳制（如 2024-02-29 的同比窗口
+    为 2023-02-28）。对常规"当月整月"窗口，结果与旧实现完全一致；
+    对任意起止日期（含跨月、跨年、单日）也正确。
+
+    Args:
+        start: 当前周期开始
+        end: 当前周期结束
+
+    Returns:
+        (去年同期开始, 去年同期结束)
+    """
+    return _shift_year_clamped(start), _shift_year_clamped(end)

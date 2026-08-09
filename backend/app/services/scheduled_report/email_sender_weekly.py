@@ -40,8 +40,14 @@ def _fmt_week_currency(val: float, country: str = "US") -> str:
     return f"{symbol}{val:,.2f}"
 
 
-def _fmt_week_change(val: float) -> tuple[str, str, str]:
-    """周报专用变化率格式化"""
+def _fmt_week_change(val: float | None) -> tuple[str, str, str]:
+    """周报专用变化率格式化。
+
+    BLF-570：上期无基数（``None``，如上周销量为 0 而本周有销量）渲染为 "—"，
+    不再显示误导性的 "持平"。
+    """
+    if val is None:
+        return "#6B7280", "—", ""
     if val == 0:
         return "#6B7280", "持平", ""
     color = "#16A34A" if val > 0 else "#DC2626"
@@ -146,9 +152,9 @@ def _render_top_sku_comparison_table(top_skus: list[dict]) -> str:
 
         if is_new:
             status = '<span style="background: #059669; color: white; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px;">NEW</span>'
-        elif change > 50:
+        elif (change or 0) > 50:
             status = '<span style="background: #DBEAFE; color: #1D4ED8; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px;">↑ 强势</span>'
-        elif change < -30:
+        elif (change or 0) < -30:
             status = '<span style="background: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px;">↓ 预警</span>'
         else:
             status = ""
@@ -181,9 +187,9 @@ def _render_ads_comparison_cards(ads: dict, country: str = "US") -> str:
 
         color, change_str, _ = _fmt_week_change(change)
         if good_high:
-            color = "#16A34A" if change > 0 else "#DC2626"
+            color = "#16A34A" if (change or 0) > 0 else "#DC2626"
         else:
-            color = "#16A34A" if change < 0 else "#DC2626" if change > 0 else "#6B7280"
+            color = "#16A34A" if (change or 0) < 0 else "#DC2626" if (change or 0) > 0 else "#6B7280"
 
         return f"""<td width="25%" style="padding: 14px 6px; text-align: center; border: 1px solid #E5E7EB; background: white; vertical-align: top;">
           <div style="font-size: 11px; color: #6B7280; margin-bottom: 6px; text-transform: uppercase;">{label}</div>
