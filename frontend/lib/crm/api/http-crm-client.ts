@@ -22,6 +22,8 @@ import type {
   TaskInput,
   TaskListParams,
   TaskStatus,
+  Rule,
+  RuleInput,
   User,
   ValueScoresInput,
 } from '@/lib/crm/types'
@@ -37,6 +39,7 @@ import {
   mapLead,
   mapLifecycleBoard,
   mapTask,
+  mapRule,
   mapUser,
   toContactPayload,
   toConvertPayload,
@@ -45,12 +48,14 @@ import {
   toImportRowPayload,
   toLeadPayload,
   toTaskPayload,
+  toRulePayload,
   type AuditLogDto,
   type ContactDto,
   type CustomerDto,
   type DashboardStatsDto,
   type FollowDto,
   type FollowUpGroupsDto,
+  type RuleDto,
   type StageDetailDto,
   type LeadDto,
   type LifecycleBoardDto,
@@ -396,5 +401,30 @@ export class HttpCrmClient implements CrmClient {
   }
   async cancelTask(id: string): Promise<Task> {
     return mapTask(await request<TaskDto>(`/tasks/${id}/cancel`, { method: 'POST' }))
+  }
+
+  // ===== 规则引擎（P9，BLF-543/545） =====
+  async listRules(): Promise<Rule[]> {
+    const dtos = await request<RuleDto[]>('/rules')
+    return dtos.map(mapRule)
+  }
+  async createRule(input: RuleInput): Promise<Rule> {
+    return mapRule(
+      await request<RuleDto>('/rules', {
+        method: 'POST',
+        body: JSON.stringify(toRulePayload(input)),
+      })
+    )
+  }
+  async updateRule(id: number, input: Partial<RuleInput>): Promise<Rule> {
+    return mapRule(
+      await request<RuleDto>(`/rules/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(toRulePayload(input)),
+      })
+    )
+  }
+  async deleteRule(id: number): Promise<void> {
+    await request<void>(`/rules/${id}`, { method: 'DELETE' })
   }
 }

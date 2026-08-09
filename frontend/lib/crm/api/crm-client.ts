@@ -23,6 +23,8 @@ import type {
   TaskInput,
   TaskListParams,
   TaskStatus,
+  Rule,
+  RuleInput,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -109,4 +111,14 @@ export interface CrmClient {
   completeTask(id: string): Promise<Task>
   /** 取消：status→cancelled。 */
   cancelTask(id: string): Promise<Task>
+
+  // ===== 规则引擎（P9，BLF-543/545） =====
+  /** 全部规则列表（含 conditions/actions；admin only，403 由后端 require_admin 兜底）。 */
+  listRules(): Promise<Rule[]>
+  /** 新建规则（conditions/actions 整体写入）。 */
+  createRule(input: RuleInput): Promise<Rule>
+  /** 编辑规则（含启停开关 enabled / 条件 / 动作整体替换）。 */
+  updateRule(id: number, input: Partial<RuleInput>): Promise<Rule>
+  /** 删除规则（CASCADE 子表）。 */
+  deleteRule(id: number): Promise<void>
 }

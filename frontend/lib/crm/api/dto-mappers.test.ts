@@ -9,17 +9,20 @@ import {
   mapLifecycleBoard,
   mapTask,
   mapUser,
+  mapRule,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
   toImportRowPayload,
   toLeadPayload,
   toTaskPayload,
+  toRulePayload,
   type CustomerDto,
   type FollowDto,
   type FollowUpGroupsDto,
   type LeadDto,
   type LifecycleBoardDto,
+  type RuleDto,
   type StageDetailDto,
   type TaskDto,
 } from './dto-mappers'
@@ -455,5 +458,88 @@ describe('mapLifecycleBoard（生命周期看板，BLF-520）', () => {
     expect(board.firstFollow.buckets[1]?.cumulativePct).toBe(1.0)
     expect(board.conversion.summary.sampleCount).toBe(0)
     expect(board.churn.summary.totalCount).toBe(8)
+  })
+})
+
+describe('mapRule / toRulePayload (P9 规则引擎，BLF-543/545)', () => {
+  const ruleDto: RuleDto = {
+    id: 1,
+    name: '客户 7 天无跟进提醒',
+    description: '客户创建超过 7 天且从未跟进 → 提醒负责人',
+    entity_type: 'customer',
+    event_type: 'stale_follow_up',
+    enabled: true,
+    priority: 0,
+    conditions: [
+      { id: 10, field: 'days_since_created', operator: 'gte', value: '7', sort_order: 0 },
+      { id: 11, field: 'last_follow_at', operator: 'is_null', value: null, sort_order: 1 },
+    ],
+    actions: [{ id: 20, action_type: 'notify_owner', params: null, sort_order: 0 }],
+    created_by: 'uuid-admin',
+    created_at: '2026-08-08T00:00:00+00:00',
+    updated_at: '2026-08-08T00:00:00+00:00',
+  }
+
+  it('mapRule：snake → camel、条件/动作逐项映射、null → undefined', () => {
+    const rule = mapRule(ruleDto)
+    expect(rule.id).toBe(1)
+    expect(rule.name).toBe('客户 7 天无跟进提醒')
+    expect(rule.entityType).toBe('customer')
+    expect(rule.eventType).toBe('stale_follow_up')
+    expect(rule.enabled).toBe(true)
+    expect(rule.priority).toBe(0)
+    expect(rule.conditions).toEqual([
+      { id: 10, field: 'days_since_created', operator: 'gte', value: '7', sortOrder: 0 },
+      { id: 11, field: 'last_follow_at', operator: 'is_null', value: null, sortOrder: 1 },
+    ])
+    expect(rule.actions).toEqual([
+      { id: 20, actionType: 'notify_owner', params: null, sortOrder: 0 },
+    ])
+    expect(rule.createdBy).toBe('uuid-admin')
+    expect(rule.description).toBe('客户创建超过 7 天且从未跟进 → 提醒负责人')
+  })
+
+  it('mapRule：空 conditions/actions 容错、可空字段转 undefined', () => {
+    const rule = mapRule({
+      id: 2,
+      name: '空规则',
+      entity_type: 'lead',
+      event_type: 'stale_follow_up',
+      enabled: false,
+      priority: 1,
+      conditions: [],
+      actions: [],
+      created_at: '2026-08-08T00:00:00+00:00',
+      updated_at: '2026-08-08T00:00:00+00:00',
+    })
+    expect(rule.description).toBeUndefined()
+    expect(rule.createdBy).toBeUndefined()
+    expect(rule.conditions).toEqual([])
+    expect(rule.actions).toEqual([])
+  })
+
+  it('toRulePayload：camel → snake、conditions/actions 嵌套转换、undefined 剔除', () => {
+    const payload = toRulePayload({
+      name: '客户 7 天无跟进提醒',
+      entityType: 'customer',
+      eventType: 'stale_follow_up',
+      enabled: true,
+      conditions: [
+        { field: 'days_since_created', operator: 'gte', value: '7', sortOrder: 0 },
+        { field: 'last_follow_at', operator: 'is_null', value: null, sortOrder: 1 },
+      ],
+      actions: [{ actionType: 'notify_owner', params: null, sortOrder: 0 }],
+    })
+    expect(payload).toEqual({
+      name: '客户 7 天无跟进提醒',
+      entity_type: 'customer',
+      event_type: 'stale_follow_up',
+      enabled: true,
+      conditions: [
+        { field: 'days_since_created', operator: 'gte', value: '7', sort_order: 0 },
+        { field: 'last_follow_at', operator: 'is_null', value: null, sort_order: 1 },
+      ],
+      actions: [{ action_type: 'notify_owner', params: null, sort_order: 0 }],
+    })
   })
 })
