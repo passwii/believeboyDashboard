@@ -1,11 +1,14 @@
-"""公海自动回收服务（P3a）。
+"""公海自动回收服务（P3a + P9-3 价值分档）。
 
 扫描有主但 N 天未跟进的客户/线索，自动掉公海（owner=null），防销售占着不跟。
 每条回收写一条系统跟进（type=note, created_by=null）留痕，跟进时间线可见。
 
 判定基准：
-- 客户：COALESCE(last_follow_at, created_at) 距今 > N 天；排除 signed / 已删除 / 已在公海。
+- 客户：COALESCE(last_follow_at, created_at) 距今 > N 天；排除 signed / 已删除 / 已在公海；
+  且按价值分档差异化（P9-3, BLF-541）：rating=A（P6a 最高档）永不回收，
+  B/C/D 档按 N 天回收。
 - 线索：COALESCE(next_follow_at, created_at) 距今 > N 天；排除 converted / discarded / 已删除 / 已在池。
+  线索无价值分档（rating 仅客户有），维持统一阈值回收。
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from app.models.crm import CrmCustomer, CrmFollow, CrmLead
 
 # 客户掉公海时不动的状态（已签约是成交资产，不回收）
 _CUSTOMER_PROTECTED_STATUS = {"signed"}
+# 客户按价值分档（P6a rating）差异化回收：A 档（最高价值）永不回公海（P9-3, BLF-541）
+_CUSTOMER_PROTECTED_RATINGS = {"A"}
 # 线索回收排除状态（已转化/已弃置不再流转）
 _LEAD_PROTECTED_STATUS = {"converted", "discarded"}
 
@@ -62,6 +67,8 @@ def reclaim_stale_to_sea(
     )
     reclaimed_customers = 0
     for cust in customers:
+        if cust.rating in _CUSTOMER_PROTECTED_RATINGS:
+            continue  # A 档高价值客户永不回收（P9-3）
         ref = cust.last_follow_at or cust.created_at
         if ref is not None and ref < cutoff:
             cust.owner_id = None
