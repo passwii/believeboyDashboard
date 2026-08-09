@@ -27,7 +27,7 @@
 5. **路径迁移不破坏现有消费者**：双挂 + 301 重定向两阶段切换。
 6. **复用既有凭据基建（BEL-377）并同步改名**：仓库已有 `external_api_keys` 表 + `/api/v1/internal/api-keys` 管理端点 + `api_key_service`——Agent 凭据**改名 + 扩展这套**（`external_api_keys` → `agent_api_keys`），不另起炉灶（见 §4、§11）。
 7. **Agent API 端点只服务单一业务域（BLF-476 决策，三条硬约束）**：
-   a. **单域**：每个端点只服务一个业务域，允许域内聚合（如 `orders/summary` 把订单行聚合成统计），**不允许跨域返回**（如「订单+库存+广告」一次返回的接口）。
+   a. **单域**：每个端点只服务一个业务域，允许域内聚合（如 `sales/summary` 把订单行聚合成统计），**不允许跨域返回**（如「订单+库存+广告」一次返回的接口）。
    b. **编排归调用方**：跨域组合 / 业务编排归属于调用方（Agent 或上层应用），由调用方多次单域调用合成——别的 Agent 复用同一份域 API 时无需重新拆。
    c. **评审标注**：新增端点评审时显式标注「单域 / 跨域」，跨域需单独评审并写明理由。
 
@@ -396,7 +396,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
-| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/orders/summary` | v1 双挂 |
+| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales，旧路径双挂保留） |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
 | `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |

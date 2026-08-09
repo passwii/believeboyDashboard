@@ -148,7 +148,7 @@ def query_orders_summary(
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# group_by 模式（BLF-558，spec docs/superpowers/specs/2026-08-09-agent-order-detail-api.md）
+# group_by 模式（BLF-558，spec docs/superpowers/specs/2026-08-09-agent-sales-data-api.md）
 # ────────────────────────────────────────────────────────────────────────────
 
 # group_by / order_by / order_dir 白名单（spec §4.2）。端点层负责 400 校验

@@ -1,4 +1,5 @@
-"""orders/summary ``group_by`` 扩展契约测试（BLF-558；spec §7 测试清单）。
+"""sales/summary ``group_by`` 扩展契约测试（BLF-558；spec §7 测试清单；
+BLF-569 路径 orders→sales 迁移）。
 
 覆盖（对齐 spec §7 清单）：
 1. ``group_by=asin``：TOP 排名正确（sales_amount 降序）；``include_share=true``
@@ -12,8 +13,11 @@
 7. 镜像暴露：agent 侧 ``?group_by=asin`` 可调用，且 external handler 签名
    已含新参数（镜像沿 ``__wrapped__`` 自动暴露）。
 8. 鉴权/壳：401 未鉴权；404 项目不存在；403 project_scope 越界。
-9. 回归：test_external_mirror.py 全量 + 现有 orders/summary 相关测试零改动通过
+9. 回归：test_external_mirror.py 全量 + 现有 sales/summary 相关测试零改动通过
    （在 CI/全套运行中覆盖，本文件只加新用例不碰存量）。
+10. 旧路径双挂（BLF-569）：/orders/summary 行为与 /sales/summary 一致（数据
+    零漂移）＋ Deprecation/Sunset/Link successor 迁移提示头（见
+    test_sales_summary_migration.py 专项）。
 
 口径（spec §5.2）：销售额 = ``sales_amount_expr(country)``（DE/UK 含税）；
 订单数 = ``count(distinct amazon_order_id)``；空结果 200 + 空 rows。
@@ -248,7 +252,7 @@ def orders_env(make_api_key):
 
 def test_group_by_asin_top_ranking_and_share(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=asin&include_share=true",
         headers=orders_env["headers"],
     )
@@ -328,7 +332,7 @@ def test_group_by_asin_de_vat_inclusive(client, make_api_key):
 
     try:
         resp = client.get(
-            f"/api/v1/agent/projects/{project_id}/orders/summary"
+            f"/api/v1/agent/projects/{project_id}/sales/summary"
             f"?period=7d&country={country}&group_by=asin",
             headers=_headers(key, agent_id),
         )
@@ -366,7 +370,7 @@ def test_group_by_asin_de_vat_inclusive(client, make_api_key):
 
 def test_group_by_asin_day(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=asin_day",
         headers=orders_env["headers"],
     )
@@ -398,7 +402,7 @@ def test_group_by_asin_day(client, orders_env):
 
 def test_group_by_day(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=day",
         headers=orders_env["headers"],
     )
@@ -422,7 +426,7 @@ def test_group_by_day(client, orders_env):
 
     # 其他排序字段白名单生效。
     resp_qty = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=day&order_by=quantity&order_dir=asc",
         headers=orders_env["headers"],
     )
@@ -449,7 +453,7 @@ def test_group_by_day(client, orders_env):
 )
 def test_grouped_whitelist_400(client, orders_env, qs, bad_param):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&{qs}",
         headers=orders_env["headers"],
     )
@@ -463,7 +467,7 @@ def test_grouped_whitelist_400(client, orders_env, qs, bad_param):
 def test_grouped_whitelist_ignored_in_legacy_mode(client, orders_env):
     """非 group_by 模式不校验 order_by/order_dir（向后兼容：存量消费者可能传任意值）。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&order_by=whatever&order_dir=up",
         headers=orders_env["headers"],
     )
@@ -478,7 +482,7 @@ def test_grouped_whitelist_ignored_in_legacy_mode(client, orders_env):
 
 def test_summary_full_period_with_limit_1(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=day&limit=1",
         headers=orders_env["headers"],
     )
@@ -493,7 +497,7 @@ def test_summary_full_period_with_limit_1(client, orders_env):
 def test_group_by_empty_result_200(client, orders_env):
     """空结果 → 200 + 空 rows（spec §5.2），非 404。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country=DE&group_by=asin",  # DE 合法但无种子数据
         headers=orders_env["headers"],
     )
@@ -511,7 +515,7 @@ def test_group_by_empty_result_200(client, orders_env):
 
 def test_legacy_mode_backward_compatible(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}",
         headers=orders_env["headers"],
     )
@@ -551,7 +555,7 @@ def test_legacy_mode_backward_compatible(client, orders_env):
 def test_legacy_mode_limit_default_unchanged(client, orders_env):
     """不带 limit 时 legacy 模式仍走 50000 上限（等价于原 Query 默认值）。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&limit=2",
         headers=orders_env["headers"],
     )
@@ -564,9 +568,9 @@ def test_legacy_mode_limit_default_unchanged(client, orders_env):
 # ---------------------------------------------------------------------------
 
 
-def test_orders_summary_native_route_exposes_params_and_mirror_excluded():
-    """BLF-560 v0.2：orders/summary 已原生化——原生路由带全部 group_by 参数，
-    镜像侧排除（无双挂冲突）。spec §7.8 权限门 + 镜像排除回归。
+def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
+    """BLF-569：sales/summary 原生路由带全部 group_by 参数 + 旧路径双挂共存，
+    镜像侧排除 orders/summary（无双挂冲突）。spec §7.8 权限门 + 镜像排除回归。
     """
     import inspect
 
@@ -574,22 +578,21 @@ def test_orders_summary_native_route_exposes_params_and_mirror_excluded():
         _EXCLUDED_EXTERNAL_PATHS,
         external_mirror_router,
     )
-    from app.api.v1.endpoints.agent.orders import orders_router
+    from app.api.v1.endpoints.agent.sales import sales_router
 
-    # 1) 镜像侧：orders/summary 已从 _EXCLUDED_EXTERNAL_PATHS 排除。
+    # 1) 镜像侧：orders/summary 已从 _EXCLUDED_EXTERNAL_PATHS 排除（external
+    #    源路由不动，仅作 handler 来源）。
     assert "/external/projects/{project_id}/orders/summary" in _EXCLUDED_EXTERNAL_PATHS
     mirror_paths = {r.path for r in external_mirror_router.routes}
     assert "/projects/{project_id}/orders/summary" not in mirror_paths
 
-    # 2) 原生路由：/orders/summary 存在且 handler 签名带全部参数。
+    # 2) 原生路由：sales/summary 存在且 handler 签名带全部参数。
     native_routes = [
         r
-        for r in orders_router.routes
-        if getattr(r, "path", "") == "/projects/{project_id}/orders/summary"
+        for r in sales_router.routes
+        if getattr(r, "path", "") == "/projects/{project_id}/sales/summary"
     ]
-    assert len(native_routes) == 1, (
-        "agent/orders.py 应有且仅有一个 /orders/summary 路由"
-    )
+    assert len(native_routes) == 1, "agent/sales.py 应有且仅有一个 /sales/summary 路由"
     params = list(inspect.signature(native_routes[0].endpoint).parameters)
     for p in (
         "group_by",
@@ -600,6 +603,16 @@ def test_orders_summary_native_route_exposes_params_and_mirror_excluded():
         "offset",
     ):
         assert p in params, f"原生 handler 缺少 {p}"
+
+    # 3) 旧路径 /orders/summary 双挂保留（BLF-569 迁移提示期）。
+    legacy_routes = [
+        r
+        for r in sales_router.routes
+        if getattr(r, "path", "") == "/projects/{project_id}/orders/summary"
+    ]
+    assert len(legacy_routes) == 1, (
+        "agent/sales.py 应有且仅有一个 /orders/summary 双挂路由"
+    )
 
 
 def test_mirror_agent_channel_group_by_parity(client, orders_env):
@@ -617,7 +630,7 @@ def test_mirror_agent_channel_group_by_parity(client, orders_env):
     qs = f"period=7d&country={orders_env['country']}&group_by=asin&include_share=true"
 
     resp = client.get(
-        f"/api/v1/agent/projects/{pid}/orders/summary?{qs}",
+        f"/api/v1/agent/projects/{pid}/sales/summary?{qs}",
         headers=orders_env["headers"],
     )
     assert resp.status_code == 200, resp.text
@@ -656,7 +669,7 @@ def test_mirror_agent_channel_group_by_parity(client, orders_env):
 
 def test_grouped_401_without_credentials(client, orders_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{orders_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{orders_env['project_id']}/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=asin",
     )
     assert resp.status_code == 401
@@ -667,7 +680,7 @@ def test_grouped_401_without_credentials(client, orders_env):
 
 def test_grouped_404_project_not_found(client, orders_env):
     resp = client.get(
-        "/api/v1/agent/projects/99999999/orders/summary"
+        "/api/v1/agent/projects/99999999/sales/summary"
         f"?period=7d&country={orders_env['country']}&group_by=asin",
         headers=orders_env["headers"],
     )
@@ -678,11 +691,11 @@ def test_grouped_404_project_not_found(client, orders_env):
 
 
 def test_grouped_403_out_of_scope(client, make_api_key):
-    key = make_api_key(agent_id="scoped-blf558", project_scope="1")
+    key = make_api_key(agent_id="scoped-blf569", project_scope="1")
     resp = client.get(
-        "/api/v1/agent/projects/99999999/orders/summary"
+        "/api/v1/agent/projects/99999999/sales/summary"
         "?period=7d&country=US&group_by=asin",
-        headers=_headers(key, "scoped-blf558"),
+        headers=_headers(key, "scoped-blf569"),
     )
     assert resp.status_code == 403
     assert resp.json()["error"]["code"] == "AGENT_PROJECT_OUT_OF_SCOPE"

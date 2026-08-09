@@ -1173,14 +1173,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Agent Orders Summary
-         * @description orders/summary 原生路由（BLF-560 镜像族原生化）。
+         * Get Agent Orders Summary Legacy
+         * @description orders/summary 旧路径（BLF-569 双挂迁移提示期）。
          *
-         *     查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持
-         *     逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +
-         *     派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。
+         *     行为与 ``/sales/summary`` 完全一致（同一实现，数据零漂移），仅额外返回
+         *     迁移提示头：``Deprecation: true`` + ``Sunset`` + ``Link:
+         *     rel="successor-version"`` 指向新路径——对齐 BLF-459 v1 双挂先例。
+         *     下线（v3 410）由后续 issue 在 Sunset 之后执行。
          */
-        get: operations["get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get"];
+        get: operations["get_agent_orders_summary_legacy_api_v1_agent_projects__project_id__orders_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1443,6 +1444,30 @@ export interface paths {
          *     不是 404——查询结果为空 ≠ 资源不存在（D6 拍板）。
          */
         get: operations["get_return_analysis_sku_api_v1_agent_projects__project_id__return_analysis_skus__sku__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sales/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Agent Sales Summary
+         * @description sales/summary 原生路由（BLF-569 迁移后主路径）。
+         *
+         *     查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持
+         *     逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +
+         *     派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。
+         */
+        get: operations["get_agent_sales_summary_api_v1_agent_projects__project_id__sales_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9519,10 +9544,7 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Marketplace
@@ -9532,26 +9554,17 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -9561,10 +9574,7 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -9574,57 +9584,36 @@ export interface components {
              * @default US
              */
             country: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /**
-             * Excel File
-             * Format: binary
-             */
+            /** Excel File */
             excel_file: string;
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
         };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Title */
             title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** File Type */
             file_type: string;
@@ -9633,62 +9622,41 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
-            /** Report Id Form */
-            report_id_form?: number | null;
+            /** Report Id */
+            report_id?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /**
-             * Pdf File
-             * Format: binary
-             */
+            /** Pdf File */
             pdf_file: string;
         };
         /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
         Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
-            /**
-             * Csv File
-             * Format: binary
-             */
+            /** Csv File */
             csv_file: string;
         };
         /** CSVUploadResponse */
@@ -19816,6 +19784,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -22973,7 +22945,7 @@ export interface operations {
             };
         };
     };
-    get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get: {
+    get_agent_orders_summary_legacy_api_v1_agent_projects__project_id__orders_summary_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -23453,6 +23425,53 @@ export interface operations {
             path: {
                 project_id: number;
                 sku: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_sales_summary_api_v1_agent_projects__project_id__sales_summary_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                include_cancelled?: boolean;
+                include_pending?: boolean;
+                aggregate?: boolean;
+                group_by?: string;
+                order_by?: string;
+                order_dir?: string;
+                include_share?: boolean;
+                limit?: number | null;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
             };
             cookie?: never;
         };

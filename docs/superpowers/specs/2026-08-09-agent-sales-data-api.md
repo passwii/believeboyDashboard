@@ -1,10 +1,11 @@
-# 订单明细（ASIN×日）Agent API 设计（order_detail / orders/summary 扩展）
+# 销售数据（ASIN×日）Agent API 设计（sales/summary，前身 orders/summary）
 
-> **状态**：v0.2（2026-08-09，BLF-557 用户追加拍板）。
-> **结论摘要**：**方案 A — 扩展现有 `orders/summary`**（`group_by=asin|asin_day|day` + 派生指标），**v0.2 新增两项**：
+> **状态**：v0.3（2026-08-09，BLF-569 路径/域 code 迁移定稿）。
+> **结论摘要**：**方案 A — 扩展现有 `sales/summary`**（`group_by=asin|asin_day|day` + 派生指标；前身 `orders/summary`，BLF-569 按用户拍板迁移：路径 orders→sales、域 code orders→sales、旧路径双挂保留迁移提示期），**v0.2 新增两项**：
 > ① **单项目多站点聚合进 V1**（`country` 支持逗号分隔多值，行按国家分组、按国家货币独立结算，**不做跨币种求和**——系统无通用汇率，仅 RMB→目标币）；
-> ② **权限/控制门对齐**：orders/summary 从镜像族改造为**原生 agent 域**（新增 `business_scope("orders")`，挂 `require_business_scope` + `require_project_scope`，`_EXCLUDED_EXTERNAL_PATHS` 排除镜像）——与 account_health / return_analysis 等原生域同规。
-> 仍不联表 sku_info（跨域）、不做跨项目聚合（v1，调用方自组）。**新 business_scope 取值 `orders`（字符串列无迁移）、无新表**。
+> ② **权限/控制门对齐**：sales/summary 从镜像族改造为**原生 agent 域**（新增 `business_scope("sales")`，挂 `require_business_scope` + `require_project_scope`，`_EXCLUDED_EXTERNAL_PATHS` 排除镜像）——与 account_health / return_analysis 等原生域同规。
+> 仍不联表 sku_info（跨域）、不做跨项目聚合（v1，调用方自组）。**新 business_scope 取值 `sales`（字符串列无迁移，存量含 `orders` 的 key 上线时 UPDATE 为 `sales`）、无新表**。
+> **v0.3（BLF-569）变更**：端点路径 `orders/summary` → `sales/summary`，域 code `orders` → `sales`；旧路径 `/orders/summary` 双挂保留（Deprecation + Sunset + Link successor 头），行为与 sales/summary 零漂移（对齐 BLF-459 三阶段：双挂 → 切换 → 下线）。
 
 ---
 
@@ -12,12 +13,12 @@
 
 ### 1.1 文档目的
 
-从 BLF-479 下一阶段候选清单选定的「订单明细（ASIN×日）」方向（用户 2026-08-09 选定）做深度讨论与设计定稿：拍板 D1 重复性 / D2 单域标注 / D3 端点形态 / D4 必要元素 / D5 与月报体系边界。v0.2 依用户 2026-08-09 追加指示修订：**单项目多站点聚合进 V1**、**权限/控制门与其他 agent API 对齐**、**按新规则改造（存量不合规域需调整）**。本 spec 供实施子 issue 照做。
+从 BLF-479 下一阶段候选清单选定的「订单明细（ASIN×日）」方向（用户 2026-08-09 选定）做深度讨论与设计定稿：拍板 D1 重复性 / D2 单域标注 / D3 端点形态 / D4 必要元素 / D5 与月报体系边界。v0.2 依用户 2026-08-09 追加指示修订：**单项目多站点聚合进 V1**、**权限/控制门与其他 agent API 对齐**、**按新规则改造（存量不合规域需调整）**。v0.3（BLF-569）依用户 2026-08-09 拍板实施**端点路径 + 域 code 迁移**（orders→sales，板块定名「销售数据 Sales Data」，BLF-557 标题/§2.9 已同步）。本 spec 供实施子 issue 照做。
 
 ### 1.2 域定位（单域原则）
 
 - **单域原则**（`docs/agent-api-design.md` §1.2 #7）：每个端点只服务一个业务域，**允许域内聚合**（§1.2 #7a 明文举例：「如 `orders/summary` 把订单行聚合成统计」），**不允许跨域返回**（对照 BLF-476 删除 business-summary 的先例）。
-- 本域 = **orders 域（销售订单行）**，数据源唯一表 `analysis_sales_order_rows`。ASIN×日聚合是对同一张订单行表的**域内聚合**——落在单域原则允许的范围内。
+- 本域 = **sales 域（销售订单行，BLF-569 前称 orders 域）**，数据源唯一表 `analysis_sales_order_rows`。ASIN×日聚合是对同一张订单行表的**域内聚合**——落在单域原则允许的范围内。
 - **单项目多站点聚合 = 域内聚合**：`country` 是订单行表自身的维度列（每行有 country），同一项目内跨站点聚合仍只读一张订单行表——不构成跨域。**唯一约束是货币**：不同站点币种不同（US=$ / DE=€ / UK=£），系统汇率服务仅支持 RMB→目标币（`convert_rmb_to_target_currency`），**无通用 FX** → **v1 不做跨币种求和**，按国家分组、按国家货币独立结算（§5.2）。
 - **跨域明确不做**：与 `sku_info`（SKU 主数据）联表补成本/产品名属于「订单 + SKU 主数据」跨域 → 不允许；产品名已在订单行 `raw_row.product_name` 内（无需联表），成本（fob_unit_cost 等）由调用方通过既有 `/api/v1/agent/projects/{id}/sku-info` 单独获取后自组。
 
@@ -31,11 +32,11 @@
 - 关键列：`amazon_order_id / purchase_date_pt / order_status / sku / asin / quantity / item_price / shipping_price / item_tax / shipping_tax / currency / country / is_counted_sales` + `raw_row`（JSON，含 `product_name` / `fulfillment_channel`）。
 - 行级过滤语义统一走 `counted_sales_where`（`backend/app/services/sales_query.py`）：`project_id + country + 日期窗口 + is_counted_sales`，可选排除 Cancelled / Pending。
 
-### 2.2 现有端点 — `GET /api/v1/agent/projects/{id}/orders/summary`（BLF-558 已实现）
+### 2.2 现有端点 — `GET /api/v1/agent/projects/{id}/sales/summary`（BLF-558 已实现；BLF-569 迁移前为 `orders/summary`）
 
 - 参数：`period`/`start_date`/`end_date`、`country`（必填单站点）、`include_cancelled`（默认 false）、`include_pending`（默认 true）、`group_by`（`asin`/`asin_day`/`day`，BLF-558 新增）、`order_by`/`order_dir`/`include_share`、`limit`/`offset`。
 - 响应：`data`（原始行，非 group_by 模式）+ `aggregate`/`summary`；group_by 模式返回 `rows` + `total_rows` + `summary`（SQL 全量，修复页内汇总失真）。
-- **当前挂载形态 = 镜像族**：`external_mirror.py` 程序化镜像 `/external/projects/{id}/orders/summary` → `/api/v1/agent/projects/{id}/orders/summary`，路由级仅挂 `require_project_scope`，**无 business_scope**——与 account_health 等原生域不一致（v0.2 决定 2 改造此点，见 §3 D3）。
+- **当前挂载形态 = 原生域**：`agent/sales.py` 原生路由（BLF-569 前为 `agent/orders.py`），路由级挂 `require_project_scope` + 域级 `require_business_scope("sales")`；镜像侧 `_EXCLUDED_EXTERNAL_PATHS` 排除 `/external/projects/{id}/orders/summary`（external 源路由不动，仅作 handler 来源）——与 account_health 等原生域同规。旧路径 `/orders/summary` 双挂保留迁移提示期。
 - BLF-558（PR #208）已合并 main（`06bc9f0a`）：`query_orders_summary_grouped` + 端点参数 + `OrdersGroupedRow/OrdersGroupedResponse` + 17 例契约测试。
 
 ### 2.3 内部 order_info（浏览器侧，不直接暴露给 Agent）
@@ -59,9 +60,9 @@
 
 | # | 决策点 | 结论 |
 |---|---|---|
-| **D1 重复性结论** | orders/summary 已有订单行原始数据，独立「订单明细域」是否重复？ | **原始行已覆盖（无重复价值），增量价值在「SQL 侧聚合 + 派生指标」**：现有 `aggregate` 是**页内汇总**（limit/offset 先于聚合，大周期 >limit 行时 total 失真，且 `total_orders` 是行数非去重订单数）；Agent 拉原始行做客户端聚合不可行（50k 行上限 + token 成本 + LLM 计算不可靠）。ASIN×日/ASIN 排名/占比是真正缺口（BLF-558 已落地） |
-| **D2 单域标注** | ASIN×日聚合是「域内聚合」还是「跨域」？ | **域内聚合**（orders 域，同一张订单行表，`counted_sales_where` + `sales_amount_expr` 复用）→ §1.2 #7a 允许。**单项目多站点聚合同样域内**（country 是行内维度列）。**跨域部分（sku_info 联表补成本）显式不做**，调用方经 sku-info 端点自组 |
-| **D3 端点形态** | A 扩展 orders/summary / B 新建独立域 / C 不加新端点 | **方案 A + v0.2 权限门改造**：① 继续扩展 `orders/summary`（`group_by` 已落地）；② **从镜像族改造为原生 agent 域**——新增 `business_scope("orders")`，`agent/__init__.py` 挂 `require_business_scope("orders")`，`_EXCLUDED_EXTERNAL_PATHS` 排除 `/external/projects/{project_id}/orders/summary`（对齐 return_analysis / replenishment_analysis 原生化先例）。理由：与其他 agent API 权限门一致（用户 2026-08-09 决定 2）；镜像族无 business_scope 是历史缺口，本域先行对齐 |
+| **D1 重复性结论** | sales/summary 已有订单行原始数据，独立「销售数据域」是否重复？ | **原始行已覆盖（无重复价值），增量价值在「SQL 侧聚合 + 派生指标」**：现有 `aggregate` 是**页内汇总**（limit/offset 先于聚合，大周期 >limit 行时 total 失真，且 `total_orders` 是行数非去重订单数）；Agent 拉原始行做客户端聚合不可行（50k 行上限 + token 成本 + LLM 计算不可靠）。ASIN×日/ASIN 排名/占比是真正缺口（BLF-558 已落地） |
+| **D2 单域标注** | ASIN×日聚合是「域内聚合」还是「跨域」？ | **域内聚合**（sales 域，同一张订单行表，`counted_sales_where` + `sales_amount_expr` 复用）→ §1.2 #7a 允许。**单项目多站点聚合同样域内**（country 是行内维度列）。**跨域部分（sku_info 联表补成本）显式不做**，调用方经 sku-info 端点自组 |
+| **D3 端点形态** | A 扩展 orders/summary / B 新建独立域 / C 不加新端点 | **方案 A + v0.2 权限门改造**：① 继续扩展 `sales/summary`（`group_by` 已落地）；② **从镜像族改造为原生 agent 域**——域 code `orders` → `sales`（BLF-569），`agent/__init__.py` 挂 `require_business_scope("sales")`，`_EXCLUDED_EXTERNAL_PATHS` 排除 `/external/projects/{project_id}/orders/summary`（对齐 return_analysis / replenishment_analysis 原生化先例）。理由：与其他 agent API 权限门一致（用户 2026-08-09 决定 2）；镜像族无 business_scope 是历史缺口，本域先行对齐 |
 | **D4 必要元素** | 逐端点字段表 | §5。期间复用 `parse_period_v2`；**`country` 支持逗号分隔多值（单项目多站点聚合，v0.2 新增）**；`group_by` 白名单；`order_by` 白名单；`share`（asin 模式可选）；`limit/offset` 作用于聚合行；`include_cancelled/include_pending` 语义不变 |
 | **D5 与月报体系边界** | 订单行 vs `monthly_report_transactions` | §6：**销售发生口径（订单域）与财务入账口径（月报域）分离**。销量/销售额/TOP ASIN/趋势 → 本端点；利润/费用/回款 → 月报域（未来 finance_profit 独立域）。两口径不可混用 |
 | **D6 存量不合规域调整** | 现有业务域不符合新规则的如何处置 | **本 issue 范围内**：orders/summary 先行对齐（D3）。**范围外**：其余镜像族域（ad_* 10 条、sku-info、inventory-ledger、shop-calculation-history、pricing-snapshots）同样缺 business_scope → 记录为**后续独立改造程序**（§10 #5），不在本 PR 扩大爆炸半径 |
@@ -77,18 +78,18 @@
 | `backend/app/services/external/orders_summary.py` | **新增** `query_orders_summary_grouped(...)`（BLF-558 已落地）；**v0.2**：`country` 支持逗号分隔多值 → grouped 聚合按 (group 维度 × country) 分组，行带 `country` + `currency` 字段；**不改**现有 `query_orders_summary` 签名与行为 |
 | `backend/app/api/v1/endpoints/external/orders_summary.py` | `country` 参数支持逗号分隔多值（向后兼容：单站点行为不变）；`group_by` 非空时转调 grouped 服务 |
 | `backend/app/schemas/external/orders_summary.py` | `OrdersGroupedRow` 增加 `country`/`currency` 字段；`OrdersGroupedResponse.summary` 增加 `by_country` 子块 |
-| `backend/app/api/v1/endpoints/agent/orders.py` | **v0.2 新增原生域路由**：复用 external service（`query_orders_summary` / `query_orders_summary_grouped`）+ `_service_errors` 壳 + `agent_ok` 响应壳，挂 `require_project_scope`（对齐 return_analysis 原生化模板） |
-| `backend/app/api/v1/endpoints/agent/__init__.py` | `include_router(orders_router, dependencies=[Depends(require_business_scope("orders"))])`（**必须插在兜底路由之前**） |
+| `backend/app/api/v1/endpoints/agent/sales.py` | **v0.2 新增原生域路由**（BLF-569 由 `agent/orders.py` 改名迁移）：复用 external service（`query_orders_summary` / `query_orders_summary_grouped`）+ `_service_errors` 壳 + `agent_ok` 响应壳，挂 `require_project_scope`（对齐 return_analysis 原生化模板）；v0.3 主路径改 `/sales/summary`，旧 `/orders/summary` 双挂（Deprecation/Sunset/Link successor 头） |
+| `backend/app/api/v1/endpoints/agent/__init__.py` | `include_router(sales_router, dependencies=[Depends(require_business_scope("sales"))])`（**必须插在兜底路由之前**） |
 | `backend/app/api/v1/endpoints/agent/external_mirror.py` | `_EXCLUDED_EXTERNAL_PATHS` 增加 `/external/projects/{project_id}/orders/summary`（防止镜像与原生化双挂冲突） |
 | `backend/tests/...` | 新增契约测试（见 §7） |
 
-> **涉及**：`agent_api_keys.business_scope` 新增取值 `orders`（字符串列，**无迁移**——对齐 account_health BLF-550 先例）。**不涉及**：DB 迁移（无新表）、前端（纯后端，BLF-555）。
-> **既有消费者影响**：镜像→原生迁移后路径不变（`/api/v1/agent/projects/{id}/orders/summary`），鉴权新增 business_scope 校验——存量 agent key 若 `business_scope` 未含 `orders` 会 403（D6 说明：存量 key 的 business_scope 大多为 `*` 全放行，实际影响面需上线前核查，见 §10 #2）。
+> **涉及**：`agent_api_keys.business_scope` 取值 `orders` → `sales`（字符串列，**无迁移**——对齐 account_health BLF-550 先例；存量含 `orders` 的 key 上线时 SQL UPDATE 为 `sales`，`*` 全放行不受影响）。**不涉及**：DB 迁移（无新表）、前端代码（BLF-555 纯后端，前端注册表需 @Seth 同步）。
+> **既有消费者影响（BLF-569）**：路径 `orders/summary` → `sales/summary` 迁移 + 域 code `orders` → `sales`。旧路径 `/api/v1/agent/projects/{id}/orders/summary` 双挂保留（Deprecation + Sunset + Link successor-version 头，行为零漂移），消费者有时间切换（Sunset 前）；到期后执行 v3 下线。存量 agent key 若 `business_scope` 未含 `sales` 会 403（存量 key 的 business_scope 大多为 `*` 全放行，实际影响面需上线前核查，见 §10 #2）。
 
 ### 4.2 参数契约（全部向后兼容）
 
 ```
-GET /api/v1/agent/projects/{project_id}/orders/summary
+GET /api/v1/agent/projects/{project_id}/sales/summary
   ?period=7d | &start_date=&end_date=     # 期间（复用 parse_period_v2）
   &country=US[,DE[,UK]]                    # 单站点或多站点（逗号分隔，v0.2 新增多值；单站点行为不变）
   &include_cancelled=false &include_pending=true
@@ -152,7 +153,7 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 | **跨站点金额** | **不做跨币种求和，多站点平行展示**：`summary.by_country` 逐站独立列出 | 系统汇率服务仅 RMB→目标币（`convert_rmb_to_target_currency`），无通用 FX（USD→EUR 等）；跨币种求和会产生无意义数字（§1.2）；用户 2026-08-09 拍板「平行展示」 |
 | 订单数 | `count(distinct amazon_order_id)` | 语义正确；现有 aggregate 的 `total_orders` 是**行数**（多 SKU 订单计多行），spec 显式修正（仅 group_by 模式） |
 | 空值/空结果 | 数值 `0`（聚合天然无 null）；空结果 → **200 + 空 rows**（非 404） | 对齐 account_health 约定：只有资源不存在（项目）→ 404 |
-| 过滤 | `counted_sales_where`（is_counted_sales + 状态），country 用 `IN (...)` | 与 orders/summary 一致 |
+| 过滤 | `counted_sales_where`（is_counted_sales + 状态），country 用 `IN (...)` | 与 sales/summary 一致 |
 
 ### 5.3 不做（YAGNI / 单域约束）
 
@@ -185,19 +186,20 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 5. **白名单校验**：`group_by`/`order_by` 非法值 → 400 `VALIDATION_FAILED`；`order_dir` 非法值 → 400；多站点含非法国家 → 400。
 6. **summary SQL 全量**：limit=1 时 `summary` 仍是全期间总量（修复页内汇总失真）；现有非 group_by 模式 aggregate 行为不变（回归锁）。
 7. **向后兼容**：不带 `group_by` 的请求响应结构与现状完全一致。
-8. **权限门（v0.2）**：原生路由 `/api/v1/agent/projects/{id}/orders/summary` 挂 `business_scope("orders")`——key 无 `orders` 域 → 403 `AGENT_BUSINESS_OUT_OF_SCOPE`；`business_scope="*"` → 放行；project_scope 越界 → 403；镜像排除后 `_EXCLUDED_EXTERNAL_PATHS` 无双挂冲突（test_external_mirror 全量回归）。
-9. **鉴权/壳**：未鉴权 401 壳；项目不存在 404。
-10. **回归**：`test_external_mirror.py` 全量 + 现有 orders/summary 相关测试零改动通过。
+8. **权限门（v0.2 + BLF-569）**：原生路由 `/api/v1/agent/projects/{id}/sales/summary` 挂 `business_scope("sales")`——key 无 `sales` 域 → 403 `AGENT_BUSINESS_OUT_OF_SCOPE`；`business_scope="*"` → 放行；project_scope 越界 → 403；镜像排除后 `_EXCLUDED_EXTERNAL_PATHS` 无双挂冲突（test_external_mirror 全量回归）。
+9. **迁移提示（v0.3）**：旧路径 `/api/v1/agent/projects/{id}/orders/summary` 双挂保留——行为与 sales/summary 零漂移（group_by / 非 group_by 各验），响应带 `Deprecation: true` + `Sunset` + `Link: </.../sales/summary>; rel="successor-version"`；新路径不带 Deprecation 头。
+10. **回归**：`test_external_mirror.py` 全量 + 现有 sales/summary 相关测试零改动通过。
 
 ---
 
 ## 8. 影响面结论（BEL-93，CodeGraph 核实 2026-08-09）
 
-- `query_orders_summary` / `get_external_orders_summary`：**0 调用方**（纯端点路径）→ grouped 服务新增不改现有签名，存量零影响；v0.2 原生路由复用同一 service，无双实现。
+- `query_orders_summary` / `get_external_orders_summary`：**仅测试调用方**（CodeGraph 核实 2026-08-09：3 例 service 测试 + 1 例镜像 parity 测试）→ sales 原生路由复用同一 service，无双实现。
+- `query_orders_summary_grouped`：**0 调用方**（纯端点路径）→ BLF-569 迁移不改签名。
 - `counted_sales_where`（10 调用方）：**只读复用，不改**。
 - `sales_amount_expr`（11 调用方，全在 scheduled_report）：**只读复用，不改**。
 - `agent/__init__.py`：追加一个 `include_router`（必须插在兜底路由之前）——纯增量；`external_mirror._EXCLUDED_EXTERNAL_PATHS` 加一条——纯增量。
-- `agent_api_keys.business_scope`：新增取值 `orders`，字符串列无迁移（BLF-550 account_health 同款先例）。
+- `agent_api_keys.business_scope`：取值 `orders` → `sales`（BLF-569 迁移，字符串列无 alembic 迁移；存量含 `orders` 的 key 上线时 SQL UPDATE 为 `sales`，`*` 全放行不受影响——BLF-550 account_health 同款先例）。
 - 前端：无改动（BLF-555 纯后端）。
 
 ## 9. 阶段规划
@@ -206,12 +208,13 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 |---|---|---|
 | **讨论定稿** | BLF-557（本 issue） | D1–D6 拍板 + 本 spec（v0.1 已落库 PR #207；v0.2 修订本 PR） |
 | **实施 v1（已交付）** | BLF-558（done） | group_by 单站点聚合（PR #208 已合 main） |
-| **实施 v1 扩展** | 实施子 issue（todo） | 照 §4/§5/§7：多站点聚合（country 多值）+ 原生域路由 + business_scope("orders") + 测试；无迁移 |
+| **实施 v1 扩展** | BLF-560（done） | 多站点聚合（country 多值）+ 原生域路由 + business_scope("orders") + 测试；无迁移 |
+| **实施 v0.3 迁移** | BLF-569（本 issue） | 路径 orders/summary → sales/summary + 域 code orders → sales；旧路径双挂（Deprecation/Sunset/Link successor）；测试 + 无迁移 |
 
 ## 10. 风险与开放问题
 
 1. **现有 `aggregate` 页内汇总失真**（>limit 行时 total 偏小）：v1 只修 group_by 模式（SQL 全量），不改存量行为——避免破坏现有消费者；存量修正可单列后续 issue。
-2. **存量 agent key 的 business_scope 影响面**（v0.2）：镜像→原生后新增 `orders` 域校验。存量 key `business_scope` 为 `*` 全放行的不受影响；**若存在白名单 key（未含 `orders`），上线后 orders/summary 会 403**——实施前须核查 `agent_api_keys.business_scope` 分布，必要时同步更新 key 配置（上线清单项）。
+2. **存量 agent key 的 business_scope 影响面**（v0.2 + BLF-569）：原生后新增 `sales` 域校验，且域 code 由 `orders` 迁移为 `sales`。存量 key `business_scope` 为 `*` 全放行的不受影响；**若存在含 `orders` 的白名单 key，上线后 sales/summary 会 403——实施前须核查 `agent_api_keys.business_scope` 分布，存量含 `orders` 的 key 同步 UPDATE 为 `sales`（上线清单项）。
 3. **`total_orders` 语义**：group_by 模式为去重订单数，与存量 aggregate 的行数语义不同——spec 显式标注，避免 Agent 混用。
 4. **DE/UK 含税口径**：group_by 模式金额与存量 aggregate（item_price*quantity）可能不同——spec 显式选择含税口径（对齐报表体系）；存量不提供含税列时（US）两者一致。
 5. **存量镜像族域缺 business_scope（D6）**：ad_*（10 条）、sku-info、inventory-ledger、shop-calculation-history、pricing-snapshots 同样无 business_scope——本 PR 不动（爆炸半径控制），记录为**后续独立改造程序**（可在 BLF-479 下开子 issue，逐域对齐）。
@@ -221,3 +224,4 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 
 - v0.1（2026-08-09）：BLF-557 深度讨论定稿——D1–D5 拍板 + 方案 A 端点设计 + 必要元素表 + 测试清单。
 - v0.2（2026-08-09）：用户追加拍板——① 单项目多站点聚合进 V1（country 多值 + by_country 平行展示，**不做跨币种求和**）；② orders/summary 镜像族→原生 agent 域 + `business_scope("orders")` 权限门；③ 按新规则改造、存量不合规域调整（D6 记录，爆炸半径外）。
+- v0.3（2026-08-09）：用户拍板（BLF-557 命名讨论）——① 板块定名「销售数据（Sales Data）」；② 端点路径迁移 `orders/summary` → `sales/summary`；③ 域 code 迁移 `orders` → `sales`（用户明确不用担 scope 问题，可接受破坏性变更）；④ 旧路径双挂保留（Deprecation + Sunset + Link successor 头，对齐 BLF-459 三阶段），文件改名 `agent-sales-data-api.md`。
