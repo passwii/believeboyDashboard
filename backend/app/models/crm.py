@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
@@ -426,4 +427,127 @@ class CrmTask(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+
+class CrmRuleEntityType(str):
+    CUSTOMER = "customer"
+    LEAD = "lead"
+
+
+class CrmRuleEventType(str):
+    """规则触发事件类型（P9 规则引擎，BLF-543）。
+
+    MVP 仅支持「客户创建 7 天内无跟进 → 提醒负责人」：
+    - `stale_follow_up`：实体超过 N 天无跟进（由 celery beat 每日扫描触发）。
+    """
+
+    STALE_FOLLOW_UP = "stale_follow_up"
+
+
+class CrmRuleConditionOperator(str):
+    """条件比较操作符（与 field/value 组合求值）。"""
+
+    GT = "gt"
+    GTE = "gte"
+    LT = "lt"
+    LTE = "lte"
+    EQ = "eq"
+    NE = "ne"
+    IS_NULL = "is_null"
+    IS_NOT_NULL = "is_not_null"
+
+
+class CrmRuleActionType(str):
+    """规则动作类型。
+
+    MVP：`notify_owner`（站内提醒负责人，复用 P9-1 SSE 通知链路）。
+    """
+
+    NOTIFY_OWNER = "notify_owner"
+
+
+class CrmRule(Base):
+    """P9 规则引擎规则主表（BLF-543）。
+
+    「当 X 发生，做 Y」中的规则头：定义作用实体（customer/lead）、触发事件
+    （event_type）与启停/优先级。条件与动作各为独立子表（1:N），支持将来
+    可视化编辑器的「当 X 发生，做 Y」组合。
+    """
+
+    __tablename__ = "crm_rules"
+    __table_args__ = (
+        Index("idx_crl_entity_event", "entity_type", "event_type"),
+        Index("idx_crl_enabled", "enabled"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    entity_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmRuleEntityType.CUSTOMER
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=CrmRuleEventType.STALE_FOLLOW_UP
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class CrmRuleCondition(Base):
+    """P9 规则引擎条件表（BLF-543）。
+
+    一条规则的若干条件（AND 语义，按 sort_order 求值）；MVP「客户创建 7 天内
+    无跟进」= 条件组：`days_since_created gte 7` + `last_follow_at is_null`。
+    """
+
+    __tablename__ = "crm_rule_conditions"
+    __table_args__ = (Index("idx_crc_rule_sort", "rule_id", "sort_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("crm_rules.id", ondelete="CASCADE"), nullable=False
+    )
+    field: Mapped[str] = mapped_column(String(50), nullable=False)
+    operator: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmRuleConditionOperator.GTE
+    )
+    value: Mapped[str | None] = mapped_column(String(200))  # is_null 时为空
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CrmRuleAction(Base):
+    """P9 规则引擎动作表（BLF-543）。
+
+    一条规则的若干动作（按 sort_order 顺序执行）；MVP「提醒负责人」
+    = `notify_owner`，params 存动作参数（如提醒文案）。
+    """
+
+    __tablename__ = "crm_rule_actions"
+    __table_args__ = (Index("idx_cra_rule_sort", "rule_id", "sort_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("crm_rules.id", ondelete="CASCADE"), nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=CrmRuleActionType.NOTIFY_OWNER
+    )
+    params: Mapped[dict | None] = mapped_column(JSON)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
