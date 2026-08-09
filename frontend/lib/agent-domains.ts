@@ -104,6 +104,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'sales',
+    label: '销售数据',
+    description: '销售订单明细/聚合统计：原始行 + ASIN×日/ASIN/日聚合（Sales Data）',
+    status: 'live',
+    routeCount: 1,
+    capabilities: { read: true, write: false },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',

@@ -222,6 +222,22 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=sales 输出销售数据示例（BLF-569，1 条纯读路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'sales',
+    })
+    expect(text).toContain('销售数据')
+    expect(text).toContain('/sales/summary?period=30d&country=US')
+    expect(text).toContain('group_by=asin|asin_day|day')
+    expect(text).toContain('/sales/summary?period=30d&country=US&group_by=asin')
+    expect(text).toContain('/sales/summary?period=30d&country=US,DE&group_by=day')
+    expect(text).toContain('by_country')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
