@@ -5,9 +5,27 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Scope = Literal["mine", "all", "sea"]
+
+
+# ---------- 规则引擎（P9, BLF-543/545） ----------
+RuleEntityType = Literal["customer", "lead"]
+RuleEventType = Literal["stale_follow_up"]
+RuleConditionOperator = Literal[
+    "gt", "gte", "lt", "lte", "eq", "ne", "is_null", "is_not_null"
+]
+RuleActionType = Literal["notify_owner"]
+
+# 条件字段白名单（与 rule_engine_service 求值白名单对齐）
+RULE_CONDITION_FIELDS: set[str] = {
+    "days_since_created",
+    "days_since_last_follow",
+    "last_follow_at",
+    "status",
+    "rating",
+}
 
 
 # ---------- Customer ----------
@@ -678,3 +696,93 @@ class TaskListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------- 规则引擎 CRUD（P9-7 编辑器后端, BLF-545 交接） ----------
+
+
+class RuleConditionIn(BaseModel):
+    """规则条件入参（子表整体写入，id 由后端重建回填）。"""
+
+    field: str = Field(min_length=1, max_length=50)
+    operator: RuleConditionOperator
+    value: str | None = Field(
+        default=None, max_length=200
+    )  # is_null/is_not_null 时省略
+    sort_order: int = 0
+
+    @model_validator(mode="after")
+    def _field_in_whitelist(self) -> RuleConditionIn:
+        if self.field not in RULE_CONDITION_FIELDS:
+            raise ValueError(
+                f"condition.field 不在白名单内: {self.field!r}（支持: "
+                + ", ".join(sorted(RULE_CONDITION_FIELDS))
+                + "）"
+            )
+        return self
+
+
+class RuleActionIn(BaseModel):
+    """规则动作入参（子表整体写入，id 由后端重建回填）。"""
+
+    action_type: RuleActionType
+    params: dict | None = None
+    sort_order: int = 0
+
+
+class RuleCreate(BaseModel):
+    """创建规则（conditions/actions 整体写入，原子重建子表）。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    entity_type: RuleEntityType = "customer"
+    event_type: RuleEventType = "stale_follow_up"
+    enabled: bool = True
+    priority: int = 0
+    conditions: list[RuleConditionIn] = Field(min_length=1)
+    actions: list[RuleActionIn] = Field(min_length=1)
+
+
+class RuleUpdate(BaseModel):
+    """更新规则（PATCH 部分字段，exclude_unset 语义；conditions/actions 传则整体替换）。"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    entity_type: RuleEntityType | None = None
+    event_type: RuleEventType | None = None
+    enabled: bool | None = None
+    priority: int | None = None
+    conditions: list[RuleConditionIn] | None = None
+    actions: list[RuleActionIn] | None = None
+
+
+class RuleConditionItem(BaseModel):
+    id: int
+    field: str
+    operator: str
+    value: str | None = None
+    sort_order: int = 0
+
+
+class RuleActionItem(BaseModel):
+    id: int
+    action_type: str
+    params: dict | None = None
+    sort_order: int = 0
+
+
+class RuleItem(BaseModel):
+    """规则响应（对齐前端 RuleDto，snake_case）。"""
+
+    id: int
+    name: str
+    description: str | None = None
+    entity_type: str
+    event_type: str
+    enabled: bool
+    priority: int
+    conditions: list[RuleConditionItem]
+    actions: list[RuleActionItem]
+    created_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
