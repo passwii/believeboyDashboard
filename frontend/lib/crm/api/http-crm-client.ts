@@ -26,6 +26,7 @@ import type {
   RuleInput,
   User,
   ValueScoresInput,
+  WorkflowSettings,
 } from '@/lib/crm/types'
 import {
   mapAuditLog,
@@ -41,14 +42,16 @@ import {
   mapTask,
   mapRule,
   mapUser,
+  mapWorkflowSettings,
   toContactPayload,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
   toImportRowPayload,
-  toLeadPayload,
-  toTaskPayload,
-  toRulePayload,
+    toLeadPayload,
+    toTaskPayload,
+    toRulePayload,
+    toWorkflowSettingsPayload,
   type AuditLogDto,
   type ContactDto,
   type CustomerDto,
@@ -61,6 +64,7 @@ import {
   type LifecycleBoardDto,
   type TaskDto,
   type UserDto,
+  type WorkflowSettingsDto,
 } from './dto-mappers'
 
 /**
@@ -426,5 +430,18 @@ export class HttpCrmClient implements CrmClient {
   }
   async deleteRule(id: number): Promise<void> {
     await request<void>(`/rules/${id}`, { method: 'DELETE' })
+  }
+
+  // ===== P9 工作流自动化设置（BLF-540） =====
+  async getWorkflowSettings(): Promise<WorkflowSettings> {
+    return mapWorkflowSettings(await request<WorkflowSettingsDto>('/settings/workflow'))
+  }
+  async updateWorkflowSettings(input: Partial<WorkflowSettings>): Promise<WorkflowSettings> {
+    return mapWorkflowSettings(
+      await request<WorkflowSettingsDto>('/settings/workflow', {
+        method: 'PUT',
+        body: JSON.stringify(toWorkflowSettingsPayload(input)),
+      })
+    )
   }
 }

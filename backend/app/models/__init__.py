@@ -135,6 +135,7 @@ from app.models.crm import (  # noqa: F401,E402
     CrmRule,
     CrmRuleAction,
     CrmRuleCondition,
+    CrmWorkflowSetting,
 )
 
 __all__ = [
@@ -259,4 +260,5 @@ __all__ = [
     "CrmRule",
     "CrmRuleCondition",
     "CrmRuleAction",
+    "CrmWorkflowSetting",
 ]

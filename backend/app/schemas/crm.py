@@ -760,3 +760,18 @@ class RuleItem(BaseModel):
     updated_at: datetime
     conditions: list[RuleConditionItem] = []
     actions: list[RuleActionItem] = []
+
+
+# ---------- P9 工作流自动化设置（BLF-540） ----------
+class WorkflowSettings(BaseModel):
+    """P9 工作流自动化设置（7 天无跟进提醒邮件）。"""
+
+    stale_days: int = Field(default=7, ge=1, le=365)
+    stale_email_enabled: bool = True
+
+
+class WorkflowSettingsUpdate(BaseModel):
+    """部分更新：只传需要改的字段。"""
+
+    stale_days: int | None = Field(default=None, ge=1, le=365)
+    stale_email_enabled: bool | None = None

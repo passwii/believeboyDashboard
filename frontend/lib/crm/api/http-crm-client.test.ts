@@ -492,3 +492,43 @@ describe('HttpCrmClient 规则引擎（P9，BLF-545）', () => {
     expect(lastInit?.method).toBe('DELETE')
   })
 })
+
+describe('HttpCrmClient.workflow settings (BLF-540)', () => {
+  let originalFetch: typeof fetch
+  let lastUrl: string | null = null
+  let lastInit: RequestInit | undefined
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    lastUrl = null
+    lastInit = undefined
+    globalThis.fetch = vi.fn(async (url, init) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(JSON.stringify({ stale_days: 7, stale_email_enabled: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('getWorkflowSettings GET /settings/workflow 并 camel 化', async () => {
+    const client = new HttpCrmClient()
+    const settings = await client.getWorkflowSettings()
+    expect(lastUrl).toBe('/api/backend/v1/crm/settings/workflow')
+    expect(lastInit?.method ?? 'GET').toBe('GET')
+    expect(settings).toEqual({ staleDays: 7, staleEmailEnabled: true })
+  })
+
+  it('updateWorkflowSettings PUT 只带改动字段', async () => {
+    const client = new HttpCrmClient()
+    await client.updateWorkflowSettings({ staleDays: 14 })
+    expect(lastUrl).toBe('/api/backend/v1/crm/settings/workflow')
+    expect(lastInit?.method).toBe('PUT')
+    expect(JSON.parse(String(lastInit?.body))).toEqual({ stale_days: 14 })
+  })
+})

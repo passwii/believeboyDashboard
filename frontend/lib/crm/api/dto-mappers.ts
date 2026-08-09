@@ -30,6 +30,7 @@ import type {
   RuleCondition,
   RuleAction,
   User,
+  WorkflowSettings,
 } from '@/lib/crm/types'
 
 // ---------- 后端 DTO 形状（snake_case） ----------
@@ -737,5 +738,27 @@ export function toRulePayload(input: Partial<RuleInput>): Record<string, unknown
         sort_order: a.sortOrder,
       })
     ),
+  })
+}
+
+
+// ---------- P9 工作流自动化设置（BLF-540） ----------
+export interface WorkflowSettingsDto {
+  stale_days: number
+  stale_email_enabled: boolean
+}
+
+/** 工作流设置 DTO → 前端类型。 */
+export function mapWorkflowSettings(dto: WorkflowSettingsDto): WorkflowSettings {
+  return { staleDays: dto.stale_days, staleEmailEnabled: dto.stale_email_enabled }
+}
+
+/** 工作流设置更新入参（camel → snake；只传有值的字段）。 */
+export function toWorkflowSettingsPayload(
+  input: Partial<WorkflowSettings>
+): Record<string, unknown> {
+  return stripUndefined({
+    stale_days: input.staleDays,
+    stale_email_enabled: input.staleEmailEnabled,
   })
 }
