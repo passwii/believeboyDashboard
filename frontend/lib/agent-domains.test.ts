@@ -85,6 +85,7 @@ describe('AGENT_DOMAINS 注册表', () => {
         'shop_calculations',
         'return_analysis',
         'inventory',
+        'sales',
       ])
     )
   })
@@ -141,6 +142,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.status).toBe('live')
     expect(domain?.label).toBe('店铺合规健康')
     expect(domain?.routeCount).toBe(5)
+    expect(domain?.capabilities).toEqual({ read: true, write: false })
+  })
+
+  it('sales 已接入且 routeCount=1、纯读（BLF-569）', () => {
+    const domain = getAgentDomain('sales')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('销售数据')
+    expect(domain?.routeCount).toBe(1)
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 

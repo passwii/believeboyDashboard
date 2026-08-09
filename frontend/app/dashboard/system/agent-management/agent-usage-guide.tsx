@@ -616,6 +616,53 @@ function buildAccountHealthGuide(opts: {
   order_dir=asc|desc；limit 默认 50（≤200）。空结果 → 200 + 空 items。`
 }
 
+/** 销售数据域调用说明（BLF-569）：纯读 1 条路由，无确认流。 */
+function buildSalesGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 销售订单汇总（原始行模式，不传 group_by）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sales/summary?period=30d&country=US" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  period 支持 7d/14d/30d/60d/90d/this_month/last_month/ytd/custom（custom 需带
+  start_date/end_date）；country 默认 US；include_cancelled=false、
+  include_pending=true；limit 默认 50000。返回 data（订单行明细：ASIN×SKU×日×
+  数量×金额）+ summary。此模式只支持单站点（多站点聚合请看下面 group_by 模式）。
+
+【3. 聚合统计（group_by=asin|asin_day|day，SQL 侧聚合）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sales/summary?period=30d&country=US&group_by=asin&include_share=true&limit=50" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  group_by 白名单：asin（TOP ASIN 排名）/ asin_day（ASIN×日明细）/ day（日趋势）；
+  非法值 → 400。order_by 白名单（sales_amount/quantity/order_count，默认
+  sales_amount）+ order_dir=desc|asc；limit 默认 500（≤50000）&offset 分页。
+  返回 rows + total_rows + summary（SQL 全量汇总，不受 limit 影响）；
+  share 仅在 group_by=asin&include_share=true 时返回（同国家内占比）。
+  sales_amount 口径与定时报表一致（DE/UK 含税，其余净额），可直接复述给用户。
+
+【4. 多站点聚合（country=US,DE，仅 group_by 模式支持）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sales/summary?period=30d&country=US,DE&group_by=day" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  行按（聚合维度 × 国家）分组、带 country+currency；金额按国家独立结算、
+  不做跨币种求和（summary.by_country 逐站平行列出）；订单数/数量可跨站求和。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -670,6 +717,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildNewProductCalculationsGuide({ key, agentId, apiBase })
   } else if (domain === 'account_health') {
     domainGuide = buildAccountHealthGuide({ key, agentId, apiBase })
+  } else if (domain === 'sales') {
+    domainGuide = buildSalesGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }
