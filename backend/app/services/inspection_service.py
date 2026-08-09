@@ -79,6 +79,20 @@ def get_period(db: Session, period_id: int) -> InspectionPeriod | None:
     return db.get(InspectionPeriod, period_id)
 
 
+def get_current_period(db: Session) -> InspectionPeriod | None:
+    """纯读：返回当前周期（无则 None，**不建行**）。
+
+    Agent 读侧专用（BLF-550 R2 锁契约）：内部 ``get_or_create_current_period``
+    有建行副作用（无周期时 INSERT），Agent 通道必须纯读——本函数只 SELECT，
+    不改现有签名，0 存量调用方受影响。
+    """
+    today = datetime.now(_TZ_CN).date()
+    week_start = _compute_week_start(today)
+    return db.execute(
+        select(InspectionPeriod).where(InspectionPeriod.week_start == week_start),
+    ).scalar_one_or_none()
+
+
 def list_periods(
     db: Session, limit: int = 20, offset: int = 0,
 ) -> tuple[list[InspectionPeriod], int]:
