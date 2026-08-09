@@ -357,3 +357,83 @@ def _create_via_payload(client, headers) -> dict:
     r = client.post("/api/v1/crm/rules", json=_rule_payload(), headers=headers)
     assert r.status_code == 201, r.text
     return r.json()
+
+
+# ─── 审计（P9-8, BLF-546）：创建/启停/更新/删除走 record_log(entity_type='rule') ───
+
+
+def _audit_logs(client, headers, params=None) -> dict:
+    r = client.get("/api/v1/crm/audit-logs", params=params, headers=headers)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_create_rule_writes_audit_log(client, admin_headers):
+    rule = _create_via_payload(client, admin_headers)
+    logs = _audit_logs(
+        client,
+        admin_headers,
+        {"entity_type": "rule", "entity_id": rule["id"]},
+    )
+    assert logs["total"] == 1
+    item = logs["items"][0]
+    assert item["action"] == "create"
+    assert item["actor_id"] == admin_headers["X-User-Id"]
+    assert "客户 7 天无跟进提醒" in item["summary"]
+
+
+def test_patch_enabled_toggle_writes_audit_summary(client, admin_headers):
+    rule = _create_via_payload(client, admin_headers)
+    r = client.patch(
+        f"/api/v1/crm/rules/{rule['id']}",
+        json={"enabled": False},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200, r.text
+    logs = _audit_logs(
+        client,
+        admin_headers,
+        {"entity_type": "rule", "entity_id": rule["id"], "action": "update"},
+    )
+    assert logs["total"] == 1
+    assert "启停" in logs["items"][0]["summary"]
+    assert "True→False" in logs["items"][0]["summary"]
+
+
+def test_patch_conditions_writes_audit_summary(client, admin_headers):
+    rule = _create_via_payload(client, admin_headers)
+    new_conditions = [
+        {
+            "field": "days_since_created",
+            "operator": "gte",
+            "value": "14",
+            "sort_order": 0,
+        }
+    ]
+    r = client.patch(
+        f"/api/v1/crm/rules/{rule['id']}",
+        json={"conditions": new_conditions},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200, r.text
+    logs = _audit_logs(
+        client,
+        admin_headers,
+        {"entity_type": "rule", "entity_id": rule["id"], "action": "update"},
+    )
+    assert logs["total"] == 1
+    assert "条件已更新" in logs["items"][0]["summary"]
+
+
+def test_delete_rule_writes_audit_log(client, admin_headers):
+    rule = _create_via_payload(client, admin_headers)
+    r = client.delete(f"/api/v1/crm/rules/{rule['id']}", headers=admin_headers)
+    assert r.status_code == 204, r.text
+    logs = _audit_logs(
+        client,
+        admin_headers,
+        {"entity_type": "rule", "entity_id": rule["id"], "action": "delete"},
+    )
+    assert logs["total"] == 1
+    assert logs["items"][0]["action"] == "delete"
+    assert "删除规则" in logs["items"][0]["summary"]

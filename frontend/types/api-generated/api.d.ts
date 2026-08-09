@@ -1172,8 +1172,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/orders/summary */
-        get: operations["agent_get_external_orders_summary_api_v1_agent_projects__project_id__orders_summary_get"];
+        /**
+         * Get Agent Orders Summary
+         * @description orders/summary 原生路由（BLF-560 镜像族原生化）。
+         *
+         *     查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持
+         *     逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +
+         *     派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。
+         */
+        get: operations["get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9512,7 +9519,10 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /**
              * Marketplace
@@ -9522,17 +9532,26 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -9542,7 +9561,10 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -9552,36 +9574,57 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /** Excel File */
+            /**
+             * Excel File
+             * Format: binary
+             */
             excel_file: string;
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Title */
             title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** File Type */
             file_type: string;
@@ -9590,41 +9633,62 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
-            /** Report Id */
-            report_id?: number | null;
+            /** Report Id Form */
+            report_id_form?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
         Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
-            /** Csv File */
+            /**
+             * Csv File
+             * Format: binary
+             */
             csv_file: string;
         };
         /** CSVUploadResponse */
@@ -19752,10 +19816,6 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -22913,7 +22973,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_orders_summary_api_v1_agent_projects__project_id__orders_summary_get: {
+    get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22944,7 +23004,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -27942,6 +28004,7 @@ export interface operations {
             header?: {
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-User-Id"?: string | null;
                 "X-Is-Admin"?: string | null;
             };
             path: {
@@ -27977,6 +28040,7 @@ export interface operations {
             header?: {
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-User-Id"?: string | null;
                 "X-Is-Admin"?: string | null;
             };
             path: {

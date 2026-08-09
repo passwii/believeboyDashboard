@@ -44,6 +44,7 @@ from app.models.crm import (
     CrmRuleCondition,
     CrmRuleConditionOperator,
 )
+from app.services.crm.audit_service import record_log
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +260,36 @@ _ACTION_FN: dict[str, Callable[[Session, str, object, datetime], str]] = {
 }
 
 
+def _log_rule_trigger(db: Session, rule: CrmRule, summary: str) -> None:
+    """触发结果审计（P9-8, BLF-546）：规则每次求值执行写一条 entity_type='rule' 日志。
+
+    actor_id=None 表示系统（celery 周期任务）触发。
+    """
+    record_log(
+        db,
+        entity_type="rule",
+        entity_id=rule.id,
+        action="trigger",
+        actor_id=None,
+        summary=summary,
+    )
+
+
+def _rule_trigger_summary(rule_result: dict) -> str:
+    """单条规则的触发结果摘要：命中/新建/跳过计数。"""
+    parts = [f"命中 {rule_result.get('matched', 0)} 实体"]
+    created = rule_result.get("created", 0)
+    skipped_active = rule_result.get("skipped_active", 0)
+    skipped_no_owner = rule_result.get("skipped_no_owner", 0)
+    if created:
+        parts.append(f"新建提醒 {created}")
+    if skipped_active:
+        parts.append(f"去重跳过 {skipped_active}")
+    if skipped_no_owner:
+        parts.append(f"无负责人跳过 {skipped_no_owner}")
+    return "，".join(parts)
+
+
 def scan_rules(db: Session, *, now: datetime | None = None) -> dict:
     """扫全部 enabled 规则并执行（幂等）。返回执行摘要。"""
     moment = now or datetime.now(timezone.utc)
@@ -292,6 +323,7 @@ def scan_rules(db: Session, *, now: datetime | None = None) -> dict:
             summary["per_rule"].append(
                 {"rule_id": rule.id, "name": rule.name, "matched": 0, "note": "empty"}
             )
+            _log_rule_trigger(db, rule, f"跳过（{rule.name} 无条件或无动作）")
             continue
         if not all(condition_supported(c) for c in conditions):
             logger.warning(
@@ -305,6 +337,9 @@ def scan_rules(db: Session, *, now: datetime | None = None) -> dict:
                     "matched": 0,
                     "note": "unsupported",
                 }
+            )
+            _log_rule_trigger(
+                db, rule, f"跳过（{rule.name} 含不支持的条件字段/操作符）"
             )
             continue
 
@@ -339,9 +374,14 @@ def scan_rules(db: Session, *, now: datetime | None = None) -> dict:
                     rule_result["created"] += 1
                 elif marker == "skipped_active":
                     summary["notify_skipped_active"] += 1
+                    rule_result.setdefault("skipped_active", 0)
+                    rule_result["skipped_active"] += 1
                 elif marker == "skipped_no_owner":
                     summary["notify_skipped_no_owner"] += 1
+                    rule_result.setdefault("skipped_no_owner", 0)
+                    rule_result["skipped_no_owner"] += 1
         summary["per_rule"].append(rule_result)
+        _log_rule_trigger(db, rule, _rule_trigger_summary(rule_result))
 
     db.flush()
     return summary

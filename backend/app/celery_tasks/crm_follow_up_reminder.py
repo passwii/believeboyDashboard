@@ -39,6 +39,7 @@ def crm_follow_up_reminder() -> str:
     db = SessionLocal()
     try:
         result = scan_stale_entities(db, days=days)
+        db.commit()  # scan 只 flush；此处统一 commit，否则 close 时回滚丢写
     finally:
         db.close()
 

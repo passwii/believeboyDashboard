@@ -4605,7 +4605,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4626,7 +4626,7 @@
       "Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4640,7 +4640,7 @@
       "Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4654,7 +4654,7 @@
       "Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4673,7 +4673,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4692,7 +4692,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4706,12 +4706,12 @@
       "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post": {
         "properties": {
           "excel_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Excel File",
             "type": "string"
           },
           "pdf_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4726,7 +4726,7 @@
       "Body_upload_api_v1_page_render_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4751,7 +4751,7 @@
       "Body_upload_avatar_api_v1_system_management_profile_avatar_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4765,7 +4765,7 @@
       "Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4779,7 +4779,7 @@
       "Body_upload_file_api_v1_uploads_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4803,7 +4803,7 @@
       "Body_upload_file_for_ai_api_v1_ai_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4817,7 +4817,7 @@
       "Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4831,7 +4831,7 @@
       "Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4850,7 +4850,7 @@
       "Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4864,11 +4864,11 @@
       "Body_upload_screenshot_api_v1_inspections_screenshots_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
-          "report_id": {
+          "report_id_form": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4877,7 +4877,7 @@
                 "type": "null"
               }
             ],
-            "title": "Report Id"
+            "title": "Report Id Form"
           }
         },
         "required": [
@@ -4889,7 +4889,7 @@
       "Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post": {
         "properties": {
           "pdf_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4903,7 +4903,7 @@
       "Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post": {
         "properties": {
           "csv_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Csv File",
             "type": "string"
           }
@@ -33161,13 +33161,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -42628,7 +42621,8 @@
     },
     "/api/v1/agent/projects/{project_id}/orders/summary": {
       "get": {
-        "operationId": "agent_get_external_orders_summary_api_v1_agent_projects__project_id__orders_summary_get",
+        "description": "orders/summary 原生路由（BLF-560 镜像族原生化）。\n\n查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持\n逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +\n派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。",
+        "operationId": "get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get",
         "parameters": [
           {
             "in": "path",
@@ -42795,7 +42789,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Orders Summary Api V1 Agent Projects  Project Id  Orders Summary Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42811,11 +42809,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/orders/summary",
+        "summary": "Get Agent Orders Summary",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-orders"
         ]
       }
     },
@@ -57925,6 +57922,22 @@
           },
           {
             "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
             "name": "X-Is-Admin",
             "required": false,
             "schema": {
@@ -58018,6 +58031,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
             }
           },
           {
