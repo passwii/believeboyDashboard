@@ -25,6 +25,8 @@ import type {
   TaskInput,
   TaskListParams,
   TaskStatus,
+  Rule,
+  RuleInput,
   User,
   ValueScoresInput,
 } from '@/lib/crm/types'
@@ -34,6 +36,7 @@ import {
   LEADS_FIXTURE,
   FOLLOWS_FIXTURE,
   TASKS_FIXTURE,
+  RULES_FIXTURE,
   USERS_FIXTURE,
 } from './mock-data'
 
@@ -51,6 +54,7 @@ interface MockState {
   users: User[]
   audits: AuditLog[]
   tasks: Task[]
+  rules: Rule[]
 }
 
 function isE2E(): boolean {
@@ -89,6 +93,7 @@ function loadState(): MockState {
       users: [...USERS_FIXTURE],
       audits: [],
       tasks: [...TASKS_FIXTURE],
+      rules: [...RULES_FIXTURE],
     }
   }
   try {
@@ -102,6 +107,7 @@ function loadState(): MockState {
         users: [...USERS_FIXTURE],
         audits: [],
         tasks: [...TASKS_FIXTURE],
+        rules: [...RULES_FIXTURE],
       }
     }
     const parsed = JSON.parse(raw) as Partial<MockState>
@@ -113,6 +119,7 @@ function loadState(): MockState {
       users: parsed.users ?? [...USERS_FIXTURE],
       audits: parsed.audits ?? [],
       tasks: parsed.tasks ?? [...TASKS_FIXTURE],
+      rules: parsed.rules ?? [...RULES_FIXTURE],
     }
   } catch {
     return {
@@ -123,6 +130,7 @@ function loadState(): MockState {
       users: [...USERS_FIXTURE],
       audits: [],
       tasks: [...TASKS_FIXTURE],
+      rules: [...RULES_FIXTURE],
     }
   }
 }
@@ -1182,5 +1190,56 @@ export class MockCrmClient implements CrmClient {
     this.state.tasks[idx] = updated
     persistState(this.state)
     return updated
+  }
+
+  // ===== 规则引擎（P9，BLF-543/545） =====
+
+  async listRules(): Promise<Rule[]> {
+    await this.delay('listRules')
+    // 深拷贝（conditions/actions 嵌套对象，避免调用方误改 mock 状态）
+    return this.state.rules.map((r) => structuredClone(r))
+  }
+
+  async createRule(input: RuleInput): Promise<Rule> {
+    await this.delay('createRule')
+    const now = new Date().toISOString()
+    const id = this.state.rules.reduce((max, r) => Math.max(max, r.id), 0) + 1
+    const rule: Rule = {
+      ...input,
+      id,
+      priority: input.priority ?? 0,
+      conditions: (input.conditions ?? []).map((c, i) => ({ ...c, sortOrder: i })),
+      actions: (input.actions ?? []).map((a, i) => ({ ...a, sortOrder: i })),
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.state.rules.unshift(rule)
+    persistState(this.state)
+    return structuredClone(rule)
+  }
+
+  async updateRule(id: number, input: Partial<RuleInput>): Promise<Rule> {
+    await this.delay('updateRule')
+    const idx = this.state.rules.findIndex((r) => r.id === id)
+    if (idx === -1) throw new Error(`规则不存在: ${id}`)
+    const prev = this.state.rules[idx]
+    const updated: Rule = {
+      ...prev,
+      ...input,
+      conditions: input.conditions?.map((c, i) => ({ ...c, sortOrder: i })) ?? prev.conditions,
+      actions: input.actions?.map((a, i) => ({ ...a, sortOrder: i })) ?? prev.actions,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.rules[idx] = updated
+    persistState(this.state)
+    return structuredClone(updated)
+  }
+
+  async deleteRule(id: number): Promise<void> {
+    await this.delay('deleteRule')
+    const idx = this.state.rules.findIndex((r) => r.id === id)
+    if (idx === -1) throw new Error(`规则不存在: ${id}`)
+    this.state.rules.splice(idx, 1)
+    persistState(this.state)
   }
 }

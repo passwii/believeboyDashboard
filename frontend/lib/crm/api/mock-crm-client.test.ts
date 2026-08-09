@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { MockCrmClient } from '@/lib/crm/api/mock-crm-client'
+import type { RuleInput } from '@/lib/crm/types'
 import {
   CUSTOMERS_FIXTURE,
   FOLLOWS_FIXTURE,
   LEADS_FIXTURE,
   TASKS_FIXTURE,
+  RULES_FIXTURE,
 } from '@/lib/crm/api/mock-data'
 
 const TEST_USER = 'u-001'
@@ -468,5 +470,74 @@ describe('MockCrmClient · 生命周期看板 getLifecycleBoard (BLF-520)', () =
     expect(board.churn.summary.sampleCount).toBe(seaCount)
     expect(board.churn.summary.medianDays).toBeDefined()
     expect(board.churn.summary.p90Days).toBeDefined()
+  })
+})
+
+describe('MockCrmClient · Rule（P9 规则引擎，BLF-545）', () => {
+  let client: MockCrmClient
+
+  beforeEach(() => {
+    localStorage.clear()
+    client = new MockCrmClient(TEST_USER)
+  })
+
+  it('listRules 返回种子规则（对齐迁移 250 的 MVP 规则）', async () => {
+    const rules = await client.listRules()
+    expect(rules.length).toBe(RULES_FIXTURE.length)
+    const seed = rules.find((r) => r.name === '客户 7 天无跟进提醒')
+    expect(seed).toBeDefined()
+    expect(seed!.entityType).toBe('customer')
+    expect(seed!.eventType).toBe('stale_follow_up')
+    expect(seed!.enabled).toBe(true)
+    expect(seed!.conditions).toEqual([
+      { id: 10, field: 'days_since_created', operator: 'gte', value: '7', sortOrder: 0 },
+      { id: 11, field: 'last_follow_at', operator: 'is_null', value: null, sortOrder: 1 },
+    ])
+    expect(seed!.actions).toEqual([
+      { id: 20, actionType: 'notify_owner', params: null, sortOrder: 0 },
+    ])
+  })
+
+  it('createRule 自增 id 并规范化 sort_order', async () => {
+    const input: RuleInput = {
+      name: '客户 10 天无跟进提醒',
+      entityType: 'customer',
+      eventType: 'stale_follow_up',
+      enabled: true,
+      conditions: [
+        { field: 'days_since_created', operator: 'gte', value: '10', sortOrder: 0 },
+        { field: 'last_follow_at', operator: 'is_null', value: null, sortOrder: 0 },
+      ],
+      actions: [{ actionType: 'notify_owner', params: null, sortOrder: 0 }],
+    }
+    const created = await client.createRule(input)
+    expect(created.id).toBeGreaterThan(RULES_FIXTURE.length)
+    expect(created.conditions.map((c) => c.sortOrder)).toEqual([0, 1])
+    const list = await client.listRules()
+    expect(list.length).toBe(RULES_FIXTURE.length + 1)
+  })
+
+  it('updateRule 支持启停与条件整体替换', async () => {
+    const id = RULES_FIXTURE[0]!.id
+    const toggled = await client.updateRule(id, { enabled: false })
+    expect(toggled.enabled).toBe(false)
+    const replaced = await client.updateRule(id, {
+      conditions: [{ field: 'days_since_created', operator: 'gte', value: '14', sortOrder: 0 }],
+      actions: [{ actionType: 'notify_owner', params: null, sortOrder: 0 }],
+    })
+    expect(replaced.conditions).toHaveLength(1)
+    expect(replaced.conditions[0]!.value).toBe('14')
+  })
+
+  it('updateRule 不存在的 id 抛错', async () => {
+    await expect(client.updateRule(9999, { enabled: false })).rejects.toThrow('规则不存在')
+  })
+
+  it('deleteRule 移除规则', async () => {
+    const id = RULES_FIXTURE[0]!.id
+    await client.deleteRule(id)
+    const list = await client.listRules()
+    expect(list.some((r) => r.id === id)).toBe(false)
+    await expect(client.deleteRule(id)).rejects.toThrow('规则不存在')
   })
 })

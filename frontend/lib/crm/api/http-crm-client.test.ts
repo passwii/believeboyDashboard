@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError, HttpCrmClient } from './http-crm-client'
+import type { RuleInput } from '@/lib/crm/types'
 
 describe('HttpCrmClient.listAuditLogs (P5-9)', () => {
   let originalFetch: typeof fetch
@@ -386,5 +387,108 @@ describe('HttpCrmClient.getLifecycleBoard (BLF-520)', () => {
     expect(board.firstFollow.summary.sampleCount).toBe(2)
     expect(board.firstFollow.buckets[0]?.maxDays).toBe(1)
     expect(board.conversion.summary.sampleCount).toBe(0)
+  })
+})
+
+describe('HttpCrmClient 规则引擎（P9，BLF-545）', () => {
+  let originalFetch: typeof fetch
+  let lastUrl: string | null = null
+  let lastInit: RequestInit | undefined
+
+  const ruleDto = {
+    id: 1,
+    name: '客户 7 天无跟进提醒',
+    entity_type: 'customer',
+    event_type: 'stale_follow_up',
+    enabled: true,
+    priority: 0,
+    conditions: [
+      { id: 10, field: 'days_since_created', operator: 'gte', value: '7', sort_order: 0 },
+      { id: 11, field: 'last_follow_at', operator: 'is_null', value: null, sort_order: 1 },
+    ],
+    actions: [{ id: 20, action_type: 'notify_owner', params: null, sort_order: 0 }],
+    created_at: '2026-08-08T00:00:00+00:00',
+    updated_at: '2026-08-08T00:00:00+00:00',
+  }
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    lastUrl = null
+    lastInit = undefined
+    globalThis.fetch = vi.fn(async (url, init) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(JSON.stringify(ruleDto), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('listRules 请求 GET /rules 并 camel 化映射 conditions/actions', async () => {
+    globalThis.fetch = vi.fn(async (url, init) => {
+      lastUrl = String(url)
+      lastInit = init
+      return new Response(JSON.stringify([ruleDto]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+    const client = new HttpCrmClient()
+    const rules = await client.listRules()
+    expect(lastUrl).toBe('/api/backend/v1/crm/rules')
+    expect(lastInit?.method ?? 'GET').toBe('GET')
+    expect(rules).toHaveLength(1)
+    expect(rules[0]!.entityType).toBe('customer')
+    expect(rules[0]!.conditions[0]).toEqual({
+      id: 10,
+      field: 'days_since_created',
+      operator: 'gte',
+      value: '7',
+      sortOrder: 0,
+    })
+    expect(rules[0]!.actions[0]!.actionType).toBe('notify_owner')
+  })
+
+  it('createRule 请求 POST /rules 并发送 snake_case payload', async () => {
+    const client = new HttpCrmClient()
+    const input: RuleInput = {
+      name: '客户 10 天无跟进提醒',
+      entityType: 'customer',
+      eventType: 'stale_follow_up',
+      enabled: true,
+      conditions: [
+        { field: 'days_since_created', operator: 'gte', value: '10', sortOrder: 0 },
+      ],
+      actions: [{ actionType: 'notify_owner', params: null, sortOrder: 0 }],
+    }
+    await client.createRule(input)
+    expect(lastUrl).toBe('/api/backend/v1/crm/rules')
+    expect(lastInit?.method).toBe('POST')
+    const body = JSON.parse(String(lastInit?.body)) as Record<string, unknown>
+    expect(body.entity_type).toBe('customer')
+    expect(body.conditions).toEqual([
+      { field: 'days_since_created', operator: 'gte', value: '10', sort_order: 0 },
+    ])
+    expect(body.actions).toEqual([{ action_type: 'notify_owner', params: null, sort_order: 0 }])
+  })
+
+  it('updateRule 请求 PATCH /rules/{id}（启停开关复用）', async () => {
+    const client = new HttpCrmClient()
+    await client.updateRule(1, { enabled: false })
+    expect(lastUrl).toBe('/api/backend/v1/crm/rules/1')
+    expect(lastInit?.method).toBe('PATCH')
+    expect(JSON.parse(String(lastInit?.body))).toEqual({ enabled: false })
+  })
+
+  it('deleteRule 请求 DELETE /rules/{id}', async () => {
+    const client = new HttpCrmClient()
+    await client.deleteRule(1)
+    expect(lastUrl).toBe('/api/backend/v1/crm/rules/1')
+    expect(lastInit?.method).toBe('DELETE')
   })
 })

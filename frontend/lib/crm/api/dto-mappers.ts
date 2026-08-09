@@ -25,6 +25,10 @@ import type {
   LifecycleDistribution,
   Task,
   TaskInput,
+  Rule,
+  RuleInput,
+  RuleCondition,
+  RuleAction,
   User,
 } from '@/lib/crm/types'
 
@@ -234,6 +238,37 @@ export interface AuditLogDto {
   actor_name?: string | null
   summary?: string | null
   created_at: string
+}
+
+// ---------- 规则引擎（P9，BLF-543/545）：后端 DTO（snake_case） ----------
+export interface RuleConditionDto {
+  id?: number
+  field: string
+  operator: string
+  value?: string | null
+  sort_order: number
+}
+
+export interface RuleActionDto {
+  id?: number
+  action_type: string
+  params?: Record<string, unknown> | null
+  sort_order: number
+}
+
+export interface RuleDto {
+  id: number
+  name: string
+  description?: string | null
+  entity_type: string
+  event_type: string
+  enabled: boolean
+  priority: number
+  conditions: RuleConditionDto[]
+  actions: RuleActionDto[]
+  created_by?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface TaskDto {
@@ -644,5 +679,63 @@ export function toTaskPayload(input: Partial<TaskInput>): Record<string, unknown
     owner_id: input.ownerId,
     customer_id: input.customerId != null ? Number(input.customerId) : input.customerId,
     lead_id: input.leadId != null ? Number(input.leadId) : input.leadId,
+  })
+}
+
+// ---------- 规则引擎（P9，BLF-543/545） ----------
+
+/** 规则 DTO → 前端 Rule（snake → camel；conditions/actions 逐项映射）。 */
+export function mapRule(dto: RuleDto): Rule {
+  return {
+    id: dto.id,
+    name: dto.name,
+    description: dto.description ?? undefined,
+    entityType: dto.entity_type as Rule['entityType'],
+    eventType: dto.event_type as Rule['eventType'],
+    enabled: dto.enabled,
+    priority: dto.priority,
+    conditions: (dto.conditions ?? []).map((c) => ({
+      id: c.id,
+      field: c.field,
+      operator: c.operator as RuleCondition['operator'],
+      value: c.value ?? null,
+      sortOrder: c.sort_order,
+    })),
+    actions: (dto.actions ?? []).map((a) => ({
+      id: a.id,
+      actionType: a.action_type as RuleAction['actionType'],
+      params: a.params ?? null,
+      sortOrder: a.sort_order,
+    })),
+    createdBy: dto.created_by ?? undefined,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  }
+}
+
+/** 规则创建/更新入参（camel → snake；conditions/actions 整体替换，子表 id 省略）。 */
+export function toRulePayload(input: Partial<RuleInput>): Record<string, unknown> {
+  return stripUndefined({
+    name: input.name,
+    description: input.description,
+    entity_type: input.entityType,
+    event_type: input.eventType,
+    enabled: input.enabled,
+    priority: input.priority,
+    conditions: input.conditions?.map((c) =>
+      stripUndefined({
+        field: c.field,
+        operator: c.operator,
+        value: c.value,
+        sort_order: c.sortOrder,
+      })
+    ),
+    actions: input.actions?.map((a) =>
+      stripUndefined({
+        action_type: a.actionType,
+        params: a.params,
+        sort_order: a.sortOrder,
+      })
+    ),
   })
 }
