@@ -9,6 +9,8 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
+from app.utils.sales_amount import VAT_INCLUSIVE_COUNTRIES
+
 TWO_DP = Decimal("0.01")
 FOUR_DP = Decimal("0.0001")
 
@@ -41,11 +43,6 @@ def _safe_div_percent_decimal(numerator: Decimal, denominator: Decimal) -> Decim
             FOUR_DP, rounding=ROUND_HALF_UP
         )
     )
-
-
-# VAT 国家集合：DE（19%）、UK（20%）。US 报表不在集合内，
-# 走短路分支返回 income_vat_total=0（gross ≡ net）。
-VAT_INCLUSIVE_COUNTRIES: frozenset[str] = frozenset({"DE", "UK"})
 
 
 def _compute_vat_metrics(

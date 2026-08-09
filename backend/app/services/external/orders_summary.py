@@ -14,11 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.models import AnalysisSalesOrderRow, Project
 from app.services.sales_query import counted_sales_where
-from app.services.scheduled_report._sales_amount import (
-    sales_amount_expr,
-    sales_amount_expr_by_row,
-)
 from app.utils.math_utils import round_money, round_ratio, safe_ratio
+from app.utils.sales_amount import sales_amount_expr, sales_amount_expr_by_row
 
 
 def _to_float(value: Decimal | float | int | None) -> float:

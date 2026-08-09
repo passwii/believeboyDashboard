@@ -24,7 +24,7 @@ from app.models import (
 )
 from app.models.project import Project
 from app.models.sku_info import SkuRecord
-from app.services.scheduled_report._sales_amount import sales_amount_expr
+from app.utils.sales_amount import sales_amount_expr
 from app.services.scheduled_report.context_helpers import (
     fetch_and_format_sku_factory_info,
     fetch_multi_project_context,
