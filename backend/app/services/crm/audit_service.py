@@ -62,6 +62,17 @@ CONTACT_FIELD_LABELS: dict[str, str] = {
     "remark": "备注",
 }
 
+# P9-8（BLF-546）：规则引擎头字段中文标签（update 摘要用；conditions/actions
+# 为子表整体重建，摘要里用「条件/动作已更新」表述，不逐条 diff）。
+RULE_FIELD_LABELS: dict[str, str] = {
+    "name": "规则名",
+    "description": "描述",
+    "entity_type": "作用对象",
+    "event_type": "触发事件",
+    "enabled": "启停",
+    "priority": "优先级",
+}
+
 
 def record_log(
     db: Session,

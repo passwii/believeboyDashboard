@@ -60,9 +60,13 @@ def test_task_calls_scan_rules_and_reports(monkeypatch: pytest.MonkeyPatch) -> N
 
     class _FakeDB:
         closed = False
+        committed = False
 
         def close(self):
             self.closed = True
+
+        def commit(self):
+            self.committed = True
 
     fake_db = _FakeDB()
     captured = {}
@@ -88,4 +92,5 @@ def test_task_calls_scan_rules_and_reports(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result == "rules=2 skipped=0 matched=3 created=2"
     assert captured["db"] is fake_db
+    assert fake_db.committed is True  # scan_rules 只 flush，任务统一 commit 防回滚
     assert fake_db.closed is True

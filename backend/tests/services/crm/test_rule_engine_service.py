@@ -427,3 +427,108 @@ def test_migration_250_seed_rule_end_to_end(db_session):
 
     pushed = list_user_stale_reminders(db_session, user_id=ALICE, now=NOW, days=7)
     assert [p["entity_id"] for p in pushed] == [stale.id]
+
+
+# ─── 触发结果审计（P9-8, BLF-546）：scan_rules 写 entity_type='rule' 审计日志 ───
+
+
+def _rule_audit_logs(db):
+    return db.execute(
+        text(
+            "select entity_id, action, actor_id, summary from crm_audit_logs "
+            "where entity_type='rule' order by id"
+        )
+    ).all()
+
+
+def test_scan_writes_trigger_audit_for_matched_rule(db_session):
+    """规则命中实体 → 写 trigger 审计日志（actor_id=None 系统触发）。"""
+    rule = _mk_rule(db_session)
+    _add_cond(db_session, rule, "days_since_created", "gte", "7", 0)
+    _add_cond(db_session, rule, "last_follow_at", "is_null", None, 1)
+    _add_action(db_session, rule)
+    db_session.commit()
+
+    stale = _mk_customer(db_session, name="老客户")
+    _set_created_at(db_session, "crm_customers", stale.id, _old(10))
+    recent = _mk_customer(db_session, name="新客户")
+    _set_created_at(db_session, "crm_customers", recent.id, _old(2))
+
+    scan_rules(db_session, now=NOW)
+
+    logs = _rule_audit_logs(db_session)
+    assert len(logs) == 1
+    entity_id, action, actor_id, summary = logs[0]
+    assert entity_id == rule.id
+    assert action == "trigger"
+    assert actor_id is None
+    assert "命中 1 实体" in summary
+    assert "新建提醒 1" in summary
+
+
+def test_scan_writes_trigger_audit_for_skipped_rule(db_session):
+    """规则被 fail-safe 跳过（不支持条件）→ 审计日志记录跳过原因。"""
+    bad = _mk_rule(db_session, name="坏规则")
+    _add_cond(db_session, bad, "no_such_field", "gte", "7", 0)
+    _add_action(db_session, bad)
+    db_session.commit()
+
+    scan_rules(db_session, now=NOW)
+
+    logs = _rule_audit_logs(db_session)
+    assert len(logs) == 1
+    entity_id, action, actor_id, summary = logs[0]
+    assert entity_id == bad.id
+    assert action == "trigger"
+    assert actor_id is None
+    assert "跳过" in summary
+    assert "坏规则" in summary
+
+
+def test_scan_writes_trigger_audit_for_empty_rule(db_session):
+    """规则无条件或动作 → 审计日志记录跳过原因。"""
+    _mk_rule(db_session)
+    db_session.commit()
+
+    scan_rules(db_session, now=NOW)
+
+    logs = _rule_audit_logs(db_session)
+    assert len(logs) == 1
+    assert logs[0][1] == "trigger"
+    assert "跳过" in logs[0][3]
+    assert "无条件或无动作" in logs[0][3]
+
+
+def test_scan_disabled_rule_no_trigger_audit(db_session):
+    """disabled 规则不参与扫描 → 不写 trigger 审计日志。"""
+    rule = _mk_rule(db_session, enabled=False)
+    _add_cond(db_session, rule, "days_since_created", "gte", "7", 0)
+    _add_action(db_session, rule)
+    db_session.commit()
+
+    stale = _mk_customer(db_session)
+    _set_created_at(db_session, "crm_customers", stale.id, _old(10))
+
+    scan_rules(db_session, now=NOW)
+
+    assert _rule_audit_logs(db_session) == []
+
+
+def test_scan_trigger_audit_idempotent_dedup_counts(db_session):
+    """第二次扫描（已有 active 提醒）→ 审计摘要记录「去重跳过」计数。"""
+    rule = _mk_rule(db_session)
+    _add_cond(db_session, rule, "days_since_created", "gte", "7", 0)
+    _add_cond(db_session, rule, "last_follow_at", "is_null", None, 1)
+    _add_action(db_session, rule)
+    db_session.commit()
+
+    stale = _mk_customer(db_session)
+    _set_created_at(db_session, "crm_customers", stale.id, _old(10))
+
+    scan_rules(db_session, now=NOW)
+    scan_rules(db_session, now=NOW)
+
+    logs = _rule_audit_logs(db_session)
+    assert len(logs) == 2
+    assert "新建提醒 1" in logs[0][3]
+    assert "去重跳过 1" in logs[1][3]

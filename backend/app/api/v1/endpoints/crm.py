@@ -81,7 +81,11 @@ from app.services.crm import (
     user_service,
     value_score_service,
 )
-from app.services.crm.audit_service import CUSTOMER_FIELD_LABELS, LEAD_FIELD_LABELS
+from app.services.crm.audit_service import (
+    CUSTOMER_FIELD_LABELS,
+    LEAD_FIELD_LABELS,
+    RULE_FIELD_LABELS,
+)
 from app.services.crm.lead_service import LeadAlreadyConverted
 from app.services.crm.permissions import (
     filter_owned_ids,
@@ -1374,6 +1378,32 @@ def _fmt_task_val(value) -> str:
     return str(value)
 
 
+def _summarize_rule_update(before: dict, payload: RuleUpdate) -> str | None:
+    """规则 PATCH 变更摘要（P9-8）。仅列有变化的头字段；conditions/actions
+    为子表整体重建，摘要里用「条件/动作已更新」表述。无变化返回 None。"""
+    updates = payload.model_dump(exclude_unset=True)
+    parts: list[str] = []
+    if "conditions" in updates:
+        parts.append("条件已更新")
+    if "actions" in updates:
+        parts.append("动作已更新")
+    for key, new in updates.items():
+        if key in ("conditions", "actions"):
+            continue
+        old = before.get(key)
+        if old == new:
+            continue
+        label = RULE_FIELD_LABELS.get(key, key)
+        parts.append(f"{label}: {_fmt_rule_val(old)}→{_fmt_rule_val(new)}")
+    return "; ".join(parts) if parts else None
+
+
+def _fmt_rule_val(value) -> str:
+    if value is None or value == "":
+        return "空"
+    return str(value)
+
+
 # ---------- 规则引擎 CRUD（P9-7b, BLF-561，仅管理员） ----------
 @router.get("/rules", response_model=list[RuleItem])
 def list_rules(
@@ -1400,6 +1430,14 @@ def create_rule(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         ) from e
+    audit_service.record_log(
+        db,
+        entity_type="rule",
+        entity_id=rule.id,
+        action="create",
+        actor_id=user_id,
+        summary=f"新建规则「{rule.name}」",
+    )
     db.commit()
     db.refresh(rule)
     return rule_crud_service.to_rule_item(db, rule)
@@ -1410,6 +1448,7 @@ def update_rule(
     rule_id: int,
     payload: RuleUpdate,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
@@ -1418,12 +1457,29 @@ def update_rule(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
         )
+    before = {
+        "name": rule.name,
+        "description": rule.description,
+        "entity_type": rule.entity_type,
+        "event_type": rule.event_type,
+        "enabled": rule.enabled,
+        "priority": rule.priority,
+    }
     try:
         rule = rule_crud_service.update_rule(db, rule, payload)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         ) from e
+    summary = _summarize_rule_update(before, payload)
+    audit_service.record_log(
+        db,
+        entity_type="rule",
+        entity_id=rule_id,
+        action="update",
+        actor_id=user_id,
+        summary=summary,
+    )
     db.commit()
     db.refresh(rule)
     return rule_crud_service.to_rule_item(db, rule)
@@ -1433,6 +1489,7 @@ def update_rule(
 def delete_rule(
     rule_id: int,
     db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
     require_admin(is_admin)
@@ -1442,4 +1499,12 @@ def delete_rule(
             status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
         )
     rule_crud_service.delete_rule(db, rule)
+    audit_service.record_log(
+        db,
+        entity_type="rule",
+        entity_id=rule_id,
+        action="delete",
+        actor_id=user_id,
+        summary=f"删除规则「{rule.name}」",
+    )
     db.commit()
