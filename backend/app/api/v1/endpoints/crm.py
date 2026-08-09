@@ -37,13 +37,13 @@ from app.schemas.crm import (
     ContactUpdate,
     ConvertLeadRequest,
     ConvertLeadResponse,
+    CrmUserItem,
     CustomerCreate,
     CustomerItem,
     CustomerListResponse,
     CustomerSeaImportRequest,
     CustomerSeaImportResult,
     CustomerUpdate,
-    CrmUserItem,
     DashboardStats,
     FollowCreate,
     FollowItem,
@@ -55,9 +55,12 @@ from app.schemas.crm import (
     LeadUpdate,
     LifecycleBoard,
     PerformanceBoard,
+    RuleCreate,
+    RuleItem,
+    RuleUpdate,
     StageDetail,
-    TaskCreate,
     TaskCompleteRequest,
+    TaskCreate,
     TaskItem,
     TaskListResponse,
     TaskStatusUpdate,
@@ -73,6 +76,7 @@ from app.services.crm import (
     follow_service,
     follow_up_service,
     lead_service,
+    rule_crud_service,
     task_service,
     user_service,
     value_score_service,
@@ -1368,3 +1372,74 @@ def _fmt_task_val(value) -> str:
     if value is None or value == "":
         return "空"
     return str(value)
+
+
+# ---------- 规则引擎 CRUD（P9-7b, BLF-561，仅管理员） ----------
+@router.get("/rules", response_model=list[RuleItem])
+def list_rules(
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    return [
+        rule_crud_service.to_rule_item(db, r) for r in rule_crud_service.list_rules(db)
+    ]
+
+
+@router.post("/rules", response_model=RuleItem, status_code=status.HTTP_201_CREATED)
+def create_rule(
+    payload: RuleCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    try:
+        rule = rule_crud_service.create_rule(db, payload, created_by=user_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    db.commit()
+    db.refresh(rule)
+    return rule_crud_service.to_rule_item(db, rule)
+
+
+@router.patch("/rules/{rule_id}", response_model=RuleItem)
+def update_rule(
+    rule_id: int,
+    payload: RuleUpdate,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    rule = rule_crud_service.get_rule(db, rule_id)
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
+        )
+    try:
+        rule = rule_crud_service.update_rule(db, rule, payload)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    db.commit()
+    db.refresh(rule)
+    return rule_crud_service.to_rule_item(db, rule)
+
+
+@router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_rule(
+    rule_id: int,
+    db: Session = Depends(get_primary_db_session),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    require_admin(is_admin)
+    rule = rule_crud_service.get_rule(db, rule_id)
+    if rule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
+        )
+    rule_crud_service.delete_rule(db, rule)
+    db.commit()
