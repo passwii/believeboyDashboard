@@ -26,6 +26,7 @@ from app.models.product_analysis_source import (
     AnalysisSourceFile,
 )
 from app.models.project import Project
+from app.utils.sales_amount import sales_amount_expr_by_row
 from app.schemas.order_info import (
     FilterOption,
     OrderInfoFilterOptions,
@@ -634,12 +635,8 @@ def compute_stats(
 
     total_orders = func.count(AnalysisSalesOrderRow.id)
     total_quantity = func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0)
-    total_amount_expr = func.coalesce(
-        func.sum(
-            AnalysisSalesOrderRow.item_price + AnalysisSalesOrderRow.shipping_price
-        ),
-        0.0,
-    )
+    # BLF-566: 多国家筛选下按行 country 决定含税与否（DE/UK 含税、其余净额，均含运费）。
+    total_amount_expr = func.coalesce(func.sum(sales_amount_expr_by_row()), 0.0)
     fba_count_expr = func.coalesce(func.sum(case((fc_expr == "Amazon", 1), else_=0)), 0)
     fbm_count_expr = func.coalesce(
         func.sum(case((fc_expr == "Merchant", 1), else_=0)), 0

@@ -26,6 +26,7 @@ from app.models import (
 from app.utils.math_utils import round_money
 from app.utils.country import normalize_country
 from app.services.sales_query import counted_sales_where
+from app.utils.sales_amount import sales_amount_expr
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ def _build_sales_snapshot(
     today: date,
     days: int,
 ) -> dict:
-    """今日销售 + 7日趋势 + 环比"""
+    """今日销售 + 7日趋势 + 环比（销售额走 sales_amount_expr，DE/UK 含税、其余净额，均含运费）"""
     prev_end = today - timedelta(days=1)
     prev_start = prev_end - timedelta(days=days - 1)
 
@@ -68,10 +69,7 @@ def _build_sales_snapshot(
         sales_rows = (
             db.query(
                 func.coalesce(func.sum(AnalysisSalesOrderRow.quantity), 0).label("qty"),
-                func.coalesce(func.sum(
-                    func.coalesce(AnalysisSalesOrderRow.item_price, 0) +
-                    func.coalesce(AnalysisSalesOrderRow.shipping_price, 0)
-                ), 0).label("amount"),
+                func.coalesce(func.sum(sales_amount_expr(country)), 0).label("amount"),
             )
             # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
             .filter(

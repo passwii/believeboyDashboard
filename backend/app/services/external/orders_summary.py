@@ -15,7 +15,11 @@ from sqlalchemy.orm import Session
 from app.models import AnalysisSalesOrderRow, Project
 from app.services.sales_query import counted_sales_where
 from app.utils.math_utils import round_money, round_ratio, safe_ratio
-from app.utils.sales_amount import sales_amount_expr, sales_amount_expr_by_row
+from app.utils.sales_amount import (
+    sales_amount_expr,
+    sales_amount_expr_by_row,
+    sales_amount_value,
+)
 
 
 def _to_float(value: Decimal | float | int | None) -> float:
@@ -80,7 +84,9 @@ def query_orders_summary(
         date_to: End date (inclusive)
         include_cancelled: If False, exclude order_status='Cancelled'
         include_pending: If True, include pending orders
-        aggregate: If True, also return aggregate totals
+        aggregate: If True, also return aggregate totals. total_sales_amount 走
+            sales_amount_value（DE/UK 含税、其余净额，均含运费；不乘 quantity，
+            与 grouped 模式 / 定时报表口径一致，spec §5.2）。
         limit: Max rows to return
         offset: Pagination offset
 
@@ -115,8 +121,19 @@ def query_orders_summary(
     aggregate_data = {
         "total_orders": len(serialized),
         "total_quantity": sum(r["quantity"] for r in serialized),
+        # BLF-566: 与 grouped 模式/定时报表口径一致（spec §5.2）——逐行
+        # sales_amount_value(country, item+shipping(+tax))，不乘 quantity。
         "total_sales_amount": round_money(
-            sum(Decimal(str(r["item_price"])) * r["quantity"] for r in serialized)
+            sum(
+                sales_amount_value(
+                    row.country,
+                    item_price=row.item_price,
+                    shipping_price=row.shipping_price,
+                    item_tax=row.item_tax,
+                    shipping_tax=row.shipping_tax,
+                )
+                for row in rows
+            )
         ),
         "currency": serialized[0]["currency"] if serialized else None,
         "fba_orders": sum(
