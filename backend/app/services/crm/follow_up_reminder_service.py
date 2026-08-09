@@ -2,7 +2,9 @@
 
 扫描口径复用 P3a sea_reclaim（见 sea_reclaim_service）：
 - 客户：COALESCE(last_follow_at, created_at) 距今 > N 天；排除 signed / 已删除 / 已在公海。
-- 线索：COALESCE(next_follow_at, created_at) 距今 > N 天；排除 converted / discarded / 已删除 / 已在池。
+- 线索：COALESCE(last_follow_at, next_follow_at, created_at) 距今 > N 天；排除 converted / discarded / 已删除 / 已在池。
+  P9-4 (BLF-542)：last_follow_at 置最前——跟进成功刷新即重置计时（与 sea_reclaim 一致），
+  next_follow_at 仅作为存量数据（从未跟过进）的回退口径。
 
 与 sea_reclaim 的差异：这里不回收，只「记账」——celery 每日 scan 命中 stale 实体时
 写一条 active ``CrmReminderLog``（幂等：已有 active 记录则跳过，单次提醒语义）；
@@ -43,7 +45,8 @@ def _customer_stale(cust: CrmCustomer, cutoff: datetime) -> bool:
 
 
 def _lead_stale(lead: CrmLead, cutoff: datetime) -> bool:
-    ref = lead.next_follow_at or lead.created_at
+    # P9-4 (BLF-542): 跟进成功刷新 last_follow_at → stale 判定重置（与 sea_reclaim 一致）
+    ref = lead.last_follow_at or lead.next_follow_at or lead.created_at
     return ref is not None and ref < cutoff
 
 
@@ -252,7 +255,7 @@ def list_user_stale_reminders(
         )
     ).all()
     for _log, lead in lead_logs:
-        ref = lead.next_follow_at or lead.created_at
+        ref = lead.last_follow_at or lead.next_follow_at or lead.created_at
         if ref is not None and ref < cutoff:
             results.append(
                 {
