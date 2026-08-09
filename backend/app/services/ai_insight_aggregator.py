@@ -30,6 +30,7 @@ from app.models import (
 from app.services import project_service
 from app.utils.math_utils import round_money, safe_ratio
 from app.utils.date_utils import date_range
+from app.utils.sales_amount import sales_amount_expr
 
 
 @dataclass
@@ -291,7 +292,7 @@ def _aggregate_sales_by_date_sql(
             select(
                 AnalysisSourceFile.report_date,
                 func.sum(AnalysisSalesOrderRow.quantity).label("order_qty"),
-                func.sum(AnalysisSalesOrderRow.item_price).label("sales_amount"),
+                func.sum(sales_amount_expr(country)).label("sales_amount"),
                 func.count(func.distinct(AnalysisSalesOrderRow.asin)).label(
                     "unique_asins"
                 ),
@@ -591,7 +592,7 @@ def _get_top_skus_sql(
                 AnalysisSalesOrderRow.sku,
                 func.max(AnalysisSalesOrderRow.asin).label("asin"),
                 func.sum(AnalysisSalesOrderRow.quantity).label("order_qty"),
-                func.sum(AnalysisSalesOrderRow.item_price).label("sales_amount"),
+                func.sum(sales_amount_expr(country)).label("sales_amount"),
             )
             .select_from(AnalysisSourceFile)
             .join(
@@ -610,7 +611,7 @@ def _get_top_skus_sql(
                 AnalysisSalesOrderRow.sku.is_not(None),
             )
             .group_by(AnalysisSalesOrderRow.sku)
-            .order_by(func.sum(AnalysisSalesOrderRow.item_price).desc())
+            .order_by(func.sum(sales_amount_expr(country)).desc())
             .limit(10)
         )
         rows = db.execute(stmt).all()

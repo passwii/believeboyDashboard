@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisSalesOrderRow, Project, ProjectGoal
+from app.models import Project, ProjectGoal
 from app.services.sales_query import counted_sales_where
 from app.schemas.project_goal import (
     AnnualProgressItem,
@@ -21,6 +21,7 @@ from app.schemas.project_goal import (
     ProjectGoalUpdate,
 )
 from app.utils.country import normalize_country
+from app.utils.sales_amount import sales_amount_expr
 
 ALLOWED_METRIC_TYPES = {'sales_amount'}
 COUNTRY_TO_CURRENCY = {'US': 'USD', 'DE': 'EUR', 'UK': 'GBP'}
@@ -99,7 +100,7 @@ def _query_monthly_sales(
 
     # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     stmt = (
-        select(AnalysisSalesOrderRow.item_price)
+        select(sales_amount_expr(country))
         .where(
             *counted_sales_where(
                 project_id=project_id, country=country,
@@ -126,7 +127,7 @@ def _query_annual_sales(
 
     # BEL-348: 直接按行过滤（不再 JOIN source_file + is_current）。
     stmt = (
-        select(AnalysisSalesOrderRow.item_price)
+        select(sales_amount_expr(country))
         .where(
             *counted_sales_where(
                 project_id=project_id, country=country,
