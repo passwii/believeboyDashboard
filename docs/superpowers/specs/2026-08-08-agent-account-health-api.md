@@ -1,6 +1,6 @@
 # 店铺合规健康 Agent API 设计（account_health）
 
-> 设计定稿 v0.1（2026-08-08，BLF-549 S1 拍板 D1–D5）。
+> 设计定稿 v0.2（2026-08-09，BLF-548 S2 用户指示撤销 SP-API 评估；前版本 v0.1 = PR #197）。
 > 域 code：`account_health`；命名空间：`/api/v1/agent/account-health/*`。
 > 前置设计：`docs/agent-api-design.md`（v0.7）；相关域：BLF-378（店铺账号健康 External API，交付归 `shop_calculations` 域）。
 
@@ -9,7 +9,7 @@
 ### 1.1 文档目的
 
 承接 BLF-547「店铺合规健康 Agent API（Account Health）：调研 + 阶段推进」的 **S1（调研 + 必要元素定稿）**：
-梳理现状底座、评估 SP-API 可采字段、拍板数据源 / 端点清单 / 必要元素，作为 S2（数据底座）与 S3（实施）的锚点。
+梳理现状底座、拍板数据源 / 端点清单 / 必要元素，作为 S2（数据底座）与 S3（实施）的锚点。
 
 ### 1.2 域定位（单域原则）
 
@@ -74,71 +74,22 @@
 
 ### 3.2 边界结论（D5）
 
-独立端点 + 独立域 code `account_health`，**不吸收 BLF-378 端点**（其交付归 `shop_calculations` 域）；字段拍平口径沿用 BLF-378 调研建议（§4 字段集、不暴露 raw JSON / R2 presigned URL）。
+独立端点 + 独立域 code `account_health`，**不吸收 BLF-378 端点**（其交付归 `shop_calculations` 域）；字段拍平口径沿用 BLF-378 调研建议（§2.2 字段集、不暴露 raw JSON / R2 presigned URL）。
 
-## 4. SP-API Account Health 可采字段评估（2026-08-09 调研）
+## 4. 数据局限（2026-08-09 用户拍板：撤销 SP-API 评估）
 
-### 4.1 结论先行
-
-**SP-API 没有独立的「Account Health API」**。Account Health 数据面 = **Reports API 的 Seller Performance Report（`GET_V2_SELLER_PERFORMANCE_REPORT`）**，外加 Notifications API 的 `ACCOUNT_STATUS_CHANGE_NOTIFICATION`（实时状态变更推送）。本域 S2 **不引入 SP-API 采集**（见 D1）；以下评估作为未来独立 L3 项目的输入。
-
-### 4.2 `GET_V2_SELLER_PERFORMANCE_REPORT` 结构（实测字段映射）
-
-- 位置：Reports API（v2020-09-04），角色 **Selling Partner Insights**，**只能主动请求**（requested，不可 scheduled），需 reportOptions（dateRangeType / marketplaceIds）。
-- 返回结构（2022 实测 + GitHub selling-partner-api-models 讨论 #2811 / #3575 核实）：
-
-```jsonc
-{
-  "accountStatuses": [ { "marketplaceId": "...", "status": "NORMAL" } ],   // 账户级状态
-  "performanceMetrics": [
-    {
-      "accountHealthRating": { ... },          // AHR 0-1000 分（讨论 #3575 证实存在）
-      "orderDefectRate": { "afn": {...}, "mfN": {...},   // 内含 A-to-Z / chargeback 组件计数
-        "negativeFeedback": {...}, "aTozClaims": {...}, "chargebackClaims": {...} },
-      "lateShipmentRate": { "rate": 0, "targetValue": 0.04, "targetCondition": "LESS_THAN", ... },
-      "preFulfillmentCancelRate": { ... },
-      "validTrackingRate": { ... },
-      "onTimeDeliveryRate": { ... },            // 2025 changelog 新增 unitOnTimeDeliveryRate
-      "negativeFeedbackRate": { ... },
-      "invoiceDefectRate": { ... },
-      "listingPolicyViolations": { ... },       // 政策违规计数（讨论 #2811）
-      "foodAndProductSafetyIssues": { ... }     // 商品安全计数
-    }
-  ]
-}
-```
-
-- 每个 metric 自带：`reportingDateRange`、`status`（GOOD/…）、`targetValue` + `targetCondition`（阈值语义，与巡检模板 warn/crit 概念同构）、`rate` / 组件计数。
-
-### 4.3 SP-API 字段 → 巡检字段覆盖映射
-
-| 巡检字段 | SP-API 来源 | 口径差异 |
-|---|---|---|
-| `account_health_rating` | `performanceMetrics.accountHealthRating`（AHR 0-1000 分） | 现有为字符串评级（Healthy/Good/At Risk/Critical），需映射规则或并存原始分 |
-| `a2z_claims` / `chargeback_claims` | `orderDefectRate.aTozClaims` / `.chargebackClaims`（组件计数） | 基本一致 |
-| `negative_feedback` | `negativeFeedbackRate` | 现有为**条数**，SP-API 为**比率**，需换算或改口径 |
-| `late_shipment_rate` | `lateShipmentRate.rate` | 一致 |
-| `pre_fulfillment_cancel_rate` | `preFulfillmentCancelRate.rate` | 一致 |
-| `valid_tracking_rate` | `validTrackingRate.rate` | 一致 |
-| `on_time_delivery_rate` | `onTimeDeliveryRate` / `unitOnTimeDeliveryRate` | 注意 14 天窗口 vs 周巡检窗口差异（GitHub #4078） |
-| `listing_policy_violations` | `listingPolicyViolations`（计数） | 一致 |
-| `food_product_safety` | `foodAndProductSafetyIssues`（计数） | 一致 |
-| 其余 8 项合规（ip_* / product_authenticity / product_condition / review_policy / other_policy / regulatory） | **无 SP-API 字段** | 只能人工录入或页面爬取 |
-| 账户状态（新） | `accountStatuses[].status`（NORMAL 等） | 现有模板无此字段，可作扩展 |
-
-### 4.4 局限（为什么 S2 不复用 SP-API）
-
-1. **合规类 10 项只有 ~20% 可自动化**（8/10 无公开字段）；违规**明细列表**（按 ASIN）SP-API 不提供（讨论 #2811），只有计数。
-2. **接入成本高**：SP-API 应用注册 + LWA/RDT 授权 + Selling Partner Insights 角色 + 报表管道（request→poll→download→parse），是独立基建工程；仓库当前**零 SP-API 集成**（亚马逊数据全靠 CSV/Excel 手动上传，17 种报表）。
-3. **现有巡检已 100% 覆盖且结构化**（49 条/14 店/填充 100%），Agent 读 API 不需要 SP-API 就能交付业务价值。
-
-> 未来 L3 选项（独立 issue，不进本域 S2）：SP-API 采集管道落 `account_health_snapshots` 时序表，与人工巡检双源（自动信号 + 人工合规），字段映射见 §4.3 表。
+- **本仓库没有任何 SP-API 接口**（亚马逊数据全靠 CSV/Excel 手动上传，17 种报表）——SP-API 不在本域范围，本域亦不评估 SP-API。
+- 2026-08-09 用户指示：撤销全部 SP-API 可采字段评估内容（原 §4.1–§4.4 已删除，含字段映射表与 L3 采集方案）。
+- 本域数据局限（非 SP-API 口径）：
+  1. 巡检数据为**人工周检录入**，无自动采集管道；数据质量依赖人工填写（`status_summary` 覆盖率仅 ~23%）。
+  2. 违规 / 合规**明细列表**（按 ASIN）无数据源，只有周检表单的分类计数。
+  3. 数据粒度为**周巡检窗口**（每 周期×店铺 一条），非实时。
 
 ## 5. 决策拍板（D1–D5）
 
 | # | 决策点 | 结论 |
 |---|---|---|
-| **D1 数据源** | 复用巡检（L1）vs 新增 SP-API 采集（L3） | **复用现有巡检数据（L1）**：零采集成本、数据已结构化（49 条 / 14 店 / 100% 填充）。**S2 缩水为「确认零新增 + 数据局限文档」**；SP-API Account Health 采集为独立 L3 项目（§4.4），不在本域 S2 |
+| **D1 数据源** | 复用巡检（L1）vs 新增采集（L3） | **复用现有巡检数据（L1）**：零采集成本、数据已结构化（49 条 / 14 店 / 100% 填充）。**S2 缩水为「确认零新增 + 数据局限文档」**；不涉及 SP-API（仓库无任何 SP-API 接口，见 §4） |
 | **D2 域 code** | — | **`account_health`**（与既有 10 域无冲突；`agent_api_keys.business_scope` 为字符串列，加值无迁移） |
 | **D3 端点清单** | 读/写 | **读 5 条、写 0 条**（§6 R1–R5）。巡检是人工周检事实记录，Agent 无写场景；纯读域不落操作审计（对齐 `report_upload_status` / `return_analysis` 模板） |
 | **D4 必要元素** | — | 逐端点字段表（§7）：`limit=20/50`、`offset=0`、**空值=null 非 0**、**空结果=200 非 404**；无费率概念 → 默认值 = 查询默认 + 空值语义 |
@@ -240,7 +191,7 @@ compliance_total          # 10 项合规计数求和（口径与内部 overview 
 
 | 阶段 | issue | 结论 / 范围 |
 |---|---|---|
-| **S2 数据底座** | BLF-548 | 按 D1 **缩水为「确认零新增」**：复用现有巡检数据，无新表 / 无迁移；产出「数据局限文档」（现状覆盖 vs SP-API 可采差异，即 §4.3 表落地） |
+| **S2 数据底座** | BLF-548 | 按 D1 **缩水为「确认零新增」**：复用现有巡检数据，无新表 / 无迁移；产出「数据局限文档」（§4：人工录入局限，无 SP-API 内容） |
 | **S3 实施** | BLF-550 | 照 §6 端点 + §8 测试清单：新增 `backend/app/api/v1/endpoints/agent/account_health.py` + 服务层纯读函数 + 壳/错误码 + 测试；不含 DB 迁移 |
 | **S4 上线收尾** | BLF-551 | 前端注册表加域（`account_health`，live）+ agent-usage-guide 调用说明 + 归档 BLF-547 |
 
@@ -248,9 +199,9 @@ compliance_total          # 10 项合规计数求和（口径与内部 overview 
 
 1. **R2 建行副作用**：必须新增纯读函数而不是复用 `get_or_create_current_period`——S3 实现时以测试锁契约（行数不变）。
 2. **`status_summary` 覆盖率低**（~23%）：默认不返回，`include_summary=true` 才带——避免 Agent 把低覆盖自由文本当事实。
-3. **SP-API 未来接入**（L3 独立 issue）：AHR 分数 → 字符串评级映射、负面反馈条数 vs 比率口径、14 天窗口 vs 周窗口差异（§4.3）需在采集设计时拍板。
-4. **`screenshot_count` 是否需要**：预留字段，默认返回（不暴露 URL）；如 Agent 无场景可在 S3 裁掉。
+3. **`screenshot_count` 是否需要**：预留字段，默认返回（不暴露 URL）；如 Agent 无场景可在 S3 裁掉。
 
 ## 版本记录
 
-- v0.1（2026-08-08）：S1 拍板 D1–D5，设计定稿（BLF-549）。原始文件仅存于 S1 执行工作目录；因 S1 约束「本阶段无 commit」，2026-08-09 由 BLF-547 父 issue 运行重建落库（内容依据 BLF-549 完成汇报 + 二次代码/SP-API 核实）。
+- v0.1（2026-08-08）：S1 拍板 D1–D5，设计定稿（BLF-549）。原始文件仅存于 S1 执行工作目录；因 S1 约束「本阶段无 commit」，2026-08-09 由 BLF-547 父 issue 运行重建落库（内容依据 BLF-549 完成汇报 + 二次代码核实）。
+- v0.2（2026-08-09）：按用户指示撤销全部 SP-API 内容（仓库无任何 SP-API 接口）——原 §4.1–§4.4 SP-API 可采字段评估删除，§4 改为「数据局限」；同步清理 §5 D1 / §10 / §11 的 SP-API 引用。
