@@ -1,4 +1,5 @@
-"""orders/summary 多站点聚合 + 权限门契约测试（BLF-560；spec v0.2 §7.4/§7.5/§7.8）。
+"""sales/summary 多站点聚合 + 权限门契约测试（BLF-560；spec v0.2 §7.4/§7.5/§7.8；
+BLF-569 路径 orders→sales 迁移）。
 
 覆盖（对齐 spec v0.2 §7 清单中的 v0.2 增量项）：
 
@@ -10,9 +11,9 @@
    Σshare(同国家) = 1（±1e-4），跨国家不混算。
 3. **白名单校验（§7.5）**：多站点含非法国家 → 400 ``VALIDATION_FAILED``；
    legacy 模式多站点 → 400（多站点聚合仅支持 group_by 模式）。
-4. **权限门（§7.8）**：原生路由挂 ``business_scope("orders")``——key 无
-   ``orders`` 域 → 403 ``AGENT_BUSINESS_OUT_OF_SCOPE``；``business_scope="*"``
-   → 放行；``business_scope="orders"`` → 放行。
+4. **权限门（§7.8 + BLF-569）**：原生路由挂 ``business_scope("sales")``——key 无
+   ``sales`` 域 → 403 ``AGENT_BUSINESS_OUT_OF_SCOPE``；``business_scope="*"``
+   → 放行；``business_scope="sales"`` → 放行。
 5. **单站点回归锁（§7.4）**：``country=US`` 单站点行为与 v0.1 一致（顶层金额/
    币种保留，``by_country`` 含单站子块）。
 
@@ -225,7 +226,7 @@ def multisite_env(make_api_key):
 
 def test_multisite_group_by_asin_country_split(client, multisite_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,DE&group_by=asin",
         headers=multisite_env["headers"],
     )
@@ -278,7 +279,7 @@ def test_multisite_group_by_asin_country_split(client, multisite_env):
 def test_multisite_share_per_country(client, multisite_env):
     """share 按国家内结算：Σshare(同国家) = 1（spec §5.1/§7.4）。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,DE&group_by=asin&include_share=true",
         headers=multisite_env["headers"],
     )
@@ -297,7 +298,7 @@ def test_multisite_share_per_country(client, multisite_env):
 def test_multisite_asin_day_and_day(client, multisite_env):
     """group_by=asin_day / day：行按 (维度 × country) 分组。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,DE&group_by=asin_day",
         headers=multisite_env["headers"],
     )
@@ -307,7 +308,7 @@ def test_multisite_asin_day_and_day(client, multisite_env):
     assert {r["country"] for r in data["rows"]} == {"US", "DE"}
 
     resp_day = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,DE&group_by=day",
         headers=multisite_env["headers"],
     )
@@ -325,7 +326,7 @@ def test_multisite_asin_day_and_day(client, multisite_env):
 def test_multisite_legacy_mode_400(client, multisite_env):
     """多站点聚合仅 group_by 模式支持——legacy（原始行）多站点 → 400。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,DE",
         headers=multisite_env["headers"],
     )
@@ -343,7 +344,7 @@ def test_multisite_legacy_mode_400(client, multisite_env):
 
 def test_multisite_invalid_country_400(client, multisite_env):
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US,XX&group_by=asin",
         headers=multisite_env["headers"],
     )
@@ -357,7 +358,7 @@ def test_multisite_invalid_country_400(client, multisite_env):
 def test_single_country_regression_lock(client, multisite_env):
     """单站点 country=US 行为与 v0.1 一致（顶层金额/币种保留 + by_country 单站）。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US&group_by=asin",
         headers=multisite_env["headers"],
     )
@@ -374,16 +375,16 @@ def test_single_country_regression_lock(client, multisite_env):
 
 
 # ---------------------------------------------------------------------------
-# 4. 权限门：business_scope("orders")
+# 4. 权限门：business_scope("sales")（BLF-569 域 code orders→sales 迁移）
 # ---------------------------------------------------------------------------
 
 
-def test_business_scope_403_without_orders(client, make_api_key):
-    """key 无 orders 域 → 403 AGENT_BUSINESS_OUT_OF_SCOPE。"""
-    key = make_api_key(agent_id="blf560-noorders", business_scope="shipments")
+def test_business_scope_403_without_sales(client, make_api_key):
+    """key 无 sales 域 → 403 AGENT_BUSINESS_OUT_OF_SCOPE。"""
+    key = make_api_key(agent_id="blf569-nosales", business_scope="shipments")
     resp = client.get(
-        "/api/v1/agent/projects/1/orders/summary?period=7d&country=US&group_by=asin",
-        headers=_headers(key, "blf560-noorders"),
+        "/api/v1/agent/projects/1/sales/summary?period=7d&country=US&group_by=asin",
+        headers=_headers(key, "blf569-nosales"),
     )
     assert resp.status_code == 403, resp.text
     body = resp.json()
@@ -391,13 +392,13 @@ def test_business_scope_403_without_orders(client, make_api_key):
     assert body["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
 
 
-def test_business_scope_allows_orders(client, multisite_env, make_api_key):
-    """key business_scope 含 orders → 放行（200）。"""
-    key = make_api_key(agent_id="blf560-withorders", business_scope="shipments,orders")
+def test_business_scope_allows_sales(client, multisite_env, make_api_key):
+    """key business_scope 含 sales → 放行（200）。"""
+    key = make_api_key(agent_id="blf569-withsales", business_scope="shipments,sales")
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US&group_by=asin",
-        headers=_headers(key, "blf560-withorders"),
+        headers=_headers(key, "blf569-withsales"),
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["ok"] is True
@@ -406,7 +407,7 @@ def test_business_scope_allows_orders(client, multisite_env, make_api_key):
 def test_business_scope_star_allows(client, multisite_env):
     """存量 key business_scope=\"*\" → 放行（兼容）。"""
     resp = client.get(
-        f"/api/v1/agent/projects/{multisite_env['project_id']}/orders/summary"
+        f"/api/v1/agent/projects/{multisite_env['project_id']}/sales/summary"
         "?period=7d&country=US&group_by=asin",
         headers=multisite_env["headers"],
     )
@@ -414,13 +415,13 @@ def test_business_scope_star_allows(client, multisite_env):
 
 
 def test_business_scope_403_even_with_project_scope(client, make_api_key):
-    """business_scope 校验在 project_scope 之前：无 orders 域 → 403 业务域错误。"""
+    """business_scope 校验在 project_scope 之前：无 sales 域 → 403 业务域错误。"""
     key = make_api_key(
-        agent_id="blf560-scope-both", business_scope="shipments", project_scope="1"
+        agent_id="blf569-scope-both", business_scope="shipments", project_scope="1"
     )
     resp = client.get(
-        "/api/v1/agent/projects/99999999/orders/summary?period=7d&country=US&group_by=asin",
-        headers=_headers(key, "blf560-scope-both"),
+        "/api/v1/agent/projects/99999999/sales/summary?period=7d&country=US&group_by=asin",
+        headers=_headers(key, "blf569-scope-both"),
     )
     assert resp.status_code == 403, resp.text
     assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"

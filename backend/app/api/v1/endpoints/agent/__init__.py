@@ -16,7 +16,7 @@ from app.api.v1.endpoints.agent.account_health import account_health_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
-from app.api.v1.endpoints.agent.orders import orders_router
+from app.api.v1.endpoints.agent.sales import sales_router
 from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
 from app.api.v1.endpoints.agent.replenishment_analysis import (
     replenishment_analysis_router,
@@ -85,12 +85,13 @@ agent_router.include_router(
     account_health_router,
     dependencies=[Depends(require_business_scope("account_health"))],
 )
-# 订单域（BLF-560）：orders/summary 从镜像族原生化（v0.2 权限门对齐），
-# 挂 business_scope("orders")。必须插在兜底路由之前，否则被静默吞成 404 壳。
+# 销售数据域（BLF-569）：orders/summary → sales/summary 路径 + 域 code
+# orders → sales 迁移（用户 2026-08-09 拍板）；旧路径双挂保留迁移提示期，
+# 挂 business_scope("sales")。必须插在兜底路由之前，否则被静默吞成 404 壳。
 # 镜像侧已由 external_mirror._EXCLUDED_EXTERNAL_PATHS 排除，无双挂冲突。
 agent_router.include_router(
-    orders_router,
-    dependencies=[Depends(require_business_scope("orders"))],
+    sales_router,
+    dependencies=[Depends(require_business_scope("sales"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。

@@ -45,7 +45,10 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/replenishment-analysis", "inventory_ledger"),
     ("/inventory-ledger", "inventory_ledger"),
     ("/sku-info", "inventory_ledger"),
-    ("/orders/", "finance_profit"),
+    # BLF-569：销售数据域（路径 orders/summary → sales/summary，域 code
+    # orders → sales）；旧路径 /orders/ 双挂保留期同样归 sales 域。
+    ("/sales/", "sales"),
+    ("/orders/", "sales"),
     ("/ad-", "ad_analysis"),
     ("/shipments", "shipments"),
 )

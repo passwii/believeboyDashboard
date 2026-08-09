@@ -4605,7 +4605,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4626,7 +4626,7 @@
       "Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4640,7 +4640,7 @@
       "Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4654,7 +4654,7 @@
       "Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4673,7 +4673,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4692,7 +4692,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4706,12 +4706,12 @@
       "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post": {
         "properties": {
           "excel_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Excel File",
             "type": "string"
           },
           "pdf_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4726,7 +4726,7 @@
       "Body_upload_api_v1_page_render_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4751,7 +4751,7 @@
       "Body_upload_avatar_api_v1_system_management_profile_avatar_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4765,7 +4765,7 @@
       "Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4779,7 +4779,7 @@
       "Body_upload_file_api_v1_uploads_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4803,7 +4803,7 @@
       "Body_upload_file_for_ai_api_v1_ai_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4817,7 +4817,7 @@
       "Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4831,7 +4831,7 @@
       "Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -4850,7 +4850,7 @@
       "Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           }
@@ -4864,11 +4864,11 @@
       "Body_upload_screenshot_api_v1_inspections_screenshots_upload_post": {
         "properties": {
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
-          "report_id_form": {
+          "report_id": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4877,7 +4877,7 @@
                 "type": "null"
               }
             ],
-            "title": "Report Id Form"
+            "title": "Report Id"
           }
         },
         "required": [
@@ -4889,7 +4889,7 @@
       "Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post": {
         "properties": {
           "pdf_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4903,7 +4903,7 @@
       "Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post": {
         "properties": {
           "csv_file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Csv File",
             "type": "string"
           }
@@ -33161,6 +33161,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -42621,8 +42628,8 @@
     },
     "/api/v1/agent/projects/{project_id}/orders/summary": {
       "get": {
-        "description": "orders/summary 原生路由（BLF-560 镜像族原生化）。\n\n查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持\n逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +\n派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。",
-        "operationId": "get_agent_orders_summary_api_v1_agent_projects__project_id__orders_summary_get",
+        "description": "orders/summary 旧路径（BLF-569 双挂迁移提示期）。\n\n行为与 ``/sales/summary`` 完全一致（同一实现，数据零漂移），仅额外返回\n迁移提示头：``Deprecation: true`` + ``Sunset`` + ``Link:\nrel=\"successor-version\"`` 指向新路径——对齐 BLF-459 v1 双挂先例。\n下线（v3 410）由后续 issue 在 Sunset 之后执行。",
+        "operationId": "get_agent_orders_summary_legacy_api_v1_agent_projects__project_id__orders_summary_get",
         "parameters": [
           {
             "in": "path",
@@ -42791,7 +42798,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Get Agent Orders Summary Api V1 Agent Projects  Project Id  Orders Summary Get",
+                  "title": "Response Get Agent Orders Summary Legacy Api V1 Agent Projects  Project Id  Orders Summary Get",
                   "type": "object"
                 }
               }
@@ -42809,10 +42816,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Agent Orders Summary",
+        "summary": "Get Agent Orders Summary Legacy",
         "tags": [
           "agent",
-          "agent-orders"
+          "agent-sales"
         ]
       }
     },
@@ -44015,6 +44022,203 @@
         "tags": [
           "agent",
           "agent-return-analysis"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/sales/summary": {
+      "get": {
+        "description": "sales/summary 原生路由（BLF-569 迁移后主路径）。\n\n查询契约与 external handler 完全一致（spec v0.2 §4.2）：``country`` 支持\n逗号分隔多站点（group_by 模式）；``group_by=asin|asin_day|day`` 聚合 +\n派生指标；``summary.by_country`` 按国家分拆金额（不做跨币种求和）。",
+        "operationId": "get_agent_sales_summary_api_v1_agent_projects__project_id__sales_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_cancelled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Cancelled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_pending",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Pending",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aggregate",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Aggregate",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Group By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "sales_amount",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "title": "Order Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_share",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Share",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 50000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Sales Summary Api V1 Agent Projects  Project Id  Sales Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Sales Summary",
+        "tags": [
+          "agent",
+          "agent-sales"
         ]
       }
     },
