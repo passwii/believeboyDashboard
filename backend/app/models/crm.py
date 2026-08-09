@@ -168,6 +168,7 @@ class CrmLead(Base):
         Index("idx_cl_status_intent", "status", "intent"),
         Index("idx_cl_next_follow", "next_follow_at"),
         Index("idx_cl_status_entered", "status", "entered_stage_at"),
+        Index("idx_cl_last_follow", "last_follow_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -198,6 +199,8 @@ class CrmLead(Base):
     next_follow_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )  # 下次跟进时间（P2b 待跟进视图）
+    # P9-4 (BLF-542): 最近一次跟进时间（跟进成功刷新，公海回收计时基准，镜像客户）
+    last_follow_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     converted_to_customer_id: Mapped[int | None] = mapped_column(Integer)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # P8 (BLF-517): 进入当前阶段的时间戳（status 变更时写入，nullable 兼容历史数据）

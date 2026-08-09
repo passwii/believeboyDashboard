@@ -7,8 +7,10 @@
 - 客户：COALESCE(last_follow_at, created_at) 距今 > N 天；排除 signed / 已删除 / 已在公海；
   且按价值分档差异化（P9-3, BLF-541）：rating=A（P6a 最高档）永不回收，
   B/C/D 档按 N 天回收。
-- 线索：COALESCE(next_follow_at, created_at) 距今 > N 天；排除 converted / discarded / 已删除 / 已在池。
+- 线索：COALESCE(last_follow_at, next_follow_at, created_at) 距今 > N 天；排除 converted / discarded / 已删除 / 已在池。
   线索无价值分档（rating 仅客户有），维持统一阈值回收。
+  P9-4 (BLF-542)：last_follow_at 置最前——跟进成功即重置计时（客户/线索一致），
+  next_follow_at 仅作为存量数据（未跟过进）的回退口径。
 """
 
 from __future__ import annotations
@@ -90,7 +92,9 @@ def reclaim_stale_to_sea(
     )
     reclaimed_leads = 0
     for lead in leads:
-        ref = lead.next_follow_at or lead.created_at
+        # P9-4 (BLF-542): 跟进成功刷新 last_follow_at → 回收计时重置；
+        # 存量数据（从未跟过进）回退 next_follow_at / created_at，旧口径无回归
+        ref = lead.last_follow_at or lead.next_follow_at or lead.created_at
         if ref is not None and ref < cutoff:
             lead.owner_id = None
             lead.next_follow_at = None

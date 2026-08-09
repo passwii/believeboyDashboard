@@ -194,6 +194,19 @@ def test_create_follow_clears_customer_next_follow_at_when_absent(db_session):
     assert cust.next_follow_at is None
 
 
+def test_create_follow_sets_lead_last_follow_at(db_session):
+    """P9-4 (BLF-542): 线索跟进成功 → 刷新 last_follow_at → 回收计时重置（与客户一致）。"""
+    lead = _mk_lead(db_session)
+    assert lead.last_follow_at is None
+    create_follow(
+        db_session,
+        FollowCreate(entity_type="lead", entity_id=lead.id, content="跟进了"),
+        user_id=BOB,
+    )
+    db_session.refresh(lead)
+    assert lead.last_follow_at is not None
+
+
 def test_create_follow_sets_lead_next_follow_at(db_session):
     lead = _mk_lead(db_session)
     nxt = datetime.now(timezone.utc) + timedelta(days=2)

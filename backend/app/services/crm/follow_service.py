@@ -70,7 +70,9 @@ def create_follow(
     user_id: str | None,
     commit: bool = True,
 ) -> FollowItem:
-    """创建跟进；回写实体的 last_follow_at（客户）与 next_follow_at（客户+线索，P2b）。
+    """创建跟进；回写实体的 last_follow_at 与 next_follow_at（客户 + 线索）。
+
+    last_follow_at（P9-4, BLF-542）：跟进成功 → now，公海回收计时随之重置（客户/线索一致）。
 
     next_follow_at 回写规则：payload 带值→设入实体；不带（None）→清空实体（表示这次跟进了、没约下次）。
 
@@ -103,6 +105,8 @@ def create_follow(
             select(CrmLead).where(CrmLead.id == payload.entity_id)
         ).scalar_one_or_none()
         if lead is not None:
+            # P9-4 (BLF-542): 跟进成功刷新 last_follow_at → 重置公海 7 天回收计时（与客户一致）
+            lead.last_follow_at = datetime.now(timezone.utc)
             lead.next_follow_at = payload.next_follow_at
         # P9-1 (BLF-539): 同上，线索跟进也 resolve 提醒记录
         resolve_entity_reminders(db, "lead", payload.entity_id)
