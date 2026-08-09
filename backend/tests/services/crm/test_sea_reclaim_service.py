@@ -153,6 +153,69 @@ def test_lead_never_followed_uses_created_at(db_session):
     assert _owner(db_session, "crm_leads", lead.id) is None
 
 
+# ---------- 按价值分档（P9-3, BLF-541） ----------
+
+
+def test_customer_rating_a_never_reclaimed(db_session):
+    c = _mk_customer(
+        db_session, rating="A", last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result["customers"] == 0
+    assert _owner(db_session, "crm_customers", c.id) == ALICE
+
+
+def test_customer_rating_a_extremely_stale_kept(db_session):
+    c = _mk_customer(
+        db_session, rating="A", last_follow_at=NOW - timedelta(days=DAYS + 365)
+    )
+    reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert _owner(db_session, "crm_customers", c.id) == ALICE
+
+
+def test_customer_rating_b_reclaimed(db_session):
+    c = _mk_customer(
+        db_session, rating="B", last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c.id) is None
+
+
+def test_customer_rating_c_reclaimed(db_session):
+    c = _mk_customer(
+        db_session, rating="C", last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c.id) is None
+
+
+def test_customer_rating_d_reclaimed(db_session):
+    c = _mk_customer(
+        db_session, rating="D", last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c.id) is None
+
+
+def test_rating_a_kept_no_system_follow_written(db_session):
+    _mk_customer(db_session, rating="A", last_follow_at=NOW - timedelta(days=DAYS + 5))
+    reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert (
+        db_session.execute(text("select count(*) from crm_follows")).scalar_one() == 0
+    )
+
+
+def test_rating_a_customer_kept_while_lead_reclaimed(db_session):
+    _mk_customer(db_session, rating="A", last_follow_at=NOW - timedelta(days=DAYS + 3))
+    lead = _mk_lead(db_session, next_follow_at=NOW - timedelta(days=DAYS + 1))
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result == {"customers": 0, "leads": 1}
+    assert _owner(db_session, "crm_leads", lead.id) is None
+
+
 # ---------- 审计跟进 ----------
 
 
