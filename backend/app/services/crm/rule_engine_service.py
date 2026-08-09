@@ -152,6 +152,16 @@ def condition_supported(condition: CrmRuleCondition) -> bool:
     return condition.field in _FIELD_RESOLVERS and condition.operator in _OPERATOR_FN
 
 
+# 写时校验白名单（供 rule_crud_service 引用，保证 CRUD 与执行器契约一致）：
+# - 数值字段：比较 value 须为整数（gt/gte/lt/lte/eq/ne）；
+# - 字符串字段：eq/ne 比较字符串；last_follow_at 常配合 is_null/is_not_null。
+SUPPORTED_FIELDS: frozenset[str] = frozenset(_FIELD_RESOLVERS)
+SUPPORTED_OPERATORS: frozenset[str] = frozenset(_OPERATOR_FN)
+NUMERIC_FIELDS: frozenset[str] = frozenset(
+    {"days_since_created", "days_since_last_follow"}
+)
+
+
 def evaluate_condition(entity, condition: CrmRuleCondition, now: datetime) -> bool:
     """求值单条 condition（AND 语义由调用方聚合）。不支持时抛 ValueError（fail-safe）。"""
     if not condition_supported(condition):

@@ -678,3 +678,85 @@ class TaskListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------- 规则引擎 CRUD（P9-7b, BLF-561，对齐前端 RuleDto，snake_case） ----------
+RuleEntityType = Literal["customer", "lead"]
+RuleEventType = Literal["stale_follow_up"]
+RuleOperator = Literal["gt", "gte", "lt", "lte", "eq", "ne", "is_null", "is_not_null"]
+RuleActionType = Literal["notify_owner"]
+
+
+class RuleConditionInput(BaseModel):
+    """规则条件入参（子表 id 由后端重建回填，前端省略）。"""
+
+    field: str = Field(min_length=1, max_length=50)
+    operator: RuleOperator
+    value: str | None = None  # is_null/is_not_null 时为空
+    sort_order: int = 0
+
+
+class RuleActionInput(BaseModel):
+    """规则动作入参（子表 id 由后端重建回填，前端省略）。"""
+
+    action_type: RuleActionType
+    params: dict | None = None
+    sort_order: int = 0
+
+
+class RuleCreate(BaseModel):
+    """创建规则（conditions/actions 整体写入，原子重建子表）。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    entity_type: RuleEntityType = "customer"
+    event_type: RuleEventType = "stale_follow_up"
+    enabled: bool = True
+    priority: int = 0
+    conditions: list[RuleConditionInput] = Field(min_length=1)
+    actions: list[RuleActionInput] = Field(min_length=1)
+
+
+class RuleUpdate(BaseModel):
+    """PATCH 部分字段更新（exclude_unset 风格）；conditions/actions 出现即整体替换。"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    entity_type: RuleEntityType | None = None
+    event_type: RuleEventType | None = None
+    enabled: bool | None = None
+    priority: int | None = None
+    conditions: list[RuleConditionInput] | None = None
+    actions: list[RuleActionInput] | None = None
+
+
+class RuleConditionItem(BaseModel):
+    id: int
+    field: str
+    operator: str
+    value: str | None = None
+    sort_order: int
+
+
+class RuleActionItem(BaseModel):
+    id: int
+    action_type: str
+    params: dict | None = None
+    sort_order: int
+
+
+class RuleItem(BaseModel):
+    """规则响应（GET/POST/PATCH 统一形状，对齐前端 RuleDto）。"""
+
+    id: int
+    name: str
+    description: str | None = None
+    entity_type: str
+    event_type: str
+    enabled: bool
+    priority: int
+    created_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    conditions: list[RuleConditionItem] = []
+    actions: list[RuleActionItem] = []

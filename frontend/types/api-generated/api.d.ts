@@ -225,6 +225,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/account-health/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get History
+         * @description R5 历史趋势：与内部 ``/api/v1/inspections/history`` 同构查询（拍平 +
+         *     compliance_total 派生）→ 按凭据 project_scope 过滤 → 白名单排序 → 分页。
+         *
+         *     ``order_by`` 非法 → 400 ``VALIDATION_FAILED``；空结果 → 200 + 空 items。
+         */
+        get: operations["get_history_api_v1_agent_account_health_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/account-health/periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Periods
+         * @description R1 周期列表：复用 ``inspection_service.list_periods``（纯读，零改造）。
+         */
+        get: operations["list_periods_api_v1_agent_account_health_periods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/account-health/periods/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Current Period
+         * @description R2 当前周期：**纯读**（``inspection_service.get_current_period``，无建行
+         *     副作用——内部 ``get_or_create_current_period`` 无周期时会 INSERT，Agent 通道
+         *     不可复用）。无周期 → 404 ``RESOURCE_NOT_FOUND``。
+         */
+        get: operations["get_current_period_api_v1_agent_account_health_periods_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/account-health/periods/{period_id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Period Overview
+         * @description R3 周期概览：复用 ``inspection_service.get_overview``（状态推导 / 逾期口径
+         *     与内部端点一致）→ 逐店行拍平（§7.3 字段）→ 按凭据 project_scope 过滤 items，
+         *     计数在过滤后重算。周期不存在 → 404 ``RESOURCE_NOT_FOUND``。
+         */
+        get: operations["get_period_overview_api_v1_agent_account_health_periods__period_id__overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/account-health/periods/{period_id}/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Report
+         * @description R4 单店报告明细：复用 ``inspection_service.get_report``（纯读）+
+         *     project_scope 语义——项目不在凭据范围 → 404；无报告 → 404。
+         *     ``include_summary=true`` 才带 ``status_summary``。
+         */
+        get: operations["get_project_report_api_v1_agent_account_health_periods__period_id__projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/health": {
         parameters: {
             query?: never;
@@ -2840,6 +2949,91 @@ export interface paths {
         patch: operations["update_value_scores_api_v1_crm_customers__customer_id__value_scores_patch"];
         trace?: never;
     };
+    "/api/v1/crm/dashboard/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Funnel Metrics
+         * @description 按 时间/角色/来源 聚合的漏斗数据（漏斗二层设计决策，BLF-517）。
+         */
+        get: operations["get_funnel_metrics_api_v1_crm_dashboard_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/dashboard/funnel/stage/{stage}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Funnel Stage Detail
+         * @description 某阶段的复盘明细（漏斗二层面板数据，BLF-517）。
+         */
+        get: operations["get_funnel_stage_detail_api_v1_crm_dashboard_funnel_stage__stage__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/dashboard/lifecycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lifecycle Board
+         * @description 生命周期看板：客户从创建到 首次跟进/转化/流失 的时间分布（BLF-520）。
+         *
+         *     仅管理员。三种分布（分桶直方图 + 均值/中位/P90）+ 当前公海客户数；
+         *     前端渲染直方图 + 转化时间漏斗叠加。
+         */
+        get: operations["get_lifecycle_board_api_v1_crm_dashboard_lifecycle_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/dashboard/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Board
+         * @description 业绩看板：本月新增客户/转化数/跟进数/完成率 + 按人排名（BLF-519）。
+         *
+         *     权限：scope=mine 员工看自己；scope=all 仅管理员（非 admin → 403）。
+         */
+        get: operations["get_performance_board_api_v1_crm_dashboard_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/crm/dashboard/stats": {
         parameters: {
             query?: never;
@@ -2866,6 +3060,26 @@ export interface paths {
         };
         /** List Follow Ups */
         get: operations["list_follow_ups_api_v1_crm_follow_ups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/follow-ups/reminders/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Follow Up Reminders Stream
+         * @description 7 天无跟进提醒 SSE：event: follow_up_reminder + {entity_type, entity_id, name, days}（登录态）。
+         */
+        get: operations["follow_up_reminders_stream_api_v1_crm_follow_ups_reminders_stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3010,6 +3224,178 @@ export interface paths {
         put?: never;
         /** Convert Lead */
         post: operations["convert_lead_api_v1_crm_leads__lead_id__convert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rules */
+        get: operations["list_rules_api_v1_crm_rules_get"];
+        put?: never;
+        /** Create Rule */
+        post: operations["create_rule_api_v1_crm_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Rule */
+        delete: operations["delete_rule_api_v1_crm_rules__rule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Rule */
+        patch: operations["update_rule_api_v1_crm_rules__rule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tasks
+         * @description 任务列表：scope=mine/all（非 admin 的 all 降级 mine）+ 筛选白名单 + 排序白名单。
+         *
+         *     owner_id 筛选仅管理员可用（非 admin scope 已降级 mine，再按他人过滤会串权 → 403）。
+         */
+        get: operations["list_tasks_api_v1_crm_tasks_get"];
+        put?: never;
+        /**
+         * Create Task
+         * @description 建任务；owner 默认=自己；admin 可指派他人；关联客户/线索须存在（404）。
+         */
+        post: operations["create_task_api_v1_crm_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/tasks/reminders/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task Reminders Stream
+         * @description 任务到期提醒 SSE：event: task_reminder + {task_id, title, due_date}（登录态）。
+         */
+        get: operations["task_reminders_stream_api_v1_crm_tasks_reminders_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task
+         * @description 任务详情（联查客户名/线索名/owner 名）；owner/admin 可见。
+         */
+        get: operations["get_task_api_v1_crm_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Task
+         * @description 改 title/description/due_date/priority/type/customer_id/lead_id；
+         *     owner_id 仅 admin 可改（非 admin 传 owner_id → 403）。
+         */
+        patch: operations["update_task_api_v1_crm_tasks__task_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/tasks/{task_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Task
+         * @description 取消：status→cancelled。
+         */
+        post: operations["cancel_task_api_v1_crm_tasks__task_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/tasks/{task_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Task
+         * @description 完成任务：status→done + completed_at + §3.3 完成联动。
+         *
+         *     §3.3 方案 A（用户已拍板）：互动类任务（follow_up/call/visit）完成时同一事务内
+         *     自动生成 follow（type 映射 call→phone / visit→visit / follow_up→note，content=
+         *     任务标题可带完成备注）+ 回写实体 last_follow_at=now + next_follow_at 设值/未填清空
+         *     （完成表单可选「下次跟进时间」）。custom 类不联动（可手动补跟进）。
+         */
+        post: operations["complete_task_api_v1_crm_tasks__task_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/tasks/{task_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Task Status
+         * @description 看板拖拽流转：{status} ∈ pending/in_progress/done（done/cancelled 后不可再流转）。
+         */
+        post: operations["set_task_status_api_v1_crm_tasks__task_id__status_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11858,6 +12244,59 @@ export interface components {
             return_count: number;
         };
         /**
+         * FunnelDimensionItem
+         * @description 按某维度聚合的一段漏斗：key=维度键，label=展示名（owner 姓名 / source / 月份）。
+         *
+         *     funnel 永远是该 key 下 5 状态计数（new/contacting/qualified/converted/discarded），
+         *     顺序与 _LEAD_STATUS_ORDER 一致（dict 顺序即展示顺序）。
+         */
+        FunnelDimensionItem: {
+            /**
+             * Funnel
+             * @default {}
+             */
+            funnel: {
+                [key: string]: number;
+            };
+            /** Key */
+            key: string;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * FunnelMetrics
+         * @description 按 时间/角色/来源 聚合的漏斗数据（P8, BLF-517）。
+         *
+         *     - total：全部线索 5 状态快照（应用了 owner/source 过滤；time 过滤时按
+         *       entered_stage_at ∈ [start_at, end_at) 计，未给时间范围则按当前状态快照）。
+         *     - items：按 dimension 拆分（owner / source / time 分桶）。
+         *       dimension=time 时基于 entered_stage_at（新字段，历史数据 NULL 不计入分桶，
+         *       但计入 total 快照——这是「本期流入动态」与「当前存量」的差异，属预期）。
+         */
+        FunnelMetrics: {
+            /**
+             * Dimension
+             * @enum {string}
+             */
+            dimension: "owner" | "source" | "time";
+            /** End At */
+            end_at?: string | null;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["FunnelDimensionItem"][];
+            /** Start At */
+            start_at?: string | null;
+            /**
+             * Total
+             * @default {}
+             */
+            total: {
+                [key: string]: number;
+            };
+        };
+        /**
          * GetFnskuLabelsBySkusRequest
          * @description 通过 SKU 列表获取 FNSKU 标签信息的请求
          */
@@ -13282,6 +13721,8 @@ export interface components {
             customer_type?: string | null;
             /** Email */
             email?: string | null;
+            /** Entered Stage At */
+            entered_stage_at?: string | null;
             /** Expected Amount */
             expected_amount?: number | null;
             /** Expected Close Date */
@@ -13651,6 +14092,104 @@ export interface components {
              * @default 0
              */
             warehouse_transfer_io: number;
+        };
+        /**
+         * LifecycleBoard
+         * @description 生命周期看板（P8, BLF-520，仅管理员）。
+         *
+         *     - first_follow：客户创建 → 第一条跟进（crm_follows entity_type=customer）。
+         *     - conversion：线索创建 → 转化（crm_leads.converted_at）。
+         *     - churn：客户创建 → 首次回公海（审计 move_sea / 系统回收跟进，取较早）。
+         *     - now_in_sea：当前在公海的客户数（owner_id 为空，公海现状快照）。
+         */
+        LifecycleBoard: {
+            churn?: components["schemas"]["LifecycleDistribution"];
+            conversion?: components["schemas"]["LifecycleDistribution"];
+            first_follow?: components["schemas"]["LifecycleDistribution"];
+            /**
+             * Now In Sea
+             * @default 0
+             */
+            now_in_sea: number;
+        };
+        /**
+         * LifecycleBucket
+         * @description 一个天数分桶（直方图柱）。
+         *
+         *     - pct：占 sample_count 比例（保留 4 位小数）。
+         *     - cumulative_pct：累计占比 = 该桶及之前所有桶合计 / sample_count
+         *       （前端「转化时间漏斗叠加」用它画漏斗）。
+         */
+        LifecycleBucket: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Cumulative Pct
+             * @default 0
+             */
+            cumulative_pct: number;
+            /** Label */
+            label: string;
+            /** Max Days */
+            max_days?: number | null;
+            /** Min Days */
+            min_days: number;
+            /**
+             * Pct
+             * @default 0
+             */
+            pct: number;
+        };
+        /**
+         * LifecycleDistribution
+         * @description 一种「从创建到事件」的时间分布（BLF-520）。
+         */
+        LifecycleDistribution: {
+            /**
+             * Buckets
+             * @default []
+             */
+            buckets: components["schemas"]["LifecycleBucket"][];
+            /** Description */
+            description: string;
+            /** Label */
+            label: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "first_follow" | "conversion" | "churn";
+            summary?: components["schemas"]["LifecycleSummary"];
+        };
+        /**
+         * LifecycleSummary
+         * @description 生命周期分布的摘要统计（天数）。
+         *
+         *     sample_count = 有该事件的数据数（分布主体）；total_count = 口径总体
+         *     （如全部未删除客户数），供前端展示覆盖率。
+         */
+        LifecycleSummary: {
+            /** Avg Days */
+            avg_days?: number | null;
+            /** Max Days */
+            max_days?: number | null;
+            /** Median Days */
+            median_days?: number | null;
+            /** P90 Days */
+            p90_days?: number | null;
+            /**
+             * Sample Count
+             * @default 0
+             */
+            sample_count: number;
+            /**
+             * Total Count
+             * @default 0
+             */
+            total_count: number;
         };
         /**
          * LocationDetail
@@ -15029,6 +15568,96 @@ export interface components {
             period_start_date: string;
             /** Source Id */
             source_id: number;
+        };
+        /**
+         * PerformanceBoard
+         * @description 业绩看板（P8, BLF-519）。
+         *
+         *     - scope=mine（任何人可访问）：mine=我的指标 + my_rank/total_users；ranking 为空
+         *       （员工只见自己，不泄露他人明细）。
+         *     - scope=all（仅管理员）：mine 仍返回（管理员自己的指标），另附 global_metrics
+         *       （全员合计）与 ranking（全员排名表，参与人数 = total_users）。
+         */
+        PerformanceBoard: {
+            global_metrics?: components["schemas"]["PerformanceMetrics"] | null;
+            mine?: components["schemas"]["PerformanceMetrics"];
+            /** Month */
+            month: string;
+            /** My Rank */
+            my_rank?: number | null;
+            /**
+             * Ranking
+             * @default []
+             */
+            ranking: components["schemas"]["PerformanceRankItem"][];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "mine" | "all";
+            /**
+             * Total Users
+             * @default 0
+             */
+            total_users: number;
+        };
+        /**
+         * PerformanceMetrics
+         * @description 业绩指标（个人或全局，Asia/Shanghai 本月口径）。
+         *
+         *     - new_customers：本月新增客户（created_at ∈ 本月，未删除）。
+         *     - converted_count：本月转化数（converted_at ∈ 本月，未删除）。
+         *     - follow_count：本月跟进数（CrmFollow.created_at ∈ 本月；个人口径按 created_by 归属）。
+         *     - completion_rate：本月任务完成率 = 本月完成 / (本月完成 + 当前未完成)，
+         *       无任务（分母为 0）时 None。任务来自 P7 crm_tasks（排除 cancelled）。
+         */
+        PerformanceMetrics: {
+            /** Completion Rate */
+            completion_rate?: number | null;
+            /**
+             * Converted Count
+             * @default 0
+             */
+            converted_count: number;
+            /**
+             * Follow Count
+             * @default 0
+             */
+            follow_count: number;
+            /**
+             * New Customers
+             * @default 0
+             */
+            new_customers: number;
+        };
+        /**
+         * PerformanceRankItem
+         * @description 排名表一行（按人）。
+         */
+        PerformanceRankItem: {
+            /** Completion Rate */
+            completion_rate?: number | null;
+            /**
+             * Converted Count
+             * @default 0
+             */
+            converted_count: number;
+            /**
+             * Follow Count
+             * @default 0
+             */
+            follow_count: number;
+            /**
+             * New Customers
+             * @default 0
+             */
+            new_customers: number;
+            /** Owner Id */
+            owner_id: string;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Rank */
+            rank: number;
         };
         /** PeriodCompleteness */
         PeriodCompleteness: {
@@ -17059,6 +17688,172 @@ export interface components {
             items: components["schemas"]["ProjectReportStatusSchema"][];
         };
         /**
+         * RuleActionInput
+         * @description 规则动作入参（子表 id 由后端重建回填，前端省略）。
+         */
+        RuleActionInput: {
+            /**
+             * Action Type
+             * @constant
+             */
+            action_type: "notify_owner";
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** RuleActionItem */
+        RuleActionItem: {
+            /** Action Type */
+            action_type: string;
+            /** Id */
+            id: number;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * RuleConditionInput
+         * @description 规则条件入参（子表 id 由后端重建回填，前端省略）。
+         */
+        RuleConditionInput: {
+            /** Field */
+            field: string;
+            /**
+             * Operator
+             * @enum {string}
+             */
+            operator: "gt" | "gte" | "lt" | "lte" | "eq" | "ne" | "is_null" | "is_not_null";
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Value */
+            value?: string | null;
+        };
+        /** RuleConditionItem */
+        RuleConditionItem: {
+            /** Field */
+            field: string;
+            /** Id */
+            id: number;
+            /** Operator */
+            operator: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Value */
+            value?: string | null;
+        };
+        /**
+         * RuleCreate
+         * @description 创建规则（conditions/actions 整体写入，原子重建子表）。
+         */
+        RuleCreate: {
+            /** Actions */
+            actions: components["schemas"]["RuleActionInput"][];
+            /** Conditions */
+            conditions: components["schemas"]["RuleConditionInput"][];
+            /** Description */
+            description?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Entity Type
+             * @default customer
+             * @enum {string}
+             */
+            entity_type: "customer" | "lead";
+            /**
+             * Event Type
+             * @default stale_follow_up
+             * @constant
+             */
+            event_type: "stale_follow_up";
+            /** Name */
+            name: string;
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+        };
+        /**
+         * RuleItem
+         * @description 规则响应（GET/POST/PATCH 统一形状，对齐前端 RuleDto）。
+         */
+        RuleItem: {
+            /**
+             * Actions
+             * @default []
+             */
+            actions: components["schemas"]["RuleActionItem"][];
+            /**
+             * Conditions
+             * @default []
+             */
+            conditions: components["schemas"]["RuleConditionItem"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Entity Type */
+            entity_type: string;
+            /** Event Type */
+            event_type: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Priority */
+            priority: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * RuleUpdate
+         * @description PATCH 部分字段更新（exclude_unset 风格）；conditions/actions 出现即整体替换。
+         */
+        RuleUpdate: {
+            /** Actions */
+            actions?: components["schemas"]["RuleActionInput"][] | null;
+            /** Conditions */
+            conditions?: components["schemas"]["RuleConditionInput"][] | null;
+            /** Description */
+            description?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Entity Type */
+            entity_type?: ("customer" | "lead") | null;
+            /** Event Type */
+            event_type?: "stale_follow_up" | null;
+            /** Name */
+            name?: string | null;
+            /** Priority */
+            priority?: number | null;
+        };
+        /**
          * SeasonalReplenishmentListItem
          * @description 季节性补货分析单行。
          *
@@ -18358,6 +19153,96 @@ export interface components {
             success: boolean;
         };
         /**
+         * StageDetail
+         * @description 某阶段的复盘明细（漏斗二层面板）。
+         */
+        StageDetail: {
+            /** Avg Dwell Days */
+            avg_dwell_days?: number | null;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Inflow
+             * @default 0
+             */
+            inflow: number;
+            /**
+             * Leads
+             * @default []
+             */
+            leads: components["schemas"]["StageLeadItem"][];
+            /** Outflow */
+            outflow?: number | null;
+            /**
+             * Page
+             * @default 1
+             */
+            page: number;
+            /**
+             * Page Size
+             * @default 50
+             */
+            page_size: number;
+            /** Stage */
+            stage: string;
+            /**
+             * Stuck Count
+             * @default 0
+             */
+            stuck_count: number;
+            /**
+             * Stuck Days
+             * @default 7
+             */
+            stuck_days: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * StageLeadItem
+         * @description 阶段明细里的单条线索（漏斗二层复盘面板用）。
+         *
+         *     dwell_days = (now - coalesce(entered_stage_at, updated_at)) 的天数；
+         *     is_stuck = dwell_days > stuck_days（默认 7 天，与 P9 无跟进提醒阈值一致）。
+         */
+        StageLeadItem: {
+            /** Company */
+            company?: string | null;
+            /** Dwell Days */
+            dwell_days?: number | null;
+            /** Entered Stage At */
+            entered_stage_at?: string | null;
+            /** Id */
+            id: number;
+            /** Intent */
+            intent?: string | null;
+            /**
+             * Is Stuck
+             * @default false
+             */
+            is_stuck: boolean;
+            /** Last Action At */
+            last_action_at?: string | null;
+            /** Last Action Content */
+            last_action_content?: string | null;
+            /** Name */
+            name: string;
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Source */
+            source?: string | null;
+        };
+        /**
          * StatusItem
          * @description 库存状态项
          */
@@ -18396,18 +19281,124 @@ export interface components {
             /** Table Name Cn */
             table_name_cn?: string | null;
         };
-        /** TaskListResponse */
-        TaskListResponse: {
-            /** Items */
-            items: components["schemas"]["DigitalEmployeeTaskResponse"][];
-            /** Total */
-            total: number;
+        /**
+         * TaskCompleteRequest
+         * @description 完成任务表单（P7-6 §3.3 完成联动）。
+         *
+         *     next_follow_at: 可选「下次跟进时间」；带值→回写实体，未填（None）→清空实体
+         *     （与 follow_service.create_follow 语义一致）。
+         *     note: 完成备注，追加到自动生成的 follow content（"任务标题：备注"）。
+         */
+        TaskCompleteRequest: {
+            /** Next Follow At */
+            next_follow_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** TaskCreate */
+        TaskCreate: {
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Lead Id */
+            lead_id?: number | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /**
+             * Priority
+             * @default medium
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high" | "urgent";
+            /** Title */
+            title: string;
+            /**
+             * Type
+             * @default custom
+             * @enum {string}
+             */
+            type: "follow_up" | "call" | "visit" | "custom";
+        };
+        /** TaskItem */
+        TaskItem: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Id */
+            id: number;
+            /** Lead Id */
+            lead_id?: number | null;
+            /** Lead Name */
+            lead_name?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Priority */
+            priority: string;
+            /** Reminded At */
+            reminded_at?: string | null;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * TaskStatusSchema
          * @enum {string}
          */
         TaskStatusSchema: "pending" | "running" | "succeeded" | "failed" | "cancelled";
+        /** TaskStatusUpdate */
+        TaskStatusUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "in_progress" | "done";
+        };
+        /** TaskUpdate */
+        TaskUpdate: {
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Lead Id */
+            lead_id?: number | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Priority */
+            priority?: ("low" | "medium" | "high" | "urgent") | null;
+            /** Title */
+            title?: string | null;
+            /** Type */
+            type?: ("follow_up" | "call" | "visit" | "custom") | null;
+        };
         /** TestEmailResponse */
         TestEmailResponse: {
             /** Message */
@@ -19176,6 +20167,24 @@ export interface components {
             week_end_date: string;
             /** Week Start Date */
             week_start_date: string;
+        };
+        /** TaskListResponse */
+        app__schemas__crm__TaskListResponse: {
+            /** Items */
+            items: components["schemas"]["TaskItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /** TaskListResponse */
+        app__schemas__digital_employee__TaskListResponse: {
+            /** Items */
+            items: components["schemas"]["DigitalEmployeeTaskResponse"][];
+            /** Total */
+            total: number;
         };
         /** SubscriptionCreate */
         app__schemas__notification__SubscriptionCreate: {
@@ -19966,6 +20975,170 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdUploadStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_history_api_v1_agent_account_health_history_get: {
+        parameters: {
+            query?: {
+                period_id?: number | null;
+                project_id?: number | null;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_periods_api_v1_agent_account_health_periods_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_period_api_v1_agent_account_health_periods_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    get_period_overview_api_v1_agent_account_health_periods__period_id__overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_report_api_v1_agent_account_health_periods__period_id__projects__project_id__get: {
+        parameters: {
+            query?: {
+                /** @description 可选：true 时返回 status_summary（默认不返回，覆盖率低） */
+                include_summary?: boolean;
+            };
+            header?: never;
+            path: {
+                period_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21750,7 +22923,11 @@ export interface operations {
                 include_cancelled?: boolean;
                 include_pending?: boolean;
                 aggregate?: boolean;
-                limit?: number;
+                group_by?: string;
+                order_by?: string;
+                order_dir?: string;
+                include_share?: boolean;
+                limit?: number | null;
                 offset?: number;
             };
             header?: never;
@@ -25978,6 +27155,175 @@ export interface operations {
             };
         };
     };
+    get_funnel_metrics_api_v1_crm_dashboard_funnel_get: {
+        parameters: {
+            query: {
+                /** @description 聚合维度：owner=按负责人 / source=按来源 / time=按月份 */
+                dimension: "owner" | "source" | "time";
+                /** @description 时间范围起点（Asia/Shanghai，含）；按 entered_stage_at 计 */
+                start_at?: string | null;
+                /** @description 时间范围终点（Asia/Shanghai，不含） */
+                end_at?: string | null;
+                /** @description 只看某负责人 */
+                owner_id?: string | null;
+                /** @description 只看某来源 */
+                source?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunnelMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_funnel_stage_detail_api_v1_crm_dashboard_funnel_stage__stage__get: {
+        parameters: {
+            query?: {
+                /** @description dwell=按停留时长降序（默认）/ recent=按最后动作倒序 */
+                sort_by?: "dwell" | "recent";
+                /** @description 卡点阈值（天） */
+                stuck_days?: number;
+                start_at?: string | null;
+                end_at?: string | null;
+                owner_id?: string | null;
+                source?: string | null;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                stage: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lifecycle_board_api_v1_crm_dashboard_lifecycle_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleBoard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_board_api_v1_crm_dashboard_performance_get: {
+        parameters: {
+            query?: {
+                /** @description mine=个人业绩（员工看自己，任何人可访问）；all=全局+排名表（仅管理员） */
+                scope?: "mine" | "all";
+                /** @description YYYY-MM，缺省当前月（Asia/Shanghai 口径） */
+                month?: string | null;
+                /** @description 排名主键：转化数（默认）/新增客户/跟进数/完成率 */
+                sort_by?: "converted_count" | "new_customers" | "follow_count" | "completion_rate";
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceBoard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_stats_api_v1_crm_dashboard_stats_get: {
         parameters: {
             query?: {
@@ -26037,6 +27383,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FollowUpGroups"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    follow_up_reminders_stream_api_v1_crm_follow_ups_reminders_stream_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -26465,6 +27846,481 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConvertLeadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rules_api_v1_crm_rules_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_rule_api_v1_crm_rules_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rule_api_v1_crm_rules__rule_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                rule_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rule_api_v1_crm_rules__rule_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                rule_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tasks_api_v1_crm_tasks_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                type?: string | null;
+                status?: string | null;
+                priority?: string | null;
+                owner_id?: string | null;
+                customer_id?: number | null;
+                lead_id?: number | null;
+                sort_by?: string;
+                sort_order?: string;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__crm__TaskListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_task_api_v1_crm_tasks_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_reminders_stream_api_v1_crm_tasks_reminders_stream_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_api_v1_crm_tasks__task_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_task_api_v1_crm_tasks__task_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_task_api_v1_crm_tasks__task_id__cancel_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_task_api_v1_crm_tasks__task_id__complete_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TaskCompleteRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_task_status_api_v1_crm_tasks__task_id__status_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskStatusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskItem"];
                 };
             };
             /** @description Validation Error */
@@ -27063,7 +28919,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskListResponse"];
+                    "application/json": components["schemas"]["app__schemas__digital_employee__TaskListResponse"];
                 };
             };
             /** @description Validation Error */
