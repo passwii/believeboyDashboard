@@ -132,6 +132,7 @@ from app.models.crm import (  # noqa: F401,E402
     CrmFollow,
     CrmLead,
     CrmOpportunity,
+    CrmReclaimSetting,
 )
 
 __all__ = [
@@ -253,4 +254,5 @@ __all__ = [
     "CrmLead",
     "CrmOpportunity",
     "CrmFollow",
+    "CrmReclaimSetting",
 ]

@@ -186,3 +186,115 @@ def test_result_counts_both(db_session):
     _mk_lead(db_session, next_follow_at=NOW - timedelta(days=DAYS + 1))
     result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
     assert result == {"customers": 1, "leads": 1}
+
+
+# ---------- P9-3 价值差异化（BLF-541） ----------
+
+
+def test_rating_a_exempt_never_reclaimed(db_session):
+    """A 档（最高价值）永不回收，即使远超阈值。"""
+    c = _mk_customer(
+        db_session,
+        rating="A",
+        last_follow_at=NOW - timedelta(days=DAYS + 30),
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS, exempt_ratings={"A"})
+    assert result["customers"] == 0
+    assert _owner(db_session, "crm_customers", c.id) == ALICE
+
+
+def test_rating_b_reclaimed_after_7_days(db_session):
+    """B 档按 rating_days 覆盖：7 天后回收，7 天内保留。"""
+    c_stale = _mk_customer(
+        db_session,
+        rating="B",
+        last_follow_at=NOW - timedelta(days=8),
+    )
+    c_fresh = _mk_customer(
+        db_session,
+        rating="B",
+        last_follow_at=NOW - timedelta(days=6),
+    )
+    result = reclaim_stale_to_sea(
+        db_session,
+        now=NOW,
+        days=DAYS,
+        exempt_ratings={"A"},
+        rating_days={"B": 7, "C": 7},
+    )
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c_stale.id) is None
+    assert _owner(db_session, "crm_customers", c_fresh.id) == ALICE
+
+
+def test_rating_c_reclaimed_after_7_days(db_session):
+    c_stale = _mk_customer(
+        db_session,
+        rating="C",
+        last_follow_at=NOW - timedelta(days=DAYS + 1),
+    )
+    result = reclaim_stale_to_sea(
+        db_session,
+        now=NOW,
+        days=DAYS,
+        exempt_ratings={"A"},
+        rating_days={"B": 7, "C": 7},
+    )
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c_stale.id) is None
+
+
+def test_rating_d_falls_back_to_global_days(db_session):
+    """D 档未配置 → 回落全局 days（P3a 现状）。"""
+    c = _mk_customer(
+        db_session,
+        rating="D",
+        last_follow_at=NOW - timedelta(days=DAYS + 1),
+    )
+    result = reclaim_stale_to_sea(
+        db_session,
+        now=NOW,
+        days=DAYS,
+        exempt_ratings={"A"},
+        rating_days={"B": 7, "C": 7},
+    )
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c.id) is None
+
+
+def test_rating_a_not_exempt_when_exempt_ratings_omitted(db_session):
+    """缺省 exempt_ratings → 与 P3a 一致（无豁免）。"""
+    c = _mk_customer(
+        db_session,
+        rating="A",
+        last_follow_at=NOW - timedelta(days=DAYS + 1),
+    )
+    result = reclaim_stale_to_sea(db_session, now=NOW, days=DAYS)
+    assert result["customers"] == 1
+    assert _owner(db_session, "crm_customers", c.id) is None
+
+
+def test_reclaim_settings_defaults_created_idempotent(db_session):
+    """get_reclaim_settings：首次调用补默认行（A 豁免 / B C 7 天），重复调用幂等。"""
+    from app.services.crm.sea_reclaim_service import get_reclaim_settings
+
+    row = get_reclaim_settings(db_session)
+    assert row.id == 1
+    assert row.exempt_ratings == "A"
+    assert row.rating_b_days == 7
+    assert row.rating_c_days == 7
+    assert row.rating_d_days is None
+
+    rows = db_session.execute(
+        text("select count(*) from crm_reclaim_settings")
+    ).scalar_one()
+    assert rows == 1
+
+    again = get_reclaim_settings(db_session)
+    assert again.id == row.id
+    assert (
+        db_session.execute(
+            text("select count(*) from crm_reclaim_settings")
+        ).scalar_one()
+        == 1
+    )

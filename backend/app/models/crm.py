@@ -424,3 +424,32 @@ class CrmTask(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class CrmReclaimSetting(Base):
+    """公海回收按价值差异化单行配置（P9-3，BLF-541）。
+
+    id 恒为 1（单行表）；字段：
+    - exempt_ratings: 永不回收的档位（逗号分隔，默认 "A"；roadmap 文案
+      S/A 中 S 档在 P6a 不存在，实际最高档 = A）
+    - rating_b_days / rating_c_days: B/C 档 N 天无跟进回收（默认 7）
+    - rating_d_days: D 档回收天数（默认 NULL → 回落
+      settings.crm_sea_reclaim_days，保持 P3a 现状）
+    """
+
+    __tablename__ = "crm_reclaim_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exempt_ratings: Mapped[str] = mapped_column(String(64), nullable=False, default="A")
+    rating_b_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_c_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_d_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
