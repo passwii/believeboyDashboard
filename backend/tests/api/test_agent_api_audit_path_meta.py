@@ -58,7 +58,8 @@ class TestParseAuditPathMeta:
                 8,
                 "new_product_calculations",
             ),
-            ("/api/v1/external/projects/10/orders/summary", 10, "sales"),
+            # v3 下线（BLF-571）后 /orders/ 片段已从审计映射移除 → 归 None。
+            ("/api/v1/external/projects/10/orders/summary", 10, None),
             ("/api/v1/agent/projects/10/sales/summary", 10, "sales"),
             # 无项目 / 无域
             ("/api/v1/agent/projects", None, None),

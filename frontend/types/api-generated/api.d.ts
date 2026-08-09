@@ -1165,31 +1165,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agent/projects/{project_id}/orders/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Agent Orders Summary Legacy
-         * @description orders/summary 旧路径（BLF-569 双挂迁移提示期）。
-         *
-         *     行为与 ``/sales/summary`` 完全一致（同一实现，数据零漂移），仅额外返回
-         *     迁移提示头：``Deprecation: true`` + ``Sunset`` + ``Link:
-         *     rel="successor-version"`` 指向新路径——对齐 BLF-459 v1 双挂先例。
-         *     下线（v3 410）由后续 issue 在 Sunset 之后执行。
-         */
-        get: operations["get_agent_orders_summary_legacy_api_v1_agent_projects__project_id__orders_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/agent/projects/{project_id}/pricing-snapshots": {
         parameters: {
             query?: never;
@@ -22918,53 +22893,6 @@ export interface operations {
             path: {
                 project_id: number;
                 sku: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_agent_orders_summary_legacy_api_v1_agent_projects__project_id__orders_summary_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                include_cancelled?: boolean;
-                include_pending?: boolean;
-                aggregate?: boolean;
-                group_by?: string;
-                order_by?: string;
-                order_dir?: string;
-                include_share?: boolean;
-                limit?: number | null;
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                project_id: number;
             };
             cookie?: never;
         };

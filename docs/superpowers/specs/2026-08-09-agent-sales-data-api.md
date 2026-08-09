@@ -1,11 +1,12 @@
 # 销售数据（ASIN×日）Agent API 设计（sales/summary，前身 orders/summary）
 
-> **状态**：v0.3（2026-08-09，BLF-569 路径/域 code 迁移定稿）。
-> **结论摘要**：**方案 A — 扩展现有 `sales/summary`**（`group_by=asin|asin_day|day` + 派生指标；前身 `orders/summary`，BLF-569 按用户拍板迁移：路径 orders→sales、域 code orders→sales、旧路径双挂保留迁移提示期），**v0.2 新增两项**：
+> **状态**：v0.4（2026-08-10，BLF-571 v3 下线定稿）。
+> **结论摘要**：**方案 A — 扩展现有 `sales/summary`**（`group_by=asin|asin_day|day` + 派生指标；前身 `orders/summary`，BLF-569 按用户拍板迁移：路径 orders→sales、域 code orders→sales，旧路径双挂迁移提示期后 **BLF-571 v3 下线**），**v0.2 新增两项**：
 > ① **单项目多站点聚合进 V1**（`country` 支持逗号分隔多值，行按国家分组、按国家货币独立结算，**不做跨币种求和**——系统无通用汇率，仅 RMB→目标币）；
 > ② **权限/控制门对齐**：sales/summary 从镜像族改造为**原生 agent 域**（新增 `business_scope("sales")`，挂 `require_business_scope` + `require_project_scope`，`_EXCLUDED_EXTERNAL_PATHS` 排除镜像）——与 account_health / return_analysis 等原生域同规。
 > 仍不联表 sku_info（跨域）、不做跨项目聚合（v1，调用方自组）。**新 business_scope 取值 `sales`（字符串列无迁移，存量含 `orders` 的 key 上线时 UPDATE 为 `sales`）、无新表**。
 > **v0.3（BLF-569）变更**：端点路径 `orders/summary` → `sales/summary`，域 code `orders` → `sales`；旧路径 `/orders/summary` 双挂保留（Deprecation + Sunset + Link successor 头），行为与 sales/summary 零漂移（对齐 BLF-459 三阶段：双挂 → 切换 → 下线）。
+> **v0.4（BLF-571，2026-08-10）变更**：用户拍板**提前执行 v3 下线**（不等原 Sunset 2026-12-31）——移除 agent 命名空间旧路径 `/orders/summary` 双挂路由 + `_mark_legacy_deprecation` 迁移提示头 + `_LEGACY_PATH_SUNSET` 常量，仅保留 `/sales/summary` 原生路径；未注册路径由 agent_router 兜底返回 404 壳（未鉴权 401）。Sunset 头约定：如需使用必须为 RFC 8594 IMF-fixdate（如 `Thu, 31 Dec 2026 00:00:00 GMT`），不可用 ISO 8601 calendar date。
 
 ---
 
@@ -187,7 +188,7 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 6. **summary SQL 全量**：limit=1 时 `summary` 仍是全期间总量（修复页内汇总失真）；现有非 group_by 模式 aggregate 行为不变（回归锁）。
 7. **向后兼容**：不带 `group_by` 的请求响应结构与现状完全一致。
 8. **权限门（v0.2 + BLF-569）**：原生路由 `/api/v1/agent/projects/{id}/sales/summary` 挂 `business_scope("sales")`——key 无 `sales` 域 → 403 `AGENT_BUSINESS_OUT_OF_SCOPE`；`business_scope="*"` → 放行；project_scope 越界 → 403；镜像排除后 `_EXCLUDED_EXTERNAL_PATHS` 无双挂冲突（test_external_mirror 全量回归）。
-9. **迁移提示（v0.3）**：旧路径 `/api/v1/agent/projects/{id}/orders/summary` 双挂保留——行为与 sales/summary 零漂移（group_by / 非 group_by 各验），响应带 `Deprecation: true` + `Sunset` + `Link: </.../sales/summary>; rel="successor-version"`；新路径不带 Deprecation 头。
+9. **迁移提示（v0.3，已随 v0.4 下线）**：旧路径 `/api/v1/agent/projects/{id}/orders/summary` 双挂——行为与 sales/summary 零漂移、响应带 `Deprecation: true` + `Sunset` + `Link: </.../sales/summary>; rel="successor-version"`；**BLF-571 v3 下线后该路径已移除，已鉴权请求 → 404 壳（RESOURCE_NOT_FOUND）、未鉴权 → 401 壳（AGENT_AUTH_FAILED）**，由 agent_router 兜底路由承接（test_sales_legacy_path_removed.py）。新路径不带 Deprecation 头。
 10. **回归**：`test_external_mirror.py` 全量 + 现有 sales/summary 相关测试零改动通过。
 
 ---
@@ -225,3 +226,4 @@ group_by=day       → { country, currency, date, quantity, sales_amount, order_
 - v0.1（2026-08-09）：BLF-557 深度讨论定稿——D1–D5 拍板 + 方案 A 端点设计 + 必要元素表 + 测试清单。
 - v0.2（2026-08-09）：用户追加拍板——① 单项目多站点聚合进 V1（country 多值 + by_country 平行展示，**不做跨币种求和**）；② orders/summary 镜像族→原生 agent 域 + `business_scope("orders")` 权限门；③ 按新规则改造、存量不合规域调整（D6 记录，爆炸半径外）。
 - v0.3（2026-08-09）：用户拍板（BLF-557 命名讨论）——① 板块定名「销售数据（Sales Data）」；② 端点路径迁移 `orders/summary` → `sales/summary`；③ 域 code 迁移 `orders` → `sales`（用户明确不用担 scope 问题，可接受破坏性变更）；④ 旧路径双挂保留（Deprecation + Sunset + Link successor 头，对齐 BLF-459 三阶段），文件改名 `agent-sales-data-api.md`。
+- v0.4（2026-08-10）：用户拍板（BLF-571）提前执行 v3 下线——移除旧路径 `/orders/summary` 双挂 + 迁移提示头 + Sunset 常量，仅保留 `/sales/summary`；旧路径请求落 agent_router 兜底 404 壳；审计映射 `/orders/` 片段移除（归 None）；Sunset 头格式约定 RFC 8594 IMF-fixdate。

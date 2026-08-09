@@ -15,9 +15,9 @@ BLF-569 路径 orders→sales 迁移）。
 8. 鉴权/壳：401 未鉴权；404 项目不存在；403 project_scope 越界。
 9. 回归：test_external_mirror.py 全量 + 现有 sales/summary 相关测试零改动通过
    （在 CI/全套运行中覆盖，本文件只加新用例不碰存量）。
-10. 旧路径双挂（BLF-569）：/orders/summary 行为与 /sales/summary 一致（数据
-    零漂移）＋ Deprecation/Sunset/Link successor 迁移提示头（见
-    test_sales_summary_migration.py 专项）。
+10. 旧路径双挂（BLF-569）已 v3 下线（BLF-571，2026-08-10）：/orders/summary
+    双挂路由 + Deprecation/Sunset/Link 迁移提示头已移除，旧路径请求落
+    agent_router 兜底 404 壳（见 test_sales_legacy_path_removed.py 专项）。
 
 口径（spec §5.2）：销售额 = ``sales_amount_expr(country)``（DE/UK 含税）；
 订单数 = ``count(distinct amazon_order_id)``；空结果 200 + 空 rows。
@@ -569,8 +569,9 @@ def test_legacy_mode_limit_default_unchanged(client, orders_env):
 
 
 def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
-    """BLF-569：sales/summary 原生路由带全部 group_by 参数 + 旧路径双挂共存，
-    镜像侧排除 orders/summary（无双挂冲突）。spec §7.8 权限门 + 镜像排除回归。
+    """BLF-569/571：sales/summary 原生路由带全部 group_by 参数；旧路径双挂
+    已于 v3 下线（BLF-571）移除；镜像侧仍排除 external orders/summary（无双挂
+    冲突）。spec §7.8 权限门 + 镜像排除回归。
     """
     import inspect
 
@@ -604,14 +605,16 @@ def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
     ):
         assert p in params, f"原生 handler 缺少 {p}"
 
-    # 3) 旧路径 /orders/summary 双挂保留（BLF-569 迁移提示期）。
+    # 3) 旧路径 /orders/summary 已 v3 下线（BLF-571，2026-08-10 用户拍板
+    #    提前执行）：sales_router 不应再注册该路由（已鉴权请求落 agent_router
+    #    兜底 404 壳，见 test_sales_legacy_path_removed.py）。
     legacy_routes = [
         r
         for r in sales_router.routes
         if getattr(r, "path", "") == "/projects/{project_id}/orders/summary"
     ]
-    assert len(legacy_routes) == 1, (
-        "agent/sales.py 应有且仅有一个 /orders/summary 双挂路由"
+    assert len(legacy_routes) == 0, (
+        "agent/sales.py 不应再存在 /orders/summary 双挂路由（BLF-571 v3 下线）"
     )
 
 

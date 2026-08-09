@@ -5,14 +5,11 @@
 ``_service_errors`` 壳 + ``agent_ok`` 响应壳，挂 ``require_project_scope``
 ——对齐 return_analysis / account_health 等原生域模板）。
 
-BLF-569 路径迁移（用户 2026-08-09 拍板；对齐 BLF-459 三阶段：双挂 → 切换
-→ 下线）：
+v3 下线（BLF-571，2026-08-10 用户拍板提前执行，不等原 Sunset 预告
+2026-12-31）：旧路径 ``/orders/summary`` 双挂路由与 ``_mark_legacy_deprecation``
+迁移提示头已移除，agent 命名空间仅保留 ``/sales/summary`` 原生路径；未注册
+路径由 ``agent_router`` 兜底路由返回 404 壳（鉴权依赖照常先跑）。
 
-* **新原生路径**：``/sales/summary``（本模块主路由，spec v0.3 §4.1）。
-* **旧路径双挂 + 迁移提示**：``/orders/summary`` 保留期间返回
-  ``Deprecation`` / ``Sunset`` / ``Link: rel="successor-version"`` 头
-  （对齐 BLF-459 v1 双挂先例），行为与 sales/summary 完全一致（数据零漂移），
-  消费者有时间切换。
 * **域级权限门**：``require_business_scope("sales")`` 在 ``agent/__init__.py``
   装配时挂载（本模块不重复挂）——key 无 ``sales`` 域 → 403
   ``AGENT_BUSINESS_OUT_OF_SCOPE``；``business_scope="*"`` → 放行（存量 key 兼容）。
@@ -22,7 +19,7 @@ BLF-569 路径迁移（用户 2026-08-09 拍板；对齐 BLF-459 三阶段：双
 
 参数契约与 external handler 完全一致（period/country/group_by/order_by/
 order_dir/include_share/limit/offset），响应形状与 ``OrdersGroupedResponse`` /
-``OrdersSummaryResponse`` 的 ``model_dump`` 一致（双通道数据零漂移）。
+``OrdersSummaryResponse`` 的 ``model_dump`` 一致。
 """
 
 from __future__ import annotations
@@ -30,7 +27,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.agent.errors import AgentApiError, ErrorCode
@@ -44,10 +41,6 @@ from app.schemas.external.orders_summary import (
     OrdersSummaryResponse,
 )
 from app.services.external import orders_summary, projects_query
-
-# BLF-569 旧路径下线预告（BLF-459 v1 同款 Sunset 语义）：消费者须在
-# 该日期前从 /orders/summary 切到 /sales/summary；届时执行 v3 下线。
-_LEGACY_PATH_SUNSET = "2026-12-31"
 
 sales_router = APIRouter(
     prefix="/projects/{project_id}",
@@ -69,21 +62,6 @@ def _service_errors():
                 ErrorCode.RESOURCE_NOT_FOUND, human_message=detail
             ) from None
         raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message=detail) from None
-
-
-def _mark_legacy_deprecation(response: Response, project_id: int) -> None:
-    """旧路径 /orders/summary 迁移提示头（BLF-569 双挂期，对齐 BLF-459 v1）。
-
-    * ``Deprecation: true``
-    * ``Sunset: <_LEGACY_PATH_SUNSET>``
-    * ``Link: </api/v1/agent/projects/{id}/sales/summary>; rel="successor-version"``
-      ——指向新路径，等效 301 的 successor 提示。
-    """
-    response.headers["Deprecation"] = "true"
-    response.headers["Sunset"] = _LEGACY_PATH_SUNSET
-    response.headers["Link"] = (
-        f'</api/v1/agent/projects/{project_id}/sales/summary>; rel="successor-version"'
-    )
 
 
 @sales_router.get("/sales/summary")
@@ -220,50 +198,3 @@ def get_agent_sales_summary(
             ).model_dump(mode="json")
 
     return agent_ok(payload)
-
-
-@sales_router.get("/orders/summary")
-def get_agent_orders_summary_legacy(
-    response: Response,
-    project_id: int = Path(..., ge=1),
-    period: str = Query(default=""),
-    start_date: str | None = Query(default=None),
-    end_date: str | None = Query(default=None),
-    country: str = Query(default=""),
-    include_cancelled: bool = Query(default=False),
-    include_pending: bool = Query(default=True),
-    aggregate: bool = Query(default=True),
-    group_by: str = Query(default=""),  # "asin" | "asin_day" | "day"
-    order_by: str = Query(default="sales_amount"),
-    order_dir: str = Query(default="desc"),
-    include_share: bool = Query(default=False),
-    limit: int | None = Query(default=None, ge=1, le=50000),
-    offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_read_db_session),
-    _scope=Depends(require_project_scope),
-) -> dict:
-    """orders/summary 旧路径（BLF-569 双挂迁移提示期）。
-
-    行为与 ``/sales/summary`` 完全一致（同一实现，数据零漂移），仅额外返回
-    迁移提示头：``Deprecation: true`` + ``Sunset`` + ``Link:
-    rel="successor-version"`` 指向新路径——对齐 BLF-459 v1 双挂先例。
-    下线（v3 410）由后续 issue 在 Sunset 之后执行。
-    """
-    _mark_legacy_deprecation(response, project_id)
-    return get_agent_sales_summary(
-        project_id=project_id,
-        period=period,
-        start_date=start_date,
-        end_date=end_date,
-        country=country,
-        include_cancelled=include_cancelled,
-        include_pending=include_pending,
-        aggregate=aggregate,
-        group_by=group_by,
-        order_by=order_by,
-        order_dir=order_dir,
-        include_share=include_share,
-        limit=limit,
-        offset=offset,
-        db=db,
-    )

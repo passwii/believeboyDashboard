@@ -334,7 +334,9 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 
 **v1（已完成，2026-08-06）**：双挂 + 老路径标 deprecated
 - 注册新路由到 `/api/v1/agent/*`（挂载点：`app/api/v1/router.py` 的 `api_router.include_router(...)`，与 `external_router` 并列）
-- 老的 `/api/v1/external/*` 继续工作，响应头加 `Deprecation: true`、`Sunset: <日期>`、`Link: </api/v1/agent/...>; rel="successor-version"`
+- 老的 `/api/v1/external/*` 继续工作，响应头加 `Deprecation: true`、
+  `Sunset: <IMF-fixdate>`（RFC 8594：如 `Thu, 31 Dec 2026 00:00:00 GMT`，
+  不可用 ISO 8601 calendar date）、`Link: </api/v1/agent/...>; rel="successor-version"`
 
 **v2（跳过）**：原计划 301 跳转过渡。实际核查近 14 天审计日志发现
 `/external/*` 无真实消费者（全部流量为本机/测试探测），且存量
@@ -354,6 +356,15 @@ P2 货件域再扩展（`SHIPMENT_*`）。
   **BLF-464（2026-08-06）**：believeboySP 整体已删除（git 历史可恢复，
   `git checkout <commit> -- believeboySP/`）。未来新 Agent 一律走「Agent 接入
   管理」页创建 key + ID，不再使用该直连脚本。
+
+**agent 命名空间内的路径迁移（BLF-569 → BLF-571）**：同一三阶段模式也用于
+agent 域内改路径（orders/summary → sales/summary）：v1 双挂 + Deprecation/
+Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v3 下线
+（BLF-571，2026-08-10 用户拍板提前执行，不等 Sunset 到期）**——旧路径
+`/api/v1/agent/projects/{project_id}/orders/summary` 双挂路由与
+`_mark_legacy_deprecation` 提示头已移除，agent 命名空间仅保留
+`/sales/summary`；未注册路径由 `agent_router` 兜底路由返回 404 壳（鉴权依赖
+照常先跑，未鉴权 401）。删除性操作执行前需用户明确拍板（BLF-523 §3）。
 
 ### 6.2 映射关系
 
@@ -396,7 +407,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
-| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales，旧路径双挂保留） |
+| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**，agent 侧仅 `/sales/summary` |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
 | `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |
