@@ -139,7 +139,7 @@ const UserChip = React.memo(
         )}
       >
         <span className="relative">
-          <Avatar className="h-7 w-7">
+          <Avatar className="h-7 w-7 ring-2 ring-white/60 dark:ring-white/10">
             <AvatarImage src={user.avatar} alt={user.name} />
             <AvatarFallback className="bg-gradient-to-br from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-600 text-[0.85rem] font-semibold tracking-tight text-white shadow-sm">
               {fallback}
