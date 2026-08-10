@@ -42,6 +42,7 @@
     --chart-5: 3 46% 43%;
     --chart-6: 196 78% 42%;
     --chart-7: 262 72% 56%;
+    --chart-8: 38 92% 50%;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 18% 18%;
     --sidebar-primary: 217 82% 57%;
@@ -117,32 +118,35 @@
   }
 
   .dark {
-    /* ── Raycast 式玻璃质感（统一冷中性木炭材质 + 玻璃边）──────────────
-     * 在 P0 的 elevation 阶梯基础上进一步：把中性面饱和压到 ~8~12%（hue≈225
-     * 保留一丝冷调以呼应品牌蓝），让整站读作"同一种材料"，而非各自为政的色块。
-     * 分层明度阶梯保持不变（画布 L9% → 导航壳 L12% → 内容窗 L15% →
-     * 卡片 L19% → 浮层 L22~23% → 高亮 L26%）。
-     * 分割方式从硬边框改为 Raycast 标志性"玻璃边"：顶部 1px 内高光 +
-     * 极淡 1px 全周长内描边（见 .dark .dashboard-surface 等），
-     * 浮起面板再叠加 backdrop-blur，读作"一块连贯的玻璃面板"。 */
-    --background: 225 12% 9%;
+    /* ── 传统暗黑·中性炭黑材质（去蓝调，BLF-609）─────────────────────
+     * 用户反馈上一版整体色调偏蓝（hue≈225、饱和 8~12% 的面色阶梯 + 深海军蓝
+     * 背景渐变），并非传统意义的暗黑模式。本次回归传统暗黑观感：
+     *   1. 所有中性面降饱和至 ~2~4%（hue≈224 仅保留一丝难以察觉的冷调，
+     *      让品牌蓝 accent 相遇时不显脏），读作真正的炭黑/墨灰；
+     *   2. 画布加深至 L7%，分层明度阶梯保持（画布 L7% → 导航壳 L10% →
+     *      内容窗 L12% → 卡片 L16% → 浮层 L18% → 高亮 L23%）；
+     *   3. 蓝色只出现在 accent 位（primary / ring / focus-glow），数据与
+     *      状态色保持品牌彩色；背景氛围光大幅收敛（不再有 navy 渐变）。
+     * 分割方式沿用 Raycast 式"玻璃边"：顶部 1px 内高光 + 极淡 1px 全周长
+     * 内描边（见 .dark .dashboard-surface 等），浮起面板叠加 backdrop-blur。 */
+    --background: 224 3% 7%;
     --foreground: 220 22% 96%;
-    --card: 225 12% 19%;
+    --card: 224 3% 16%;
     --card-foreground: 220 22% 96%;
-    --popover: 225 12% 19%;
+    --popover: 224 3% 18%;
     --popover-foreground: 220 22% 96%;
     --primary: 222 100% 68%;
     --primary-foreground: 228 40% 12%;
-    --secondary: 221 12% 80%;
-    --secondary-foreground: 225 30% 12%;
-    --muted: 225 10% 17%;
-    --muted-foreground: 220 14% 74%;
-    --accent: 225 10% 20%;
+    --secondary: 224 4% 80%;
+    --secondary-foreground: 224 18% 10%;
+    --muted: 224 3% 14%;
+    --muted-foreground: 224 5% 72%;
+    --accent: 224 3% 17%;
     --accent-foreground: 220 22% 96%;
     --destructive: 3 52% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 225 10% 27%;
-    --input: 225 12% 27%;
+    --border: 224 4% 24%;
+    --input: 224 4% 24%;
     --ring: 222 100% 68%;
 
     /* 图表保持品牌彩色，仅按更深的基色微调明度 */
@@ -153,36 +157,37 @@
     --chart-5: 3 52% 58%;
     --chart-6: 191 90% 66%;
     --chart-7: 263 88% 72%;
+    --chart-8: 38 92% 62%;
 
-    /* Sidebar：统一为 L12% 的凹陷导航壳（rail 与 panel 同一值，融为一体） */
-    --sidebar-background: 225 10% 12%;
+    /* Sidebar：统一为 L10% 的凹陷导航壳（rail 与 panel 同一值，融为一体） */
+    --sidebar-background: 224 3% 10%;
     --sidebar-foreground: 220 22% 96%;
     --sidebar-primary: 222 100% 68%;
     --sidebar-primary-foreground: 228 40% 12%;
-    --sidebar-accent: 225 10% 19%;
+    --sidebar-accent: 224 3% 17%;
     --sidebar-accent-foreground: 220 22% 97%;
-    --sidebar-border: 225 10% 22%;
+    --sidebar-border: 224 3% 20%;
     --sidebar-ring: 222 100% 68%;
 
-    /* Surface 纵深阶梯 */
-    --surface-base: 225 12% 9%;
-    --surface-subtle: 225 10% 17%;
-    --surface-panel: 225 12% 19%;
-    --surface-overlay: 225 10% 22%;
-    --surface-strong: 225 10% 23%;
-    --surface-soft: 225 12% 19%;
-    --surface-low: 225 12% 15%;
-    --surface-high: 225 8% 26%;
-    --surface-outline: 225 8% 42%;
+    /* Surface 纵深阶梯（中性炭黑） */
+    --surface-base: 224 3% 7%;
+    --surface-subtle: 224 3% 14%;
+    --surface-panel: 224 3% 16%;
+    --surface-overlay: 224 3% 18%;
+    --surface-strong: 224 3% 19%;
+    --surface-soft: 224 3% 16%;
+    --surface-low: 224 3% 12%;
+    --surface-high: 224 3% 23%;
+    --surface-outline: 224 4% 36%;
 
     --success: 161 60% 46%;
     --warning: 39 92% 64%;
     --data-positive: 161 60% 46%;
     --data-warning: 39 92% 64%;
     --data-negative: 3 52% 58%;
-    --data-neutral: 221 14% 74%;
-    --stroke-soft: 225 12% 40%;
-    --stroke-strong: 222 14% 58%;
+    --data-neutral: 224 4% 74%;
+    --stroke-soft: 224 4% 40%;
+    --stroke-strong: 224 5% 60%;
     --shadow-soft: 0 18px 40px -24px rgba(2, 6, 16, 0.72);
     --shadow-raised: 0 24px 56px -28px rgba(2, 6, 16, 0.82);
     --shadow-overlay: 0 32px 84px -34px rgba(1, 4, 12, 0.9);
@@ -194,7 +199,7 @@
      * L5 Floating：2px 深环 + 白辉光 + overlay 下落 + 玻璃边（浮层）。
      * --glass-edge-highlight 承载顶内高光强度（.dashboard-surface 玻璃边），
      * --focus-glow 为输入聚焦蓝辉光（Raycast hsla(202,100%,67%,0.15)）。 */
-    --glass-edge-highlight: 0.08;
+    --glass-edge-highlight: 0.1;
     --focus-glow: hsla(202, 100%, 67%, 0.15);
     --shadow-level-1: 0 1.25px 2.5px rgba(2, 6, 16, 0.28), inset 0 1px 0 hsl(220 30% 100% / 0.03);
     --shadow-level-2:
@@ -260,10 +265,12 @@
   }
 
   .dark body {
+    /* BLF-609：氛围光大幅收敛——仅保留极淡品牌蓝/数据色气晕，底色为中性炭黑
+     * 纵向微渐变（上亮下暗），不再有 navy 深蓝渐变。 */
     background-image:
-      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.12), transparent 22%),
-      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.10), transparent 24%),
-      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(225 22% 8%) 54%, hsl(226 26% 7%) 100%);
+      radial-gradient(circle at 16% 14%, hsl(var(--primary) / 0.05), transparent 24%),
+      radial-gradient(circle at 78% 88%, hsl(var(--chart-3) / 0.04), transparent 26%),
+      linear-gradient(180deg, hsl(var(--surface-base)) 0%, hsl(224 3% 6%) 54%, hsl(224 3% 5%) 100%);
   }
 
   h1,
@@ -498,8 +505,8 @@
     content: '';
     @apply pointer-events-none absolute inset-0 opacity-100;
     background:
-      linear-gradient(145deg, hsl(var(--primary) / 0.045), transparent 34%),
-      radial-gradient(circle at top right, hsl(var(--chart-2) / 0.06), transparent 34%);
+      linear-gradient(145deg, hsl(var(--primary) / 0.03), transparent 34%),
+      radial-gradient(circle at top right, hsl(var(--chart-2) / 0.035), transparent 34%);
   }
 
   .dashboard-panel {
@@ -620,8 +627,8 @@
     height: 18rem;
     pointer-events: none;
     background:
-      radial-gradient(circle at 8% 10%, hsl(var(--primary) / 0.12), transparent 34%),
-      radial-gradient(circle at 88% 0%, hsl(var(--chart-4) / 0.08), transparent 26%);
+      radial-gradient(circle at 8% 10%, hsl(var(--primary) / 0.05), transparent 34%),
+      radial-gradient(circle at 88% 0%, hsl(var(--chart-4) / 0.04), transparent 26%);
     opacity: 0.95;
     z-index: 0;
   }
