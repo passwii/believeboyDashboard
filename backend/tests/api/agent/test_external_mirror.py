@@ -43,7 +43,6 @@ def _headers(key: dict, agent_id: str | None = None) -> dict:
 # BLF-581：9 个 ad 域（budgets/targets/placements/promoted/time_trends/search_terms/
 # shares/invalid/purchased）已原生化 → 镜像路径全部移除，见各自 test_ad_*.py。
 _MIRROR_PATHS = [
-    "/external/projects/{pid}/sku-info",
     "/external/projects/{pid}/inventory-ledger/months",
     "/external/projects/{pid}/inventory-ledger/snapshot",
     "/external/projects/{pid}/inventory-ledger/events",
@@ -73,7 +72,6 @@ _QUERY_PARAMS = {
     "inventory-ledger/summary": "?period=last_month",
     "inventory-ledger/batches": "?limit=50",
     "inventory-ledger/consistency": "?period=last_month",
-    "sku-info": "",
     "pricing-snapshots": "?country=US",
 }
 
@@ -165,7 +163,8 @@ def mirror_env(make_api_key):
 def test_all_external_get_routes_have_agent_mirror():
     """路由表级断言：external 每个 GET 路由（除已原生迁移的
     new-product-calculations、BLF-470 原生化的 return-analysis 两路径、
-    BLF-502 原生化的 replenishment-analysis）都存在对应 /agent/* 镜像。"""
+    BLF-502 原生化的 replenishment-analysis、BLF-579 S2 原生化的
+    sku-info）都存在对应 /agent/* 镜像。"""
     from app.api.v1.endpoints.agent.external_mirror import (
         _iter_external_apiroutes,
         external_mirror_router,
@@ -180,6 +179,8 @@ def test_all_external_get_routes_have_agent_mirror():
         "/external/projects/{project_id}/return-analysis-raw",
         # BLF-502 D1：补货分析已原生化（原生模块 6 路由）
         "/external/projects/{project_id}/replenishment-analysis",
+        # BLF-579 S2 D2：SKU Info 主数据已原生化（原生模块 6 路由）
+        "/external/projects/{project_id}/sku-info",
         # BLF-563 拓展：external orders/summary 端点模块已删除
         # （agent/sales.py 原生 sales/summary 全量覆盖），无镜像路径。
         # BLF-580：external ad_campaigns 端点模块已删除（agent/ad_campaigns.py

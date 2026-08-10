@@ -25,6 +25,7 @@ from app.api.v1.endpoints.agent.replenishment_analysis import (
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
+from app.api.v1.endpoints.agent.sku_info import sku_info_router
 
 # BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
 from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
@@ -109,6 +110,14 @@ agent_router.include_router(
 agent_router.include_router(
     sales_router,
     dependencies=[Depends(require_business_scope("sales"))],
+)
+# SKU Info 主数据域（BLF-579 S2）：读 3 + 写 3（confirm 两步），挂
+# business_scope("sku_info")（spec §3 D1）。镜像侧已由
+# external_mirror._EXCLUDED_EXTERNAL_PATHS 排除（D2），无双挂冲突。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    sku_info_router,
+    dependencies=[Depends(require_business_scope("sku_info"))],
 )
 # 广告投放活动域（BLF-580 原生化样板）：3 条纯读路由（aggregate + raw +
 # raw 单数 alias），原生替换 external 镜像（external/ad_campaigns.py 端点
