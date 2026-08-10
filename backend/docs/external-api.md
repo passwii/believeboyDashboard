@@ -1,11 +1,15 @@
 # External API (`/api/v1/external/*`)
 
-> ⚠️ **Deprecated**：本命名空间将被 `/api/v1/agent/*`（Agent 读写 API）取代——
-> 设计与迁移策略见 [`docs/agent-api-design.md`](../../docs/agent-api-design.md)。
-> 现存端点过渡期继续工作（响应头将带 `Deprecation` / `Sunset`）。
-> 本文档保留至 `/external/*` 退役，描述遗留只读契约。
+> ❌ **已退役并删除（BLF-583，2026-08-10）**：本命名空间已全部下线，
+> `backend/app/api/v1/endpoints/external/` 与 `external_mirror` 机制已整体删除，
+> 所有功能均已原生化收口进 `/api/v1/agent/*`（Agent 读写 API，设计与迁移策略见
+> [`docs/agent-api-design.md`](../../docs/agent-api-design.md)）。
+> 仍打到旧路径的请求由 `external_retired.py` 兜底返回 **410 Gone** +
+> `Link: rel="successor-version"` 指向对应 agent 路径。
+> 本文档仅作为历史契约留档。
 
 Whitelisted read-only endpoints for internal BI tools and data analysts.
+（历史文档：所有端点均已迁移至 `/api/v1/agent/*`。）
 
 > **P0 contract**: no authentication, no rate limiting, no audit log. Network
 > isolation is enforced at the gateway — see

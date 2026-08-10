@@ -1,9 +1,9 @@
-"""Unit tests for ``app.api.v1.endpoints.external._whitelist.parse_order_by``."""
+"""Unit tests for ``app.api.v1.endpoints.agent._whitelist.parse_order_by``."""
 from __future__ import annotations
 
 import pytest
 
-from app.api.v1.endpoints.external import _whitelist
+from app.api.v1.endpoints.agent import _whitelist
 from app.models import AdUploadCampaignRow, AdUploadBudgetRow
 from app.schemas.external.common import PeriodParseError
 

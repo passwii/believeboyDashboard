@@ -1,4 +1,7 @@
-"""External service layer for Return Analysis (BEL-374).
+"""Shared service layer for Return Analysis (BEL-374).
+
+原 external 命名空间的共享查询服务（external 机制已退役删除，BLF-583），
+供 agent 原生域复用。
 
 Two query paths:
 

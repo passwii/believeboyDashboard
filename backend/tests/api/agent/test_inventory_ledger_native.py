@@ -6,9 +6,8 @@
    model_dump 全等）。
 2. 鉴权/壳：401 / 404 项目不存在 / 403 project_scope / 403 business_scope
    不含 inventory_ledger；integrity 非整月窗口 → 400 VALIDATION_FAILED 壳。
-3. 路由面/镜像排除：10 条原生路由注册；external_mirror 无 inventory-ledger
-   镜像路径；_EXCLUDED_EXTERNAL_PATHS 含 10 条；external/inventory_ledger.py
-   已删除。
+3. 路由面：10 条原生路由注册；external_mirror 已退役删除（BLF-583），镜像
+   路径整体移除；external/inventory_ledger.py 已删除。
 """
 
 from __future__ import annotations
@@ -244,27 +243,16 @@ _INVENTORY_LEDGER_RELS = [
     "/projects/{project_id}/inventory-ledger/consistency",
 ]
 
-_EXTERNAL_LEDGER_PATHS = {"/external" + rel for rel in _INVENTORY_LEDGER_RELS}
 
-
-def test_inventory_ledger_native_routes_registered_and_mirror_excluded():
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
+def test_inventory_ledger_native_routes_registered_and_mirror_removed():
     from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
 
     native_paths = {r.path for r in inventory_ledger_router.routes}
     assert native_paths == set(_INVENTORY_LEDGER_RELS), native_paths
 
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    assert not (set(_INVENTORY_LEDGER_RELS) & mirror_paths), (
-        "镜像仍含 inventory-ledger（双挂）"
-    )
-
-    assert _EXTERNAL_LEDGER_PATHS <= _EXCLUDED_EXTERNAL_PATHS, (
-        "排除集缺 inventory-ledger 路径"
-    )
+    # BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
 
 def test_external_inventory_ledger_module_deleted():

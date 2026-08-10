@@ -564,28 +564,23 @@ def test_legacy_mode_limit_default_unchanged(client, orders_env):
 
 
 # ---------------------------------------------------------------------------
-# 7. 镜像暴露：agent 侧 group_by 可调用 + external handler 签名已含新参数
+# 7. 原生路由暴露：agent 侧 group_by 可调用 + 旧路径已下线
 # ---------------------------------------------------------------------------
 
 
-def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
+def test_sales_summary_native_route_exposes_params_and_mirror_removed():
     """BLF-569/571：sales/summary 原生路由带全部 group_by 参数；旧路径双挂
     已于 v3 下线（BLF-571）移除；external orders/summary 端点模块已删除
-    （BLF-563 拓展），镜像侧无对应路径、也无排除项残留。spec §7.8 权限门
-    + 镜像排除回归。
+    （BLF-563 拓展）。BLF-583：external_mirror 已退役删除，镜像整体移除。
+    spec §7.8 权限门 + 镜像删除回归。
     """
     import inspect
 
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
     from app.api.v1.endpoints.agent.sales import sales_router
 
-    # 1) 镜像侧：external orders/summary 端点已删除 → 既不在排除集，也无镜像路径。
-    assert "/external/projects/{project_id}/orders/summary" not in _EXCLUDED_EXTERNAL_PATHS
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    assert "/projects/{project_id}/orders/summary" not in mirror_paths
+    # 1) BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
     # 2) 原生路由：sales/summary 存在且 handler 签名带全部参数。
     native_routes = [
@@ -624,7 +619,7 @@ def test_mirror_agent_channel_group_by_parity(client, orders_env):
     from datetime import date, timedelta
     from urllib.parse import parse_qsl
 
-    from app.api.v1.endpoints.external._period import parse_period_v2
+    from app.utils.period import parse_period_v2
     from app.schemas.external.orders_summary import OrdersGroupedResponse
     from app.services.external import orders_summary as orders_summary_svc
 

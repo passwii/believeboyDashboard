@@ -1,4 +1,4 @@
-"""Whitelist of columns eligible for ``?order_by=`` on the external row and
+"""Whitelist of columns eligible for ``?order_by=`` on the agent row and
 aggregate endpoints.
 
 Two parallel whitelists:

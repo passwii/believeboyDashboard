@@ -1,4 +1,4 @@
-"""Aggregate response schemas for the external API.
+"""Aggregate response schemas for the shared read-query layer.
 
 One ``*AggregateRow`` per row table + one ``AggregateResponse`` wrapper
 + ``AggregateSummary`` shared structure.
@@ -7,6 +7,7 @@ All percentage fields (ctr / cvr / acos) are **percent values** — e.g.
 ``acos: 37.08`` means 37.08%. All money fields (spend / sales_7d / cpc /
 budget) carry 2 decimal places. roas is a plain ratio.
 """
+
 from __future__ import annotations
 
 from typing import Generic, List, Optional, TypeVar
@@ -99,10 +100,10 @@ class AdCampaignAggregateRow(BaseModel):
     spend: float = 0.0
     sales_7d: float = 0.0
     orders_7d: int = 0
-    ctr: float = 0.0       # percent
-    cpc: float = 0.0       # money
-    cvr: float = 0.0       # percent
-    acos: float = 0.0      # percent
+    ctr: float = 0.0  # percent
+    cpc: float = 0.0  # money
+    cvr: float = 0.0  # percent
+    acos: float = 0.0  # percent
     roas: float = 0.0
     # "latest value" fields (taken from the most recent report_end_date)
     budget: Optional[float] = None
@@ -118,7 +119,7 @@ class AdBudgetAggregateRow(BaseModel):
     spend: float = 0.0
     sales_7d: float = 0.0
     orders_7d: int = 0
-    acos: float = 0.0   # percent
+    acos: float = 0.0  # percent
     roas: float = 0.0
     budget: Optional[float] = None
     suggested_budget: Optional[float] = None
@@ -150,7 +151,7 @@ class AdTargetAggregateRow(BaseModel):
     acos: float = 0.0
     roas: float = 0.0
     # Period-level AVG of top-of-search impression share (per spec).
-    top_of_search_impression_share: float = 0.0   # percent
+    top_of_search_impression_share: float = 0.0  # percent
 
 
 class AdPlacementAggregateRow(BaseModel):
@@ -213,7 +214,7 @@ class AdSearchTermShareAggregateRow(BaseModel):
     cvr: float = 0.0
     acos: float = 0.0
     roas: float = 0.0
-    impression_share: float = 0.0   # percent
+    impression_share: float = 0.0  # percent
 
 
 class AdPromotedProductAggregateRow(BaseModel):
@@ -269,11 +270,11 @@ class AdInvalidTrafficAggregateRow(BaseModel):
     total_impressions: int = 0
     valid_impressions: int = 0
     invalid_impressions: int = 0
-    invalid_impression_rate: float = 0.0   # percent
+    invalid_impression_rate: float = 0.0  # percent
     total_clicks: int = 0
     valid_clicks: int = 0
     invalid_clicks: int = 0
-    invalid_click_rate: float = 0.0        # percent
+    invalid_click_rate: float = 0.0  # percent
     status: Optional[str] = None
 
 
@@ -300,11 +301,15 @@ class AdSearchTermAggregateResponse(AggregateResponse[AdSearchTermAggregateRow])
     pass
 
 
-class AdSearchTermShareAggregateResponse(AggregateResponse[AdSearchTermShareAggregateRow]):
+class AdSearchTermShareAggregateResponse(
+    AggregateResponse[AdSearchTermShareAggregateRow]
+):
     pass
 
 
-class AdPromotedProductAggregateResponse(AggregateResponse[AdPromotedProductAggregateRow]):
+class AdPromotedProductAggregateResponse(
+    AggregateResponse[AdPromotedProductAggregateRow]
+):
     pass
 
 
@@ -312,9 +317,13 @@ class AdTimeTrendAggregateResponse(AggregateResponse[AdTimeTrendAggregateRow]):
     pass
 
 
-class AdPurchasedProductAggregateResponse(AggregateResponse[AdPurchasedProductAggregateRow]):
+class AdPurchasedProductAggregateResponse(
+    AggregateResponse[AdPurchasedProductAggregateRow]
+):
     pass
 
 
-class AdInvalidTrafficAggregateResponse(AggregateResponse[AdInvalidTrafficAggregateRow]):
+class AdInvalidTrafficAggregateResponse(
+    AggregateResponse[AdInvalidTrafficAggregateRow]
+):
     pass

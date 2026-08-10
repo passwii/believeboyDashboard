@@ -1,4 +1,7 @@
-"""External API raw row query service (v1.0 contract).
+"""Shared raw row query service (v1.0 contract).
+
+原 external 命名空间的共享查询服务（external 机制已退役删除，BLF-583），
+供 agent 原生域与 internal 端点复用。
 
 Returns the original rows of the underlying ``ad_upload_*_rows`` table,
 filtered by the latest-version ``ad_upload_files`` in the requested window.

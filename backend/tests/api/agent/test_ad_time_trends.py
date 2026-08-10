@@ -6,8 +6,7 @@ ad-time-trends 是 Stage 2 原生化 9 域之一（external/ad_time_trends.py �
 1. **parity**：agent 通道响应 == service 直调结果（aggregate + raw + 单数 alias）——同一服务函数、同一参数，响应 model_dump 全等。
 2. **鉴权/壳**：401 未鉴权 / 404 项目不存在 / 403 project_scope 越界 /
    403 business_scope 不含 ad_analysis 域 / 400 非法 period。
-3. **路由面/镜像排除**：原生路由注册；external_mirror 无 ad-time-trends 镜像
-   路径；_EXCLUDED_EXTERNAL_PATHS 含对应路径（防双挂）；external 端点模块已删。
+3. **路由面**：原生路由注册；external_mirror 已退役删除（BLF-583），镜像路径整体移除；external 端点模块已删。
 """
 
 from __future__ import annotations
@@ -204,7 +203,7 @@ def ad_time_trends_env(make_api_key):
 
 def _period_info(qs: str):
     """与 agent 路由一致的 period 解析：period=7d + today 锚定 T-1。"""
-    from app.api.v1.endpoints.external._period import parse_period_v2
+    from app.utils.period import parse_period_v2
 
     kwargs = dict(p.split("=", 1) for p in qs.split("&") if "=" in p)
     return parse_period_v2(
@@ -279,7 +278,7 @@ def test_raw_parity_agent_channel_vs_service(client, ad_time_trends_env):
     db = SessionLocal()
     try:
         assert projects_query.project_exists(db, pid)
-        from app.api.v1.endpoints.external._whitelist import parse_order_by
+        from app.api.v1.endpoints.agent._whitelist import parse_order_by
 
         order_column, direction = parse_order_by("report_end_date", "desc", model=AdUploadTimeTrendRow)
         rows = ad_rows_query.query_time_trend_raw(
@@ -398,38 +397,23 @@ def test_400_validation_shell(client, ad_time_trends_env):
 
 
 # ---------------------------------------------------------------------------
-# 3. 路由面 / 镜像排除（模板断言：无双挂 + external 模块已删）
+# 3. 路由面（模板断言：原生路由注册 + external_mirror 已删）
 # ---------------------------------------------------------------------------
 
 
-def test_native_routes_registered_and_mirror_excluded():
-    """原生路由注册；external_mirror 无 ad-time-trends 镜像路径；
-    _EXCLUDED_EXTERNAL_PATHS 含对应路径（防双挂）；external 端点模块已删。"""
+def test_native_routes_registered_and_mirror_removed():
+    """原生路由注册；external_mirror 已退役删除（BLF-583）——
+    镜像路径整体移除，无双挂可能；external 端点模块已删。"""
     from app.api.v1.endpoints.agent.ad_time_trends import ad_time_trends_router
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
 
     native_paths = {r.path for r in ad_time_trends_router.routes}
     assert "/projects/{project_id}/ad-time-trends" in native_paths
     assert "/projects/{project_id}/ad-time-trends-raw" in native_paths
     assert "/projects/{project_id}/ad-time-trend-raw" in native_paths
 
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    for rel in (
-        "/projects/{project_id}/ad-time-trends",
-        "/projects/{project_id}/ad-time-trends-raw",
-        "/projects/{project_id}/ad-time-trend-raw",
-    ):
-        assert rel not in mirror_paths, f"镜像仍含 {rel}（双挂）"
-
-    for ext in (
-        "/external/projects/{project_id}/ad-time-trends",
-        "/external/projects/{project_id}/ad-time-trends-raw",
-        "/external/projects/{project_id}/ad-time-trend-raw",
-    ):
-        assert ext in _EXCLUDED_EXTERNAL_PATHS, f"排除集缺 {ext}"
+    # BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
 
 def test_external_module_deleted():

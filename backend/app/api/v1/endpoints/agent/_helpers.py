@@ -1,4 +1,4 @@
-"""Shared helpers for the external API endpoints.
+"""Shared query-param helpers for the agent API endpoints.
 
 Currently just a thin wrapper around ``app.utils.country.normalize_country``
 that re-raises ``ValueError`` as ``PeriodParseError`` so the endpoint
@@ -15,7 +15,7 @@ def parse_country(value: str | None) -> str:
     """Normalize and validate a country query param.
 
     Raises ``PeriodParseError`` on unknown values *and* on empty input
-    (the P0 contract requires ``country`` to be supplied — silently
+    (the agent contract requires ``country`` to be supplied — silently
     defaulting to ``"US"`` would mask caller bugs).
     """
     if not value or not value.strip():

@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
-from app.api.v1.endpoints.agent.external_mirror import external_mirror_router
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.account_health import account_health_router
@@ -87,7 +86,7 @@ agent_router.include_router(
 )
 # 报表上传状态域（BLF-484）：纯读 1 条路由，挂 business_scope(
 # "report_upload_status")。project_id 不在路径 → 项目范围过滤在 handler 内
-# 按 key 的 project_scope 做（对齐 external_mirror /projects 列表 L2 语义）。
+# 按 key 的 project_scope 做（对齐 agent/projects 列表 L2 语义）。
 # 必须插在兜底路由之前，否则被静默吞成 404 壳。
 agent_router.include_router(
     report_upload_status_router,
@@ -112,14 +111,12 @@ agent_router.include_router(
 # orders → sales 迁移（用户 2026-08-09 拍板）；v3 下线（BLF-571，2026-08-10
 # 用户拍板提前执行）后旧路径 /orders/summary 已移除，仅挂 /sales/summary。
 # 挂 business_scope("sales")。必须插在兜底路由之前，否则被静默吞成 404 壳。
-# 镜像侧已由 external_mirror._EXCLUDED_EXTERNAL_PATHS 排除，无双挂冲突。
 agent_router.include_router(
     sales_router,
     dependencies=[Depends(require_business_scope("sales"))],
 )
 # SKU Info 主数据域（BLF-579 S2）：读 3 + 写 3（confirm 两步），挂
-# business_scope("sku_info")（spec §3 D1）。镜像侧已由
-# external_mirror._EXCLUDED_EXTERNAL_PATHS 排除（D2），无双挂冲突。
+# business_scope("sku_info")（spec §3 D1）。
 # 必须插在兜底路由之前，否则被静默吞成 404 壳。
 agent_router.include_router(
     sku_info_router,
@@ -200,12 +197,10 @@ agent_router.include_router(
     pricing_snapshots_router,
     dependencies=[Depends(require_business_scope("shop_calculations"))],
 )
-# BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
-# require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
-agent_router.include_router(external_mirror_router)
 
 
-# ⚠️ 路由遮蔽警告：兜底路由必须是 agent_router 注册的最后一个路由。
+# 兜底路由前不挂任何镜像（BLF-583：external_mirror 已退役删除，全部域已原生化）。
+# 兜底路由必须是 agent_router 注册的最后一个路由。
 # 后续新增 include_router(...) 一律插在它之前，否则新路由会被这里
 # 静默吞成 404 壳（鉴权照常执行，但永远到不了真实 handler）。
 @agent_router.api_route(

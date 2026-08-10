@@ -34,8 +34,8 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.external._helpers import parse_country
-from app.api.v1.endpoints.external._whitelist import parse_order_by
+from app.api.v1.endpoints.agent._helpers import parse_country
+from app.api.v1.endpoints.agent._whitelist import parse_order_by
 from app.models import ShopCalculation
 from app.schemas.external.common import PeriodParseError
 from app.schemas.external.shop_calculation import (

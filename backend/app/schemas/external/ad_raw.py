@@ -1,4 +1,6 @@
-"""Raw row schemas for the external API.
+"""Raw row schemas for the shared read-query layer.
+
+原 external 命名空间的共享 schema（external 机制已退役删除，BLF-583），供 agent 原生域复用。
 
 The ``*RawRow`` schemas mirror the underlying ORM table 1:1 (including
 ``id``, ``source_file_id``, ``raw_row`` JSON, ``created_at``) so that

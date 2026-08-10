@@ -1,4 +1,7 @@
-"""External API aggregator service — GROUP BY + SUM + "latest value" lookup.
+"""Shared aggregator service — GROUP BY + SUM + "latest value" lookup.
+
+原 external 命名空间的共享查询服务（external 机制已退役删除，BLF-583），
+供 agent 原生域复用。
 
 For each of the 10 ad_upload_*_rows tables, ``aggregate_*`` returns a list of
 ``*AggregateRow`` schemas with:

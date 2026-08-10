@@ -1,4 +1,9 @@
-"""Common schemas / exceptions for the external API namespace."""
+"""Common schemas / exceptions for the shared read-query layer.
+
+原 external 命名空间的共享 common schema（external 机制已退役，BLF-583），
+供 agent 原生域 / internal 端点 / utils 复用。
+"""
+
 from __future__ import annotations
 
 from datetime import date
@@ -7,7 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PeriodParseError(ValueError):
-    """Raised by ``app.api.v1.endpoints.external._period.parse_period`` when the
+    """Raised by ``app.utils.period.parse_period`` when the
     ``period`` query param (and optional ``start_date`` / ``end_date``) cannot be
     interpreted. Endpoints catch this and translate it to HTTP 400.
 
