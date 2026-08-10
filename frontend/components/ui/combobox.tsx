@@ -102,7 +102,7 @@ export function Combobox({
           }}
           className={cn(
             'h-10 w-full min-w-0 justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground shadow-sm shadow-black/5',
-            'hover:bg-background focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20',
+            'hover:bg-background focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 u-focus-glow',
             'data-[placeholder]:text-muted-foreground/70',
             'dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.96)]',
             'u-interactive',

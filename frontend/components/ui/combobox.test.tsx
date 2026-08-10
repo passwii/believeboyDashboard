@@ -31,3 +31,11 @@ describe("Combobox onHide", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe("Combobox 暗黑聚焦辉光（BLF-574）", () => {
+  it("触发器带 u-focus-glow（暗黑聚焦态蓝辉光钩子）", () => {
+    render(<Combobox value="" onChange={() => {}} options={baseOptions} />);
+    const trigger = screen.getByRole("combobox");
+    expect(trigger.className).toMatch(/\bu-focus-glow\b/);
+  });
+});

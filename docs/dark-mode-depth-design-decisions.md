@@ -97,13 +97,14 @@ Raycast 用 opacity 0.6 过渡；本项目按钮已带 `u-press` / `u-interactiv
 
 ---
 
-## 5. 后续（Stage 7-2 待铺开清单）
+## 5. 后续（Stage 7-2 落地记录，BLF-574）
 
-| 项 | 现状 | 迁移目标 | 涉及文件 |
+| 项 | 迁移目标 | 落地 | 涉及文件 |
 |---|---|---|---|
-| dialog / popover / select / command 浮层阴影 | 字面量 `dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]` | `--shadow-level-5` | `components/ui/dialog.tsx:41` / `popover.tsx:26` / `select.tsx:75` |
-| input / textarea 聚焦 | `focus-visible:ring-2` 硬环 | `.u-focus-glow`（`--focus-glow`） | `components/ui/input.tsx:7` / `textarea.tsx` |
-| button 按压 | `u-press` scale 0.97 | 叠加 `--shadow-level-3` inset | `components/ui/button.tsx` + `u-press` |
-| 卡片 hover | `hover-lift`（raised 单层） | raised + L2 内描边配对 | `globals.css` `.hover-lift` |
+| dialog / popover / select 浮层阴影 | `--shadow-level-5` | ✅ 字面量 `dark:shadow-[0_24px_48px...]` 已删除，改挂 `.u-floating-glass`（dark 玻璃渐变 + L5 + blur 18px）；sheet / dropdown / tooltip 同步挂载 | `dialog.tsx:41` / `popover.tsx:26` / `select.tsx:75` / `sheet.tsx:33` / `dropdown-menu.tsx:49,66` / `tooltip.tsx:22` |
+| input / textarea 聚焦 | `.u-focus-glow`（`--focus-glow`） | ✅ 挂 `u-focus-glow`（dark-only，light 保持 ring-2 零变化）；背景暗黑对齐 surface-soft | `input.tsx:7` / `textarea.tsx:7` / `select.tsx:22` / `combobox.tsx:105` |
+| button 按压 | 叠加 `--shadow-level-3` inset | ✅ `.dark .u-btn` → L3；`:active` → `--shadow-level-3-active`（内嵌加深）；outline/ghost 暗黑 hover 改透明度过渡 | `button.tsx:12-18` + globals.css `.u-btn` |
+| 卡片 hover | raised + L2 内描边配对 | ✅ `--shadow-level-2-hover` token + `.dark .hover-lift:hover` | globals.css:93-97 / 221-225 / 695-698 |
+| 其他高频件 | badge/tooltip/switch/table 对齐 | ✅ badge/switch 暗黑顶内高光；table 粘性表头顶内高光；command 根节点 dark 透明承接玻璃 | `badge.tsx` / `switch.tsx` / `table.tsx` / `command.tsx` |
 
 > 执行者变更后先读本文 §3 + FRONTEND-DESIGN-SPEC §9，再动手；所有改动必须同时满足「文档 ↔ 代码一致」。
