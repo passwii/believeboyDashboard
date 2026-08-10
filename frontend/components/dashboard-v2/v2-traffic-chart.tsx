@@ -83,10 +83,10 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
   const stats = computeTrafficStats(currentRows)
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/30 md:col-span-2">
+    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] md:col-span-2">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-blue-900/60 dark:text-blue-300">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600 dark:bg-[hsl(var(--surface-subtle))] dark:text-muted-foreground">
             <Activity className="size-4" />
           </span>
           <CardTitle>流量与转化</CardTitle>
@@ -143,17 +143,17 @@ export function V2TrafficChart({ currentRows, loading }: V2TrafficChartProps) {
       </CardContent>
       <CardFooter className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/60 px-5 py-3">
         <span className="text-xs text-muted-foreground">
-          总浏览量 <b className="ml-1 tabular-nums text-blue-700 dark:text-blue-300">{fmtNumPrecise(stats.totalPageViews)}</b>
+          总浏览量 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalPageViews)}</b>
         </span>
         <span className="text-xs text-muted-foreground">
-          访客数 <b className="ml-1 tabular-nums text-blue-700 dark:text-blue-300">{fmtNumPrecise(stats.totalSessions)}</b>
+          访客数 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalSessions)}</b>
         </span>
         <span className="text-xs text-muted-foreground">
-          转化订单 <b className="ml-1 tabular-nums text-blue-700 dark:text-blue-300">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
+          转化订单 <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{fmtNumPrecise(stats.totalUnitsOrdered)}</b>
         </span>
         <span className="text-xs text-muted-foreground">
           平均转化率{' '}
-          <b className="ml-1 tabular-nums text-blue-700 dark:text-blue-300">{stats.conversionRatePct.toFixed(2)}%</b>
+          <b className="ml-1 tabular-nums text-blue-700 dark:text-foreground">{stats.conversionRatePct.toFixed(2)}%</b>
         </span>
       </CardFooter>
     </V2Card>

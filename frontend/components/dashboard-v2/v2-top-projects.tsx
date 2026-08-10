@@ -134,7 +134,7 @@ export function V2TopProjects({
                 className={cn(
                   'rounded px-2 py-1 text-xs transition-colors',
                   sortKey === tab.key
-                    ? 'bg-blue-100 font-medium text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                    ? 'bg-blue-100 font-medium text-blue-700 dark:bg-[hsl(var(--surface-subtle))] dark:text-foreground'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 key={tab.key}
