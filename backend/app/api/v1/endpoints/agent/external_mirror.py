@@ -44,6 +44,9 @@ from app.models.agent_api_key import AgentApiKey
 # 镜像排除。new-product-calculations：agent R1 同路径存在。
 # return-analysis / return-analysis-raw：BLF-470 原生实现保持 external §9
 # 查询契约 + display 增强 + business_scope 挂载，避免双实现漂移。
+# BLF-580：ad_campaigns 域已原生化（agent/ad_campaigns.py 3 条原生路由 + 删除
+# external/ad_campaigns.py 端点模块）→ 镜像排除防双挂（源路由已删，排除项
+# 为防御性冗余，保底防外部源意外恢复）。
 _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/new-product-calculations",
     "/external/projects/{project_id}/return-analysis",
@@ -53,6 +56,38 @@ _EXCLUDED_EXTERNAL_PATHS = {
     # BLF-579 S2 D2：SKU Info 主数据已原生化（读 3 + 写 3，business_scope
     # "sku_info" 门禁）——镜像排除，避免双路径漂移（对齐三域先例）。
     "/external/projects/{project_id}/sku-info",
+    # BLF-580：ad_campaigns 已原生化（agent/ad_campaigns.py）
+    "/external/projects/{project_id}/ad-campaigns",
+    "/external/projects/{project_id}/ad-campaigns-raw",
+    "/external/projects/{project_id}/ad-campaign-raw",
+    # BLF-581：其余 9 个 ad 域已原生化（agent/ad_*.py 原生路由，26 条）。
+    # 源路由已删除，排除项为防御性冗余，保底防外部源意外恢复。
+    "/external/projects/{project_id}/ad-budgets",
+    "/external/projects/{project_id}/ad-budgets-raw",
+    "/external/projects/{project_id}/ad-budget-raw",
+    "/external/projects/{project_id}/ad-targets",
+    "/external/projects/{project_id}/ad-targets-raw",
+    "/external/projects/{project_id}/ad-target-raw",
+    "/external/projects/{project_id}/ad-placements",
+    "/external/projects/{project_id}/ad-placements-raw",
+    "/external/projects/{project_id}/ad-placement-raw",
+    "/external/projects/{project_id}/ad-promoted-products",
+    "/external/projects/{project_id}/ad-promoted-products-raw",
+    "/external/projects/{project_id}/ad-promoted-product-raw",
+    "/external/projects/{project_id}/ad-time-trends",
+    "/external/projects/{project_id}/ad-time-trends-raw",
+    "/external/projects/{project_id}/ad-time-trend-raw",
+    "/external/projects/{project_id}/ad-search-terms",
+    "/external/projects/{project_id}/ad-search-terms-raw",
+    "/external/projects/{project_id}/ad-search-term-raw",
+    "/external/projects/{project_id}/ad-search-term-shares",
+    "/external/projects/{project_id}/ad-search-term-shares-raw",
+    "/external/projects/{project_id}/ad-search-term-share-raw",
+    "/external/projects/{project_id}/ad-invalid-traffic",
+    "/external/projects/{project_id}/ad-invalid-traffic-raw",
+    "/external/projects/{project_id}/ad-purchased-products",
+    "/external/projects/{project_id}/ad-purchased-products-raw",
+    "/external/projects/{project_id}/ad-purchased-product-raw",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"

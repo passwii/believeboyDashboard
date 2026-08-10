@@ -469,3 +469,36 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 - dark 画布：`--background: 225 12% 9%`（globals.css:118）≈ Raycast `#07080a` 蓝调近黑，**禁止纯黑 `#000`**。
 - 卡片材质：`--surface-panel: 225 12% 19%`（globals.css:160）≈ Raycast `#101111`；分层明度阶梯（画布 L9% → 导航 L12% → 内容窗 L15% → 卡片 L19% → 浮层 L22-23% → 高亮 L26%，globals.css:158-166）。
+
+### 9.7 验收红线（BLF-575 全站层次验证定稿，2026-08-10）
+
+> 本节是 Stage 7-3 对全站落地的硬性验收红线。**新页面 / 新组件合入前对照本节自查**，命中即打回。
+
+**浮层红线（浮层字面量清零）**
+
+1. 浮层（dialog / alert-dialog / sheet / popover / select / dropdown / tooltip / chart tooltip / 自定义 hover 浮层）容器必须挂 `u-floating-glass`（dark 下自动取 `--shadow-level-5` + blur 18px + 玻璃渐变）。
+2. **禁写字面量阴影**：`dark:shadow-[0_24px_48px_...]`、`shadow-xl`（dark 侧）等一律不得出现在浮层上——BLF-574 已清零 dialog/popover/select，BLF-575 收口 chart.tsx:172 / line-charts-6.tsx:190 / metric-switcher-card.tsx:819 / alert-dialog.tsx:39 / report-status-card.tsx:140。
+3. light 模式保留浮层原 `shadow-lg` / `bg-popover`（`u-floating-glass` 仅 `.dark` 生效，视觉零变化）。
+4. 验证方法：Playwright 计算样式断言——dark 下浮层 `box-shadow` 含 `--shadow-level-5` 特征（2px 深环 + 白辉光）、`backdrop-filter: blur(18px)`（cascade 已实测 utilities 层不覆盖 `.dark .u-floating-glass`，0-2-0 特异性 + components 层声明均生效）。
+
+**卡片红线（禁止毛玻璃上卡）**
+
+5. `.dashboard-surface` / `.dashboard-panel` / `DataCard` / `StatCard` / V2Card **一律禁止 backdrop-filter**（高 DPI 糊边历史教训，globals.css:481-494）。
+6. 验证方法：`getComputedStyle(card).backdropFilter === 'none'`。BLF-575 实测 7 个高频页 × light/dark 抽样卡片全部 none。
+
+**高 DPI 红线（硬验收项，≥2x 必查）**
+
+7. 新玻璃元素 blur 半径 ≤ 20px，且浮层内不得有 1px 边框 / `text-[11px]` 级关键内容。
+8. 1px 边框在 DPR3 下过渡宽度应 ≈ 1 device px（crisp）；表头 `text-[11px]/[12px]` 必须可读。验收截图（DPR2 light/dark 七页 + DPR3 代表页）见 BLF-575 issue 评论附件。
+9. 背景→卡片→浮层三档亮度必须可区分（dark 画布 L9% ≈ `rgb(20,22,26)` → 卡片 L19% → 浮层 L22-23%），禁止卡片与画布同色糊成一团。
+
+**动效红线**
+
+10. 新增动效不得绕过全局 `prefers-reduced-motion` 兜底（globals.css:1065 全局 `animation-duration/transition-duration: 0.01ms`）；浮层位移动画需在 `prefers-reduced-motion` 下 `transform: none`（globals.css:434）。验证：Playwright `reducedMotion: 'reduce'` 下页面 `transitionDuration > 0.02s` 的元素数 = 0。
+
+**BLF-575 落地记录（2026-08-10）**
+
+- 修复 5 处浮层字面量残留：`chart.tsx:172`（ChartTooltipContent）、`line-charts-6.tsx:190`（图表 tooltip）、`metric-switcher-card.tsx:819`（MetricSwitcherTooltip，daily-analysis 在用）、`alert-dialog.tsx:39`（AlertDialogContent，BLF-574 漏网）、`report-status-card.tsx:140`（hover 浮层）→ 全部 `u-floating-glass` + 去字面量。
+- 新增 `alert-dialog.test.tsx`（u-floating-glass + 字面量禁则 + light 保留 shadow-lg，镜像 dialog.test.tsx）。
+- 高频页验证（dashboard / daily-analysis / inventory-analysis / inventory-ledger / commission-management / platform-revenue / crm-dashboard）：全部复用 §1.3 / §6 公共件，页面层零新增阴影字面量（platform-revenue 彩色渐变 pill 的 `shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]` 为刻意双模强调样式，保留）。
+- 高 DPI：DPR2/DPR3 截图 18 张留档；卡片 `backdrop-filter: none` 抽样全部通过；1px 边框 DPR3 过渡 1 device px；表头 11px 清晰。

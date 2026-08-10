@@ -378,35 +378,35 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | 老路径 (`/external`) | 新路径 (`/agent`) | 状态 |
 |---|---|---|
 | `/external/projects` | `/agent/projects` | v1 双挂（project_scope 过滤列表） |
-| `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | v1 双挂 |
-| `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-terms` | `/agent/projects/{project_id}/ad-search-terms` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-terms-raw` | `/agent/projects/{project_id}/ad-search-terms-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-term-raw` | `/agent/projects/{project_id}/ad-search-term-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-budgets` | `/agent/projects/{project_id}/ad-budgets` | v1 双挂 |
-| `/external/projects/{project_id}/ad-budgets-raw` | `/agent/projects/{project_id}/ad-budgets-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-budget-raw` | `/agent/projects/{project_id}/ad-budget-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-targets` | `/agent/projects/{project_id}/ad-targets` | v1 双挂 |
-| `/external/projects/{project_id}/ad-targets-raw` | `/agent/projects/{project_id}/ad-targets-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-target-raw` | `/agent/projects/{project_id}/ad-target-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-placements` | `/agent/projects/{project_id}/ad-placements` | v1 双挂 |
-| `/external/projects/{project_id}/ad-placements-raw` | `/agent/projects/{project_id}/ad-placements-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-placement-raw` | `/agent/projects/{project_id}/ad-placement-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-promoted-products` | `/agent/projects/{project_id}/ad-promoted-products` | v1 双挂 |
-| `/external/projects/{project_id}/ad-promoted-products-raw` | `/agent/projects/{project_id}/ad-promoted-products-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-promoted-product-raw` | `/agent/projects/{project_id}/ad-promoted-product-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-time-trends` | `/agent/projects/{project_id}/ad-time-trends` | v1 双挂 |
-| `/external/projects/{project_id}/ad-time-trends-raw` | `/agent/projects/{project_id}/ad-time-trends-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-time-trend-raw` | `/agent/projects/{project_id}/ad-time-trend-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-term-shares` | `/agent/projects/{project_id}/ad-search-term-shares` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-term-shares-raw` | `/agent/projects/{project_id}/ad-search-term-shares-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-search-term-share-raw` | `/agent/projects/{project_id}/ad-search-term-share-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-invalid-traffic` | `/agent/projects/{project_id}/ad-invalid-traffic` | v1 双挂 |
-| `/external/projects/{project_id}/ad-invalid-traffic-raw` | `/agent/projects/{project_id}/ad-invalid-traffic-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | v1 双挂 |
-| `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | **已原生化（BLF-580 样板）**：agent/ad_campaigns.py 原生 3 路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | **已原生化（BLF-580 样板）**（同上） |
+| `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | **已原生化（BLF-580 样板）**（同上） |
+| `/external/projects/{project_id}/ad-search-terms` | `/agent/projects/{project_id}/ad-search-terms` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-search-terms-raw` | `/agent/projects/{project_id}/ad-search-terms-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-search-term-raw` | `/agent/projects/{project_id}/ad-search-term-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-budgets` | `/agent/projects/{project_id}/ad-budgets` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-budgets-raw` | `/agent/projects/{project_id}/ad-budgets-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-budget-raw` | `/agent/projects/{project_id}/ad-budget-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-targets` | `/agent/projects/{project_id}/ad-targets` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-targets-raw` | `/agent/projects/{project_id}/ad-targets-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-target-raw` | `/agent/projects/{project_id}/ad-target-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-placements` | `/agent/projects/{project_id}/ad-placements` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-placements-raw` | `/agent/projects/{project_id}/ad-placements-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-placement-raw` | `/agent/projects/{project_id}/ad-placement-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-promoted-products` | `/agent/projects/{project_id}/ad-promoted-products` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-promoted-products-raw` | `/agent/projects/{project_id}/ad-promoted-products-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-promoted-product-raw` | `/agent/projects/{project_id}/ad-promoted-product-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-time-trends` | `/agent/projects/{project_id}/ad-time-trends` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-time-trends-raw` | `/agent/projects/{project_id}/ad-time-trends-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-time-trend-raw` | `/agent/projects/{project_id}/ad-time-trend-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-search-term-shares` | `/agent/projects/{project_id}/ad-search-term-shares` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-search-term-shares-raw` | `/agent/projects/{project_id}/ad-search-term-shares-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-search-term-share-raw` | `/agent/projects/{project_id}/ad-search-term-share-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-invalid-traffic` | `/agent/projects/{project_id}/ad-invalid-traffic` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-invalid-traffic-raw` | `/agent/projects/{project_id}/ad-invalid-traffic-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
 | `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**；**BLF-563 拓展（2026-08-10）删除 external 端点模块**（agent 侧仅 `/sales/summary`，schemas/service 保留给 agent 复用） |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |

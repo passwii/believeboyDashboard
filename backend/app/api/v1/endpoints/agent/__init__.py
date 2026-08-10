@@ -16,6 +16,7 @@ from app.api.v1.endpoints.agent.account_health import account_health_router
 from app.api.v1.endpoints.agent.new_product_calculations import (
     new_product_calculations_router,
 )
+from app.api.v1.endpoints.agent.ad_campaigns import ad_campaigns_router
 from app.api.v1.endpoints.agent.sales import sales_router
 from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
 from app.api.v1.endpoints.agent.replenishment_analysis import (
@@ -25,6 +26,21 @@ from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
 from app.api.v1.endpoints.agent.sku_info import sku_info_router
+
+# BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
+from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
+from app.api.v1.endpoints.agent.ad_invalid_traffic import ad_invalid_traffic_router
+from app.api.v1.endpoints.agent.ad_placements import ad_placements_router
+from app.api.v1.endpoints.agent.ad_promoted_products import ad_promoted_products_router
+from app.api.v1.endpoints.agent.ad_purchased_products import (
+    ad_purchased_products_router,
+)
+from app.api.v1.endpoints.agent.ad_search_term_shares import (
+    ad_search_term_shares_router,
+)
+from app.api.v1.endpoints.agent.ad_search_terms import ad_search_terms_router
+from app.api.v1.endpoints.agent.ad_targets import ad_targets_router
+from app.api.v1.endpoints.agent.ad_time_trends import ad_time_trends_router
 
 agent_router = APIRouter(
     prefix="/agent",
@@ -102,6 +118,55 @@ agent_router.include_router(
 agent_router.include_router(
     sku_info_router,
     dependencies=[Depends(require_business_scope("sku_info"))],
+)
+# 广告投放活动域（BLF-580 原生化样板）：3 条纯读路由（aggregate + raw +
+# raw 单数 alias），原生替换 external 镜像（external/ad_campaigns.py 端点
+# 模块已删除），挂 business_scope("ad_analysis")（既有 ad 域 scope 约定：
+# 前端 agent-domains.ts 注册表 + 审计操作类型均为 ad_analysis）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    ad_campaigns_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+# BLF-581：其余 9 个 ad 域原生路由（budgets/targets/placements/promoted/time_trends/
+# search_terms/shares/invalid/purchased），同样挂 business_scope("ad_analysis")——
+# 既有 ad 域 scope 约定（前端 agent-domains.ts 注册表 + 审计操作类型）。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    ad_budgets_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_targets_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_placements_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_promoted_products_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_time_trends_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_search_terms_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_search_term_shares_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_invalid_traffic_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+agent_router.include_router(
+    ad_purchased_products_router,
+    dependencies=[Depends(require_business_scope("ad_analysis"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。

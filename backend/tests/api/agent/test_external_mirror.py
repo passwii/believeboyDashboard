@@ -39,19 +39,10 @@ def _headers(key: dict, agent_id: str | None = None) -> dict:
 
 
 # 每条镜像路由对应 external 原路径（相对 /api/v1 前缀），用于双通道比对。
-# 代表各域：广告 10 表（aggregate）、主数据 / 业务分析、库存分类账、退货、
-# 店铺测算历史 / 快照、定价快照。
+# 代表各域：主数据 / 业务分析、库存分类账、退货、店铺测算历史 / 快照、定价快照。
+# BLF-581：9 个 ad 域（budgets/targets/placements/promoted/time_trends/search_terms/
+# shares/invalid/purchased）已原生化 → 镜像路径全部移除，见各自 test_ad_*.py。
 _MIRROR_PATHS = [
-    "/external/projects/{pid}/ad-campaigns",
-    "/external/projects/{pid}/ad-search-terms",
-    "/external/projects/{pid}/ad-budgets",
-    "/external/projects/{pid}/ad-targets",
-    "/external/projects/{pid}/ad-placements",
-    "/external/projects/{pid}/ad-promoted-products",
-    "/external/projects/{pid}/ad-time-trends",
-    "/external/projects/{pid}/ad-search-term-shares",
-    "/external/projects/{pid}/ad-invalid-traffic",
-    "/external/projects/{pid}/ad-purchased-products",
     "/external/projects/{pid}/inventory-ledger/months",
     "/external/projects/{pid}/inventory-ledger/snapshot",
     "/external/projects/{pid}/inventory-ledger/events",
@@ -65,49 +56,10 @@ _MIRROR_PATHS = [
     "/external/projects/{pid}/shop-calculation-history",
     "/external/projects/{pid}/shop-calculation/snapshots",
     "/external/projects/{pid}/pricing-snapshots",
-    "/external/projects/{pid}/ad-campaigns-raw",
-    "/external/projects/{pid}/ad-campaign-raw",
-    "/external/projects/{pid}/ad-search-terms-raw",
-    "/external/projects/{pid}/ad-search-term-raw",
-    "/external/projects/{pid}/ad-budgets-raw",
-    "/external/projects/{pid}/ad-budget-raw",
-    "/external/projects/{pid}/ad-targets-raw",
-    "/external/projects/{pid}/ad-target-raw",
-    "/external/projects/{pid}/ad-placements-raw",
-    "/external/projects/{pid}/ad-placement-raw",
-    "/external/projects/{pid}/ad-promoted-products-raw",
-    "/external/projects/{pid}/ad-promoted-product-raw",
-    "/external/projects/{pid}/ad-time-trends-raw",
-    "/external/projects/{pid}/ad-time-trend-raw",
-    "/external/projects/{pid}/ad-search-term-shares-raw",
-    "/external/projects/{pid}/ad-search-term-share-raw",
-    "/external/projects/{pid}/ad-invalid-traffic-raw",
-    "/external/projects/{pid}/ad-purchased-products-raw",
-    "/external/projects/{pid}/ad-purchased-product-raw",
 ]
 
-# 各路由最小合法查询参数（inventory-ledger 必需 ?period=；ad 需要 country）。
+# 各路由最小合法查询参数（inventory-ledger 必需 ?period=）。
 _QUERY_PARAMS = {
-    "ad-campaigns": "?period=7d&country=US",
-    "ad-search-terms": "?period=7d&country=US",
-    "ad-budgets": "?period=7d&country=US",
-    "ad-targets": "?period=7d&country=US",
-    "ad-placements": "?period=7d&country=US",
-    "ad-promoted-products": "?period=7d&country=US",
-    "ad-time-trends": "?period=7d&country=US",
-    "ad-search-term-shares": "?period=7d&country=US",
-    "ad-invalid-traffic": "?period=7d&country=US",
-    "ad-purchased-products": "?period=7d&country=US",
-    "ad-campaigns-raw": "?period=7d&country=US",
-    "ad-search-terms-raw": "?period=7d&country=US",
-    "ad-budgets-raw": "?period=7d&country=US",
-    "ad-targets-raw": "?period=7d&country=US",
-    "ad-placements-raw": "?period=7d&country=US",
-    "ad-promoted-products-raw": "?period=7d&country=US",
-    "ad-time-trends-raw": "?period=7d&country=US",
-    "ad-search-term-shares-raw": "?period=7d&country=US",
-    "ad-invalid-traffic-raw": "?period=7d&country=US",
-    "ad-purchased-products-raw": "?period=7d&country=US",
     "shop-calculation-history": "?country=US",
     "shop-calculation/snapshots": "?country=US",
     "inventory-ledger/months": "",
@@ -123,34 +75,15 @@ _QUERY_PARAMS = {
     "pricing-snapshots": "?country=US",
 }
 
-_AD_ALIAS_SUFFIXES = ("-raw",)  # 单数 alias 路径（ad-campaign-raw 等）同参数。
+_AD_ALIAS_SUFFIXES = ("-raw",)  # 单数 alias 路径同参数。
 
 
 def _query_for(path: str) -> str:
-    """从 /external/projects/{pid}/<rest> 提取 rest 并给出查询串。
-
-    单数 alias 路径（ad-campaign-raw 等）与复数版本共享参数。
-    """
+    """从 /external/projects/{pid}/<rest> 提取 rest 并给出查询串。"""
     rest = path.split("/external/projects/{pid}/", 1)[1]
     for key, qs in _QUERY_PARAMS.items():
         if rest == key or rest.endswith(key):
             return qs
-    # 单数 alias：ad-campaign-raw → ad-campaigns-raw 的参数
-    alias_map = {
-        "ad-campaign-raw": "ad-campaigns-raw",
-        "ad-search-term-raw": "ad-search-terms-raw",
-        "ad-budget-raw": "ad-budgets-raw",
-        "ad-target-raw": "ad-targets-raw",
-        "ad-placement-raw": "ad-placements-raw",
-        "ad-promoted-product-raw": "ad-promoted-products-raw",
-        "ad-time-trend-raw": "ad-time-trends-raw",
-        "ad-search-term-share-raw": "ad-search-term-shares-raw",
-        "ad-invalid-traffic-raw": "ad-invalid-traffic-raw",
-        "ad-purchased-product-raw": "ad-purchased-products-raw",
-    }
-    for alias, plural in alias_map.items():
-        if rest == alias or rest.endswith(alias):
-            return _QUERY_PARAMS.get(plural, "")
     return ""
 
 
@@ -250,6 +183,10 @@ def test_all_external_get_routes_have_agent_mirror():
         "/external/projects/{project_id}/sku-info",
         # BLF-563 拓展：external orders/summary 端点模块已删除
         # （agent/sales.py 原生 sales/summary 全量覆盖），无镜像路径。
+        # BLF-580：external ad_campaigns 端点模块已删除（agent/ad_campaigns.py
+        # 原生 3 路由全量覆盖），无镜像路径。
+        # BLF-581：external 其余 9 个 ad 域端点模块已删除（agent/ad_*.py 原生
+        # 26 条路由全量覆盖），无镜像路径。
     }
     for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):

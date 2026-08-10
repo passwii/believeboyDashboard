@@ -43,8 +43,68 @@ class TestParseAuditPathMeta:
                 1,
                 "return_analysis",
             ),
-            ("/api/v1/external/projects/2/return-analysis-raw", 2, "return_analysis"),
-            ("/api/v1/external/projects/3/ad-campaigns", 3, "ad_analysis"),
+            (
+                "/api/v1/external/projects/2/return-analysis-raw",
+                2,
+                "return_analysis",
+            ),
+            (
+                "/api/v1/external/projects/3/ad-campaigns",
+                3,
+                "ad_analysis",
+            ),
+            # BLF-580：agent 原生 ad_campaigns 域（/ad-campaigns 片段 → ad_analysis）
+            (
+                "/api/v1/agent/projects/11/ad-campaigns",
+                11,
+                "ad_analysis",
+            ),
+            # BLF-581：agent 原生其余 9 个 ad 域（/ad- 片段 → ad_analysis）
+            (
+                "/api/v1/agent/projects/21/ad-budgets",
+                21,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/22/ad-targets-raw",
+                22,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/23/ad-placements",
+                23,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/24/ad-promoted-products-raw",
+                24,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/25/ad-time-trends",
+                25,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/26/ad-search-terms-raw",
+                26,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/27/ad-search-term-shares",
+                27,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/28/ad-invalid-traffic-raw",
+                28,
+                "ad_analysis",
+            ),
+            (
+                "/api/v1/agent/projects/29/ad-purchased-products",
+                29,
+                "ad_analysis",
+            ),
             ("/api/v1/external/projects/4/ad-search-term-shares", 4, "ad_analysis"),
             ("/api/v1/external/projects/5/inventory-ledger", 5, "inventory_ledger"),
             (

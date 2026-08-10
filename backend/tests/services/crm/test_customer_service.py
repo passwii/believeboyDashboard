@@ -42,7 +42,6 @@ def _clean_crm_tables(db_session):
     s = SessionLocal()
     try:
         s.execute(text("delete from crm_follows"))
-        s.execute(text("delete from crm_opportunities"))
         s.execute(text("delete from crm_contacts"))
         s.execute(text("delete from crm_leads"))
         s.execute(text("delete from crm_customers"))
