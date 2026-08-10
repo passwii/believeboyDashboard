@@ -44,12 +44,19 @@ from app.models.agent_api_key import AgentApiKey
 # 镜像排除。new-product-calculations：agent R1 同路径存在。
 # return-analysis / return-analysis-raw：BLF-470 原生实现保持 external §9
 # 查询契约 + display 增强 + business_scope 挂载，避免双实现漂移。
+# BLF-580：ad_campaigns 域已原生化（agent/ad_campaigns.py 3 条原生路由 + 删除
+# external/ad_campaigns.py 端点模块）→ 镜像排除防双挂（源路由已删，排除项
+# 为防御性冗余，保底防外部源意外恢复）。
 _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/new-product-calculations",
     "/external/projects/{project_id}/return-analysis",
     "/external/projects/{project_id}/return-analysis-raw",
     # BLF-502 D1：补货分析已原生化（Agent 任务模型 6 路由）
     "/external/projects/{project_id}/replenishment-analysis",
+    # BLF-580：ad_campaigns 已原生化（agent/ad_campaigns.py）
+    "/external/projects/{project_id}/ad-campaigns",
+    "/external/projects/{project_id}/ad-campaigns-raw",
+    "/external/projects/{project_id}/ad-campaign-raw",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"
