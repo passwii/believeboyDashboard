@@ -12,7 +12,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.services.audit_log_service import query_operation_audit_log
 
-from conftest import seed_schedule
+from conftest import seed_cartonless_sku, seed_schedule
 
 
 @pytest.fixture
@@ -141,6 +141,21 @@ class TestCreateShipment:
         # 业务校验先于 confirm：未签发 token
         assert get_confirm_store()._rows == {}
 
+    def test_s6b_missing_carton_info_rejected_before_confirm(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        # SKU 存在但未维护装箱率（units_per_carton=0）→ 拒绝建货件，强提示先维护
+        seed_cartonless_sku(shipment_env["project_id"], "X-000")
+        body = _create_body(f"SH-VCT-{uuid.uuid4().hex[:8]}")
+        body["items"].append({"sku": "X-000", "quantity": 10})
+        resp = _post(client, shipment_env, "", body)
+        assert resp.status_code == 400, resp.text
+        err = resp.json()["error"]
+        assert err["code"] == "SHIPMENT_ITEMS_MISSING_CARTON_INFO"
+        assert {"row": 3, "sku": "X-000", "reason": "missing_carton_info"} in err["details"]
+        # 业务校验先于 confirm：未签发 token
+        assert get_confirm_store()._rows == {}
+
     def test_invalid_status_rejected(self, client, shipment_env, confirm_memory_store):
         body = _create_body(f"SH-VST-{uuid.uuid4().hex[:8]}")
         body["shipment_status"] = "shipped"
@@ -264,6 +279,21 @@ class TestReplaceItems:
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "SHIPMENT_ITEMS_INVALID_SKU"
+
+    def test_replace_items_missing_carton_info_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        shipment_no = f"SH-ITCT-{uuid.uuid4().hex[:8]}"
+        seed_schedule(shipment_env["project_id"], shipment_no)
+        seed_cartonless_sku(shipment_env["project_id"], "X-000")
+        resp = _put(
+            client, shipment_env, f"/{shipment_no}/items",
+            {"items": [{"sku": "X-000", "quantity": 10}]},
+        )
+        assert resp.status_code == 400, resp.text
+        err = resp.json()["error"]
+        assert err["code"] == "SHIPMENT_ITEMS_MISSING_CARTON_INFO"
+        assert {"row": 1, "sku": "X-000", "reason": "missing_carton_info"} in err["details"]
 
     def test_replace_items_unknown_shipment_404(self, client, shipment_env, confirm_memory_store):
         resp = _put(client, shipment_env, "/SH-NOPE/items", {"items": [{"sku": "X-001", "quantity": 1}]})

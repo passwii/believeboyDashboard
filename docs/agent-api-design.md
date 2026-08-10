@@ -193,6 +193,8 @@ Content-Type: application/json
 
 > 通过一个 FastAPI 装饰器 `@require_confirmation(action="shipment.create")` 集中表达，handler 在第一次调用时返回 confirm 壳，第二次调用时才执行真正的 service 调用。
 
+**SKU 装箱信息先行（BLF-604 强制约定）**：建货件（`POST .../shipments`）与替换明细（`PUT .../shipments/{no}/items`）时，明细中每个 SKU 必须在 SKU 主数据（`product_costs`）里维护了装箱率——`units_per_carton ≤ 0` 即拒绝并返回 `SHIPMENT_ITEMS_MISSING_CARTON_INFO`（details 逐行给出 `row/sku/reason=missing_carton_info`），与前端「未维护单箱数」禁用口径一致。原因：建货件数量 = 箱数 × 装箱率，未维护装箱率的 SKU 直接收裸 quantity 会导致「只有总数量、没有箱数/体积/重量」的货件（核算依赖外箱尺寸/毛重/装箱率，见 `backend/app/services/shipment/schedule.py` `calculate_shipment_schedule_costs`）。先存在性（`SHIPMENT_ITEMS_INVALID_SKU`）后装箱信息（`SHIPMENT_ITEMS_MISSING_CARTON_INFO`）的顺序校验，均发生在 confirm 预览阶段（业务校验先于签发 token）。
+
 ### 3.3 读操作的审计策略（review 修订）
 
 现有 `append_operation_view_log` 已被有意改为 **no-op**（"passive page-load and data-fetch events generate too much noise"）。Agent 读操作**沿用同一决策：不落审计行**。只有**写操作**（含 confirm 回放成功那次）写 `operation_audit_logs`。这样既保持口径一致，也避免高频读把审计表打爆。
@@ -317,6 +319,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `AGENT_RATE_LIMIT_EXCEEDED` | 429 | 限流，附 `Retry-After` |
 | `VALIDATION_FAILED` | 400 | 业务校验失败（如非法状态值） |
 | `SHIPMENT_ITEMS_INVALID_SKU` | 400 | 明细含不存在 SKU |
+| `SHIPMENT_ITEMS_MISSING_CARTON_INFO` | 400 | 明细含未维护装箱率的 SKU（`units_per_carton ≤ 0`，建货件时数量 = 箱数 × 装箱率） |
 | `RESOURCE_NOT_FOUND` | 404 | 项目/货件不存在 |
 | `CONFIRM_TOKEN_INVALID` | 400 | token 不存在或与 body hash 不匹配 |
 | `CONFIRM_TOKEN_EXPIRED` | 409 | token 过期 |

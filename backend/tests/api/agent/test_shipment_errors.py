@@ -22,6 +22,7 @@ class TestErrorCodeMapping:
     def test_new_codes_registered(self):
         assert AgentApiError(ErrorCode.SHIPMENT_DUPLICATE_NO).status_code == 409
         assert AgentApiError(ErrorCode.SHIPMENT_ITEMS_INVALID_SKU).status_code == 400
+        assert AgentApiError(ErrorCode.SHIPMENT_ITEMS_MISSING_CARTON_INFO).status_code == 400
         assert AgentApiError(ErrorCode.SHIPMENT_STATUS_INVALID).status_code == 400
 
     def test_translate_404(self):

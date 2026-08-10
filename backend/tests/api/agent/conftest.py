@@ -604,6 +604,46 @@ def seed_replenishment_sku(project_id: int, sku: str, *, country: str = "US") ->
         db.close()
 
 
+def seed_cartonless_sku(project_id: int, sku: str, *, country: str = "US") -> int:
+    """Seed 一条基表 SKU 但 units_per_carton=0（BLF-604 装箱信息缺失基座）。
+
+    建货件前置校验（SHIPMENT_ITEMS_MISSING_CARTON_INFO）测试基座：
+    SKU 存在但未维护外箱/装箱率时，Agent API 建货件/替换明细应被拒绝。
+    """
+    from app.models import SkuRecord
+
+    db = SessionLocal()
+    try:
+        project = db.get(Project, project_id)
+        row = SkuRecord(
+            project_id=project_id,
+            project_name=project.project_name,
+            sku=sku,
+            asin=f"ASIN-{sku}",
+            country=country,
+            fob_unit_cost=10,
+            first_leg_cost_rmb=1,
+            package_length_cm=10,
+            package_width_cm=10,
+            package_height_cm=10,
+            weight_kg=0.5,
+            carton_length_cm=0,
+            carton_width_cm=0,
+            carton_height_cm=0,
+            carton_weight_kg=0,
+            units_per_carton=0,
+            currency="USD",
+            sort_order=0,
+            is_active=True,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row.id
+    finally:
+        db.close()
+
+
 def seed_replenishment_setting(
     project_id: int,
     sku: str,
