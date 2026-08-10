@@ -663,6 +663,107 @@ function buildSalesGuide(opts: {
   不做跨币种求和（summary.by_country 逐站平行列出）；订单数/数量可跨站求和。`
 }
 
+/** SKU 主数据域调用说明（BLF-579 S3）：读 3 + 写 3，写全部走确认流。 */
+function buildSkuInfoGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. SKU 列表（R1，分页/筛选/搜索）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info?country=US&page_size=20" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  country（2 字母）可选；is_active 默认 true（只返回上架 SKU），查下架需显式
+  &is_active=false；sku/asin 可选 ilike 模糊搜索；page 默认 1、page_size 默认
+  200（≤500）、include_total 可选。响应 { items, page, page_size, total, has_next }。
+  读路由不落审计。
+
+【3. 单 SKU 详情（R2，含工厂信息/图片/市场链接）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info/{sku_record_id}" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  返回该 SKU 全字段（sku_factory_info / fnsku_label_r2_url / product_image_r2_url /
+  product_image_thumbnail_r2_url / marketplace_url / created_at / updated_at）；
+  不暴露内部 *_r2_key 与 source_file。记录不存在或跨项目 → 404。
+
+【4. 审计轨迹（R3，按 SKU 聚合写操作）】
+
+  curl "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info/{sku_record_id}/audit?limit=50" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  limit 默认 50（≤200）；返回 items（action/agent_id/operator/idempotency_key/
+  result/before/after/error_message/created_at）——含人工前端操作轨迹（operator 列），
+  可完整追溯。
+
+【5. 新建 / 更新 SKU（W1 upsert，两步确认）】
+
+  第一步（预览，返回 confirm_token，不落库）：
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -H "Content-Type: application/json" \\
+    -d '{"sku":"X-001","asin":"ASIN-X-001","country":"US","source":"agent_user_supplied","product_name":"示例产品","fob_unit_cost":5.2,"first_leg_cost_rmb":3.5}'
+
+  第二步（向用户确认后重放，请求体必须与第一步完全一致）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"
+
+  sku / asin / country 必填（唯一键 (project_id, sku, asin, country) 命中则更新、
+  否则插入；action=inserted/updated）；source 必填溯源枚举 ∈ agent_listing_pull /
+  agent_user_supplied / external_api（**禁 manual**，非法 → SKU_INFO_INVALID_SOURCE
+  400）；source_file 由服务端派生 agent:<agent_id>，不接受传值；currency 恒 CNY。
+  可选：fnsku / product_name / fob_unit_cost / first_leg_cost_rmb / 包装尺寸 /
+  重量 / 箱规 / units_per_carton / is_active / sort_order / sku_factory_info
+  （数值均 ≥0）。
+
+【6. 更新规格 / 成本（W2 PATCH，两步确认）】
+
+  第一步（预览）：
+  curl -X PATCH "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info/{sku_record_id}" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -H "Content-Type: application/json" \\
+    -d '{"source":"agent_user_supplied","fob_unit_cost":6.1}'
+
+  第二步：同一 URL + 同一 Idempotency-Key，另加 X-Confirm-Token 重放。
+  只更新显式提供的字段（缺省字段不被重置）；身份字段 sku / asin / country
+  禁改（传值 → VALIDATION_FAILED）；更新后与现有记录唯一键冲突 →
+  SKU_INFO_DUPLICATE（409）。改成本/规格影响财务汇总/货件计费（预览 note 明示）。
+
+【7. 上 / 下架（W3，两步确认）】
+
+  第一步（预览）：
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info/{sku_record_id}/status" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -H "Content-Type: application/json" \\
+    -d '{"source":"agent_user_supplied","is_active":false}'
+
+  第二步：同一 URL + 同一 Idempotency-Key，另加 X-Confirm-Token 重放。
+  is_active=true 上架 / false 下架（软切换非删除）；目标值与当前一致时幂等直接
+  返回当前态（不重复审计）。**下架后该 SKU 退出补货分析/定时报表/店铺测算默认
+  消费（按 is_active=True 过滤），历史数据保留、可随时重新上架**。
+
+  场景选择：建新 SKU 用 W1、改成本/规格用 W2、上/下架用 W3；删除/批量/CSV
+  导入不对 Agent 开放（删除→用 W3 下架替代）。写操作均带 Idempotency-Key
+  （可缺失；出现则非空且 ≤64 字符）做幂等，重放 body 必须与第一步一致。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -719,6 +820,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildAccountHealthGuide({ key, agentId, apiBase })
   } else if (domain === 'sales') {
     domainGuide = buildSalesGuide({ key, agentId, apiBase })
+  } else if (domain === 'sku_info') {
+    domainGuide = buildSkuInfoGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

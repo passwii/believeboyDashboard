@@ -153,6 +153,14 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
+  it('sku_info 已接入且 routeCount=6、读写（BLF-579）', () => {
+    const domain = getAgentDomain('sku_info')
+    expect(domain?.status).toBe('live')
+    expect(domain?.label).toBe('SKU 主数据')
+    expect(domain?.routeCount).toBe(6)
+    expect(domain?.capabilities).toEqual({ read: true, write: true })
+  })
+
   it('ad_analysis 已翻 live 且 routeCount=10、纯读（BLF-490）', () => {
     const domain = getAgentDomain('ad_analysis')
     expect(domain?.status).toBe('live')
