@@ -9,10 +9,10 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
-import { ArrowUpRight, FileText } from 'lucide-react'
+import { ArrowUpRight, FileText, Sparkles } from 'lucide-react'
 
 type Props = {
   source: string
@@ -26,23 +26,16 @@ const DOC_META = [
 export function BelieveboyModelsView({ source }: Props) {
   return (
     <div className="space-y-6 md:space-y-7">
-      <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[0.7rem]">
+      <PageHeader
+        eyebrow={
+          <>
+            <Sparkles className="h-3.5 w-3.5" />
             AI · 模型参考
-          </Badge>
-          <span className="text-xs text-muted-foreground">最后更新 2026-07-07</span>
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            彼励扶 Believeboy 模型选型方案
-          </h1>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-[0.95rem]">
-            汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在 名称 / 架构 / 大小 /
-            上下文 / 背后模型 五个维度的差异，便于算力选型、 推理部署、对外展示时快速查阅。
-          </p>
-        </div>
-      </header>
+          </>
+        }
+        title="彼励扶 Believeboy 模型选型方案"
+        description="汇总 Believeboy 系列大模型的规格与定位，以表格形式对比各档位模型在 名称 / 架构 / 大小 / 上下文 / 背后模型 五个维度的差异，便于算力选型、 推理部署、对外展示时快速查阅。（最后更新 2026-07-07）"
+      />
 
       <Card className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
         <CardContent className="space-y-5 p-5 md:p-7">
