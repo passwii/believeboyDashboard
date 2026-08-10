@@ -66,7 +66,6 @@ from app.api.v1.endpoints.external.ad_search_terms import (
 )
 from app.api.v1.endpoints.external.ad_targets import router as ad_targets_router
 from app.api.v1.endpoints.external.ad_time_trends import router as ad_time_trends_router
-from app.api.v1.endpoints.external.orders_summary import router as orders_summary_router
 from app.api.v1.endpoints.external.projects import router as projects_router
 from app.api.v1.endpoints.external.replenishment_analysis import (
     router as replenishment_analysis_router,
@@ -115,7 +114,6 @@ external_router.include_router(ad_time_trends_router)
 external_router.include_router(ad_search_term_shares_router)
 external_router.include_router(ad_invalid_traffic_router)
 external_router.include_router(ad_purchased_products_router)
-external_router.include_router(orders_summary_router)
 external_router.include_router(replenishment_analysis_router)
 external_router.include_router(sku_info_router)
 external_router.include_router(inventory_ledger_router)
