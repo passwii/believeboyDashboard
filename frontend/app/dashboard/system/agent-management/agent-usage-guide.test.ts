@@ -238,6 +238,28 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=sku_info 输出 SKU 主数据示例（BLF-579，读3+写3 全 confirm）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'sku_info',
+    })
+    expect(text).toContain('SKU 主数据')
+    expect(text).toContain('/sku-info?country=US&page_size=20')
+    expect(text).toContain('/sku-info/{sku_record_id}')
+    expect(text).toContain('/sku-info/{sku_record_id}/audit')
+    expect(text).toContain('confirm_token')
+    expect(text).toContain('agent_listing_pull')
+    expect(text).toContain('agent_user_supplied')
+    expect(text).toContain('external_api')
+    expect(text).toContain('SKU_INFO_INVALID_SOURCE')
+    expect(text).toContain('SKU_INFO_DUPLICATE')
+    expect(text).toContain('/sku-info/{sku_record_id}/status')
+    expect(text).toContain('is_active')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

@@ -112,6 +112,14 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: false },
   },
   {
+    code: 'sku_info',
+    label: 'SKU 主数据',
+    description: '商品主数据读+写：列表/详情/审计 + 新建/改规格成本/上下架（confirm 流，BLF-579）',
+    status: 'live',
+    routeCount: 6,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'finance_profit',
     label: '财务利润',
     description: '利润/财务（月度×项目×国家），COGS 口径待定',
