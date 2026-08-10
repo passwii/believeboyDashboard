@@ -103,7 +103,7 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
   return (
     <>
       {stats.map((s) => (
-        <V2Card className="transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/30" key={s.label}>
+        <V2Card className="transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)]" key={s.label}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="font-normal text-xs tracking-wide">{s.label}</CardTitle>
             <Delta value={s.delta}>
@@ -112,7 +112,7 @@ export function V2Stats({ currentRows, comparisonRows = [], loading }: V2StatsPr
             </Delta>
           </CardHeader>
           <CardContent className="flex flex-row items-center gap-2">
-            <p className="font-semibold text-2xl tabular-nums text-blue-700 dark:text-blue-300">
+            <p className="font-semibold text-2xl tabular-nums text-blue-700 dark:text-foreground">
               {s.value}
             </p>
           </CardContent>
