@@ -435,7 +435,7 @@ export function AgentManagementClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
+      {/* ── 页面头部：eyebrow-only（保留 pill icon + 文字，去掉冗余标题/描述） ── */}
       <PageHeader
         eyebrow={
           <>
@@ -443,8 +443,6 @@ export function AgentManagementClient() {
             系统管理 · Agent 接入
           </>
         }
-        title="Agent 接入管理"
-        description="管理 Agent 凭据生命周期（创建 / 停用 / 激活 / 删除）与项目、业务域访问范围。"
         actions={<Button onClick={() => setCreateOpen(true)}>创建凭据</Button>}
       />
 

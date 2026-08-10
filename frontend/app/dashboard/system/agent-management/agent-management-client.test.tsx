@@ -167,11 +167,13 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     vi.clearAllMocks()
   })
 
-  it('渲染标题与 4 个 Tab', async () => {
+  it('渲染 eyebrow pill 头部与 4 个 Tab', async () => {
     render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
 
-    expect(screen.getByRole('heading', { name: /Agent 接入管理/ })).toBeTruthy()
+    // 头部精简为 eyebrow-only（BLF-493）：pill 承载页面标识，标题/描述已移除
+    expect(screen.getByText(/系统管理 · Agent 接入/)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: /Agent 接入管理/ })).toBeNull()
     expect(screen.getByRole('tab', { name: /业务域概览/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /凭据管理/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /调用指南/ })).toBeTruthy()
