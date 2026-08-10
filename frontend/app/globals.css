@@ -90,6 +90,16 @@
     --shadow-level-3: inset 0 1px 0 hsl(210 30% 100% / 0.85), 0 0 0 1px hsl(214 22% 84% / 0.55), inset 0 -1px 0 rgba(27, 39, 51, 0.06);
     --shadow-level-4: 0 1.5px 0.5px 2.5px rgba(27, 39, 51, 0.22), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 -1px 2px rgba(27, 39, 51, 0.12);
     --shadow-level-5: 0 24px 60px -28px rgba(20, 31, 44, 0.26), 0 0 0 2px rgba(255, 255, 255, 0.75), 0 0 14px hsl(214 30% 100% / 0.45), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 0 0 1px hsl(214 22% 84% / 0.4);
+    /* 卡片 hover 配对阴影（L2 基础 + 更亮玻璃边/内描边，BLF-574） */
+    --shadow-level-2-hover:
+      0 24px 56px -28px rgba(27, 39, 51, 0.22),
+      inset 0 1px 0 hsl(210 30% 100% / 0.75),
+      inset 0 0 0 1px hsl(214 22% 84% / 0.35);
+    /* 按钮按压态（L3 基础，内嵌加深模拟按压，BLF-574） */
+    --shadow-level-3-active:
+      inset 0 1px 0 hsl(210 30% 100% / 0.7),
+      0 0 0 1px hsl(214 22% 84% / 0.5),
+      inset 0 -2px 1px rgba(27, 39, 51, 0.12);
     --motion-fast: 180ms;
     --motion-base: 240ms;
     --motion-slow: 320ms;
@@ -207,6 +217,16 @@
       0 0 14px hsl(220 30% 100% / 0.1),
       inset 0 1px 0 hsl(220 30% 100% / var(--glass-edge-highlight)),
       inset 0 0 0 1px hsl(220 30% 100% / 0.06);
+    /* 卡片 hover 配对阴影（L2 基础 + 更亮玻璃边/内描边，BLF-574） */
+    --shadow-level-2-hover:
+      0 24px 56px -28px rgba(2, 6, 16, 0.82),
+      inset 0 1px 0 hsl(220 30% 100% / 0.12),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.08);
+    /* 按钮按压态（L3 基础，深底内嵌加深模拟按压，BLF-574） */
+    --shadow-level-3-active:
+      inset 0 1px 0 hsl(220 30% 100% / 0.03),
+      0 0 0 1px hsl(220 30% 100% / 0.08),
+      inset 0 -2px 2px hsl(0 0% 0% / 0.35);
   }
 
   * {
@@ -539,14 +559,42 @@
     border-radius: var(--radius);
   }
 
-  /* Raycast 输入聚焦：边框变亮 + 蓝辉光（--focus-glow，BLF-573）
-   * 用法：focus-visible 时 1px ring + 4px 辉光，替代默认硬环 ring-2。
-   * 供 Stage 7-2 迁移 input/textarea 聚焦态使用。 */
-  .u-focus-glow:focus-visible {
+  /* Raycast 输入聚焦：边框变亮 + 蓝辉光（--focus-glow，BLF-573/574）
+   * 用法：组件在 focus-visible/focus 时 1px ring + 4px 辉光，替代默认硬环 ring-2。
+   * 仅 .dark 生效——light 保持组件自带 focus-visible:ring-2 视觉零变化
+   * （`.dark .u-focus-glow` 0-3-0 特异性覆盖 ring 工具的 0-2-0）。 */
+  .dark .u-focus-glow:focus-visible,
+  .dark .u-focus-glow:focus {
     outline: none;
     box-shadow:
       0 0 0 1px hsl(var(--ring)),
       0 0 0 4px var(--focus-glow);
+  }
+
+  /* macOS 原生按压（BLF-574）：暗黑按钮 Level 3——白顶内高光 + 白 1px 外环 + 深底内嵌。
+   * 用法：button.tsx 的 default/destructive/outline/secondary 变体加 u-btn；
+   * ghost/link 保持透明/文字无边框语言。按压时内嵌加深（u-press scale 保留）。 */
+  .dark .u-btn {
+    box-shadow: var(--shadow-level-3);
+  }
+  .dark .u-btn:active:not(:disabled):not([data-disabled='true']) {
+    box-shadow: var(--shadow-level-3-active);
+  }
+
+  /* 浮层玻璃（BLF-574）：暗黑浮层统一 Level 5 Floating——玻璃渐变 + 2px 深环 + 白辉光。
+   * 用法：dialog/sheet/popover/select/dropdown/tooltip 浮层容器加 u-floating-glass；
+   * 仅 .dark 生效（light 走组件自带 shadow-lg/bg-popover，视觉零变化）。
+   * 毛玻璃边界遵守高 DPI 约束：仅浮层可用，卡片不加 blur（globals.css 历史注释）。 */
+  .dark .u-floating-glass {
+    background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.92), hsl(var(--surface-overlay) / 0.84));
+    box-shadow: var(--shadow-level-5);
+    backdrop-filter: blur(18px);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .dark .u-floating-glass {
+      backdrop-filter: none;
+    }
   }
 
   .dashboard-kicker {
@@ -640,6 +688,12 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-raised);
+  }
+
+  /* 暗黑 hover 配对：raised 下落 + 更亮玻璃边/内描边（--shadow-level-2-hover，BLF-574）。
+   * 保持 light 原样（shadow-raised），不换色、不叠 blur。 */
+  .dark .hover-lift:hover {
+    box-shadow: var(--shadow-level-2-hover);
   }
 
   .conversation-item {

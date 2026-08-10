@@ -19,7 +19,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'group flex h-10 min-h-touch w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm shadow-black/5 focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground/70 dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.96)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.04)] [&>span]:min-w-0 [&>span]:whitespace-nowrap',
+      'group flex h-10 min-h-touch w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm shadow-black/5 focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground/70 u-focus-glow dark:border-border/95 dark:bg-[hsl(var(--surface-soft)/0.96)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.04)] [&>span]:min-w-0 [&>span]:whitespace-nowrap',
       className
     )}
     {...props}
@@ -72,7 +72,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'ui-floating-motion relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-lg border border-input bg-popover text-popover-foreground shadow-lg shadow-black/5 dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)] [&_[role=group]]:py-1',
+        'ui-floating-motion relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden rounded-lg border border-input bg-popover text-popover-foreground shadow-lg shadow-black/5 u-floating-glass [&_[role=group]]:py-1',
         position === 'popper' && 'min-w-[var(--radix-select-trigger-width)]',
         className
       )}

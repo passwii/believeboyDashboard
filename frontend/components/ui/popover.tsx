@@ -23,14 +23,14 @@ const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        'ui-floating-motion z-50 max-h-[var(--radix-popover-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg shadow-black/5 outline-none dark:border-border/95 dark:bg-[hsl(var(--surface-panel))] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.82)]',
+        'ui-floating-motion z-50 max-h-[var(--radix-popover-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-lg shadow-black/5 outline-none u-floating-glass',
         className
       )}
       {...props}
     >
       {props.children}
       {showArrow && (
-        <PopoverPrimitive.Arrow className="-my-px fill-popover drop-shadow-[0_1px_0_hsl(var(--border))]" />
+        <PopoverPrimitive.Arrow className="-my-px fill-popover drop-shadow-[0_1px_0_hsl(var(--border))] dark:fill-[hsl(var(--surface-overlay))]" />
       )}
     </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>

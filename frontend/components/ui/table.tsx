@@ -159,10 +159,11 @@ export const STICKY_LEFT_HEAD_CELL =
 
 /** 第一行表头行：固定顶部（z-index 40，数据行上方） */
 export const STICKY_TOP_ROW =
-  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.6)]'
+  'sticky top-0 z-40 bg-[hsl(var(--surface-subtle))] shadow-[inset_0_-1px_0_0_hsl(var(--border)/0.6)] dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.05),inset_0_-1px_0_0_hsl(var(--border)/0.6)]'
 
 /** 两行表头场景第1行 group header：固定顶部，z-index 最高 */
-export const STICKY_TOP_GROUP_ROW = 'sticky top-0 z-50'
+export const STICKY_TOP_GROUP_ROW =
+  'sticky top-0 z-50 dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.06)]'
 
 /** 两行表头场景第2行 sub-header：固定顶部，offset=第1行表头高度（h-11 + border = 45px） */
 export const STICKY_TOP_SUB_ROW = 'sticky top-[45px] z-40'

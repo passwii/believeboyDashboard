@@ -60,3 +60,13 @@ describe('StatCardRow', () => {
     expect(container.querySelector('.grid')?.className).toContain('gap-2')
   })
 })
+
+describe('StatCard 暗黑双环卡片契约（BLF-574）', () => {
+  it('走 dashboard-surface（暗黑继承 --shadow-level-2 双环）+ hover-lift（暗黑 hover 配对阴影）', () => {
+    const { container } = render(<StatCard title="销售额" value="$1" icon={<span />} color="emerald" />)
+    const card = container.querySelector('.dashboard-surface')!
+    expect(card.className).toContain('dashboard-surface')
+    expect(card.className).toContain('hover-lift')
+    expect(card.className).toContain('border-emerald-500/20')
+  })
+})

@@ -403,11 +403,11 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ## 9. 暗黑模式层次规范（Raycast Depth & Elevation）
 
-> BLF-573 定稿（2026-08-10）。依据 Raycast 官方设计参考（`docs/dark-mode-depth-design-decisions.md` §1 提炼，源：Raycast DESIGN.md §6）——**阴影永远成对（外 + inset），层次感靠结构不靠颜色**。本节是权威规范，决策记录见 `docs/dark-mode-depth-design-decisions.md`，每个条目指向真实代码。
+> BLF-573 定稿（2026-08-10）+ BLF-574 落地（2026-08-10，Stage 7-2：公共组件层次铺开）。依据 Raycast 官方设计参考（`docs/dark-mode-depth-design-decisions.md` §1 提炼，源：Raycast DESIGN.md §6）——**阴影永远成对（外 + inset），层次感靠结构不靠颜色**。本节是权威规范，决策记录见 `docs/dark-mode-depth-design-decisions.md`，每个条目指向真实代码。
 
 ### 9.1 阴影层级（Level 0-5 成对阴影）
 
-**token 定义**：`frontend/app/globals.css`——light `:root`（globals.css:80-92）+ dark `.dark`（globals.css:180-209）。
+**token 定义**：`frontend/app/globals.css`——light `:root`（globals.css:80-107）+ dark `.dark`（globals.css:189-231）。
 
 | Level | token | 用途 | 结构 |
 |---|---|---|---|
@@ -420,27 +420,36 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 **兼容别名**：`--shadow-soft / --shadow-raised / --shadow-overlay` 保留（soft≈L2 下落、raised≈L2 hover、overlay≈L5 下落），存量消费方不受影响（tailwind.config.ts:251-259 映射 + 27 处 tsx 引用零改动）。
 
-**已落地消费**（dark 下）：`.dashboard-surface`（globals.css:456-460）、`.dashboard-panel`（:490-493）、`.dashboard-toolbar`（:592-594）→ `var(--shadow-level-2)`；`.dashboard-glass`（:505-510）→ `var(--shadow-level-5)`。Tailwind 侧 `shadow-level-1..5` 工具类可用（tailwind.config.ts:255-260）。
+**已落地消费**（dark 下）：`.dashboard-surface`（globals.css:470-479）、`.dashboard-panel`（:505-511）、`.dashboard-toolbar`（:634-640）→ `var(--shadow-level-2)`；`.dashboard-glass`（:519-528）→ `var(--shadow-level-5)`。Tailwind 侧 `shadow-level-1..5` 工具类可用（tailwind.config.ts:255-260）。
 
-**待铺开（Stage 7-2）**：dialog / popover / select / command 浮层的字面量 `dark:shadow-[0_24px_48px...]`（components/ui/dialog.tsx:41 / popover.tsx:26 / select.tsx:75）→ `--shadow-level-5`；按钮按压叠加 `--shadow-level-3` inset。
+**BLF-574 落地（Stage 7-2）**：
+
+| 消费点 | 类 / 规则 | 结构 | 位置 |
+|---|---|---|---|
+| 按钮按压 | `.dark .u-btn`（default/destructive/outline/secondary 变体挂 `u-btn`） | `--shadow-level-3`（白顶内高光 + 白 1px 外环 + 深底内嵌） | globals.css:573-582 + `components/ui/button.tsx:12-18` |
+| 按钮按压态 | `.dark .u-btn:active` | `--shadow-level-3-active`（内嵌加深，u-press scale 保留） | globals.css:583-587 + token :99-102 / :229-232 |
+| 卡片 hover | `.dark .hover-lift:hover` | `--shadow-level-2-hover`（raised 下落 + 更亮玻璃边/内描边） | globals.css:695-698 + token :93-97 / :221-225 |
+| 浮层玻璃 | `.dark .u-floating-glass`（dialog/sheet/popover/select/dropdown/tooltip 浮层容器挂类） | 玻璃渐变 + `--shadow-level-5`（2px 深环 + 白辉光）+ blur 18px | globals.css:588-593；组件：dialog.tsx:41 / sheet.tsx:33 / popover.tsx:26 / select.tsx:75 / dropdown-menu.tsx:49,66 / tooltip.tsx:22 |
+| 浮层字面量 | `dark:shadow-[0_24px_48px...]` 已删除 | → `--shadow-level-5`（token 引用） | dialog/popover/select |
 
 ### 9.2 边框高光（Glass Edge）
 
-- **顶内高光**：`--glass-edge-highlight`（dark 0.08，globals.css:187）——卡片顶部 1px 白高光，模拟光源在上，被 `--shadow-level-2/5` 内部引用（`hsl(220 30% 100% / var(--glass-edge-highlight))`）。
-- **全周长内描边**：1px `hsl(220 30% 100% / 0.04)`，含于 `--shadow-level-2`（globals.css:192）。
-- **标准边框**：1px `hsl(var(--border) / 0.55)`（`.dark .dashboard-surface`，globals.css:458）。
-- **hover 过渡**：Raycast 用 opacity 0.6；本项目走 `.u-interactive`（上浮 1px，globals.css:517-527）与 `.hover-lift`（translateY -2px + raised，globals.css:633-643），不换色、不叠 blur。
+- **顶内高光**：`--glass-edge-highlight`（dark 0.08，globals.css:197）——卡片顶部 1px 白高光，模拟光源在上，被 `--shadow-level-2/5` 内部引用（`hsl(220 30% 100% / var(--glass-edge-highlight))`）。
+- **全周长内描边**：1px `hsl(220 30% 100% / 0.04)`，含于 `--shadow-level-2`（globals.css:200-203）。
+- **标准边框**：1px `hsl(var(--border) / 0.55)`（`.dark .dashboard-surface`，globals.css:477）。
+- **hover 过渡**：Raycast 用 opacity 0.6；本项目走 `.u-interactive`（上浮 1px，globals.css:537-547）与 `.hover-lift`（translateY -2px；dark 下叠加 `--shadow-level-2-hover` 配对阴影，globals.css:688-698），不换色、不叠 blur。
+- **其他高频件玻璃边**（BLF-574）：`badge.tsx` / `switch.tsx` 暗黑顶部内高光 `dark:shadow-[inset_0_1px_0_hsl(220_30%_100%/0.08)]`；`table.tsx` 粘性表头 `STICKY_TOP_ROW` / `STICKY_TOP_GROUP_ROW` 暗黑叠加顶部内高光。
 
 ### 9.3 输入聚焦（Focus Glow）
 
-- **token**：`--focus-glow`——light `hsla(214,89%,43%,0.12)` / dark `hsla(202,100%,67%,0.15)`（Raycast 蓝辉光原文，globals.css:87 / 188）。
-- **工具类**：`.u-focus-glow`（globals.css:542-550）——focus-visible 时 1px ring + 4px 蓝辉光，替代默认硬环 `ring-2`。
-- **现状**：`input.tsx:7` 仍用 `focus-visible:ring-2 ring-ring`；Stage 7-2 迁移为新输入组件聚焦态（迁移后本节更新状态）。
+- **token**：`--focus-glow`——light `hsla(214,89%,43%,0.12)` / dark `hsla(202,100%,67%,0.15)`（Raycast 蓝辉光原文，globals.css:87 / 198）。
+- **工具类**：`.u-focus-glow`（globals.css:562-570）——**仅 `.dark` 生效**，focus-visible/focus 时 1px ring + 4px 蓝辉光，替代默认硬环 `ring-2`；light 走组件自带 `focus-visible:ring-2` 视觉零变化（`.dark .u-focus-glow` 0-3-0 特异性覆盖 ring 工具 0-2-0）。
+- **现状（BLF-574 已迁移）**：`input.tsx` / `textarea.tsx` / `select.tsx` 触发器 / `combobox.tsx` 触发器均已挂 `u-focus-glow`（input.tsx:7 / textarea.tsx:7 / select.tsx:22 / combobox.tsx:105）；输入背景暗黑对齐 `dark:bg-[hsl(var(--surface-soft)/0.96)]`（近黑蓝调）。
 
 ### 9.4 毛玻璃使用边界（含高 DPI 约束）
 
-- **禁则**：`.dashboard-surface` / `.dashboard-panel` 一律**不加** backdrop-filter（globals.css:462-475 历史决策：曾因高 DPI 下 14px blur 糊掉 1px 边框与 12px 表头、且 92 处共用影响面过大而移除）。
-- **允许**：仅浮层 / 导航浮窗用 `.dashboard-glass`（globals.css:499-510，backdrop-blur 14~18px）；`prefers-reduced-transparency: reduce` 时 `.dark .sidebar-panel-shell` 关闭 blur（globals.css:512-514）。
+- **禁则**：`.dashboard-surface` / `.dashboard-panel` 一律**不加** backdrop-filter（globals.css:481-494 历史决策：曾因高 DPI 下 14px blur 糊掉 1px 边框与 12px 表头、且 92 处共用影响面过大而移除）。
+- **允许**：仅浮层 / 导航浮窗——`.dashboard-glass`（globals.css:519-528）与 `.u-floating-glass`（globals.css:588-593，dark 下 dialog/sheet/popover/select/dropdown/tooltip 浮层统一挂载，backdrop-blur 18px）；`prefers-reduced-transparency: reduce` 时 `.dark .sidebar-panel-shell` 与 `.dark .u-floating-glass` 关闭 blur（globals.css:532-534 / 594-597）。
 - **高 DPI 自查**：新玻璃元素须确认 blur 半径 ≤ 20px，且元素内无 1px 边框 / `text-[11px]` 级关键内容；5K/4K/Retina 截图验收。
 
 ### 9.5 圆角映射（在既有 `--radius-*` 上对齐用途，不推翻）
