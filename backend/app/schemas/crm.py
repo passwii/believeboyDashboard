@@ -763,3 +763,60 @@ class WorkflowSettingsUpdate(BaseModel):
 
     stale_days: int | None = Field(default=None, ge=1, le=365)
     stale_email_enabled: bool | None = None
+
+
+# ---------- Stage5-3 保存视图（BLF-589，CordysCRM 7.3 模式） ----------
+SavedViewEntityType = Literal["customer", "lead"]
+SavedViewScope = Literal["mine", "all", "sea"]
+
+
+class SavedViewCreate(BaseModel):
+    """保存视图创建（个人视图 MVP；is_shared 仅 admin 可置 true，V2 共享）。
+
+    filters 与列表端点 filters 参数同构（FilterCondition 数组），服务层
+    用 filter_engine 白名单校验字段/运算符，非法 → 400。
+    """
+
+    name: str = Field(min_length=1, max_length=100)
+    entity_type: SavedViewEntityType
+    scope: SavedViewScope = "all"
+    keyword: str | None = Field(default=None, max_length=200)
+    filters: list[dict] | None = None
+    sort_by: str = Field(default="updated_at", max_length=50)
+    sort_order: Literal["asc", "desc"] = "desc"
+    is_shared: bool = False
+
+
+class SavedViewUpdate(BaseModel):
+    """部分更新：只传需要改的字段（权限同 owner；共享视图 owner/admin）。
+
+    个人→共享（is_shared false→true）仅 admin 可做（V2 团队共享）。
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    scope: SavedViewScope | None = None
+    keyword: str | None = Field(default=None, max_length=200)
+    filters: list[dict] | None = None
+    sort_by: str | None = Field(default=None, max_length=50)
+    sort_order: Literal["asc", "desc"] | None = None
+    is_shared: bool | None = None
+
+
+class SavedViewItem(BaseModel):
+    """保存视图响应（GET/POST/PATCH 统一形状）。"""
+
+    id: int
+    name: str
+    entity_type: str
+    scope: str
+    keyword: str | None = None
+    filters: list[dict] | None = None
+    sort_by: str
+    sort_order: str
+    is_shared: bool
+    owner_id: str | None = None
+    owner_name: str | None = None  # 共享视图展示创建人；个人视图亦回填
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

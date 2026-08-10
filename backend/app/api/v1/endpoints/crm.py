@@ -62,6 +62,9 @@ from app.schemas.crm import (
     RuleCreate,
     RuleItem,
     RuleUpdate,
+    SavedViewCreate,
+    SavedViewItem,
+    SavedViewUpdate,
     StageDetail,
     TaskCompleteRequest,
     TaskCreate,
@@ -84,6 +87,7 @@ from app.services.crm import (
     follow_up_service,
     lead_service,
     rule_crud_service,
+    saved_view_service,
     stale_email_service,
     task_service,
     user_service,
@@ -1681,3 +1685,76 @@ def set_customer_categories(
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="客户不存在")
     return item
+
+
+# ---------- Stage5-3 保存视图（BLF-589，CordysCRM 7.3 模式） ----------
+
+
+@router.get("/saved-views", response_model=list[SavedViewItem])
+def list_saved_views(
+    entity_type: str | None = Query(None, pattern="^(customer|lead)$"),
+    db: Session = Depends(get_read_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+):
+    """可见视图：自己的 + 全用户共享的；可按 entity_type（customer/lead）过滤。
+
+    返回扁平列表（视图数量少，无需分页），按 updated_at 倒序。
+    """
+    return saved_view_service.list_views(db, user_id=user_id, entity_type=entity_type)
+
+
+@router.post(
+    "/saved-views",
+    response_model=SavedViewItem,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_saved_view(
+    payload: SavedViewCreate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """创建视图（owner_id=本人）。is_shared=true 仅 admin（V2 团队共享）。"""
+    try:
+        view = saved_view_service.create_view(
+            db, payload, user_id=user_id, is_admin=is_admin
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return saved_view_service.to_item(db, view)
+
+
+@router.patch("/saved-views/{view_id}", response_model=SavedViewItem)
+def update_saved_view(
+    view_id: int,
+    payload: SavedViewUpdate,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """部分更新（个人视图仅 owner；共享视图 owner/admin）。"""
+    try:
+        view = saved_view_service.update_view(
+            db, view_id, payload, user_id=user_id, is_admin=is_admin
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if view is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="视图不存在")
+    return saved_view_service.to_item(db, view)
+
+
+@router.delete("/saved-views/{view_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_saved_view(
+    view_id: int,
+    db: Session = Depends(get_primary_db_session),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """删除视图（个人视图仅 owner；共享视图 owner/admin）。"""
+    view = saved_view_service.delete_view(
+        db, view_id, user_id=user_id, is_admin=is_admin
+    )
+    if view is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="视图不存在")
+    return None
