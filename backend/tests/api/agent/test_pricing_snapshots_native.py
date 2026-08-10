@@ -350,15 +350,11 @@ def test_pricing_snapshots_invalid_as_of_400(client, pricing_env):
 
 
 # ---------------------------------------------------------------------------
-# 3. 路由面 / 镜像排除（模板断言）
+# 3. 路由面（模板断言：原生路由注册 + external_mirror 已删）
 # ---------------------------------------------------------------------------
 
 
-def test_pricing_snapshots_native_route_registered_and_mirror_excluded():
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
+def test_pricing_snapshots_native_route_registered_and_mirror_removed():
     from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
         pricing_snapshots_router,
     )
@@ -366,14 +362,9 @@ def test_pricing_snapshots_native_route_registered_and_mirror_excluded():
     native_paths = {r.path for r in pricing_snapshots_router.routes}
     assert "/projects/{project_id}/pricing-snapshots" in native_paths
 
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    assert "/projects/{project_id}/pricing-snapshots" not in mirror_paths, (
-        "镜像仍含 pricing-snapshots（双挂）"
-    )
-
-    assert (
-        "/external/projects/{project_id}/pricing-snapshots" in _EXCLUDED_EXTERNAL_PATHS
-    ), "排除集缺 pricing-snapshots"
+    # BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
 
 def test_external_pricing_calculation_snapshots_module_deleted():

@@ -1,4 +1,6 @@
-"""Orders Summary response schemas for the external API."""
+"""Orders Summary response schemas for the shared read-query layer.
+
+原 external 命名空间的共享 schema（external 机制已退役删除，BLF-583），供 agent 原生域复用。"""
 
 from __future__ import annotations
 

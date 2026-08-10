@@ -13,9 +13,9 @@ v3 下线（BLF-571，2026-08-10 用户拍板提前执行，不等原 Sunset 预
 * **域级权限门**：``require_business_scope("sales")`` 在 ``agent/__init__.py``
   装配时挂载（本模块不重复挂）——key 无 ``sales`` 域 → 403
   ``AGENT_BUSINESS_OUT_OF_SCOPE``；``business_scope="*"`` → 放行（存量 key 兼容）。
-* **镜像侧**：``external_mirror._EXCLUDED_EXTERNAL_PATHS`` 已排除
-  ``/external/projects/{project_id}/orders/summary``（external 源路由不动，
-  仅作 handler 来源），无双挂冲突；sales/summary 不在 external 源中，无镜像。
+* **external 源**：BLF-583 已删除 external 端点模块与镜像；本域直接复用
+  ``app.services.external.orders_summary`` 查询层（原 external 命名空间遗留
+  路径，现为 agent + internal 共享查询层）。
 
 参数契约与 external handler 完全一致（period/country/group_by/order_by/
 order_dir/include_share/limit/offset），响应形状与 ``OrdersGroupedResponse`` /
@@ -34,8 +34,8 @@ from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
 from app.api.agent.scope import require_project_scope
 from app.api.deps import get_read_db_session
-from app.api.v1.endpoints.external._helpers import parse_countries
-from app.api.v1.endpoints.external._period import parse_period_v2
+from app.api.v1.endpoints.agent._helpers import parse_countries
+from app.utils.period import parse_period_v2
 from app.schemas.external.orders_summary import (
     OrdersGroupedResponse,
     OrdersSummaryResponse,

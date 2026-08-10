@@ -20,8 +20,8 @@ clock to a known date without monkey-patching ``date.today()``.
 
 Originally lived at ``app.api.v1.endpoints.external._period``; moved here
 when the inventory-ledger internal endpoints also adopted the ``?period=``
-syntax (BEL-370 P1 #4). ``external/_period.py`` is now a thin re-export
-shim for backward compatibility with existing ad-campaign imports.
+syntax (BEL-370 P1 #4). BLF-583 已删除 ``external/_period.py`` 重导出 shim
+（external 端点模块全删），新代码一律从本模块导入。
 """
 
 from __future__ import annotations

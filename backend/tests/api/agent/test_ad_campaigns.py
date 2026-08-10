@@ -9,8 +9,7 @@ ad 域（budgets/targets/placements/...）+ 其它域的**照抄模板**，覆�
    service 直调比对模式——同一服务函数、同一参数，响应 model_dump 全等。
 2. **鉴权/壳**：401 未鉴权 / 404 项目不存在 / 403 project_scope 越界 /
    403 business_scope 不含 ad_analysis 域。
-3. **路由面/镜像排除**：3 条原生路由注册；external_mirror 无 ad-campaigns
-   镜像路径；_EXCLUDED_EXTERNAL_PATHS 含 3 条路径（防双挂）；external
+3. **路由面**：3 条原生路由注册；external_mirror 已退役删除（BLF-583）；external
    端点模块已删除。
 """
 
@@ -241,7 +240,7 @@ def campaigns_env(make_api_key):
 
 def _period_info(qs: str):
     """与 agent 路由一致的 period 解析：period=7d + today 锚定 T-1。"""
-    from app.api.v1.endpoints.external._period import parse_period_v2
+    from app.utils.period import parse_period_v2
 
     kwargs = dict(p.split("=", 1) for p in qs.split("&") if "=" in p)
     return parse_period_v2(
@@ -318,7 +317,7 @@ def test_raw_parity_agent_channel_vs_service(client, campaigns_env):
     try:
         assert projects_query.project_exists(db, pid)
         from app.models import AdUploadCampaignRow as _Row
-        from app.api.v1.endpoints.external._whitelist import parse_order_by
+        from app.api.v1.endpoints.agent._whitelist import parse_order_by
 
         order_column, direction = parse_order_by("report_end_date", "desc", model=_Row)
         rows = ad_rows_query.query_campaign_raw(
@@ -438,38 +437,23 @@ def test_400_validation_shell(client, campaigns_env):
 
 
 # ---------------------------------------------------------------------------
-# 3. 路由面 / 镜像排除（模板断言：无双挂 + external 模块已删）
+# 3. 路由面（模板断言：原生路由注册 + external_mirror 已删）
 # ---------------------------------------------------------------------------
 
 
-def test_native_routes_registered_and_mirror_excluded():
-    """3 条原生路由注册；external_mirror 无 ad-campaigns 镜像路径；
-    _EXCLUDED_EXTERNAL_PATHS 含 3 条（防双挂）；external 端点模块已删。"""
+def test_native_routes_registered_and_mirror_removed():
+    """3 条原生路由注册；external_mirror 已退役删除（BLF-583）——镜像路径
+    整体移除，无双挂可能；external 端点模块已删。"""
     from app.api.v1.endpoints.agent.ad_campaigns import ad_campaigns_router
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
 
     native_paths = {r.path for r in ad_campaigns_router.routes}
     assert "/projects/{project_id}/ad-campaigns" in native_paths
     assert "/projects/{project_id}/ad-campaigns-raw" in native_paths
     assert "/projects/{project_id}/ad-campaign-raw" in native_paths
 
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    for rel in (
-        "/projects/{project_id}/ad-campaigns",
-        "/projects/{project_id}/ad-campaigns-raw",
-        "/projects/{project_id}/ad-campaign-raw",
-    ):
-        assert rel not in mirror_paths, f"镜像仍含 {rel}（双挂）"
-
-    for ext in (
-        "/external/projects/{project_id}/ad-campaigns",
-        "/external/projects/{project_id}/ad-campaigns-raw",
-        "/external/projects/{project_id}/ad-campaign-raw",
-    ):
-        assert ext in _EXCLUDED_EXTERNAL_PATHS, f"排除集缺 {ext}"
+    # BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
 
 def test_external_module_deleted():

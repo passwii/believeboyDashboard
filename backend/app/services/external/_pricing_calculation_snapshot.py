@@ -1,4 +1,7 @@
-"""Service helpers for the external pricing-snapshot endpoint.
+"""Service helpers for the pricing-snapshot read-query endpoint.
+
+原 external 命名空间的共享服务（external 机制已退役删除，BLF-583），
+供 agent 原生域复用。
 
 BEL-378 / BEL-416 — exposes
 ``GET /api/v1/external/projects/{project_id}/pricing-snapshots?as_of=YYYY-MM-DD``.

@@ -1,4 +1,4 @@
-"""Unit tests for ``app.api.v1.endpoints.external._period.parse_period``.
+"""Unit tests for ``app.utils.period.parse_period``.
 
 Covers:
   * 9 convenience aliases × 3 anchor scenarios (mid-month, month-start, year-start)
@@ -14,7 +14,7 @@ from datetime import date
 
 import pytest
 
-from app.api.v1.endpoints.external import _period
+from app.utils import period as _period
 from app.schemas.external.common import PeriodParseError
 
 

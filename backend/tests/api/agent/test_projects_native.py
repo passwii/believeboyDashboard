@@ -149,26 +149,19 @@ def test_projects_list_401_without_credentials(client):
 
 
 # ---------------------------------------------------------------------------
-# 2. 路由面 / 镜像排除（模板断言：无双挂 + external 模块已删）
+# 2. 路由面（模板断言：原生路由注册 + external_mirror 已删）
 # ---------------------------------------------------------------------------
 
 
-def test_projects_native_route_registered_and_mirror_excluded():
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _EXCLUDED_EXTERNAL_PATHS,
-        external_mirror_router,
-    )
+def test_projects_native_route_registered_and_mirror_removed():
     from app.api.v1.endpoints.agent.projects import projects_router
 
     native_paths = {r.path for r in projects_router.routes}
     assert "/projects" in native_paths
 
-    mirror_paths = {r.path for r in external_mirror_router.routes}
-    assert "/projects" not in mirror_paths, "镜像仍含 /projects（双挂）"
-
-    assert "/external/projects" in _EXCLUDED_EXTERNAL_PATHS, (
-        "排除集缺 /external/projects"
-    )
+    # BLF-583：external_mirror 已退役删除，镜像路由整体移除，无双挂可能。
+    with pytest.raises(ModuleNotFoundError):
+        import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
 
 def test_external_projects_module_deleted():

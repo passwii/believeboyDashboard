@@ -17,8 +17,8 @@
 设计要点（spec §6 公共约定 / §7）：
 * 鉴权 + 读限流由 ``agent/__init__.py`` 命名空间级依赖保证；域级
   ``require_business_scope("account_health")`` 也在装配时挂载（本模块不重复挂）。
-* project_scope **列表过滤语义**（对齐 report_upload_status / external_mirror
-  /projects）：白名单只返回可见项目，不抛 403；R4 直取项目不在范围 → 404。
+* project_scope **列表过滤语义**（对齐 report_upload_status /projects 列表）：
+  白名单只返回可见项目，不抛 403；R4 直取项目不在范围 → 404。
 * 字段**拍平**（§7.1）：health_data 8 + compliance_data 10 + 派生
   compliance_total 逐列展开，不暴露 raw JSON blob；空值 = null 非 0；
   空结果 = 200 非 404（只有资源本身不存在才 404）。

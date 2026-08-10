@@ -1,4 +1,7 @@
-"""Orders Summary service for the external API.
+"""Orders Summary service for the shared read-query layer.
+
+原 external 命名空间的共享查询服务（external 机制已退役删除，BLF-583），
+供 agent 原生域与 internal 端点复用。
 
 Returns deduplicated real orders/sales data for TACoS calculation.
 """

@@ -986,10 +986,10 @@ class TestConfirmFlow:
 
 
 class TestRouteRegistration:
-    def test_mirror_path_excluded(self):
-        from app.api.v1.endpoints.agent.external_mirror import _EXCLUDED_EXTERNAL_PATHS
-
-        assert "/external/projects/{project_id}/sku-info" in _EXCLUDED_EXTERNAL_PATHS
+    def test_mirror_removed(self):
+        """BLF-583：external_mirror 已退役删除，import 应失败。"""
+        with pytest.raises(ModuleNotFoundError):
+            import app.api.v1.endpoints.agent.external_mirror  # noqa: F401
 
     def test_agent_sku_info_still_200_native_handler(self, client, shipment_env):
         """镜像收口后 /agent/projects/{id}/sku-info 仍 200 且走原生 handler。"""
@@ -1007,7 +1007,23 @@ class TestRouteRegistration:
 
     def test_single_get_route_for_sku_info(self):
         """路由数量不重复：agent 侧 /projects/{project_id}/sku-info 只有原生一条 GET。"""
-        from app.api.v1.endpoints.agent import external_mirror_router
+        from app.api.v1.endpoints.agent import agent_router
+        from app.api.v1.endpoints.agent.sku_info import sku_info_router
 
-        mirror_paths = [r.path for r in external_mirror_router.routes]
-        assert "/projects/{project_id}/sku-info" not in mirror_paths
+        # FastAPI >=0.13x 子路由包成 _IncludedRouter（真实 APIRoute 在
+        # original_router.routes 且 path 不含 /agent 前缀），<0.13x 直接拍平。
+        def _iter_routes(routes):
+            for r in routes:
+                yield r
+                inner = getattr(r, "original_router", None)
+                if inner is not None:
+                    yield from _iter_routes(getattr(inner, "routes", []))
+
+        native_paths = [
+            r.path for r in _iter_routes(agent_router.routes) if hasattr(r, "path")
+        ]
+        assert "/projects/{project_id}/sku-info" in native_paths
+
+        # 原生模块内恰好一条（不含兜底）
+        sku_paths = [r.path for r in sku_info_router.routes]
+        assert "/projects/{project_id}/sku-info" in sku_paths

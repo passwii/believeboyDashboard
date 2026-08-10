@@ -6,7 +6,7 @@
   ``dashboard/reports/auto-upload``「RPA 报表状态」矩阵天然一致。复用内部
   ``/api/v1/rpa-reports/status`` 的 service（``get_report_status_for_date``），
   并按凭据的 project_scope 过滤 items（``*`` 全放行；白名单只返回可见项目），
-  对齐 external_mirror ``/projects`` 列表的 L2 门禁语义。
+  对齐 agent/projects 列表的 L2 门禁语义。
 
 报表上传状态是纯读 / 简单域（RPA 上报结果，无危险动作）——1 条路由、无
 confirm、不落审计。路由挂 ``require_business_scope("report_upload_status")``
@@ -123,7 +123,7 @@ def _validate_report_date(report_date: str) -> None:
 def _visible_items(
     request: Request, items: list[ProjectReportStatus]
 ) -> list[ProjectReportStatus]:
-    """按 key 的 project_scope 过滤 items（对齐 external_mirror /projects 列表）。
+    """按 key 的 project_scope 过滤 items（对齐 agent/projects 列表）。
 
     ``*`` 全放行（与现状一致）；白名单只返回可见项目——不抛 403，
     与 ``/projects`` 列表的 L2 门禁语义一致（列表过滤而非路径准入）。

@@ -1,11 +1,11 @@
-"""Project query helpers for the external API.
+"""Project query helpers for the shared read-query layer.
 
-Thin wrappers around ``app.models.Project`` so the external endpoints can:
+Thin wrappers around ``app.models.Project`` so the shared layer can:
   * list projects (filterable by archive status),
   * check existence (404 handling in endpoints).
 
-P0 has no auth/permission checks — those land in P1. For now, the helpers
-return data for any caller.
+原 external 命名空间的共享查询服务（external 机制已退役删除，BLF-583），
+供 agent 原生域与 internal 端点复用。
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def list_projects(db: Session, *, status: str = 'active') -> list[Project]:
 def project_exists(db: Session, project_id: int) -> bool:
     """Return True iff a project with ``project_id`` exists.
 
-    Used by external endpoints to translate a missing project into HTTP 404
+    Used by shared endpoints to translate a missing project into HTTP 404
     (vs. an empty result list when the project exists but has no matching
     rows in the requested window).
     """

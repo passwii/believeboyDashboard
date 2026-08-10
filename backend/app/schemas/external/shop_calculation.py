@@ -22,7 +22,7 @@ Design notes:
     * ``warnings_json`` — debug blob
     * Fee-rule labels — long internal strings, low BI value
 * Fields mirror the ROW_WHITELIST contract in
-  ``backend/app/api/v1/endpoints/external/_whitelist.py`` — adding a
+  ``app/api/v1/endpoints/agent/_whitelist.py`` — adding a
   field here **requires** extending that whitelist, and vice versa.
 """
 

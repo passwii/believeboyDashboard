@@ -1,8 +1,9 @@
 """Agent 项目列表路由（BLF-582 原生化：非 ad 域之一）。
 
 在 ``/api/v1/agent/projects`` 开放 1 条读路由——**原生替换 external 镜像
-特例**（BLF-459 P1 镜像时代由 ``external_mirror._agent_projects_list`` 接管，
-本项目已删除 external/projects.py 端点模块，逻辑搬入原生模块）：
+特例**（BLF-459 P1 镜像时代由 ``external_mirror._agent_projects_list`` 接管；
+BLF-583 镜像已删除，本模块为唯一实现，external/projects.py 端点模块早已
+删除，逻辑全部在原生模块内）：
 
 * 查询契约与删除前的 ``get_external_projects`` 完全一致（``status`` 过滤 +
   ``ProjectItem{project_id, project_name}`` 形状），parity 测试锁定

@@ -348,7 +348,6 @@ P2 货件域再扩展（`SHIPMENT_*`）。
   `Link: rel="successor-version"` 指向对应 `/agent/*` 路径（比裸 404 更明确）。
 - 移除 `app/middleware/external_deprecation.py`（Deprecation/Sunset 头随
   路由下线而失去意义）与 `Settings.external_api_sunset`。
-- external 模块保留为 `agent/external_mirror.py` 的 handler 来源，不再挂载。
 - 测试：删除 10 个打旧路由的 `test_external_*.py`（API 已下线）；
   agent 镜像 parity 改为直调 external handler 函数比对；新增 410 契约测试。
 - 消费者：believeboySP `scripts/ad_analysis/load_data.py` 已切到
@@ -356,6 +355,22 @@ P2 货件域再扩展（`SHIPMENT_*`）。
   **BLF-464（2026-08-06）**：believeboySP 整体已删除（git 历史可恢复，
   `git checkout <commit> -- believeboySP/`）。未来新 Agent 一律走「Agent 接入
   管理」页创建 key + ID，不再使用该直连脚本。
+
+**v4（BLF-583，2026-08-10）**：external 机制整体退役删除
+- `backend/app/api/v1/endpoints/agent/external_mirror.py` 删除（
+  `_make_wrapper` / `_iter_external_apiroutes` / `external_mirror_router` /
+  `_EXCLUDED_EXTERNAL_PATHS` 全移除）——此时全部域已原生化，镜像覆盖为零，
+  无任何残留路由。
+- `backend/app/api/v1/endpoints/external/` 包整体删除（含 `__init__.py` 的
+  `external_router` 与 3 个遗留端点模块：replenishment_analysis /
+  return_analysis / new_product_calculations）。共享 helper（`_helpers` /
+  `_whitelist`）迁入 `endpoints/agent/`，`_period` 改用 `app/utils/period.py`。
+- 红区孤儿删除：`schemas/external/{new_product_calculation, return_analysis,
+  ad_rows, sku_info}.py` + `services/external/_new_product_calculations.py`。
+- **黄区共享层决策**：`schemas/external/` 与 `services/external/` 目录名保留
+  （历史遗留路径，被 agent 原生域 + internal 端点 + utils 三方复用），仅清理
+  误导性注释并标注"原 external 共享层"。
+- `external_retired.py` 410 兜底保留，`/external/*` 路径迁移链路完整。
 
 **agent 命名空间内的路径迁移（BLF-569 → BLF-571）**：同一三阶段模式也用于
 agent 域内改路径（orders/summary → sales/summary）：v1 双挂 + Deprecation/
@@ -370,10 +385,11 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 现有 `/external/*` 每个 GET 路由一对一映射到 `/agent/*`（如 `/external/projects/{id}/sku-info` → `/agent/projects/{id}/sku-info`）。`/agent/*` 独有的写路由（shipments 等）不存在映射问题。
 
-**对照表（BLF-459 P1 落地，共 51 条 GET 路由）**：镜像由
+**对照表（BLF-459 P1 落地，共 51 条 GET 路由）**：镜像时代由
 `backend/app/api/v1/endpoints/agent/external_mirror.py` 从 `external_router`
 **程序化生成**（同后缀路径 + 复用 external handler 沿 ``__wrapped__`` 保留
-签名 + 壳翻译），未来新增 external 读路由自动出现在 agent 侧。下表由脚本枚举生成：
+签名 + 壳翻译）。**BLF-583（2026-08-10）已整体退役删除**——全部域已原生化，
+镜像覆盖为零，下表全部条目均已收口进 agent 原生域。下表由脚本枚举生成：
 
 | 老路径 (`/external`) | 新路径 (`/agent`) | 状态 |
 |---|---|---|
@@ -408,7 +424,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
 | `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**；**BLF-563 拓展（2026-08-10）删除 external 端点模块**（agent 侧仅 `/sales/summary`，schemas/service 保留给 agent 复用） |
-| `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
+| `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | **已原生化（BLF-502）**：agent/replenishment_analysis.py 6 条原生路由；BLF-583 external 端点模块与镜像已删除 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | **已原生化（BLF-582）**：agent/sku_info.py R1 列表（设计对齐 BLF-579 spec §4 R1，挂 business_scope("sku_info")）；R2/R3/W1-W3 在 BLF-579 S2 实施；external 端点模块已删除 |
 | `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
 | `/external/projects/{project_id}/inventory-ledger/snapshot` | `/agent/projects/{project_id}/inventory-ledger/snapshot` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
@@ -420,12 +436,12 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | `/external/projects/{project_id}/inventory-ledger/summary` | `/agent/projects/{project_id}/inventory-ledger/summary` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
 | `/external/projects/{project_id}/inventory-ledger/batches` | `/agent/projects/{project_id}/inventory-ledger/batches` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
 | `/external/projects/{project_id}/inventory-ledger/consistency` | `/agent/projects/{project_id}/inventory-ledger/consistency` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
-| `/external/projects/{project_id}/return-analysis` | `/agent/projects/{project_id}/return-analysis` | v1 双挂 |
-| `/external/projects/{project_id}/return-analysis-raw` | `/agent/projects/{project_id}/return-analysis-raw` | v1 双挂 |
+| `/external/projects/{project_id}/return-analysis` | `/agent/projects/{project_id}/return-analysis` | **已原生化（BLF-470）**：agent/return_analysis.py 5 条原生路由；BLF-583 external 端点模块与镜像已删除 |
+| `/external/projects/{project_id}/return-analysis-raw` | `/agent/projects/{project_id}/return-analysis-raw` | **已原生化（BLF-470）**：agent/return_analysis.py 5 条原生路由；BLF-583 external 端点模块与镜像已删除 |
 | `/external/projects/{project_id}/shop-calculation-history` | `/agent/projects/{project_id}/shop-calculation-history` | **已原生化（BLF-582）**：agent/shop_calculation.py 2 条 BI 扁平契约路由，挂与原生 shop-calculations 域同一 business_scope("shop_calculations")（同域不同契约独立保留）；external 端点模块已删除 |
 | `/external/projects/{project_id}/shop-calculation/snapshots` | `/agent/projects/{project_id}/shop-calculation/snapshots` | **已原生化（BLF-582）**（同上，append-only 时间序列） |
 | `/external/projects/{project_id}/pricing-snapshots` | `/agent/projects/{project_id}/pricing-snapshots` | **已原生化（BLF-582）**：agent/pricing_calculation_snapshots.py 1 条读路由（目录冻结 as-of），挂既有 business_scope("shop_calculations")（定价快照=店铺测算目录冻结，不新增孤儿域 code）；external 端点模块已删除 |
-| `/external/projects/{project_id}/new-product-calculations` | `/agent/projects/{project_id}/new-product-calculations` | 已原生迁移（BLF-457 agent R1 同路径） |
+| `/external/projects/{project_id}/new-product-calculations` | `/agent/projects/{project_id}/new-product-calculations` | **已原生迁移（BLF-457 agent R1 同路径）**；BLF-583 external 端点模块与镜像已删除 |
 
 ---
 
@@ -482,7 +498,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 ## 10. 参考与索引
 
-- 原 `/api/v1/external/*` 路由装配：`backend/app/api/v1/endpoints/external/__init__.py`
+- ~~原 `/api/v1/external/*` 路由装配：`backend/app/api/v1/endpoints/external/__init__.py`~~（**BLF-583 已删除**；`/external/*` 由 `external_retired.py` 410 兜底）
 - 现有外部鉴权 + 限流：`backend/app/api/external_security.py`
 - 现有凭据模型 / 服务 / 管理端点：`app/models/external_api_key.py`、`app/services/external/api_key_service.py`、`app/api/v1/endpoints/internal/api_keys.py`（挂载 `app/api/v1/router.py:126`）——P0 后分别变为 `app/models/agent_api_key.py`、`app/services/agent/key_service.py`，端点路径不变
 - 访问审计中间件 + 保留期清理：`app/middleware/external_audit.py`、`app/celery_tasks/external_audit_cleanup.py`（beat 注册在 `app/tasks/celery_app.py:54/91/121`）——P0 后变为 `agent_api_audit.py` / `agent_api_audit_cleanup.py`
@@ -506,7 +522,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | 生产表（2） | `external_api_keys`、`external_api_audit_log` |
 | ORM 模型（2 文件） | `app/models/external_api_key.py`、`app/models/external_api_audit_log.py` + `__init__.py` 导出 |
 | 配置项（6） | `external_api_require_auth` / `external_api_allow_skip_auth` / `external_api_rate_limit_enabled` / `external_api_rate_limit`（以上 4 个管 `/external/*`）；`external_api_audit_enabled` / `external_api_audit_retention_days`（管访问审计） |
-| 后端包（3） | `app/api/v1/endpoints/external/`（25 个端点模块）、`app/services/external/`（12 个查询服务）、`app/api/external_security.py` |
+| 后端包（3） | ~~`app/api/v1/endpoints/external/`（25 个端点模块）~~（**BLF-583 已删除**）、`app/services/external/`（共享查询服务，**路径保留**）、`app/api/external_security.py` |
 | 中间件 + Celery | `app/middleware/external_audit.py`；`app/celery_tasks/external_audit_cleanup.py`（beat 3 处引用） |
 | 迁移历史 | `20260802_227_add_external_api_keys.py`（已应用，不改） |
 | 文档（3） | `backend/docs/external-api.md`、`docs/deployment/external-api-network-isolation.md`、`docs/external-api-ops-agent-roadmap.md` |
@@ -526,13 +542,13 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | Celery 任务 | `external_audit_cleanup` | `agent_api_audit_cleanup` | `celery_app.py` 的 beat 注册 / queue 路由 / task 路径 **3 处同步** |
 | 配置 | `external_api_audit_enabled` / `external_api_audit_retention_days` | `agent_api_audit_enabled` / `agent_api_audit_retention_days` | ⚠️ 部署前检查 VPS env 是否设置了旧名（见 §11.5） |
 
-### 11.3 保留旧名（随 `/external/*` 退役处理，P0 不动）
+### 11.3 随 `/external/*` 退役处理（BLF-583 已执行）
 
-| 资产 | 理由 |
+| 资产 | 处理结果 |
 |---|---|
-| `/api/v1/external/*` 路由 + `external_router` | 遗留读命名空间，按 §6.1 v2/v3 阶段退役 |
-| `app/api/v1/endpoints/external/`（25 模块） | 同上；P1 在 `/agent/*` 镜像挂载时再评估搬迁 |
-| `app/services/external/` 查询服务（aggregator / ad_rows_query 等 12 个） | `/external/*` 的查询层，与命名空间同进退（`business_summary` 服务已随端点一并删除，v0.6） |
+| `/api/v1/external/*` 路由 + `external_router` | **BLF-583 已删除**；`/external/*` 由 `external_retired.py` 410 兜底（§6.1 v3/v4） |
+| `app/api/v1/endpoints/external/`（25 模块） | **BLF-583 已删除**（含 `__init__.py` 与 3 个遗留端点模块） |
+| `app/services/external/` 查询服务（aggregator / ad_rows_query 等 12 个） | **BLF-583 决策：路径保留**（历史遗留共享层，被 agent 原生域 + internal 端点复用），仅清理误导注释；`_new_product_calculations.py` 红区孤儿已删 |
 | `app/api/external_security.py`（`require_external_api_key` / `require_external_rate_limit` / `external_limiter`） | 专管 `/external/*` 过渡期鉴权；agent 通道用新的 `app/api/agent/auth.py` |
 | 配置 `external_api_require_auth` / `external_api_allow_skip_auth` / `external_api_rate_limit_enabled` / `external_api_rate_limit` | `/external/*` 专用开关；agent 通道鉴权 day-1 强制、限流用新配置 `agent_api_*`，不吃旧开关 |
 | 测试 `tests/api/test_external_auth.py` 等 | 跟随代码改动更新 import 与表名断言；测试场景本身保留 |
