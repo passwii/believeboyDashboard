@@ -94,12 +94,12 @@ describe('projectedMonthlyRate（预估月度完成率线性外推）', () => {
   })
 })
 
-describe('GoalProgressRings 渲染', () => {
+describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('渲染全部指标：标签 + 展示值 + 说明文字', () => {
+  it('渲染全部指标：标签 + 展示值 + 说明文字（右侧指标块）', () => {
     render(<GoalProgressRings items={ITEMS} />)
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('86.3%')).toBeInTheDocument()
@@ -107,6 +107,22 @@ describe('GoalProgressRings 渲染', () => {
     expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
     expect(screen.getByText('125.0%')).toBeInTheDocument()
     expect(screen.getByText('线性预估，仅供参考')).toBeInTheDocument()
+  })
+
+  it('合并式布局：一个圆形容器内嵌套 3 个同心环，右侧为指标说明', () => {
+    const { container } = render(<GoalProgressRings items={ITEMS} />)
+    // 左侧圆形容器：唯一一个带 data-testid 的容器
+    const ringsContainer = screen.getByTestId('goal-rings-concentric')
+    // 3 个同心环 svg 都叠在该容器内（同心叠加，而非 3 列摊开）
+    const ringSvgs = container.querySelectorAll('svg[aria-label]')
+    expect(ringSvgs.length).toBe(3)
+    for (const svg of Array.from(ringSvgs)) {
+      expect(ringsContainer.contains(svg)).toBe(true)
+    }
+    // 右侧 3 个指标块
+    expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
+    expect(screen.getByText('实际月度进度')).toBeInTheDocument()
+    expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
   })
 
   it('每个环带 aria-label（可访问性）', () => {

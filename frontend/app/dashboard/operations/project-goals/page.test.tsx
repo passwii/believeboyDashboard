@@ -100,4 +100,134 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
     await user.click(screen.getByRole('tab', { name: '目标管理' }))
     expect(calls.filter((u) => u.includes('/project-goals?'))).toHaveLength(1)
   })
+
+  it('BLF-595：进度概览点「去设置」直接切 tab 时立即拉取 goals 列表', async () => {
+    const user = userEvent.setup()
+    const calls: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.includes('/project-goals/progress')) {
+        // 有月度目标 → 显示「去设置」入口
+        return jsonResponse({
+          ...PROGRESS_PAYLOAD,
+          monthly_progress: [
+            {
+              year: 2026,
+              month: 8,
+              month_label: '2026年8月',
+              target_amount: 0,
+              achieved_amount: 1000,
+              completion_rate: 0,
+              days_in_month: 31,
+              today_day: 15,
+              daily_target: 0,
+              cumulative_daily_target: 0,
+              completion_vs_daily: 0,
+              completion_vs_monthly: 0,
+              currency: 'USD',
+            },
+          ],
+        })
+      }
+      if (url.includes('/project-goals?')) return jsonResponse(GOALS_PAYLOAD)
+      return jsonResponse({})
+    })
+    render(<ProjectGoalsPage />)
+
+    await waitFor(() => {
+      expect(calls.some((u) => u.includes('/project-goals/progress'))).toBe(true)
+    })
+
+    await user.click(await screen.findByRole('button', { name: /去设置/ }))
+    // 去设置切 tab 时必须触发 goals 拉取（BLF-595 回归：不能只 setActiveTab）
+    await waitFor(() => {
+      expect(calls.filter((u) => u.includes('/project-goals?'))).toHaveLength(1)
+    })
+  })
+
+  it('BLF-595：保存目标后立即 force 重载 progress 与 goals，目标表马上出现已设目标', async () => {
+    const user = userEvent.setup()
+    const progressCalls: string[] = []
+    const goalsCalls: string[] = []
+    let saved = false
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.includes('/project-goals/progress')) {
+        progressCalls.push(url)
+        return jsonResponse({
+          ...PROGRESS_PAYLOAD,
+          monthly_progress: [
+            {
+              year: 2026,
+              month: 8,
+              month_label: '2026年8月',
+              target_amount: saved ? 10000 : 0,
+              achieved_amount: 1000,
+              completion_rate: 0,
+              days_in_month: 31,
+              today_day: 15,
+              daily_target: saved ? 322.58 : 0,
+              cumulative_daily_target: saved ? 4838.7 : 0,
+              completion_vs_daily: 0,
+              completion_vs_monthly: 0,
+              currency: 'USD',
+            },
+          ],
+        })
+      }
+      if (url.includes('/project-goals') && init?.method === 'POST') {
+        saved = true
+        return jsonResponse({ id: 1 })
+      }
+      if (url.includes('/project-goals?')) {
+        goalsCalls.push(url)
+        const goals = saved
+          ? [
+              {
+                id: 1,
+                project_id: 1,
+                country: 'US',
+                goal_type: 'monthly',
+                metric_type: 'sales_amount',
+                period_year: 2026,
+                period_month: 8,
+                target_amount: 10000,
+                currency: 'USD',
+                created_at: '',
+                updated_at: '',
+              },
+            ]
+          : []
+        return jsonResponse({ goals, total: goals.length })
+      }
+      return jsonResponse({})
+    })
+    render(<ProjectGoalsPage />)
+
+    await waitFor(() => {
+      expect(progressCalls.length).toBeGreaterThanOrEqual(1)
+    })
+
+    // 经「去设置」进入目标管理 tab
+    await user.click(await screen.findByRole('button', { name: /去设置/ }))
+    await waitFor(() => {
+      expect(goalsCalls.length).toBeGreaterThanOrEqual(1)
+    })
+
+    // 新增月度目标并保存
+    await user.click(screen.getByRole('button', { name: /新增月度目标/ }))
+    const amountInput = screen.getByPlaceholderText('例如：50000')
+    await user.clear(amountInput)
+    await user.type(amountInput, '10000')
+    await user.click(screen.getByRole('button', { name: /保存/ }))
+
+    // 保存后 goals 被 force 重载，目标表立即出现已设目标（无需手动刷新）
+    await waitFor(() => {
+      expect(goalsCalls.length).toBeGreaterThanOrEqual(2)
+    })
+    await waitFor(() => {
+      expect(screen.getAllByText('$ 10,000.00').length).toBeGreaterThanOrEqual(1)
+    })
+  })
 })
