@@ -299,59 +299,9 @@ class ConvertLeadResponse(BaseModel):
     customer: CustomerItem
 
 
-# ---------- Opportunity ----------
-class OpportunityCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    customer_id: int | None = None
-    amount: float = 0
-    stage: str = "lead_in"
-    owner_id: str | None = None
-    expected_close_date: str | None = None
-    probability: int | None = Field(default=None, ge=0, le=100)
-    remark: str | None = None
-
-
-class OpportunityUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=200)
-    customer_id: int | None = None
-    amount: float | None = None
-    stage: str | None = None
-    owner_id: str | None = None
-    expected_close_date: str | None = None
-    probability: int | None = Field(default=None, ge=0, le=100)
-    remark: str | None = None
-
-
-class OpportunityItem(BaseModel):
-    id: int
-    name: str
-    customer_id: int | None = None
-    customer_name: str | None = None
-    amount: float
-    stage: str
-    owner_id: str | None = None
-    owner_name: str | None = None
-    expected_close_date: str | None = None
-    probability: int | None = None
-    linked_project_id: int | None = None
-    remark: str | None = None
-    created_by: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class OpportunityListResponse(BaseModel):
-    items: list[OpportunityItem]
-    total: int
-    page: int
-    page_size: int
-
-
 # ---------- Follow ----------
 class FollowCreate(BaseModel):
-    entity_type: Literal["customer", "lead", "opportunity"]
+    entity_type: Literal["customer", "lead"]
     entity_id: int
     type: str = "note"
     content: str = Field(min_length=1)

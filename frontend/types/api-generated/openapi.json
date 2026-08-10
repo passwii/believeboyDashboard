@@ -4605,7 +4605,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4626,7 +4626,7 @@
       "Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4640,7 +4640,7 @@
       "Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4654,7 +4654,7 @@
       "Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4673,7 +4673,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4692,7 +4692,7 @@
             "type": "string"
           },
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4706,12 +4706,12 @@
       "Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post": {
         "properties": {
           "excel_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Excel File",
             "type": "string"
           },
           "pdf_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4726,7 +4726,7 @@
       "Body_upload_api_v1_page_render_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4751,7 +4751,7 @@
       "Body_upload_avatar_api_v1_system_management_profile_avatar_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4765,7 +4765,7 @@
       "Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4779,7 +4779,7 @@
       "Body_upload_file_api_v1_uploads_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4803,7 +4803,7 @@
       "Body_upload_file_for_ai_api_v1_ai_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4817,7 +4817,7 @@
       "Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4831,7 +4831,7 @@
       "Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
@@ -4850,7 +4850,7 @@
       "Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           }
@@ -4864,11 +4864,11 @@
       "Body_upload_screenshot_api_v1_inspections_screenshots_upload_post": {
         "properties": {
           "file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File",
             "type": "string"
           },
-          "report_id": {
+          "report_id_form": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4877,7 +4877,7 @@
                 "type": "null"
               }
             ],
-            "title": "Report Id"
+            "title": "Report Id Form"
           }
         },
         "required": [
@@ -4889,7 +4889,7 @@
       "Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post": {
         "properties": {
           "pdf_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Pdf File",
             "type": "string"
           }
@@ -4903,7 +4903,7 @@
       "Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post": {
         "properties": {
           "csv_file": {
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Csv File",
             "type": "string"
           }
@@ -5175,6 +5175,75 @@
           "in_transit_quantity"
         ],
         "title": "CalendarRowItem",
+        "type": "object"
+      },
+      "CategoryBrief": {
+        "description": "P6b 客户身上携带的类目摘要。",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CategoryBrief",
+        "type": "object"
+      },
+      "CategoryCreate": {
+        "properties": {
+          "name": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CategoryCreate",
+        "type": "object"
+      },
+      "CategoryItem": {
+        "description": "P6b 产品类目词表项。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "title": "CategoryItem",
         "type": "object"
       },
       "CategoryResearchActionRecommendation": {
@@ -7390,6 +7459,36 @@
         "title": "CategoryResearchTrendResponse",
         "type": "object"
       },
+      "CategoryUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "CategoryUpdate",
+        "type": "object"
+      },
       "ClearCacheResponse": {
         "properties": {
           "deleted_count": {
@@ -9048,6 +9147,21 @@
         "title": "CurrentInventorySnapshotResponse",
         "type": "object"
       },
+      "CustomerCategoriesUpdate": {
+        "description": "P6b 整体替换客户类目集。",
+        "properties": {
+          "category_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Category Ids",
+            "type": "array"
+          }
+        },
+        "title": "CustomerCategoriesUpdate",
+        "type": "object"
+      },
       "CustomerCreate": {
         "properties": {
           "address": {
@@ -9289,6 +9403,14 @@
               }
             ],
             "title": "Annual Revenue"
+          },
+          "categories": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CategoryBrief"
+            },
+            "title": "Categories",
+            "type": "array"
           },
           "contact_email": {
             "anyOf": [
@@ -12196,8 +12318,7 @@
           "entity_type": {
             "enum": [
               "customer",
-              "lead",
-              "opportunity"
+              "lead"
             ],
             "title": "Entity Type",
             "type": "string"
@@ -33161,13 +33282,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -34173,6 +34287,56 @@
           "is_partial"
         ],
         "title": "WeeklyAvailabilityItem",
+        "type": "object"
+      },
+      "WorkflowSettings": {
+        "description": "P9 工作流自动化设置（7 天无跟进提醒邮件）。",
+        "properties": {
+          "stale_days": {
+            "default": 7,
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Stale Days",
+            "type": "integer"
+          },
+          "stale_email_enabled": {
+            "default": true,
+            "title": "Stale Email Enabled",
+            "type": "boolean"
+          }
+        },
+        "title": "WorkflowSettings",
+        "type": "object"
+      },
+      "WorkflowSettingsUpdate": {
+        "description": "部分更新：只传需要改的字段。",
+        "properties": {
+          "stale_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Days"
+          },
+          "stale_email_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Email Enabled"
+          }
+        },
+        "title": "WorkflowSettingsUpdate",
         "type": "object"
       },
       "app__schemas__crm__TaskListResponse": {
@@ -53532,6 +53696,410 @@
         ]
       }
     },
+    "/api/v1/crm/categories": {
+      "get": {
+        "description": "列出全部产品类目（登录即可，供多选下拉）。",
+        "operationId": "list_categories_api_v1_crm_categories_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryItem"
+                  },
+                  "title": "Response List Categories Api V1 Crm Categories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Categories",
+        "tags": [
+          "crm"
+        ]
+      },
+      "post": {
+        "operationId": "create_category_api_v1_crm_categories_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Category",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
+    "/api/v1/crm/categories/{category_id}": {
+      "delete": {
+        "operationId": "delete_category_api_v1_crm_categories__category_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "title": "Category Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Category",
+        "tags": [
+          "crm"
+        ]
+      },
+      "patch": {
+        "operationId": "update_category_api_v1_crm_categories__category_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "title": "Category Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Category",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
     "/api/v1/crm/contacts/{contact_id}": {
       "delete": {
         "operationId": "delete_contact_api_v1_crm_contacts__contact_id__delete",
@@ -54853,6 +55421,139 @@
           }
         },
         "summary": "Update Customer",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
+    "/api/v1/crm/customers/{customer_id}/categories": {
+      "put": {
+        "description": "整体替换客户类目集（幂等去重）。owner/admin 可操作。",
+        "operationId": "set_customer_categories_api_v1_crm_customers__customer_id__categories_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "customer_id",
+            "required": true,
+            "schema": {
+              "title": "Customer Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerCategoriesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Customer Categories",
         "tags": [
           "crm"
         ]
@@ -58106,6 +58807,210 @@
           }
         },
         "summary": "Update Rule",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
+    "/api/v1/crm/settings/workflow": {
+      "get": {
+        "description": "工作流自动化设置（7 天无跟进提醒邮件阈值/开关）。仅管理员。",
+        "operationId": "get_workflow_settings_api_v1_crm_settings_workflow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Workflow Settings",
+        "tags": [
+          "crm"
+        ]
+      },
+      "put": {
+        "description": "更新工作流自动化设置（部分更新）。仅管理员。",
+        "operationId": "update_workflow_settings_api_v1_crm_settings_workflow_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Workflow Settings",
         "tags": [
           "crm"
         ]

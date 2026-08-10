@@ -2778,6 +2778,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/crm/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description 列出全部产品类目（登录即可，供多选下拉）。
+         */
+        get: operations["list_categories_api_v1_crm_categories_get"];
+        put?: never;
+        /** Create Category */
+        post: operations["create_category_api_v1_crm_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Category */
+        delete: operations["delete_category_api_v1_crm_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Category */
+        patch: operations["update_category_api_v1_crm_categories__category_id__patch"];
+        trace?: never;
+    };
     "/api/v1/crm/contacts/{contact_id}": {
         parameters: {
             query?: never;
@@ -2902,6 +2941,26 @@ export interface paths {
         head?: never;
         /** Update Customer */
         patch: operations["update_customer_api_v1_crm_customers__customer_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/customers/{customer_id}/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Customer Categories
+         * @description 整体替换客户类目集（幂等去重）。owner/admin 可操作。
+         */
+        put: operations["set_customer_categories_api_v1_crm_customers__customer_id__categories_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/crm/customers/{customer_id}/claim": {
@@ -3271,6 +3330,30 @@ export interface paths {
         head?: never;
         /** Update Rule */
         patch: operations["update_rule_api_v1_crm_rules__rule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/settings/workflow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workflow Settings
+         * @description 工作流自动化设置（7 天无跟进提醒邮件阈值/开关）。仅管理员。
+         */
+        get: operations["get_workflow_settings_api_v1_crm_settings_workflow_get"];
+        /**
+         * Update Workflow Settings
+         * @description 更新工作流自动化设置（部分更新）。仅管理员。
+         */
+        put: operations["update_workflow_settings_api_v1_crm_settings_workflow_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/crm/tasks": {
@@ -9519,7 +9602,10 @@ export interface components {
             category_keyword_en: string;
             /** Category Name Zh */
             category_name_zh: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /**
              * Marketplace
@@ -9529,17 +9615,26 @@ export interface components {
         };
         /** Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post */
         Body_import_shipment_schedule_items_csv_api_v1_shipment_schedules__schedule_id__items_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post */
         Body_import_shipment_schedules_csv_api_v1_shipment_schedules_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post */
         Body_import_sku_records_from_csv_api_v1_sku_info_import_csv_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_ad_upload_api_v1_ad_upload_recognize_post */
@@ -9549,7 +9644,10 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_recognize_report_upload_api_v1_report_upload_recognize_post */
@@ -9559,36 +9657,57 @@ export interface components {
              * @default US
              */
             country: string;
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post */
         Body_reconcile_reports_api_v1_report_reconciliation_reconcile_post: {
-            /** Excel File */
+            /**
+             * Excel File
+             * Format: binary
+             */
             excel_file: string;
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_api_v1_page_render_upload_post */
         Body_upload_api_v1_page_render_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Title */
             title?: string | null;
         };
         /** Body_upload_avatar_api_v1_system_management_profile_avatar_post */
         Body_upload_avatar_api_v1_system_management_profile_avatar_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post */
         Body_upload_exchange_rate_image_api_v1_exchange_rates_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_file_api_v1_uploads_post */
         Body_upload_file_api_v1_uploads_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** File Type */
             file_type: string;
@@ -9597,41 +9716,62 @@ export interface components {
         };
         /** Body_upload_file_for_ai_api_v1_ai_upload_post */
         Body_upload_file_for_ai_api_v1_ai_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post */
         Body_upload_fnsku_label_api_v1_sku_info__sku_record_id__fnsku_label_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post */
         Body_upload_platform_revenue_image_api_v1_platform_revenues_upload_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Project Name */
             project_name: string;
         };
         /** Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post */
         Body_upload_product_image_api_v1_sku_info__sku_record_id__product_image_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /** Body_upload_screenshot_api_v1_inspections_screenshots_upload_post */
         Body_upload_screenshot_api_v1_inspections_screenshots_upload_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
-            /** Report Id */
-            report_id?: number | null;
+            /** Report Id Form */
+            report_id_form?: number | null;
         };
         /** Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post */
         Body_upload_summary_pdf_api_v1_report_reconciliation_reports__report_id__pdf_upload_post: {
-            /** Pdf File */
+            /**
+             * Pdf File
+             * Format: binary
+             */
             pdf_file: string;
         };
         /** Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post */
         Body_upload_transaction_csv_api_v1_report_reconciliation_reports__report_id__csv_upload_post: {
-            /** Csv File */
+            /**
+             * Csv File
+             * Format: binary
+             */
             csv_file: string;
         };
         /** CSVUploadResponse */
@@ -9733,6 +9873,46 @@ export interface components {
             warehouse_entry_date?: string | null;
             /** Weighted Dms */
             weighted_dms?: number | null;
+        };
+        /**
+         * CategoryBrief
+         * @description P6b 客户身上携带的类目摘要。
+         */
+        CategoryBrief: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /** CategoryCreate */
+        CategoryCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /**
+         * CategoryItem
+         * @description P6b 产品类目词表项。
+         */
+        CategoryItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
         };
         /** CategoryResearchActionRecommendation */
         CategoryResearchActionRecommendation: {
@@ -10563,6 +10743,13 @@ export interface components {
             /** Points */
             points: components["schemas"]["CategoryResearchTrendPoint"][];
         };
+        /** CategoryUpdate */
+        CategoryUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
         /** ClearCacheResponse */
         ClearCacheResponse: {
             /** Deleted Count */
@@ -11129,6 +11316,17 @@ export interface components {
             }[];
             source: components["schemas"]["AnalysisSourceFileItem"];
         };
+        /**
+         * CustomerCategoriesUpdate
+         * @description P6b 整体替换客户类目集。
+         */
+        CustomerCategoriesUpdate: {
+            /**
+             * Category Ids
+             * @default []
+             */
+            category_ids: number[];
+        };
         /** CustomerCreate */
         CustomerCreate: {
             /** Address */
@@ -11196,6 +11394,11 @@ export interface components {
             address?: string | null;
             /** Annual Revenue */
             annual_revenue?: number | null;
+            /**
+             * Categories
+             * @default []
+             */
+            categories: components["schemas"]["CategoryBrief"][];
             /** Contact Email */
             contact_email?: string | null;
             /** Contact Name */
@@ -12139,7 +12342,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "customer" | "lead" | "opportunity";
+            entity_type: "customer" | "lead";
             /** Next Follow At */
             next_follow_at?: string | null;
             /**
@@ -19759,10 +19962,6 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -20174,6 +20373,32 @@ export interface components {
             week_end_date: string;
             /** Week Start Date */
             week_start_date: string;
+        };
+        /**
+         * WorkflowSettings
+         * @description P9 工作流自动化设置（7 天无跟进提醒邮件）。
+         */
+        WorkflowSettings: {
+            /**
+             * Stale Days
+             * @default 7
+             */
+            stale_days: number;
+            /**
+             * Stale Email Enabled
+             * @default true
+             */
+            stale_email_enabled: boolean;
+        };
+        /**
+         * WorkflowSettingsUpdate
+         * @description 部分更新：只传需要改的字段。
+         */
+        WorkflowSettingsUpdate: {
+            /** Stale Days */
+            stale_days?: number | null;
+            /** Stale Email Enabled */
+            stale_email_enabled?: boolean | null;
         };
         /** TaskListResponse */
         app__schemas__crm__TaskListResponse: {
@@ -26583,6 +26808,155 @@ export interface operations {
             };
         };
     };
+    list_categories_api_v1_crm_categories_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_category_api_v1_crm_categories_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_category_api_v1_crm_categories__category_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_category_api_v1_crm_categories__category_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                category_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_contact_api_v1_crm_contacts__contact_id__delete: {
         parameters: {
             query?: {
@@ -26985,6 +27359,48 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CustomerUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_customer_categories_api_v1_crm_customers__customer_id__categories_put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerCategoriesUpdate"];
             };
         };
         responses: {
@@ -28008,6 +28424,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workflow_settings_api_v1_crm_settings_workflow_get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_workflow_settings_api_v1_crm_settings_workflow_put: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowSettings"];
                 };
             };
             /** @description Validation Error */
