@@ -6,11 +6,12 @@
  * @author: @kokonutui — https://kokonutui.com — https://github.com/kokonut-labs/kokonutui
  * @license: MIT（保留原作者署名）
  *
- * 布局（BLF-595 回归原参考设计）：
+ * 布局（BLF-595 回归原参考设计 + 后续调整）：
  * 原版 kokonutui apple-activity-card 是 Apple Watch 式同心圆——一个圈里 3 个嵌套环
  * （200/160/120 三层），右侧分别列出 3 个指标的情况与说明。本组件恢复该合并式布局：
  * - 左侧：单一圆形容器内绝对居中叠放 3 个同心圆环（外→内 = 指标 1 → 指标 3）；
- * - 右侧：3 个指标块，各含 指标名 / 大号百分比 / 主说明 / 次要说明（note）。
+ * - 右侧：3 个指标块（指标名 / 大号百分比 / 主说明 / 次要说明 note），桌面端
+ *   3 列横排（充分利用屏幕宽度），手机端单列堆叠。
  *
  * 相对原版（apple-activity-card.tsx）的改动（BLF-535 + BLF-595）：
  * - 数据驱动：原组件硬编码 MOVE/EXERCISE/STAND 三条数据，改为 props 注入；
@@ -140,7 +141,7 @@ type GoalProgressRingsProps = {
 
 /**
  * 合并式三环进度：左侧一个圆内嵌套 3 个同心环，右侧 3 个指标块
- * （指标名 / 大号百分比 / 说明）。桌面横排、手机端上下堆叠。
+ * （指标名 / 大号百分比 / 说明）。桌面横排（右侧 3 列）、手机端上下堆叠。
  */
 export function GoalProgressRings({ items, className }: GoalProgressRingsProps) {
   const reduce = useReducedMotion()
@@ -179,8 +180,8 @@ export function GoalProgressRings({ items, className }: GoalProgressRingsProps) 
         ))}
       </motion.div>
 
-      {/* 右侧：3 个指标情况与说明 */}
-      <div className="flex w-full min-w-0 flex-col gap-4 sm:w-auto sm:flex-1">
+      {/* 右侧：3 个指标情况与说明（BLF-595 调整：桌面 3 列横排，充分利用宽度） */}
+      <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-5">
         {ringItems.map((item, index) => {
           const over = item.value >= 1
           return (

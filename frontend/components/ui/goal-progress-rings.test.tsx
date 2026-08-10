@@ -109,7 +109,7 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
     expect(screen.getByText('线性预估，仅供参考')).toBeInTheDocument()
   })
 
-  it('合并式布局：一个圆形容器内嵌套 3 个同心环，右侧为指标说明', () => {
+  it('合并式布局：一个圆形容器内嵌套 3 个同心环，右侧为指标说明（桌面 3 列横排）', () => {
     const { container } = render(<GoalProgressRings items={ITEMS} />)
     // 左侧圆形容器：唯一一个带 data-testid 的容器
     const ringsContainer = screen.getByTestId('goal-rings-concentric')
@@ -123,6 +123,18 @@ describe('GoalProgressRings 渲染（BLF-595 合并式三环）', () => {
     expect(screen.getByText('截止今日完成率')).toBeInTheDocument()
     expect(screen.getByText('实际月度进度')).toBeInTheDocument()
     expect(screen.getByText('预估月度完成率')).toBeInTheDocument()
+  })
+
+  it('右侧指标块桌面端为 3 列横排（BLF-595 调整），手机端单列', () => {
+    const { container } = render(<GoalProgressRings items={ITEMS} />)
+    // 指标说明网格：grid + 移动端 1 列 + sm 起 3 列
+    const grid = container.querySelector('.grid')
+    expect(grid).not.toBeNull()
+    expect(grid!.className).toContain('grid-cols-1')
+    expect(grid!.className).toContain('sm:grid-cols-3')
+    // 3 个指标块是网格的直接子项（横向三列布局）
+    const directChildren = Array.from(grid!.children)
+    expect(directChildren.length).toBe(3)
   })
 
   it('每个环带 aria-label（可访问性）', () => {
