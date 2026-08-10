@@ -1231,7 +1231,7 @@ export default function AutoUploadPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 overflow-auto pb-2 sm:gap-6 sm:overflow-hidden">
-      {/* 页面头部（BLF-505：收口为 PageHeader 原语 §8.1） */}
+      {/* 页面头部（eyebrow-only：BLF-493 头部冗余精简，保留 pill icon + 文字） */}
       <PageHeader
         eyebrow={
           <>
@@ -1239,8 +1239,6 @@ export default function AutoUploadPage() {
             报表 · 自动上传
           </>
         }
-        title="自动上传"
-        description="将亚马逊后台报表文件识别后自动上传到后端，并查看 RPA 上传任务状态。"
       />
 
       {/* Tab switcher */}
