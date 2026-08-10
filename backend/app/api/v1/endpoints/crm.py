@@ -1549,6 +1549,7 @@ def update_workflow_settings(
         stale_days=row.stale_days, stale_email_enabled=row.stale_email_enabled
     )
 
+
 # ---------- P6b 产品类目 ----------
 @router.get("/categories", response_model=list[CategoryItem])
 def list_categories(db: Session = Depends(get_read_db_session)):
@@ -1677,3 +1678,6 @@ def set_customer_categories(
     )
     db.commit()
     item = customer_service.get_customer(db, customer_id)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="客户不存在")
+    return item
