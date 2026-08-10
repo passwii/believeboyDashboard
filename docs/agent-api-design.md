@@ -378,9 +378,9 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | 老路径 (`/external`) | 新路径 (`/agent`) | 状态 |
 |---|---|---|
 | `/external/projects` | `/agent/projects` | v1 双挂（project_scope 过滤列表） |
-| `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | v1 双挂 |
-| `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | v1 双挂 |
-| `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | v1 双挂 |
+| `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | **已原生化（BLF-580 样板）**：agent/ad_campaigns.py 原生 3 路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
+| `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | **已原生化（BLF-580 样板）**（同上） |
+| `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | **已原生化（BLF-580 样板）**（同上） |
 | `/external/projects/{project_id}/ad-search-terms` | `/agent/projects/{project_id}/ad-search-terms` | v1 双挂 |
 | `/external/projects/{project_id}/ad-search-terms-raw` | `/agent/projects/{project_id}/ad-search-terms-raw` | v1 双挂 |
 | `/external/projects/{project_id}/ad-search-term-raw` | `/agent/projects/{project_id}/ad-search-term-raw` | v1 双挂 |

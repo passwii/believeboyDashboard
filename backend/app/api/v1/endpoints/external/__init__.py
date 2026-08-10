@@ -9,7 +9,6 @@ Endpoint layout:
   GET  /external/projects
 
   # Aggregated row endpoints (default; do NOT include ``raw_row`` JSON).
-  GET  /external/projects/{id}/ad-campaigns
   GET  /external/projects/{id}/ad-search-terms
   GET  /external/projects/{id}/ad-budgets
   GET  /external/projects/{id}/ad-targets
@@ -47,7 +46,6 @@ from app.api.external_security import (
 )
 
 from app.api.v1.endpoints.external.ad_budgets import router as ad_budgets_router
-from app.api.v1.endpoints.external.ad_campaigns import router as ad_campaigns_router
 from app.api.v1.endpoints.external.ad_invalid_traffic import (
     router as ad_invalid_traffic_router,
 )
@@ -104,7 +102,6 @@ external_router = APIRouter(
 )
 
 external_router.include_router(projects_router)
-external_router.include_router(ad_campaigns_router)
 external_router.include_router(ad_search_terms_router)
 external_router.include_router(ad_budgets_router)
 external_router.include_router(ad_targets_router)

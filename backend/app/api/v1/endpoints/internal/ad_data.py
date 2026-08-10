@@ -23,7 +23,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session, protected
-from app.api.v1.endpoints.external import ad_campaigns, ad_budgets, ad_targets
+from app.api.v1.endpoints.agent.ad_campaigns import get_ad_campaign_raw_bare
+from app.api.v1.endpoints.external import ad_budgets, ad_targets
 from app.api.v1.endpoints.external import (
     ad_invalid_traffic,
     ad_placements,
@@ -131,7 +132,7 @@ def _wrap_raw_handler(endpoint: Callable, *, name: str) -> Callable:
 
 
 _RAW_HANDLERS: dict[str, Callable] = {
-    "ad-campaigns": ad_campaigns.get_external_ad_campaign_raw,
+    "ad-campaigns": get_ad_campaign_raw_bare,
     "ad-search-terms": ad_search_terms.get_external_ad_search_term_raw,
     "ad-budgets": ad_budgets.get_external_ad_budget_raw,
     "ad-targets": ad_targets.get_external_ad_target_raw,

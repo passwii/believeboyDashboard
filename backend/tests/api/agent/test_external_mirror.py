@@ -42,7 +42,6 @@ def _headers(key: dict, agent_id: str | None = None) -> dict:
 # 代表各域：广告 10 表（aggregate）、主数据 / 业务分析、库存分类账、退货、
 # 店铺测算历史 / 快照、定价快照。
 _MIRROR_PATHS = [
-    "/external/projects/{pid}/ad-campaigns",
     "/external/projects/{pid}/ad-search-terms",
     "/external/projects/{pid}/ad-budgets",
     "/external/projects/{pid}/ad-targets",
@@ -66,8 +65,6 @@ _MIRROR_PATHS = [
     "/external/projects/{pid}/shop-calculation-history",
     "/external/projects/{pid}/shop-calculation/snapshots",
     "/external/projects/{pid}/pricing-snapshots",
-    "/external/projects/{pid}/ad-campaigns-raw",
-    "/external/projects/{pid}/ad-campaign-raw",
     "/external/projects/{pid}/ad-search-terms-raw",
     "/external/projects/{pid}/ad-search-term-raw",
     "/external/projects/{pid}/ad-budgets-raw",
@@ -89,7 +86,6 @@ _MIRROR_PATHS = [
 
 # 各路由最小合法查询参数（inventory-ledger 必需 ?period=；ad 需要 country）。
 _QUERY_PARAMS = {
-    "ad-campaigns": "?period=7d&country=US",
     "ad-search-terms": "?period=7d&country=US",
     "ad-budgets": "?period=7d&country=US",
     "ad-targets": "?period=7d&country=US",
@@ -99,7 +95,6 @@ _QUERY_PARAMS = {
     "ad-search-term-shares": "?period=7d&country=US",
     "ad-invalid-traffic": "?period=7d&country=US",
     "ad-purchased-products": "?period=7d&country=US",
-    "ad-campaigns-raw": "?period=7d&country=US",
     "ad-search-terms-raw": "?period=7d&country=US",
     "ad-budgets-raw": "?period=7d&country=US",
     "ad-targets-raw": "?period=7d&country=US",
@@ -139,7 +134,6 @@ def _query_for(path: str) -> str:
             return qs
     # 单数 alias：ad-campaign-raw → ad-campaigns-raw 的参数
     alias_map = {
-        "ad-campaign-raw": "ad-campaigns-raw",
         "ad-search-term-raw": "ad-search-terms-raw",
         "ad-budget-raw": "ad-budgets-raw",
         "ad-target-raw": "ad-targets-raw",
@@ -249,6 +243,8 @@ def test_all_external_get_routes_have_agent_mirror():
         "/external/projects/{project_id}/replenishment-analysis",
         # BLF-563 拓展：external orders/summary 端点模块已删除
         # （agent/sales.py 原生 sales/summary 全量覆盖），无镜像路径。
+        # BLF-580：external ad_campaigns 端点模块已删除（agent/ad_campaigns.py
+        # 原生 3 路由全量覆盖），无镜像路径。
     }
     for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):
