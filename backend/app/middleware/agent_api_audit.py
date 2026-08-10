@@ -39,12 +39,16 @@ AUDITED_PREFIXES = ("/api/v1/agent/",)
 # 否则规划中域的读访问会全落「其他」。新增业务域时同步维护本表。
 AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/new-product-calculations", "new_product_calculations"),
-    ("/pricing-snapshots", "new_product_calculations"),
+    # BLF-582：定价快照 = 店铺测算目录冻结 → 归 shop_calculations 域（原映射
+    # 陈旧的 new_product_calculations 已修正）。
+    ("/pricing-snapshots", "shop_calculations"),
     ("/shop-calculation", "shop_calculations"),
     ("/return-analysis", "return_analysis"),
     ("/replenishment-analysis", "inventory_ledger"),
     ("/inventory-ledger", "inventory_ledger"),
-    ("/sku-info", "inventory_ledger"),
+    # BLF-582：sku-info 已原生化收口进 sku_info 域（原映射 inventory_ledger
+    # 已修正）。
+    ("/sku-info", "sku_info"),
     # BLF-569：销售数据域（路径 orders/summary → sales/summary，域 code
     # orders → sales）。v3 下线（BLF-571，2026-08-10）后旧路径 /orders/ 已移除。
     ("/sales/", "sales"),

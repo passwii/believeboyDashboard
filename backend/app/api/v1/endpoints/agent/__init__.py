@@ -25,6 +25,13 @@ from app.api.v1.endpoints.agent.replenishment_analysis import (
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
+from app.api.v1.endpoints.agent.projects import projects_router
+from app.api.v1.endpoints.agent.sku_info import sku_info_router
+from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
+from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
+from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
+    pricing_snapshots_router,
+)
 
 # BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
 from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
@@ -158,6 +165,39 @@ agent_router.include_router(
 agent_router.include_router(
     ad_purchased_products_router,
     dependencies=[Depends(require_business_scope("ad_analysis"))],
+)
+# 项目列表域（BLF-582 原生化）：1 条读路由，无 project_id → 不挂
+# project_scope；**无 business_scope 门禁**——跨域基础设施端点（所有 agent
+# 域靠它做「名字 → ID」解析）。scope 过滤在 handler 内按 key 的 project_scope 做。
+agent_router.include_router(projects_router)
+# SKU Info 主数据域（BLF-582 原生化；设计对齐 BLF-579 spec §4 R1）：1 条
+# 读路由（R1 列表），挂 business_scope("sku_info")（BLF-579 spec §3 D1）。
+# R2/R3/W1-W3 在 BLF-579 S2 实施。必须插在兜底路由之前。
+agent_router.include_router(
+    sku_info_router,
+    dependencies=[Depends(require_business_scope("sku_info"))],
+)
+# 库存台账域（BLF-582 原生化）：10 条纯读路由，挂 business_scope(
+# "inventory_ledger")（前端 agent-domains.ts 注册表已有 live 条目）。与
+# BLF-478 agent/inventory.py（当前库存快照，scope inventory）路径与定位均
+# 独立。必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    inventory_ledger_router,
+    dependencies=[Depends(require_business_scope("inventory_ledger"))],
+)
+# 店铺测算历史/快照读路由（BLF-582 原生化）：2 条 BI 扁平契约路由，挂与原生
+# shop-calculations 域**同一个** business_scope("shop_calculations")——同域
+# 不同契约独立保留（边界结论见 agent/shop_calculation.py 模块 docstring）。
+agent_router.include_router(
+    shop_calculation_router,
+    dependencies=[Depends(require_business_scope("shop_calculations"))],
+)
+# 定价快照域（BLF-582 原生化）：1 条读路由（目录冻结 as-of），挂既有
+# business_scope("shop_calculations")（定价快照 = 店铺测算目录冻结，不新增
+# 孤儿域 code；边界结论见 agent/pricing_calculation_snapshots.py docstring）。
+agent_router.include_router(
+    pricing_snapshots_router,
+    dependencies=[Depends(require_business_scope("shop_calculations"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。

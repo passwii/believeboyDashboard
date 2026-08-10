@@ -39,43 +39,14 @@ def _headers(key: dict, agent_id: str | None = None) -> dict:
 
 
 # 每条镜像路由对应 external 原路径（相对 /api/v1 前缀），用于双通道比对。
-# 代表各域：主数据 / 业务分析、库存分类账、退货、店铺测算历史 / 快照、定价快照。
-# BLF-581：9 个 ad 域（budgets/targets/placements/promoted/time_trends/search_terms/
-# shares/invalid/purchased）已原生化 → 镜像路径全部移除，见各自 test_ad_*.py。
-_MIRROR_PATHS = [
-    "/external/projects/{pid}/sku-info",
-    "/external/projects/{pid}/inventory-ledger/months",
-    "/external/projects/{pid}/inventory-ledger/snapshot",
-    "/external/projects/{pid}/inventory-ledger/events",
-    "/external/projects/{pid}/inventory-ledger/receipt-clusters",
-    "/external/projects/{pid}/inventory-ledger/integrity",
-    "/external/projects/{pid}/inventory-ledger/trend",
-    "/external/projects/{pid}/inventory-ledger/detail",
-    "/external/projects/{pid}/inventory-ledger/summary",
-    "/external/projects/{pid}/inventory-ledger/batches",
-    "/external/projects/{pid}/inventory-ledger/consistency",
-    "/external/projects/{pid}/shop-calculation-history",
-    "/external/projects/{pid}/shop-calculation/snapshots",
-    "/external/projects/{pid}/pricing-snapshots",
-]
+# BLF-581：9 个 ad 域已原生化 → 镜像路径移除；
+# BLF-582：非 ad 域 5 域（projects 列表 / sku_info / inventory_ledger 10 条 /
+# shop_calculation 2 条 / pricing-snapshots）已原生化 → 镜像路径全部移除。
+# 至此 external 全部 GET 读路由均已原生化，镜像为空（仍保留映射完整性断言）。
+_MIRROR_PATHS: list[str] = []
 
-# 各路由最小合法查询参数（inventory-ledger 必需 ?period=）。
-_QUERY_PARAMS = {
-    "shop-calculation-history": "?country=US",
-    "shop-calculation/snapshots": "?country=US",
-    "inventory-ledger/months": "",
-    "inventory-ledger/snapshot": "?period=last_month",
-    "inventory-ledger/events": "?period=last_month",
-    "inventory-ledger/receipt-clusters": "?period=last_month",
-    "inventory-ledger/integrity": "?period=last_month",
-    "inventory-ledger/trend": "?months=6",
-    "inventory-ledger/detail": "?period=last_month",
-    "inventory-ledger/summary": "?period=last_month",
-    "inventory-ledger/batches": "?limit=50",
-    "inventory-ledger/consistency": "?period=last_month",
-    "sku-info": "",
-    "pricing-snapshots": "?country=US",
-}
+# 各路由最小合法查询参数（已无镜像路径，保留空 dict 结构防 _query_for 回归）。
+_QUERY_PARAMS: dict[str, str] = {}
 
 _AD_ALIAS_SUFFIXES = ("-raw",)  # 单数 alias 路径同参数。
 
@@ -186,6 +157,9 @@ def test_all_external_get_routes_have_agent_mirror():
         # 原生 3 路由全量覆盖），无镜像路径。
         # BLF-581：external 其余 9 个 ad 域端点模块已删除（agent/ad_*.py 原生
         # 26 条路由全量覆盖），无镜像路径。
+        # BLF-582：非 ad 域 5 域端点模块已删除（projects 列表 / sku_info /
+        # inventory_ledger 10 条 / shop_calculation 2 条 / pricing-snapshots），
+        # agent 原生路由全量覆盖，无镜像路径。
     }
     for ext_path, route in _iter_external_apiroutes():
         if "GET" not in (route.methods or set()):
@@ -415,7 +389,7 @@ def test_agent_projects_list_filtered_by_name(client, make_api_key):
 
 def test_agent_mirror_404_project_shell(client, mirror_env):
     resp = client.get(
-        "/api/v1/agent/projects/99999999/sku-info",
+        "/api/v1/agent/projects/99999999/ad-search-terms?period=7d&country=US",
         headers=mirror_env["headers"],
     )
     assert resp.status_code == 404

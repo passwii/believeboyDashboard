@@ -6,11 +6,6 @@ and ``backend/docs/external-api.md`` for the full design.
 
 Endpoint layout:
 
-  GET  /external/projects
-
-  # Master-data endpoints (no period / aggregation).
-  GET  /external/projects/{id}/sku-info
-
   # Inventory & replenishment analysis.
   GET  /external/projects/{id}/replenishment-analysis
 
@@ -19,10 +14,13 @@ Endpoint layout:
   GET  /external/projects/{id}/return-analysis-raw
 
   # Shop / new-product calculation (BEL-378 / BEL-416).
-  GET  /external/projects/{id}/shop-calculation-history
-  GET  /external/projects/{id}/shop-calculation/snapshots
   GET  /external/projects/{id}/new-product-calculations
-  GET  /external/projects/{id}/pricing-snapshots
+
+  # 其余原 external 读路由已全部原生化收口进 agent 原生域：
+  #  - ad 9 域（BLF-580 样板 + BLF-581）
+  #  - projects 列表 / sku_info / inventory_ledger / shop_calculation /
+  #    pricing_snapshots（BLF-582）
+  # 对应端点模块已删除，见各 agent/*.py 模块 docstring。
 """
 
 from __future__ import annotations
@@ -34,26 +32,15 @@ from app.api.external_security import (
     require_external_rate_limit,
 )
 
-from app.api.v1.endpoints.external.projects import router as projects_router
 from app.api.v1.endpoints.external.replenishment_analysis import (
     router as replenishment_analysis_router,
 )
 from app.api.v1.endpoints.external.return_analysis import (
     router as return_analysis_router,
 )
-from app.api.v1.endpoints.external.inventory_ledger import (
-    router as inventory_ledger_router,
-)
 from app.api.v1.endpoints.external.new_product_calculations import (
     router as new_product_calculations_router,
 )
-from app.api.v1.endpoints.external.pricing_calculation_snapshots import (
-    router as pricing_calculation_snapshots_router,
-)
-from app.api.v1.endpoints.external.shop_calculation import (
-    router as shop_calculation_router,
-)
-from app.api.v1.endpoints.external.sku_info import router as sku_info_router
 
 
 # BEL-377 (P1): application-layer auth + rate limiting now guard the whole
@@ -71,13 +58,8 @@ external_router = APIRouter(
     ],
 )
 
-external_router.include_router(projects_router)
 external_router.include_router(replenishment_analysis_router)
-external_router.include_router(sku_info_router)
-external_router.include_router(inventory_ledger_router)
 external_router.include_router(return_analysis_router)
-# BEL-378 / BEL-416: shop-calculation current state + time-series +
-# pricing-snapshot as-of + new-product-calculations.
-external_router.include_router(shop_calculation_router)
-external_router.include_router(pricing_calculation_snapshots_router)
+# BEL-378 / BEL-416: new-product-calculations（其余 shop-calculation /
+# pricing-snapshots 已 BLF-582 原生化收口进 agent 原生域，端点模块已删除）。
 external_router.include_router(new_product_calculations_router)

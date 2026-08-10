@@ -1,11 +1,12 @@
-"""Shared helpers for the inventory-ledger internal + external endpoints.
+"""Shared helpers for the inventory-ledger internal + agent endpoints.
 
 Extracted during the BEL-370 P1 #4 work (``?period=`` syntax unification) so
 the same period-input resolution logic is used by both
-``app/api/v1/endpoints/inventory_ledger.py`` and
-``app/api/v1/endpoints/external/inventory_ledger.py``.
+``app/api/v1/endpoints/inventory_ledger.py`` and the agent native
+``app/api/v1/endpoints/agent/inventory_ledger.py`` (BLF-582 原生化后，
+external/inventory_ledger.py 端点模块已删除，镜像收口进 agent 原生域).
 
-Keeping these in their own module avoids the internal↔external cross-import
+Keeping these in their own module avoids the internal↔endpoint cross-import
 smell that would result from one endpoint file importing the other.
 """
 

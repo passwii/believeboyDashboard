@@ -377,7 +377,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 | 老路径 (`/external`) | 新路径 (`/agent`) | 状态 |
 |---|---|---|
-| `/external/projects` | `/agent/projects` | v1 双挂（project_scope 过滤列表） |
+| `/external/projects` | `/agent/projects` | **已原生化（BLF-582）**：agent/projects.py 原生 1 路由，无 business_scope 门禁（跨域基础设施端点）；?status=/?name= + 按 key 的 project_scope 过滤；external 端点模块已删除 |
 | `/external/projects/{project_id}/ad-campaigns` | `/agent/projects/{project_id}/ad-campaigns` | **已原生化（BLF-580 样板）**：agent/ad_campaigns.py 原生 3 路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
 | `/external/projects/{project_id}/ad-campaigns-raw` | `/agent/projects/{project_id}/ad-campaigns-raw` | **已原生化（BLF-580 样板）**（同上） |
 | `/external/projects/{project_id}/ad-campaign-raw` | `/agent/projects/{project_id}/ad-campaign-raw` | **已原生化（BLF-580 样板）**（同上） |
@@ -409,22 +409,22 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | **已原生化（BLF-581）**：agent/ad_*.py 原生路由（aggregate + raw + raw 单数 alias），挂 business_scope("ad_analysis")；external 端点模块已删除（schemas/service 保留给 agent + internal/ad-data 复用） |
 | `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**；**BLF-563 拓展（2026-08-10）删除 external 端点模块**（agent 侧仅 `/sales/summary`，schemas/service 保留给 agent 复用） |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
-| `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/snapshot` | `/agent/projects/{project_id}/inventory-ledger/snapshot` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/events` | `/agent/projects/{project_id}/inventory-ledger/events` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/receipt-clusters` | `/agent/projects/{project_id}/inventory-ledger/receipt-clusters` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/integrity` | `/agent/projects/{project_id}/inventory-ledger/integrity` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/trend` | `/agent/projects/{project_id}/inventory-ledger/trend` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/detail` | `/agent/projects/{project_id}/inventory-ledger/detail` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/summary` | `/agent/projects/{project_id}/inventory-ledger/summary` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/batches` | `/agent/projects/{project_id}/inventory-ledger/batches` | v1 双挂 |
-| `/external/projects/{project_id}/inventory-ledger/consistency` | `/agent/projects/{project_id}/inventory-ledger/consistency` | v1 双挂 |
+| `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | **已原生化（BLF-582）**：agent/sku_info.py R1 列表（设计对齐 BLF-579 spec §4 R1，挂 business_scope("sku_info")）；R2/R3/W1-W3 在 BLF-579 S2 实施；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/snapshot` | `/agent/projects/{project_id}/inventory-ledger/snapshot` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/events` | `/agent/projects/{project_id}/inventory-ledger/events` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/receipt-clusters` | `/agent/projects/{project_id}/inventory-ledger/receipt-clusters` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/integrity` | `/agent/projects/{project_id}/inventory-ledger/integrity` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/trend` | `/agent/projects/{project_id}/inventory-ledger/trend` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/detail` | `/agent/projects/{project_id}/inventory-ledger/detail` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/summary` | `/agent/projects/{project_id}/inventory-ledger/summary` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/batches` | `/agent/projects/{project_id}/inventory-ledger/batches` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
+| `/external/projects/{project_id}/inventory-ledger/consistency` | `/agent/projects/{project_id}/inventory-ledger/consistency` | **已原生化（BLF-582）**：agent/inventory_ledger.py 10 条原生路由（挂 business_scope("inventory_ledger")，与 BLF-478 当前库存快照域独立）；external 端点模块已删除 |
 | `/external/projects/{project_id}/return-analysis` | `/agent/projects/{project_id}/return-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/return-analysis-raw` | `/agent/projects/{project_id}/return-analysis-raw` | v1 双挂 |
-| `/external/projects/{project_id}/shop-calculation-history` | `/agent/projects/{project_id}/shop-calculation-history` | v1 双挂 |
-| `/external/projects/{project_id}/shop-calculation/snapshots` | `/agent/projects/{project_id}/shop-calculation/snapshots` | v1 双挂 |
-| `/external/projects/{project_id}/pricing-snapshots` | `/agent/projects/{project_id}/pricing-snapshots` | v1 双挂 |
+| `/external/projects/{project_id}/shop-calculation-history` | `/agent/projects/{project_id}/shop-calculation-history` | **已原生化（BLF-582）**：agent/shop_calculation.py 2 条 BI 扁平契约路由，挂与原生 shop-calculations 域同一 business_scope("shop_calculations")（同域不同契约独立保留）；external 端点模块已删除 |
+| `/external/projects/{project_id}/shop-calculation/snapshots` | `/agent/projects/{project_id}/shop-calculation/snapshots` | **已原生化（BLF-582）**（同上，append-only 时间序列） |
+| `/external/projects/{project_id}/pricing-snapshots` | `/agent/projects/{project_id}/pricing-snapshots` | **已原生化（BLF-582）**：agent/pricing_calculation_snapshots.py 1 条读路由（目录冻结 as-of），挂既有 business_scope("shop_calculations")（定价快照=店铺测算目录冻结，不新增孤儿域 code）；external 端点模块已删除 |
 | `/external/projects/{project_id}/new-product-calculations` | `/agent/projects/{project_id}/new-product-calculations` | 已原生迁移（BLF-457 agent R1 同路径） |
 
 ---
