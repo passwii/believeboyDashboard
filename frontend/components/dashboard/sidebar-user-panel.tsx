@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes'
 import {
   Bell,
   Check,
+  ChevronRight,
   KeyRound,
   LogOut,
   Monitor,
@@ -67,6 +68,11 @@ function getRoleLabel(roleType: string | undefined): string | null {
  * - 不订阅 usePathname()：本面板内容（用户信息、主题、退出登录）与路由无关。
  * - 揭幕动画：纯 CSS（globals.css .sidebar-panel-reveal，opacity + translateY），
  *   零 JS 动画运行时；分区跟随面板一起出现，与标准案例一致。
+ *
+ * 设计（BLF-608）：账户视图顶部为渐变身份卡（蓝→靛蓝 wash + 装饰辉光 +
+ *   环形方形头像 + 主色角色徽章），分区标题改为「标签 + 发丝分割线」，
+ *   主题切换升级为分段控件（当前段抬起），操作行图标 hover 变主色、
+ *   链接行右缘 chevron 提示、退出登录用红色危险态。全部纯 CSS 过渡，零 JS 动画。
  */
 export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   user,
@@ -85,9 +91,8 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   const closeNotifications = React.useCallback(() => setView('account'), [])
 
   return (
-    <div
+    <section
       id="sidebar-user-panel"
-      role="region"
       aria-label="账户子菜单"
       className="sidebar-panel-shell sidebar-panel-reveal relative z-20 flex h-screen w-[240px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))]"
       onMouseDown={(e) => e.stopPropagation()}
@@ -132,53 +137,59 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
         </div>
       </div>
 
-      {/* Body — 信息卡 + 主题 + 操作 / 通知列表（BLF-603 视图切换） */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      {/* Body — 身份卡 + 主题 + 操作 / 通知列表（BLF-603 视图切换） */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
         {view === 'notifications' ? (
           <NotificationListView onBack={closeNotifications} onNavigateClose={onClose} />
         ) : (
-          <>
-            {/* 用户信息卡 */}
-            <div className="flex items-center gap-3">
-              <Avatar className="h-14 w-14 rounded-md shrink-0">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85">
-                  {user.name?.[0]?.toUpperCase() ?? 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
-                <span className="truncate text-base font-semibold text-sidebar-foreground">
-                  {user.name}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                {roleLabel ? (
-                  <span className="mt-1 inline-flex w-fit items-center rounded-full border border-sidebar-foreground/10 bg-sidebar-foreground/[0.04] px-1.5 py-0.5 text-[0.65rem] font-medium text-sidebar-foreground/70">
-                    {roleLabel}
+          <div className="flex flex-col gap-4">
+            {/* 身份卡（BLF-608）：蓝→靛蓝渐变 wash + 右上角装饰辉光 + 环形方形头像，
+                与 rail 底部 user chip 同一身份色语言；角色徽章用主色浅底 + 圆点。 */}
+            <div className="relative overflow-hidden rounded-[0.85rem] border border-blue-200/60 bg-gradient-to-br from-blue-50/90 via-transparent to-indigo-100/60 p-3.5 dark:border-blue-800/30 dark:from-blue-950/40 dark:via-transparent dark:to-indigo-950/40">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-7 -top-9 h-24 w-24 rounded-full bg-blue-500/15 blur-2xl dark:bg-blue-400/15"
+              />
+              <div className="relative flex items-center gap-3">
+                <Avatar className="h-14 w-14 shrink-0 rounded-[0.85rem] shadow-[0_2px_10px_rgba(59,130,246,0.16)] ring-2 ring-white/80 dark:ring-white/10">
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarFallback className="rounded-[0.85rem] bg-gradient-to-br from-blue-400 to-indigo-500 text-[1.05rem] font-semibold tracking-tight text-white dark:from-blue-500 dark:to-indigo-600">
+                    {user.name?.[0]?.toUpperCase() ?? 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="grid min-w-0 flex-1 text-left">
+                  <span className="truncate text-[1.02rem] font-semibold tracking-tight text-sidebar-foreground">
+                    {user.name}
                   </span>
-                ) : null}
+                  <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                  {roleLabel ? (
+                    <span className="mt-1.5 inline-flex w-fit items-center gap-1.5 rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-0.5 text-[0.65rem] font-semibold text-blue-700 dark:border-blue-400/25 dark:bg-blue-400/15 dark:text-blue-300">
+                      <span aria-hidden className="h-1 w-1 rounded-full bg-current opacity-70" />
+                      {roleLabel}
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
 
-            <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
-
-            {/* 主题切换 */}
-            <div>
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+            {/* 主题 */}
+            <section aria-label="主题设置">
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
                   主题
                 </span>
+                <span aria-hidden className="h-px flex-1 bg-[hsl(var(--sidebar-foreground)/0.08)]" />
               </div>
               <ThemeSwitcher />
-            </div>
-
-            <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
+            </section>
 
             {/* 账户操作 */}
-            <div>
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+            <section aria-label="账户操作">
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
                   账户
                 </span>
+                <span aria-hidden className="h-px flex-1 bg-[hsl(var(--sidebar-foreground)/0.08)]" />
               </div>
               <nav className="flex flex-col gap-0.5" aria-label="账户操作">
                 {/* 通知入口（BLF-603）：原正文右上角浮动铃铛迁移至此 */}
@@ -188,7 +199,7 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
                   aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
                   className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
-                  <Bell className="h-4 w-4 shrink-0 text-primary" />
+                  <Bell className="h-4 w-4 shrink-0 text-sidebar-foreground/55 transition-colors group-hover/link:text-primary" />
                   <span className="min-w-0 flex-1 truncate">通知</span>
                   {unreadCount > 0 && (
                     <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[0.65rem] font-semibold leading-none text-primary-foreground">
@@ -201,40 +212,46 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
                   onClick={onClose}
                   className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
-                  <UserCog className="h-4 w-4 shrink-0 text-primary" />
+                  <UserCog className="h-4 w-4 shrink-0 text-sidebar-foreground/55 transition-colors group-hover/link:text-primary" />
                   <span className="min-w-0 flex-1 truncate">个人资料</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/25 transition-all duration-200 group-hover/link:translate-x-0.5 group-hover/link:text-sidebar-foreground/50" />
                 </RouteLoadingLink>
                 <RouteLoadingLink
                   href="/dashboard/change-password"
                   onClick={onClose}
                   className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
-                  <KeyRound className="h-4 w-4 shrink-0 text-primary" />
+                  <KeyRound className="h-4 w-4 shrink-0 text-sidebar-foreground/55 transition-colors group-hover/link:text-primary" />
                   <span className="min-w-0 flex-1 truncate">修改密码</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/25 transition-all duration-200 group-hover/link:translate-x-0.5 group-hover/link:text-sidebar-foreground/50" />
                 </RouteLoadingLink>
+
+                <div aria-hidden className="my-1 h-px bg-[hsl(var(--sidebar-foreground)/0.08)]" />
+
                 <button
                   type="button"
                   onClick={() => {
                     onClose()
                     onLogout()
                   }}
-                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-red-500/[0.06] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/30"
                 >
-                  <LogOut className="h-4 w-4 shrink-0 text-primary" />
+                  <LogOut className="h-4 w-4 shrink-0 text-red-500/60 transition-colors group-hover/link:text-red-500" />
                   <span className="min-w-0 flex-1 truncate">退出登录</span>
                 </button>
               </nav>
-            </div>
-          </>
+            </section>
+          </div>
         )}
       </div>
-    </div>
+    </section>
   )
 })
 
 /**
- * 主题切换：3 按钮并排（浅色 / 深色 / 跟随系统），当前主题高亮。
- * 高度 10 与 SidebarPanel 的 sub items 同款（h-10），视觉对齐。
+ * 主题切换：3 按钮分段控件（浅色 / 深色 / 跟随系统），当前主题高亮。
+ * BLF-608：升级为分段控件——容器内凹边框 + 当前段抬起（bg 面板色 + 轻阴影），
+ * 视觉上更像一个完整的 control，而不是三个平铺按钮。
  */
 function ThemeSwitcher() {
   const { theme, setTheme } = useTheme()
@@ -249,7 +266,10 @@ function ThemeSwitcher() {
   ]
 
   return (
-    <div className="grid grid-cols-3 gap-1" role="group" aria-label="主题切换">
+    <fieldset
+      className="m-0 grid grid-cols-3 gap-0.5 rounded-[0.7rem] border border-[hsl(var(--sidebar-foreground)/0.08)] bg-[hsl(var(--sidebar-foreground)/0.04)] p-0.5"
+      aria-label="主题切换"
+    >
       {options.map(({ value, label, icon: Icon }) => {
         const active = currentTheme === value
         return (
@@ -261,9 +281,9 @@ function ThemeSwitcher() {
             aria-pressed={active}
             title={label}
             className={cn(
-              'flex h-10 flex-col items-center justify-center gap-0.5 rounded-[0.6rem] text-[0.72rem] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+              'flex h-9 flex-col items-center justify-center gap-0.5 rounded-[0.55rem] text-[0.7rem] font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
               active
-                ? 'bg-[hsl(var(--sidebar-foreground)/0.08)] text-sidebar-foreground'
+                ? 'bg-[hsl(var(--sidebar-background))] text-sidebar-foreground shadow-[0_1px_2px_rgba(2,6,16,0.08)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.45)]'
                 : 'text-sidebar-foreground/55 hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground/85'
             )}
           >
@@ -275,6 +295,6 @@ function ThemeSwitcher() {
           </button>
         )
       })}
-    </div>
+    </fieldset>
   )
 }
