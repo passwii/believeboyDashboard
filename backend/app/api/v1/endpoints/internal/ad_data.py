@@ -23,17 +23,24 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_read_db_session, protected
+from app.api.v1.endpoints.agent.ad_budgets import get_ad_budget_raw_bare
 from app.api.v1.endpoints.agent.ad_campaigns import get_ad_campaign_raw_bare
-from app.api.v1.endpoints.external import ad_budgets, ad_targets
-from app.api.v1.endpoints.external import (
-    ad_invalid_traffic,
-    ad_placements,
-    ad_promoted_products,
-    ad_purchased_products,
-    ad_search_term_shares,
-    ad_search_terms,
-    ad_time_trends,
+from app.api.v1.endpoints.agent.ad_invalid_traffic import (
+    get_ad_invalid_traffic_raw_bare,
 )
+from app.api.v1.endpoints.agent.ad_placements import get_ad_placement_raw_bare
+from app.api.v1.endpoints.agent.ad_promoted_products import (
+    get_ad_promoted_product_raw_bare,
+)
+from app.api.v1.endpoints.agent.ad_purchased_products import (
+    get_ad_purchased_product_raw_bare,
+)
+from app.api.v1.endpoints.agent.ad_search_term_shares import (
+    get_ad_search_term_share_raw_bare,
+)
+from app.api.v1.endpoints.agent.ad_search_terms import get_ad_search_term_raw_bare
+from app.api.v1.endpoints.agent.ad_targets import get_ad_target_raw_bare
+from app.api.v1.endpoints.agent.ad_time_trends import get_ad_time_trend_raw_bare
 from app.models.ad_upload import AdUploadFile
 from app.schemas.external.ad_upload_files import AdUploadFileItem
 from app.services.external import ad_rows_query, projects_query
@@ -133,15 +140,15 @@ def _wrap_raw_handler(endpoint: Callable, *, name: str) -> Callable:
 
 _RAW_HANDLERS: dict[str, Callable] = {
     "ad-campaigns": get_ad_campaign_raw_bare,
-    "ad-search-terms": ad_search_terms.get_external_ad_search_term_raw,
-    "ad-budgets": ad_budgets.get_external_ad_budget_raw,
-    "ad-targets": ad_targets.get_external_ad_target_raw,
-    "ad-placements": ad_placements.get_external_ad_placement_raw,
-    "ad-promoted-products": ad_promoted_products.get_external_ad_promoted_product_raw,
-    "ad-time-trends": ad_time_trends.get_external_ad_time_trend_raw,
-    "ad-search-term-shares": ad_search_term_shares.get_external_ad_search_term_share_raw,
-    "ad-invalid-traffic": ad_invalid_traffic.get_external_ad_invalid_traffic_raw,
-    "ad-purchased-products": ad_purchased_products.get_external_ad_purchased_product_raw,
+    "ad-search-terms": get_ad_search_term_raw_bare,
+    "ad-budgets": get_ad_budget_raw_bare,
+    "ad-targets": get_ad_target_raw_bare,
+    "ad-placements": get_ad_placement_raw_bare,
+    "ad-promoted-products": get_ad_promoted_product_raw_bare,
+    "ad-time-trends": get_ad_time_trend_raw_bare,
+    "ad-search-term-shares": get_ad_search_term_share_raw_bare,
+    "ad-invalid-traffic": get_ad_invalid_traffic_raw_bare,
+    "ad-purchased-products": get_ad_purchased_product_raw_bare,
 }
 
 for _endpoint, _handler in _RAW_HANDLERS.items():

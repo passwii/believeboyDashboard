@@ -489,9 +489,20 @@ def test_business_scope_key_is_ad_analysis():
     # frontend agent-domains.ts 注册表的既有 code（后端侧无注册表，
     # 依赖字符串在 require_business_scope 调用点）。此处保证原生路由
     # 确实挂在 agent_router 之下（非被兜底吞掉）。
+    #
+    # FastAPI 版本差异：>=0.13x 的 include_router 把子路由包成
+    # _IncludedRouter（真实 APIRoute 在 original_router.routes 里且
+    # path 不含 /agent 前缀），<0.13x 直接拍平——两种形状都遍历。
+    def _iter_routes(routes):
+        for r in routes:
+            yield r
+            inner = getattr(r, "original_router", None)
+            if inner is not None:
+                yield from _iter_routes(getattr(inner, "routes", []))
+
     ad_campaign_routes = [
         r
-        for r in agent_router.routes
-        if getattr(r, "path", "") == "/agent/projects/{project_id}/ad-campaigns"
+        for r in _iter_routes(agent_router.routes)
+        if getattr(r, "path", "") == "/projects/{project_id}/ad-campaigns"
     ]
     assert len(ad_campaign_routes) == 1
