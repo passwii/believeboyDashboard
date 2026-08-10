@@ -212,9 +212,15 @@ class TestAgentSummaryEndpoint:
         res = client.get(self._url(project.id))
         assert res.status_code == 401
 
-    def test_empty_period_400(self, client: TestClient, project: Project):
+    def test_empty_period_400(
+        self, client: TestClient, db_session: Session, project: Project
+    ):
         from app.services.agent import key_service
 
+        # 项目 fixture 默认只 flush 不 commit；本路由原生化后（BLF-582）对
+        # 不存在的项目返回 404（项目存在性检查），先 commit 保证项目真实存在
+        # （否则 400 语义被 404 覆盖）。
+        db_session.commit()
         db = SessionLocal()
         try:
             _, plaintext = key_service.create_api_key(
