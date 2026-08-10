@@ -47,7 +47,7 @@ import { CrmFollowUpBadge } from '@/components/crm/follow-up-badge'
 /**
  * Sidebar 两层结构的唯一数据权威。
  *
- * 外层分组由 SIDEBAR_TOP_GROUPS 定义（9 个顶级分类）。
+ * 外层分组由 SIDEBAR_TOP_GROUPS 定义（8 个顶级分类）。
  * 二级菜单项硬编码在每组的 items 中。
  *派生组件（pin-settings、search-command、新 sidebar）全部从本文件派生。
  *
@@ -123,7 +123,7 @@ const IconMap = {
   Wrench,
 }
 
-// =========================== 9 个外层分组 ===========================
+// =========================== 8 个外层分组 ===========================
 
 const NEUTRAL_ACCENT = 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-[#b0b0b0]'
 const NEUTRAL_ACTIVE = 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]'
@@ -169,7 +169,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 2. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 平台巡检
+  // 2. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 平台巡检 / 供应链（商品 / 库存 / 履约）
   {
     id: 'operations',
     label: '运营',
@@ -185,6 +185,18 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
       { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
       { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
+      // 供应链原分类（商品 / 库存 / 履约）已并入运营
+      { title: '按周产品分析', url: '/dashboard/supply-chain/weekly-product-analysis', icon: IconMap.BarChart3 },
+      { title: '组合分析', url: '/dashboard/supply-chain/portfolio-overview', icon: IconMap.Layers },
+      { title: 'SKU 信息', url: '/dashboard/supply-chain/sku-info', icon: IconMap.FileBarChart },
+      { title: '补货分析', url: '/dashboard/supply-chain/inventory-replenishment', icon: IconMap.Repeat2 },
+      { title: '库存分类账', url: '/dashboard/supply-chain/inventory-ledger', icon: IconMap.ClipboardCheck },
+      {
+        title: '季节性补货分析',
+        url: '/dashboard/supply-chain/seasonal-replenishment',
+        icon: IconMap.CalendarRange,
+      },
+      { title: '发货管理', url: '/dashboard/supply-chain/shipment-management', icon: IconMap.Package },
     ],
   },
 
@@ -226,29 +238,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 5. 商品供应链（所有角色）—— 商品 / 库存 / 履约
-  {
-    id: 'supply-chain',
-    label: '商品供应链',
-    icon: IconMap.Package,
-    accent: NEUTRAL_ACCENT,
-    activeAccent: NEUTRAL_ACTIVE,
-    items: [
-      { title: '按周产品分析', url: '/dashboard/supply-chain/weekly-product-analysis', icon: IconMap.BarChart3 },
-      { title: '组合分析', url: '/dashboard/supply-chain/portfolio-overview', icon: IconMap.Layers },
-      { title: 'SKU 信息', url: '/dashboard/supply-chain/sku-info', icon: IconMap.FileBarChart },
-      { title: '补货分析', url: '/dashboard/supply-chain/inventory-replenishment', icon: IconMap.Repeat2 },
-      { title: '库存分类账', url: '/dashboard/supply-chain/inventory-ledger', icon: IconMap.ClipboardCheck },
-      {
-        title: '季节性补货分析',
-        url: '/dashboard/supply-chain/seasonal-replenishment',
-        icon: IconMap.CalendarRange,
-      },
-      { title: '发货管理', url: '/dashboard/supply-chain/shipment-management', icon: IconMap.Package },
-    ],
-  },
-
-  // 6. AI 智能（所有角色）—— 含数字员工
+  // 5. AI 智能（所有角色）—— 含数字员工
   {
     id: 'ai',
     label: 'AI 智能',
@@ -276,7 +266,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 7. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
+  // 6. CRM 客户与合作伙伴（所有角色）—— 开发(CRM) + 合作维护(招商)
   {
     id: 'crm',
     label: 'CRM 客户与合作伙伴',
@@ -325,7 +315,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 8. 工具箱（所有角色）
+  // 7. 工具箱（所有角色）
   {
     id: 'tools',
     label: '工具箱',
@@ -338,7 +328,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
     ],
   },
 
-  // 9. 系统管理（所有角色可见；细粒度权限由单页权限接管）
+  // 8. 系统管理（所有角色可见；细粒度权限由单页权限接管）
   {
     id: 'system',
     label: '系统管理',
