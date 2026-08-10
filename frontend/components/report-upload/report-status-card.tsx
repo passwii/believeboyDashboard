@@ -137,7 +137,7 @@ export function ReportStatusCard({
               >
                 <CircleHelp className="h-4 w-4" />
               </button>
-              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-md border border-border/80 bg-popover px-3 py-1.5 text-xs leading-5 text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-border/95 dark:bg-[hsl(var(--surface-panel))]">
+              <div className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-max max-w-[220px] -translate-x-1/2 rounded-md border border-border/80 bg-popover px-3 py-1.5 text-xs leading-5 text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-border/95 u-floating-glass">
                 {config.subtitle}
               </div>
             </div>
