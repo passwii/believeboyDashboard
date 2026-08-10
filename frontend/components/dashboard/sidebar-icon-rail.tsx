@@ -22,6 +22,11 @@ interface SidebarIconRailProps {
    */
   onHoverEnterByGroupId: Record<string, () => void>
   onUserHoverEnter: () => void
+  /**
+   * 是否有未读服务端通知（BLF-603）：通知入口迁入 profile 面板后，未读信号
+   * 平时不可见，在底部 user chip 头像上加小红点补偿可发现性。
+   */
+  hasUnread: boolean
   user: {
     name: string
     email: string
@@ -100,11 +105,13 @@ const UserChip = React.memo(
     user,
     isActive,
     isPinned,
+    hasUnread,
     onHoverEnter,
   }: {
     user: SidebarIconRailProps['user']
     isActive: boolean
     isPinned: boolean
+    hasUnread: boolean
     onHoverEnter: () => void
   }) {
     const fallback = React.useMemo(() => {
@@ -119,10 +126,10 @@ const UserChip = React.memo(
         data-active={isActive}
         data-pinned={isPinned}
         onMouseEnter={onHoverEnter}
-        aria-label={`${user.name}，悬停查看账户信息`}
+        aria-label={`${user.name}${hasUnread ? '，有未读通知' : ''}，悬停查看账户信息`}
         aria-expanded={isActive}
         aria-controls="sidebar-user-panel"
-        title={`${user.name} · 账户`}
+        title={`${user.name} · 账户${hasUnread ? ' · 有未读通知' : ''}`}
         className={cn(
           'group/icon flex h-11 w-11 shrink-0 items-center justify-center rounded-[0.85rem] border border-blue-200/60 dark:border-blue-800/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 ease-out',
           'hover:scale-[1.04] hover:shadow-md hover:border-blue-300/80 dark:hover:border-blue-700/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
@@ -131,12 +138,20 @@ const UserChip = React.memo(
             'ring-2 ring-primary/30 transition-[transform,opacity,background-color] duration-200 ease-[cubic-bezier(0.22,1.18,0.36,1)]'
         )}
       >
-        <Avatar className="h-7 w-7">
-          <AvatarImage src={user.avatar} alt={user.name} />
-          <AvatarFallback className="bg-gradient-to-br from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-600 text-[0.85rem] font-semibold tracking-tight text-white shadow-sm">
-            {fallback}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative">
+          <Avatar className="h-7 w-7">
+            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarFallback className="bg-gradient-to-br from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-600 text-[0.85rem] font-semibold tracking-tight text-white shadow-sm">
+              {fallback}
+            </AvatarFallback>
+          </Avatar>
+          {hasUnread && (
+            <span
+              aria-hidden
+              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[hsl(var(--sidebar-background))]"
+            />
+          )}
+        </span>
       </button>
     )
   },
@@ -144,6 +159,7 @@ const UserChip = React.memo(
     prev.user === next.user &&
     prev.isActive === next.isActive &&
     prev.isPinned === next.isPinned &&
+    prev.hasUnread === next.hasUnread &&
     prev.onHoverEnter === next.onHoverEnter
 )
 
@@ -165,6 +181,7 @@ export const SidebarIconRail = React.memo(function SidebarIconRail({
   pathnameMatchByGroupId,
   onHoverEnterByGroupId,
   onUserHoverEnter,
+  hasUnread,
   user,
 }: SidebarIconRailProps) {
   return (
@@ -204,6 +221,7 @@ export const SidebarIconRail = React.memo(function SidebarIconRail({
           user={user}
           isActive={activeGroupId === 'user'}
           isPinned={pinnedGroupId === 'user'}
+          hasUnread={hasUnread}
           onHoverEnter={onUserHoverEnter}
         />
       </div>

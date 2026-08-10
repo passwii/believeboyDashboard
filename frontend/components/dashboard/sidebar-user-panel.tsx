@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useTheme } from 'next-themes'
 import {
+  Bell,
   Check,
   KeyRound,
   LogOut,
@@ -17,6 +18,8 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
+import { NotificationListView } from '@/components/notifications/notification-list-view'
+import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import { cn } from '@/lib/utils'
 
 interface SidebarUserPanelProps {
@@ -52,6 +55,13 @@ function getRoleLabel(roleType: string | undefined): string | null {
  * - Pin 按钮锁定，导航后仍开
  * - X 按钮立即关闭
  *
+ * 通知视图（BLF-603）：通知入口从正文右上角浮动铃铛迁移至此。
+ * - 账户视图的「通知」行（Bell 图标 + 未读徽标）点击后切换到通知列表视图，
+ *   列表在面板内部直接渲染（不用悬浮 Popover——portal 会逃出 sidebar 的
+ *   mouseleave 区域，导致面板关闭连带弹层消失）。
+ * - 视图切换用本地 state，面板关闭即卸载重置；Pin 固定时跨路由保留。
+ * - 未读数来自全局 ServerNotificationsProvider（layout 级 30s 轮询）。
+ *
  * 性能要点：
  * - React.memo + 默认浅比较：user / 回调引用稳定时，路由切换不会重渲染本组件。
  * - 不订阅 usePathname()：本面板内容（用户信息、主题、退出登录）与路由无关。
@@ -66,6 +76,13 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
   onLogout,
 }: SidebarUserPanelProps) {
   const roleLabel = getRoleLabel(user.roleType)
+  const { unreadCount, refresh } = useServerNotifications()
+  const [view, setView] = React.useState<'account' | 'notifications'>('account')
+  const openNotifications = React.useCallback(() => {
+    void refresh()
+    setView('notifications')
+  }, [refresh])
+  const closeNotifications = React.useCallback(() => setView('account'), [])
 
   return (
     <div
@@ -115,80 +132,101 @@ export const SidebarUserPanel = React.memo(function SidebarUserPanel({
         </div>
       </div>
 
-      {/* Body — 信息卡 + 主题 + 操作 */}
+      {/* Body — 信息卡 + 主题 + 操作 / 通知列表（BLF-603 视图切换） */}
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {/* 用户信息卡 */}
-        <div className="flex items-center gap-3">
-          <Avatar className="h-14 w-14 rounded-md shrink-0">
-            <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback className="rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85">
-              {user.name?.[0]?.toUpperCase() ?? 'U'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
-            <span className="truncate text-base font-semibold text-sidebar-foreground">
-              {user.name}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-            {roleLabel ? (
-              <span className="mt-1 inline-flex w-fit items-center rounded-full border border-sidebar-foreground/10 bg-sidebar-foreground/[0.04] px-1.5 py-0.5 text-[0.65rem] font-medium text-sidebar-foreground/70">
-                {roleLabel}
-              </span>
-            ) : null}
-          </div>
-        </div>
+        {view === 'notifications' ? (
+          <NotificationListView onBack={closeNotifications} onNavigateClose={onClose} />
+        ) : (
+          <>
+            {/* 用户信息卡 */}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-14 w-14 rounded-md shrink-0">
+                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarFallback className="rounded-md bg-[hsl(var(--sidebar-foreground)/0.06)] text-[1.05rem] font-medium tracking-tight text-sidebar-foreground/85">
+                  {user.name?.[0]?.toUpperCase() ?? 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+                <span className="truncate text-base font-semibold text-sidebar-foreground">
+                  {user.name}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                {roleLabel ? (
+                  <span className="mt-1 inline-flex w-fit items-center rounded-full border border-sidebar-foreground/10 bg-sidebar-foreground/[0.04] px-1.5 py-0.5 text-[0.65rem] font-medium text-sidebar-foreground/70">
+                    {roleLabel}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-        <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
+            <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
 
-        {/* 主题切换 */}
-        <div>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              主题
-            </span>
-          </div>
-          <ThemeSwitcher />
-        </div>
+            {/* 主题切换 */}
+            <div>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  主题
+                </span>
+              </div>
+              <ThemeSwitcher />
+            </div>
 
-        <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
+            <div className="border-t border-[hsl(var(--sidebar-border))]/60" />
 
-        {/* 账户操作 */}
-        <div>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              账户
-            </span>
-          </div>
-          <nav className="flex flex-col gap-0.5" aria-label="账户操作">
-            <RouteLoadingLink
-              href="/dashboard/profile"
-              onClick={onClose}
-              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            >
-              <UserCog className="h-4 w-4 shrink-0 text-primary" />
-              <span className="min-w-0 flex-1 truncate">个人资料</span>
-            </RouteLoadingLink>
-            <RouteLoadingLink
-              href="/dashboard/change-password"
-              onClick={onClose}
-              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            >
-              <KeyRound className="h-4 w-4 shrink-0 text-primary" />
-              <span className="min-w-0 flex-1 truncate">修改密码</span>
-            </RouteLoadingLink>
-            <button
-              type="button"
-              onClick={() => {
-                onClose()
-                onLogout()
-              }}
-              className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-            >
-              <LogOut className="h-4 w-4 shrink-0 text-primary" />
-              <span className="min-w-0 flex-1 truncate">退出登录</span>
-            </button>
-          </nav>
-        </div>
+            {/* 账户操作 */}
+            <div>
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  账户
+                </span>
+              </div>
+              <nav className="flex flex-col gap-0.5" aria-label="账户操作">
+                {/* 通知入口（BLF-603）：原正文右上角浮动铃铛迁移至此 */}
+                <button
+                  type="button"
+                  onClick={openNotifications}
+                  aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  <Bell className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">通知</span>
+                  {unreadCount > 0 && (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[0.65rem] font-semibold leading-none text-primary-foreground">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                <RouteLoadingLink
+                  href="/dashboard/profile"
+                  onClick={onClose}
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  <UserCog className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">个人资料</span>
+                </RouteLoadingLink>
+                <RouteLoadingLink
+                  href="/dashboard/change-password"
+                  onClick={onClose}
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  <KeyRound className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">修改密码</span>
+                </RouteLoadingLink>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose()
+                    onLogout()
+                  }}
+                  className="group/link flex h-10 items-center gap-2.5 rounded-[0.6rem] px-3 text-left text-[0.88rem] font-medium text-sidebar-foreground/72 transition-colors hover:bg-[hsl(var(--sidebar-foreground)/0.04)] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                  <LogOut className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">退出登录</span>
+                </button>
+              </nav>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { usePathname } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { PanelLeft } from 'lucide-react'
+import { Bell, PanelLeft } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -12,6 +12,8 @@ import { SidebarIconRail } from '@/components/dashboard/sidebar-icon-rail'
 import { SidebarPanel } from '@/components/dashboard/sidebar-panel'
 import { SidebarUserPanel } from '@/components/dashboard/sidebar-user-panel'
 import { useSidebarPanel } from '@/components/dashboard/use-sidebar-panel'
+import { NotificationListView } from '@/components/notifications/notification-list-view'
+import { useServerNotifications } from '@/components/notifications/server-notifications-context'
 import {
   SIDEBAR_TOP_GROUPS,
   findGroupByPathname,
@@ -65,6 +67,9 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
   const panelState = useSidebarPanel(pathname, findGroup)
   const { activeGroupId, pinnedGroupId, hoverEnter, clickToggle, closePanel, hoverLeave } =
     panelState
+
+  // 服务端通知全局状态（layout 级 Provider）：桌面端 user chip 未读红点 + 移动端 Sheet 入口
+  const { unreadCount, refresh } = useServerNotifications()
 
   const displayUser = React.useMemo(
     () => ({
@@ -122,6 +127,16 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
 
   // Mobile sheet open state
   const [mobileOpen, setMobileOpen] = React.useState(false)
+  // 移动端 Sheet 内通知视图开关（BLF-603）：固定铃铛移除后移动端需要入口
+  const [mobileNotifOpen, setMobileNotifOpen] = React.useState(false)
+  const handleMobileOpenChange = React.useCallback((open: boolean) => {
+    setMobileOpen(open)
+    if (!open) setMobileNotifOpen(false)
+  }, [])
+  const openMobileNotifications = React.useCallback(() => {
+    void refresh()
+    setMobileNotifOpen(true)
+  }, [refresh])
 
   return (
     <>
@@ -144,6 +159,7 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
           pathnameMatchByGroupId={pathnameMatchByGroupId}
           onHoverEnterByGroupId={onHoverEnterByGroupId}
           onUserHoverEnter={onUserHoverEnter}
+          hasUnread={unreadCount > 0}
           user={displayUser}
         />
         <div
@@ -186,7 +202,7 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
 
       {/* Mobile trigger + sheet (<md) */}
       <div className="md:hidden">
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <Sheet open={mobileOpen} onOpenChange={handleMobileOpenChange}>
           <SheetTrigger asChild>
             <Button
               variant="outline"
@@ -201,19 +217,47 @@ export function SidebarShell({ children: _children }: SidebarShellProps = {}) {
             <SheetHeader className="shrink-0 border-b border-border/60 px-4 py-3">
               <SheetTitle>导航菜单</SheetTitle>
             </SheetHeader>
-            <div
-              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-3"
-              style={{ WebkitOverflowScrolling: 'touch' }}
-            >
-              {visibleGroups.map((group) => (
-                <MobileGroupSection
-                  key={group.id}
-                  group={group}
-                  pathname={pathname}
-                  onNavigate={() => setMobileOpen(false)}
+            {mobileNotifOpen ? (
+              <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
+                <NotificationListView
+                  onBack={() => setMobileNotifOpen(false)}
+                  onNavigateClose={() => setMobileOpen(false)}
                 />
-              ))}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-3"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {visibleGroups.map((group) => (
+                    <MobileGroupSection
+                      key={group.id}
+                      group={group}
+                      pathname={pathname}
+                      onNavigate={() => setMobileOpen(false)}
+                    />
+                  ))}
+                </div>
+                {/* 通知入口（BLF-603）：移动端补入口，点击展开内嵌通知列表 */}
+                <div className="shrink-0 border-t border-border/60 px-3 py-3">
+                  <button
+                    type="button"
+                    onClick={openMobileNotifications}
+                    aria-label={`通知${unreadCount > 0 ? `，${unreadCount} 条未读` : ''}`}
+                    className="flex h-10 w-full items-center gap-2.5 rounded-[0.6rem] px-2.5 text-left text-[0.88rem] font-medium text-foreground/80 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    <Bell className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate">通知</span>
+                    {unreadCount > 0 && (
+                      <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[0.65rem] font-semibold leading-none text-primary-foreground">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </SheetContent>
         </Sheet>
       </div>
