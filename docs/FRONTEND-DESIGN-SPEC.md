@@ -389,6 +389,15 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 指标卡行 | `StatCardRow` + `Delta` | StatCard 已统一 Delta（project-goals 等存量卡自动生效） | 各页 KPI 行 |
 | 三态 | `ErrorState` + 骨架 + 空态 | — | 存量手写错误块迁移 |
 
+> **BLF-505 长尾扫尾（2026-08-10）落地记录**：
+>
+> - **PageHeader（pill 形态）已铺开**：platform-inspection、store-navigation、shipment-management、sku-info、weekly-product-analysis、portfolio-overview、alerts、agent-management、backup-management、changelog、vat-invoice、report-reconciliation、ai/ad-analysis、ai/believeboy-models、ai/digital-employees、reports/auto-upload、reports/product-analysis、profile。
+> - **FilterToolbar 已铺开**：project-goals、return-analysis、inventory-replenishment、seasonal-replenishment、weekly-product-analysis。
+> - **保留的存量变体**：① console 页头（`DataCardHeader`/`CardHeader` + `dashboard-kicker`，daily-analysis / exchange-rate / order-info / monthly-report / logs / account-management 等）为卡内 console 模式，允许并存；② `components/dashboard/console/filter-toolbar.tsx` carded 形态供 portfolio-overview；③ console-hero（icon tile + SnapshotSelector，inventory-replenishment / pricing-calculation）为跨页既定模式；④ 报表渲染页（ai/insights）与版本发布 hero（feature-updates）为刻意设计。
+> - **暗黑硬编码**：清扫 project-goals「本月」高亮行 `bg-blue-50/50` → 补 `dark:bg-blue-950/30` + `dark:text-blue-400`；cyan 自制 eyebrow 徽章（project-info / data-management / profile / change-password）→ 标准 primary pill 配方。
+> - **三态**：store-navigation 手写 spinner/错误块 → `CardListSkeleton` + `ErrorState`；weekly-product-analysis 手写错误块 → `ErrorState`。
+> - 全部 6 域批次：`pnpm lint` 0 error；`pnpm build` 通过；vitest 749 全绿；tsc 51 个既有错误与 main 基线一致 0 新增。
+
 > 后续页面打磨子 issue 以本节为验收模板：目标页面头部/筛选/指标卡/三态必须命中上表原语，否则视为未收口。
 ---
 
