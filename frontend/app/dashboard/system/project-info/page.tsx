@@ -543,7 +543,7 @@ export default function StoreInfoPage() {
               <div className="flex min-w-0 flex-col gap-1">
                 <Badge
                   variant="outline"
-                  className="w-fit rounded-md border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+                  className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
                 >
                   系统管理 · 项目资料
                 </Badge>

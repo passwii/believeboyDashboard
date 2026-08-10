@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import {
   Dialog,
   DialogContent,
@@ -508,60 +509,60 @@ export default function ProjectGoalsPage() {
         </div>
       </div>
 
-      {/* ── Filters ─────────────────────────────────────────────────────── */}
-      <div className="dashboard-surface px-4 py-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:items-center lg:gap-3">
-          <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-              <SelectValue placeholder="选择项目" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRY_OPTIONS.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y} 年
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+      {/* ── Filters（BLF-505：收口为 FilterToolbar 原语 §8.2，桌面横向 / 手机 2 列网格） ── */}
+      <FilterToolbar
+        actions={
           <Button
             variant="outline"
             size="sm"
-            className="w-full lg:w-auto"
+            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-auto dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
             onClick={() => void loadData(true)}
             disabled={loading || !selectedProjectId}
           >
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             刷新
           </Button>
-        </div>
-      </div>
+        }
+      >
+        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
+            <SelectValue placeholder="选择项目" />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={String(p.id)}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {COUNTRY_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[120px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y} 年
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterToolbar>
 
       {!selectedProjectId ? (
         <div className="dashboard-surface flex h-48 items-center justify-center text-muted-foreground">
@@ -794,11 +795,17 @@ export default function ProjectGoalsPage() {
                         return (
                           <TableRow
                             key={m.month}
-                            className={m.month === currentMonth ? 'bg-blue-50/50' : ''}
+                            className={
+                              m.month === currentMonth
+                                ? 'bg-blue-50/50 dark:bg-blue-950/30'
+                                : ''
+                            }
                           >
                             <TableCell className="font-medium">
                               {m.month === currentMonth ? (
-                                <span className="text-blue-600">{m.month_label}（本月）</span>
+                                <span className="text-blue-600 dark:text-blue-400">
+                                  {m.month_label}（本月）
+                                </span>
                               ) : (
                                 m.month_label
                               )}
@@ -900,11 +907,15 @@ export default function ProjectGoalsPage() {
                         return (
                           <TableRow
                             key={month}
-                            className={month === currentMonth ? 'bg-blue-50/50' : ''}
+                            className={
+                              month === currentMonth
+                                ? 'bg-blue-50/50 dark:bg-blue-950/30'
+                                : ''
+                            }
                           >
                             <TableCell className="font-medium">
                               {month === currentMonth ? (
-                                <span className="text-blue-600">
+                                <span className="text-blue-600 dark:text-blue-400">
                                   {selectedYear}年{MONTH_NAMES[idx]}（本月）
                                 </span>
                               ) : (

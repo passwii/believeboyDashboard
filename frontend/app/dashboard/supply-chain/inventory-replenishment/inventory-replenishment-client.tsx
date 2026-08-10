@@ -47,6 +47,7 @@ import {
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -1075,72 +1076,70 @@ export default function InventoryReplenishmentPage() {
           </div>
         </div>
 
-        {/* 筛选项 */}
-        <div className="px-4 py-3">
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
-            <div className="w-full min-w-0">
-              {projectsLoading ? (
-                <Skeleton className="h-9 w-full rounded-lg" />
-              ) : (
-                <Select
-                  value={projectId}
-                  onValueChange={(id) => {
-                    setProjectId(id)
-                    setSelectedSnapshotId(null)
-                    syncUrlParams(id, country)
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                    <SelectValue placeholder="选择项目" />
-                  </SelectTrigger>
-                  <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="w-full min-w-0">
-              <Input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索 SKU / ASIN"
-                className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-              />
-            </div>
-            <div className="w-full min-w-0">
-              <CountrySelect
-                value={country}
-                onChange={(c) => {
-                  setCountry(c)
+        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2） */}
+        <FilterToolbar>
+          <div className="w-full min-w-0">
+            {projectsLoading ? (
+              <Skeleton className="h-9 w-full rounded-lg" />
+            ) : (
+              <Select
+                value={projectId}
+                onValueChange={(id) => {
+                  setProjectId(id)
                   setSelectedSnapshotId(null)
-                  syncUrlParams(projectId, c)
+                  syncUrlParams(id, country)
                 }}
-                triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-              />
-            </div>
-            <div className="w-full min-w-0">
-              <Select value={riskFilter} onValueChange={setRiskFilter}>
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                  <SelectValue placeholder="风险状态" />
+              >
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]">
+                  <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="长期断货">长期断货</SelectItem>
-                  <SelectItem value="短期断货">短期断货</SelectItem>
-                  <SelectItem value="断货风险">断货风险</SelectItem>
-                  <SelectItem value="健康库存">健康库存</SelectItem>
-                  <SelectItem value="滞销">滞销</SelectItem>
-                  <SelectItem value="严重滞销">严重滞销</SelectItem>
-                  <SelectItem value="待补数据">待补数据</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
+            )}
           </div>
-        </div>
+          <div className="w-full min-w-0">
+            <Input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索 SKU / ASIN"
+              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]"
+            />
+          </div>
+          <div className="w-full min-w-0">
+            <CountrySelect
+              value={country}
+              onChange={(c) => {
+                setCountry(c)
+                setSelectedSnapshotId(null)
+                syncUrlParams(projectId, c)
+              }}
+              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]"
+            />
+          </div>
+          <div className="w-full min-w-0">
+            <Select value={riskFilter} onValueChange={setRiskFilter}>
+              <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[150px]">
+                <SelectValue placeholder="风险状态" />
+              </SelectTrigger>
+              <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="长期断货">长期断货</SelectItem>
+                <SelectItem value="短期断货">短期断货</SelectItem>
+                <SelectItem value="断货风险">断货风险</SelectItem>
+                <SelectItem value="健康库存">健康库存</SelectItem>
+                <SelectItem value="滞销">滞销</SelectItem>
+                <SelectItem value="严重滞销">严重滞销</SelectItem>
+                <SelectItem value="待补数据">待补数据</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </FilterToolbar>
 
         {/* 统计条 → 三段式指挥带（BLF-491） */}
         <div className="border-t border-border/70 px-4 py-3">

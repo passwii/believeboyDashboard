@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Monitor, RefreshCw, Users, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -47,48 +48,48 @@ export default function DigitalEmployeesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-200/40 dark:border-blue-800/40 shadow-sm">
-            <Users className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Operations · Digital Employees
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {runningCount > 0 && (
-            <div className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-              </span>
-              {runningCount} 个运行中
-            </div>
-          )}
-          {failedCount > 0 && (
-            <div className="flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400">
-              ⚠ {failedCount} 个异常
-            </div>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open('/dashboard/ai/digital-employees/office', '_blank')}
-            className="gap-1.5"
-          >
-            <Monitor className="h-4 w-4" />
-            全屏展示
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void mutate()} className="gap-1.5">
-            <RefreshCw className="h-4 w-4" />
-            刷新
-          </Button>
-        </div>
-      </div>
+      {/* Header（BLF-505：收口为 PageHeader 原语 §8.1） */}
+      <PageHeader
+        eyebrow={
+          <>
+            <Users className="h-3.5 w-3.5" />
+            AI · 数字员工
+          </>
+        }
+        title="数字员工"
+        description="查看与启停后台数字员工（Agent），监控运行与异常状态。"
+        actions={
+          <>
+            {runningCount > 0 && (
+              <div className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 dark:bg-blue-950 dark:text-blue-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                </span>
+                {runningCount} 个运行中
+              </div>
+            )}
+            {failedCount > 0 && (
+              <div className="flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400">
+                ⚠ {failedCount} 个异常
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open('/dashboard/ai/digital-employees/office', '_blank')}
+              className="gap-1.5"
+            >
+              <Monitor className="h-4 w-4" />
+              全屏展示
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void mutate()} className="gap-1.5">
+              <RefreshCw className="h-4 w-4" />
+              刷新
+            </Button>
+          </>
+        }
+      />
 
       {showSkeleton ? (
         <div className="space-y-4">

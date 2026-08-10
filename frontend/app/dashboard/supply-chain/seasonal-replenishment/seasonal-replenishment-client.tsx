@@ -31,6 +31,7 @@ import {
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -620,94 +621,70 @@ export default function SeasonalReplenishmentPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-end">
-            <div className="lg:col-span-3">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                项目
+        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2，去小标题标签，对齐 inventory-analysis 迁移先例） */}
+        <FilterToolbar>
+          <div className="w-full min-w-0">
+            {projectsLoading ? (
+              <Skeleton className="h-9 w-full rounded-lg" />
+            ) : (
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]">
+                  <SelectValue placeholder="选择项目" />
+                </SelectTrigger>
+                <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="w-full min-w-0">
+            <CountrySelect
+              value={country}
+              onChange={(c) => {
+                setCountry(c as 'US' | 'DE' | 'UK' | 'ALL')
+              }}
+              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]"
+            />
+          </div>
+          <div className="w-full min-w-0">
+            <DateRangePicker
+              value={dateRange}
+              onChange={(range) => {
+                setDateRange(range)
+              }}
+              className="h-9 w-full md:w-[220px]"
+              timezone={COUNTRY_TIMEZONE_MAP[country]}
+            />
+            {fromDate && toDate && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {daysSpan} 天 · {compareYear ? `同比 ${toStrMinusYear(toDate)}` : '无同比'}
+              </p>
+            )}
+          </div>
+          <div className="w-full min-w-0">
+            <Input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="搜索 SKU / ASIN"
+              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]"
+            />
+          </div>
+          <div className="w-full min-w-0">
+            <div className="flex h-9 items-center gap-2">
+              <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
+              <label
+                htmlFor="compare-yoy"
+                className="text-xs text-muted-foreground cursor-pointer"
+              >
+                去年
               </label>
-              <div className="mt-1">
-                {projectsLoading ? (
-                  <Skeleton className="h-9 w-full rounded-lg" />
-                ) : (
-                  <Select value={projectId} onValueChange={setProjectId}>
-                    <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground">
-                      <SelectValue placeholder="选择项目" />
-                    </SelectTrigger>
-                    <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={String(project.id)}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-            <div className="lg:col-span-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                国家
-              </label>
-              <div className="mt-1">
-                <CountrySelect
-                  value={country}
-                  onChange={(c) => {
-                    setCountry(c as 'US' | 'DE' | 'UK' | 'ALL')
-                  }}
-                  triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                />
-              </div>
-            </div>
-            <div className="lg:col-span-4">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                历史窗口 [from, to]
-              </label>
-              <div className="mt-1">
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={(range) => {
-                    setDateRange(range)
-                  }}
-                  className="h-9 w-full"
-                  timezone={COUNTRY_TIMEZONE_MAP[country]}
-                />
-                {fromDate && toDate && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {daysSpan} 天 · {compareYear ? `同比 ${toStrMinusYear(toDate)}` : '无同比'}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="lg:col-span-2">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                搜索 SKU / ASIN
-              </label>
-              <div className="mt-1">
-                <Input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="搜索 SKU / ASIN"
-                  className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground"
-                />
-              </div>
-            </div>
-            <div className="lg:col-span-1">
-              <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                同比开关
-              </label>
-              <div className="mt-2 flex items-center gap-2 h-9">
-                <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
-                <label
-                  htmlFor="compare-yoy"
-                  className="text-xs text-muted-foreground cursor-pointer"
-                >
-                  去年
-                </label>
-              </div>
             </div>
           </div>
-        </div>
+        </FilterToolbar>
 
         <div className="border-t border-border/70 px-4 py-3">
           {loading && rows.length === 0 ? (

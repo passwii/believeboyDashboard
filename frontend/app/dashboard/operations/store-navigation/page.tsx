@@ -1,8 +1,11 @@
 'use client'
 
-import { ArrowUpRight, Building2, ExternalLink, Loader2, Store } from 'lucide-react'
+import { ArrowUpRight, Building2, ExternalLink, Store } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { PageHeader } from '@/components/ui/page-header'
+import { ErrorState } from '@/components/ui/error-state'
+import { CardListSkeleton } from '@/components/dashboard/page-skeletons'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type StoreItem = {
@@ -116,25 +119,25 @@ export default function StoreNavigationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const fetchStores = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const data = await fetchManagedProjectsCached<StoreItem[]>(session)
+      setStores(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '未知错误')
+    } finally {
+      setLoading(false)
+    }
+  }, [session])
+
   useEffect(() => {
     if (status === 'loading') return
 
-    async function fetchStores() {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const data = await fetchManagedProjectsCached<StoreItem[]>(session)
-        setStores(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '未知错误')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStores()
-  }, [session, status])
+    void fetchStores()
+  }, [status, fetchStores])
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}`, icon: Store },
@@ -153,29 +156,31 @@ export default function StoreNavigationPage() {
   return (
     <div className="space-y-6 md:space-y-7">
       <section className="dashboard-surface px-5 py-5 md:px-7 md:py-7 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-          <div className="max-w-2xl space-y-2.5">
-            <p className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-[hsl(var(--surface-soft))]/70 px-3 py-1 text-xs font-medium tracking-wide text-muted-foreground">
-              <Store className="h-3 w-3" />
+        {/* BLF-505：页面头部收口为 PageHeader 原语（eyebrow pill 形态 + 统计 chips） */}
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <Store className="h-3.5 w-3.5" />
               运营导航 · 店铺导航
-            </p>
-            <p className="text-sm leading-6 text-muted-foreground md:text-base">
-              聚合团队所有店铺入口，可视化书签卡片，方便一键直达各店铺后台与前台页面。
-            </p>
-          </div>
-          <div className="grid w-full max-w-xs grid-cols-3 gap-2">
-            {stats.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-border/50 bg-background/50 p-3 text-center dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]/50"
-              >
-                <item.icon className="mx-auto mb-0.5 h-3.5 w-3.5 text-primary/60" />
-                <p className="text-sm font-medium leading-tight text-foreground/80">{item.value}</p>
-                <p className="text-[10px] text-muted-foreground">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+            </>
+          }
+          description="聚合团队所有店铺入口，可视化书签卡片，方便一键直达各店铺后台与前台页面。"
+          actions={
+            <div className="grid w-full max-w-xs grid-cols-3 gap-2">
+              {stats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-border/50 bg-background/50 p-3 text-center dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]/50"
+                >
+                  <item.icon className="mx-auto mb-0.5 h-3.5 w-3.5 text-primary/60" />
+                  <p className="text-sm font-medium leading-tight text-foreground/80">{item.value}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          }
+        />
       </section>
 
       <section className="space-y-3">
@@ -187,13 +192,9 @@ export default function StoreNavigationPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center rounded-2xl border border-border/50 bg-card p-12 dark:border-border/70 dark:bg-[hsl(var(--surface-panel))]">
-            <Loader2 className="h-7 w-7 animate-spin text-primary/60" />
-          </div>
+          <CardListSkeleton count={6} />
         ) : error ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-destructive/40 bg-card p-12 text-center dark:border-destructive/30 dark:bg-[hsl(var(--surface-panel))]">
-            <p className="text-sm text-destructive">{error}</p>
-          </div>
+          <ErrorState title="加载失败" message={error} onRetry={() => void fetchStores()} />
         ) : (
           <StoreGrid items={stores} />
         )}

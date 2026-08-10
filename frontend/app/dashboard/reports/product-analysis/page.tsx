@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { Calculator } from 'lucide-react'
 
+import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ManualCalculationPanel from './components/manual-calculation-panel'
 import MonthlySkuAnalysisPanel from './components/monthly-sku-analysis-panel'
@@ -15,28 +17,41 @@ export default function ProductAnalysisPage() {
   )
 
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-      className="space-y-4"
-    >
-      <TabsList>
-        <TabsTrigger value="product-analysis">产品分析核算</TabsTrigger>
-        <TabsTrigger value="manual">手动核算</TabsTrigger>
-        <TabsTrigger value="monthly-sku">月度 SKU 分析</TabsTrigger>
-      </TabsList>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow={
+          <>
+            <Calculator className="h-3.5 w-3.5" />
+            报表 · 产品分析
+          </>
+        }
+        title="产品分析"
+        description="按产品维度核算利润与定价，支持手动核算与月度 SKU 分析。"
+      />
 
-      <TabsContent value="product-analysis" className="space-y-0">
-        <ProductAnalysisPanel session={session} />
-      </TabsContent>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        className="space-y-4"
+      >
+        <TabsList>
+          <TabsTrigger value="product-analysis">产品分析核算</TabsTrigger>
+          <TabsTrigger value="manual">手动核算</TabsTrigger>
+          <TabsTrigger value="monthly-sku">月度 SKU 分析</TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="manual" className="space-y-0">
-        <ManualCalculationPanel />
-      </TabsContent>
+        <TabsContent value="product-analysis" className="space-y-0">
+          <ProductAnalysisPanel session={session} />
+        </TabsContent>
 
-      <TabsContent value="monthly-sku" className="space-y-0">
-        <MonthlySkuAnalysisPanel />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="manual" className="space-y-0">
+          <ManualCalculationPanel />
+        </TabsContent>
+
+        <TabsContent value="monthly-sku" className="space-y-0">
+          <MonthlySkuAnalysisPanel />
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }

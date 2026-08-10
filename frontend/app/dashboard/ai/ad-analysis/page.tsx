@@ -17,6 +17,7 @@ import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Tabs,
   TabsContent,
@@ -280,17 +281,17 @@ export default function AdAnalysisPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('history')
 
   return (
-    <div className="space-y-6 px-2 py-2 md:px-4 md:py-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold tracking-tight">AI 广告分析</h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 +
-          广告投放双专家，自主分析并给出可执行的调整建议。
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow={
+          <>
+            <Sparkles className="h-3.5 w-3.5" />
+            AI · 广告分析
+          </>
+        }
+        title="AI 广告分析"
+        description="基于 10 种广告报表 + 销售 + 库存，由 AI 扮演亚马逊运营 + 广告投放双专家，自主分析并给出可执行的调整建议。"
+      />
 
       <Tabs
         value={activeTab}

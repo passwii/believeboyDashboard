@@ -9,6 +9,9 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 
 import { Button } from '@/components/ui/button'
+import { ErrorState } from '@/components/ui/error-state'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { PageHeader } from '@/components/ui/page-header'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   ChartContainer,
@@ -1722,18 +1725,19 @@ export default function WeeklyProductAnalysisPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 max-w-2xl space-y-2.5">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-            <ShoppingCart className="h-3.5 w-3.5" />
-            供应链 · 每周商品分析
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">每周商品分析</h1>
-          <p className="text-sm leading-6 text-muted-foreground md:text-base">
-            按周聚合商品销售 / 广告 / 库存表现，对比上周与四周均值，定位增长与风险 SKU。
-          </p>
-        </div>
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <ShoppingCart className="h-3.5 w-3.5" />
+              供应链 · 每周商品分析
+            </>
+          }
+          title="每周商品分析"
+          description="按周聚合商品销售 / 广告 / 库存表现，对比上周与四周均值，定位增长与风险 SKU。"
+        />
       </section>
 
       {/* 控制台 — dashboard-surface 承载（去除 FilterField 标签，对齐 MOBILE 规则 9） */}
@@ -1741,7 +1745,7 @@ export default function WeeklyProductAnalysisPage() {
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 md:px-6">
           <h2 className="text-sm font-semibold">控制台</h2>
         </div>
-        <div className="dashboard-toolbar flex flex-col gap-3 rounded-lg px-4 py-4 border-0 shadow-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        <FilterToolbar className="border-0 shadow-none rounded-lg">
           {projectsLoading ? (
             <WeeklyFilterSkeleton width="min-w-[180px]" />
           ) : (
@@ -1782,20 +1786,16 @@ export default function WeeklyProductAnalysisPage() {
             variant="outline"
             className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-auto"
           />
-        </div>
+        </FilterToolbar>
 
         {projectLoadError ? (
           <div className="border-t border-border/70 px-6 pb-4 pt-2">
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {projectLoadError}
-            </div>
+            <ErrorState title="项目加载失败" message={projectLoadError} className="py-4" />
           </div>
         ) : null}
         {error ? (
           <div className="border-t border-border/70 px-6 pb-4 pt-2">
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
+            <ErrorState title="数据加载失败" message={error} className="py-4" />
           </div>
         ) : null}
       </div>

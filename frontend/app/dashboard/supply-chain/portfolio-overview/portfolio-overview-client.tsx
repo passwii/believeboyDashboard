@@ -10,6 +10,7 @@ import { PortfolioFilters } from '@/components/dashboard/portfolio/portfolio-fil
 import { PortfolioKPICards } from '@/components/dashboard/portfolio/portfolio-kpi-cards'
 import { PortfolioComparisonTable } from '@/components/dashboard/portfolio/portfolio-comparison-table'
 import { FilterToolbar } from '@/components/dashboard/console/filter-toolbar'
+import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePortfolioData } from '@/lib/hooks/use-portfolio-data'
@@ -71,17 +72,19 @@ export default function PortfolioOverviewClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="dashboard-toolbar">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[linear-gradient(180deg,#0f527a,#1675ae)] text-white">
-            <BarChart3 className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold">组合分析</h1>
-            <p className="text-xs text-muted-foreground">跨项目 KPI 对比、趋势分析和贡献占比</p>
-          </div>
-        </div>
-      </div>
+      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <BarChart3 className="h-3.5 w-3.5" />
+              供应链 · 组合分析
+            </>
+          }
+          title="组合分析"
+          description="跨项目 KPI 对比、趋势分析和贡献占比"
+        />
+      </section>
       <FilterToolbar>
         <PortfolioFilters
           projectIds={projectIds}

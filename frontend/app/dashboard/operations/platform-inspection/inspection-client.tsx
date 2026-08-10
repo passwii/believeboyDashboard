@@ -8,6 +8,7 @@ import {
   SlidingTabsTrigger,
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
+import { PageHeader } from '@/components/ui/page-header'
 import { useNotifications } from '@/components/notifications'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
@@ -64,18 +65,19 @@ export default function InspectionClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      {/* 页面头部：eyebrow + 标题 + 描述（BLF-505：收口为 PageHeader 原语，对齐 site-navigation 试点） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 max-w-2xl space-y-2.5">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            运营 · 平台巡检
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">平台巡检</h1>
-          <p className="text-sm leading-6 text-muted-foreground md:text-base">
-            按周期对账平台运营健康度：账号健康 / 配送绩效 / 合规问题，支持截图留档与逾期提醒。
-          </p>
-        </div>
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              运营 · 平台巡检
+            </>
+          }
+          title="平台巡检"
+          description="按周期对账平台运营健康度：账号健康 / 配送绩效 / 合规问题，支持截图留档与逾期提醒。"
+        />
       </section>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

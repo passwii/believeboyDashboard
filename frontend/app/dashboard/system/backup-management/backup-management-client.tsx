@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -416,28 +417,26 @@ export function BackupManagementClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（FRONTEND-DESIGN-SPEC §4.1） ── */}
-      <section className="flex flex-wrap items-start justify-between gap-5">
-        <div className="max-w-2xl space-y-3">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
+      <PageHeader
+        eyebrow={
+          <>
             <Shield className="h-3.5 w-3.5" />
             系统管理 · 备份管理
-          </p>
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">备份管理</h1>
-            <p className="text-sm leading-6 text-muted-foreground">
-              PostgreSQL 数据库定时备份到 Cloudflare R2，支持全量 / 增量 / WAL 归档。
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setShowTriggerDialog(true)}
-          disabled={statusSummary?.is_backup_running}
-        >
-          <Database className="mr-2 h-4 w-4" />
-          {statusSummary?.is_backup_running ? '备份进行中...' : '手动备份'}
-        </Button>
-      </section>
+          </>
+        }
+        title="备份管理"
+        description="PostgreSQL 数据库定时备份到 Cloudflare R2，支持全量 / 增量 / WAL 归档。"
+        actions={
+          <Button
+            onClick={() => setShowTriggerDialog(true)}
+            disabled={statusSummary?.is_backup_running}
+          >
+            <Database className="mr-2 h-4 w-4" />
+            {statusSummary?.is_backup_running ? '备份进行中...' : '手动备份'}
+          </Button>
+        }
+      />
 
       {/* ── 备份概览 KPI（surface token 图标块 + dashboard-panel 瓦片） ── */}
       <DataCard>

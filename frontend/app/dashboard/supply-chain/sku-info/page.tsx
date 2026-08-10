@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { HoverCard } from '@/components/ui/hover-card'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { UploadZone } from '@/components/ui/upload-zone'
@@ -874,18 +875,19 @@ export default function SkuInfoPage() {
 
   return (
     <div className="w-full space-y-6 text-foreground">
-      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 max-w-2xl space-y-2.5">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-            <Package2 className="h-3.5 w-3.5" />
-            供应链 · SKU 信息管理
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">SKU 信息管理</h1>
-          <p className="text-sm leading-6 text-muted-foreground md:text-base">
-            维护产品成本 / 尺寸 / 工厂属性 / 标签 / 图片，支持批量导入与首段物流成本同步。
-          </p>
-        </div>
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <Package2 className="h-3.5 w-3.5" />
+              供应链 · SKU 信息管理
+            </>
+          }
+          title="SKU 信息管理"
+          description="维护产品成本 / 尺寸 / 工厂属性 / 标签 / 图片，支持批量导入与首段物流成本同步。"
+        />
       </section>
 
       {/* 筛选控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}

@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { FileText, Save } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useNotifications } from '@/components/notifications'
@@ -128,13 +129,11 @@ export default function VatInvoiceClient() {
   return (
     <div className="dashboard-page-shell">
       <div className="space-y-4">
-        {/* 页面 Header */}
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">VAT 发票</h1>
-          <p className="text-sm text-muted-foreground">
-            为欧洲订单生成 VAT 发票，并查看已签发/草稿/作废的发票历史。
-          </p>
-        </div>
+        {/* 页面 Header（BLF-505：收口为 PageHeader 原语 §8.1） */}
+        <PageHeader
+          title="VAT 发票"
+          description="为欧洲订单生成 VAT 发票，并查看已签发/草稿/作废的发票历史。"
+        />
 
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList>
