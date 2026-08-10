@@ -129,7 +129,38 @@ const NEUTRAL_ACCENT = 'bg-[#e5e5e5] text-[#404040] dark:bg-[#2a2a2a] dark:text-
 const NEUTRAL_ACTIVE = 'bg-[#d4d4d4] text-[#262626] dark:bg-[#383838] dark:text-[#e0e0e0]'
 
 export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
-  // 1. 报表中心（所有角色）—— 一切"产出报表 / 核算单"的入口
+  // 1. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 平台巡检 / 供应链（商品 / 库存 / 履约）
+  {
+    id: 'operations',
+    label: '运营',
+    icon: IconMap.LayoutDashboard,
+    accent: NEUTRAL_ACCENT,
+    activeAccent: NEUTRAL_ACTIVE,
+    items: [
+      { title: '站点导航', url: '/dashboard/operations/site-navigation', icon: IconMap.LayoutDashboard },
+      { title: '店铺导航', url: '/dashboard/operations/store-navigation', icon: IconMap.Store },
+      { title: '销售数据', url: '/dashboard/operations/daily-analysis', icon: IconMap.TrendingUp },
+      { title: '退货分析', url: '/dashboard/operations/return-analysis', icon: IconMap.RotateCcw },
+      { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
+      { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
+      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
+      { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
+      // 供应链原分类（商品 / 库存 / 履约）已并入运营
+      { title: '按周产品分析', url: '/dashboard/operations/weekly-product-analysis', icon: IconMap.BarChart3 },
+      { title: '组合分析', url: '/dashboard/operations/portfolio-overview', icon: IconMap.Layers },
+      { title: 'SKU 信息', url: '/dashboard/operations/sku-info', icon: IconMap.FileBarChart },
+      { title: '补货分析', url: '/dashboard/operations/inventory-replenishment', icon: IconMap.Repeat2 },
+      { title: '库存分类账', url: '/dashboard/operations/inventory-ledger', icon: IconMap.ClipboardCheck },
+      {
+        title: '季节性补货分析',
+        url: '/dashboard/operations/seasonal-replenishment',
+        icon: IconMap.CalendarRange,
+      },
+      { title: '发货管理', url: '/dashboard/operations/shipment-management', icon: IconMap.Package },
+    ],
+  },
+
+  // 2. 报表中心（所有角色）—— 一切"产出报表 / 核算单"的入口
   {
     id: 'reports',
     label: '报表中心',
@@ -166,37 +197,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       },
       { title: '报表自动化', url: '/dashboard/reports/auto-upload', icon: IconMap.Repeat2 },
       { title: '订单信息', url: '/dashboard/reports/order-info', icon: IconMap.ShoppingBag },
-    ],
-  },
-
-  // 2. 运营（所有角色）—— 站点 / 店铺 / 销售 / 退货 / 战略 / 平台巡检 / 供应链（商品 / 库存 / 履约）
-  {
-    id: 'operations',
-    label: '运营',
-    icon: IconMap.LayoutDashboard,
-    accent: NEUTRAL_ACCENT,
-    activeAccent: NEUTRAL_ACTIVE,
-    items: [
-      { title: '站点导航', url: '/dashboard/operations/site-navigation', icon: IconMap.LayoutDashboard },
-      { title: '店铺导航', url: '/dashboard/operations/store-navigation', icon: IconMap.Store },
-      { title: '销售数据', url: '/dashboard/operations/daily-analysis', icon: IconMap.TrendingUp },
-      { title: '退货分析', url: '/dashboard/operations/return-analysis', icon: IconMap.RotateCcw },
-      { title: '项目目标', url: '/dashboard/operations/project-goals', icon: IconMap.Target },
-      { title: '调研分析', url: '/dashboard/operations/research-analysis', icon: IconMap.FileSearch },
-      { title: '平台巡检', url: '/dashboard/operations/platform-inspection', icon: IconMap.Shield },
-      { title: '库存分析', url: '/dashboard/operations/inventory-analysis', icon: IconMap.Warehouse },
-      // 供应链原分类（商品 / 库存 / 履约）已并入运营
-      { title: '按周产品分析', url: '/dashboard/operations/weekly-product-analysis', icon: IconMap.BarChart3 },
-      { title: '组合分析', url: '/dashboard/operations/portfolio-overview', icon: IconMap.Layers },
-      { title: 'SKU 信息', url: '/dashboard/operations/sku-info', icon: IconMap.FileBarChart },
-      { title: '补货分析', url: '/dashboard/operations/inventory-replenishment', icon: IconMap.Repeat2 },
-      { title: '库存分类账', url: '/dashboard/operations/inventory-ledger', icon: IconMap.ClipboardCheck },
-      {
-        title: '季节性补货分析',
-        url: '/dashboard/operations/seasonal-replenishment',
-        icon: IconMap.CalendarRange,
-      },
-      { title: '发货管理', url: '/dashboard/operations/shipment-management', icon: IconMap.Package },
     ],
   },
 
