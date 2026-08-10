@@ -78,7 +78,7 @@ export default function PortfolioOverviewClient() {
           eyebrow={
             <>
               <BarChart3 className="h-3.5 w-3.5" />
-              供应链 · 组合分析
+              运营 · 组合分析
             </>
           }
           title="组合分析"

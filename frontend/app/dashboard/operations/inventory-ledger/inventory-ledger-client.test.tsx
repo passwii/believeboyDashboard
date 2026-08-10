@@ -28,7 +28,7 @@ const nav = vi.hoisted(() => {
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: nav.get, toString: nav.toString }),
-  usePathname: () => '/dashboard/supply-chain/inventory-ledger',
+  usePathname: () => '/dashboard/operations/inventory-ledger',
   useRouter: () => ({ replace: nav.replace, push: nav.replace }),
 }))
 

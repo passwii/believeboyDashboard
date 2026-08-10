@@ -5,7 +5,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout'
 
 /**
- * BEL-423 供应链+运营板块页内数据懒加载：客户端响应缓存。
+ * BEL-423 运营板块页内数据懒加载：客户端响应缓存。
  *
  * 背景（与 BEL-421 广告板块 ad-client-cache 同一思路）：
  * - 板块内的只读分析端点（daily-analysis / return-analysis / inventory-analysis /
