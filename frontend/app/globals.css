@@ -76,6 +76,20 @@
     --shadow-soft: 0 10px 30px -18px rgba(27, 39, 51, 0.16);
     --shadow-raised: 0 18px 40px -26px rgba(27, 39, 51, 0.2);
     --shadow-overlay: 0 24px 60px -28px rgba(20, 31, 44, 0.26);
+
+    /* ── Raycast 层次阴影（Level 0-5，成对 = 外阴影 + inset 配对）──────
+     * 依据 Raycast DESIGN.md §6 Depth & Elevation：阴影永远成对出现，
+     * 层次感靠结构（双环围合 / 顶内高光 / 深底内嵌）而非靠颜色。
+     * light 侧为淡灰外影 + 白色内高光的轻量配对（dark 侧重，见 .dark）。
+     * --shadow-soft/raised/overlay 保留为兼容别名（soft≈L2 下落、
+     * raised≈L2 hover、overlay≈L5 下落），存量消费方不受影响。 */
+    --glass-edge-highlight: 0.08;
+    --focus-glow: hsla(214, 89%, 43%, 0.12);
+    --shadow-level-1: 0 1px 2px rgba(27, 39, 51, 0.08), inset 0 1px 0 hsl(210 30% 100% / 0.55);
+    --shadow-level-2: 0 10px 30px -18px rgba(27, 39, 51, 0.16), inset 0 1px 0 hsl(210 30% 100% / 0.65);
+    --shadow-level-3: inset 0 1px 0 hsl(210 30% 100% / 0.85), 0 0 0 1px hsl(214 22% 84% / 0.55), inset 0 -1px 0 rgba(27, 39, 51, 0.06);
+    --shadow-level-4: 0 1.5px 0.5px 2.5px rgba(27, 39, 51, 0.22), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 -1px 2px rgba(27, 39, 51, 0.12);
+    --shadow-level-5: 0 24px 60px -28px rgba(20, 31, 44, 0.26), 0 0 0 2px rgba(255, 255, 255, 0.75), 0 0 14px hsl(214 30% 100% / 0.45), inset 0 1px 0 hsl(0 0% 100% / 0.9), inset 0 0 0 1px hsl(214 22% 84% / 0.4);
     --motion-fast: 180ms;
     --motion-base: 240ms;
     --motion-slow: 320ms;
@@ -162,6 +176,37 @@
     --shadow-soft: 0 18px 40px -24px rgba(2, 6, 16, 0.72);
     --shadow-raised: 0 24px 56px -28px rgba(2, 6, 16, 0.82);
     --shadow-overlay: 0 32px 84px -34px rgba(1, 4, 12, 0.9);
+
+    /* ── Raycast 层次阴影（dark 侧，成对 = 外阴影 + inset 配对）───────
+     * L2 Ring：顶内高光 + 全周长内描边 + soft 下落 = 双环围合（标准卡片）；
+     * L3 Button：白顶内高光 + 白 1px 外环 + 深底内嵌 = macOS 原生按压；
+     * L4 Key：5 层阴影栈 + inset 按压（键帽 / 命令面板条目）；
+     * L5 Floating：2px 深环 + 白辉光 + overlay 下落 + 玻璃边（浮层）。
+     * --glass-edge-highlight 承载顶内高光强度（.dashboard-surface 玻璃边），
+     * --focus-glow 为输入聚焦蓝辉光（Raycast hsla(202,100%,67%,0.15)）。 */
+    --glass-edge-highlight: 0.08;
+    --focus-glow: hsla(202, 100%, 67%, 0.15);
+    --shadow-level-1: 0 1.25px 2.5px rgba(2, 6, 16, 0.28), inset 0 1px 0 hsl(220 30% 100% / 0.03);
+    --shadow-level-2:
+      inset 0 1px 0 hsl(220 30% 100% / var(--glass-edge-highlight)),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
+      0 18px 40px -24px rgba(2, 6, 16, 0.72);
+    --shadow-level-3:
+      inset 0 1px 0 hsl(220 30% 100% / 0.06),
+      0 0 0 1px hsl(220 30% 100% / 0.1),
+      inset 0 -1px 0 hsl(0 0% 0% / 0.2);
+    --shadow-level-4:
+      0 1.5px 0.5px 2.5px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 hsl(220 30% 100% / 0.1),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
+      0 1px 0 hsl(220 30% 100% / 0.06);
+    --shadow-level-5:
+      0 32px 84px -34px rgba(1, 4, 12, 0.9),
+      0 0 0 2px rgba(2, 6, 16, 0.5),
+      0 0 14px hsl(220 30% 100% / 0.1),
+      inset 0 1px 0 hsl(220 30% 100% / var(--glass-edge-highlight)),
+      inset 0 0 0 1px hsl(220 30% 100% / 0.06);
   }
 
   * {
@@ -409,12 +454,9 @@
   }
 
   .dark .dashboard-surface {
-    /* 玻璃边：顶部内高光 + 全周长内描边；边框明度已上调，边界清晰可辨 */
+    /* 玻璃边：顶部内高光 + 全周长内描边（--shadow-level-2 成对阴影，BLF-573） */
     border-color: hsl(var(--border) / 0.55);
-    box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.08),
-      inset 0 0 0 1px hsl(220 30% 100% / 0.04),
-      var(--shadow-soft);
+    box-shadow: var(--shadow-level-2);
   }
 
   /*
@@ -447,10 +489,7 @@
 
   .dark .dashboard-panel {
     border-color: hsl(var(--border) / 0.6);
-    box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.07),
-      inset 0 0 0 1px hsl(220 30% 100% / 0.035),
-      var(--shadow-soft);
+    box-shadow: var(--shadow-level-2);
   }
 
   .dashboard-subtle-panel {
@@ -464,12 +503,9 @@
   }
 
   .dark .dashboard-glass {
-    /* 真玻璃：更实的不透明度保证可读性 + 顶部高光 + 1px 内描边 */
+    /* 真玻璃：更实的不透明度保证可读性 + Level 5 成对阴影（2px 深环 + 白辉光 + 玻璃边） */
     background: linear-gradient(135deg, hsl(var(--surface-overlay) / 0.9), hsl(var(--surface-overlay) / 0.8));
-    box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.1),
-      inset 0 0 0 1px hsl(220 30% 100% / 0.06),
-      var(--shadow-overlay);
+    box-shadow: var(--shadow-level-5);
     backdrop-filter: blur(18px);
   }
 
@@ -501,6 +537,16 @@
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
     border-radius: var(--radius);
+  }
+
+  /* Raycast 输入聚焦：边框变亮 + 蓝辉光（--focus-glow，BLF-573）
+   * 用法：focus-visible 时 1px ring + 4px 辉光，替代默认硬环 ring-2。
+   * 供 Stage 7-2 迁移 input/textarea 聚焦态使用。 */
+  .u-focus-glow:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 1px hsl(var(--ring)),
+      0 0 0 4px var(--focus-glow);
   }
 
   .dashboard-kicker {
@@ -545,10 +591,7 @@
 
   .dark .dashboard-toolbar {
     border-color: hsl(var(--border) / 0.6);
-    box-shadow:
-      inset 0 1px 0 hsl(220 30% 100% / 0.07),
-      inset 0 0 0 1px hsl(220 30% 100% / 0.035),
-      var(--shadow-soft);
+    box-shadow: var(--shadow-level-2);
   }
 
   .dashboard-chip {

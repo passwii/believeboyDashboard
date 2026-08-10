@@ -1,6 +1,6 @@
 # 前端设计规范（FRONTEND-DESIGN-SPEC）
 
-> **适用版本：** v1.1（BLF-497 定稿 v1.0，2026-08-07；BLF-503 增补 §8 页面模式，2026-08-08）
+> **适用版本：** v1.2（BLF-497 定稿 v1.0，2026-08-07；BLF-503 增补 §8 页面模式，2026-08-08；BLF-573 增补 §9 暗黑模式层次规范，2026-08-10）
 > **适用对象：** 在 `frontend/` 下新增 / 修改 UI 的工程师
 > **定位：** 全站前端设计的**总纲与对照基准**。所有页面打磨子 issue（BLF-498 ~ 501）以本文档为验收对照。
 > **原则：** 文档与实际代码一致（每个条目都指向真实代码位置）；可执行、不空谈。
@@ -13,7 +13,8 @@
 
 | 主题 | 文档 | 状态 |
 |---|---|---|
-| **本总纲**（设计语言 / 暗黑 / 组件 / 排版 / 移动 / 清单） | `docs/FRONTEND-DESIGN-SPEC.md`（本文件） | 权威 |
+| **本总纲**（设计语言 / 暗黑 / 组件 / 排版 / 移动 / 清单 / 层次规范） | `docs/FRONTEND-DESIGN-SPEC.md`（本文件） | 权威 |
+| 暗黑层次设计决策记录（Raycast 精髓提炼 / 采纳与不采纳） | `docs/dark-mode-depth-design-decisions.md` | 权威（BLF-573 定稿） |
 | 表格唯一配方（密度 / 对齐 / sticky / 空态） | `frontend/docs/table-spec.md` | 权威（BLF-496 定稿） |
 | 图表与图例统一（ChartContainer / 豁免表） | `docs/chart-unification-spec.md` | 权威（BLF-495 定稿） |
 | 硬编码色例外清单 + Token 红线 | `frontend/docs/design-spec.md` | 权威（§2 登记例外，本节 §2.2 转引） |
@@ -35,7 +36,7 @@
 定义于 `frontend/app/globals.css`：
 
 - **Light**（`:root`，globals.css:53-61）：`--surface-base`(210 28% 97%) → `subtle` → `panel` → `overlay` → `strong` → `soft` → `low` → `high` → `outline`。
-- **Dark**（`.dark`，globals.css:144-152）：画布 L9% → 导航壳 L12% → 内容窗 L15% → 卡片 L19% → 浮层 L22~23% → 高亮 L26% 的明度阶梯，hue≈225 保留冷调呼应品牌蓝。
+- **Dark**（`.dark`，globals.css:158-166）：画布 L9% → 导航壳 L12% → 内容窗 L15% → 卡片 L19% → 浮层 L22~23% → 高亮 L26% 的明度阶梯，hue≈225 保留冷调呼应品牌蓝。
 
 | token | 语义 | 典型用途 |
 |---|---|---|
@@ -53,35 +54,35 @@
 
 | 类 | 位置 | 用途 |
 |---|---|---|
-| `.dashboard-surface` | globals.css:405-441 | **默认卡片**：rounded-lg + border + `--shadow-soft`；dark 下叠加"玻璃边"（顶部 1px 内高光 + 全周长内描边）+ 左上品牌光晕 `::after`。**全站卡片首选**（92+ 处共用）。 |
-| `.dashboard-panel` | globals.css:443-454 | 次级面板（`--surface-soft` 底 + p-3/4），用于内嵌区块 |
-| `.dashboard-subtle-panel` | globals.css:456-458 | 最轻量面板（`--surface-subtle` 底） |
-| `.dashboard-glass` | globals.css:460-474 | 真玻璃（backdrop-blur 14~18px），仅用于**必须**玻璃质感的元素（浮层 / 导航浮窗） |
-| `.dashboard-toolbar` | globals.css:540-552 | 工具栏容器（overlay 底 + 玻璃边） |
-| `.dashboard-full-width` | globals.css:392-403 | 突破 max-width 限制（全宽表格区） |
+| `.dashboard-surface` | globals.css:450-483 | **默认卡片**：rounded-lg + border + `--shadow-soft`；dark 下叠加"玻璃边"（顶部 1px 内高光 + 全周长内描边，BLF-573 起为 `--shadow-level-2`）+ 左上品牌光晕 `::after`。**全站卡片首选**（92+ 处共用）。 |
+| `.dashboard-panel` | globals.css:485-493 | 次级面板（`--surface-soft` 底 + p-3/4），用于内嵌区块 |
+| `.dashboard-subtle-panel` | globals.css:495-497 | 最轻量面板（`--surface-subtle` 底） |
+| `.dashboard-glass` | globals.css:499-510 | 真玻璃（backdrop-blur 14~18px），仅用于**必须**玻璃质感的元素（浮层 / 导航浮窗） |
+| `.dashboard-toolbar` | globals.css:586-594 | 工具栏容器（overlay 底 + 玻璃边） |
+| `.dashboard-full-width` | globals.css:437-448 | 突破 max-width 限制（全宽表格区） |
 
-> ⚠️ `.dashboard-surface` **故意不加 backdrop-filter**（globals.css:420-433 记录了历史决策：高 DPI 屏 blur 会糊掉 1px 边框与小字号）。需要玻璃质感时显式用 `.dashboard-glass`，不要给 surface 类补 blur。
+> ⚠️ `.dashboard-surface` **故意不加 backdrop-filter**（globals.css:462-475 记录了历史决策：高 DPI 屏 blur 会糊掉 1px 边框与小字号）。需要玻璃质感时显式用 `.dashboard-glass`，不要给 surface 类补 blur。
 
 ### 1.4 色彩系统
 
 - **语义色**：`--primary`（品牌蓝 214 89% 43% / dark 222 100% 68%）、`--success`/`--warning`/`--destructive`、`--muted-foreground`（次级文字）、`--data-positive/--data-warning/--data-negative/--data-neutral`（状态数据色，见 §3.2）。
-- **图表色**：`--chart-1..7`（light: globals.css:38-44；dark: 125-131），见 §3.4 与 `docs/chart-unification-spec.md`。
+- **图表色**：`--chart-1..7`（light: globals.css:38-44；dark: 139-145），见 §3.4 与 `docs/chart-unification-spec.md`。
 - **描边**：`--stroke-soft` / `--stroke-strong`（图表 grid/线）。
 - 所有色值都是 HSL 分量，必须经 `hsl(var(--...))` 取用，保证 dark 自动切换。
 
 ### 1.5 圆角 / 阴影 / 动效
 
 - **圆角阶梯**：`--radius-xs(0.375rem) / sm(0.5rem) / md(0.625rem) / lg(0.75rem) / xl(1rem)`，`--radius` = lg（globals.css:70-75）。卡片用 lg，内嵌小块用 md/sm。
-- **阴影**：`--shadow-soft`（默认卡片）/ `--shadow-raised`（hover 浮起）/ `--shadow-overlay`（浮层）（globals.css:76-78, 162-164）。用 `hover-lift` 类切换 soft→raised。
-- **动效 token**：`--motion-fast(180ms) / base(240ms) / slow(320ms)`、缓动 `--motion-ease-out / standard`、`--stagger-step(70ms)`（globals.css:79-83）。**JS 侧必须同步** `frontend/lib/motion/tokens.ts`（`DURATION/EASE/SPRING/STAGGER`），改 CSS 必须同步 JS，反之亦然——`tokens.test.ts` 有数值断言锁契约。
-- **交互工具类**：`u-interactive`（hover 上浮 1px）、`u-press`（按压 0.97）、`u-focus`（focus ring）、`animate-enter`（入场）、`animate-float`（浮动）、`stagger-item` / `u-stagger-item`（错落入场，见 globals.css:777-792）。
+- **阴影**：兼容别名 `--shadow-soft`（默认卡片）/ `--shadow-raised`（hover 浮起）/ `--shadow-overlay`（浮层）（globals.css:76-78, 176-178）。**Raycast 成对阴影（BLF-573）**：`--shadow-level-1..5`（外阴影 + inset 配对，globals.css:80-92, 180-209），层次规范见 §9；dark 下 `.dashboard-surface` / `.dashboard-panel` / `.dashboard-toolbar` 消费 `--shadow-level-2`，`.dashboard-glass` 消费 `--shadow-level-5`。用 `hover-lift` 类切换 soft→raised。
+- **动效 token**：`--motion-fast(180ms) / base(240ms) / slow(320ms)`、缓动 `--motion-ease-out / standard`、`--stagger-step(70ms)`（globals.css:93-97）。**JS 侧必须同步** `frontend/lib/motion/tokens.ts`（`DURATION/EASE/SPRING/STAGGER`），改 CSS 必须同步 JS，反之亦然——`tokens.test.ts` 有数值断言锁契约。
+- **交互工具类**：`u-interactive`（hover 上浮 1px）、`u-press`（按压 0.97）、`u-focus`（focus ring）、`u-focus-glow`（聚焦蓝辉光，BLF-573）、`animate-enter`（入场）、`animate-float`（浮动）、`stagger-item` / `u-stagger-item`（错落入场，见 globals.css:820-837）。
 
 ### 1.6 字体与排版
 
-- **正文字体** `--font-sans`、**标题字体** `--font-display`（globals.css:204-210：h1~h4 用 display + `letter-spacing: -0.035em`）。
-- **大数字**：`.dashboard-display`（clamp 2.15~2.75rem，globals.css:510-516）。
-- **Eyebrow 小标**：`.dashboard-kicker`（`text-[0.68rem] uppercase tracking-[0.22em] text-muted-foreground`，globals.css:506-508）；pill 变体见 site-navigation（§4.1）。
-- **根字号响应式**：17px（>1440px）→ 16px（1440 以下）→ 15px（1180 以下 / iPad）→ 16px（768 以下）→ 15px（480 以下），globals.css:216-253。**不要用固定 px 字号做页面级标题缩放**，字号全部 rem。
+- **正文字体** `--font-sans`、**标题字体** `--font-display`（globals.css:249-256：h1~h4 用 display + `letter-spacing: -0.035em`）。
+- **大数字**：`.dashboard-display`（clamp 2.15~2.75rem，globals.css:556-562）。
+- **Eyebrow 小标**：`.dashboard-kicker`（`text-[0.68rem] uppercase tracking-[0.22em] text-muted-foreground`，globals.css:552-554）；pill 变体见 site-navigation（§4.1）。
+- **根字号响应式**：17px（>1440px）→ 16px（1440 以下）→ 15px（1180 以下 / iPad）→ 16px（768 以下）→ 15px（480 以下），globals.css:225-298。**不要用固定 px 字号做页面级标题缩放**，字号全部 rem。
 
 ---
 
@@ -146,7 +147,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 表头 | 原语自带 uppercase + `tracking-[0.16em]` + surface-subtle 底，**不要手写背景** | `ui/table.tsx` |
 | Sticky | 用 `STICKY_TOP_ROW` / `STICKY_LEFT_HEAD_CELL` / `STICKY_LEFT_CELL` / `STICKY_LEFT_CELL_HOVER` 常量，**禁止手写** `sticky left-0 z-30 bg-slate-100` | `ui/table.tsx` |
 | 空态 | `EmptyTableState`（`colSpan` + `message`）；图表空态 `EmptyChartState`；loading 不算空态 | `ui/empty-state.tsx` |
-| 移动端 | 容器自带 `overflow-x-auto` 横向滚动降级；关键列可加 `STICKY_LEFT_*` | globals.css:558-571 |
+| 移动端 | 容器自带 `overflow-x-auto` 横向滚动降级；关键列可加 `STICKY_LEFT_*` | globals.css:603-616 |
 
 **已退役**：旧版 `components/dashboard/data-table.tsx`（@tanstack 自研封装）已删除（BLF-496）；需要排序/分页/多选时用 `@tanstack/react-table` 直接组合 `Table` 原语 + 预设（参考 `app/dashboard/table-showcase/page.tsx` 基线），**不要恢复旧封装**。
 
@@ -207,13 +208,13 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ### 4.2 页面壳
 
-- 页面根容器：`dashboard-page-shell`（`space-y-8`，dark 下顶部品牌光晕，globals.css:518-537）或直接 `space-y-6 md:space-y-7`（site-navigation）。
-- 全宽场景：`.dashboard-full-width`（globals.css:392-403）。
+- 页面根容器：`dashboard-page-shell`（`space-y-8`，dark 下顶部品牌光晕，globals.css:564-583）或直接 `space-y-6 md:space-y-7`（site-navigation）。
+- 全宽场景：`.dashboard-full-width`（globals.css:437-448）。
 - 表格卡：`DataTableCard` / `DataTableFrame`（自带标题条 + toolbar 槽 + footer 槽）。
 
 ### 4.3 排版红线
 
-- 标题走 `--font-display`（h1~h4 自动应用，globals.css:204-210）；大数字用 `.dashboard-display`；不要用固定 px 字号。
+- 标题走 `--font-display`（h1~h4 自动应用，globals.css:249-256）；大数字用 `.dashboard-display`；不要用固定 px 字号。
 - Eyebrow 统一用 `dashboard-kicker` 或 §4.1 pill 配方，**禁止**每页自造一套小标样式。
 - 数字优先 `tabular-nums`（表格列、金额、统计卡）。
 
@@ -235,8 +236,8 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 8 | 筛选项标签内联（手机端不用 `FilterField`） | `text-[0.65rem] gap-1.5` |
 | 9 | 控制台筛选项去小标题标签 | — |
 
-**框架级兜底**（globals.css:558-571）：`<768px` 时所有 `dashboard-surface / dashboard-panel / overflow-auto` 内的 table 强制 `min-width: 600px` + 容器 `overflow-x-auto`，保证表格不塌。
-**触控滚动条**（globals.css:255-273）：`pointer: coarse` 下细滚动条 6px；`prefers-reduced-motion` / `prefers-reduced-transparency` 均有全局降级（globals.css:302-315, 574-579）。
+**框架级兜底**（globals.css:603-616）：`<768px` 时所有 `dashboard-surface / dashboard-panel / overflow-auto` 内的 table 强制 `min-width: 600px` + 容器 `overflow-x-auto`，保证表格不塌。
+**触控滚动条**（globals.css:300-318）：`pointer: coarse` 下细滚动条 6px；`prefers-reduced-motion` / `prefers-reduced-transparency` 均有全局降级（globals.css:347-361, 619-624）。
 
 ---
 
@@ -389,3 +390,64 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 三态 | `ErrorState` + 骨架 + 空态 | — | 存量手写错误块迁移 |
 
 > 后续页面打磨子 issue 以本节为验收模板：目标页面头部/筛选/指标卡/三态必须命中上表原语，否则视为未收口。
+---
+
+## 9. 暗黑模式层次规范（Raycast Depth & Elevation）
+
+> BLF-573 定稿（2026-08-10）。依据 Raycast 官方设计参考（`docs/dark-mode-depth-design-decisions.md` §1 提炼，源：Raycast DESIGN.md §6）——**阴影永远成对（外 + inset），层次感靠结构不靠颜色**。本节是权威规范，决策记录见 `docs/dark-mode-depth-design-decisions.md`，每个条目指向真实代码。
+
+### 9.1 阴影层级（Level 0-5 成对阴影）
+
+**token 定义**：`frontend/app/globals.css`——light `:root`（globals.css:80-92）+ dark `.dark`（globals.css:180-209）。
+
+| Level | token | 用途 | 结构 |
+|---|---|---|---|
+| 0 Void | — | 页面画布（`--background`） | 无阴影 |
+| 1 Subtle | `--shadow-level-1` | 内联微元素 / chip | 微小外下落 + 极淡内高光 |
+| 2 Ring | `--shadow-level-2` | **标准卡片**（`.dashboard-surface` 等） | 顶内高光 + 全周长内描边 + soft 下落 = 双环围合 |
+| 3 Button | `--shadow-level-3` | 按钮 / 按压态（macOS 原生按压） | 白顶内高光 + 白 1px 外环 + 深底内嵌 |
+| 4 Key | `--shadow-level-4` | 键帽 / 命令面板条目 | 5 层阴影栈 + inset 按压 |
+| 5 Floating | `--shadow-level-5` | 浮层 / 玻璃面板（`.dashboard-glass`） | 2px 深环 + 白辉光 + overlay 下落 + 玻璃边 |
+
+**兼容别名**：`--shadow-soft / --shadow-raised / --shadow-overlay` 保留（soft≈L2 下落、raised≈L2 hover、overlay≈L5 下落），存量消费方不受影响（tailwind.config.ts:251-259 映射 + 27 处 tsx 引用零改动）。
+
+**已落地消费**（dark 下）：`.dashboard-surface`（globals.css:456-460）、`.dashboard-panel`（:490-493）、`.dashboard-toolbar`（:592-594）→ `var(--shadow-level-2)`；`.dashboard-glass`（:505-510）→ `var(--shadow-level-5)`。Tailwind 侧 `shadow-level-1..5` 工具类可用（tailwind.config.ts:255-260）。
+
+**待铺开（Stage 7-2）**：dialog / popover / select / command 浮层的字面量 `dark:shadow-[0_24px_48px...]`（components/ui/dialog.tsx:41 / popover.tsx:26 / select.tsx:75）→ `--shadow-level-5`；按钮按压叠加 `--shadow-level-3` inset。
+
+### 9.2 边框高光（Glass Edge）
+
+- **顶内高光**：`--glass-edge-highlight`（dark 0.08，globals.css:187）——卡片顶部 1px 白高光，模拟光源在上，被 `--shadow-level-2/5` 内部引用（`hsl(220 30% 100% / var(--glass-edge-highlight))`）。
+- **全周长内描边**：1px `hsl(220 30% 100% / 0.04)`，含于 `--shadow-level-2`（globals.css:192）。
+- **标准边框**：1px `hsl(var(--border) / 0.55)`（`.dark .dashboard-surface`，globals.css:458）。
+- **hover 过渡**：Raycast 用 opacity 0.6；本项目走 `.u-interactive`（上浮 1px，globals.css:517-527）与 `.hover-lift`（translateY -2px + raised，globals.css:633-643），不换色、不叠 blur。
+
+### 9.3 输入聚焦（Focus Glow）
+
+- **token**：`--focus-glow`——light `hsla(214,89%,43%,0.12)` / dark `hsla(202,100%,67%,0.15)`（Raycast 蓝辉光原文，globals.css:87 / 188）。
+- **工具类**：`.u-focus-glow`（globals.css:542-550）——focus-visible 时 1px ring + 4px 蓝辉光，替代默认硬环 `ring-2`。
+- **现状**：`input.tsx:7` 仍用 `focus-visible:ring-2 ring-ring`；Stage 7-2 迁移为新输入组件聚焦态（迁移后本节更新状态）。
+
+### 9.4 毛玻璃使用边界（含高 DPI 约束）
+
+- **禁则**：`.dashboard-surface` / `.dashboard-panel` 一律**不加** backdrop-filter（globals.css:462-475 历史决策：曾因高 DPI 下 14px blur 糊掉 1px 边框与 12px 表头、且 92 处共用影响面过大而移除）。
+- **允许**：仅浮层 / 导航浮窗用 `.dashboard-glass`（globals.css:499-510，backdrop-blur 14~18px）；`prefers-reduced-transparency: reduce` 时 `.dark .sidebar-panel-shell` 关闭 blur（globals.css:512-514）。
+- **高 DPI 自查**：新玻璃元素须确认 blur 半径 ≤ 20px，且元素内无 1px 边框 / `text-[11px]` 级关键内容；5K/4K/Retina 截图验收。
+
+### 9.5 圆角映射（在既有 `--radius-*` 上对齐用途，不推翻）
+
+| 用途 | Raycast | 本项目 token（globals.css:70-75） | 值 |
+|---|---|---|---|
+| 微元素 / code span | 2-3px | `--radius-xs` | 0.375rem (6px) |
+| 按钮 / 徽章 | 6px | `--radius-md` | 0.625rem (10px) |
+| 输入框 | 8px | `--radius-md` | 0.625rem (10px) |
+| 标准卡 | 12px | `--radius-lg` | 0.75rem (12px) |
+| 大卡 / 浮层 | 16-20px | `--radius-xl` | 1rem (16px) |
+| pill | 86px+ | `rounded-full` | 9999px |
+
+**现状**：按钮/输入框已用 `rounded-md`（button.tsx:8 / input.tsx:7），卡片 `rounded-lg`（dashboard-surface，globals.css:451），浮层 `rounded-lg~xl`——与上表对齐，无需改动；新组件按上表取用。
+
+### 9.6 背景与材质
+
+- dark 画布：`--background: 225 12% 9%`（globals.css:118）≈ Raycast `#07080a` 蓝调近黑，**禁止纯黑 `#000`**。
+- 卡片材质：`--surface-panel: 225 12% 19%`（globals.css:160）≈ Raycast `#101111`；分层明度阶梯（画布 L9% → 导航 L12% → 内容窗 L15% → 卡片 L19% → 浮层 L22-23% → 高亮 L26%，globals.css:158-166）。
