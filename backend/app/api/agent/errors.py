@@ -34,6 +34,7 @@ class ErrorCode(str, Enum):
     # 货件域（P2）
     SHIPMENT_DUPLICATE_NO = "SHIPMENT_DUPLICATE_NO"
     SHIPMENT_ITEMS_INVALID_SKU = "SHIPMENT_ITEMS_INVALID_SKU"
+    SHIPMENT_ITEMS_MISSING_CARTON_INFO = "SHIPMENT_ITEMS_MISSING_CARTON_INFO"
     SHIPMENT_STATUS_INVALID = "SHIPMENT_STATUS_INVALID"
     # 店铺测算域（BLF-442）
     SHOP_CALCULATION_INVALID_SOURCE = "SHOP_CALCULATION_INVALID_SOURCE"
@@ -62,6 +63,7 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.CONFIRM_TOKEN_EXPIRED: 409,
     ErrorCode.SHIPMENT_DUPLICATE_NO: 409,
     ErrorCode.SHIPMENT_ITEMS_INVALID_SKU: 400,
+    ErrorCode.SHIPMENT_ITEMS_MISSING_CARTON_INFO: 400,
     ErrorCode.SHIPMENT_STATUS_INVALID: 400,
     ErrorCode.SHOP_CALCULATION_INVALID_SOURCE: 400,
     ErrorCode.SHOP_CALCULATION_INVALID_SKU: 400,
@@ -111,6 +113,10 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.SHIPMENT_ITEMS_INVALID_SKU: (
         "明细里有 SKU 在本项目不存在",
         "先核对 SKU 主数据（sku-info 相关端点），修正后重试",
+    ),
+    ErrorCode.SHIPMENT_ITEMS_MISSING_CARTON_INFO: (
+        "明细里有 SKU 未维护装箱信息（units_per_carton）",
+        "先用 sku-info 相关端点维护外箱尺寸/毛重/装箱率，修正后重试（建货件时数量 = 箱数 × 装箱率）",
     ),
     ErrorCode.SHIPMENT_STATUS_INVALID: (
         "货件状态值不合法",

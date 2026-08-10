@@ -196,24 +196,50 @@ def _validate_items_skus(
     country: str,
     normalized_items: list[dict],
 ) -> None:
-    """结构化 SKU 存在性校验（spec S6：details 逐行给出）。"""
+    """结构化 SKU 存在性 + 装箱信息前置校验（spec S6：details 逐行给出）。
+
+    BLF-604：与前端「未维护单箱数」禁用口径一致——SKU 主数据
+    ``units_per_carton <= 0`` 时拒绝建货件/替换明细，避免出现
+    「只有总数量、没有箱数/体积/重量」的货件（数量 = 箱数 × 装箱率）。
+    """
     missing = _find_missing_skus(
         db,
         project_name=project_name,
         country=country,
         skus=[str(item["sku"]) for item in normalized_items],
     )
-    if not missing:
-        return
     sku_to_row = {str(item["sku"]): int(item["row_no"]) for item in normalized_items}
-    raise AgentApiError(
-        ErrorCode.SHIPMENT_ITEMS_INVALID_SKU,
-        human_message=f"明细里有 {len(missing)} 个 SKU 在本项目不存在",
-        details=[
-            {"row": sku_to_row[sku], "sku": sku, "reason": "not_found"}
-            for sku in missing
-        ],
-    )
+    if missing:
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_ITEMS_INVALID_SKU,
+            human_message=f"明细里有 {len(missing)} 个 SKU 在本项目不存在",
+            details=[
+                {"row": sku_to_row[sku], "sku": sku, "reason": "not_found"}
+                for sku in missing
+            ],
+        )
+
+    # BLF-604：装箱信息先行——SKU 存在但 units_per_carton <= 0 时拒绝
+    rows = db.execute(
+        select(SkuRecord.sku, SkuRecord.units_per_carton).where(
+            SkuRecord.project_name == project_name,
+            SkuRecord.country == country,
+            SkuRecord.sku.in_(list(sku_to_row)),
+        )
+    ).all()
+    no_carton = [str(row[0]) for row in rows if int(row[1] or 0) <= 0]
+    if no_carton:
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_ITEMS_MISSING_CARTON_INFO,
+            human_message=(
+                f"明细里有 {len(no_carton)} 个 SKU 未维护装箱信息"
+                "（units_per_carton ≤ 0），请先维护外箱尺寸/毛重/装箱率"
+            ),
+            details=[
+                {"row": sku_to_row[sku], "sku": sku, "reason": "missing_carton_info"}
+                for sku in no_carton
+            ],
+        )
 
 
 # ============================================================
