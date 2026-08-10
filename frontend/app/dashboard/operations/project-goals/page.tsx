@@ -724,7 +724,7 @@ export default function ProjectGoalsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setActiveTab('goals')}
+                            onClick={() => handleTabChange('goals')}
                             className="h-8 min-h-[44px] px-2.5 sm:min-h-8"
                           >
                             <Plus className="mr-1 h-3 w-3" /> 去设置

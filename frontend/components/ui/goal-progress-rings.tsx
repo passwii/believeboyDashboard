@@ -6,15 +6,18 @@
  * @author: @kokonutui — https://kokonutui.com — https://github.com/kokonut-labs/kokonutui
  * @license: MIT（保留原作者署名）
  *
- * 相对原版（apple-activity-card.tsx）的改动（BLF-535）：
+ * 布局（BLF-595 回归原参考设计）：
+ * 原版 kokonutui apple-activity-card 是 Apple Watch 式同心圆——一个圈里 3 个嵌套环
+ * （200/160/120 三层），右侧分别列出 3 个指标的情况与说明。本组件恢复该合并式布局：
+ * - 左侧：单一圆形容器内绝对居中叠放 3 个同心圆环（外→内 = 指标 1 → 指标 3）；
+ * - 右侧：3 个指标块，各含 指标名 / 大号百分比 / 主说明 / 次要说明（note）。
+ *
+ * 相对原版（apple-activity-card.tsx）的改动（BLF-535 + BLF-595）：
  * - 数据驱动：原组件硬编码 MOVE/EXERCISE/STAND 三条数据，改为 props 注入；
  * - 语义 0-1：原组件 value 按 0-100 百分比计算且 >100 时 strokeDashoffset 为负，
  *   现改为小数（0.86 = 86%），弧长按 100% 封顶，超额在文案层表达；
  * - 主题化：原组件硬编码 zinc 色 + 3 组渐变特判，改用项目 CSS 变量色 + 单色渐变
  *   （stopOpacity 淡出），自动适配亮暗主题；
- * - 布局：原组件是 Apple Watch 式同心圆（200/160/120 三层嵌套）方形卡片，
- *   对"3 个独立指标"不够直观；改为横向"环 + 数据"长条布局——桌面 3 列各一个等大圆环，
- *   手机端纵向堆叠，圆环保持圆形不被拉伸（"长条形"通过布局而非几何变形实现）；
  * - 动画：保留 framer-motion 描边绘制与入场，接入项目 motion tokens，并尊重
  *   prefers-reduced-motion（降级为无动画直出）。
  */
@@ -62,34 +65,34 @@ export function projectedMonthlyRate(
   return completionVsMonthly * (daysInMonth / todayDay)
 }
 
-type GoalRingProps = {
+/**
+ * 同心环尺寸（外 → 内）：与 kokonutui 原版一致（200/160/120），
+ * 叠放在同一圆形容器内，形成 Apple Watch 式合并三环。
+ */
+const RING_SIZES = [200, 160, 120] as const
+const RING_STROKE_WIDTH = 14
+
+type ConcentricRingProps = {
   item: GoalRingItem
   index: number
+  size: number
   reduce: boolean
 }
 
-function GoalRing({ item, index, reduce }: GoalRingProps) {
+function ConcentricRing({ item, index, size, reduce }: ConcentricRingProps) {
   const gradientId = useId()
-  const size = 68
-  const strokeWidth = 9
-  const radius = (size - strokeWidth) / 2
+  const radius = (size - RING_STROKE_WIDTH) / 2
   const circumference = 2 * Math.PI * radius
   const clamped = clampRingValue(item.value)
   const dashOffset = circumference * (1 - clamped)
-  const over = item.value >= 1
 
   return (
-    <motion.div
-      aria-label={`${item.label}：${item.display}`}
-      role="img"
-      animate={{ opacity: 1, scale: 1 }}
-      className="relative shrink-0"
-      initial={reduce ? false : { opacity: 0, scale: 0.8 }}
-      transition={{ duration: DURATION.slow, delay: index * 0.1, ease: EASE.out }}
-    >
+    <div className="absolute inset-0 flex items-center justify-center">
       <svg
+        aria-label={`${item.label}：${item.display}`}
         className="-rotate-90"
         height={size}
+        role="img"
         viewBox={`0 0 ${size} ${size}`}
         width={size}
       >
@@ -108,7 +111,7 @@ function GoalRing({ item, index, reduce }: GoalRingProps) {
           fill="none"
           r={radius}
           stroke="currentColor"
-          strokeWidth={strokeWidth}
+          strokeWidth={RING_STROKE_WIDTH}
         />
         {/* progress arc */}
         <motion.circle
@@ -121,17 +124,12 @@ function GoalRing({ item, index, reduce }: GoalRingProps) {
           stroke={`url(#${gradientId})`}
           strokeDasharray={circumference}
           strokeLinecap="round"
-          strokeWidth={strokeWidth}
+          strokeWidth={RING_STROKE_WIDTH}
           style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.12))' }}
           transition={{ duration: 1.1, delay: index * 0.1, ease: EASE.out }}
         />
       </svg>
-      {over ? (
-        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-semibold text-white shadow-sm">
-          !
-        </span>
-      ) : null}
-    </motion.div>
+    </div>
   )
 }
 
@@ -141,47 +139,88 @@ type GoalProgressRingsProps = {
 }
 
 /**
- * 三环进度带：每个指标 = 一个等大圆环 + 指标名 / 数值 / 说明文字。
- * 桌面端 3 列横向排布（"长条"观感），手机端纵向堆叠，圆环恒定 68px 不被拉伸。
+ * 合并式三环进度：左侧一个圆内嵌套 3 个同心环，右侧 3 个指标块
+ * （指标名 / 大号百分比 / 说明）。桌面横排、手机端上下堆叠。
  */
 export function GoalProgressRings({ items, className }: GoalProgressRingsProps) {
   const reduce = useReducedMotion()
   if (items.length === 0) return null
 
+  // 环序：外 → 内 = items[0] → items[2]（第 1 个指标最大环，最外层）
+  const ringItems = items.slice(0, RING_SIZES.length)
+
   return (
     <div
-      className={cn('grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-3', className)}
+      className={cn(
+        'flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-10',
+        className
+      )}
       role="group"
       aria-label="目标完成率指标"
     >
-      {items.map((item, index) => {
-        const over = item.value >= 1
-        return (
-          <div key={item.key} className="flex min-w-0 items-center gap-4">
-            <GoalRing item={item} index={index} reduce={reduce === true} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs font-medium text-muted-foreground">{item.label}</p>
-                {over ? (
-                  <span className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    超额
-                  </span>
+      {/* 左侧：一个圆内 3 个同心环 */}
+      <motion.div
+        animate={{ opacity: 1, scale: 1 }}
+        aria-label="目标完成率三环"
+        className="relative h-52 w-52 shrink-0"
+        data-testid="goal-rings-concentric"
+        initial={reduce ? false : { opacity: 0, scale: 0.85 }}
+        role="group"
+        transition={{ duration: DURATION.slow, ease: EASE.out }}
+      >
+        {ringItems.map((item, index) => (
+          <ConcentricRing
+            key={item.key}
+            index={index}
+            item={item}
+            reduce={reduce === true}
+            size={RING_SIZES[index] ?? 120}
+          />
+        ))}
+      </motion.div>
+
+      {/* 右侧：3 个指标情况与说明 */}
+      <div className="flex w-full min-w-0 flex-col gap-4 sm:w-auto sm:flex-1">
+        {ringItems.map((item, index) => {
+          const over = item.value >= 1
+          return (
+            <motion.div
+              key={item.key}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex min-w-0 items-start gap-3"
+              initial={reduce ? false : { opacity: 0, x: 16 }}
+              transition={{ duration: DURATION.fast, delay: 0.15 + index * 0.1, ease: EASE.out }}
+            >
+              {/* 指标色点 */}
+              <span
+                aria-hidden="true"
+                className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: item.color }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-xs font-medium text-muted-foreground">{item.label}</p>
+                  {over ? (
+                    <span className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      超额
+                    </span>
+                  ) : null}
+                </div>
+                <p
+                  className="text-2xl font-semibold leading-tight tabular-nums"
+                  style={{ color: item.color }}
+                >
+                  {item.display}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{item.caption}</p>
+                {item.note ? (
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{item.note}</p>
                 ) : null}
               </div>
-              <p
-                className="text-2xl font-semibold leading-tight tabular-nums"
-                style={{ color: item.color }}
-              >
-                {item.display}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{item.caption}</p>
-              {item.note ? (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{item.note}</p>
-              ) : null}
-            </div>
-          </div>
-        )
-      })}
+            </motion.div>
+          )
+        })}
+      </div>
     </div>
   )
 }
