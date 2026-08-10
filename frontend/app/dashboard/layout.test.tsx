@@ -12,7 +12,6 @@ let mockPathname = '/dashboard'
 const mockPush = vi.fn()
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
-  // 挂载 NotificationBell 后 layout 渲染会调到 useRouter（用于跳转通知 link）
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => new URLSearchParams(),
 }))
