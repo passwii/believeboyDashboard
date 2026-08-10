@@ -75,6 +75,14 @@ curl -X POST "$BASE/projects/$PROJECT_ID/shipments" "${AUTH[@]}" \
 
 写请求体必须与第一步完全一致；`source` 溯源枚举（同 sku-info 约定，禁 manual）。
 
+## 2.1 SKU 装箱信息先行（BLF-604 强制约定，与前端口径一致）
+
+建货件/更新明细时，明细中每个 SKU 在 SKU 主数据里**必须已维护 `units_per_carton`（装箱率）> 0**，否则 W1/W2 直接拒绝（400 `SHIPMENT_ITEMS_MISSING_CARTON_INFO`，details 逐行 `{row, sku, reason: "missing_carton_info"}`，提示先维护外箱尺寸/毛重/装箱率）。
+
+- **正确操作顺序**：先确保 SKU 主数据有装箱信息（缺则先用 sku-info W2 PATCH 维护 `carton_length_cm/carton_width_cm/carton_height_cm/carton_weight_kg/units_per_carton`）→ 再建货件。
+- **items 明细字段**：`{sku, quantity, carton_count?}` —— 与前端一致，**数量 = 箱数 × 装箱率**（如 1 箱 × 28 件 = quantity 28 + carton_count 1）；carton_count 可省略，重算时后端按 ⌈数量÷装箱率⌉ 自动推导。
+- **W5 重算**（`POST /shipments/{shipment_no}/recalculate-costs`，body 需 `logistics_unit_price` 非负数，暂无价格传 0）：按 SKU 主数据外箱尺寸/毛重回写每个明细的 `carton_count / volume_m3 / actual_weight_kg / volumetric_weight_kg / chargeable_weight_kg / estimated_logistics_cost` 及货件汇总——建完货件后建议跑一次。
+
 ## 3. 注意事项
 
 - 读路由不落审计、绕过 Redis 读缓存直查 DB；写路由全 confirm + 写限流（30 次/分）
