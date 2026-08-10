@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog,
   DialogContent,
@@ -434,22 +435,18 @@ export function AgentManagementClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（FRONTEND-DESIGN-SPEC §4.1） ── */}
-      <section className="flex flex-wrap items-start justify-between gap-5">
-        <div className="max-w-2xl space-y-3">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述 + 操作区（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
+      <PageHeader
+        eyebrow={
+          <>
             <KeyRound className="h-3.5 w-3.5" />
             系统管理 · Agent 接入
-          </p>
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Agent 接入管理</h1>
-            <p className="text-sm leading-6 text-muted-foreground">
-              管理 Agent 凭据生命周期（创建 / 停用 / 激活 / 删除）与项目、业务域访问范围。
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>创建凭据</Button>
-      </section>
+          </>
+        }
+        title="Agent 接入管理"
+        description="管理 Agent 凭据生命周期（创建 / 停用 / 激活 / 删除）与项目、业务域访问范围。"
+        actions={<Button onClick={() => setCreateOpen(true)}>创建凭据</Button>}
+      />
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">

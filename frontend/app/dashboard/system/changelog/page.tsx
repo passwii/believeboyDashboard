@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import { getChangelogSnapshot, ReleaseVersion } from '@/lib/server/changelog'
 import { cn } from '@/lib/utils'
 import { ArrowUpRight, Blocks, ChevronDown, Layers3, Waypoints } from 'lucide-react'
@@ -84,21 +85,17 @@ export default function ChangelogPage() {
 
   return (
     <div className="space-y-6 md:space-y-7">
-      {/* ── 页面头部：eyebrow pill + 标题 + 描述（FRONTEND-DESIGN-SPEC §4.1） ── */}
-      <section className="flex flex-wrap items-start justify-between gap-5">
-        <div className="max-w-2xl space-y-3">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+      {/* ── 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） ── */}
+      <PageHeader
+        eyebrow={
+          <>
             <Waypoints className="h-3.5 w-3.5" />
             系统管理 · 更新日志
-          </p>
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">更新日志</h1>
-            <p className="text-sm leading-6 text-muted-foreground">
-              记录 Dashboard 各版本的关键能力建设与原始变更线索。
-            </p>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+        title="更新日志"
+        description="记录 Dashboard 各版本的关键能力建设与原始变更线索。"
+      />
 
       <div className="grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)]">
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
