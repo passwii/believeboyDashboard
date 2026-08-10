@@ -81,6 +81,8 @@ export function CrmSeaTable() {
   const keyword = searchParams.get('keyword') ?? ''
   const [active, setActive] = useState<Customer | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // G2：领取成功后 +1 触发 CrmTable 主动刷新，被领取客户立即从公海消失
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // 公海快捷筛选：无负责人（公海客户均无主），其余与客户表一致。
   const seaFilterFields = useMemo<FilterFieldDef[]>(
@@ -143,6 +145,7 @@ export function CrmSeaTable() {
     notify({ type: 'success', title: '已领取客户', message: active.name })
     setActive(null)
     setDrawerOpen(false)
+    setRefreshKey((k) => k + 1)
   }, [active, client, notify])
 
   return (
@@ -162,6 +165,7 @@ export function CrmSeaTable() {
         onRowClick={handleRowClick}
         searchable
         searchPlaceholder="搜索客户名 / 简称…"
+        refreshKey={refreshKey}
       />
       {active && (
         <CrmOverviewDrawer<Customer>
