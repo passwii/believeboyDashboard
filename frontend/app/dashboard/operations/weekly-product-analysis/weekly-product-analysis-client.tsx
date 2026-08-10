@@ -1732,7 +1732,7 @@ export default function WeeklyProductAnalysisPage() {
           eyebrow={
             <>
               <ShoppingCart className="h-3.5 w-3.5" />
-              供应链 · 每周商品分析
+              运营 · 每周商品分析
             </>
           }
           title="每周商品分析"

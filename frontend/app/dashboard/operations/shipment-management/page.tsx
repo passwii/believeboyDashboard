@@ -2850,7 +2850,7 @@ export default function ShipmentManagementPage() {
           eyebrow={
             <>
               <Ship className="h-3.5 w-3.5" />
-              供应链 · 货件管理
+              运营 · 货件管理
             </>
           }
           title="货件管理"

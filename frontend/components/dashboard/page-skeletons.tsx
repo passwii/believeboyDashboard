@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
  *   的 loading.tsx 中直接渲染，保持骨架本身零 JS 开销。
  *
  * 选型指引：
- * - 表格类页面（CRM / reports / finance / supply-chain / system）→ `TablePageLoading`
+ * - 表格类页面（CRM / reports / finance / operations / system）→ `TablePageLoading`
  * - 分析类页面（advertising / operations / ad-analysis）→ `AnalyticsPageLoading`
  * - 卡片/hub 类页面（ai hub 等）→ `SimplePageLoading`
  */
@@ -246,7 +246,7 @@ export function ChatPageLoading() {
 
 /**
  * 表格类页面通用骨架：标题 + 过滤器 + 表格。
- * 用于 CRM / reports / finance / supply-chain / system 等数据表格页。
+ * 用于 CRM / reports / finance / operations / system 等数据表格页。
  */
 export function TablePageLoading() {
   return (

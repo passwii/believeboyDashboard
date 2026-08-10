@@ -882,7 +882,7 @@ export default function SkuInfoPage() {
           eyebrow={
             <>
               <Package2 className="h-3.5 w-3.5" />
-              供应链 · SKU 信息管理
+              运营 · SKU 信息管理
             </>
           }
           title="SKU 信息管理"

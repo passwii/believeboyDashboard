@@ -247,7 +247,7 @@ export default function InventoryLedgerPage() {
           eyebrow={
             <>
               <ClipboardCheck className="h-3.5 w-3.5" />
-              供应链 · 库存分类账
+              运营 · 库存分类账
             </>
           }
           title="库存分类账"
