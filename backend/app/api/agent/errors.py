@@ -42,6 +42,9 @@ class ErrorCode(str, Enum):
     # 新品测算域（BLF-451）——注：D2b 拍板 4 种全可存后不再需要 INVALID_TYPE
     NEW_PRODUCT_CALCULATION_INVALID_SOURCE = "NEW_PRODUCT_CALCULATION_INVALID_SOURCE"
     NEW_PRODUCT_CALCULATION_INVALID_SKU = "NEW_PRODUCT_CALCULATION_INVALID_SKU"
+    # SKU Info 主数据域（BLF-579 S2）
+    SKU_INFO_INVALID_SOURCE = "SKU_INFO_INVALID_SOURCE"
+    SKU_INFO_DUPLICATE = "SKU_INFO_DUPLICATE"
     # 通用
     VALIDATION_FAILED = "VALIDATION_FAILED"
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
@@ -65,6 +68,8 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.SHOP_CALCULATION_AMBIGUOUS_COUNTRY: 400,
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SOURCE: 400,
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: 400,
+    ErrorCode.SKU_INFO_INVALID_SOURCE: 400,
+    ErrorCode.SKU_INFO_DUPLICATE: 409,
     ErrorCode.VALIDATION_FAILED: 400,
     ErrorCode.RESOURCE_NOT_FOUND: 404,
     ErrorCode.INTERNAL_ERROR: 500,
@@ -130,6 +135,14 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.NEW_PRODUCT_CALCULATION_INVALID_SKU: (
         "该 SKU 在本项目不存在",
         "先核对 SKU 主数据（sku-info 相关端点），确认后再写入",
+    ),
+    ErrorCode.SKU_INFO_INVALID_SOURCE: (
+        "写入来源不合法",
+        "合法来源：agent_listing_pull、agent_user_supplied、external_api（禁 manual）",
+    ),
+    ErrorCode.SKU_INFO_DUPLICATE: (
+        "SKU 主数据更新后与现有记录重复",
+        "唯一键为 (project_id, sku, asin, country)；请核对 sku/asin/country 后重试",
     ),
     ErrorCode.VALIDATION_FAILED: (
         "请求参数校验失败",

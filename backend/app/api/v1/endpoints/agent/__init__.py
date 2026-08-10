@@ -25,8 +25,8 @@ from app.api.v1.endpoints.agent.replenishment_analysis import (
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
-from app.api.v1.endpoints.agent.projects import projects_router
 from app.api.v1.endpoints.agent.sku_info import sku_info_router
+from app.api.v1.endpoints.agent.projects import projects_router
 from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
 from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
 from app.api.v1.endpoints.agent.pricing_calculation_snapshots import (
@@ -117,6 +117,14 @@ agent_router.include_router(
     sales_router,
     dependencies=[Depends(require_business_scope("sales"))],
 )
+# SKU Info 主数据域（BLF-579 S2）：读 3 + 写 3（confirm 两步），挂
+# business_scope("sku_info")（spec §3 D1）。镜像侧已由
+# external_mirror._EXCLUDED_EXTERNAL_PATHS 排除（D2），无双挂冲突。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    sku_info_router,
+    dependencies=[Depends(require_business_scope("sku_info"))],
+)
 # 广告投放活动域（BLF-580 原生化样板）：3 条纯读路由（aggregate + raw +
 # raw 单数 alias），原生替换 external 镜像（external/ad_campaigns.py 端点
 # 模块已删除），挂 business_scope("ad_analysis")（既有 ad 域 scope 约定：
@@ -170,13 +178,6 @@ agent_router.include_router(
 # project_scope；**无 business_scope 门禁**——跨域基础设施端点（所有 agent
 # 域靠它做「名字 → ID」解析）。scope 过滤在 handler 内按 key 的 project_scope 做。
 agent_router.include_router(projects_router)
-# SKU Info 主数据域（BLF-582 原生化；设计对齐 BLF-579 spec §4 R1）：1 条
-# 读路由（R1 列表），挂 business_scope("sku_info")（BLF-579 spec §3 D1）。
-# R2/R3/W1-W3 在 BLF-579 S2 实施。必须插在兜底路由之前。
-agent_router.include_router(
-    sku_info_router,
-    dependencies=[Depends(require_business_scope("sku_info"))],
-)
 # 库存台账域（BLF-582 原生化）：10 条纯读路由，挂 business_scope(
 # "inventory_ledger")（前端 agent-domains.ts 注册表已有 live 条目）。与
 # BLF-478 agent/inventory.py（当前库存快照，scope inventory）路径与定位均

@@ -52,6 +52,9 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/return-analysis-raw",
     # BLF-502 D1：补货分析已原生化（Agent 任务模型 6 路由）
     "/external/projects/{project_id}/replenishment-analysis",
+    # BLF-579 S2 D2：SKU Info 主数据已原生化（读 3 + 写 3，business_scope
+    # "sku_info" 门禁）——镜像排除，避免双路径漂移（对齐三域先例）。
+    "/external/projects/{project_id}/sku-info",
     # BLF-580：ad_campaigns 已原生化（agent/ad_campaigns.py）
     "/external/projects/{project_id}/ad-campaigns",
     "/external/projects/{project_id}/ad-campaigns-raw",
@@ -84,9 +87,8 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/ad-purchased-products",
     "/external/projects/{project_id}/ad-purchased-products-raw",
     "/external/projects/{project_id}/ad-purchased-product-raw",
-    # BLF-582：非 ad 域 5 域已原生化
+    # BLF-582：非 ad 域 5 域已原生化（sku-info 已在上方 BLF-579 条目排除）
     "/external/projects",
-    "/external/projects/{project_id}/sku-info",
     "/external/projects/{project_id}/inventory-ledger/months",
     "/external/projects/{project_id}/inventory-ledger/snapshot",
     "/external/projects/{project_id}/inventory-ledger/events",

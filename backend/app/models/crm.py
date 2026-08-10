@@ -567,3 +567,59 @@ class CrmRuleAction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class CrmSavedViewScope(str):
+    """视图可见范围：mine/all/sea（与列表端点 scope 参数同义）。"""
+
+    MINE = "mine"
+    ALL = "all"
+    SEA = "sea"
+
+
+class CrmSavedView(Base):
+    """Stage5-3 保存视图（BLF-589，CordysCRM 7.3 模式）。
+
+    把客户/线索列表的筛选状态（scope/keyword/filters/sort）保存为可命名视图，
+    前端「列表/表格一键切换」复用。两阶段：
+    - 个人视图（MVP）：owner_id=创建者，仅创建者可见/可改/可删；
+    - 团队共享（V2，admin 共享）：is_shared=true，全用户可见；
+      MVP 仅 admin 可置 true（服务层 require_admin 约束）。
+
+    filters 为 FilterCondition JSON 数组（与 /customers 列表 filters 参数同构，
+    白名单/运算符校验复用 filter_engine）。owner_id=user_accounts.id UUID。
+    """
+
+    __tablename__ = "crm_saved_views"
+    __table_args__ = (
+        Index("idx_csv_owner_entity", "owner_id", "entity_type"),
+        Index("idx_csv_entity_shared", "entity_type", "is_shared"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    entity_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # customer/lead（复用 CrmFollowEntityType 语义）
+    scope: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=CrmSavedViewScope.ALL
+    )
+    keyword: Mapped[str | None] = mapped_column(String(200))
+    filters: Mapped[list | None] = mapped_column(JSON)  # FilterCondition 数组
+    sort_by: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="updated_at"
+    )
+    sort_order: Mapped[str] = mapped_column(String(10), nullable=False, default="desc")
+    is_shared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36)
+    )  # user_accounts.id UUID；null 保留给未来系统视图
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

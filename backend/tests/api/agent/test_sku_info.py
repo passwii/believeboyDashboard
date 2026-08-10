@@ -1,0 +1,1013 @@
+"""Agent SKU Info 主数据域测试（BLF-579 S2；spec §7）。
+
+覆盖：
+* W1 upsert：新建 inserted / 同键重放 updated（不产生新行）；confirm 预览
+  is_new/previous；source_file 落 ``agent:<agent_id>``；非法 source →
+  SKU_INFO_INVALID_SOURCE（先于 confirm 签发）。
+* W1 校验：缺 sku/asin → VALIDATION_FAILED；负成本 → VALIDATION_FAILED；
+  非法 country → VALIDATION_FAILED；项目不存在 → 404。
+* W2 局部更新：只传 fob_unit_cost → asin/country/is_active 不被重置
+  （§9 #2 默认值陷阱锁契约）；更新后唯一键冲突 → SKU_INFO_DUPLICATE（409）；
+  改身份字段 → VALIDATION_FAILED。
+* W3 上/下架：false → is_active=false 且审计 before/after 含变化；同值重放幂等
+  （不重复审计）；下架后 R1 默认 is_active=true 不再返回。
+* 缓存失效：W1/W2/W3 写后 invalidate_sku_financial_cache 被调用（mock）。
+* R1/R2/R3：分页/筛选；is_active 默认 true；record 不存在或跨项目 → 404；
+  R3 审计行含 agent_id/idempotency_key；读不落审计（行数不变）。
+* scope 门禁：business_scope 不含 sku_info → 403；project 不在白名单 → 403。
+* confirm 流：无 X-Confirm-Token → 200 预览壳；重放 body 不一致 →
+  CONFIRM_TOKEN_INVALID；过期 → CONFIRM_TOKEN_EXPIRED。
+* 路由注册：镜像已排除（_EXCLUDED_EXTERNAL_PATHS 含 sku-info）；native 路由
+  兜底路由之前；镜像收口后 /agent/projects/{id}/sku-info 仍 200 且走原生 handler。
+"""
+
+from __future__ import annotations
+
+import uuid
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from app.api.agent.confirm import (
+    InMemoryConfirmStore,
+    get_confirm_store,
+    set_confirm_store,
+)
+from app.api.agent.errors import AgentApiError, ErrorCode
+from app.db.session import SessionLocal
+from app.main import app
+from app.models.sku_info import SkuRecord
+from app.services.audit_log_service import query_operation_audit_log
+from app.services.data.sku_info import update_sku_record_by_id
+
+from conftest import shipment_env  # noqa: F401 — fixture reuse
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture
+def confirm_memory_store():
+    """confirm 测试注入内存 store：不依赖 Redis，且可直接改 created_at 模拟过期。"""
+    set_confirm_store(InMemoryConfirmStore())
+    try:
+        yield get_confirm_store()
+    finally:
+        set_confirm_store(None)
+
+
+@pytest.fixture(autouse=True)
+def _reset_agent_rate_limit():
+    """clear 内存写桶：跨测试隔离（slowapi 状态按进程共享）。"""
+    from app.api.agent.rate_limit import agent_write_limiter
+
+    agent_write_limiter.reset()
+    yield
+    agent_write_limiter.reset()
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _headers(env, *, token=None, idem=None) -> dict:
+    headers = dict(env["headers"])
+    headers["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+    if token:
+        headers["X-Confirm-Token"] = token
+    return headers
+
+
+def _upsert_body(**overrides) -> dict:
+    body = {
+        "sku": "X-NEW-001",
+        "asin": "ASIN-X-NEW-001",
+        "country": "US",
+        "source": "agent_listing_pull",
+        "product_name": "New SKU",
+        "fob_unit_cost": 15.5,
+        "first_leg_cost_rmb": 3.2,
+        "package_length_cm": 10,
+        "package_width_cm": 8,
+        "package_height_cm": 5,
+        "weight_kg": 0.5,
+        "carton_length_cm": 20,
+        "carton_width_cm": 20,
+        "carton_height_cm": 20,
+        "carton_weight_kg": 5,
+        "units_per_carton": 10,
+    }
+    body.update(overrides)
+    return body
+
+
+def _post_upsert(client, env, body, *, token=None, idem=None):
+    return client.post(
+        f"/api/v1/agent/projects/{env['project_id']}/sku-info",
+        json=body,
+        headers=_headers(env, token=token, idem=idem),
+    )
+
+
+def _patch_update(client, env, sku_record_id, body, *, token=None, idem=None):
+    return client.patch(
+        f"/api/v1/agent/projects/{env['project_id']}/sku-info/{sku_record_id}",
+        json=body,
+        headers=_headers(env, token=token, idem=idem),
+    )
+
+
+def _post_status(client, env, sku_record_id, body, *, token=None, idem=None):
+    return client.post(
+        f"/api/v1/agent/projects/{env['project_id']}/sku-info/{sku_record_id}/status",
+        json=body,
+        headers=_headers(env, token=token, idem=idem),
+    )
+
+
+def _seed_sku(
+    project_id: int,
+    project_name: str,
+    *,
+    sku: str,
+    asin: str | None = None,
+    country: str = "US",
+    fob_unit_cost: float = 10.0,
+    is_active: bool = True,
+    **overrides,
+) -> int:
+    """直接落一行 SkuRecord（commit），返回 id。"""
+    db = SessionLocal()
+    try:
+        row = SkuRecord(
+            project_id=project_id,
+            project_name=project_name,
+            sku=sku,
+            asin=asin or f"ASIN-{sku}",
+            country=country,
+            fob_unit_cost=fob_unit_cost,
+            first_leg_cost_rmb=1,
+            package_length_cm=10,
+            package_width_cm=10,
+            package_height_cm=10,
+            weight_kg=0.5,
+            carton_length_cm=20,
+            carton_width_cm=20,
+            carton_height_cm=20,
+            carton_weight_kg=5,
+            units_per_carton=10,
+            currency="USD",
+            sort_order=0,
+            is_active=is_active,
+            **overrides,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return int(row.id)
+    finally:
+        db.close()
+
+
+def _count_audit_rows(target_id: int) -> int:
+    db = SessionLocal()
+    try:
+        return len(
+            query_operation_audit_log(
+                db, target_type="sku_info", target_id=str(target_id)
+            )
+        )
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# W1 upsert
+# ---------------------------------------------------------------------------
+
+
+class TestW1Upsert:
+    def test_preview_then_replay_inserts_and_audits(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        body = _upsert_body()
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+
+        preview = _post_upsert(client, shipment_env, body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        assert pbody["ok"] is False
+        assert pbody["requires_confirmation"] is True
+        assert pbody["confirm_token"].startswith("cf_")
+        assert pbody["preview"]["action"] == "sku_info.upsert"
+        assert pbody["preview"]["sku"] == "X-NEW-001"
+        assert pbody["preview"]["is_new"] is True
+        assert pbody["preview"]["previous"] is None
+
+        replay = _post_upsert(
+            client, shipment_env, body, token=pbody["confirm_token"], idem=idem
+        )
+        assert replay.status_code == 200, replay.text
+        rbody = replay.json()
+        assert rbody["ok"] is True
+        assert rbody["data"]["sku"] == "X-NEW-001"
+        assert rbody["data"]["fob_unit_cost"] == 15.5
+        assert rbody["action"] == "inserted"
+        assert rbody["idempotency_key"] == idem
+
+        # source_file 服务端派生 agent:<agent_id>（D4）；不暴露 r2_key/source_file
+        db = SessionLocal()
+        try:
+            row = db.scalars(
+                select(SkuRecord).where(SkuRecord.id == rbody["data"]["id"])
+            ).one()
+            assert row.source_file == f"agent:{shipment_env['agent_id']}"
+        finally:
+            db.close()
+        assert "source_file" not in rbody["data"]
+        assert "fnsku_label_r2_key" not in rbody["data"]
+        assert "fnsku_label_r2_url" in rbody["data"]
+
+        # 审计行：target_type=sku_info / agent 归因
+        rows = query_operation_audit_log(
+            SessionLocal(),
+            target_type="sku_info",
+            target_id=str(rbody["data"]["id"]),
+        )
+        assert len(rows) == 1
+        audit = rows[0]
+        assert audit.action == "sku_info.upsert"
+        assert audit.agent_id == shipment_env["agent_id"]
+        assert audit.idempotency_key == idem
+        assert audit.operator is None
+
+    def test_same_key_replay_updates_not_duplicates(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        body1 = _upsert_body(fob_unit_cost=15.5)
+        idem1 = f"idem-{uuid.uuid4().hex[:12]}"
+        p1 = _post_upsert(client, shipment_env, body1, idem=idem1)
+        r1 = _post_upsert(
+            client, shipment_env, body1, token=p1.json()["confirm_token"], idem=idem1
+        )
+        assert r1.status_code == 200
+        row_id = r1.json()["data"]["id"]
+
+        # 同键（同 sku/asin/country）二次 upsert → updated，不产生新行
+        body2 = _upsert_body(fob_unit_cost=25.0)
+        idem2 = f"idem-{uuid.uuid4().hex[:12]}"
+        p2 = _post_upsert(client, shipment_env, body2, idem=idem2)
+        assert p2.json()["preview"]["is_new"] is False
+        assert p2.json()["preview"]["previous"]["fob_unit_cost"] == 15.5
+        r2 = _post_upsert(
+            client, shipment_env, body2, token=p2.json()["confirm_token"], idem=idem2
+        )
+        assert r2.status_code == 200
+        assert r2.json()["action"] == "updated"
+        assert r2.json()["data"]["id"] == row_id
+        assert r2.json()["data"]["fob_unit_cost"] == 25.0
+
+        db = SessionLocal()
+        try:
+            rows = db.scalars(
+                select(SkuRecord).where(
+                    SkuRecord.project_id == shipment_env["project_id"],
+                    SkuRecord.sku == "X-NEW-001",
+                )
+            ).all()
+            assert len(rows) == 1, "同键 upsert 覆盖：不产生新行"
+        finally:
+            db.close()
+
+    def test_invalid_source_rejected_before_confirm(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        body = _upsert_body()
+        body["source"] = "manual"  # agent 通道禁 manual
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400, resp.text
+        err = resp.json()["error"]
+        assert err["code"] == "SKU_INFO_INVALID_SOURCE"
+        assert sorted(err["details"]["allowed"]) == [
+            "agent_listing_pull",
+            "agent_user_supplied",
+            "external_api",
+        ]
+        assert get_confirm_store()._rows == {}, "业务校验先于 confirm：未签发 token"
+
+    def test_missing_source_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body()
+        del body["source"]
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "SKU_INFO_INVALID_SOURCE"
+
+    def test_missing_sku_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body()
+        del body["sku"]
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_missing_asin_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body()
+        del body["asin"]
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_negative_cost_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body(fob_unit_cost=-1.0)
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_invalid_country_rejected(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body(country="XX")
+        resp = _post_upsert(client, shipment_env, body)
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_project_not_found_404(self, client, shipment_env, confirm_memory_store):
+        resp = client.post(
+            "/api/v1/agent/projects/99999999/sku-info",
+            json=_upsert_body(),
+            headers=_headers(shipment_env),
+        )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+    def test_cache_invalidated_after_upsert(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        from app.api.v1.endpoints.agent import sku_info as sku_info_module
+
+        calls: list[int] = []
+
+        def _fake(project_id: int):
+            calls.append(project_id)
+
+        monkeypatch.setattr(sku_info_module, "invalidate_sku_financial_cache", _fake)
+        body = _upsert_body()
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_upsert(client, shipment_env, body, idem=idem)
+        r = _post_upsert(
+            client, shipment_env, body, token=p.json()["confirm_token"], idem=idem
+        )
+        assert r.status_code == 200
+        assert calls == [shipment_env["project_id"]]
+
+
+# ---------------------------------------------------------------------------
+# W2 局部更新（读-改-写合并）
+# ---------------------------------------------------------------------------
+
+
+class TestW2Update:
+    def _run(self, client, env, sku_record_id, body, *, idem=None):
+        idem = idem or f"idem-{uuid.uuid4().hex[:12]}"
+        p = _patch_update(client, env, sku_record_id, body, idem=idem)
+        assert p.status_code == 200, p.text
+        r = _patch_update(
+            client, env, sku_record_id, body, token=p.json()["confirm_token"], idem=idem
+        )
+        return r
+
+    def test_partial_update_preserves_identity_fields(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """锁契约（§9 #2 / §7 #3）：只传 fob_unit_cost 不得重置 asin/country/is_active。"""
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-LOCK",
+            fob_unit_cost=10.0,
+        )
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", "fob_unit_cost": 99.0},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["fob_unit_cost"] == 99.0
+        assert data["asin"] == "ASIN-X-LOCK", "asin 不被重置为空串"
+        assert data["country"] == "US", "country 不被重置为默认"
+        assert data["is_active"] is True, "is_active 不被重置为默认（原本就是 true）"
+
+    def test_partial_update_does_not_reset_is_active_false(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """下架中的 SKU 只改成本，不得被 SkuRecordUpdate 默认 is_active=True 重新上架。"""
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-OFF",
+            fob_unit_cost=10.0,
+            is_active=False,
+        )
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", "fob_unit_cost": 55.0},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["fob_unit_cost"] == 55.0
+        assert data["is_active"] is False, "未提供 is_active 不得误上架（§9 #2 陷阱）"
+
+    def test_update_audit_before_after(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-AUDIT",
+            fob_unit_cost=10.0,
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "external_api", "fob_unit_cost": 77.0},
+            idem=idem,
+        )
+        assert resp.status_code == 200
+        db = SessionLocal()
+        try:
+            rows = query_operation_audit_log(
+                db, target_type="sku_info", target_id=str(sku_id)
+            )
+            assert len(rows) == 1
+            audit = rows[0]
+            assert audit.action == "sku_info.update"
+            assert audit.agent_id == shipment_env["agent_id"]
+            assert audit.idempotency_key == idem
+            assert audit.before_json["fob_unit_cost"] == 10.0
+            assert audit.after_json["fob_unit_cost"] == 77.0
+            assert audit.operator is None
+        finally:
+            db.close()
+
+    def test_identity_field_change_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-ID",
+        )
+        # extra=forbid：传身份字段 → VALIDATION_FAILED（W2 禁改身份）
+        resp = _patch_update(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", "sku": "X-ID-CHANGED"},
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        assert get_confirm_store()._rows == {}
+
+    def test_duplicate_maps_to_sku_info_duplicate(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """service 409 → SKU_INFO_DUPLICATE 翻译契约（spec §4 W2 / §7 #3）。"""
+        # 两条不同 key 的 SKU；直接把 A 的身份改成 B 的身份会触发服务层 409
+        a_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-DUP-A",
+        )
+        _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-DUP-B",
+        )
+        db = SessionLocal()
+        try:
+            from app.api.v1.endpoints.agent.sku_info import _service_errors
+            from app.schemas.sku_info import SkuRecordUpdate
+
+            payload = SkuRecordUpdate(sku="X-DUP-B", asin="ASIN-X-DUP-B", country="US")
+            with pytest.raises(AgentApiError) as exc_info:
+                with _service_errors():
+                    update_sku_record_by_id(db, a_id, payload)
+            assert exc_info.value.code == ErrorCode.SKU_INFO_DUPLICATE
+        finally:
+            db.rollback()
+            db.close()
+
+    def test_cache_invalidated_after_update(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        from app.api.v1.endpoints.agent import sku_info as sku_info_module
+
+        calls: list[int] = []
+        monkeypatch.setattr(
+            sku_info_module,
+            "invalidate_sku_financial_cache",
+            lambda project_id: calls.append(project_id),
+        )
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-CACHE",
+        )
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", "fob_unit_cost": 66.0},
+        )
+        assert resp.status_code == 200
+        assert calls == [shipment_env["project_id"]]
+
+
+# ---------------------------------------------------------------------------
+# W3 上/下架
+# ---------------------------------------------------------------------------
+
+
+class TestW3Status:
+    def test_deactivate_and_audit(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-STATUS",
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            idem=idem,
+        )
+        assert p.status_code == 200, p.text
+        pb = p.json()
+        assert pb["preview"]["action"] == "sku_info.status.transition"
+        assert pb["preview"]["from_active"] is True
+        assert pb["preview"]["to_active"] is False
+        assert "退出补货" in pb["preview"]["note"]
+
+        r = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            token=pb["confirm_token"],
+            idem=idem,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["is_active"] is False
+
+        # 审计 before/after 含 is_active 变化
+        db = SessionLocal()
+        try:
+            rows = query_operation_audit_log(
+                db, target_type="sku_info", target_id=str(sku_id)
+            )
+            assert len(rows) == 1
+            audit = rows[0]
+            assert audit.action == "sku_info.status.transition"
+            assert audit.before_json["is_active"] is True
+            assert audit.after_json["is_active"] is False
+            assert audit.agent_id == shipment_env["agent_id"]
+            assert audit.idempotency_key == idem
+        finally:
+            db.close()
+
+    def test_same_value_replay_idempotent(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """同值重放幂等：目标值与当前一致 → 返回当前态，不重复审计。"""
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-IDEM",
+            is_active=False,
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            idem=idem,
+        )
+        assert p.status_code == 200, p.text
+        r = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            token=p.json()["confirm_token"],
+            idem=idem,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["is_active"] is False
+        assert _count_audit_rows(sku_id) == 0, "同值切换幂等：不落审计"
+
+    def test_deactivated_excluded_from_default_list(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-DROP",
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            idem=idem,
+        )
+        r = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            token=p.json()["confirm_token"],
+            idem=idem,
+        )
+        assert r.status_code == 200
+
+        # R1 默认 is_active=true 不再返回；显式 =false 可查
+        resp_default = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info?sku=X-DROP",
+            headers=shipment_env["headers"],
+        )
+        assert resp_default.status_code == 200, resp_default.text
+        assert resp_default.json()["data"]["items"] == []
+
+        resp_inactive = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info?sku=X-DROP&is_active=false",
+            headers=shipment_env["headers"],
+        )
+        assert resp_inactive.status_code == 200
+        items = resp_inactive.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["is_active"] is False
+
+    def test_reactivate(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-REON",
+            is_active=False,
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": True, "source": "external_api"},
+            idem=idem,
+        )
+        r = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": True, "source": "external_api"},
+            token=p.json()["confirm_token"],
+            idem=idem,
+        )
+        assert r.status_code == 200
+        assert r.json()["data"]["is_active"] is True
+
+    def test_cache_invalidated_after_status(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        from app.api.v1.endpoints.agent import sku_info as sku_info_module
+
+        calls: list[int] = []
+        monkeypatch.setattr(
+            sku_info_module,
+            "invalidate_sku_financial_cache",
+            lambda project_id: calls.append(project_id),
+        )
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-CSTATUS",
+        )
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            idem=idem,
+        )
+        r = _post_status(
+            client,
+            shipment_env,
+            sku_id,
+            {"is_active": False, "source": "agent_listing_pull"},
+            token=p.json()["confirm_token"],
+            idem=idem,
+        )
+        assert r.status_code == 200
+        assert calls == [shipment_env["project_id"]]
+
+    def test_missing_record_404(self, client, shipment_env, confirm_memory_store):
+        resp = _post_status(
+            client,
+            shipment_env,
+            999999,
+            {"is_active": False, "source": "agent_listing_pull"},
+        )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+# ---------------------------------------------------------------------------
+# 读路由
+# ---------------------------------------------------------------------------
+
+
+class TestRead:
+    def test_list_defaults_is_active_true(self, client, shipment_env):
+        """R1 is_active 默认 true：只返回上架 SKU。"""
+        _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-ON",
+            is_active=True,
+        )
+        _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-OFF-LIST",
+            is_active=False,
+        )
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ok"] is True
+        skus = {item["sku"] for item in body["data"]["items"]}
+        assert "X-ON" in skus
+        assert "X-OFF-LIST" not in skus, "默认 is_active=true 排除下架"
+
+    def test_list_filters_and_pagination(self, client, shipment_env):
+        for i in range(5):
+            _seed_sku(
+                shipment_env["project_id"],
+                shipment_env["project_name"],
+                sku=f"X-PG-{i}",
+                country="US",
+            )
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info?sku=X-PG&page=1&page_size=2&include_total=true",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()["data"]
+        assert len(body["items"]) == 2
+        assert body["page"] == 1
+        assert body["page_size"] == 2
+        assert body["total"] >= 5
+        assert body["has_next"] is True
+
+    def test_detail_full_fields(self, client, shipment_env):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-DETAIL",
+            sku_factory_info={"material": "ABS"},
+        )
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()["data"]
+        assert data["sku"] == "X-DETAIL"
+        assert data["sku_factory_info"] == {"material": "ABS"}
+        assert data["marketplace_url"] is not None
+        assert "created_at" in data and "updated_at" in data
+        assert "source_file" not in data
+        assert "fnsku_label_r2_key" not in data
+
+    def test_detail_missing_404(self, client, shipment_env):
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/999999",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+    def test_detail_cross_project_404(self, client, shipment_env, make_api_key):
+        """另一项目的 SKU 对本项目 404（直取语义 + project 归属校验）。"""
+        other = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-OTHER",
+        )
+        # 新建一个项目，用 scoped key 访问
+        suffix = uuid.uuid4().hex[:8]
+        from app.models import Project
+
+        db = SessionLocal()
+        try:
+            proj = Project(
+                project_name=f"agent-sku-other-{suffix}",
+                project_operator="pytest",
+                sort_order=0,
+                is_active=True,
+            )
+            db.add(proj)
+            db.commit()
+            db.refresh(proj)
+            other_project_id = int(proj.id)
+        finally:
+            db.close()
+        key = make_api_key(agent_id="other-proj", project_scope=str(other_project_id))
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": "other-proj",
+        }
+        resp = client.get(
+            f"/api/v1/agent/projects/{other_project_id}/sku-info/{other}",
+            headers=headers,
+        )
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+        db = SessionLocal()
+        try:
+            obj = db.get(Project, other_project_id)
+            if obj is not None:
+                db.delete(obj)
+            db.commit()
+        finally:
+            db.close()
+
+    def test_audit_endpoint_returns_agent_attribution(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """R3 审计：W1 写后审计行含 agent_id / idempotency_key。"""
+        body = _upsert_body(sku="X-R3AUDIT", asin="ASIN-X-R3AUDIT")
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_upsert(client, shipment_env, body, idem=idem)
+        r = _post_upsert(
+            client, shipment_env, body, token=p.json()["confirm_token"], idem=idem
+        )
+        assert r.status_code == 200
+        sku_id = r.json()["data"]["id"]
+
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}/audit",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        items = resp.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["action"] == "sku_info.upsert"
+        assert items[0]["agent_id"] == shipment_env["agent_id"]
+        assert items[0]["idempotency_key"] == idem
+        assert items[0]["operator"] is None
+
+    def test_read_does_not_audit(self, client, shipment_env):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-NOAUDIT",
+        )
+        before = _count_audit_rows(sku_id)
+        for url in (
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}/audit",
+        ):
+            resp = client.get(url, headers=shipment_env["headers"])
+            assert resp.status_code == 200
+        assert _count_audit_rows(sku_id) == before, "读路由不落审计"
+
+
+# ---------------------------------------------------------------------------
+# scope 门禁
+# ---------------------------------------------------------------------------
+
+
+class TestScopeGate:
+    def test_business_scope_without_sku_info_403(
+        self, client, shipment_env, make_api_key
+    ):
+        key = make_api_key(agent_id="no-sku-info", business_scope="shop_calculations")
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": "no-sku-info",
+        }
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            headers=headers,
+        )
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
+
+        # 写路由同样被 business_scope 拦截
+        resp_write = client.post(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            json=_upsert_body(),
+            headers={**headers, "Idempotency-Key": f"idem-{uuid.uuid4().hex[:12]}"},
+        )
+        assert resp_write.status_code == 403
+        assert resp_write.json()["error"]["code"] == "AGENT_BUSINESS_OUT_OF_SCOPE"
+
+    def test_project_out_of_scope_403(self, client, shipment_env, make_api_key):
+        key = make_api_key(agent_id="out-proj", project_scope="900001")
+        headers = {
+            "Authorization": f"Bearer {key['plaintext']}",
+            "X-Agent-Id": "out-proj",
+        }
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            headers=headers,
+        )
+        assert resp.status_code == 403, resp.text
+        assert resp.json()["error"]["code"] == "AGENT_PROJECT_OUT_OF_SCOPE"
+
+
+# ---------------------------------------------------------------------------
+# confirm 流通用契约
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmFlow:
+    def test_replay_body_change_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        body = _upsert_body(fob_unit_cost=15.5)
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_upsert(client, shipment_env, body, idem=idem)
+        token = p.json()["confirm_token"]
+        changed = _upsert_body(fob_unit_cost=99.0)
+        r = _post_upsert(client, shipment_env, changed, token=token, idem=idem)
+        assert r.status_code == 400
+        assert r.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+
+    def test_confirm_token_expired(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body()
+        p = _post_upsert(client, shipment_env, body)
+        token = p.json()["confirm_token"]
+        confirm_memory_store._rows[token]["record"].created_at -= 400
+        r = _post_upsert(client, shipment_env, body, token=token)
+        assert r.status_code == 409
+        assert r.json()["error"]["code"] == "CONFIRM_TOKEN_EXPIRED"
+
+    def test_replay_single_use(self, client, shipment_env, confirm_memory_store):
+        body = _upsert_body()
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        p = _post_upsert(client, shipment_env, body, idem=idem)
+        token = p.json()["confirm_token"]
+        first = _post_upsert(client, shipment_env, body, token=token, idem=idem)
+        assert first.status_code == 200
+        second = _post_upsert(client, shipment_env, body, token=token, idem=idem)
+        assert second.status_code == 400
+        assert second.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+
+
+# ---------------------------------------------------------------------------
+# 路由注册 & 镜像收口
+# ---------------------------------------------------------------------------
+
+
+class TestRouteRegistration:
+    def test_mirror_path_excluded(self):
+        from app.api.v1.endpoints.agent.external_mirror import _EXCLUDED_EXTERNAL_PATHS
+
+        assert "/external/projects/{project_id}/sku-info" in _EXCLUDED_EXTERNAL_PATHS
+
+    def test_agent_sku_info_still_200_native_handler(self, client, shipment_env):
+        """镜像收口后 /agent/projects/{id}/sku-info 仍 200 且走原生 handler。"""
+        resp = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info",
+            headers=shipment_env["headers"],
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ok"] is True
+        # 原生 R1 响应形状：data.items/page/page_size/has_next（非镜像 ExternalSkuInfoResponse）
+        assert "items" in body["data"]
+        assert "page" in body["data"]
+        assert "has_next" in body["data"]
+
+    def test_single_get_route_for_sku_info(self):
+        """路由数量不重复：agent 侧 /projects/{project_id}/sku-info 只有原生一条 GET。"""
+        from app.api.v1.endpoints.agent import external_mirror_router
+
+        mirror_paths = [r.path for r in external_mirror_router.routes]
+        assert "/projects/{project_id}/sku-info" not in mirror_paths
