@@ -1,4 +1,4 @@
-"""CRM domain models (customer / contact / lead / opportunity / follow)."""
+"""CRM domain models (customer / contact / lead / follow)."""
 
 from __future__ import annotations
 
@@ -58,15 +58,6 @@ class CrmLeadIntent(str):
     LOW = "low"
 
 
-class CrmOpportunityStage(str):
-    LEAD_IN = "lead_in"
-    QUALIFIED = "qualified"
-    PROPOSAL = "proposal"
-    NEGOTIATION = "negotiation"
-    WON = "won"
-    LOST = "lost"
-
-
 class CrmFollowType(str):
     PHONE = "phone"
     VISIT = "visit"
@@ -78,7 +69,6 @@ class CrmFollowType(str):
 class CrmFollowEntityType(str):
     CUSTOMER = "customer"
     LEAD = "lead"
-    OPPORTUNITY = "opportunity"
 
 
 class CrmCustomer(Base):
@@ -217,42 +207,6 @@ class CrmLead(Base):
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # P8 (BLF-517): 进入当前阶段的时间戳（status 变更时写入，nullable 兼容历史数据）
     entered_stage_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_by: Mapped[str | None] = mapped_column(String(36))
-    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
-
-class CrmOpportunity(Base):
-    __tablename__ = "crm_opportunities"
-    __table_args__ = (
-        Index("idx_co_customer", "customer_id"),
-        Index("idx_co_owner_stage", "owner_id", "stage"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    customer_id: Mapped[int] = mapped_column(
-        ForeignKey("crm_customers.id", ondelete="SET NULL"), nullable=True
-    )
-    amount: Mapped[float] = mapped_column(Numeric(16, 2), nullable=False, default=0)
-    stage: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=CrmOpportunityStage.LEAD_IN
-    )
-    owner_id: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
-    expected_close_date: Mapped[str | None] = mapped_column(String(10))
-    probability: Mapped[int | None] = mapped_column(Integer)  # 0-100
-    linked_project_id: Mapped[int | None] = mapped_column(
-        Integer
-    )  # L3 挂接点（commission project，P5+）
-    remark: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[str | None] = mapped_column(String(36))
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
