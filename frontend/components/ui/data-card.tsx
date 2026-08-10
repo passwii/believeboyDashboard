@@ -114,7 +114,7 @@ function DataTableCardHeader({
 function DataTableCardMetrics({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('grid gap-2 px-4 pb-3 md:grid-cols-4 xl:grid-cols-7', className)}
+      className={cn('grid grid-cols-2 gap-2 px-4 pb-3 md:grid-cols-4 xl:grid-cols-7', className)}
       {...props}
     />
   )

@@ -653,12 +653,19 @@
     @apply inline-flex items-center gap-2 rounded-md border border-transparent bg-[hsl(var(--surface-subtle))] px-3 py-1.5 text-xs font-semibold text-muted-foreground;
   }
 
+  /* 手机端表格兜底（BLF-610 策略升级，取代 BLF-503 时代的 min-width: 600px）：
+     表格本身已集成横向滑动（Table 原语 wrapper overflow-x-auto / DataTableFrame 滚动体）。
+     旧的固定 600px 下限仍会把 >600px 的宽表压缩到 600px，列宽收缩 → 文字折行，
+     在可横滑的前提下是无意义的显示损失。改为 max-content：表格保持内容固有宽度
+     （= 与桌面端相同的宽度需求），视口不足时由容器横向滚动承接。
+     需要保留换行的长文本列，页面在单元格加 max-w-[Nrem] 即可约束其 max-content 贡献；
+     个别确实想压缩折行的表格，可在 table 上加 [min-width:0!] 退出本兜底。 */
   @media (max-width: 768px) {
     .dashboard-surface table,
     .dashboard-panel table,
     [class*="overflow-auto"] table,
     [class*="overflow-x-auto"] table {
-      min-width: 600px;
+      min-width: max-content;
     }
 
     .dashboard-surface > div:has(table),

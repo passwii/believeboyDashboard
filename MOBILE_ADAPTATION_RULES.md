@@ -64,9 +64,30 @@
 
 ---
 
+## 组件排列总则（BLF-610）
+
+> 全项目手机端适配的排列基线，逐页打磨时逐条对照。
+
+1. **卡片/KPI 默认一行两个**：网格基础列数 `grid-cols-2`，随断点递增（`sm:grid-cols-3` / `md:grid-cols-4` / `lg:grid-cols-5…`）；数量多（≥6）时改用规则 7 水平滑动。**禁止**裸 `grid-cols-3/4/5`（无断点前缀）直接上手机。
+2. **宽组件一行一个**：表格、图表、趋势图、地图、大型卡片等宽度需求大的组件始终独占整行（`grid-cols-1` / `col-span-full`），不与别的组件并排挤压。
+3. **宽组件的判定**：内容含多列数据、横轴时间序列、或最小可用宽度 > 视口一半的组件，一律按宽组件处理。
+4. **表单一列起步**：表单字段手机端单列（`grid-cols-1`），`md:grid-cols-2` 起双列；宽字段（地址、备注、SKU 搜索）`col-span-full`。
+5. **标题行纵向堆叠**：页面/区块标题行手机端 `flex-col items-start gap-3`，`sm:flex-row sm:items-center sm:justify-between`；操作按钮手机端 `w-full sm:w-auto`。
+6. **裸 `grid-cols-N` 排查命令**（子任务必跑）：
+
+   ```bash
+   # 在 frontend/ 下执行：列出无断点前缀的固定网格（逐个评估是否违反总则 1/2）
+   grep -rnE '(^|[^:a-z0-9-])grid-cols-[0-9]' app components --include='*.tsx' | grep -vE '(sm|md|lg|xl|2xl):grid-cols'
+   ```
+
+---
+
 ## 规则清单
 
-### 规则 1：表格 → 卡片列表（Table → Card List）
+### 规则 1：表格 → 卡片列表（Table → Card List，仅限例外场景）
+
+> ⚠️ **BLF-610 起范围收窄**：多列表格的默认手机端方案改为**规则 10（横滑保持列宽）**。
+> 卡片列表只保留给例外表格：列数极多（≈15+）且行数据可独立展示、或已在 BLF-503 时期完成卡片化并验收通过的存量页面（不推倒重来）。
 
 **问题**：多列表格（≥5 列）在手机端水平溢出，体验差。
 
@@ -389,7 +410,38 @@
 
 **适用场景**：所有控制台工具栏、筛选区域、数据分析页面的筛选项
 
-**注意**：如果某筛选项需要特别说明（如"周一限制 ≥ 16:00"），可以在控件内通过 tooltip 或 placeholder 提示，而不是单独标签
+**注意**：如果某筛选项需要特别说明（如“周一限制 ≥ 16:00”），可以在控件内通过 tooltip 或 placeholder 提示，而不是单独标签
+
+---
+
+### 规则 10：表格横滑保持列宽，不折行（BLF-610，多列表格默认方案）
+
+**问题**：手机端表格列宽被压缩，单元格文字折行；而所有表格容器本身已集成左右滑动（Table 原语 wrapper `overflow-x-auto` / `DataTableFrame` 滚动体），折行是无意义的显示损失。
+
+**解决方案**：表格保持**与桌面端相同的宽度需求**（列的固有宽度），视口不足时由容器横向滚动承接。全局兜底已落地（`globals.css` `<768px`）：
+
+```css
+.dashboard-surface table,
+.dashboard-panel table,
+[class*="overflow-auto"] table,
+[class*="overflow-x-auto"] table {
+  min-width: max-content;  /* 取代旧 min-width: 600px */
+}
+```
+
+**页面级调优手段**（子任务逐表过）：
+
+| 场景 | 手段 |
+|------|------|
+| 长文本列（备注/地址/URL）不想被 max-content 撑得过宽 | 单元格加 `max-w-[16rem] whitespace-normal`，约束 max-content 贡献且保留换行 |
+| 某列需要保底宽度（如 SKU/日期） | 表头/单元格加 `min-w-[Npx]` 或 `whitespace-nowrap` |
+| 固定列宽表格（`tableLayout="fixed"` + `ColGroup`） | 列宽之和即横滑宽度，与桌面一致，无需额外处理 |
+| 原生 `<table>`（未走 Table 原语） | 确保包一层 `overflow-x-auto` 容器并位于 `dashboard-surface` 内，才能吃到全局兜底 |
+| 个别表格确实想压缩折行 | table 上加 `[min-width:0!]` 退出兜底（需在设计上说明理由） |
+
+**验收**：手机端表格不出现单元格折行（除非该列显式 `max-w` 换行）；横滑顺畅；sticky 首列/表头在滑动时保持固定。
+
+**适用场景**：除规则 1 例外之外的所有数据表格
 
 ---
 
