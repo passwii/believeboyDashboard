@@ -106,17 +106,51 @@ class TestParseAuditPathMeta:
                 "ad_analysis",
             ),
             ("/api/v1/external/projects/4/ad-search-term-shares", 4, "ad_analysis"),
-            ("/api/v1/external/projects/5/inventory-ledger", 5, "inventory_ledger"),
+            (
+                "/api/v1/external/projects/5/inventory-ledger",
+                5,
+                "inventory_ledger",
+            ),
             (
                 "/api/v1/external/projects/6/replenishment-analysis",
                 6,
                 "inventory_ledger",
             ),
-            ("/api/v1/external/projects/7/sku-info", 7, "inventory_ledger"),
+            # BLF-582：sku-info 已原生化收口进 sku_info 域（审计映射已修正）
+            (
+                "/api/v1/external/projects/7/sku-info",
+                7,
+                "sku_info",
+            ),
+            # BLF-582：pricing-snapshots 归 shop_calculations 域（原映射陈旧的
+            # new_product_calculations 已修正）
             (
                 "/api/v1/external/projects/8/pricing-snapshots",
                 8,
-                "new_product_calculations",
+                "shop_calculations",
+            ),
+            # BLF-582：agent 原生非 ad 域路径（projects 列表 / sku_info /
+            # inventory_ledger / shop-calculation 2 条 / pricing-snapshots）
+            ("/api/v1/agent/projects", None, None),
+            (
+                "/api/v1/agent/projects/7/sku-info",
+                7,
+                "sku_info",
+            ),
+            (
+                "/api/v1/agent/projects/5/inventory-ledger/months",
+                5,
+                "inventory_ledger",
+            ),
+            (
+                "/api/v1/agent/projects/5/shop-calculation/snapshots",
+                5,
+                "shop_calculations",
+            ),
+            (
+                "/api/v1/agent/projects/8/pricing-snapshots",
+                8,
+                "shop_calculations",
             ),
             # v3 下线（BLF-571）后 /orders/ 片段已从审计映射移除 → 归 None。
             ("/api/v1/external/projects/10/orders/summary", 10, None),

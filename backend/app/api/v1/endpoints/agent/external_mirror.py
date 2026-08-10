@@ -18,7 +18,8 @@ handler 来源保留，不再挂载到应用。
 * ``new-product-calculations`` 已在 BLF-457 原生迁移（agent R1 同路径存在），
   镜像会与既有路由冲突 → 排除。
 * ``/projects`` 列表无 project_id → 不挂 project_scope；并对受 scope 限制的
-  key 做列表过滤（L2 门禁语义，``*`` 全放行时与 external 行为一致）。
+  key 做列表过滤（L2 门禁语义，``*`` 全放行时与 external 行为一致）——
+  **BLF-582 起已原生化**（agent/projects.py），本模块不再接管。
 * 其余路由统一挂 ``Depends(require_project_scope)``（BLF-441 L2 硬前置）。
 """
 
@@ -27,18 +28,13 @@ from __future__ import annotations
 import types
 from contextlib import contextmanager
 from typing import Any, Callable
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.routing import APIRoute
-from sqlalchemy.orm import Session
 
 from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.response import agent_ok
-from app.api.agent.scope import SCOPE_ALL, require_project_scope
-from app.api.deps import get_read_db_session
+from app.api.agent.scope import require_project_scope
 from app.api.v1.endpoints.external import external_router
-from app.api.v1.endpoints.external.projects import get_external_projects
-from app.db.session import SessionLocal
-from app.models.agent_api_key import AgentApiKey
 
 # 已原生迁移（BLF-457 agent R1 同路径 / BLF-470 退货分析域 R2/R3 原生替换）→
 # 镜像排除。new-product-calculations：agent R1 同路径存在。
@@ -47,6 +43,9 @@ from app.models.agent_api_key import AgentApiKey
 # BLF-580：ad_campaigns 域已原生化（agent/ad_campaigns.py 3 条原生路由 + 删除
 # external/ad_campaigns.py 端点模块）→ 镜像排除防双挂（源路由已删，排除项
 # 为防御性冗余，保底防外部源意外恢复）。
+# BLF-582：非 ad 域 5 域已原生化（projects 列表 / sku_info / inventory_ledger /
+# shop_calculation / pricing_snapshots，agent 原生路由 + 删除 external 端点模块）
+# → 镜像排除防双挂（同上，源路由已删，排除项为防御性冗余）。
 _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/new-product-calculations",
     "/external/projects/{project_id}/return-analysis",
@@ -88,9 +87,22 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/ad-purchased-products",
     "/external/projects/{project_id}/ad-purchased-products-raw",
     "/external/projects/{project_id}/ad-purchased-product-raw",
+    # BLF-582：非 ad 域 5 域已原生化（sku-info 已在上方 BLF-579 条目排除）
+    "/external/projects",
+    "/external/projects/{project_id}/inventory-ledger/months",
+    "/external/projects/{project_id}/inventory-ledger/snapshot",
+    "/external/projects/{project_id}/inventory-ledger/events",
+    "/external/projects/{project_id}/inventory-ledger/receipt-clusters",
+    "/external/projects/{project_id}/inventory-ledger/integrity",
+    "/external/projects/{project_id}/inventory-ledger/trend",
+    "/external/projects/{project_id}/inventory-ledger/detail",
+    "/external/projects/{project_id}/inventory-ledger/summary",
+    "/external/projects/{project_id}/inventory-ledger/batches",
+    "/external/projects/{project_id}/inventory-ledger/consistency",
+    "/external/projects/{project_id}/shop-calculation-history",
+    "/external/projects/{project_id}/shop-calculation/snapshots",
+    "/external/projects/{project_id}/pricing-snapshots",
 }
-
-_AGENT_PROJECTS_LIST_PATH = "/projects"
 
 
 # ============================================================
@@ -186,42 +198,6 @@ def _make_wrapper(endpoint: Callable, *, name: str) -> Callable:
     return wrapped
 
 
-def _agent_projects_list(
-    request: Request,
-    status: str = Query(default="active"),
-    name: str | None = Query(default=None),
-    db: Session = Depends(get_read_db_session),
-) -> dict:
-    """``/projects`` 列表专用：复用 external handler + 按 key 的 project_scope 过滤。
-
-    受 scope 限制的 agent key（如 ``project_scope="1,2"``）不应看到全部项目名；
-    ``*`` 全放行时行为与 external 完全一致。无 project_id → 不挂 project_scope。
-
-    ``name``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」
-    的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；
-    未命中返回空列表，Agent 据此判断名字写错或项目不存在。
-    """
-    with _service_errors():
-        projects = get_external_projects(status=status, db=db)
-
-    if name:
-        projects = [p for p in projects if p.project_name == name]
-
-    key_id = getattr(request.state, "agent_api_key_id", None)
-    if key_id is not None:
-        db2 = SessionLocal()
-        try:
-            key = db2.get(AgentApiKey, key_id)
-            scope = (key.project_scope if key else None) or SCOPE_ALL
-        finally:
-            db2.close()
-        if scope != SCOPE_ALL:
-            allowed = {int(part.strip()) for part in scope.split(",") if part.strip()}
-            projects = [p for p in projects if p.project_id in allowed]
-
-    return agent_ok([_to_json(p) for p in projects])
-
-
 # ============================================================
 # 镜像路由构建
 # ============================================================
@@ -238,20 +214,13 @@ for _ext_path, _route in _iter_external_apiroutes():
     rel_path = _ext_path[len("/external") :] or "/"
     agent_name = f"agent_{_route.name}"
 
-    if rel_path == _AGENT_PROJECTS_LIST_PATH:
-        wrapped: Callable = _agent_projects_list
-        deps: list[Depends] = []
-    else:
-        wrapped = _make_wrapper(_route.endpoint, name=agent_name)
-        deps = [Depends(require_project_scope)]
-
     external_mirror_router.add_api_route(
         rel_path,
-        endpoint=wrapped,
+        endpoint=_make_wrapper(_route.endpoint, name=agent_name),
         methods=["GET"],
         name=agent_name,
         summary=f"agent 镜像: {_ext_path}",
         tags=["agent-external-mirror"],
         response_model=None,
-        dependencies=deps,
+        dependencies=[Depends(require_project_scope)],
     )
