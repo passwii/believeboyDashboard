@@ -28,6 +28,7 @@ import {
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { EmptyTableState } from '@/components/ui/empty-state'
+import { FilterToolbar } from '@/components/ui/filter-toolbar'
 import {
   Select,
   SelectContent,
@@ -640,44 +641,42 @@ export default function ReturnAnalysisPage() {
           </div>
         </div>
 
-        {/* 筛选项 */}
-        <div className="px-4 py-3">
-          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-row lg:items-center lg:gap-3">
-            <div className="w-full min-w-0">
-              {projectsLoading ? (
-                <Skeleton className="h-9 w-full rounded-lg" />
-              ) : (
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
-                    <SelectValue placeholder="选择项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={String(project.id)}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="w-full min-w-0">
-              <CountrySelect
-                value={country}
-                onChange={(value) => setCountry(value as CountryOption)}
-                triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
-              />
-            </div>
-            <div className="col-span-2 w-full min-w-0 lg:col-span-1">
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                className="h-9 w-full"
-                onApply={() => void loadData()}
-              />
-            </div>
+        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2） */}
+        <FilterToolbar>
+          <div className="w-full min-w-0">
+            {projectsLoading ? (
+              <Skeleton className="h-9 w-full rounded-lg" />
+            ) : (
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
+                  <SelectValue placeholder="选择项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={String(project.id)}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-        </div>
+          <div className="w-full min-w-0">
+            <CountrySelect
+              value={country}
+              onChange={(value) => setCountry(value as CountryOption)}
+              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]"
+            />
+          </div>
+          <div className="col-span-2 w-full min-w-0 md:col-span-1">
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              className="h-9 w-full"
+              onApply={() => void loadData()}
+            />
+          </div>
+        </FilterToolbar>
 
         {/* Summary Stats */}
         {data && (
@@ -705,10 +704,10 @@ export default function ReturnAnalysisPage() {
                   highlight: true,
                   color:
                     data.summary.overall_return_rate > 8
-                      ? 'text-red-500'
+                      ? 'text-rose-600 dark:text-rose-400'
                       : data.summary.overall_return_rate > 3
-                        ? 'text-yellow-500'
-                        : 'text-green-500',
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400',
                 },
                 {
                   label: '涉及SKU',
