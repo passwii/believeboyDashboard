@@ -18,7 +18,7 @@
 | 表格唯一配方（密度 / 对齐 / sticky / 空态） | `frontend/docs/table-spec.md` | 权威（BLF-496 定稿） |
 | 图表与图例统一（ChartContainer / 豁免表） | `docs/chart-unification-spec.md` | 权威（BLF-495 定稿） |
 | 硬编码色例外清单 + Token 红线 | `frontend/docs/design-spec.md` | 权威（§2 登记例外，本节 §2.2 转引） |
-| 移动端适配规则（9 条） | `MOBILE_ADAPTATION_RULES.md` | 权威 |
+| 移动端适配规则（10 条 + 排列总则） | `MOBILE_ADAPTATION_RULES.md` | 权威 |
 | 动效体系（时长 / 缓动 / stagger） | `frontend/docs/motion-system.md` | 权威 |
 
 > 修改某块规则时，改对应子文档即可；本文档只做入口与红线汇总，避免多源不一致。
@@ -222,7 +222,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ## 5. 移动端适配
 
-**规则全集见 `MOBILE_ADAPTATION_RULES.md`（9 条规则）**，此处列摘要与代码落点：
+**规则全集见 `MOBILE_ADAPTATION_RULES.md`（10 条规则 + 组件排列总则，BLF-610 升级）**，此处列摘要与代码落点：
 
 | 规则 | 摘要 | 落点 |
 |---|---|---|
@@ -235,8 +235,11 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 7 | 指标卡 → 水平滑动（≥6 卡）：`overflow-x-auto snap-x snap-mandatory`，每屏 2 卡 | `w-[calc(50%-0.25rem)]` |
 | 8 | 筛选项标签内联（手机端不用 `FilterField`） | `text-[0.65rem] gap-1.5` |
 | 9 | 控制台筛选项去小标题标签 | — |
+| 10 | 表格横滑保持列宽不折行（BLF-610，多列表格默认方案） | globals.css `<768px` `min-width: max-content` 兜底 + 页面级 `max-w/min-w/whitespace-nowrap` 调优 |
 
-**框架级兜底**（globals.css:603-616）：`<768px` 时所有 `dashboard-surface / dashboard-panel / overflow-auto` 内的 table 强制 `min-width: 600px` + 容器 `overflow-x-auto`，保证表格不塌。
+**组件排列总则**（BLF-610）：卡片/KPI 默认 `grid-cols-2` 一行两个、随断点递增；宽组件（表格/图表/趋势图）独占一行；表单一列起步 `md:grid-cols-2`；标题行手机 `flex-col` 堆叠、按钮 `w-full sm:w-auto`。
+
+**框架级兜底**（globals.css `@media (max-width: 768px)`，BLF-610 升级）：`dashboard-surface / dashboard-panel / overflow-auto / overflow-x-auto` 内的 table 强制 `min-width: max-content`（保持与桌面端相同的列宽需求，取代旧 `min-width: 600px` 固定下限——它仍会压缩宽表导致折行）+ 容器 `overflow-x-auto` 横向滚动承接。
 **触控滚动条**（globals.css:300-318）：`pointer: coarse` 下细滚动条 6px；`prefers-reduced-motion` / `prefers-reduced-transparency` 均有全局降级（globals.css:347-361, 619-624）。
 
 ---
@@ -317,7 +320,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 4. **图表**：无裸 `<Legend`、无 tick hex、系列色走 `--chart-*`（对照 §3.4 验收命令）；不在主页外 import v2 组件。
 5. **弹窗/通知**：使用 `components/ui/*` 与 `useNotifications()`，页面内零自造。
 6. **排版**：eyebrow 用 `dashboard-kicker` 或 §4.1 pill；标题字号 rem、标题走 `--font-display`。
-7. **移动端**：对照 `MOBILE_ADAPTATION_RULES.md` 9 条规则逐项过。
+7. **移动端**：对照 `MOBILE_ADAPTATION_RULES.md` 10 条规则 + 组件排列总则逐项过。
 8. **组件**：新能力优先复用 §6 清单中的组件；确需新增先与设计规范对齐。
 9. **动效**：时长/缓动取 `--motion-*` 或 `lib/motion/tokens.ts`，不另起节奏；新交互满足 `prefers-reduced-motion` 降级。
 
