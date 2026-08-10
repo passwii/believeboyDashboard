@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { CardTitle } from '@/components/ui/card'
 import {
   DataCardContent,
@@ -2842,18 +2843,19 @@ export default function ShipmentManagementPage() {
 
   return (
     <div className="min-w-0 space-y-6 text-foreground">
-      {/* 页面头部：eyebrow + 标题 + 描述（对齐 site-navigation 页头模式） */}
+      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
       <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <div className="relative z-10 max-w-2xl space-y-2.5">
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-            <Ship className="h-3.5 w-3.5" />
-            供应链 · 货件管理
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight md:text-xl">货件管理</h1>
-          <p className="text-sm leading-6 text-muted-foreground md:text-base">
-            跟踪发货批次全流程：总览 / 发货费用 / SKU 汇总 / FBA 箱单明细，支持新建批次与批量导入。
-          </p>
-        </div>
+        <PageHeader
+          className="relative z-10"
+          eyebrow={
+            <>
+              <Ship className="h-3.5 w-3.5" />
+              供应链 · 货件管理
+            </>
+          }
+          title="货件管理"
+          description="跟踪发货批次全流程：总览 / 发货费用 / SKU 汇总 / FBA 箱单明细，支持新建批次与批量导入。"
+        />
       </section>
 
       {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}
