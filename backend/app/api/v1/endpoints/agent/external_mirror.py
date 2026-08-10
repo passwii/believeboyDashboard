@@ -50,6 +50,9 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/return-analysis-raw",
     # BLF-502 D1：补货分析已原生化（Agent 任务模型 6 路由）
     "/external/projects/{project_id}/replenishment-analysis",
+    # BLF-579 S2 D2：SKU Info 主数据已原生化（读 3 + 写 3，business_scope
+    # "sku_info" 门禁）——镜像排除，避免双路径漂移（对齐三域先例）。
+    "/external/projects/{project_id}/sku-info",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"

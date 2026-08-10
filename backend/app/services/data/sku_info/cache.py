@@ -14,7 +14,9 @@ def _resolve_project_id(db: Session, project_name: str) -> int:
     if project_name in _project_id_cache:
         return _project_id_cache[project_name]
     row = (
-        db.execute(select(Project.id).where(Project.project_name == project_name.strip()))
+        db.execute(
+            select(Project.id).where(Project.project_name == project_name.strip())
+        )
         .scalars()
         .first()
     )
@@ -29,6 +31,18 @@ def _resolve_project_id(db: Session, project_name: str) -> int:
 
 def _clear_project_id_cache() -> None:
     _project_id_cache.clear()
+
+
+def invalidate_sku_financial_cache(project_id: int) -> None:
+    """失效指定项目 PT4 财务汇总月度序列缓存（BLF-579 S2 D7）。
+
+    fob_unit_cost / first_leg_cost_rmb 喂 PT4 财务汇总（``report/pt4.py``），
+    is_active 参与补货/报表过滤——Agent W1/W2/W3 写后必须与内部端点同样失效。
+    下沉到服务层供 agent 路由复用（spec §2.4/§3 D7）。
+    """
+    from app.services.infra import invalidate_financial_series_cache
+
+    invalidate_financial_series_cache(project_id)
 
 
 def list_projects(db: Session) -> list[dict[str, str]]:

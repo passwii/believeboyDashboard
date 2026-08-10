@@ -24,6 +24,7 @@ from app.api.v1.endpoints.agent.replenishment_analysis import (
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculations import shop_calculations_router
+from app.api.v1.endpoints.agent.sku_info import sku_info_router
 
 agent_router = APIRouter(
     prefix="/agent",
@@ -93,6 +94,14 @@ agent_router.include_router(
 agent_router.include_router(
     sales_router,
     dependencies=[Depends(require_business_scope("sales"))],
+)
+# SKU Info 主数据域（BLF-579 S2）：读 3 + 写 3（confirm 两步），挂
+# business_scope("sku_info")（spec §3 D1）。镜像侧已由
+# external_mirror._EXCLUDED_EXTERNAL_PATHS 排除（D2），无双挂冲突。
+# 必须插在兜底路由之前，否则被静默吞成 404 壳。
+agent_router.include_router(
+    sku_info_router,
+    dependencies=[Depends(require_business_scope("sku_info"))],
 )
 # BLF-459 (P1 路径迁移)：/external/* 读路由镜像（项目白名单在路由级
 # require_project_scope，见 external_mirror.py）。必须插在兜底路由之前。
