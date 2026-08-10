@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/tab-motion'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
 import { CardTitle } from '@/components/ui/card'
 import {
   DataCardContent,
@@ -2843,25 +2842,13 @@ export default function ShipmentManagementPage() {
 
   return (
     <div className="min-w-0 space-y-6 text-foreground">
-      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <PageHeader
-          className="relative z-10"
-          eyebrow={
-            <>
-              <Ship className="h-3.5 w-3.5" />
-              运营 · 货件管理
-            </>
-          }
-          title="货件管理"
-          description="跟踪发货批次全流程：总览 / 发货费用 / SKU 汇总 / FBA 箱单明细，支持新建批次与批量导入。"
-        />
-      </section>
-
-      {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}
-      <div className="dashboard-surface overflow-hidden">
+      {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺；头部 = 页面 PILL 合并（BLF-605：顶部 PILL 并入首卡，替换「控制台」标题） */}
+      <div className="dashboard-surface animate-enter overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
-          <h2 className="text-sm font-semibold">控制台</h2>
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Ship className="h-3.5 w-3.5" />
+            运营 · 货件管理
+          </span>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"

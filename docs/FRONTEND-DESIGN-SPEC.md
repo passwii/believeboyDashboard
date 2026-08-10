@@ -399,6 +399,12 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 > - 全部 6 域批次：`pnpm lint` 0 error；`pnpm build` 通过；vitest 749 全绿；tsc 51 个既有错误与 main 基线一致 0 新增。
 
 > 后续页面打磨子 issue 以本节为验收模板：目标页面头部/筛选/指标卡/三态必须命中上表原语，否则视为未收口。
+
+> **BLF-605（2026-08-10）落地记录：PILL 并入首卡（shipment-management）**：
+>
+> - 页面顶部独立 PageHeader 段移除，其 eyebrow pill（`<Ship /> 运营 · 货件管理`，§4.1 配方）**并入首个卡片头部**，替换原「控制台」标题；操作区（刷新/新建/模板/导入）保留在 PILL 右侧同行。
+> - 适用场景：页面仅一个主卡片 + 该卡头部已有标题栏时，顶层 pill + 卡头标题语义重复 → 合并为卡内 pill 头，省一层页面纵向空间。
+> - 实现：`app/dashboard/operations/shipment-management/page.tsx`（删除独立 `<section>` + `PageHeader`，卡头 `<h2>控制台</h2>` → 同配方 `<span>` pill）。
 ---
 
 ## 9. 暗黑模式层次规范（Raycast Depth & Elevation）
