@@ -50,10 +50,6 @@ _EXCLUDED_EXTERNAL_PATHS = {
     "/external/projects/{project_id}/return-analysis-raw",
     # BLF-502 D1：补货分析已原生化（Agent 任务模型 6 路由）
     "/external/projects/{project_id}/replenishment-analysis",
-    # BLF-569：orders/summary 已原生化并迁移到 sales/summary（agent/sales.py
-    # 原生路由，旧路径双挂保留迁移提示期，挂 business_scope("sales")）→
-    # 镜像排除防双挂冲突。external 源路径不动（仅作 handler 来源）。
-    "/external/projects/{project_id}/orders/summary",
 }
 
 _AGENT_PROJECTS_LIST_PATH = "/projects"

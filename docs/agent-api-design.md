@@ -407,7 +407,7 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 | `/external/projects/{project_id}/ad-purchased-products` | `/agent/projects/{project_id}/ad-purchased-products` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-products-raw` | `/agent/projects/{project_id}/ad-purchased-products-raw` | v1 双挂 |
 | `/external/projects/{project_id}/ad-purchased-product-raw` | `/agent/projects/{project_id}/ad-purchased-product-raw` | v1 双挂 |
-| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**，agent 侧仅 `/sales/summary` |
+| `/external/projects/{project_id}/orders/summary` | `/agent/projects/{project_id}/sales/summary` | 已原生化 + 路径迁移（BLF-569：orders→sales）；旧路径双挂已于 **BLF-571（2026-08-10）v3 下线**；**BLF-563 拓展（2026-08-10）删除 external 端点模块**（agent 侧仅 `/sales/summary`，schemas/service 保留给 agent 复用） |
 | `/external/projects/{project_id}/replenishment-analysis` | `/agent/projects/{project_id}/replenishment-analysis` | v1 双挂 |
 | `/external/projects/{project_id}/sku-info` | `/agent/projects/{project_id}/sku-info` | v1 双挂 |
 | `/external/projects/{project_id}/inventory-ledger/months` | `/agent/projects/{project_id}/inventory-ledger/months` | v1 双挂 |

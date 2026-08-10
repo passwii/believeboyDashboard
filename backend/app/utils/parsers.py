@@ -137,7 +137,8 @@ def is_counted_sales_status(
     age_days = (as_of_date_pt - purchase_date_pt).days
     # Pending/Unshipped 在订单产生后短时间内视为有效销售（给 Amazon 发货留出时间），
     # 超过该窗口仍未发货则不再计入，避免历史挂起订单长期虚高销量。
-    if age_days <= 5:
+    # 窗口 7 天（BLF-563 拓展：原 5 天，2026-08-10 按业务确认调整为 7 天）。
+    if age_days <= 7:
         return normalized in {"pending", "unshipped", "shipped"}
     return normalized == "shipped"
 

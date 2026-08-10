@@ -570,8 +570,9 @@ def test_legacy_mode_limit_default_unchanged(client, orders_env):
 
 def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
     """BLF-569/571：sales/summary 原生路由带全部 group_by 参数；旧路径双挂
-    已于 v3 下线（BLF-571）移除；镜像侧仍排除 external orders/summary（无双挂
-    冲突）。spec §7.8 权限门 + 镜像排除回归。
+    已于 v3 下线（BLF-571）移除；external orders/summary 端点模块已删除
+    （BLF-563 拓展），镜像侧无对应路径、也无排除项残留。spec §7.8 权限门
+    + 镜像排除回归。
     """
     import inspect
 
@@ -581,9 +582,8 @@ def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
     )
     from app.api.v1.endpoints.agent.sales import sales_router
 
-    # 1) 镜像侧：orders/summary 已从 _EXCLUDED_EXTERNAL_PATHS 排除（external
-    #    源路由不动，仅作 handler 来源）。
-    assert "/external/projects/{project_id}/orders/summary" in _EXCLUDED_EXTERNAL_PATHS
+    # 1) 镜像侧：external orders/summary 端点已删除 → 既不在排除集，也无镜像路径。
+    assert "/external/projects/{project_id}/orders/summary" not in _EXCLUDED_EXTERNAL_PATHS
     mirror_paths = {r.path for r in external_mirror_router.routes}
     assert "/projects/{project_id}/orders/summary" not in mirror_paths
 
@@ -619,15 +619,14 @@ def test_sales_summary_native_route_exposes_params_and_mirror_excluded():
 
 
 def test_mirror_agent_channel_group_by_parity(client, orders_env):
-    """agent 通道响应 == external handler 直调结果（双通道数据一致）。"""
+    """agent 通道响应 == service 直调结果（external orders/summary 端点模块
+    已删除，BLF-563 拓展；agent 原生 sales/summary 与 service 保持同一数据源）。"""
+    from datetime import date, timedelta
     from urllib.parse import parse_qsl
 
-    from app.api.v1.endpoints.agent.external_mirror import (
-        _iter_external_apiroutes,
-    )
-    from app.api.v1.endpoints.external.orders_summary import (
-        get_external_orders_summary,
-    )
+    from app.api.v1.endpoints.external._period import parse_period_v2
+    from app.schemas.external.orders_summary import OrdersGroupedResponse
+    from app.services.external import orders_summary as orders_summary_svc
 
     pid = orders_env["project_id"]
     qs = f"period=7d&country={orders_env['country']}&group_by=asin&include_share=true"
@@ -640,29 +639,40 @@ def test_mirror_agent_channel_group_by_parity(client, orders_env):
     agent_data = resp.json()["data"]
 
     kwargs = dict(parse_qsl(qs))
+    # 与 agent 原生路由（agent/sales.py）完全一致的 period 解析：today 锚定 T-1。
+    period_info = parse_period_v2(
+        kwargs["period"], None, None, today=date.today() - timedelta(days=1)
+    )
     db = SessionLocal()
     try:
-        result = get_external_orders_summary(
+        rows, total_rows, agg = orders_summary_svc.query_orders_summary_grouped(
+            db,
             project_id=pid,
-            period=kwargs["period"],
-            start_date=None,
-            end_date=None,
-            country=kwargs["country"],
+            country=[kwargs["country"]],
+            date_from=period_info.start_date,
+            date_to=period_info.end_date,
             include_cancelled=False,
             include_pending=True,
-            aggregate=True,
             group_by=kwargs["group_by"],
             order_by="sales_amount",
             order_dir="desc",
             include_share=kwargs["include_share"] == "true",
             limit=None,
             offset=0,
-            db=db,
         )
     finally:
         db.close()
-    ext_data = result.model_dump(mode="json")
-    assert agent_data == ext_data, "agent 与 external handler 直调结果不一致"
+    ext_data = OrdersGroupedResponse(
+        project_id=pid,
+        period=period_info,
+        country=kwargs["country"],
+        countries=[kwargs["country"]],
+        group_by=kwargs["group_by"],
+        rows=rows,
+        total_rows=total_rows,
+        summary=agg,
+    ).model_dump(mode="json")
+    assert agent_data == ext_data, "agent 通道与 service 直调结果不一致"
 
 
 # ---------------------------------------------------------------------------
