@@ -42,7 +42,7 @@ def _clean_crm_tables(db_session):
     try:
         s.execute(
             text(
-                "truncate crm_audit_logs, crm_follows, crm_opportunities, crm_contacts, "
+                "truncate crm_audit_logs, crm_follows, crm_contacts, "
                 "crm_tasks, crm_leads, crm_customers restart identity cascade"
             )
         )
