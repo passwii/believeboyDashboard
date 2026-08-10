@@ -7,6 +7,8 @@
  */
 import type {
   AuditLog,
+  Category,
+  CategoryInput,
   Contact,
   ContactInput,
   Customer,
@@ -46,6 +48,7 @@ export interface CustomerDto {
   score_pay?: string | null
   score_fit?: string | null
   score_coop?: string | null
+  categories?: Array<{ id: number; name: string }>
   status: string
   source?: string | null
   owner_id?: string | null
@@ -108,6 +111,13 @@ export interface UserDto {
   email: string
   role_type?: string | null
   is_active: boolean
+}
+
+export interface CategoryDto {
+  id: number
+  name: string
+  sort_order: number
+  created_at: string
 }
 
 export interface FollowUpItemDto {
@@ -307,6 +317,10 @@ export function mapCustomer(dto: CustomerDto): Customer {
     scorePay: (dto.score_pay as Customer['scorePay']) ?? null,
     scoreFit: (dto.score_fit as Customer['scoreFit']) ?? null,
     scoreCoop: (dto.score_coop as Customer['scoreCoop']) ?? null,
+    categories: (dto.categories ?? []).map((c) => ({
+      id: String(c.id),
+      name: c.name,
+    })),
     status: dto.status as Customer['status'],
     source: (dto.source ?? 'other') as Customer['source'],
     ownerId: dto.owner_id ?? null,
@@ -376,6 +390,24 @@ export function mapUser(dto: UserDto): User {
     roleType: (dto.role_type ?? 'operator') as User['roleType'],
     isActive: dto.is_active,
   }
+}
+
+export function mapCategory(dto: CategoryDto): Category {
+  return {
+    id: String(dto.id),
+    name: dto.name,
+    sortOrder: dto.sort_order,
+    createdAt: dto.created_at,
+  }
+}
+
+export function toCategoryPayload(
+  input: Partial<CategoryInput>
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+  if (input.name !== undefined) payload.name = input.name
+  if (input.sortOrder !== undefined) payload.sort_order = input.sortOrder
+  return payload
 }
 
 export function mapFollowUp(dto: FollowUpItemDto): FollowUpItem {

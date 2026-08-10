@@ -138,6 +138,69 @@ describe('HttpCrmClient.updateValueScores (P6a)', () => {
     })
   })
 })
+
+describe('HttpCrmClient P6b 产品类目', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  let client: HttpCrmClient
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    client = new HttpCrmClient()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+  it('setCustomerCategories PUT /customers/{id}/categories with int ids', async () => {
+    await client.setCustomerCategories('7', ['1', '2'])
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/customers/7/categories')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body)).toEqual({ category_ids: [1, 2] })
+  })
+  it('listCategories GET /categories', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: 1, name: '家居', sort_order: 0, created_at: '' },
+        { id: 2, name: '3C', sort_order: 1, created_at: '' },
+      ],
+    })
+    const cats = await client.listCategories()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/categories')
+    expect(init.method ?? 'GET').toBe('GET')
+    expect(cats).toEqual([
+      { id: '1', name: '家居', sortOrder: 0, createdAt: '' },
+      { id: '2', name: '3C', sortOrder: 1, createdAt: '' },
+    ])
+  })
+  it('createCategory POST /categories with snake payload', async () => {
+    await client.createCategory({ name: '宠物用品', sortOrder: 9 })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/categories')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ name: '宠物用品', sort_order: 9 })
+  })
+  it('updateCategory PATCH /categories/{id}', async () => {
+    await client.updateCategory('3', { name: '新名字' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/categories/3')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({ name: '新名字' })
+  })
+  it('deleteCategory DELETE /categories/{id}', async () => {
+    await client.deleteCategory('3')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain('/categories/3')
+    expect(init.method).toBe('DELETE')
+  })
+})
+
 describe('HttpCrmClient Task (P7, BLF-512)', () => {
   let fetchMock: ReturnType<typeof vi.fn>
   let client: HttpCrmClient

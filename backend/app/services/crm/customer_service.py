@@ -7,7 +7,12 @@ import re
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.crm import CrmContact, CrmCustomer
+from app.models.crm import (
+    CrmCategory,
+    CrmContact,
+    CrmCustomer,
+    CrmCustomerCategory,
+)
 from app.schemas.crm import ContactCreate, CustomerCreate, CustomerUpdate
 from app.services.crm import audit_service, contact_service
 
@@ -59,13 +64,30 @@ def _primary_contact_map(db: Session, customer_ids: list[int]) -> dict[int, CrmC
     return result
 
 
+def _category_map(db: Session, customer_ids: list[int]) -> dict[int, list[CrmCategory]]:
+    """P6b 批量加载客户类目，避免 N+1。"""
+    if not customer_ids:
+        return {}
+    rows = db.execute(
+        select(CrmCustomerCategory.customer_id, CrmCategory)
+        .join(CrmCategory, CrmCategory.id == CrmCustomerCategory.category_id)
+        .where(CrmCustomerCategory.customer_id.in_(customer_ids))
+        .order_by(CrmCategory.sort_order, CrmCategory.id)
+    ).all()
+    result: dict[int, list[CrmCategory]] = {}
+    for customer_id, cat in rows:
+        result.setdefault(customer_id, []).append(cat)
+    return result
+
+
 def _to_item(
     db: Session,
     cust: CrmCustomer,
     owner_names: dict[str, str],
     primary: CrmContact | None,
+    categories: list[CrmCategory] | None = None,
 ):
-    from app.schemas.crm import CustomerItem
+    from app.schemas.crm import CategoryBrief, CustomerItem
 
     return CustomerItem(
         id=cust.id,
@@ -79,6 +101,7 @@ def _to_item(
         score_pay=cust.score_pay,
         score_fit=cust.score_fit,
         score_coop=cust.score_coop,
+        categories=[CategoryBrief(id=c.id, name=c.name) for c in (categories or [])],
         status=cust.status,
         source=cust.source,
         owner_id=cust.owner_id,
@@ -113,6 +136,7 @@ def list_customers(
     sort_by: str = "updated_at",
     sort_order: str = "desc",
     filters: list[dict] | None = None,
+    category_id: int | None = None,
 ) -> tuple[list, int]:
     cur = _current_user_id(user_id)
     stmt = select(CrmCustomer).where(CrmCustomer.is_deleted.is_(False))
@@ -129,6 +153,13 @@ def list_customers(
             or_(CrmCustomer.name.ilike(like), CrmCustomer.short_name.ilike(like))
         )
 
+    # P6b: 按类目筛客户（涉及某类目）
+    if category_id is not None:
+        stmt = stmt.join(
+            CrmCustomerCategory,
+            CrmCustomerCategory.customer_id == CrmCustomer.id,
+        ).where(CrmCustomerCategory.category_id == category_id)
+
     # 高级筛选（P4）：白名单字段 → where；非法字段/运算符由 filter_engine 抛 ValueError/TypeError。
     if filters:
         from app.services.crm.filter_engine import CUSTOMER_FILTER_FIELDS, apply_filters
@@ -144,7 +175,11 @@ def list_customers(
 
     owner_names = _owner_name_map(db, {r.owner_id for r in rows if r.owner_id})
     primary_map = _primary_contact_map(db, [r.id for r in rows])
-    items = [_to_item(db, r, owner_names, primary_map.get(r.id)) for r in rows]
+    cat_map = _category_map(db, [r.id for r in rows])
+    items = [
+        _to_item(db, r, owner_names, primary_map.get(r.id), cat_map.get(r.id, []))
+        for r in rows
+    ]
     return items, int(total)
 
 
@@ -158,7 +193,8 @@ def get_customer(db: Session, customer_id: int):
         return None
     owner_names = _owner_name_map(db, {cust.owner_id} if cust.owner_id else set())
     primary = _primary_contact_map(db, [cust.id]).get(cust.id)
-    return _to_item(db, cust, owner_names, primary)
+    cats = _category_map(db, [cust.id]).get(cust.id, [])
+    return _to_item(db, cust, owner_names, primary, cats)
 
 
 def create_customer(

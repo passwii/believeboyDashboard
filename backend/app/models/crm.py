@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -283,6 +284,40 @@ class CrmFollow(Base):
     created_by: Mapped[str | None] = mapped_column(String(36))  # user_accounts.id UUID
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CrmCategory(Base):
+    """P6b 产品类目：管理员维护的扁平词表（唯一 name + sort_order）。"""
+
+    __tablename__ = "crm_categories"
+    __table_args__ = (Index("uq_crm_categories_name", "name", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CrmCustomerCategory(Base):
+    """P6b 客户 ↔ 类目多对多关联（复合主键天然去重）。"""
+
+    __tablename__ = "crm_customer_categories"
+    __table_args__ = (
+        Index("idx_ccc_category", "category_id"),
+        ForeignKeyConstraint(["customer_id"], ["crm_customers.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(
+            ["category_id"], ["crm_categories.id"], ondelete="CASCADE"
+        ),
+    )
+
+    customer_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=False
+    )
+    category_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=False
     )
 
 

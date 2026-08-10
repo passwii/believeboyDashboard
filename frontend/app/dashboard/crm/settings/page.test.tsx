@@ -27,7 +27,16 @@ vi.mock('next-auth/react', () => ({
 
 vi.mock('@/lib/crm/api/crm-client-provider', () => {
   // 返回稳定对象引用（CrmRulesPanel 的 load useCallback 依赖 client 身份，新对象会无限重拉）
-  const client = { getWorkflowSettings, updateWorkflowSettings, listRules }
+  const client = {
+    getWorkflowSettings,
+    updateWorkflowSettings,
+    listRules,
+    // P6b 产品类目管理（CrmCategoryManager）
+    listCategories: vi.fn(async () => []),
+    createCategory: vi.fn(),
+    updateCategory: vi.fn(),
+    deleteCategory: vi.fn(),
+  }
   return { useCrmClient: () => client }
 })
 

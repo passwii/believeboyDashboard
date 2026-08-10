@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  mapCategory,
   mapCustomer,
   mapFollow,
   mapFollowUp,
@@ -11,6 +12,7 @@ import {
   mapUser,
   mapRule,
   mapWorkflowSettings,
+  toCategoryPayload,
   toConvertPayload,
   toCustomerPayload,
   toFollowPayload,
@@ -19,6 +21,7 @@ import {
   toTaskPayload,
   toRulePayload,
   toWorkflowSettingsPayload,
+  type CategoryDto,
   type CustomerDto,
   type FollowDto,
   type FollowUpGroupsDto,
@@ -78,6 +81,48 @@ describe('mapCustomer', () => {
     expect(c.ownerId).toBeNull()
     expect(c.shortName).toBeUndefined()
     expect(c.lastFollowAt).toBeUndefined()
+  })
+  it('P6b categories 映射为简版（id string + name）', () => {
+    const c = mapCustomer({
+      ...customerDto,
+      categories: [
+        { id: 1, name: '家居' },
+        { id: 2, name: '3C' },
+      ],
+    })
+    expect(c.categories).toEqual([
+      { id: '1', name: '家居' },
+      { id: '2', name: '3C' },
+    ])
+  })
+  it('categories 缺省 → 空数组', () => {
+    expect(mapCustomer(customerDto).categories).toEqual([])
+  })
+})
+
+describe('P6b mapCategory / toCategoryPayload', () => {
+  const categoryDto: CategoryDto = {
+    id: 3,
+    name: '宠物用品',
+    sort_order: 9,
+    created_at: '2026-08-08T00:00:00+00:00',
+  }
+  it('snake → camel', () => {
+    const cat = mapCategory(categoryDto)
+    expect(cat).toEqual({
+      id: '3',
+      name: '宠物用品',
+      sortOrder: 9,
+      createdAt: '2026-08-08T00:00:00+00:00',
+    })
+  })
+  it('payload camel → snake 且跳过 undefined', () => {
+    expect(toCategoryPayload({ name: '宠物用品' })).toEqual({ name: '宠物用品' })
+    expect(toCategoryPayload({ name: '宠物用品', sortOrder: 5 })).toEqual({
+      name: '宠物用品',
+      sort_order: 5,
+    })
+    expect(toCategoryPayload({})).toEqual({})
   })
 })
 

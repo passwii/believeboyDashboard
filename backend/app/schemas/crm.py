@@ -98,6 +98,42 @@ class ValueScoresUpdate(BaseModel):
     score_coop: Literal["A", "B", "C", "D"] | None = None
 
 
+class CategoryBrief(BaseModel):
+    """P6b 客户身上携带的类目摘要。"""
+
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class CategoryItem(BaseModel):
+    """P6b 产品类目词表项。"""
+
+    id: int
+    name: str
+    sort_order: int = 0
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    sort_order: int = 0
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=50)
+    sort_order: int | None = None
+
+
+class CustomerCategoriesUpdate(BaseModel):
+    """P6b 整体替换客户类目集。"""
+
+    category_ids: list[int] = []
+
+
 class CustomerItem(BaseModel):
     id: int
     name: str
@@ -111,6 +147,8 @@ class CustomerItem(BaseModel):
     score_pay: str | None = None
     score_fit: str | None = None
     score_coop: str | None = None
+    # P6b: 产品类目（多对多，扁平词表）
+    categories: list[CategoryBrief] = []
     status: str
     source: str | None = None
     owner_id: str | None = None

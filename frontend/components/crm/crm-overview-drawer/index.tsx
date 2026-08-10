@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
 import { CrmDetailCard } from '@/components/crm/crm-detail-card'
 import { CrmValueProfileCard } from '@/components/crm/crm-value-profile-card'
+import { CrmCategoryField } from '@/components/crm/crm-category-field'
 import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
 import { CrmContactList } from '@/components/crm/crm-contact-list'
 import { CrmAuditTimeline } from '@/components/crm/crm-audit-timeline'
@@ -123,6 +124,14 @@ export function CrmOverviewDrawer<T extends object>({
               {entityType === 'customer' && (
                 <div className="mb-4">
                   <CrmValueProfileCard customer={data as any} />
+                  <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        产品类目
+                      </span>
+                    </div>
+                    <CrmCategoryField customer={data as any} />
+                  </div>
                 </div>
               )}
               <CrmDetailCard fields={fields} data={data as Record<string, unknown>} />

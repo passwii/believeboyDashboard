@@ -2,6 +2,12 @@ export type CustomerStatus = 'active' | 'lost' | 'signed' | 'on_hold'
 export type CustomerSource = 'referral' | 'exhibition' | 'online_ad' | 'cold_call' | 'other'
 export type CustomerRating = 'A' | 'B' | 'C' | 'D'
 
+/** 客户身上携带的类目摘要（简版：id + name）。 */
+export interface CategoryBrief {
+  id: string
+  name: string
+}
+
 export interface Customer {
   id: string
   name: string
@@ -14,6 +20,7 @@ export interface Customer {
   scorePay?: CustomerRating | null
   scoreFit?: CustomerRating | null
   scoreCoop?: CustomerRating | null
+  categories: CategoryBrief[]
   status: CustomerStatus
   source: CustomerSource
   ownerId: string | null
@@ -35,7 +42,14 @@ export interface Customer {
 
 export type CustomerInput = Omit<
   Customer,
-  'id' | 'ownerName' | 'createdAt' | 'updatedAt' | 'createdBy' | 'lastFollowAt' | 'nextFollowAt'
+  | 'id'
+  | 'ownerName'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'createdBy'
+  | 'lastFollowAt'
+  | 'nextFollowAt'
+  | 'categories'
 > & {
   ownerId?: string | null
 }
@@ -66,6 +80,16 @@ export interface CustomerSeaImportFailItem {
   field?: string
   reason: string
 }
+
+/** P6b 产品类目（扁平词表，管理员维护）。 */
+export interface Category {
+  id: string
+  name: string
+  sortOrder: number
+  createdAt: string
+}
+
+export type CategoryInput = Pick<Category, 'name'> & { sortOrder?: number }
 
 export interface CustomerSeaImportResult {
   created: number

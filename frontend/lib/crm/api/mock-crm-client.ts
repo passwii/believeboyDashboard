@@ -2,6 +2,8 @@ import type { CrmClient, FilterCondition, ListParams, Paginated } from './crm-cl
 import type {
   AuditLog,
   AuditLogQuery,
+  Category,
+  CategoryInput,
   Contact,
   ContactInput,
   Customer,
@@ -33,6 +35,7 @@ import type {
 } from '@/lib/crm/types'
 import { computeRating } from '@/lib/crm/constants/value-score'
 import {
+  CATEGORIES_FIXTURE,
   CUSTOMERS_FIXTURE,
   LEADS_FIXTURE,
   FOLLOWS_FIXTURE,
@@ -58,6 +61,7 @@ interface MockState {
   follows: Follow[]
   contacts: Contact[]
   users: User[]
+  categories: Category[]
   audits: AuditLog[]
   tasks: Task[]
   rules: Rule[]
@@ -98,6 +102,7 @@ function loadState(): MockState {
       follows: [...FOLLOWS_FIXTURE],
       contacts: [],
       users: [...USERS_FIXTURE],
+      categories: [...CATEGORIES_FIXTURE],
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
@@ -113,6 +118,7 @@ function loadState(): MockState {
         follows: [...FOLLOWS_FIXTURE],
         contacts: [],
         users: [...USERS_FIXTURE],
+        categories: [...CATEGORIES_FIXTURE],
         audits: [],
         tasks: [...TASKS_FIXTURE],
         rules: [...RULES_FIXTURE],
@@ -126,6 +132,7 @@ function loadState(): MockState {
       follows: parsed.follows ?? [...FOLLOWS_FIXTURE],
       contacts: parsed.contacts ?? [],
       users: parsed.users ?? [...USERS_FIXTURE],
+      categories: parsed.categories ?? [...CATEGORIES_FIXTURE],
       audits: parsed.audits ?? [],
       tasks: parsed.tasks ?? [...TASKS_FIXTURE],
       rules: parsed.rules ?? [...RULES_FIXTURE],
@@ -138,6 +145,7 @@ function loadState(): MockState {
       follows: [...FOLLOWS_FIXTURE],
       contacts: [],
       users: [...USERS_FIXTURE],
+      categories: [...CATEGORIES_FIXTURE],
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
@@ -311,6 +319,7 @@ export class MockCrmClient implements CrmClient {
       id,
       ownerId: input.ownerId ?? this.currentUserId,
       ownerName: owner?.name,
+      categories: [],
       createdAt: now,
       updatedAt: now,
       createdBy: this.currentUserId,
@@ -354,6 +363,7 @@ export class MockCrmClient implements CrmClient {
         customerType: row.customerType,
         interestedService: row.interestedService,
         rating: (row.rating as Customer['rating']) ?? 'C',
+        categories: [],
         status: (row.status as Customer['status']) ?? 'active',
         source: (row.source as Customer['source']) ?? 'other',
         ownerId: null,
@@ -415,6 +425,24 @@ export class MockCrmClient implements CrmClient {
       scoreFit: scores.score_fit,
       scoreCoop: scores.score_coop,
       rating: newRating ?? prev.rating,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.customers[idx] = updated
+    persistState(this.state)
+    return updated
+  }
+
+  async setCustomerCategories(
+    id: string,
+    categoryIds: string[]
+  ): Promise<Customer> {
+    await this.delay('setCustomerCategories')
+    const idx = this.state.customers.findIndex((c) => c.id === id)
+    if (idx === -1) throw new Error(`客户不存在: ${id}`)
+    const cats = this.state.categories.filter((c) => categoryIds.includes(c.id))
+    const updated: Customer = {
+      ...this.state.customers[idx],
+      categories: cats,
       updatedAt: new Date().toISOString(),
     }
     this.state.customers[idx] = updated
@@ -547,6 +575,7 @@ export class MockCrmClient implements CrmClient {
       shortName: customerInput?.shortName ?? lead.company?.slice(0, 4),
       industry: customerInput?.industry,
       rating: customerInput?.rating ?? 'B',
+      categories: [],
       status: customerInput?.status ?? 'active',
       source: lead.source,
       ownerId: lead.ownerId,
@@ -796,6 +825,63 @@ export class MockCrmClient implements CrmClient {
     const u = this.state.users.find((x) => x.id === id)
     if (!u) throw new Error(`用户不存在: ${id}`)
     return u
+  }
+
+  // ===== P6b 产品类目 =====
+
+  async listCategories(): Promise<Category[]> {
+    await this.delay('listCategories')
+    return [...this.state.categories].sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+
+  async createCategory(input: CategoryInput): Promise<Category> {
+    await this.delay('createCategory')
+    const name = input.name.trim()
+    if (this.state.categories.some((c) => c.name === name)) {
+      throw new Error(`类目「${name}」已存在`)
+    }
+    const cat: Category = {
+      id: genId('cat'),
+      name,
+      sortOrder: input.sortOrder ?? this.state.categories.length,
+      createdAt: new Date().toISOString(),
+    }
+    this.state.categories.push(cat)
+    persistState(this.state)
+    return cat
+  }
+
+  async updateCategory(
+    id: string,
+    input: Partial<CategoryInput>
+  ): Promise<Category> {
+    await this.delay('updateCategory')
+    const idx = this.state.categories.findIndex((c) => c.id === id)
+    if (idx === -1) throw new Error(`类目不存在: ${id}`)
+    if (input.name !== undefined) {
+      const name = input.name.trim()
+      if (this.state.categories.some((c) => c.name === name && c.id !== id)) {
+        throw new Error(`类目「${name}」已存在`)
+      }
+      this.state.categories[idx].name = name
+    }
+    if (input.sortOrder !== undefined) {
+      this.state.categories[idx].sortOrder = input.sortOrder
+    }
+    persistState(this.state)
+    return { ...this.state.categories[idx] }
+  }
+
+  async deleteCategory(id: string): Promise<void> {
+    await this.delay('deleteCategory')
+    const idx = this.state.categories.findIndex((c) => c.id === id)
+    if (idx === -1) throw new Error(`类目不存在: ${id}`)
+    this.state.categories.splice(idx, 1)
+    this.state.customers = this.state.customers.map((c) => ({
+      ...c,
+      categories: c.categories.filter((x) => x.id !== id),
+    }))
+    persistState(this.state)
   }
 
   // ===== Dashboard 数据看板（P3c） =====

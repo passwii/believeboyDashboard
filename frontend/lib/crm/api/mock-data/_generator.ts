@@ -319,6 +319,7 @@ export function generateCustomers(count: number, seed = 2002, users: User[] = []
       shortName: name.slice(0, 4),
       industry: pick(rand, INDUSTRIES),
       rating: pick(rand, RATINGS),
+      categories: [],
       status: pick(rand, CUSTOMER_STATUSES),
       source: pick(rand, SOURCES),
       ownerId: owner?.id ?? null,

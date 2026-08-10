@@ -56,6 +56,28 @@ const columns: CrmColumnDef<Customer>[] = [
       )
     ),
   },
+  {
+    key: 'categories',
+    title: '产品类目',
+    render: (value) => {
+      const cats = (value ?? []) as Array<{ id: string; name: string }>
+      if (cats.length === 0) return '-'
+      const shown = cats.slice(0, 2)
+      const rest = cats.length - shown.length
+      return (
+        <div className="flex flex-wrap items-center gap-1">
+          {shown.map((c) => (
+            <Badge key={c.id} variant="secondary" className="font-normal">
+              {c.name}
+            </Badge>
+          ))}
+          {rest > 0 && (
+            <span className="text-xs text-muted-foreground">+{rest}</span>
+          )}
+        </div>
+      )
+    },
+  },
   { key: 'ownerName', title: '负责人' },
   { key: 'contactName', title: '联系人' },
   { key: 'contactPhone', title: '联系电话' },
