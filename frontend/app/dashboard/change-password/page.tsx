@@ -67,7 +67,7 @@ export default function ChangePasswordPage() {
           <p className="dashboard-kicker">配置工作台</p>
           <Badge
             variant="outline"
-            className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300"
+            className="w-fit rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90"
           >
             账号安全
           </Badge>
