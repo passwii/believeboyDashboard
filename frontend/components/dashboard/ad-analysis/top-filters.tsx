@@ -224,7 +224,8 @@ export function AdAnalysisTopFilters() {
       </CardHeader>
 
       <CardContent className="space-y-3 pt-0">
-        <div className="dashboard-toolbar grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
+        {/* BLF-611：手机端筛选项 2 列网格（总则 1 / 规则 2），日期范围占满一行；md+ 行为不变 */}
+        <div className="dashboard-toolbar grid grid-cols-2 gap-2 md:grid-cols-2 md:gap-3 xl:grid-cols-[minmax(14rem,18rem)_minmax(12rem,14rem)_minmax(18rem,22rem)]">
           <div className="space-y-2">
             <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               项目
@@ -268,7 +269,7 @@ export function AdAnalysisTopFilters() {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="col-span-2 space-y-2 md:col-span-1">
             <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               日期范围
             </div>

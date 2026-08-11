@@ -152,12 +152,13 @@ export function AdAnalysisOverviewClient() {
 
   return (
     <div className="space-y-5">
-      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* BLF-611：手机端指标卡一行两个（总则 1），数字降级防挤压；md+ 行为不变 */}
+      <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         {data.metrics.map((metric) => (
-          <Card key={metric.label} className="hover-lift">
+          <Card key={metric.label} className="min-w-0 hover-lift">
             <CardHeader className="pb-2">
               <CardDescription>{metric.label}</CardDescription>
-              <CardTitle className="text-2xl">{metric.display_value}</CardTitle>
+              <CardTitle className="text-xl sm:text-2xl">{metric.display_value}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">{metric.helper || '-'}</p>
@@ -179,7 +180,7 @@ export function AdAnalysisOverviewClient() {
             {comparison.summary ? (
               <p className="text-sm leading-6 text-foreground/90">{comparison.summary}</p>
             ) : null}
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
                 <p className="text-muted-foreground">花费变化</p>
                 <p className="mt-1 font-medium">
@@ -338,7 +339,7 @@ export function AdAnalysisOverviewClient() {
                 <TableBody>
                   {data.top_campaigns.map((item, index) => (
                     <TableRow key={`${String(item.campaign_name)}-${index}`}>
-                      <TableCell>{String(item.campaign_name || '-')}</TableCell>
+                      <TableCell className="max-w-[16rem] whitespace-normal">{String(item.campaign_name || '-')}</TableCell>
                       <TableCell>${Number(item.spend || 0).toFixed(2)}</TableCell>
                       <TableCell>${Number(item.sales_7d || 0).toFixed(2)}</TableCell>
                       <TableCell>{String(item.orders_7d || 0)}</TableCell>
@@ -447,8 +448,8 @@ export function AdAnalysisOverviewClient() {
                 <TableBody>
                   {data.top_waste_terms.map((item, index) => (
                     <TableRow key={`${String(item.search_term)}-${index}`}>
-                      <TableCell>{String(item.search_term || '-')}</TableCell>
-                      <TableCell>{String(item.campaign_name || '-')}</TableCell>
+                      <TableCell className="max-w-[14rem] whitespace-normal">{String(item.search_term || '-')}</TableCell>
+                      <TableCell className="max-w-[14rem] whitespace-normal">{String(item.campaign_name || '-')}</TableCell>
                       <TableCell>{String(item.clicks || 0)}</TableCell>
                       <TableCell>${Number(item.spend || 0).toFixed(2)}</TableCell>
                       <TableCell>{String(item.orders_7d || 0)}</TableCell>

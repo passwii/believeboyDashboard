@@ -31,11 +31,13 @@ export default defineConfig({
         url: 'http://localhost:3200',
         reuseExistingServer: false,
         timeout: 120 * 1000,
+        env: { NEXTAUTH_SECRET: 'blf611-e2e-fixture-secret-0123456789-abcdefghijklmnopqrstuvwxyz-42' },
       }
     : {
         command: 'pnpm dev',
         url: 'http://localhost:3200',
         reuseExistingServer: true,
         timeout: 120 * 1000,
+        env: { NEXTAUTH_SECRET: 'blf611-e2e-fixture-secret-0123456789-abcdefghijklmnopqrstuvwxyz-42' },
       },
 })
