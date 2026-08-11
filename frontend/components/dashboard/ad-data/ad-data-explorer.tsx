@@ -265,7 +265,8 @@ export function AdDataExplorer() {
       {/* 控制条：报表类型选择 + 搜索 + 导出 */}
       <Card className="dashboard-surface">
         <CardContent className="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
+          {/* BLF-611：手机端字段全宽单列（sm 起 2 列），lg+ 恢复横向 + 固定宽，桌面零回归 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
             <div className="space-y-1.5">
               <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 报表类型
@@ -274,7 +275,7 @@ export function AdDataExplorer() {
                 value={selectedReportType}
                 onValueChange={(value) => setSelectedReportType(value)}
               >
-                <SelectTrigger className="h-10 w-[15rem] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                <SelectTrigger className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[15rem] dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
                   <SelectValue placeholder="选择报表类型" />
                 </SelectTrigger>
                 <SelectContent>
@@ -313,48 +314,54 @@ export function AdDataExplorer() {
                     setPage(1)
                   }}
                   placeholder="按任意列内容过滤..."
-                  className="h-10 w-[16rem] pl-8"
+                  className="h-10 w-full pl-8 lg:w-[16rem]"
                 />
               </div>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              视图
+          {/* BLF-611：手机端视图切换与导出同行各占一半；lg 用 lg:contents 拆回行内联排，桌面零回归 */}
+          <div className="flex items-end gap-2 lg:contents">
+            <div className="flex-1 space-y-1.5 lg:flex-none">
+              <div className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                视图
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={mode === 'raw' ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1 lg:flex-none"
+                  onClick={() => {
+                    setMode('raw')
+                    setPage(1)
+                  }}
+                >
+                  原始明细
+                </Button>
+                <Button
+                  variant={mode === 'aggregate' ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1 lg:flex-none"
+                  onClick={() => {
+                    setMode('aggregate')
+                    setPage(1)
+                  }}
+                >
+                  聚合
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={mode === 'raw' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setMode('raw')
-                  setPage(1)
-                }}
-              >
-                原始明细
-              </Button>
-              <Button
-                variant={mode === 'aggregate' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setMode('aggregate')
-                  setPage(1)
-                }}
-              >
-                聚合
-              </Button>
-            </div>
-          </div>
 
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            disabled={!config || sorted.length === 0}
-          >
-            <Download className="mr-1.5 h-4 w-4" />
-            导出 CSV
-          </Button>
+            <Button
+              variant="outline"
+              className="flex-1 lg:flex-none"
+              onClick={handleExport}
+              disabled={!config || sorted.length === 0}
+            >
+              <Download className="mr-1.5 h-4 w-4" />
+              导出 CSV
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

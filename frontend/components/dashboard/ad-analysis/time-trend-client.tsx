@@ -124,7 +124,8 @@ export function AdAnalysisTimeTrendClient() {
             {comparison.summary ? (
               <p className="text-sm leading-6 text-foreground/90">{comparison.summary}</p>
             ) : null}
-            <div className="grid gap-3 md:grid-cols-3">
+            {/* BLF-611：手机端对比指标一行两个（总则 1），第三项占满一行；sm+ 三列不变 */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
                 <p className="text-muted-foreground">花费变化</p>
                 <p className="mt-1 font-medium">
@@ -141,7 +142,7 @@ export function AdAnalysisTimeTrendClient() {
                     : '-'}
                 </p>
               </div>
-              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm">
+              <div className="rounded-lg border border-border/70 px-3 py-3 text-sm last:col-span-2 sm:last:col-span-1">
                 <p className="text-muted-foreground">CPC 变化</p>
                 <p className="mt-1 font-medium">
                   {comparison.cpc_change_ratio != null
@@ -153,26 +154,27 @@ export function AdAnalysisTimeTrendClient() {
           </CardContent>
         </Card>
       ) : null}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+      {/* BLF-611：手机端 KPI 一行两个，第三项占满；sm+ 三列不变；数字降级防挤压 */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">累计花费</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">
+          <CardContent className="text-xl font-semibold sm:text-2xl">
             ${latest.running_spend.toFixed(2)}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">最新单日点击</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{latest.clicks}</CardContent>
+          <CardContent className="text-xl font-semibold sm:text-2xl">{latest.clicks}</CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0 last:col-span-2 sm:last:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">最新单日 CPC</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">${latest.cpc.toFixed(2)}</CardContent>
+          <CardContent className="text-xl font-semibold sm:text-2xl">${latest.cpc.toFixed(2)}</CardContent>
         </Card>
       </div>
 
@@ -238,7 +240,8 @@ export function AdAnalysisTimeTrendClient() {
                     <span className="text-xs text-primary">当前</span>
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-2 mt-2 text-xs">
+                {/* BLF-611：<640px 时 4 列改 2×2，避免金额被压缩折行 */}
+                <div className="grid grid-cols-2 gap-2 mt-2 text-xs sm:grid-cols-4">
                   <div>
                     <span className="text-muted-foreground">Clicks</span>
                     <div className="font-medium">{item.clicks}</div>

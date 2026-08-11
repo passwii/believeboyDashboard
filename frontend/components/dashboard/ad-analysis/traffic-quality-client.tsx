@@ -134,14 +134,15 @@ export function AdAnalysisTrafficQualityClient() {
       <AdAnalysisContextBanner
         items={campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []}
       />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
         {data.summary_cards.map((card) => (
-          <Card key={card.label}>
+          <Card key={card.label} className="min-w-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{card.label}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">{card.value}</p>
+              <p className="text-xl font-semibold sm:text-2xl">{card.value}</p>
               <p className="mt-1 text-sm text-muted-foreground">{card.helper || '-'}</p>
             </CardContent>
           </Card>
