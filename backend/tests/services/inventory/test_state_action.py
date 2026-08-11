@@ -469,6 +469,84 @@ class TestComputeReplenishmentAction:
         )
         assert action == "NO_ACTION"
 
+    def test_action_replenish_now_when_buffer_negative(self):
+        """BLF-630 二轮：已过最晚下单日（order_buffer<0）→ REPLENISH_NOW。
+
+        用户案例：watch（P0a）+ buffer=-10 → 修复"状态红、动作灰"漏洞。
+        """
+        action, rule, _ = compute_replenishment_action(
+            state="watch",
+            critical_subtype=None,
+            trend_label="稳定",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=-10,
+        )
+        assert action == "REPLENISH_NOW"
+        assert rule == "buffer-negative-urgent"
+
+    def test_action_replenish_now_when_buffer_within_14(self):
+        """BLF-630 二轮：0 ≤ order_buffer ≤ 14 → REPLENISH_NOW。"""
+        action, rule, _ = compute_replenishment_action(
+            state="healthy",
+            critical_subtype=None,
+            trend_label="稳定",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=10,
+        )
+        assert action == "REPLENISH_NOW"
+        assert rule == "buffer-urgent"
+
+    def test_action_no_action_when_buffer_plenty(self):
+        """BLF-630 二轮：order_buffer > 14 → 维持原决策表（watch→NO_ACTION）。"""
+        action, _, _ = compute_replenishment_action(
+            state="watch",
+            critical_subtype=None,
+            trend_label="稳定",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=30,
+        )
+        assert action == "NO_ACTION"
+
+    def test_action_deteriorating_declining_overridden_by_buffer(self):
+        """BLF-630 二轮：P0b（deteriorating+下降）也应加急补货，而非降价。"""
+        action, rule, _ = compute_replenishment_action(
+            state="deteriorating",
+            critical_subtype=None,
+            trend_label="下降明显",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=-10,
+        )
+        assert action == "REPLENISH_NOW"
+        assert rule == "buffer-negative-urgent"
+
+    def test_action_aging_priority_over_buffer(self):
+        """BLF-630 二轮：critical+aging 优先于 order_buffer（老化清货，不该补）。"""
+        action, _, _ = compute_replenishment_action(
+            state="critical",
+            critical_subtype="aging",
+            trend_label="稳定",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=-10,
+        )
+        assert action == "REMOVE"
+
+    def test_action_overstock_priority_over_buffer(self):
+        """BLF-630 二轮：critical+overstock 优先于 order_buffer（库存过多，不该补）。"""
+        action, _, _ = compute_replenishment_action(
+            state="critical",
+            critical_subtype="overstock",
+            trend_label="下降明显",
+            transit_ratio=1.0,
+            seasonal_phase="neutral",
+            order_buffer_days=-10,
+        )
+        assert action == "REDUCE_PRICE"
+
     def test_action_no_action_for_unknown(self):
         """unknown → NO_ACTION"""
         action, _, _ = compute_replenishment_action(

@@ -102,6 +102,8 @@ class InventoryReplenishmentListItem(BaseModel):
     gap_days: int = 0
     gap_start_date: str | None = None
     next_transit_eta: str | None = None
+    # BLF-630 二轮: 目标覆盖天数（补货量动态化基准）
+    target_days: int = 90
 
     # ── v1.2 三段式（spec §3.2） ──
     # 判断维度
@@ -136,6 +138,8 @@ class InventoryReplenishmentSettingUpdate(BaseModel):
     production_lead_days: int = Field(ge=0)
     shipping_days: int = Field(ge=0)
     safety_factor: float = Field(ge=0)
+    # BLF-630 二轮：目标覆盖天数（补货量动态化），缺省保持现值
+    target_days: int | None = Field(default=None, ge=0)
 
 
 class InventoryReplenishmentSettingItem(BaseModel):
@@ -147,6 +151,7 @@ class InventoryReplenishmentSettingItem(BaseModel):
     production_lead_days: int
     shipping_days: int
     safety_factor: float
+    target_days: int = 90
 
 
 class InventoryReplenishmentShipmentItem(BaseModel):

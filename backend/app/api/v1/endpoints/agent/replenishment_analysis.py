@@ -582,6 +582,11 @@ def _validate_setting_body(body: dict, request: Request) -> None:
             production_lead_days=int(body["production_lead_days"]),
             shipping_days=int(body["shipping_days"]),
             safety_factor=float(body["safety_factor"]),
+            target_days=(
+                int(body["target_days"])
+                if body.get("target_days") is not None
+                else None
+            ),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise AgentApiError(
@@ -606,8 +611,9 @@ def _preview_setting(body: dict, request: Request) -> dict:
                 "production_lead_days": body.get("production_lead_days"),
                 "shipping_days": body.get("shipping_days"),
                 "safety_factor": body.get("safety_factor"),
+                "target_days": body.get("target_days"),
             },
-            "note": "将覆盖该 SKU 的补货设置（生产周期/海运周期/安全系数），影响后续补货建议",
+            "note": "将覆盖该 SKU 的补货设置（生产周期/海运周期/安全系数/目标覆盖天数），影响后续补货建议",
         },
     }
 
@@ -639,6 +645,9 @@ async def update_replenishment_analysis_setting(
         production_lead_days=int(body["production_lead_days"]),
         shipping_days=int(body["shipping_days"]),
         safety_factor=float(body["safety_factor"]),
+        target_days=(
+            int(body["target_days"]) if body.get("target_days") is not None else None
+        ),
     )
     with _service_errors():
         row = upsert_inventory_replenishment_setting(
@@ -650,6 +659,7 @@ async def update_replenishment_analysis_setting(
             production_lead_days=payload.production_lead_days,
             shipping_days=payload.shipping_days,
             safety_factor=payload.safety_factor,
+            target_days=payload.target_days,
             operator=None,
         )
         append_operation_audit_log(
@@ -666,6 +676,7 @@ async def update_replenishment_analysis_setting(
                 "production_lead_days": row.production_lead_days,
                 "shipping_days": row.shipping_days,
                 "safety_factor": float(row.safety_factor),
+                "target_days": int(row.target_days),
             },
             **_audit_kwargs(request),
         )
@@ -682,6 +693,7 @@ async def update_replenishment_analysis_setting(
             "production_lead_days": int(row.production_lead_days),
             "shipping_days": int(row.shipping_days),
             "safety_factor": float(row.safety_factor),
+            "target_days": int(row.target_days),
         },
         idempotency_key=request.headers.get("idempotency-key") or None,
     )

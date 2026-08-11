@@ -30,6 +30,7 @@ from app.services.sales_query import counted_sales_where
 from app.services.inventory.health_score import ItemInput
 from app.services.inventory.seasonal_factor import compute_seasonal_factor
 from app.services.inventory.state_action import (
+    EMERGENCY_ORDER_BUFFER_DAYS,
     compute_inventory_state,
     compute_replenishment_action,
     compute_seasonal_adjusted_sellable_days,
@@ -59,9 +60,8 @@ RISK_SLOW_MOVING = "滞销"
 RISK_SEVERE_SLOW_MOVING = "严重滞销"
 RISK_PENDING = "待补数据"
 
-# BLF-630: 补货周期维度判定阈值（spec §4.5 决策点 2 拍板：先用 14，上线后按真实分布调）
-# order_buffer ≤ EMERGENCY_ORDER_BUFFER_DAYS 视为"必须尽快下单"（断货风险）
-EMERGENCY_ORDER_BUFFER_DAYS = 14
+# BLF-630 二轮: 目标覆盖天数默认值（补货量动态化基准；可进 settings 表按 SKU 覆盖）
+DEFAULT_TARGET_DAYS = 90
 
 # BLF-502: 三段式取值全集（summary 分布 / Agent 过滤白名单用）
 STATE_VALUES = ("critical", "deteriorating", "watch", "healthy", "unknown")
@@ -615,6 +615,32 @@ def _add_days(base_date: date, days_value: Decimal | None) -> str | None:
         return None
     dt = datetime.combine(base_date, time.min) + timedelta(days=float(days_value))
     return dt.date().isoformat()
+
+
+def _estimate_replenishment_quantity(
+    target_days: int,
+    coverage_days_total: int | None,
+    production_plus_shipping_days: int,
+    weighted_dms: Decimal | None,
+) -> int | None:
+    """BLF-630 二轮：补货量动态化（目标覆盖模型）。
+
+    补到"目标覆盖水位"：
+
+        到货时剩余天数 = 连续覆盖天数 − 补货周期 L
+        补货量 = max(0, (target_days − 到货时剩余) × DMS)
+
+    - 断档自动多补（缺口计入，到货后直接拉回 target 水位）
+    - 在途通过连续覆盖天数天然抵扣
+    - 到货时剩余 ≥ target（est_days ≤ 0）→ 无需补货，返回 None
+    """
+    if weighted_dms is None or weighted_dms <= 0 or coverage_days_total is None:
+        return None
+    remaining_at_arrival = coverage_days_total - production_plus_shipping_days
+    est_days = target_days - remaining_at_arrival
+    if est_days <= 0:
+        return None
+    return _round_decimal_to_int(Decimal(est_days) * weighted_dms)
 
 
 def _classify_risk(
@@ -1248,14 +1274,24 @@ def list_inventory_replenishment_analysis(
                 ).isoformat()
                 risk_anchor_date = coverage_end_date
         risk = _classify_risk(today, coverage_end_date, order_buffer_days, weighted_dms)
-        estimated_replenishment_quantity = (
-            _round_decimal_to_int(
-                Decimal(production_lead_days + shipping_days) * weighted_dms
-            )
-            if weighted_dms is not None
-            and risk not in {RISK_SLOW_MOVING, RISK_SEVERE_SLOW_MOVING}
-            else None
+        # BLF-630 二轮: 目标覆盖天数（可配置，缺省 90）
+        target_days = (
+            setting.target_days if setting is not None else DEFAULT_TARGET_DAYS
         )
+        # BLF-630 二轮: 补货量动态化——补到"目标覆盖水位"（见 _estimate_replenishment_quantity）
+        estimated_replenishment_quantity = None
+        if risk not in {RISK_SLOW_MOVING, RISK_SEVERE_SLOW_MOVING}:
+            coverage_days_total = (
+                (date.fromisoformat(coverage_end_date) - today).days
+                if coverage_end_date is not None
+                else None
+            )
+            estimated_replenishment_quantity = _estimate_replenishment_quantity(
+                target_days,
+                coverage_days_total,
+                production_plus_shipping_days,
+                weighted_dms,
+            )
 
         # v1.2 三段式判定（spec §2.1-2.4）
         seasonal_dms = seasonal_dms_map.get(base_row.sku)
@@ -1322,6 +1358,7 @@ def list_inventory_replenishment_analysis(
                 transit_ratio_value,
                 seasonal_phase,
                 adjusted_sellable_days=adjusted_sellable_days,
+                order_buffer_days=order_buffer_days,
             )
         )
 
@@ -1391,6 +1428,7 @@ def list_inventory_replenishment_analysis(
                 "gap_days": gap_days,
                 "gap_start_date": gap_start_date,
                 "next_transit_eta": next_transit_eta,
+                "target_days": target_days,
                 # ── Age bucket (from FBA inventory snapshot) ──
                 "age_0_90_qty": snap.age_0_90_qty if snap else 0,
                 "age_91_180_qty": snap.age_91_180_qty if snap else 0,
@@ -1556,6 +1594,7 @@ def list_inventory_replenishment_settings(
             "production_lead_days": r.production_lead_days,
             "shipping_days": r.shipping_days,
             "safety_factor": float(r.safety_factor),
+            "target_days": r.target_days,
         }
         for r in db.scalars(stmt).all()
     ]
@@ -1622,6 +1661,7 @@ def upsert_inventory_replenishment_setting(
     production_lead_days: int,
     shipping_days: int,
     safety_factor: float,
+    target_days: int | None = None,
     operator: str | None,
 ) -> InventoryReplenishmentSetting:
     project = _get_project_or_404(db, project_id)
@@ -1653,6 +1693,9 @@ def upsert_inventory_replenishment_setting(
             production_lead_days=production_lead_days,
             shipping_days=shipping_days,
             safety_factor=Decimal(str(safety_factor)),
+            target_days=(
+                target_days if target_days is not None else DEFAULT_TARGET_DAYS
+            ),
             created_by=_normalize_text(operator, max_length=255),
             updated_by=_normalize_text(operator, max_length=255),
         )
@@ -1664,6 +1707,8 @@ def upsert_inventory_replenishment_setting(
         row.production_lead_days = production_lead_days
         row.shipping_days = shipping_days
         row.safety_factor = Decimal(str(safety_factor))
+        if target_days is not None:
+            row.target_days = target_days
         row.updated_by = _normalize_text(operator, max_length=255)
 
     db.flush()
