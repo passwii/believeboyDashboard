@@ -1027,3 +1027,418 @@ class TestRouteRegistration:
         # 原生模块内恰好一条（不含兜底）
         sku_paths = [r.path for r in sku_info_router.routes]
         assert "/projects/{project_id}/sku-info" in sku_paths
+
+
+# ---------------------------------------------------------------------------
+# W4 FNSKU 标签 PDF 上传（multipart confirm；BLF-628，spec §4 W4 / §7 #11）
+# ---------------------------------------------------------------------------
+
+
+class TestW4UploadFnskuLabel:
+    """W4 上传：multipart confirm 两步 + R2 写入 + 行更新 + 审计归因。
+
+    R2 全程 mock（``upload_bytes_to_r2`` / ``delete_file_from_r2``）——
+    本类不依赖真实 R2。文件校验（source 枚举 / PDF 后缀 / 非空 / ≤20MB /
+    跨项目 404）在 confirm 签发之前短路。
+    """
+
+    PDF = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF"
+
+    def _upload(
+        self,
+        client,
+        env,
+        sku_record_id,
+        *,
+        source="agent_listing_pull",
+        filename="label.pdf",
+        content=None,
+        idem=None,
+        token=None,
+        data_extra=None,
+    ):
+        headers = dict(env["headers"])
+        headers["Idempotency-Key"] = idem or f"idem-{uuid.uuid4().hex[:12]}"
+        if token:
+            headers["X-Confirm-Token"] = token
+        data = {"source": source}
+        if data_extra:
+            data.update(data_extra)
+        return client.post(
+            f"/api/v1/agent/projects/{env['project_id']}/sku-info/"
+            f"{sku_record_id}/fnsku-label",
+            files={
+                "file": (
+                    filename,
+                    content if content is not None else self.PDF,
+                    "application/pdf",
+                )
+            },
+            data=data,
+            headers=headers,
+        )
+
+    def _patch_r2(self, return_url="https://cdn.example.com/label.pdf"):
+        """mock R2 上传/删除；返回 (ExitStack, upload_mock, delete_mock)。"""
+        from contextlib import ExitStack
+        from unittest.mock import PropertyMock, patch
+
+        from app.core.config import get_settings
+
+        def _upload(
+            settings,
+            data,
+            filename,
+            project_slug,
+            file_type,
+            content_type="application/octet-stream",
+        ):
+            return {
+                "key": f"{project_slug}/{file_type}/{filename}",
+                "url": return_url,
+                "bucket": "test-bucket",
+                "size": len(data),
+            }
+
+        settings = get_settings()
+        stack = ExitStack()
+        up = stack.enter_context(
+            patch(
+                "app.services.r2_service.upload_bytes_to_r2",
+                side_effect=_upload,
+            )
+        )
+        dele = stack.enter_context(
+            patch("app.services.r2_service.delete_file_from_r2", return_value=True)
+        )
+        stack.enter_context(
+            patch.object(
+                type(settings),
+                "r2_enabled",
+                new_callable=PropertyMock,
+                return_value=True,
+            )
+        )
+        return stack, up, dele
+
+    def test_preview_then_replay_uploads_audits_and_reads_back(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4A"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            assert preview.status_code == 200, preview.text
+            pbody = preview.json()
+            assert pbody["ok"] is False
+            assert pbody["requires_confirmation"] is True
+            assert pbody["confirm_token"].startswith("cf_")
+            assert pbody["preview"]["action"] == "sku_info.upload_fnsku_label"
+            assert pbody["preview"]["sku_record_id"] == sku_id
+            assert pbody["preview"]["sku"] == "X-W4A"
+            assert pbody["preview"]["filename"] == "label.pdf"
+            assert pbody["preview"]["file_size"] == len(self.PDF)
+            assert pbody["preview"]["replace_old"] is False
+            assert pbody["preview"]["source"] == "agent_listing_pull"
+
+            # 重放：TestClient 每次 files= 生成新 boundary，内容一致即通过
+            replay = self._upload(
+                client, shipment_env, sku_id, token=pbody["confirm_token"], idem=idem
+            )
+            assert replay.status_code == 200, replay.text
+            rbody = replay.json()
+            assert rbody["ok"] is True
+            assert rbody["data"]["sku_record_id"] == sku_id
+            assert (
+                rbody["data"]["fnsku_label_r2_url"]
+                == "https://cdn.example.com/label.pdf"
+            )
+            assert rbody["data"]["file_size"] == len(self.PDF)
+            assert rbody["data"]["filename"].endswith("_X-W4A.pdf")
+            assert rbody["idempotency_key"] == idem
+
+            up.assert_called_once()
+            dele.assert_not_called()  # 无旧 key
+
+        # 行已更新（R2 写回）
+        db = SessionLocal()
+        try:
+            row = db.get(SkuRecord, sku_id)
+            assert (
+                row.fnsku_label_r2_key
+                == f"{shipment_env['project_name']}/fnsku-labels/"
+                + rbody["data"]["filename"]
+            )
+            assert row.fnsku_label_r2_url == "https://cdn.example.com/label.pdf"
+        finally:
+            db.close()
+
+        # 审计归因
+        db = SessionLocal()
+        try:
+            audit = query_operation_audit_log(
+                db, target_type="sku_info", target_id=str(sku_id)
+            )
+        finally:
+            db.close()
+        assert len(audit) == 1
+        row = audit[0]
+        assert row.action == "sku_info.upload_fnsku_label"
+        assert row.agent_id == shipment_env["agent_id"]
+        assert row.idempotency_key == idem
+        assert row.operator is None
+        assert row.after_json["sku"] == "X-W4A"
+        assert "fnsku_label_r2_key" in row.after_json
+        assert row.after_json["file_size"] == len(self.PDF)
+
+        # R1/R2 读回可见新 url
+        read = client.get(
+            f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}",
+            headers=shipment_env["headers"],
+        )
+        assert read.status_code == 200
+        assert (
+            read.json()["data"]["fnsku_label_r2_url"]
+            == "https://cdn.example.com/label.pdf"
+        )
+
+    def test_replace_existing_label_deletes_old_key(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku="X-W4B",
+            fnsku_label_r2_key="old/project/fnsku-labels/old.pdf",
+            fnsku_label_r2_url="https://cdn.example.com/old.pdf",
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            assert preview.status_code == 200, preview.text
+            assert preview.json()["preview"]["replace_old"] is True
+
+            replay = self._upload(
+                client,
+                shipment_env,
+                sku_id,
+                token=preview.json()["confirm_token"],
+                idem=idem,
+            )
+            assert replay.status_code == 200, replay.text
+            dele.assert_called_once()
+            assert dele.call_args.args[1] == "old/project/fnsku-labels/old.pdf"
+            up.assert_called_once()
+
+    def test_missing_source_rejected_before_token(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4C"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(
+                client, shipment_env, sku_id, data_extra={"source": None}
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "SKU_INFO_INVALID_SOURCE"
+        up.assert_not_called()
+
+    def test_invalid_source_rejected(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4D"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(client, shipment_env, sku_id, source="manual")
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "SKU_INFO_INVALID_SOURCE"
+
+    def test_non_pdf_rejected(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4E"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(client, shipment_env, sku_id, filename="label.txt")
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        up.assert_not_called()
+
+    def test_empty_file_rejected(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4F"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(client, shipment_env, sku_id, content=b"")
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_oversize_file_rejected(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4G"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(
+                client, shipment_env, sku_id, content=b"x" * (20 * 1024 * 1024 + 1)
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        up.assert_not_called()
+
+    def test_missing_file_rejected(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4H"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = client.post(
+                f"/api/v1/agent/projects/{shipment_env['project_id']}/sku-info/{sku_id}/fnsku-label",
+                data={"source": "agent_listing_pull"},
+                headers=_headers(shipment_env),
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    def test_cross_project_record_404(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4I"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(client, shipment_env, sku_id + 999999, idem="idem-x")
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+        up.assert_not_called()
+
+    def test_replay_content_changed_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4J"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            replay = self._upload(
+                client,
+                shipment_env,
+                sku_id,
+                content=b"%PDF-1.4 tampered",
+                token=preview.json()["confirm_token"],
+                idem=idem,
+            )
+        assert replay.status_code == 400
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        up.assert_not_called()
+
+    def test_replay_source_changed_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4K"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            replay = self._upload(
+                client,
+                shipment_env,
+                sku_id,
+                source="external_api",
+                token=preview.json()["confirm_token"],
+                idem=idem,
+            )
+        assert replay.status_code == 400
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        up.assert_not_called()
+
+    def test_replay_idempotency_changed_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4L"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            preview = self._upload(client, shipment_env, sku_id, idem="idem-a")
+            replay = self._upload(
+                client,
+                shipment_env,
+                sku_id,
+                token=preview.json()["confirm_token"],
+                idem="idem-b",
+            )
+        assert replay.status_code == 400
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        up.assert_not_called()
+
+    def test_confirm_token_expired(self, client, shipment_env, confirm_memory_store):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4M"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            token = preview.json()["confirm_token"]
+            confirm_memory_store._rows[token]["record"].created_at -= 400
+            replay = self._upload(client, shipment_env, sku_id, token=token, idem=idem)
+        assert replay.status_code == 409
+        assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_EXPIRED"
+        up.assert_not_called()
+
+    def test_invalid_idempotency_header_rejected(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4N"
+        )
+        stack, up, dele = self._patch_r2()
+        with stack:
+            resp = self._upload(client, shipment_env, sku_id, idem="x" * 65)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+        up.assert_not_called()
+
+    def test_r2_disabled_returns_internal_error(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"], shipment_env["project_name"], sku="X-W4O"
+        )
+        from unittest.mock import PropertyMock, patch
+
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        with (
+            patch("app.services.r2_service.upload_bytes_to_r2") as up,
+            patch.object(
+                type(settings),
+                "r2_enabled",
+                new_callable=PropertyMock,
+                return_value=False,
+            ),
+        ):
+            idem = f"idem-{uuid.uuid4().hex[:12]}"
+            preview = self._upload(client, shipment_env, sku_id, idem=idem)
+            replay = self._upload(
+                client,
+                shipment_env,
+                sku_id,
+                token=preview.json()["confirm_token"],
+                idem=idem,
+            )
+        assert replay.status_code == 500
+        assert replay.json()["error"]["code"] == "INTERNAL_ERROR"
+        up.assert_not_called()

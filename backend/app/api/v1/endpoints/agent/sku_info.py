@@ -1,6 +1,6 @@
-"""Agent SKU Info（商品主数据）域路由（BLF-579 S2；spec §4/§5）。
+"""Agent SKU Info（商品主数据）域路由（BLF-579 S2 + BLF-628 W4；spec §4/§5）。
 
-在 ``/api/v1/agent/projects/{project_id}/sku-info/*`` 开放 6 条路由：
+在 ``/api/v1/agent/projects/{project_id}/sku-info/*`` 开放 7 条路由：
 
 * R1 列表 / R2 单 SKU 详情 / R3 审计 —— 读路由，不落审计；
 * W1 upsert（新建+更新同路由，confirm 两步：``sku_info.upsert``）+ 写桶限流
@@ -10,12 +10,15 @@
   只更新 Agent 显式提供的字段（spec §9 #2 默认值陷阱规避），身份字段
   （sku/asin/country）禁改（extra=forbid → VALIDATION_FAILED）；
 * W3 上/下架（``sku_info.status.transition``）——is_active 软切换（D8），
-  目标值与当前一致时幂等直接返回当前态（不重复审计）。
+  目标值与当前一致时幂等直接返回当前态（不重复审计）；
+* W4 FNSKU 标签 PDF 上传（BLF-628，multipart confirm：``sku_info.upload_fnsku_label``）
+  ——表单字段 + 文件上传 R2，**不做 FNSKU 内容验证**（D10 用户拍板），
+  multipart 兼容 confirm（D9 Option A：指纹绑定 source+filename+文件字节）。
 
 所有路由统一挂 ``Depends(require_project_scope)``（BLF-441 硬前置）。
 写操作审计行 ``target_type="sku_info"``、``target_id=<row.id>``、
 operator=NULL、agent_id/idempotency_key 归因；写后失效 PT4 财务汇总缓存
-（D7，``invalidate_sku_financial_cache``）。
+（D7，``invalidate_sku_financial_cache``；W4 标签仅展示用途，不失效）。
 """
 
 from __future__ import annotations
@@ -29,8 +32,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile
 
-from app.api.agent.confirm import require_confirmation
+from app.api.agent.confirm import (
+    require_confirmation,
+    require_multipart_confirmation,
+)
 from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.rate_limit import require_agent_write_rate_limit
 from app.api.agent.response import agent_ok
@@ -63,6 +70,9 @@ sku_info_router = APIRouter(
     prefix="/projects/{project_id}/sku-info",
     tags=["agent-sku-info"],
 )
+
+#: W4 FNSKU 标签 PDF 上限（对齐内部 ``upload_fnsku_label`` 的 20MB）。
+MAX_FNSKU_LABEL_SIZE = 20 * 1024 * 1024
 
 # Agent 写入允许的采集渠道（与 schema 枚举一致；validate 回调用）。
 ALLOWED_AGENT_SOURCES: tuple[str, ...] = tuple(
@@ -736,5 +746,189 @@ async def transition_sku_info_status(
         db.commit()
     return agent_ok(
         _serialize_sku_record(updated),
+        idempotency_key=request.headers.get("idempotency-key") or None,
+    )
+
+
+# ============================================================
+# W4 FNSKU 标签 PDF 上传（multipart confirm；spec §4 W4 / §5.6）
+# ============================================================
+
+
+def _validate_upload(fields: dict, request: Request) -> None:
+    """W4 业务校验（先于 confirm 签发 token；短路不生成 token）。
+
+    fields 为 multipart 表单字段 dict（``{"source": str, "file":
+    {"filename", "size"}}``，见 confirm._parse_multipart_fields）。
+    校验顺序：Idempotency-Key → source 枚举（SKU_INFO_INVALID_SOURCE）→
+    文件存在/后缀/大小 → record 存在且属于该项目（404）。
+    """
+    _check_idempotency_header(request)
+    project_id = int(request.path_params["project_id"])
+    sku_record_id = int(request.path_params["sku_record_id"])
+
+    _check_source(fields.get("source"))
+
+    file_meta = fields.get("file")
+    if not isinstance(file_meta, dict):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="缺少文件字段 file"
+        )
+    filename = file_meta.get("filename") or ""
+    size = int(file_meta.get("size") or 0)
+    if not filename.lower().endswith(".pdf"):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="仅支持 PDF 文件"
+        )
+    if size == 0:
+        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="文件为空")
+    if size > MAX_FNSKU_LABEL_SIZE:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="文件大小不能超过 20MB"
+        )
+
+    db = SessionLocal()
+    try:
+        _get_record_or_shell_404(db, project_id, sku_record_id)
+    finally:
+        db.close()
+
+
+def _preview_upload(fields: dict, request: Request) -> dict:
+    """W4 confirm 预览摘要：filename / file_size / replace_old（是否覆盖旧标签）。"""
+    project_id = int(request.path_params["project_id"])
+    sku_record_id = int(request.path_params["sku_record_id"])
+    file_meta = fields.get("file") or {}
+
+    db = SessionLocal()
+    try:
+        row = _get_record_or_shell_404(db, project_id, sku_record_id)
+    finally:
+        db.close()
+
+    replace_old = bool(row.fnsku_label_r2_key)
+    note = (
+        "将替换该 SKU 现有的 FNSKU 标签（旧标签将被删除）"
+        if replace_old
+        else "将为该 SKU 上传 FNSKU 标签 PDF"
+    )
+    return {
+        "action": "sku_info.upload_fnsku_label",
+        "sku_record_id": sku_record_id,
+        "sku": str(row.sku),
+        "filename": file_meta.get("filename"),
+        "file_size": file_meta.get("size"),
+        "replace_old": replace_old,
+        "source": fields.get("source"),
+        "note": note,
+    }
+
+
+@sku_info_router.post(
+    "/{sku_record_id}/fnsku-label",
+    dependencies=[Depends(require_agent_write_rate_limit)],
+)
+@require_multipart_confirmation(
+    action="sku_info.upload_fnsku_label",
+    build_preview=_preview_upload,
+    validate=_validate_upload,
+)
+async def upload_sku_info_fnsku_label(
+    request: Request,
+    sku_record_id: int,
+    db: Session = Depends(get_primary_db_session),
+    _scope=Depends(require_project_scope),
+) -> dict:
+    """W4 上传 FNSKU 标签 PDF：multipart confirm 两步后写 R2 + 更新行 + 审计。
+
+    执行路径对齐内部 ``upload_fnsku_label``（sku_info.py:841）：
+    删旧 R2 key（失败不阻塞）→ ``upload_bytes_to_r2``（file_type=fnsku-labels，
+    content-type=application/pdf）→ 更新 ``fnsku_label_r2_key/url``。
+    **不做 FNSKU 内容验证**（D10，用户拍板；``verify_fnsku_label`` 仅内部路径）。
+    标签仅展示用途 → 不失效财务缓存（对齐内部行为）。
+    """
+    import uuid as _uuid
+
+    from app.core.config import get_settings
+    from app.services.r2_service import (
+        delete_file_from_r2,
+        upload_bytes_to_r2,
+    )
+    from app.services.upload_service import _safe_project_folder_name
+
+    form = await request.form()
+    upload_file = form.get("file")
+    if not isinstance(upload_file, UploadFile):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="缺少文件字段 file"
+        )
+    source = form.get("source")
+    _check_source(source)
+
+    content = await upload_file.read()
+    filename_orig = upload_file.filename or ""
+    if not filename_orig.lower().endswith(".pdf"):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="仅支持 PDF 文件"
+        )
+    if len(content) == 0:
+        raise AgentApiError(ErrorCode.VALIDATION_FAILED, human_message="文件为空")
+    if len(content) > MAX_FNSKU_LABEL_SIZE:
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED, human_message="文件大小不能超过 20MB"
+        )
+
+    project_id = int(request.path_params["project_id"])
+    with _service_errors():
+        row = _get_record_or_shell_404(db, project_id, sku_record_id)
+
+        settings = get_settings()
+        if not settings.r2_enabled:
+            raise AgentApiError(ErrorCode.INTERNAL_ERROR, human_message="R2 存储未配置")
+
+        # 删旧标签（失败不阻塞上传，对齐内部 upload_fnsku_label）
+        if row.fnsku_label_r2_key:
+            try:
+                delete_file_from_r2(settings, row.fnsku_label_r2_key)
+            except Exception:
+                pass
+
+        project_slug = _safe_project_folder_name(row.project_name)
+        safe_sku = row.sku.replace("/", "_").replace("\\", "_").replace(" ", "_")
+        stored_filename = f"{_uuid.uuid4().hex}_{safe_sku}.pdf"
+        result = upload_bytes_to_r2(
+            settings=settings,
+            data=content,
+            filename=stored_filename,
+            project_slug=project_slug,
+            file_type="fnsku-labels",
+            content_type="application/pdf",
+        )
+
+        row.fnsku_label_r2_key = result["key"]
+        row.fnsku_label_r2_url = result["url"]
+
+        append_operation_audit_log(
+            db,
+            action="sku_info.upload_fnsku_label",
+            target_type="sku_info",
+            target_id=sku_record_id,
+            operator=None,
+            after={
+                "sku": row.sku,
+                "fnsku_label_r2_key": result["key"],
+                "file_size": len(content),
+            },
+            **_audit_kwargs(request),
+        )
+        db.commit()
+
+    return agent_ok(
+        {
+            "sku_record_id": sku_record_id,
+            "fnsku_label_r2_url": result["url"],
+            "file_size": len(content),
+            "filename": stored_filename,
+        },
         idempotency_key=request.headers.get("idempotency-key") or None,
     )
