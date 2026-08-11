@@ -90,6 +90,9 @@ _LIGHT_ROW_FIELDS = (
     "replenishment_action",
     "risk_status",
     "replenishment_order_date",
+    # BLF-630: 补货周期/覆盖时间线核心决策字段
+    "order_buffer_days",
+    "coverage_end_date",
 )
 
 _VALID_STATES = set(STATE_VALUES)

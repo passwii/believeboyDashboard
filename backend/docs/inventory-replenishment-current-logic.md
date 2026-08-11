@@ -2,6 +2,23 @@
 
 更新时间：2026-03-18
 
+> **BLF-630 增补（2026-08-11）**：本文描述的是旧页面
+> （`dashboard/data-analysis/inventory-replenishment`，`inventory_replenishment_service.py`）。
+> 新页面（`dashboard/operations/inventory-replenishment`）逻辑在
+> `backend/app/services/inventory/replenishment.py`，其风险/状态判定已在 BLF-630 修订：
+>
+> - 判定锚点从"距离断货天数绝对值分档"改为**下单缓冲**
+>   `order_buffer_days = coverage_end_date − (production_lead_days + shipping_days) − today`；
+> - `coverage_end_date` 为**连续覆盖截止日**：可售 + 各在途批次按 `eta_date`（兑底链
+>   eta→etd+shipping→created+shipping）排时间线，断档即截止；断档如实告警（`gap_days`/`gap_start_date`）；
+> - `risk_status` 分档：断档中→长期断货；order_buffer<0→短期断货；0≤order_buffer≤14→断货风险；
+>   其余按覆盖天数 90/120 判健康/滞销/严重滞销；
+> - `inventory_state` 新增补货可行性规则 P0a（watch）/P0b（deteriorating）。
+> - 新增字段：`production_plus_shipping_days` / `latest_order_date` / `order_buffer_days` /
+>   `coverage_end_date` / `gap_days` / `gap_start_date` / `next_transit_eta`。
+
+---
+
 ## 1. 文档目的
 
 本文档用于梳理当前项目中“库存及补货分析”页面的现有业务逻辑，作为后续重做页面与重构计算逻辑的基线说明。

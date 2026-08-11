@@ -253,6 +253,80 @@ class TestComputeInventoryState:
         assert state == "critical"
         assert subtype == "shortage"
 
+    def test_state_watch_when_past_latest_order_date(self):
+        """BLF-630 P0a：已过最晚下单日（order_buffer<0）+ trend 稳定 → watch。
+
+        用户案例：可售 60 天 + 补货周期 70 天 → order_buffer=-10（原判 healthy）。
+        """
+        item = ItemInput(
+            available_qty=60,
+            sellable_days=60,
+            dms_30=1.0,
+            dms_7=1.0,
+            age_0_90_qty=60,
+        )
+        state, subtype, rule = compute_inventory_state(
+            item, "稳定", 60.0, order_buffer_days=-10
+        )
+        assert state == "watch"
+        assert subtype is None
+        assert rule == "P0a"
+
+    def test_state_deteriorating_when_past_latest_order_and_declining(self):
+        """BLF-630 P0b：已过最晚下单日 + 趋势下降 → deteriorating。"""
+        item = ItemInput(
+            available_qty=60,
+            sellable_days=60,
+            dms_30=1.0,
+            dms_7=0.5,
+            age_0_90_qty=60,
+        )
+        state, subtype, rule = compute_inventory_state(
+            item, "下降明显", 60.0, order_buffer_days=-10
+        )
+        assert state == "deteriorating"
+        assert subtype is None
+        assert rule == "P0b"
+
+    def test_state_healthy_unchanged_when_order_buffer_ok(self):
+        """BLF-630：下单缓冲充裕（order_buffer=30）→ 保持 healthy，不触发 P0a。"""
+        item = ItemInput(
+            available_qty=60,
+            sellable_days=60,
+            dms_30=1.0,
+            dms_7=1.0,
+            age_0_90_qty=60,
+        )
+        state, subtype, rule = compute_inventory_state(
+            item, "稳定", 60.0, order_buffer_days=30
+        )
+        assert state == "healthy"
+        assert rule == "P12"
+
+    def test_state_shortage_priority_over_order_buffer_rule(self):
+        """BLF-630：P1/P2（critical shortage）优先于 P0a——DoH<30 仍判 critical。"""
+        item = ItemInput(available_qty=20, sellable_days=20, dms_30=1.0, dms_7=1.0)
+        state, subtype, rule = compute_inventory_state(
+            item, "稳定", 20.0, order_buffer_days=-10
+        )
+        assert state == "critical"
+        assert subtype == "shortage"
+
+    def test_state_aging_priority_over_order_buffer_rule(self):
+        """BLF-630：P3-P6（critical aging/overstock）优先于 P0a。"""
+        item = ItemInput(
+            available_qty=10,
+            sellable_days=100,
+            dms_30=1.0,
+            dms_7=1.0,
+            age_365_plus_qty=5,
+        )
+        state, subtype, rule = compute_inventory_state(
+            item, "稳定", 100.0, order_buffer_days=-10
+        )
+        assert state == "critical"
+        assert subtype == "aging"
+
 
 class TestComputeInventoryStateUsesAdjustedDOH:
     """adjusted_sellable_days 必须用于判定（不是 sellable_days）。"""

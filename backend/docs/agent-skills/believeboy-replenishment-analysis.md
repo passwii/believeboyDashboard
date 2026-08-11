@@ -60,15 +60,17 @@ curl -s "$BASE/projects/$PROJECT_ID/replenishment-analysis" "${AUTH[@]}" \
 | `keyword` | SKU/ASIN 子串过滤（大小写不敏感） |
 | `inventory_state` | 状态多值（逗号分隔）：`critical` / `deteriorating` / `watch` / `healthy` / `unknown` |
 | `replenishment_action` | 行动多值（逗号分隔）：`REPLENISH_NOW` / `REPLENISH_NORMAL` / `HOLD` / `REDUCE_PRICE` / `REMOVE` / `NO_ACTION` |
-| `risk_status` | 老 4 类风险过滤（兼容既有消费者；新消费者优先用 state/action）：断货风险\|短期断货\|长期断货\|健康库存\|滞销\|严重滞销\|待补数据 |
+| `risk_status` | 老 4 类风险过滤（兼容既有消费者；新消费者优先用 state/action）：断货风险\|短期断货\|长期断货\|健康库存\|滞销\|严重滞销\|待补数据。**BLF-630 起锚点改为下单缓冲**：短期断货=已过最晚下单日；断货风险=14 天内必须下单（见下注） |
 | `in_transit_only` | bool，仅看有在途 |
 | `report_date` | 业务日期 YYYY-MM-DD，取该日或之前最近的库存快照；缺省最新 |
-| `order_by` | 白名单：`sku` / `available_inventory` / `in_transit_quantity` / `weighted_dms` / `sellable_days` / `estimated_replenishment_quantity` / `risk_status` / `inventory_state` / `replenishment_action` |
+| `order_by` | 白名单：`sku` / `available_inventory` / `in_transit_quantity` / `weighted_dms` / `sellable_days` / `estimated_replenishment_quantity` / `risk_status` / `inventory_state` / `replenishment_action` / `order_buffer_days` / `coverage_end_date`（BLF-630 新增） |
 | `order_dir` | `asc` / `desc`（默认 asc） |
 | `detail` | `summary`（默认，轻量核心决策字段，省 token）/ `full`（完整行 + signals + decision_path） |
 | `page` / `page_size` | page_size ≤ 200 |
 
-**`detail=summary` 保留的核心决策字段**：sku / asin / product_name / available_inventory / in_transit_quantity / weighted_dms / sellable_days / estimated_replenishment_quantity / inventory_state / replenishment_action / risk_status / replenishment_order_date。
+**`detail=summary` 保留的核心决策字段**：sku / asin / product_name / available_inventory / in_transit_quantity / weighted_dms / sellable_days / estimated_replenishment_quantity / inventory_state / replenishment_action / risk_status / replenishment_order_date / order_buffer_days / coverage_end_date（后两个 BLF-630 新增）。
+
+> **BLF-630 判定口径变更（2026-08-11）**：`risk_status` 与 `inventory_state` 增加补货周期维度——锚点改为**下单缓冲** `order_buffer_days = 连续覆盖截止日(coverage_end_date) − (production_lead_days + shipping_days) − today`；`coverage_end_date` 为可售 + 在途批次（按 eta_date 时间线）的**连续覆盖截止日**（断档即截止）。`inventory_state` 新增 rule 码 `P0a`（watch）/ `P0b`（deteriorating，趋势走弱）——已过最晚下单日时触发。断档（`gap_days > 0`）如实告警，不忽略。
 
 非法过滤值 / order_by / detail → 400 VALIDATION_FAILED（响应含合法值列表）。
 

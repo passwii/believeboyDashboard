@@ -94,6 +94,15 @@ class InventoryReplenishmentListItem(BaseModel):
     risk_status: str
     risk_anchor_date: str | None = None
 
+    # ── BLF-630: 补货周期 / 覆盖时间线维度（order_buffer 锚点） ──
+    production_plus_shipping_days: int = 0
+    latest_order_date: str | None = None
+    order_buffer_days: int | None = None
+    coverage_end_date: str | None = None
+    gap_days: int = 0
+    gap_start_date: str | None = None
+    next_transit_eta: str | None = None
+
     # ── v1.2 三段式（spec §3.2） ──
     # 判断维度
     inventory_state: str = "unknown"  # critical/deteriorating/watch/healthy/unknown

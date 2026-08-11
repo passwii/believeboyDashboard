@@ -59,6 +59,10 @@ RISK_SLOW_MOVING = "滞销"
 RISK_SEVERE_SLOW_MOVING = "严重滞销"
 RISK_PENDING = "待补数据"
 
+# BLF-630: 补货周期维度判定阈值（spec §4.5 决策点 2 拍板：先用 14，上线后按真实分布调）
+# order_buffer ≤ EMERGENCY_ORDER_BUFFER_DAYS 视为"必须尽快下单"（断货风险）
+EMERGENCY_ORDER_BUFFER_DAYS = 14
+
 # BLF-502: 三段式取值全集（summary 分布 / Agent 过滤白名单用）
 STATE_VALUES = ("critical", "deteriorating", "watch", "healthy", "unknown")
 ACTION_VALUES = (
@@ -81,6 +85,9 @@ REPLENISHMENT_ORDER_BY_FIELDS = (
     "risk_status",
     "inventory_state",
     "replenishment_action",
+    # BLF-630: 补货周期/覆盖时间线字段（int / ISO date 可排序）
+    "order_buffer_days",
+    "coverage_end_date",
 )
 
 
@@ -102,6 +109,20 @@ class _InventorySnapshot:
     age_271_365_qty: int = 0
     age_365_plus_qty: int = 0
     recommended_action: str | None = None
+
+
+@dataclass
+class _TransitBatch:
+    """在途批次（BLF-630）：保留到货日期字段，供覆盖时间线计算。
+
+    eta 解析兜底链（spec §4.8）：eta_date → etd_date + shipping_days
+    → created_date + shipping_days（在 ``_compute_coverage_timeline`` 中解析）。
+    """
+
+    quantity: int = 0
+    eta_date: date | None = None
+    etd_date: date | None = None
+    created_date: date | None = None
 
 
 def _normalize_text(value: str | None, *, max_length: int | None = None) -> str | None:
@@ -344,6 +365,112 @@ def _load_in_transit_map(
     }
 
 
+def _load_in_transit_batches(
+    db: Session, project_id: int, country: str
+) -> dict[str, list[_TransitBatch]]:
+    """当前在途批次明细（按 SKU 分组，BLF-630）。
+
+    与 ``_load_in_transit_map``（数量汇总）并存：时间线仅在实时路径使用；
+    ``report_date`` 历史重建路径仍用汇总口径（无 eta 时间线可重建）。
+    """
+    stmt = (
+        select(
+            ShipmentScheduleItem.sku,
+            ShipmentScheduleItem.quantity,
+            ShipmentSchedule.eta_date,
+            ShipmentSchedule.etd_date,
+            ShipmentSchedule.created_date,
+        )
+        .join(
+            ShipmentSchedule,
+            ShipmentSchedule.id == ShipmentScheduleItem.shipment_schedule_id,
+        )
+        .where(
+            ShipmentSchedule.project_id == project_id,
+            ShipmentSchedule.country == country,
+            ShipmentSchedule.shipment_status.in_(IN_TRANSIT_STATUSES),
+        )
+    )
+    rows = db.execute(stmt).all()
+    result: dict[str, list[_TransitBatch]] = {}
+    for sku, quantity, eta_date, etd_date, created_date in rows:
+        normalized_sku = _normalize_text(sku, max_length=128)
+        if not normalized_sku:
+            continue
+        result.setdefault(normalized_sku, []).append(
+            _TransitBatch(
+                quantity=int(quantity or 0),
+                eta_date=eta_date,
+                etd_date=etd_date,
+                created_date=created_date,
+            )
+        )
+    return result
+
+
+def _compute_coverage_timeline(
+    today: date,
+    available_inventory: int,
+    weighted_dms: Decimal | None,
+    transit_batches: list[_TransitBatch],
+    shipping_days: int,
+) -> tuple[date | None, date | None, int, date | None]:
+    """连续覆盖时间线（BLF-630 spec §4.2-4.4）。
+
+    返回 ``(continuous_end, gap_start, gap_days, next_transit_eta)``：
+
+    - ``continuous_end``：**连续覆盖截止日**——按可售 + 各在途批次（按 ETA 排序）
+      逐个并入，断档即截止；无断档时 = 全部并入后的总覆盖截止。
+      它是 risk_status / 补货指令日期的锚点（spec §4.5/§4.7）。
+    - ``gap_start``：首个断档开始日（无断档为 None）。
+    - ``gap_days``：首段断档天数（0 = 无断档）。
+    - ``next_transit_eta``：下一批在途预计到港日（eta 兜底链解析后最早）。
+
+    eta 兜底链（spec §4.8）：eta_date → etd_date + shipping_days
+    → created_date + shipping_days；无任何日期信息的批次不参与时间线。
+    """
+    if weighted_dms is None or weighted_dms <= 0:
+        return None, None, 0, None
+    coverage_days = Decimal(available_inventory) / weighted_dms
+    continuous_end = today + timedelta(days=float(coverage_days))
+    extended_end = continuous_end
+    gap_start: date | None = None
+    gap_days = 0
+
+    batches: list[tuple[int, date]] = []
+    for batch in transit_batches:
+        eta = batch.eta_date
+        if eta is None and batch.etd_date is not None:
+            eta = batch.etd_date + timedelta(days=shipping_days)
+        if eta is None and batch.created_date is not None:
+            eta = batch.created_date + timedelta(days=shipping_days)
+        if eta is None:
+            continue  # 无任何日期信息：保守不参与时间线
+        batches.append((batch.quantity, eta))
+    if not batches:
+        return continuous_end, None, 0, None
+
+    batches.sort(key=lambda item: item[1])
+    next_transit_eta = batches[0][1]
+    for quantity, eta in batches:
+        if eta <= extended_end:
+            # 无断档续接
+            extended_end += timedelta(days=float(Decimal(quantity) / weighted_dms))
+        else:
+            # 断档：连续覆盖截止于此（之后到 eta 无货）
+            if gap_start is None:
+                gap_start = extended_end
+                gap_days = (eta - extended_end).days
+            # 跨断档覆盖（补货建议用）：到货后重新起算
+            extended_end = eta + timedelta(days=float(Decimal(quantity) / weighted_dms))
+    if gap_start is not None:
+        continuous_end = gap_start
+    else:
+        # 无断档：连续覆盖 = 全部批次并入后的总覆盖
+        continuous_end = extended_end
+    return continuous_end, gap_start, gap_days, next_transit_eta
+
+
 def _load_product_name_map(
     db: Session, project_id: int, skus: list[str]
 ) -> dict[str, str]:
@@ -490,25 +617,37 @@ def _add_days(base_date: date, days_value: Decimal | None) -> str | None:
     return dt.date().isoformat()
 
 
-def _subtract_days(base_date_text: str | None, days: int) -> str | None:
-    if base_date_text is None:
-        return None
-    target = date.fromisoformat(base_date_text) - timedelta(days=days)
-    return target.isoformat()
-
-
 def _classify_risk(
-    today: date, risk_anchor_date_text: str | None, weighted_dms: Decimal | None
+    today: date,
+    coverage_end_date_text: str | None,
+    order_buffer_days: int | None,
+    weighted_dms: Decimal | None,
 ) -> str:
-    if weighted_dms is None or weighted_dms <= 0 or risk_anchor_date_text is None:
+    """风险状态判定（BLF-630 spec §4.5，锚点改为下单缓冲）。
+
+    ``coverage_end_date`` 为连续覆盖截止日（首个断货点）；
+    ``order_buffer_days = coverage_end − 补货周期 − today``。
+
+    判定表（顺序短路）：
+    1. DMS 缺失/≤0 或覆盖缺失 → 待补数据
+    2. 已在断档中（覆盖截止 < today）→ 长期断货
+    3. 已过最晚下单日（order_buffer < 0）→ 短期断货
+    4. 0 ≤ order_buffer ≤ EMERGENCY_ORDER_BUFFER_DAYS → 断货风险
+    5. 覆盖 ≤ 90 天 → 健康库存
+    6. 覆盖 90-120 天 → 滞销
+    7. 覆盖 > 120 天 → 严重滞销
+    """
+    if weighted_dms is None or weighted_dms <= 0 or coverage_end_date_text is None:
         return RISK_PENDING
-    risk_anchor_date = date.fromisoformat(risk_anchor_date_text)
-    days_diff = (risk_anchor_date - today).days
+    if order_buffer_days is None:
+        return RISK_PENDING
+    coverage_end_date = date.fromisoformat(coverage_end_date_text)
+    days_diff = (coverage_end_date - today).days
     if days_diff < 0:
         return RISK_LONG_TERM_OUT_OF_STOCK
-    if days_diff < 25:
+    if order_buffer_days < 0:
         return RISK_SHORT_TERM_OUT_OF_STOCK
-    if days_diff < 45:
+    if order_buffer_days <= EMERGENCY_ORDER_BUFFER_DAYS:
         return RISK_OUT_OF_STOCK
     if days_diff <= 90:
         return RISK_HEALTHY
@@ -974,6 +1113,12 @@ def list_inventory_replenishment_analysis(
     in_transit_map = _load_in_transit_map(
         db, project.id, normalized_country, report_date=report_date
     )
+    # BLF-630: 实时路径加载在途批次时间线（历史快照路径无 eta 可重建，保持汇总口径）
+    transit_batches_map = (
+        _load_in_transit_batches(db, project.id, normalized_country)
+        if report_date is None
+        else {}
+    )
     product_name_map = _load_product_name_map(
         db, project.id, [row.sku for row in base_rows]
     )
@@ -1051,27 +1196,58 @@ def list_inventory_replenishment_analysis(
         warehouse_entry_date = None
         shipment_order_date = None
         risk_anchor_date = None
-        if sellout_date_with_transit is not None:
-            replenishment_order_date = _subtract_days(
-                sellout_date_with_transit, production_lead_days + shipping_days
-            )
-            warehouse_entry_date = (
-                None
-                if replenishment_order_date is None
-                else (
-                    date.fromisoformat(replenishment_order_date) + timedelta(days=7)
+        latest_order_date = None
+        order_buffer_days = None
+        coverage_end_date = None
+        gap_start_date = None
+        gap_days = 0
+        next_transit_eta = None
+        production_plus_shipping_days = production_lead_days + shipping_days
+        if weighted_dms is not None and weighted_dms > 0:
+            if report_date is None:
+                continuous_end, gap_start, gap_days_calc, next_eta = (
+                    _compute_coverage_timeline(
+                        today,
+                        available_inventory,
+                        weighted_dms,
+                        transit_batches_map.get(base_row.sku, []),
+                        shipping_days,
+                    )
+                )
+            else:
+                # 历史快照路径：无在途时间线，连续覆盖 = 含在途总覆盖（汇总口径）
+                coverage_days = Decimal(available_inventory + in_transit_quantity) / (
+                    weighted_dms
+                )
+                continuous_end = today + timedelta(days=float(coverage_days))
+                gap_start, gap_days_calc, next_eta = None, 0, None
+            if continuous_end is not None:
+                coverage_end_date = continuous_end.isoformat()
+                gap_start_date = (
+                    gap_start.isoformat() if gap_start is not None else None
+                )
+                gap_days = gap_days_calc
+                next_transit_eta = (
+                    next_eta.isoformat() if next_eta is not None else None
+                )
+                latest_order_date = (
+                    continuous_end - timedelta(days=production_plus_shipping_days)
                 ).isoformat()
-            )
-            shipment_order_date = (
-                None
-                if replenishment_order_date is None
-                else (
-                    date.fromisoformat(replenishment_order_date)
+                order_buffer_days = (
+                    continuous_end
+                    - timedelta(days=production_plus_shipping_days)
+                    - today
+                ).days
+                replenishment_order_date = latest_order_date
+                warehouse_entry_date = (
+                    date.fromisoformat(latest_order_date) + timedelta(days=7)
+                ).isoformat()
+                shipment_order_date = (
+                    date.fromisoformat(latest_order_date)
                     + timedelta(days=production_lead_days)
                 ).isoformat()
-            )
-            risk_anchor_date = sellout_date_with_transit
-        risk = _classify_risk(today, risk_anchor_date, weighted_dms)
+                risk_anchor_date = coverage_end_date
+        risk = _classify_risk(today, coverage_end_date, order_buffer_days, weighted_dms)
         estimated_replenishment_quantity = (
             _round_decimal_to_int(
                 Decimal(production_lead_days + shipping_days) * weighted_dms
@@ -1130,7 +1306,7 @@ def list_inventory_replenishment_analysis(
         )
 
         inventory_state, critical_subtype, state_rule = compute_inventory_state(
-            item_input, trend_label, adjusted_sellable_days
+            item_input, trend_label, adjusted_sellable_days, order_buffer_days
         )
 
         transit_ratio_value = (
@@ -1207,6 +1383,14 @@ def list_inventory_replenishment_analysis(
                 "estimated_replenishment_quantity": estimated_replenishment_quantity,
                 "risk_status": risk,
                 "risk_anchor_date": risk_anchor_date,
+                # ── BLF-630: 补货周期 / 覆盖时间线维度 ──
+                "production_plus_shipping_days": production_plus_shipping_days,
+                "latest_order_date": latest_order_date,
+                "order_buffer_days": order_buffer_days,
+                "coverage_end_date": coverage_end_date,
+                "gap_days": gap_days,
+                "gap_start_date": gap_start_date,
+                "next_transit_eta": next_transit_eta,
                 # ── Age bucket (from FBA inventory snapshot) ──
                 "age_0_90_qty": snap.age_0_90_qty if snap else 0,
                 "age_91_180_qty": snap.age_91_180_qty if snap else 0,

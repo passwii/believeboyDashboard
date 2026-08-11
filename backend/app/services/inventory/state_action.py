@@ -116,12 +116,17 @@ def compute_inventory_state(
     item: ItemInput,
     trend_label: str,
     adjusted_sellable_days: float | None,
+    order_buffer_days: int | None = None,
 ) -> tuple[str, str | None, str]:
     """返回 ``(state, critical_subtype, state_rule)``。
 
     critical_subtype ∈ {'shortage', 'aging', 'overstock'} 仅当 state='critical'。
     其余 state 时 critical_subtype 为 None。
     state_rule ∈ P0..P13（spec §2.1 顺序短路命中规则，供 Agent decision_path 解释）。
+
+    BLF-630：新增 ``order_buffer_days``（下单缓冲，可为负）补货可行性规则
+    P0a/P0b——已过最晚下单日时至少 watch（趋势走弱则 deteriorating）；
+    不覆盖更严重的 critical shortage/aging/overstock（P1-P6 优先）。
     """
     doh = adjusted_sellable_days  # 使用季节性调整后的 DoH
 
@@ -165,6 +170,13 @@ def compute_inventory_state(
         and item.dms_30 < VELOCITY_MID
     ):
         return ("critical", "overstock", "P6")
+
+    # BLF-630 P0a/P0b: 补货可行性——已过最晚下单日（补货周期 > 库存覆盖时间）。
+    # 放在 P1-P6（critical shortage/aging/overstock）之后，不覆盖更严重的判定。
+    if order_buffer_days is not None and order_buffer_days < 0:
+        if trend_label in {"下降明显", "轻微下降"}:
+            return ("deteriorating", None, "P0b")
+        return ("watch", None, "P0a")
 
     # P7: DoH 120-180 且慢销 → deteriorating
     if (

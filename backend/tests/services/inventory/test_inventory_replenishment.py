@@ -28,8 +28,10 @@ from app.services.inventory.replenishment import (
     RISK_SHORT_TERM_OUT_OF_STOCK,
     RISK_SLOW_MOVING,
     _BaseSkuRow,
+    _TransitBatch,
     _add_days,
     _classify_risk,
+    _compute_coverage_timeline,
     _get_project_or_404,
     _load_asin_to_skus_map,
     _load_base_skus,
@@ -41,7 +43,6 @@ from app.services.inventory.replenishment import (
     _load_settings_map,
     _normalize_weighted_dms,
     _pick_business_source,
-    _subtract_days,
     list_inventory_replenishment_analysis,
     list_inventory_replenishment_shipments,
     list_snapshot_options,
@@ -325,57 +326,168 @@ class TestAddDays:
         assert _add_days(date.today(), None) is None
 
 
-class TestSubtractDays:
-    def test_subtracts_days(self):
-        result = _subtract_days("2025-01-11", 10)
-        assert result == "2025-01-01"
-
-    def test_none_date_returns_none(self):
-        assert _subtract_days(None, 5) is None
-
-
 class TestClassifyRisk:
-    def test_long_term_out_of_stock(self):
+    """BLF-630: 锚点改为下单缓冲（order_buffer_days）。
+
+    order_buffer = coverage_end − (production_lead + shipping) − today。
+    用户案例（可售 60 天 + 补货周期 70 天）→ 短期断货（已过最晚下单日 10 天）。
+    """
+
+    def test_long_term_out_of_stock_when_already_gapped(self):
+        # 已在断档/断货中（连续覆盖截止 < today）→ 长期断货
         today = date(2025, 6, 15)
-        risk_date = (today - timedelta(days=1)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today - timedelta(days=1)).isoformat()
+        result = _classify_risk(today, coverage_end, -10, Decimal("5"))
         assert result == RISK_LONG_TERM_OUT_OF_STOCK
 
-    def test_short_term_out_of_stock(self):
+    def test_short_term_when_past_latest_order_date(self):
+        # 用户案例：可售 60 天、补货周期 70 天 → order_buffer = -10 → 短期断货
         today = date(2025, 6, 15)
-        risk_date = (today + timedelta(days=10)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today + timedelta(days=60)).isoformat()
+        result = _classify_risk(today, coverage_end, -10, Decimal("5"))
         assert result == RISK_SHORT_TERM_OUT_OF_STOCK
 
-    def test_out_of_stock_risk(self):
+    def test_out_of_stock_risk_when_must_order_within_14_days(self):
         today = date(2025, 6, 15)
-        risk_date = (today + timedelta(days=30)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today + timedelta(days=60)).isoformat()
+        result = _classify_risk(today, coverage_end, 10, Decimal("5"))
         assert result == RISK_OUT_OF_STOCK
 
-    def test_healthy(self):
+    def test_healthy_when_order_buffer_plenty_and_coverage_under_90(self):
         today = date(2025, 6, 15)
-        risk_date = (today + timedelta(days=60)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today + timedelta(days=60)).isoformat()
+        result = _classify_risk(today, coverage_end, 30, Decimal("5"))
         assert result == RISK_HEALTHY
 
-    def test_slow_moving(self):
+    def test_healthy_boundary_order_buffer_exactly_14(self):
+        # order_buffer = 14（EMERGENCY_ORDER_BUFFER_DAYS）仍属断货风险
         today = date(2025, 6, 15)
-        risk_date = (today + timedelta(days=100)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today + timedelta(days=60)).isoformat()
+        result = _classify_risk(today, coverage_end, 14, Decimal("5"))
+        assert result == RISK_OUT_OF_STOCK
+
+    def test_slow_moving_keeps_coverage_dimension(self):
+        # 覆盖 100 天（>90 ≤120）+ 下单缓冲充裕 → 滞销（滞销维度保留）
+        today = date(2025, 6, 15)
+        coverage_end = (today + timedelta(days=100)).isoformat()
+        result = _classify_risk(today, coverage_end, 55, Decimal("5"))
         assert result == RISK_SLOW_MOVING
 
     def test_severe_slow_moving(self):
         today = date(2025, 6, 15)
-        risk_date = (today + timedelta(days=150)).isoformat()
-        result = _classify_risk(today, risk_date, Decimal("5"))
+        coverage_end = (today + timedelta(days=150)).isoformat()
+        result = _classify_risk(today, coverage_end, 105, Decimal("5"))
         assert result == RISK_SEVERE_SLOW_MOVING
 
     def test_pending_when_no_dms(self):
         today = date(2025, 6, 15)
-        assert _classify_risk(today, "2025-07-01", None) == RISK_PENDING
-        assert _classify_risk(today, "2025-07-01", Decimal("0")) == RISK_PENDING
-        assert _classify_risk(today, None, Decimal("5")) == RISK_PENDING
+        assert _classify_risk(today, "2025-07-01", None, None) == RISK_PENDING
+        assert _classify_risk(today, "2025-07-01", 10, Decimal("0")) == RISK_PENDING
+        assert _classify_risk(today, None, 10, Decimal("5")) == RISK_PENDING
+
+    def test_pending_when_order_buffer_unknown(self):
+        today = date(2025, 6, 15)
+        coverage_end = (today + timedelta(days=60)).isoformat()
+        assert _classify_risk(today, coverage_end, None, Decimal("5")) == RISK_PENDING
+
+
+class TestComputeCoverageTimeline:
+    """BLF-630: 连续覆盖时间线（可售 + 在途批次按 ETA，断档即截止）。"""
+
+    def test_no_transit_returns_sellout_end(self):
+        today = date(2025, 6, 15)
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), [], 25
+        )
+        assert end == today + timedelta(days=60)
+        assert gap_start is None
+        assert gap_days == 0
+        assert next_eta is None
+
+    def test_transit_connecting_extends_coverage(self):
+        today = date(2025, 6, 15)
+        batches = [
+            _TransitBatch(quantity=100, eta_date=today + timedelta(days=30)),
+            _TransitBatch(quantity=100, eta_date=today + timedelta(days=55)),
+        ]
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), batches, 25
+        )
+        # 可售 60 天；批次1 day30 接上 → +10 天；批次2 day55 接上 → +10 天 → day80
+        assert end == today + timedelta(days=80)
+        assert gap_start is None
+        assert gap_days == 0
+        assert next_eta == today + timedelta(days=30)
+
+    def test_transit_gap_stops_continuous_coverage(self):
+        today = date(2025, 6, 15)
+        batches = [_TransitBatch(quantity=200, eta_date=today + timedelta(days=90))]
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), batches, 25
+        )
+        # 可售 60 天耗尽；批次 day90 到货 → 断档 30 天；连续覆盖截止 day60
+        assert end == today + timedelta(days=60)
+        assert gap_start == today + timedelta(days=60)
+        assert gap_days == 30
+        assert next_eta == today + timedelta(days=90)
+
+    def test_eta_fallback_uses_etd_plus_shipping(self):
+        today = date(2025, 6, 15)
+        batches = [
+            _TransitBatch(quantity=100, etd_date=today + timedelta(days=20)),
+        ]
+        end, _, _, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), batches, shipping_days=25
+        )
+        # eta = etd(day20) + shipping(25) = day45 ≤ 覆盖 day60 → 接上，+10 天
+        assert end == today + timedelta(days=70)
+        assert next_eta == today + timedelta(days=45)
+
+    def test_eta_fallback_uses_created_plus_shipping(self):
+        today = date(2025, 6, 15)
+        batches = [
+            _TransitBatch(quantity=100, created_date=today + timedelta(days=5)),
+        ]
+        end, _, _, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), batches, shipping_days=25
+        )
+        # eta = created(day5) + shipping(25) = day30 ≤ day60 → 接上
+        assert end == today + timedelta(days=70)
+        assert next_eta == today + timedelta(days=30)
+
+    def test_batch_without_dates_is_ignored(self):
+        today = date(2025, 6, 15)
+        batches = [_TransitBatch(quantity=100)]
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 600, Decimal("10"), batches, 25
+        )
+        assert end == today + timedelta(days=60)
+        assert gap_start is None
+        assert gap_days == 0
+        assert next_eta is None
+
+    def test_none_dms_returns_all_none(self):
+        today = date(2025, 6, 15)
+        batches = [_TransitBatch(quantity=100, eta_date=today + timedelta(days=30))]
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 600, None, batches, 25
+        )
+        assert end is None
+        assert gap_start is None
+        assert gap_days == 0
+        assert next_eta is None
+
+    def test_zero_available_marks_gap_from_today(self):
+        today = date(2025, 6, 15)
+        batches = [_TransitBatch(quantity=200, eta_date=today + timedelta(days=10))]
+        end, gap_start, gap_days, next_eta = _compute_coverage_timeline(
+            today, 0, Decimal("10"), batches, 25
+        )
+        # 可售 0 → 连续覆盖截止今天；批次 day10 到货 → 断档 10 天
+        assert end == today
+        assert gap_start == today
+        assert gap_days == 10
+        assert next_eta == today + timedelta(days=10)
 
 
 class TestListInventoryReplenishmentAnalysis:
