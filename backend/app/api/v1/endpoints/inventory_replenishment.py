@@ -248,6 +248,7 @@ def update_inventory_replenishment_setting(
         production_lead_days=payload.production_lead_days,
         shipping_days=payload.shipping_days,
         safety_factor=payload.safety_factor,
+        target_days=payload.target_days,
         operator=operator,
     )
     append_operation_audit_log(
@@ -264,6 +265,7 @@ def update_inventory_replenishment_setting(
             "production_lead_days": row.production_lead_days,
             "shipping_days": row.shipping_days,
             "safety_factor": float(row.safety_factor),
+            "target_days": int(row.target_days),
         },
         request=request,
     )
@@ -277,6 +279,7 @@ def update_inventory_replenishment_setting(
         production_lead_days=int(row.production_lead_days),
         shipping_days=int(row.shipping_days),
         safety_factor=float(row.safety_factor),
+        target_days=int(row.target_days),
     )
 
 

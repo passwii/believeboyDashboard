@@ -80,7 +80,8 @@ curl -s "$BASE/projects/$PROJECT_ID/replenishment-analysis" "${AUTH[@]}" \
 - **R2**：无该 SKU → **200 + `data: null`**（查询为空 ≠ 资源不存在，勿当 404）。
 - **R4 coverage**：`inventory_snapshot{report_date, freshness_days, is_current}` + `sales_data`（销售跨度）+ `base_skus{total_count, configured_count}` + `unknown_rate`——Agent 用它判断"这份分析是否可信"。
 - **decision_path**（detail=full 才有）：解释该 SKU 的补货决策链路（G1 可解释性）。
-- **R6 写**：body `{asin?, production_lead_days, shipping_days, safety_factor}`（后三个必填非负数字）；confirm 流：第一步返回 `confirm_token` 不落库 → 用户确认后**同一 URL + 同一 Idempotency-Key** 重放 + `X-Confirm-Token`；审计 action `inventory_replenishment_settings.upsert`。
+- **R6 写**：body `{asin?, production_lead_days, shipping_days, safety_factor, target_days?}`（后三个必填非负数字，`target_days` 可选非负整数——目标覆盖天数，补货量动态化基准，缺省 90）；confirm 流：第一步返回 `confirm_token` 不落库 → 用户确认后**同一 URL + 同一 Idempotency-Key** 重放 + `X-Confirm-Token`；审计 action `inventory_replenishment_settings.upsert`。
+- **BLF-630 二轮（2026-08-11）**：补货量 `estimated_replenishment_quantity` 动态化——补到"目标覆盖水位"：`max(0, (target_days − (连续覆盖天数 − L)) × DMS)`（L=生产+运输；断档自动多补、在途经覆盖天数抵扣）；`replenishment_action` 决策表新增 order_buffer 优先级（已过最晚下单日或 14 天内必须下单 → REPLENISH_NOW，rule `buffer-negative-urgent`/`buffer-urgent`），修复"状态红、动作灰"脱节；`inventory_state` 的 P0a/P0b 与动作完全联动。
 
 ## 5. 注意事项
 

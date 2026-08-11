@@ -102,7 +102,8 @@ class TestR1List:
         # G1：decision_path 解释性字段
         assert x001["decision_path"]["state_rule"] == "P1"
         assert x001["decision_path"]["critical_subtype"] == "shortage"
-        assert x001["decision_path"]["action_rule"] == "shortage-urgent"
+        # BLF-630 二轮：order_buffer<0（DoH≈8 天 < L=45）→ buffer-negative-urgent 优先于 shortage 分支
+        assert x001["decision_path"]["action_rule"] == "buffer-negative-urgent"
         # signals 全量
         assert x001["signals"]["dms_30"] == pytest.approx(1.0)
         assert x001["signals"]["data_freshness_days"] == 1  # G4 真实值

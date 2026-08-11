@@ -32,6 +32,7 @@ from app.services.inventory.replenishment import (
     _add_days,
     _classify_risk,
     _compute_coverage_timeline,
+    _estimate_replenishment_quantity,
     _get_project_or_404,
     _load_asin_to_skus_map,
     _load_base_skus,
@@ -488,6 +489,41 @@ class TestComputeCoverageTimeline:
         assert gap_start == today
         assert gap_days == 10
         assert next_eta == today + timedelta(days=10)
+
+
+class TestEstimateReplenishmentQuantity:
+    """BLF-630 二轮：补货量动态化（目标覆盖模型）。
+
+    补货量 = max(0, (target_days − (连续覆盖天数 − L)) × DMS)
+    """
+
+    def test_user_case_gap_is_covered(self):
+        # 用户案例：覆盖 60 天、L=70（生产40+运输30）、target=90、DMS=10
+        # 到货时剩余 = 60−70 = −10 → 补 (90−(−10))=100 天量 = 1000
+        qty = _estimate_replenishment_quantity(90, 60, 70, Decimal("10"))
+        assert qty == 1000
+
+    def test_normal_case_matches_old_formula(self):
+        # 覆盖 90（含在途 30 可接上）、L=45、target=90 → 到货时剩余 45 → 补 45 天量
+        qty = _estimate_replenishment_quantity(90, 90, 45, Decimal("10"))
+        assert qty == 450
+
+    def test_no_replenishment_when_already_above_target(self):
+        # 覆盖 150、L=45、target=90 → 到货时剩余 105 ≥ target → 无需补
+        qty = _estimate_replenishment_quantity(90, 150, 45, Decimal("10"))
+        assert qty is None
+
+    def test_none_dms_returns_none(self):
+        assert _estimate_replenishment_quantity(90, 60, 45, None) is None
+        assert _estimate_replenishment_quantity(90, 60, 45, Decimal("0")) is None
+
+    def test_none_coverage_returns_none(self):
+        assert _estimate_replenishment_quantity(90, None, 45, Decimal("10")) is None
+
+    def test_custom_target_days(self):
+        # target=120 比默认 90 更充裕：覆盖 90、L=45 → 补 (120−45)=75 天量
+        qty = _estimate_replenishment_quantity(120, 90, 45, Decimal("10"))
+        assert qty == 750
 
 
 class TestListInventoryReplenishmentAnalysis:

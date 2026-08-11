@@ -37,6 +37,8 @@ class InventoryReplenishmentSetting(Base):
     production_lead_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default='20')
     shipping_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default='25')
     safety_factor: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False, server_default='0.20')
+    # BLF-630 二轮：目标覆盖天数（补货量动态化基准），默认 90
+    target_days: Mapped[int] = mapped_column(Integer, nullable=False, default=90, server_default='90')
     created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

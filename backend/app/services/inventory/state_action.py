@@ -22,6 +22,10 @@ TREND_RATIO_STABLE = 0.9
 TREND_RATIO_DOWN_MILD = 0.7
 MOMENTUM_DELTA = 0.1
 
+# BLF-630: 补货紧迫度阈值——order_buffer ≤ 此值视为"必须尽快下单"（断货风险）
+# 二轮拍板：先用 14，上线后按真实分布调（state_action 与 replenishment 共用）
+EMERGENCY_ORDER_BUFFER_DAYS = 14
+
 
 def compute_trend_label(dms_7: float | None, dms_30: float | None) -> str:
     """复用 _score_trend 4 档语义。
@@ -247,16 +251,21 @@ def compute_replenishment_action(
     transit_ratio: float,
     seasonal_phase: str,
     adjusted_sellable_days: float | None = None,
+    order_buffer_days: int | None = None,
 ) -> tuple[str, str, bool]:
-    """决策表（spec §2.2）。返回 ``(action, action_rule, seasonal_override)``。
+    """决策表（spec §2.2 + BLF-630 二轮 order_buffer 联动）。
 
-    规则优先级：
-    1. critical + shortage：DoH<14 → REPLENISH_NOW（D4 修复，决策表第 1/2 行）；
-       DoH 14-30（或未知）→ REPLENISH_NORMAL / HOLD（旺季覆盖）
-    2. critical + aging → REMOVE
-    3. critical + overstock → REDUCE_PRICE / HOLD（淡季覆盖）
-    4. deteriorating → REDUCE_PRICE / HOLD（淡季覆盖）
-    5. watch / healthy / unknown → NO_ACTION
+    返回 ``(action, action_rule, seasonal_override)``。
+
+    规则优先级（BLF-630 二轮修订）：
+    1. critical + aging → REMOVE（库存老化，清货优先）
+    2. critical + overstock → REDUCE_PRICE / HOLD（库存过多）
+    3. **补货紧迫度（order_buffer）**：已过最晚下单日（<0）或 14 天内必须下单
+       （≤ EMERGENCY_ORDER_BUFFER_DAYS）→ REPLENISH_NOW（修复"状态红、动作灰"
+       脱节：P0a/P0b 升级状态后动作必须联动加急补货）
+    4. critical + shortage：DoH<14 → REPLENISH_NOW；DoH 14-30 → REPLENISH_NORMAL / HOLD
+    5. deteriorating → REDUCE_PRICE / HOLD（淡季覆盖）
+    6. watch / healthy / unknown → NO_ACTION
 
     ``adjusted_sellable_days`` 为季节性调整后的 DoH（spec §2.1）；为 None 时
     视为非紧急（≥14），保持历史 shortage 行为兼容。
@@ -268,7 +277,51 @@ def compute_replenishment_action(
         and adjusted_sellable_days < STATE_CRITICAL_DOH
     )
 
-    # 1. critical + shortage：DoH<14 → REPLENISH_NOW（决策表第 1/2 行，D4 修复）
+    # 1. critical + aging → REMOVE
+    if state == "critical" and critical_subtype == "aging":
+        return (ReplenishmentAction.REMOVE.value, "aging-remove", False)
+
+    # 2. critical + overstock：DoH>120 慢销
+    if state == "critical" and critical_subtype == "overstock":
+        if trend_is_decline:
+            return (
+                ReplenishmentAction.REDUCE_PRICE.value,
+                "overstock-reduce-decline",
+                False,
+            )
+        # trend_is_up
+        if transit_ratio > 3.0:
+            return (
+                ReplenishmentAction.REDUCE_PRICE.value,
+                "overstock-reduce-transit",
+                False,
+            )
+        # transit≤3；trough 覆盖 → HOLD（季节性存量）
+        if seasonal_phase in TROUGH_PHASES:
+            return (
+                ReplenishmentAction.HOLD.value,
+                "overstock-hold-trough",
+                True,
+            )
+        return (ReplenishmentAction.HOLD.value, "overstock-hold-stable", False)
+
+    # 3. BLF-630 二轮：补货紧迫度（order_buffer）——已过最晚下单日 / 14 天内必须下单
+    #    → REPLENISH_NOW（加急补货）。修复 P0a/P0b 状态升级但动作脱节的漏洞。
+    if order_buffer_days is not None:
+        if order_buffer_days < 0:
+            return (
+                ReplenishmentAction.REPLENISH_NOW.value,
+                "buffer-negative-urgent",
+                False,
+            )
+        if order_buffer_days <= EMERGENCY_ORDER_BUFFER_DAYS:
+            return (
+                ReplenishmentAction.REPLENISH_NOW.value,
+                "buffer-urgent",
+                False,
+            )
+
+    # 4. critical + shortage：DoH<14 → REPLENISH_NOW（决策表第 1/2 行，D4 修复）
     if state == "critical" and critical_subtype == "shortage":
         if urgent_shortage:
             # 紧急补货：DoH<14，旺季（peak/rising）可标记，动作不变
@@ -320,7 +373,7 @@ def compute_replenishment_action(
             )
         return (ReplenishmentAction.HOLD.value, "overstock-hold-stable", False)
 
-    # 4. deteriorating
+    # 5. deteriorating
     if state == "deteriorating":
         if trend_is_decline:
             # trough 覆盖 → HOLD（避免误杀季节性回落）
@@ -338,7 +391,7 @@ def compute_replenishment_action(
         # trend_is_up → HOLD
         return (ReplenishmentAction.HOLD.value, "deteriorating-hold-stable", False)
 
-    # 5. watch / healthy / unknown
+    # 6. watch / healthy / unknown
     return (ReplenishmentAction.NO_ACTION.value, "no-action", False)
 
 
