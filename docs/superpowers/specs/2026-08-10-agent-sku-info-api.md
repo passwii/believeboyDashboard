@@ -1,6 +1,6 @@
 # SKU Info（商品主数据）Agent API 设计（sku_info）
 
-> 设计定稿 v0.1（2026-08-10，BLF-579 **S1 设计定稿**）。
+> 设计定稿 v0.2（2026-08-11，BLF-628 **W4 FNSKU 标签上传追加**；v0.1 2026-08-10，BLF-579 S1 设计定稿）。
 > 域 code：`sku_info`；命名空间：`/api/v1/agent/projects/{project_id}/sku-info/*`。
 > 前置设计：`docs/agent-api-design.md`（v0.7，confirm 流 §3 / 审计归因 §4.2 / 错误壳 §5）；模板：`docs/superpowers/specs/2026-08-08-agent-account-health-api.md`（S1 调研定稿结构）、`2026-08-06-agent-new-product-calculation-api.md`（写域实施结构）。
 > 相关域：BLF-459（`/external/*` → `/agent/*` 读镜像迁移）、BLF-457（新品测算写域样板）、BLF-479（Agent API 汇总索引 §2.10）。
@@ -83,20 +83,22 @@
 
 内部写端点（POST/PATCH/DELETE）都调 `_invalidate_financial_cache(db, project_name)`（→ `invalidate_financial_series_cache(project_id)`，`sku_info.py:159-163`），失效 PT4 财务汇总月度序列缓存。**Agent W1/W2 必须做同样的失效**（§3 D7）。该 helper 目前是端点文件私有函数——S2 下沉到服务层或 agent 路由内直接调 `app.services.infra.invalidate_financial_series_cache`。
 
-## 3. 决策拍板（D1–D8）
+## 3. 决策拍板（D1–D10）
 
 | # | 决策点 | 结论 |
 |---|---|---|
 | **D1 域 code / 命名空间** | — | 域 code **`sku_info`**（与既有 11 域无冲突；`agent_api_keys.business_scope` 字符串列加值无迁移）。命名空间 **`/api/v1/agent/projects/{project_id}/sku-info/*`**（project-scoped，对齐货件/店铺/新品域；与既有镜像路径同形，便于 D2 收口） |
 | **D2 读侧收口** | 镜像保留 vs 原生收口 | **收口进原生 `sku_info` 域**：读路由原生实现 + `business_scope("sku_info")` 门禁；镜像路径 `/external/projects/{project_id}/sku-info` 加入 `external_mirror.py._EXCLUDED_EXTERNAL_PATHS`（对齐 BLF-457/470/502 三域先例）。理由：①镜像无 business_scope 门禁（任何有项目权限的 agent 都能读，scope 无法细分）；②镜像字段子集（无工厂信息/图片/审计）；③双路径长期维护漂移 |
-| **D3 端点清单** | 读/写 | **读 3 条 + 写 3 条**（§4 R1–R3 / W1–W3）。**删除、换项目、批量(bulk)、import-csv 不开放**：删除→下架（is_active=false）替代（D8）；「换项目」内部**无此端点**（`/move` 实为排序移动，代码核实 `sku_info.py:372-403`）——需新后端能力，超本域范围；bulk/import-csv→批量写风险高 + CSV 面向文件上传，Agent 逐条 W1（每条独立 confirm），后续如需批量再评 |
+| **D3 端点清单** | 读/写 | **读 3 条 + 写 4 条**（§4 R1–R3 / W1–W4，W4=BLF-628 追加 FNSKU 标签上传）。**删除、换项目、批量(bulk)、import-csv 不开放**：删除→下架（is_active=false）替代（D8）；「换项目」内部**无此端点**（`/move` 实为排序移动，代码核实 `sku_info.py:372-403`）——需新后端能力，超本域范围；bulk/import-csv→批量写风险高 + CSV 面向文件上传，Agent 逐条 W1（每条独立 confirm），后续如需批量再评 |
 | **D4 source 溯源枚举 + source_file 派生** | — | 写路由**必填** `source`（溯源枚举，**禁 manual**——审计溯源要求声明渠道）；schema 定义新 `AgentSkuSource = Literal["agent_listing_pull", "agent_user_supplied", "external_api"]`（对齐 `AgentCalculationSource` 模式，裁剪不适用的 review_scrape/market_research，新增 agent_user_supplied 覆盖「用户对话提供」渠道）。`source_file` **不接受 Agent 传值**，服务端派生 `agent:<agent_id>`（主数据溯源列与审计双轨可追溯）。`sku_factory_info_updated_by` 传 `agent_id`（复用 update 函数 operator 参数语义） |
 | **D5 confirm / 幂等 / 审计** | — | W1/W2/W3 **全部 confirm 两步流**（`@require_confirmation`，TTL 300s）+ 写桶限流（`require_agent_write_rate_limit`）+ Idempotency-Key 幂等。审计：`operator=NULL`、`agent_id` / `idempotency_key` 归因（spec §4.2）；action 命名 `sku_info.upsert` / `sku_info.update` / `sku_info.status.transition`，`target_type="sku_info"`、`target_id=<record id>`；confirm 预览带下游影响提示（下架/改成本影响面见 §6） |
 | **D6 错误码** | — | 新增 **`SKU_INFO_INVALID_SOURCE`**（400，对齐 `NEW_PRODUCT_CALCULATION_INVALID_SOURCE`）与 **`SKU_INFO_DUPLICATE`**（409，W2 更新后与现有记录重复，对齐 `SHIPMENT_DUPLICATE_NO` 409 语义）。复用：`VALIDATION_FAILED` / `RESOURCE_NOT_FOUND` / `AGENT_PROJECT_OUT_OF_SCOPE`（403）/ `AGENT_BUSINESS_OUT_OF_SCOPE`（403）/ confirm 三码。**无其它新码** |
 | **D7 缓存失效** | — | W1/W2 写后调用 `invalidate_financial_series_cache(project_id)`（fob/first_leg 成本字段喂 PT4 财务汇总，`report/pt4.py:295`）；W3 上/下架同样失效（is_active 参与补货/报表过滤）。S2 把 `_invalidate_financial_cache` 从端点文件下沉到服务层供 agent 路由复用 |
 | **D8 is_active 语义** | — | 上/下架 = `is_active` **软切换**（非删除）：`true` 上架 / `false` 下架。下架 SKU **自动退出**下游消费（product_analysis / 货件成本汇总 / 定时报表均按 `is_active=True` 过滤，§6），历史数据保留、可重新上架。W3 预览必须明示「下架后该 SKU 将退出补货/报表/店铺测算默认消费」 |
+| **D9 confirm 流选型（W4）** | A（multipart 兼容 confirm）vs B（跳过 confirm） | **A：W4 上传端点不套 JSON confirm，新增 multipart 兼容入口**（`require_multipart_confirmation`，confirm.py 内实现）——保留「危险写必 confirm」D5 约定，符合 D5 中「W1/W2/W3 **全部** confirm 两步流」的域内一致性。预览阶段不落库、不暂存文件；内容一致性用**规范化指纹**（`sha256(source + "\x00" + filename + "\x00" + file 字节)`，不含 multipart boundary）绑定，容忍客户端重放时 boundary 变化 |
+| **D10 FNSKU 内容验证（W4）** | 验证 vs 跳过 | **跳过**（用户拍板）：Agent 端上传不做 `verify_fnsku_label` PDF 内容验证——生产端 R2 有明确配置，验证非必需；`verify_fnsku_label` 仍仅内部路径调用（1 调用方，Agent 路径不触发） |
 
-## 4. 端点清单（R1–R3 读，W1–W3 写）
+## 4. 端点清单（R1–R3 读，W1–W4 写）
 
 挂载：`agent/__init__.py` 兜底路由之前 `include_router(sku_info_router, dependencies=[Depends(require_business_scope("sku_info"))])`；每条路由内 `_scope=Depends(require_project_scope)`（项目白名单，不在范围 → 403 `AGENT_PROJECT_OUT_OF_SCOPE`）。
 
@@ -153,6 +155,18 @@
 - 执行：合并 `is_active` → `update_sku_record_by_id` → 审计 `sku_info.status.transition`（before/after 含 is_active 变化）→ 缓存失效（D7）→ commit。
 - 响应：`{ ok, data: SkuRecordItem, idempotency_key }`。
 
+### W4 上传 FNSKU 标签 PDF — `POST /api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/fnsku-label`（BLF-628 追加）
+
+- 请求：`multipart/form-data`——字段 `file`（PDF，必填）+ `source`（`AgentSkuSource` 枚举，必填，禁 manual）。**本端点不接收 JSON body**；content-type 非 multipart → 表单解析为空 → `VALIDATION_FAILED`「缺少文件」。
+- 语义：上传/替换该 SKU 的 FNSKU 标签 PDF → 写入 R2 → 更新 `fnsku_label_r2_key/url`（R1/R2 读回可见）。**不做 FNSKU 内容验证**（D10，用户拍板）；覆盖上传 = 替换（删旧 key 失败不阻塞，对齐内部 `upload_fnsku_label`）。
+- confirm 流（**D9 Option A**，`require_multipart_confirmation`）：首次调用（无 `X-Confirm-Token`）→ 表单解析 → 业务校验（`_validate_upload`）→ 签发 token（指纹 = `sha256(source + "\x00" + filename + "\x00" + file 字节)`，不含 boundary）→ HTTP 200 预览壳（`requires_confirmation:true`）；第二次调用（带 `X-Confirm-Token` + 相同 Idempotency-Key）→ 指纹校验 → 执行 handler。客户端在两次调用间**自行持有文件字节**，服务端不暂存。
+- confirm 预览：`{ action: "sku_info.upload_fnsku_label", sku_record_id, sku, filename, file_size, replace_old: bool, source, note }`——note 明示「将替换该 SKU 现有的 FNSKU 标签（旧标签将被删除）」（`replace_old=true`）或「将为该 SKU 上传 FNSKU 标签 PDF」。
+- 业务校验（`_validate_upload`，先于 token 签发短路）：`source` 合法（否则 `SKU_INFO_INVALID_SOURCE`，400）；`file` 存在；文件名后缀 `.pdf`（大小写不敏感）；非空；≤20MB；record 存在且属于该项目（否则 404 `RESOURCE_NOT_FOUND`）。
+- 执行：`delete_file_from_r2(settings, row.fnsku_label_r2_key)`（有旧 key 时，失败不阻塞）→ `upload_bytes_to_r2(settings, data, filename="{uuid}_{safe_sku}.pdf", project_slug=_safe_project_folder_name(row.project_name), file_type="fnsku-labels", content_type="application/pdf")` → `row.fnsku_label_r2_key/url = result["key"/"url"]` → 审计 `sku_info.upload_fnsku_label`（after 含 `{sku, fnsku_label_r2_key, file_size}`，`operator=NULL`、agent_id/idempotency_key 归因）→ commit。**不失效财务缓存**（标签仅展示用途，内部端点同样不失效）。
+- 响应：`{ ok, data: { sku_record_id, fnsku_label_r2_url, file_size, filename }, idempotency_key }`——`filename` 为服务器生成的 R2 对象名（`{uuid}_{safe_sku}.pdf`）；不返回 `*_r2_key`（公共约定）。
+- 幂等：`Idempotency-Key` 可缺失；出现则非空且 ≤64 字符；confirm 重放必须保持原 key 与文件内容（token 绑定 agent_id / idempotency_key / 指纹）。
+- 错误码：缺/非法 `source` → `SKU_INFO_INVALID_SOURCE`（400）；非 PDF / 空文件 / 超 20MB / 缺 file → `VALIDATION_FAILED`（400）；record 不存在或跨项目 → `RESOURCE_NOT_FOUND`（404）；R2 未配置 → `INTERNAL_ERROR`（500，human_message「R2 存储未配置」）；token 无效/过期 → `CONFIRM_TOKEN_INVALID` / `CONFIRM_TOKEN_EXPIRED`。**无新错误码**（D6 保持）。
+
 ### 明确不开放的端点（D3）
 
 | 内部能力 | 结论 | 理由 |
@@ -162,7 +176,7 @@
 | 换项目（改 project_id） | ❌ 不开 | 内部无此能力（`/move` 是排序移动）——需新后端能力，超本域范围 |
 | `/sku-info/bulk`、`import-csv`、`import-blf-basic-info` | ❌ 不开 | 批量写风险高；CSV 面向文件上传；Agent 逐条 W1（每条独立 confirm） |
 | `recalculate-first-leg-costs`、`sync-first-leg-from-shipment` | ❌ 不开 | 服务端派生动作（重算/同步），Agent 只写事实值；头程同步会**回写覆盖** first_leg_cost_rmb（§6 #3 影响面注明） |
-| 图片 / FNSKU 标签上传（含验证） | ❌ 不开 | 涉及文件上传 + 二进制验证 + R2 写入，Agent 无此场景（S2 后可评） |
+| `product-image` 上传/删除 | ❌ 不开 | 同属「文件上传 + R2 写入」，本域 W4 只开 FNSKU 标签；产品图上传需图片处理管线（缩略图生成），后续可评 |
 
 ## 5. 必要元素定稿（逐端点字段 + 校验）
 
@@ -198,6 +212,15 @@
 
 - `{"is_active": bool}`（必填）+ `source`（必填）。
 
+### 5.6 W4 上传请求字段表（multipart/form-data，BLF-628 追加）
+
+| 字段 | 必填 | 类型 / 约束 | 说明 |
+|---|---|---|---|
+| `file` | ✅ | PDF 文件 | 后缀 `.pdf`（大小写不敏感）；非空；≤20MB；**不做 PDF 内容验证**（D10） |
+| `source` | ✅ | `AgentSkuSource` 枚举 | 溯源渠道（D4）；缺失/非法 → `SKU_INFO_INVALID_SOURCE` |
+
+**服务端派生**：`project_id` / `sku_record_id`（路径）、`project_name`（行冗余列）、R2 key（`{uuid}_{safe_sku}.pdf`）、`filename`（响应中的对象名）、审计归因（agent_id / idempotency_key）。
+
 ### 5.4 校验规则汇总
 
 1. **唯一性**：`(project_id, sku, asin, country)`——W1 upsert 命中即更新（无冲突）；W2 更新后冲突 → `SKU_INFO_DUPLICATE`（409）。
@@ -206,6 +229,7 @@
 4. **is_active**：bool；语义 = 上/下架软切换（D8），非删除。
 5. **source**：枚举白名单，禁 manual；缺失/非法 → `SKU_INFO_INVALID_SOURCE`（400）。
 6. **Idempotency-Key**：可缺失；出现则非空且 ≤64 字符（对齐 spec §3）。
+7. **W4 文件校验**：`file` 必填、`.pdf` 后缀、非空、≤20MB；缺/非法 `source` → `SKU_INFO_INVALID_SOURCE`；不做 FNSKU 内容验证（D10）。
 
 ### 5.5 响应与空值语义
 
@@ -231,6 +255,17 @@
 
 **新增面**：`agent/__init__.py` 追加一个 `include_router`（兜底路由之前）+ `agent_api_keys.business_scope` 加值 `sku_info`（字符串列，无迁移）+ `external_mirror.py` `_EXCLUDED_EXTERNAL_PATHS` 加一条 + `errors.py` 加 2 码 + `app/schemas/agent_sku_info.py` 新增 + `backend/app/api/v1/endpoints/agent/sku_info.py` 新增 + 前端 `lib/agent-domains.ts` 注册表加一条（S3）。
 
+**W4 追加影响面（2026-08-11，CodeGraph 核实）：**
+
+| # | 符号 | callers | 影响 |
+|---|---|---|---|
+| 1 | `upload_bytes_to_r2` | 10（sku_info 内部 2 处 + 换汇/回款/巡检/定时报表/上传服务等） | Agent W4 新增 1 调用方，**签名不变，0 破坏** |
+| 2 | `delete_file_from_r2` | 13 | Agent W4 直接复用（删旧 key），0 破坏 |
+| 3 | `verify_fnsku_label` | **仅 1**（内部 `upload_fnsku_label`） | Agent 路径**不调用**（D10），无影响 |
+| 4 | `require_confirmation` | 7（5 个 agent 域 + confirm 测试） | **不修改**——W4 新增独立 `require_multipart_confirmation` 装饰器，JSON confirm 行为零改动 |
+| 5 | `issue_confirm_token` / `consume_confirm_token` | 各自仅 `_confirm_gate` + 测试 | 新增可选 `body_hash` 参数（默认 None 保持既有行为），0 破坏 |
+| 6 | `SkuRecord.fnsku_label_r2_{key,url}` | — | 列已存在，**无迁移**；R1/R2 已暴露 `fnsku_label_r2_url`，Agent 上传后直接读回，无新读能力 |
+
 ## 7. 测试清单（供 S2 实施）
 
 1. **W1 upsert**：新建（inserted）→ 同键重放（updated，不产生新行）；confirm 预览 is_new/previous 正确；`source_file` 落 `agent:<agent_id>`；非法 source → `SKU_INFO_INVALID_SOURCE`（400，先于 confirm 签发）。
@@ -243,6 +278,7 @@
 8. **confirm 流**：无 X-Confirm-Token → 200 预览壳；重放 body 不一致 → `CONFIRM_TOKEN_INVALID`；过期 → `CONFIRM_TOKEN_EXPIRED`；Idempotency-Key 复用不同 body → `IDEMPOTENCY_KEY_CONFLICT`。
 9. **路由注册**：`agent/__init__.py` 兜底路由之前；镜像路径已排除（`_EXCLUDED_EXTERNAL_PATHS` 含 sku-info）。
 10. **回归**：内部 `/api/v1/sku-info/*` 行为不变（服务函数零改动）；外部镜像收口后 `/agent/projects/{id}/sku-info` 仍 200 且走原生 handler（路由数量不重复）。
+11. **W4 上传（BLF-628）**：预览+重放上传并落库（R2 mock）；旧 key 替换 + delete 被调；缺/非法 source → `SKU_INFO_INVALID_SOURCE`；非 PDF / 空文件 / 超 20MB / 缺 file → `VALIDATION_FAILED`；record 不存在或跨项目 → 404；重放文件内容/source/Idempotency-Key 不一致 → `CONFIRM_TOKEN_INVALID`；过期 → `CONFIRM_TOKEN_EXPIRED`；审计行含 agent_id/idempotency_key/after 字段；R1/R2 读回新 url。
 
 ## 8. 阶段规划（BLF-579 S2–S3）
 
@@ -250,6 +286,7 @@
 |---|---|---|
 | **S1 设计定稿**（本 issue，本 run） | 本 spec | 现状梳理 + D1–D8 拍板 + 端点清单 + 必要元素 + confirm/溯源/幂等契约；**无代码变更**；spec 落库 PR 随本阶段提交 |
 | **S2 实施**（backlog） | 照本 spec §4/§5/§7 | 新增 `backend/app/api/v1/endpoints/agent/sku_info.py` + `backend/app/schemas/agent_sku_info.py` + `errors.py` 2 码 + `external_mirror.py` 排除 + `agent/__init__.py` 挂载（business_scope("sku_info")）+ 服务层 `_invalidate_financial_cache` 下沉 + 测试。**无 DB 迁移**（复用 `product_costs`）。risk:high（首个主数据写域，影响财务/补货/报表） |
+| **S2.5 W4 上传（BLF-628，2026-08-11 追加）** | 照 §4 W4 / §5.6 / §7 #11 | `confirm.py` 新增 `require_multipart_confirmation`（+ `compute_multipart_fingerprint`，`issue/consume_confirm_token` 加可选 `body_hash` 参数）+ `agent/sku_info.py` W4 路由（`_validate_upload` / `_preview_upload`）+ 测试。**无 DB 迁移、无新错误码**。risk:normal（新增写域端点，复用既有 confirm/限流/scope/审计基建；不动 W1–W3） |
 | **S3 上线收尾**（backlog） | 照 BLF-526 模板 | 前端 `lib/agent-domains.ts` 注册表加域（`sku_info`，live，读+写，routeCount 6）+ agent-usage-guide 调用说明 + BLF-479 §2.10 行状态同步 + 归档 BLF-579 |
 
 ## 9. 风险与开放问题
@@ -260,7 +297,10 @@
 4. **W1 upsert 与 W2 patch 双路径**：同一 SKU 两种写入口（按唯一键 vs 按 id）——语义清晰（W1=整体建立/覆盖，W2=定点修改），但 Agent 需按场景选择；usage-guide（S3）写清「改成本/规格用 W2、建新 SKU 用 W1、上/下架用 W3」。
 5. **生产库数据量实查**：本轮 S1 未做 VPS 实查（代码核实充分）；S2 实施时如需要可补「product_costs 行数 / is_active 分布」快照，评估 R1 分页默认值是否合理。
 6. **`sku_factory_info` 为自由 JSON**：Agent 写入前应先用内部 `batch-parse-factory-info`（AI 解析）得到结构化键值对；直接写自由 JSON 可能污染下游（`context_helpers.py` 读取）——usage-guide 提示，不强制 schema 约束（S2 可评）。
+7. **W4 上传的 confirm 传输成本（D9）**：文件字节在预览与重放间**传输两次**（服务端不暂存），TTL 300s 内必须重放；大文件（接近 20MB）双传带宽成本由客户端承担——权衡后仍选 A（保持 D5「危险写必 confirm」一致性；上传可幂等覆盖、可重传，风险本就低于成本写，若后续确需优化可单独评估降级为 B）。
+8. **W4 指纹与 boundary**：multipart 指纹**不含 boundary**（`source+filename+文件字节`）——客户端重放时 boundary 变化不触发误拒绝；恶意篡改 source/文件名/文件内容会失配 → `CONFIRM_TOKEN_INVALID`。
 
 ## 版本记录
 
+- v0.2（2026-08-11）：BLF-628 W4 FNSKU 标签上传追加。决策 D9（confirm 流选型 A：multipart 兼容 confirm）/ D10（跳过 FNSKU 内容验证，用户拍板）；§4 新增 W4 端点与「明确不开放」表更新（product-image 仍不开）；§5.6 W4 字段表；§6 W4 影响面（CodeGraph 核实 2026-08-11：`upload_bytes_to_r2` 10 callers / `delete_file_from_r2` 13 / `verify_fnsku_label` 1 / `require_confirmation` 7 全部不受影响，新增均为加法）；§7 #11 W4 测试清单；§8 S2.5 阶段；§9 #7/#8 W4 风险。无 DB 迁移、无新错误码。
 - v0.1（2026-08-10）：BLF-579 S1 设计定稿。内容基于 2026-08-10 代码核实：`SkuRecord` 模型（`backend/app/models/sku_info.py`）、内部 18 端点（`backend/app/api/v1/endpoints/sku_info.py`）、服务层（`backend/app/services/data/sku_info/crud.py`）、agent 基础设施（`app/api/agent/{confirm,scope,errors}.py`）、external 镜像（`app/api/v1/endpoints/agent/external_mirror.py`）、前端注册表（`frontend/lib/agent-domains.ts`）；影响面经 CodeGraph（29,590 nodes / 66,958 edges）`callers`/`search` 核实（§6）。

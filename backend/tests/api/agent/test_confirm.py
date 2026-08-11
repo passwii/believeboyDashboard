@@ -120,7 +120,10 @@ class TestTokenLifecycle:
             )
             with pytest.raises(ConfirmReplayError) as exc:
                 consume_confirm_token(
-                    token=record.token, agent_id="a", idempotency_key=None, body=b'{"v":2}'
+                    token=record.token,
+                    agent_id="a",
+                    idempotency_key=None,
+                    body=b'{"v":2}',
                 )
             assert exc.value.reason == "invalid"
         finally:
@@ -131,12 +134,19 @@ class TestTokenLifecycle:
         set_confirm_store(store)
         try:
             record, _ = issue_confirm_token(
-                agent_id="a", action="x", idempotency_key=None, body=b"{}", ttl_seconds=1
+                agent_id="a",
+                action="x",
+                idempotency_key=None,
+                body=b"{}",
+                ttl_seconds=1,
             )
             store._rows[record.token]["record"].created_at -= 2  # 逻辑过期
             with pytest.raises(ConfirmReplayError) as exc:
                 consume_confirm_token(
-                    token=record.token, agent_id="a", idempotency_key=None, body=b"{}",
+                    token=record.token,
+                    agent_id="a",
+                    idempotency_key=None,
+                    body=b"{}",
                     ttl_seconds=1,
                 )
             assert exc.value.reason == "expired"
@@ -211,8 +221,10 @@ class TestAtomicConsume:
             def attempt():
                 try:
                     consume_confirm_token(
-                        token=record.token, agent_id="a",
-                        idempotency_key=None, body=b'{"v":1}',
+                        token=record.token,
+                        agent_id="a",
+                        idempotency_key=None,
+                        body=b'{"v":1}',
                     )
                     ok = True
                 except ConfirmReplayError:
@@ -241,7 +253,9 @@ class TestRedisStoreRoundtrip:
             record, _ = issue_confirm_token(
                 agent_id="a", action="x", idempotency_key="k", body=b'{"v":1}'
             )
-            expected_key = f"{get_settings().redis_key_prefix}:agent:confirm:{record.token}"
+            expected_key = (
+                f"{get_settings().redis_key_prefix}:agent:confirm:{record.token}"
+            )
             assert get_redis_client().exists(expected_key) == 1
             got = consume_confirm_token(
                 token=record.token, agent_id="a", idempotency_key="k", body=b'{"v":1}'
@@ -251,7 +265,10 @@ class TestRedisStoreRoundtrip:
             assert get_redis_client().exists(expected_key) == 0
             with pytest.raises(ConfirmReplayError) as exc:
                 consume_confirm_token(
-                    token=record.token, agent_id="a", idempotency_key="k", body=b'{"v":1}'
+                    token=record.token,
+                    agent_id="a",
+                    idempotency_key="k",
+                    body=b'{"v":1}',
                 )
             assert exc.value.reason == "invalid"
         finally:
@@ -295,9 +312,204 @@ class TestCallbacksReceiveRequest:
             assert seen["preview_path"] == "/w"
             token = resp.json()["confirm_token"]
             replay = client.post(
-                "/w", json={"a": 1},
+                "/w",
+                json={"a": 1},
                 headers={"Idempotency-Key": "k1", "X-Confirm-Token": token},
             )
             assert replay.json() == {"ok": True, "data": {"executed": True}}
+        finally:
+            set_confirm_store(None)
+
+
+class TestMultipartConfirmation:
+    """multipart/form-data 两步确认门（BLF-628 W4：require_multipart_confirmation）。
+
+    与 JSON confirm 的差异点：
+    * body 不做 JSON 解析（multipart 直接 400 是旧行为）；
+    * token 绑定**规范化指纹**（source+filename+文件字节，不含 boundary）——
+      重放可换 boundary，内容一致即通过；内容/文件名/source 任一变化 → invalid。
+    """
+
+    def _build_upload_app(self, store_rows=None) -> FastAPI:
+        from app.api.agent.confirm import require_multipart_confirmation
+        from app.api.agent.errors import register_agent_error_handlers
+        from app.api.agent.response import agent_ok
+
+        app = FastAPI()
+        register_agent_error_handlers(app)
+
+        def _val(fields: dict, request: Request) -> None:
+            file_meta = fields.get("file") or {}
+            if not file_meta.get("filename", "").endswith(".pdf"):
+                from app.api.agent.errors import AgentApiError, ErrorCode
+
+                raise AgentApiError(
+                    ErrorCode.VALIDATION_FAILED, human_message="仅支持 PDF 文件"
+                )
+
+        def _prev(fields: dict, request: Request) -> dict:
+            return {
+                "filename": (fields.get("file") or {}).get("filename"),
+                "source": fields.get("source"),
+            }
+
+        @app.post("/upload")
+        @require_multipart_confirmation(
+            action="test.upload", build_preview=_prev, validate=_val
+        )
+        async def _upload(request: Request):
+            form = await request.form()
+            up = form.get("file")
+            content = await up.read() if up is not None else b""
+            EXECUTED.append(
+                {
+                    "source": str(form.get("source") or ""),
+                    "filename": getattr(up, "filename", None),
+                    "size": len(content),
+                }
+            )
+            return agent_ok({"executed": True, "size": len(content)})
+
+        @app.middleware("http")
+        async def _stamp(request: Request, call_next):
+            request.state.agent_id = "confirm-agent"
+            return await call_next(request)
+
+        return app
+
+    def _post_upload(
+        self,
+        client,
+        *,
+        source="agent_listing_pull",
+        filename="label.pdf",
+        content=b"%PDF-1.4 test",
+        token=None,
+        idem="idem-upload-1",
+    ):
+        headers = {"Idempotency-Key": idem}
+        if token:
+            headers["X-Confirm-Token"] = token
+        return client.post(
+            "/upload",
+            files={"file": (filename, content, "application/pdf")},
+            data={"source": source},
+            headers=headers,
+        )
+
+    def test_preview_then_replay_executes(self):
+        set_confirm_store(InMemoryConfirmStore())
+        EXECUTED.clear()
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client)
+            assert preview.status_code == 200, preview.text
+            pbody = preview.json()
+            assert pbody["ok"] is False
+            assert pbody["requires_confirmation"] is True
+            assert pbody["confirm_token"].startswith("cf_")
+            assert pbody["preview"]["action"] == "test.upload"
+            assert pbody["preview"]["filename"] == "label.pdf"
+            assert pbody["preview"]["source"] == "agent_listing_pull"
+
+            # 重放：TestClient 每次 files= 生成新 boundary，内容一致即通过
+            replay = self._post_upload(
+                client, token=pbody["confirm_token"], idem="idem-upload-1"
+            )
+            assert replay.status_code == 200, replay.text
+            assert replay.json()["data"]["executed"] is True
+            assert EXECUTED == [
+                {
+                    "source": "agent_listing_pull",
+                    "filename": "label.pdf",
+                    "size": len(b"%PDF-1.4 test"),
+                }
+            ]
+        finally:
+            set_confirm_store(None)
+
+    def test_replay_content_changed_rejected(self):
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client, content=b"%PDF-1.4 v1")
+            token = preview.json()["confirm_token"]
+            replay = self._post_upload(
+                client,
+                content=b"%PDF-1.4 v2-different",
+                token=token,
+                idem="idem-upload-1",
+            )
+            assert replay.status_code == 400
+            assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        finally:
+            set_confirm_store(None)
+
+    def test_replay_filename_changed_rejected(self):
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client, filename="label.pdf")
+            token = preview.json()["confirm_token"]
+            replay = self._post_upload(
+                client, filename="renamed.pdf", token=token, idem="idem-upload-1"
+            )
+            assert replay.status_code == 400
+            assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        finally:
+            set_confirm_store(None)
+
+    def test_replay_source_changed_rejected(self):
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client, source="agent_listing_pull")
+            token = preview.json()["confirm_token"]
+            replay = self._post_upload(
+                client, source="external_api", token=token, idem="idem-upload-1"
+            )
+            assert replay.status_code == 400
+            assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        finally:
+            set_confirm_store(None)
+
+    def test_replay_idempotency_changed_rejected(self):
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client, idem="idem-upload-1")
+            token = preview.json()["confirm_token"]
+            replay = self._post_upload(client, token=token, idem="idem-upload-other")
+            assert replay.status_code == 400
+            assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_INVALID"
+        finally:
+            set_confirm_store(None)
+
+    def test_replay_expired(self):
+        store = InMemoryConfirmStore()
+        set_confirm_store(store)
+        try:
+            client = TestClient(self._build_upload_app())
+            preview = self._post_upload(client)
+            token = preview.json()["confirm_token"]
+            store._rows[token]["record"].created_at -= 400
+            replay = self._post_upload(client, token=token, idem="idem-upload-1")
+            assert replay.status_code == 409
+            assert replay.json()["error"]["code"] == "CONFIRM_TOKEN_EXPIRED"
+        finally:
+            set_confirm_store(None)
+
+    def test_multipart_bad_file_validate_short_circuits_before_token(self):
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_upload_app())
+            resp = client.post(
+                "/upload",
+                files={"file": ("label.txt", b"not a pdf", "text/plain")},
+                data={"source": "agent_listing_pull"},
+                headers={"Idempotency-Key": "idem-upload-1"},
+            )
+            assert resp.status_code == 400
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
         finally:
             set_confirm_store(None)

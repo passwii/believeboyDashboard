@@ -24,6 +24,7 @@ from typing import Any, Callable, Protocol
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.datastructures import UploadFile
 
 from app.core.config import get_settings
 
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 CONFIRM_KEY_PREFIX = "agent:confirm:"
 DEFAULT_CONFIRM_TTL_SECONDS = 300
+
+#: multipart 上传允许的表单字段（其余字段忽略，避免未声明字段进 preview）
+_MULTIPART_SOURCE_FIELD = "source"
+_MULTIPART_FILE_FIELD = "file"
 
 
 def _confirm_key(token: str) -> str:
@@ -129,6 +134,25 @@ def compute_body_hash(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
 
 
+def compute_multipart_fingerprint(
+    source: str | None, filename: str, file_bytes: bytes
+) -> str:
+    """multipart 上传的重放一致性指纹（W4，BLF-628）。
+
+    规范化输入：``source + "\x00" + filename + "\x00" + 文件字节``。
+    **不含 multipart boundary**（客户端重放时可换 boundary，内容一致即通过）
+    也不含其余表单字段/请求头——内容一致性由指纹绑定，agent 身份与
+    Idempotency-Key 由 confirm 记录单独绑定。
+    """
+    h = hashlib.sha256()
+    h.update((source or "").encode("utf-8"))
+    h.update(b"\x00")
+    h.update(filename.encode("utf-8"))
+    h.update(b"\x00")
+    h.update(file_bytes)
+    return h.hexdigest()
+
+
 def issue_confirm_token(
     *,
     agent_id: str,
@@ -136,6 +160,7 @@ def issue_confirm_token(
     idempotency_key: str | None,
     body: bytes,
     ttl_seconds: int = DEFAULT_CONFIRM_TTL_SECONDS,
+    body_hash: str | None = None,
 ) -> tuple[ConfirmRecord, int]:
     token = f"cf_{secrets.token_urlsafe(24)}"
     record = ConfirmRecord(
@@ -143,7 +168,7 @@ def issue_confirm_token(
         agent_id=agent_id,
         action=action,
         idempotency_key=idempotency_key,
-        body_hash=compute_body_hash(body),
+        body_hash=body_hash or compute_body_hash(body),
         created_at=time.time(),
     )
     get_confirm_store().put(record, physical_ttl_seconds=ttl_seconds * 2)
@@ -165,8 +190,14 @@ def consume_confirm_token(
     idempotency_key: str | None,
     body: bytes,
     ttl_seconds: int = DEFAULT_CONFIRM_TTL_SECONDS,
+    body_hash: str | None = None,
 ) -> ConfirmRecord:
-    """校验并消费（原子 pop，用后即删）。不匹配抛 ConfirmReplayError。"""
+    """校验并消费（原子 pop，用后即删）。不匹配抛 ConfirmReplayError。
+
+    ``body_hash`` 提供时**优先**用它比对（multipart 上传流：body 为规范化
+    指纹而非原始字节，见 ``compute_multipart_fingerprint``）；缺省回退
+    ``compute_body_hash(body)``（JSON 流，既有行为）。
+    """
     record = get_confirm_store().pop(token)
     if record is None:
         raise ConfirmReplayError("invalid")
@@ -175,7 +206,7 @@ def consume_confirm_token(
     if (
         record.agent_id != agent_id
         or record.idempotency_key != idempotency_key
-        or record.body_hash != compute_body_hash(body)
+        or record.body_hash != (body_hash or compute_body_hash(body))
     ):
         raise ConfirmReplayError("invalid")
     return record
@@ -203,8 +234,7 @@ def require_confirmation(
     def decorator(handler):
         if not inspect.iscoroutinefunction(handler):
             raise TypeError(
-                "require_confirmation requires an async handler "
-                f"(got {handler!r})"
+                f"require_confirmation requires an async handler (got {handler!r})"
             )
 
         @functools.wraps(handler)
@@ -249,7 +279,9 @@ async def _confirm_gate(
 
     if not confirm_header:
         if validate is not None:
-            validate(body, request)  # 业务校验先于 confirm（spec S6）；抛 AgentApiError 直接短路
+            validate(
+                body, request
+            )  # 业务校验先于 confirm（spec S6）；抛 AgentApiError 直接短路
         record, ttl = issue_confirm_token(
             agent_id=agent_id,
             action=action,
@@ -291,3 +323,149 @@ async def _confirm_gate(
         )
         raise AgentApiError(code) from None
     return None
+
+
+async def _parse_multipart_fields(
+    request: Request,
+) -> tuple[dict[str, Any], str, bytes]:
+    """解析 multipart 表单 → (字段 dict, 规范化指纹, 文件字节)。
+
+    字段 dict（供 validate/build_preview/handler 复用）：
+    ``{"source": str, "file": {"filename": str, "size": int}}``——
+    **不携带文件字节**（JSON 可序列化，避免大文件进 preview 内存）。
+    返回的文件字节用于指纹计算；调用方需 ``seek(0)`` 让 handler 可重读。
+    """
+    form = await request.form()
+    fields: dict[str, Any] = {}
+    file_bytes = b""
+    file_meta: dict[str, Any] = {}
+    source: str | None = None
+    for key, value in form.items():
+        if isinstance(value, UploadFile):
+            data = await value.read()
+            await value.seek(0)
+            file_meta = {
+                "filename": value.filename or "",
+                "size": len(data),
+            }
+            file_bytes = data
+            fields[_MULTIPART_FILE_FIELD] = file_meta
+        elif key == _MULTIPART_SOURCE_FIELD:
+            source = str(value) if value is not None else None
+            fields[_MULTIPART_SOURCE_FIELD] = source
+    fingerprint = compute_multipart_fingerprint(
+        source, file_meta.get("filename", ""), file_bytes
+    )
+    return fields, fingerprint, file_bytes
+
+
+async def _multipart_confirm_gate(
+    request: Request,
+    *,
+    action: str,
+    build_preview: Callable[[dict, Request], dict] | None,
+    validate: Callable[[dict, Request], None] | None,
+) -> JSONResponse | None:
+    """multipart/form-data 两步确认门（W4 上传端点，BLF-628）。
+
+    与 ``_confirm_gate`` 同构，差异：
+    * body 不做 JSON 解析（multipart 直接失败是旧行为）；preview 由表单字段
+      构建（字段 dict 见 ``_parse_multipart_fields``）；
+    * token 绑定的是**规范化指纹**（``compute_multipart_fingerprint``）而非
+      原始字节——multipart boundary 每次请求随机，客户端重放可换 boundary，
+      只要 source/filename/文件字节一致即通过；
+    * 文件字节在预览与重放之间由客户端持有（服务端不暂存），TTL 300s。
+    """
+    from app.api.agent.errors import AgentApiError, ErrorCode
+
+    fields, fingerprint, _ = await _parse_multipart_fields(request)
+
+    agent_id = getattr(request.state, "agent_id", None) or ""
+    idempotency_key = request.headers.get("idempotency-key") or None
+    confirm_header = (request.headers.get("x-confirm-token") or "").strip()
+
+    if not confirm_header:
+        if validate is not None:
+            validate(fields, request)  # 业务校验先于 confirm；抛 AgentApiError 直接短路
+        record, ttl = issue_confirm_token(
+            agent_id=agent_id,
+            action=action,
+            idempotency_key=idempotency_key,
+            body=b"",
+            ttl_seconds=DEFAULT_CONFIRM_TTL_SECONDS,
+            body_hash=fingerprint,
+        )
+        preview: dict[str, Any] = {"action": action}
+        if build_preview is not None:
+            preview.update(build_preview(fields, request))
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": False,
+                "requires_confirmation": True,
+                "confirm_token": record.token,
+                "preview": preview,
+                "expires_in_sec": ttl,
+                "human_message": "该操作需要用户确认",
+                "agent_hint": (
+                    "向用户复述上述摘要；用户确认后用同一 Idempotency-Key + "
+                    "X-Confirm-Token 重放**内容一致**的 multipart 请求（文件字节/"
+                    "source/文件名不变，boundary 可不同）"
+                ),
+            },
+        )
+
+    try:
+        consume_confirm_token(
+            token=confirm_header,
+            agent_id=agent_id,
+            idempotency_key=idempotency_key,
+            body=b"",
+            body_hash=fingerprint,
+        )
+    except ConfirmReplayError as exc:
+        code = (
+            ErrorCode.CONFIRM_TOKEN_EXPIRED
+            if exc.reason == "expired"
+            else ErrorCode.CONFIRM_TOKEN_INVALID
+        )
+        raise AgentApiError(code) from None
+    return None
+
+
+def require_multipart_confirmation(
+    *,
+    action: str,
+    build_preview: Callable[[dict, Request], dict] | None = None,
+    validate: Callable[[dict, Request], None] | None = None,
+):
+    """危险写操作两步确认门——multipart/form-data 变体（W4 上传，BLF-628）。
+
+    与 ``require_confirmation`` 同构：第一次调用（无 X-Confirm-Token）→
+    ``validate(fields, request)`` → 签发 token → 返回 HTTP 200 预览壳；
+    第二次调用（带 X-Confirm-Token）→ 指纹校验 → 执行 handler。
+
+    ``fields`` 为表单字段 dict（``{"source": str, "file": {"filename", "size"}}``），
+    不含文件字节——validate/preview 只依赖元数据，字节由 handler 重读
+    （``request.form()`` 被 starlette 缓存，gate 已 ``seek(0)`` 回卷）。
+    """
+
+    def decorator(handler):
+        if not inspect.iscoroutinefunction(handler):
+            raise TypeError(
+                "require_multipart_confirmation requires an async handler "
+                f"(got {handler!r})"
+            )
+
+        @functools.wraps(handler)
+        async def wrapper(request: Request, *args, **kwargs):
+            decision = await _multipart_confirm_gate(
+                request, action=action, build_preview=build_preview, validate=validate
+            )
+            if decision is not None:
+                return decision
+            return await handler(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
