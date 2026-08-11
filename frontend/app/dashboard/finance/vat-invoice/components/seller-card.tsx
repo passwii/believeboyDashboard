@@ -310,7 +310,7 @@ export function SellerCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive max-md:h-11 max-md:w-11"
                   onClick={() => confirmDelete(selectedCountry)}
                   disabled={saving}
                   title={`删除 ${selectedCountry} Seller`}
@@ -369,7 +369,7 @@ export function SellerCard({
 
       {/* 编辑 / 新增 Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {editMode === 'add' ? '新增 Seller' : `编辑 ${selectedCountry} Seller`}
@@ -476,7 +476,7 @@ export function SellerCard({
 
       {/* 删除确认 */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
             <DialogDescription>

@@ -896,16 +896,16 @@ export default function PlatformRevenuePage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center lg:gap-x-4 lg:gap-y-2">
             <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">项目</Label>
+              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">项目</Label>
               <Select
                 value={filters.project_id || ALL_FILTER_VALUE}
                 onValueChange={(value) =>
                   handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
                 }
               >
-                <SelectTrigger className="w-[180px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[180px]">
                   <SelectValue placeholder="全部项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -920,14 +920,14 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">年份</Label>
+              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">年份</Label>
               <Select
                 value={filters.year || ALL_FILTER_VALUE}
                 onValueChange={(value) =>
                   handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
                 }
               >
-                <SelectTrigger className="w-[120px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[120px]">
                   <SelectValue placeholder="全部年份" />
                 </SelectTrigger>
                 <SelectContent>
@@ -942,14 +942,14 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">月份</Label>
+              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">月份</Label>
               <Select
                 value={filters.month || ALL_FILTER_VALUE}
                 onValueChange={(value) =>
                   handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
                 }
               >
-                <SelectTrigger className="w-[112px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[112px]">
                   <SelectValue placeholder="全部月份" />
                 </SelectTrigger>
                 <SelectContent>
@@ -964,14 +964,14 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">币种</Label>
+              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">币种</Label>
               <Select
                 value={filters.currency || ALL_FILTER_VALUE}
                 onValueChange={(value) =>
                   handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
                 }
               >
-                <SelectTrigger className="w-[140px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[140px]">
                   <SelectValue placeholder="全部币种" />
                 </SelectTrigger>
                 <SelectContent>
@@ -986,14 +986,14 @@ export default function PlatformRevenuePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Label className="whitespace-nowrap text-sm font-medium">回款类型</Label>
+              <Label className="hidden whitespace-nowrap text-sm font-medium lg:inline-block">回款类型</Label>
               <Select
                 value={filters.revenue_type || ALL_FILTER_VALUE}
                 onValueChange={(value) =>
                   handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
                 }
               >
-                <SelectTrigger className="w-[140px] dark:bg-[hsl(var(--surface-soft))]">
+                <SelectTrigger className="w-full dark:bg-[hsl(var(--surface-soft))] lg:w-[140px]">
                   <SelectValue placeholder="全部类型" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1004,12 +1004,23 @@ export default function PlatformRevenuePage() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={resetFilters}>
+            <div className="col-span-2 flex items-center gap-2 lg:col-span-1 lg:gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+                className="flex-1 max-md:min-h-[44px] lg:flex-none"
+              >
                 <RotateCcw className="mr-1 h-4 w-4" />
                 重置
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex-1 max-md:min-h-[44px] lg:flex-none"
+              >
                 {exporting ? (
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
@@ -1278,7 +1289,7 @@ export default function PlatformRevenuePage() {
           </div>
 
           {/* 分页 */}
-          <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
             <p className="text-sm text-muted-foreground">
               共 {pagination.total} 条记录，第 {pagination.page}/{pagination.total_pages} 页
             </p>
@@ -1286,6 +1297,7 @@ export default function PlatformRevenuePage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="max-md:min-h-[44px]"
                 onClick={() =>
                   setPagination((prev) => ({
                     ...prev,
@@ -1299,6 +1311,7 @@ export default function PlatformRevenuePage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="max-md:min-h-[44px]"
                 onClick={() =>
                   setPagination((prev) => ({
                     ...prev,
@@ -1318,7 +1331,7 @@ export default function PlatformRevenuePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="platform-revenue-dialog-description"
-          className="sm:max-w-[520px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-[520px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="platform-revenue-dialog-description" className="sr-only">
             {editingRevenue ? '修改回款记录' : '录入新的回款记录'}
@@ -1330,7 +1343,7 @@ export default function PlatformRevenuePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="project">
                   项目 <span className="text-destructive">*</span>
@@ -1399,7 +1412,7 @@ export default function PlatformRevenuePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="received_date">
                   回款日期 <span className="text-destructive">*</span>
@@ -1455,7 +1468,7 @@ export default function PlatformRevenuePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="currency">
                   币种 <span className="text-destructive">*</span>
@@ -1644,7 +1657,7 @@ export default function PlatformRevenuePage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-revenue-dialog-description"
-          className="sm:max-w-[425px]"
+          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-[425px]"
         >
           <span id="delete-revenue-dialog-description" className="sr-only">
             确认删除回款记录
