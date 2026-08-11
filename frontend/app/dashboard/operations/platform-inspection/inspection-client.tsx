@@ -8,7 +8,7 @@ import {
   SlidingTabsTrigger,
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
-import { PageHeader } from '@/components/ui/page-header'
+import { PagePill } from '@/components/ui/page-pill'
 import { useNotifications } from '@/components/notifications'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
@@ -65,20 +65,10 @@ export default function InspectionClient() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 页面头部：eyebrow + 标题 + 描述（BLF-505：收口为 PageHeader 原语，对齐 site-navigation 试点） */}
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <PageHeader
-          className="relative z-10"
-          eyebrow={
-            <>
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              运营 · 平台巡检
-            </>
-          }
-          title="平台巡检"
-          description="按周期对账平台运营健康度：账号健康 / 配送绩效 / 合规问题，支持截图留档与逾期提醒。"
-        />
-      </section>
+      {/* 顶部：仅 PILL（BLF-634：卡片完全移除，只保留 PILL 徽标） */}
+      <div className="animate-enter">
+        <PagePill icon={<ClipboardCheck />}>运营 · 平台巡检</PagePill>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsMotionGroup id="inspection-tabs">

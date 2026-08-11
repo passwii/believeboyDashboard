@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
+  Boxes,
   CalendarClock,
   FileDown,
   Gauge,
@@ -48,6 +49,7 @@ import {
 } from '@/components/ui/table'
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { PagePill } from '@/components/ui/page-pill'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -1035,16 +1037,11 @@ export default function InventoryReplenishmentPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* 控制台 */}
+      {/* 控制台 — 头部 = 页面 PILL + 右侧操作（BLF-634：汉字换 PILL，与操作按钮等高） */}
       <div className="dashboard-surface">
         {/* 标题行 */}
         <div className="flex flex-col gap-3 border-b border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              分析控制台
-            </p>
-            <h2 className="text-base font-semibold text-foreground leading-none">补货分析</h2>
-          </div>
+          <PagePill icon={<Boxes />}>运营 · 补货分析</PagePill>
           <div className="flex flex-wrap items-center gap-2">
             <SnapshotSelector
               projectId={currentProjectId}
