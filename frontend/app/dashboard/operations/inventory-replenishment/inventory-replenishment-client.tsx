@@ -1076,11 +1076,14 @@ export default function InventoryReplenishmentPage() {
           </div>
         </div>
 
-        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2） */}
+        {/* 筛选项（BLF-505：收口为 FilterToolbar 原语 §8.2）
+         * BLF-629：字段外层 w-full 在桌面 md:flex 容器里占满整行导致竖排，
+         * 加 md:w-auto 让桌面按内容宽度横排（手机 2 列网格仍由 w-full 撑满）。
+         */}
         <FilterToolbar>
-          <div className="w-full min-w-0">
+          <div className="w-full min-w-0 md:w-auto">
             {projectsLoading ? (
-              <Skeleton className="h-9 w-full rounded-lg" />
+              <Skeleton className="h-9 w-full rounded-lg md:w-[180px]" />
             ) : (
               <Select
                 value={projectId}
@@ -1090,7 +1093,7 @@ export default function InventoryReplenishmentPage() {
                   syncUrlParams(id, country)
                 }}
               >
-                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]">
+                <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
@@ -1103,15 +1106,15 @@ export default function InventoryReplenishmentPage() {
               </Select>
             )}
           </div>
-          <div className="w-full min-w-0">
+          <div className="w-full min-w-0 md:w-auto">
             <Input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               placeholder="搜索 SKU / ASIN"
-              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[180px]"
+              className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[200px]"
             />
           </div>
-          <div className="w-full min-w-0">
+          <div className="w-full min-w-0 md:w-auto">
             <CountrySelect
               value={country}
               onChange={(c) => {
@@ -1119,12 +1122,12 @@ export default function InventoryReplenishmentPage() {
                 setSelectedSnapshotId(null)
                 syncUrlParams(projectId, c)
               }}
-              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]"
+              triggerClassName="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[140px]"
             />
           </div>
-          <div className="w-full min-w-0">
+          <div className="w-full min-w-0 md:w-auto">
             <Select value={riskFilter} onValueChange={setRiskFilter}>
-              <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[150px]">
+              <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] dark:text-foreground md:w-[160px]">
                 <SelectValue placeholder="风险状态" />
               </SelectTrigger>
               <SelectContent align="start" side="bottom" sideOffset={8} collisionPadding={16}>
