@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { encode } from 'next-auth/jwt'
 
+import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
+
 /**
  * BLF-611 广告域手机端适配回归（ad-analysis + ad-data）。
  *
@@ -9,8 +11,12 @@ import { encode } from 'next-auth/jwt'
  * 桌面零回归用例在测试内切 1440×900 视口。
  *
  * 认证：/dashboard 由 proxy.ts（next-auth v5 auth 中间件）守卫，需要合法 JWE
- * session cookie；这里用 next-auth/jwt 的 encode 以固定 fixture secret 伪造一枚
- *（secret 与 playwright.config webServer.env 的 NEXTAUTH_SECRET 一致）。
+ * session cookie；这里用 next-auth/jwt 的 encode 以 BLF611_FIXTURE_SECRET 伪造一枚
+ *（secret 与 playwright.config webServer.env / 运行时 .env.local 替换值一致）。
+ *
+ * 本地运行注意：若本机 :3200 已有 dev server 在跑（env 可能与 fixture 不一致），
+ * 先停掉再跑；playwright.config.ts 会在 webServer 启动前把 .env.local 临时替换为
+ * fixture-only 内容并在退出时还原。
  *
  * 覆盖验收（MOBILE_ADAPTATION_RULES.md，BLF-610 版）：
  * - 总则 1：KPI/汇总卡手机端一行两个，不挤压；
@@ -19,9 +25,8 @@ import { encode } from 'next-auth/jwt'
  * - 规则 10：ad-data 原始表保持列宽（min-width: max-content 兜底），容器内横滑，页面无整体横向滚动。
  */
 
-// 与 playwright.config.ts webServer.env.NEXTAUTH_SECRET 保持一致的 fixture（仅测试用）
-const FIXTURE_SECRET =
-  'blf611-e2e-fixture-secret-0123456789-abcdefghijklmnopqrstuvwxyz-42'
+// 与 playwright.config.ts 保持一致（来自共享 fixture 模块）
+const FIXTURE_SECRET = BLF611_FIXTURE_SECRET
 
 async function forgeSessionToken(): Promise<string> {
   return encode({
@@ -204,7 +209,7 @@ test.beforeEach(async ({ page, context }) => {
   ])
 })
 
-test.describe('ad-analysis 手机端（BLF-611）', () => {
+test.describe('@mobile-blf611 ad-analysis 手机端（BLF-611）', () => {
   test('活动页：汇总卡一行两个 + 手机卡片列表 + 页面无横向滚动', async ({ page }) => {
     await page.goto('/dashboard/advertising/ad-analysis/campaigns?projectId=1&country=US')
 
@@ -281,7 +286,7 @@ test.describe('ad-analysis 手机端（BLF-611）', () => {
   })
 })
 
-test.describe('ad-data 原始表手机端（BLF-611 规则 10）', () => {
+test.describe('@mobile-blf611 ad-data 原始表手机端（BLF-611 规则 10）', () => {
   test('原始表保持列宽：容器内横滑、单元格不折行、页面无横向滚动', async ({ page }) => {
     await page.goto('/dashboard/advertising/ad-data?projectId=1&country=US')
 
