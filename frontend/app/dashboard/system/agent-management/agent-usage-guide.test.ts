@@ -238,7 +238,7 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
-  it('domain=sku_info 输出 SKU 主数据示例（BLF-579，读3+写3 全 confirm）', () => {
+  it('domain=sku_info 输出 SKU 主数据示例（BLF-579/BLF-628，读3+写4 全 confirm）', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
       agentId: 'agent-1',
@@ -256,6 +256,10 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).toContain('SKU_INFO_DUPLICATE')
     expect(text).toContain('/sku-info/{sku_record_id}/status')
     expect(text).toContain('is_active')
+    expect(text).toContain('/sku-info/{sku_record_id}/fnsku-label')
+    expect(text).toContain('-F "file=@./fnsku-label.pdf"')
+    expect(text).toContain('X-Confirm-Token')
+    expect(text).toContain('sku_info.upload_fnsku_label')
     expect(text).not.toContain('/shipments?page_size=20')
     expect(text).not.toContain('尚未接入 Agent API')
   })

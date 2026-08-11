@@ -663,7 +663,7 @@ function buildSalesGuide(opts: {
   不做跨币种求和（summary.by_country 逐站平行列出）；订单数/数量可跨站求和。`
 }
 
-/** SKU 主数据域调用说明（BLF-579 S3）：读 3 + 写 3，写全部走确认流。 */
+/** SKU 主数据域调用说明（BLF-579 S3 / BLF-628 W4）：读 3 + 写 4，写全部走确认流（W4 为 multipart 两步确认）。 */
 function buildSkuInfoGuide(opts: {
   key?: string
   agentId?: string
@@ -759,9 +759,37 @@ function buildSkuInfoGuide(opts: {
   返回当前态（不重复审计）。**下架后该 SKU 退出补货分析/定时报表/店铺测算默认
   消费（按 is_active=True 过滤），历史数据保留、可随时重新上架**。
 
-  场景选择：建新 SKU 用 W1、改成本/规格用 W2、上/下架用 W3；删除/批量/CSV
-  导入不对 Agent 开放（删除→用 W3 下架替代）。写操作均带 Idempotency-Key
-  （可缺失；出现则非空且 ≤64 字符）做幂等，重放 body 必须与第一步一致。`
+【8. 上传 FNSKU 标签 PDF（W4，multipart 两步确认）】
+
+  第一步（预览，返回 confirm_token，不落库）：
+  curl -X POST "${apiBase}/api/v1/agent/projects/$PROJECT_ID/sku-info/{sku_record_id}/fnsku-label" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <UUID>" \\
+    -F "file=@./fnsku-label.pdf" \\
+    -F "source=agent_user_supplied"
+
+  第二步（向用户确认后重放，文件字节/文件名/source 必须与第一步一致）：
+  同一 URL + 同一 Idempotency-Key，另加：
+    -H "X-Confirm-Token: <第一步返回的 confirm_token>"
+
+  multipart/form-data 字段：file（PDF）+ source（溯源枚举 ∈ agent_listing_pull /
+  agent_user_supplied / external_api，禁 manual，非法 → SKU_INFO_INVALID_SOURCE
+  400）；仅 .pdf（后缀不区分大小写）、非空、≤20MB、缺 file → VALIDATION_FAILED；
+  record 不存在或跨项目 → 404 RESOURCE_NOT_FOUND。**不做 FNSKU 内容验证**（D10
+  用户拍板；标签仅展示用途）。预览返回 filename / file_size / replace_old（该 SKU
+  已有标签时为 true，确认后将删除旧标签）与 note；confirm_token 绑定内容指纹
+  （sha256(source+文件名+文件字节)，不含 multipart boundary）——重放可换 boundary，
+  但 source/文件名/文件字节任一变化 → CONFIRM_TOKEN_INVALID（token 有效期 300 秒）。
+  落库：删旧 R2 key（失败不阻塞）→ 上传 R2（fnsku-labels）→ 更新
+  fnsku_label_r2_key/url → 审计 sku_info.upload_fnsku_label（agent_id /
+  idempotency_key 归因）。响应 { ok, data: { sku_record_id, fnsku_label_r2_url,
+  file_size, filename } }；上传后可经 R2 详情读回 URL。
+
+  场景选择：建新 SKU 用 W1、改成本/规格用 W2、上/下架用 W3、传标签用 W4；
+  删除/批量/CSV 导入不对 Agent 开放（删除→用 W3 下架替代）。写操作均带
+  Idempotency-Key（可缺失；出现则非空且 ≤64 字符）做幂等，重放内容必须与
+  第一步一致（multipart 重放可换 boundary）。`
 }
 
 /** 规划中/未知域的通用占位说明。 */

@@ -153,11 +153,12 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: true, write: false })
   })
 
-  it('sku_info 已接入且 routeCount=6、读写（BLF-579）', () => {
+  it('sku_info 已接入且 routeCount=7、读写（BLF-579/BLF-628）', () => {
     const domain = getAgentDomain('sku_info')
     expect(domain?.status).toBe('live')
     expect(domain?.label).toBe('SKU 主数据')
-    expect(domain?.routeCount).toBe(6)
+    expect(domain?.routeCount).toBe(7)
+    expect(domain?.description).toContain('FNSKU 标签上传')
     expect(domain?.capabilities).toEqual({ read: true, write: true })
   })
 
