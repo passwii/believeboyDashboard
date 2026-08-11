@@ -12,7 +12,6 @@ import {
   Calendar,
   DollarSign,
   BarChart3,
-  Layers,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
@@ -21,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
+import { PagePill } from '@/components/ui/page-pill'
 import {
   Dialog,
   DialogContent,
@@ -453,116 +453,65 @@ export default function ProjectGoalsPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Console Hero ─────────────────────────────────────────────────── */}
-      <div className="dashboard-surface overflow-hidden relative">
-        {/* Atmospheric glow */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-16 -top-16 h-72 w-72 rounded-full bg-[radial-gradient(circle,hsl(var(--primary)/0.14),transparent_72%)] dark:bg-[radial-gradient(circle,hsl(var(--primary)/0.22),transparent_72%)]" />
-          <div className="absolute -bottom-8 -left-8 h-48 w-48 rounded-full bg-[radial-gradient(circle,hsl(var(--chart-2)/0.08),transparent_72%)]" />
-        </div>
-        <div className="relative pb-5 px-4 py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-primary" />
-                <p className="dashboard-kicker">目标管理控制台</p>
-              </div>
-              <div>
-                <h2 className="text-2xl font-semibold text-foreground lg:text-[2rem]">控制台</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  实时追踪项目在选定国家站点的销售目标完成进度：截止今日完成率、实际月度进度与预估月度完成率，支持快速设置与调整目标。
-                </p>
-              </div>
-            </div>
-
-            {/* Context badges */}
-            <div className="flex flex-wrap gap-2">
-              {selectedProjectId ? (
-                <>
-                  <Badge
-                    variant="outline"
-                    className="border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-1 text-foreground"
-                  >
-                    {projects.find((p) => String(p.id) === selectedProjectId)?.name ?? '—'}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-1 text-foreground"
-                  >
-                    {COUNTRY_OPTIONS.find((c) => c.value === selectedCountry)?.label ??
-                      selectedCountry}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border-border/70 bg-[hsl(var(--surface-soft))] px-3 py-1 text-foreground"
-                  >
-                    {selectedYear} 年
-                  </Badge>
-                </>
-              ) : (
-                <Badge variant="secondary" className="px-3 py-1">
-                  请先选择项目
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Filters（BLF-505：收口为 FilterToolbar 原语 §8.2，桌面横向 / 手机 2 列网格） ── */}
-      <FilterToolbar
-        actions={
+      {/* ── 控制台 + 筛选合并卡（BLF-634：PILL 头 + 右侧刷新，筛选区下部；去冗余——删大标题/描述/上下文徽章） ── */}
+      <div className="dashboard-surface overflow-hidden">
+        {/* 头部行：PILL + 刷新按钮（与 PILL 等高 h-9） */}
+        <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <PagePill icon={<Target />}>运营 · 目标管理</PagePill>
           <Button
             variant="outline"
             size="sm"
-            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-auto dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none sm:w-auto dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
             onClick={() => void loadData(true)}
             disabled={loading || !selectedProjectId}
           >
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             刷新
           </Button>
-        }
-      >
-        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
-            <SelectValue placeholder="选择项目" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={String(p.id)}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        </div>
 
-        <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COUNTRY_OPTIONS.map((c) => (
-              <SelectItem key={c.value} value={c.value}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* ── Filters（BLF-505：收口为 FilterToolbar 原语 §8.2，桌面横向 / 手机 2 列网格） ── */}
+        <FilterToolbar>
+          <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[140px]">
+              <SelectValue placeholder="选择项目" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[120px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y} 年
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterToolbar>
+          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_OPTIONS.map((c) => (
+                <SelectItem key={c.value} value={c.value}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="h-9 w-full rounded-lg border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] md:w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y} 年
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterToolbar>
+      </div>
 
       {!selectedProjectId ? (
         <div className="dashboard-surface flex h-48 items-center justify-center text-muted-foreground">

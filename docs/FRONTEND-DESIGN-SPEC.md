@@ -409,6 +409,18 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 > - 适用场景：页面仅一个主卡片 + 该卡头部已有标题栏时，顶层 pill + 卡头标题语义重复 → 合并为卡内 pill 头，省一层页面纵向空间。
 > - 实现：`app/dashboard/operations/shipment-management/page.tsx`（删除独立 `<section>` + `PageHeader`，卡头 `<h2>控制台</h2>` → 同配方 `<span>` pill）。
 > - 跟进（2026-08-11）：pill 高度与右侧操作按钮对齐——`h-9`（同按钮行高）+ icon `h-4 w-4`（同按钮 icon），保留 `text-xs` 与 `tracking-[0.14em]` 配方文字样式；卡内 pill 场景以等高为佳。
+
+> **BLF-634（2026-08-11）落地记录：PILL 统一组件 + 控制台/筛选合并铺开（4 页）**：
+>
+> - **统一 Pill 组件**：新建 `components/ui/page-pill.tsx`（`PagePill`）——卡内 pill 的唯一配方来源，`h-9` 等高 + icon 强制 `h-4 w-4`（`[&>svg]` 包裹）+ `px-4` + `text-xs` + `tracking-[0.14em]` + primary 胶囊。回答用户「Pill 高度/大小能否统一定制」：能，后续页面一律用 `PagePill`，不再手写 span 配方。页面级 eyebrow（`PageHeader` 的 `eyebrow`，px-3 py-1）尺寸更小，仍走 PageHeader。
+> - **原子化规则（用户定稿）**：① 顶部 = 页面 PILL + 右侧操作按钮；② 下部 = 筛选 / 输入区。适用于「一个主卡片 + 卡头标题 + 卡内筛选」的页面：控制台与筛选区合并，减少一张卡片。
+> - **落地 4 页**：
+>   - `inventory-replenishment`：卡头「分析控制台/补货分析」文字 → `PagePill`（`<Boxes /> 运营 · 补货分析`），右侧 SnapshotSelector + 刷新保留，FilterToolbar 筛选区仍在卡内下部。
+>   - `sku-info`：删除顶部独立 PageHeader 卡，PILL（`<Package2 /> 运营 · SKU 信息管理`）进入筛选卡头部，查询/重置按钮上移到 PILL 右侧同行；网格由 6 列改 5 列（去掉按钮占位）。
+>   - `project-goals`：Console Hero 卡 + FilterToolbar 合并为一张卡（-99/+48）；PILL（`<Target /> 运营 · 目标管理`）+ 刷新按钮右侧；删冗余——大标题「控制台」、长描述、与筛选重复的上下文徽章（项目/国家/年份）一并移除。
+>   - `platform-inspection`：顶部卡片完全移除，仅保留 PILL（`<ClipboardCheck /> 运营 · 平台巡检`），下接 Tabs。
+> - **shipment-management 收口**：BLF-605 手写 `<span>` pill 迁移到 `PagePill`，配方零变化（h-9 + icon h-4），确认统一组件与旧配方逐字段一致。
+> - 验证：`pnpm lint` 0 errors（1 既有 warning）；`pnpm build` exit 0；vitest 134 files / 836 tests 全绿；新增 `page-pill.test.tsx` 锁配方契约；tsc 53 个既有错误与 main 基线一致 0 新增。
 ---
 
 ## 9. 暗黑模式层次规范（Raycast Depth & Elevation）

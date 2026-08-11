@@ -17,7 +17,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { PageHeader } from '@/components/ui/page-header'
 import { HoverCard } from '@/components/ui/hover-card'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { UploadZone } from '@/components/ui/upload-zone'
@@ -37,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PagePill } from '@/components/ui/page-pill'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -875,28 +875,21 @@ export default function SkuInfoPage() {
 
   return (
     <div className="w-full space-y-6 text-foreground">
-      {/* 页面头部：eyebrow pill + 标题 + 描述（BLF-505：收口为 PageHeader 原语 §8.1） */}
-      <section className="dashboard-surface animate-enter px-5 py-5 md:px-7 md:py-6 dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
-        <PageHeader
-          className="relative z-10"
-          eyebrow={
-            <>
-              <Package2 className="h-3.5 w-3.5" />
-              运营 · SKU 信息管理
-            </>
-          }
-          title="SKU 信息管理"
-          description="维护产品成本 / 尺寸 / 工厂属性 / 标签 / 图片，支持批量导入与首段物流成本同步。"
-        />
-      </section>
-
-      {/* 筛选控制台 — dashboard-surface 承载，替代旧 DataCard 平铺 */}
-      <div className="dashboard-surface overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 md:px-6">
-          <h2 className="text-sm font-semibold">筛选条件</h2>
+      {/* 筛选控制台 — PILL 头 + 右侧查询/重置，筛选区下部（BLF-634：合并顶部头部卡，减少一卡） */}
+      <div className="dashboard-surface overflow-hidden animate-enter">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
+          <PagePill icon={<Package2 />}>运营 · SKU 信息管理</PagePill>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={onResetFilters}>
+              重置
+            </Button>
+            <Button type="button" onClick={() => void onSearch()}>
+              查询
+            </Button>
+          </div>
         </div>
         <div className="p-4 lg:p-6">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-6 xl:items-end lg:gap-4">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-5 xl:items-end lg:gap-4">
             {projectsLoading ? (
               <div className="col-span-1">
                 <FilterFieldSkeleton />
@@ -976,18 +969,9 @@ export default function SkuInfoPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                重置
-              </Button>
-              <Button type="button" onClick={() => void onSearch()}>
-                查询
-              </Button>
-            </div>
           </div>
         </div>
       </div>
-
       <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}
