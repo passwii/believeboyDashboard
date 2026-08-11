@@ -268,6 +268,8 @@ def update_inventory_replenishment_setting(
         request=request,
     )
     db.commit()
+    # BLF-633: 设置写路径未失效补货分析缓存 → 保存/刷新重算最长 5 分钟返回旧值
+    invalidate_inventory_replenishment_cache(project_id)
     return InventoryReplenishmentSettingItem(
         project_id=int(row.project_id),
         project_name=str(row.project_name),

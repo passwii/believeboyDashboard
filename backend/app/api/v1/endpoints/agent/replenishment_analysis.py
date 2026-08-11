@@ -50,6 +50,7 @@ from app.services.audit_log_service import append_operation_audit_log
 from app.services.infra.inventory_cache import (
     get_inventory_replenishment_cache,
     set_inventory_replenishment_cache,
+    invalidate_inventory_replenishment_cache,
 )
 from app.services.inventory.replenishment import (
     REPLENISHMENT_ORDER_BY_FIELDS,
@@ -669,6 +670,8 @@ async def update_replenishment_analysis_setting(
             **_audit_kwargs(request),
         )
         db.commit()
+        # BLF-633: 设置写同样需要失效补货分析缓存（否则 R1 最长 5 分钟旧值）。
+        invalidate_inventory_replenishment_cache(project_id)
     return agent_ok(
         {
             "project_id": int(row.project_id),
