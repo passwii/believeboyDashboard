@@ -144,7 +144,7 @@ export function InvoicePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function InvoicePreviewDialog({
               <iframe
                 src={pdfUrl}
                 title="Invoice PDF preview"
-                className="h-[600px] w-full rounded-lg"
+                className="h-[420px] w-full rounded-lg sm:h-[600px]"
               />
             ) : (
               <div className="flex h-[480px] items-center justify-center text-sm text-muted-foreground">

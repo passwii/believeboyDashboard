@@ -85,7 +85,7 @@ export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loadin
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9"
+                      className="h-9 w-9 max-md:h-11 max-md:w-11"
                       title="详情"
                       onClick={() => onSelect(r.id)}
                     >
@@ -94,7 +94,7 @@ export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loadin
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9"
+                      className="h-9 w-9 max-md:h-11 max-md:w-11"
                       title="下载 PDF"
                       onClick={() => onDownload(r.id)}
                       disabled={!r.has_pdf}
@@ -104,7 +104,7 @@ export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loadin
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      className="h-9 w-9 text-muted-foreground hover:text-destructive max-md:h-11 max-md:w-11"
                       title="作废"
                       onClick={() => onVoid(r.id)}
                       disabled={r.status === 'voided'}

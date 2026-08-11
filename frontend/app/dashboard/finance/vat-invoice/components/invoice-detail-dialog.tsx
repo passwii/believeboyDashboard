@@ -55,7 +55,7 @@ export function InvoiceDetailDialog({ invoiceId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>发票详情</DialogTitle>
         </DialogHeader>
@@ -163,7 +163,7 @@ export function InvoiceDetailDialog({ invoiceId, open, onOpenChange }: Props) {
                   </TableBody>
                 </Table>
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+              <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                 <Field label="不含税合计" value={detail.subtotal_excl} />
                 <Field label="VAT 合计" value={detail.total_vat} />
                 <Field label="含税合计" value={detail.total_incl} />

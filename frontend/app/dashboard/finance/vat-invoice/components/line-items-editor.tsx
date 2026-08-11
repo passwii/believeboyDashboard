@@ -165,19 +165,19 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-5 flex items-center justify-end md:col-span-1">
+                  <div className="col-span-4 flex items-center justify-end md:col-span-1">
                     <span className="text-sm font-medium tabular-nums">
                       {currencySymbol}
                       {sub.incl.toFixed(2)}
                     </span>
                   </div>
-                  <div className="col-span-1 flex items-center justify-end">
+                  <div className="col-span-2 flex items-center justify-end md:col-span-1">
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => removeRow(idx)}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive max-md:h-10 max-md:w-10"
                       aria-label="删除该行"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

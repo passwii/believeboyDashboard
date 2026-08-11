@@ -458,7 +458,7 @@ export default function ExchangeRatePage() {
           }
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-4">
-          <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 sm:grid-cols-2 lg:flex lg:flex-row lg:flex-wrap lg:gap-4">
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] p-4 lg:flex lg:flex-row lg:flex-wrap lg:gap-4">
             <div className="hidden lg:block lg:flex-1">{/* Placeholder for layout balance */}</div>
             <Select
               value={filters.currency || ALL_FILTER_VALUE}
@@ -517,7 +517,12 @@ export default function ExchangeRatePage() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" size="sm" onClick={resetFilters} className="w-full sm:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetFilters}
+              className="w-full max-md:min-h-[44px] sm:w-auto"
+            >
               <RotateCcw className="mr-1 h-4 w-4" />
               重置
             </Button>
@@ -752,6 +757,7 @@ export default function ExchangeRatePage() {
             <Button
               variant="outline"
               size="sm"
+              className="max-md:min-h-[44px]"
               onClick={() =>
                 setPagination((prev) => ({
                   ...prev,
@@ -765,6 +771,7 @@ export default function ExchangeRatePage() {
             <Button
               variant="outline"
               size="sm"
+              className="max-md:min-h-[44px]"
               onClick={() =>
                 setPagination((prev) => ({
                   ...prev,
@@ -783,7 +790,7 @@ export default function ExchangeRatePage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="exchange-rate-dialog-description"
-          className="sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg sm:max-w-[500px] dark:border-border/90 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="exchange-rate-dialog-description" className="sr-only">
             {editingRate ? '修改汇率信息' : '录入新的月度汇率信息，每个月每种货币仅可录入一条'}
@@ -797,7 +804,7 @@ export default function ExchangeRatePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="currency">
                   货币代码 <span className="text-destructive">*</span>
@@ -835,7 +842,7 @@ export default function ExchangeRatePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="year">
                   年份 <span className="text-destructive">*</span>
@@ -872,7 +879,7 @@ export default function ExchangeRatePage() {
                 >
                   <SelectTrigger
                     id="month"
-                    className="w-[112px] dark:bg-[hsl(var(--surface-soft))]"
+                    className="w-full max-md:min-h-[44px] sm:w-[112px] dark:bg-[hsl(var(--surface-soft))]"
                   >
                     <SelectValue placeholder="选择月份" />
                   </SelectTrigger>
@@ -1047,7 +1054,7 @@ export default function ExchangeRatePage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-exchange-rate-dialog-description"
-          className="sm:max-w-[425px]"
+          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-[425px]"
         >
           <span id="delete-exchange-rate-dialog-description" className="sr-only">
             确认删除汇率记录

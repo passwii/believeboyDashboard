@@ -134,7 +134,7 @@ export function VatInvoiceHistoryPanel() {
           <CardTitle className="text-base">筛选</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label htmlFor="project">店铺</Label>
               <Select value={projectId || 'all'} onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}>
@@ -175,7 +175,7 @@ export function VatInvoiceHistoryPanel() {
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={onExportCsv} variant="outline">
+              <Button onClick={onExportCsv} variant="outline" className="w-full sm:w-auto">
                 <Download className="mr-1.5 h-4 w-4" />
                 导出 CSV
               </Button>
