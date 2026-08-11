@@ -194,6 +194,17 @@ async function mockAdBackend(page: import('@playwright/test').Page) {
   )
 }
 
+// BLF-611 spec 是 mobile-only 用例（断言依赖 ~393px 视口）：默认随 Playwright 所有
+// project 跑，chromium（Desktop Chrome 1280×720）下手机端断言会失败。
+// 只在 mobile project 下运行；chromium/desktop project 下跳过（CI 的
+// `--grep "@mobile-blf611"` 两个 project 都会命中，必须 skip 而非 fail）。
+test.beforeEach(({}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'mobile',
+    'ad-mobile-blf611 仅在 mobile project 运行（断言依赖手机端视口）'
+  )
+})
+
 test.beforeEach(async ({ page, context }) => {
   await mockAdBackend(page)
   // 伪造合法 session cookie，绕过 proxy.ts 的 auth 守卫
