@@ -135,7 +135,8 @@ def get_inventory_replenishment_cache(
         detail,
         report_date or "",
     )
-    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
+    # BLF-633: key 加 project 段，使 invalidate 可项目级收敛（不再全量清空）
+    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:project:{project_id}:{params_hash}"
     return cache_get(key)
 
 
@@ -171,13 +172,22 @@ def set_inventory_replenishment_cache(
         detail,
         report_date or "",
     )
-    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:{params_hash}"
+    # BLF-633: 与 get 同构，key 含 project 段
+    key = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:project:{project_id}:{params_hash}"
     cache_set(key, data, INVENTORY_REPLENISHMENT_TTL)
 
 
 def invalidate_inventory_replenishment_cache(project_id: int | None = None) -> int:
-    """Invalidate all replenishment cache (params are hashed, so we clear all)."""
-    return cache_delete_pattern(f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:*")
+    """Invalidate replenishment cache, project-scoped when ``project_id`` given.
+
+    BLF-633: key 带 ``project:{id}`` 段后，失效可按项目收敛，避免写设置/快照时
+    清空全部项目的补货缓存（跨项目缓存击穿）。不传 project_id 时回退全量清空。
+    """
+    if project_id:
+        pattern = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:project:{project_id}:*"
+    else:
+        pattern = f"{INVENTORY_REPLENISHMENT_KEY_PREFIX}:*"
+    return cache_delete_pattern(pattern)
 
 
 # ── Return Analysis ───────────────────────────────────────────────────

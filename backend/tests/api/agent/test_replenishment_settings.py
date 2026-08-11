@@ -163,6 +163,33 @@ class TestR6SettingsWrite:
         finally:
             db.close()
 
+    def test_replay_invalidates_replenishment_cache(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        """BLF-633: R6 confirm 重放落库后必须失效补货分析缓存。"""
+        from app.api.v1.endpoints.agent import (
+            replenishment_analysis as rp_module,
+        )
+
+        calls: list[int] = []
+        monkeypatch.setattr(
+            rp_module,
+            "invalidate_inventory_replenishment_cache",
+            lambda pid: calls.append(pid),
+        )
+
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        # 第一次：预览，不落库、不失效
+        resp = _put(client, shipment_env, _SETTING_BODY, idem=idem)
+        assert resp.status_code == 200, resp.text
+        token = resp.json()["confirm_token"]
+        assert calls == [], "预览阶段不应失效缓存"
+
+        # 第二次：confirm 重放 → 落库 → 必须失效（项目级）
+        resp2 = _put(client, shipment_env, _SETTING_BODY, token=token, idem=idem)
+        assert resp2.status_code == 200, resp2.text
+        assert calls == [shipment_env["project_id"]]
+
     def test_invalid_token_rejected(self, client, shipment_env, confirm_memory_store):
         idem = f"idem-{uuid.uuid4().hex[:12]}"
         _put(client, shipment_env, _SETTING_BODY, idem=idem)
