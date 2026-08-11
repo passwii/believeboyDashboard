@@ -408,6 +408,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 > - 页面顶部独立 PageHeader 段移除，其 eyebrow pill（`<Ship /> 运营 · 货件管理`，§4.1 配方）**并入首个卡片头部**，替换原「控制台」标题；操作区（刷新/新建/模板/导入）保留在 PILL 右侧同行。
 > - 适用场景：页面仅一个主卡片 + 该卡头部已有标题栏时，顶层 pill + 卡头标题语义重复 → 合并为卡内 pill 头，省一层页面纵向空间。
 > - 实现：`app/dashboard/operations/shipment-management/page.tsx`（删除独立 `<section>` + `PageHeader`，卡头 `<h2>控制台</h2>` → 同配方 `<span>` pill）。
+> - 跟进（2026-08-11）：pill 高度与右侧操作按钮对齐——`h-9`（同按钮行高）+ icon `h-4 w-4`（同按钮 icon），保留 `text-xs` 与 `tracking-[0.14em]` 配方文字样式；卡内 pill 场景以等高为佳。
 ---
 
 ## 9. 暗黑模式层次规范（Raycast Depth & Elevation）
