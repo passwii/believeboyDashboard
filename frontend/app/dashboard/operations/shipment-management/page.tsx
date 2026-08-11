@@ -2845,8 +2845,9 @@ export default function ShipmentManagementPage() {
       {/* 控制台 — dashboard-surface 承载，替代旧 DataCard 平铺；头部 = 页面 PILL 合并（BLF-605：顶部 PILL 并入首卡，替换「控制台」标题） */}
       <div className="dashboard-surface animate-enter overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 md:px-6">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary/90">
-            <Ship className="h-3.5 w-3.5" />
+          {/* PILL 与右侧操作区等高（BLF-605 跟进：h-9 对齐按钮行，icon 同步 h-4） */}
+          <span className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-4 text-xs font-semibold tracking-[0.14em] text-primary/90">
+            <Ship className="h-4 w-4" />
             运营 · 货件管理
           </span>
           <div className="flex flex-wrap items-center gap-2">
