@@ -44,6 +44,8 @@ curl -s "$BASE/report-upload-status?report_date=2026-08-10" "${AUTH[@]}"
 
 **用途**：BLF-486「报表状态跟进 Agent」（每日缺报清单早报）的核心数据源——判断哪些项目/报表类型未上传。
 
+> **中文字段（BLF-648，纯增量）**：`statuses[].report_type_name`（报表类型中文名，如「库存」「广告-词份额」）、`statuses[].status_source_name`（`upload_log → 上传记录` / `business_date_backfill → 业务日期回填`）、顶层 `country_name`（如 `美国站`）、顶层 `report_type_labels`（report_type → 中文名全量映射，供 `missing_report_types` 字符串数组查中文名）。英文 key 均保留。
+
 ## 3. 注意事项
 
 - 纯读域：读路由不落审计；限流读 300 次/分
