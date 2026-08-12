@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/table'
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
+import { useMobile } from '@/lib/hooks/use-mobile'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
@@ -747,6 +748,7 @@ function FinancialFilterSkeleton() {
 export default function DisplayTab() {
   const { data: session, status: sessionStatus } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
+  const isMobile = useMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
@@ -2059,7 +2061,7 @@ export default function DisplayTab() {
               <AreaChart
                 accessibilityLayer
                 data={trendPoints}
-                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                margin={isMobile ? { top: 10, right: 4, left: 0, bottom: 0 } : { top: 10, right: 10, left: 0, bottom: 0 }}
               >
                 <defs>
                   <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
@@ -2077,23 +2079,26 @@ export default function DisplayTab() {
                   tickLine={false}
                   axisLine={false}
                   tickMargin={12}
-                  minTickGap={32}
+                  minTickGap={isMobile ? 12 : 32}
                   tick={{
                     fill: 'hsl(var(--muted-foreground))',
                     fontSize: 12,
                   }}
                 />
-                <YAxis
-                  tickFormatter={(v) => formatCompactCurrency(Number(v))}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={12}
-                  tick={{
-                    fill: 'hsl(var(--muted-foreground))',
-                    fontSize: 12,
-                  }}
-                  width={70}
-                />
+                {/* 手机端隐藏 Y 轴（图表区域手机端优化）：消除左侧留白，由 tooltip 承载数值 */}
+                {!isMobile && (
+                  <YAxis
+                    tickFormatter={(v) => formatCompactCurrency(Number(v))}
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={12}
+                    tick={{
+                      fill: 'hsl(var(--muted-foreground))',
+                      fontSize: 12,
+                    }}
+                    width={70}
+                  />
+                )}
                 <ChartTooltip
                   cursor={{
                     stroke: 'hsl(var(--muted-foreground))',
