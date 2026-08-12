@@ -905,7 +905,7 @@ export function AgentUsageGuide() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start sm:justify-between">
           <p className="text-sm text-muted-foreground">
             创建凭据后，把下面的说明复制给 Agent 作为调用配置。Agent
             每次请求都必须同时携带{' '}
@@ -926,7 +926,7 @@ export function AgentUsageGuide() {
           </p>
           <div className="flex shrink-0 items-center gap-2">
             <Select value={domain} onValueChange={setDomain}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-full sm:w-[160px]">
                 <SelectValue placeholder="选择业务域" />
               </SelectTrigger>
               <SelectContent>

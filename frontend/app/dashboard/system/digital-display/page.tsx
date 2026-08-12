@@ -129,9 +129,9 @@ function KpiCard({
   change?: string
 }) {
   return (
-    <div className="dashboard-surface p-5 text-center">
-      <p className={cn('text-5xl font-bold tabular-nums', accent)}>{value}</p>
-      <p className="mt-1 text-lg font-medium text-muted-foreground">{label}</p>
+    <div className="dashboard-surface p-4 text-center sm:p-5">
+      <p className={cn('text-4xl font-bold tabular-nums sm:text-5xl', accent)}>{value}</p>
+      <p className="mt-1 text-base font-medium text-muted-foreground sm:text-lg">{label}</p>
       {sub && <p className="mt-0.5 text-sm text-muted-foreground/60">{sub}</p>}
       {change && <p className="mt-1 text-sm text-muted-foreground/80">{change}</p>}
     </div>
@@ -150,9 +150,9 @@ function BigKpiCard({
   accent?: string
 }) {
   return (
-    <div className="dashboard-surface p-6 text-center">
-      <p className={cn('text-7xl font-bold tabular-nums', accent)}>{value}</p>
-      <p className="mt-2 text-2xl font-semibold text-muted-foreground">{label}</p>
+    <div className="dashboard-surface p-5 text-center sm:p-6">
+      <p className={cn('text-5xl font-bold tabular-nums sm:text-7xl', accent)}>{value}</p>
+      <p className="mt-2 text-lg font-semibold text-muted-foreground sm:text-2xl">{label}</p>
       {sub && <p className="mt-1 text-lg text-muted-foreground/60">{sub}</p>}
     </div>
   )
@@ -263,7 +263,7 @@ export default function DigitalDisplayPage() {
   return (
     <div className={cn('min-h-screen bg-background p-6 text-foreground', '[&_*]:!text-foreground')}>
       {/* ── Header ── */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Monitor className="h-8 w-8 text-[hsl(var(--primary))]" />
           <div>
@@ -276,7 +276,7 @@ export default function DigitalDisplayPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* 项目选择（DropdownMenu） */}
           <DropdownMenu open={showProjectMenu} onOpenChange={setShowProjectMenu}>
             <DropdownMenuTrigger asChild>
@@ -337,7 +337,7 @@ export default function DigitalDisplayPage() {
       {displayData && (
         <>
           {/* ── Sales KPIs (top row) ── */}
-          <div className="mb-6 grid grid-cols-4 gap-4">
+          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <KpiCard
               label="今日订单量"
               value={fmtNum(displayData.sales.today_order_qty)}
@@ -431,13 +431,13 @@ export default function DigitalDisplayPage() {
           </div>
 
           {/* ── Bottom row: Inventory + Shipment + Ads ── */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
             {/* Inventory */}
             <div className="dashboard-surface p-5">
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">库存概况</h3>
               <div className="space-y-4">
                 <div className="text-center">
-                  <p className="text-5xl font-bold tabular-nums text-foreground">
+                  <p className="text-3xl font-bold tabular-nums text-foreground sm:text-5xl">
                     {fmtNum(displayData.inventory.sku_count)}
                   </p>
                   <p className="mt-1 text-base text-muted-foreground">在售 SKU</p>
@@ -464,7 +464,7 @@ export default function DigitalDisplayPage() {
               <h3 className="mb-4 text-xl font-semibold text-muted-foreground">发货在途</h3>
               <div className="space-y-4">
                 <div className="text-center">
-                  <p className="text-5xl font-bold tabular-nums text-blue-400">
+                  <p className="text-3xl font-bold tabular-nums text-blue-400 sm:text-5xl">
                     {displayData.shipments.in_transit_count}
                   </p>
                   <p className="mt-1 text-base text-muted-foreground">在途批次</p>
@@ -485,7 +485,7 @@ export default function DigitalDisplayPage() {
                 <div className="text-center">
                   <p
                     className={cn(
-                      'text-5xl font-bold tabular-nums',
+                      'text-3xl font-bold tabular-nums sm:text-5xl',
                       displayData.returns.return_rate > 5 ? 'text-amber-400' : 'text-emerald-400'
                     )}
                   >

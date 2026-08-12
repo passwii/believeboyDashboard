@@ -114,7 +114,7 @@ export function AlertRuleDialog({ open, onOpenChange, rule, projects, onSaved }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{rule ? '编辑告警规则' : '新建告警规则'}</DialogTitle>
         </DialogHeader>
@@ -165,7 +165,7 @@ export function AlertRuleDialog({ open, onOpenChange, rule, projects, onSaved }:
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>阈值 (%)</Label>
               <Input type="number" value={form.threshold} onChange={(e) => set('threshold', Number(e.target.value))} />
@@ -174,7 +174,7 @@ export function AlertRuleDialog({ open, onOpenChange, rule, projects, onSaved }:
               <Label>窗口 (天)</Label>
               <Input type="number" value={form.window_days} onChange={(e) => set('window_days', Number(e.target.value))} />
             </div>
-            <div className="grid gap-1.5">
+            <div className="col-span-2 grid gap-1.5 sm:col-span-1">
               <Label>级别</Label>
               <Select value={form.severity} onValueChange={(v) => set('severity', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>

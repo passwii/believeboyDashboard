@@ -29,6 +29,8 @@ const runsMobileSpec = process.argv.some(
     arg.includes('@mobile-blf618') ||
     arg.includes('reports-mobile-blf616') ||
     arg.includes('@mobile-blf616') ||
+    arg.includes('system-mobile-blf620') ||
+    arg.includes('@mobile-blf620') ||
     arg.includes('ai-mobile-blf619') ||
     arg.includes('@mobile-blf619')
 )

@@ -100,7 +100,7 @@ export function AlertRulesTab({ projects }: { projects: ProjectOption[] }) {
             ) : (
               rules.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell className="max-w-[14rem] whitespace-normal font-medium">{r.name}</TableCell>
                   <TableCell>{projectName(r.project_id)}</TableCell>
                   <TableCell>{r.metric}</TableCell>
                   <TableCell>{r.condition}</TableCell>
