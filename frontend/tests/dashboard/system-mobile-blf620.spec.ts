@@ -4,7 +4,7 @@ import { encode } from 'next-auth/jwt'
 import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
 
 /**
- * BLF-620 系统域手机端适配回归（账号 / Agent 接入 / 告警 / 备份 / 日志 / 数字大屏）。
+ * BLF-620 系统域手机端适配回归（账号 / Agent 接入 / 告警 / 日志 / 数字大屏）。
  *
  * 自包含：session 与 backend 请求经 page.route mock，不依赖真实后端 / 登录态。
  * 默认随 mobile project（Pixel 5，393×851）跑；另加 360×800 小屏用例覆盖验收下界；
@@ -15,7 +15,7 @@ import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
  * - 总则 5/规则 9：日志/Agent 接入 TabList 手机端 2 列网格（第 3/4 个 Tab 换行），无挤压溢出；
  * - 规则 3：告警规则 Dialog 手机端 阈值/窗口同一行、级别全宽换行（grid-cols-2 而非 3）；
  * - 规则 10：多列表格容器内横滑（min-width: max-content 兜底），页面无整体横向滚动；
- * - 规则 1 例外：备份/账号手机端卡片列表（md:hidden 分支），无整体横向滚动；
+ * - 规则 1 例外：账号手机端卡片列表（md:hidden 分支），无整体横向滚动；
  * - 桌面 1440 零回归（TabList 恢复单行 inline-flex，表格照常）。
  */
 
@@ -126,65 +126,6 @@ const AUDIT_SUMMARY = {
   unique_operator_count: 2,
   modules: [],
   top_actions: [],
-}
-
-const BACKUP_RECORDS = {
-  items: [
-    {
-      id: 1,
-      backup_type: 'full',
-      status: 'completed',
-      phase: 'completed',
-      triggered_by: 'auto',
-      retry_count: 0,
-      backup_set_name: 'full-20260810',
-      r2_key: 'backups/full-20260810.tar.gz',
-      r2_url: null,
-      r2_bucket: 'believeboy-backups',
-      r2_uploaded_at: '2026-08-10T03:15:00Z',
-      r2_deleted_at: null,
-      compressed_size_bytes: 1024000,
-      started_at: '2026-08-10T03:00:00Z',
-      completed_at: '2026-08-10T03:15:00Z',
-      size_bytes: 4096000,
-      duration_seconds: 900,
-      error_message: null,
-      backup_info: null,
-      created_by: 1,
-      created_at: '2026-08-10T03:00:00Z',
-    },
-    {
-      id: 2,
-      backup_type: 'wal_archive',
-      status: 'failed',
-      phase: 'failed',
-      triggered_by: 'auto',
-      retry_count: 2,
-      backup_set_name: null,
-      r2_key: null,
-      r2_url: null,
-      r2_bucket: null,
-      r2_uploaded_at: null,
-      r2_deleted_at: null,
-      compressed_size_bytes: null,
-      started_at: '2026-08-09T03:00:00Z',
-      completed_at: null,
-      size_bytes: null,
-      duration_seconds: null,
-      error_message: 'pgBackRest 超时',
-      backup_info: null,
-      created_by: 1,
-      created_at: '2026-08-09T03:00:00Z',
-    },
-  ],
-}
-
-const BACKUP_STATUS = {
-  last_backup: BACKUP_RECORDS.items[0],
-  total_backups: 2,
-  successful_backups: 1,
-  failed_backups: 1,
-  is_backup_running: false,
 }
 
 const ALERT_STATS = {
@@ -350,7 +291,7 @@ test.beforeEach(async ({ page, context }) => {
   ])
 })
 
-test.describe('@mobile-blf620 系统·账号/备份 手机端（BLF-620）', () => {
+test.describe('@mobile-blf620 系统·账号 手机端（BLF-620）', () => {
   test('账号管理：手机端卡片列表 + 无溢出', async ({ page }) => {
     await mockBase(page)
     await page.route('**/api/admin/users', (route) => route.fulfill({ json: USERS }))
@@ -361,24 +302,6 @@ test.describe('@mobile-blf620 系统·账号/备份 手机端（BLF-620）', () 
     await expect(mobileCards.getByText('Yawei', { exact: true })).toBeVisible({ timeout: 30000 })
     await expect(mobileCards.getByText('张三')).toBeVisible({ timeout: 30000 })
     await expect(mobileCards.getByRole('button', { name: '停用' }).first()).toBeVisible()
-    await expectNoPageHorizontalOverflow(page)
-  })
-
-  test('备份管理：手机端卡片列表 + 无溢出', async ({ page }) => {
-    await mockBase(page)
-    await page.route('**/api/v1/backups/status', (route) =>
-      route.fulfill({ json: BACKUP_STATUS })
-    )
-    await page.route('**/api/v1/backups/records**', (route) =>
-      route.fulfill({ json: BACKUP_RECORDS })
-    )
-    await page.goto('/dashboard/system/backup-management')
-
-    await expect(page.getByText('备份管理').first()).toBeVisible({ timeout: 30000 })
-    // 手机端卡片列表出现（含 #1 · 全量备份 卡片）
-    await expect(page.getByText('全量备份', { exact: true }).first()).toBeVisible({
-      timeout: 30000,
-    })
     await expectNoPageHorizontalOverflow(page)
   })
 })

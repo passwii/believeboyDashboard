@@ -4068,414 +4068,6 @@
         "title": "AvatarUploadResponse",
         "type": "object"
       },
-      "BackupDeleteResponse": {
-        "description": "软删备份记录结果。",
-        "properties": {
-          "deleted": {
-            "title": "Deleted",
-            "type": "boolean"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "deleted"
-        ],
-        "title": "BackupDeleteResponse",
-        "type": "object"
-      },
-      "BackupDownloadUrlResponse": {
-        "description": "R2 presigned 下载链接。",
-        "properties": {
-          "url": {
-            "title": "Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url"
-        ],
-        "title": "BackupDownloadUrlResponse",
-        "type": "object"
-      },
-      "BackupInfoResponse": {
-        "description": "Raw pgBackRest info output.",
-        "properties": {
-          "backups": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Backups",
-            "type": "array"
-          },
-          "raw_info": {
-            "title": "Raw Info",
-            "type": "string"
-          }
-        },
-        "required": [
-          "raw_info"
-        ],
-        "title": "BackupInfoResponse",
-        "type": "object"
-      },
-      "BackupRecordItem": {
-        "description": "Single backup record item.",
-        "properties": {
-          "backup_info": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Info"
-          },
-          "backup_set_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Backup Set Name"
-          },
-          "backup_type": {
-            "title": "Backup Type",
-            "type": "string"
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
-          "compressed_size_bytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compressed Size Bytes"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "created_by": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By"
-          },
-          "duration_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration Seconds"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "phase": {
-            "default": "pending",
-            "title": "Phase",
-            "type": "string"
-          },
-          "r2_bucket": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Bucket"
-          },
-          "r2_deleted_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Deleted At"
-          },
-          "r2_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Key"
-          },
-          "r2_uploaded_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Uploaded At"
-          },
-          "r2_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Url"
-          },
-          "retry_count": {
-            "default": 0,
-            "title": "Retry Count",
-            "type": "integer"
-          },
-          "size_bytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size Bytes"
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "triggered_by": {
-            "default": "manual",
-            "title": "Triggered By",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "backup_type",
-          "status",
-          "started_at",
-          "created_at"
-        ],
-        "title": "BackupRecordItem",
-        "type": "object"
-      },
-      "BackupRecordListResponse": {
-        "description": "List of backup records.",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BackupRecordItem"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total"
-        ],
-        "title": "BackupRecordListResponse",
-        "type": "object"
-      },
-      "BackupRestoreCommandResponse": {
-        "description": "pgbackrest restore 命令预览（不执行）。",
-        "properties": {
-          "command": {
-            "title": "Command",
-            "type": "string"
-          },
-          "set_name": {
-            "title": "Set Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "command",
-          "set_name"
-        ],
-        "title": "BackupRestoreCommandResponse",
-        "type": "object"
-      },
-      "BackupStatusSummary": {
-        "description": "Summary of backup status.",
-        "properties": {
-          "failed_backups": {
-            "title": "Failed Backups",
-            "type": "integer"
-          },
-          "is_backup_running": {
-            "title": "Is Backup Running",
-            "type": "boolean"
-          },
-          "last_backup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BackupRecordItem"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "r2_storage_bytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "R2 Storage Bytes"
-          },
-          "successful_backups": {
-            "title": "Successful Backups",
-            "type": "integer"
-          },
-          "total_backups": {
-            "title": "Total Backups",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_backups",
-          "successful_backups",
-          "failed_backups",
-          "is_backup_running"
-        ],
-        "title": "BackupStatusSummary",
-        "type": "object"
-      },
-      "BackupTriggerRequest": {
-        "description": "Request to trigger a manual backup.",
-        "properties": {
-          "backup_type": {
-            "default": "full",
-            "enum": [
-              "full",
-              "differential"
-            ],
-            "title": "Backup Type",
-            "type": "string"
-          }
-        },
-        "title": "BackupTriggerRequest",
-        "type": "object"
-      },
-      "BackupTriggerResponse": {
-        "description": "Response after triggering a backup.",
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "status",
-          "message"
-        ],
-        "title": "BackupTriggerResponse",
-        "type": "object"
-      },
-      "BackupVerifyResponse": {
-        "description": "Response from backup verification.",
-        "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "success": {
-            "title": "Success",
-            "type": "boolean"
-          },
-          "verified_at": {
-            "format": "date-time",
-            "title": "Verified At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "success",
-          "message",
-          "verified_at"
-        ],
-        "title": "BackupVerifyResponse",
-        "type": "object"
-      },
       "BatchFnskuLabelDownloadRequest": {
         "description": "批量下载 FNSKU 标签请求",
         "properties": {
@@ -15174,6 +14766,17 @@
             "title": "Country",
             "type": "string"
           },
+          "coverage_end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage End Date"
+          },
           "decision_path": {
             "anyOf": [
               {
@@ -15239,6 +14842,22 @@
             ],
             "title": "Estimated Replenishment Quantity"
           },
+          "gap_days": {
+            "default": 0,
+            "title": "Gap Days",
+            "type": "integer"
+          },
+          "gap_start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Start Date"
+          },
           "in_transit_quantity": {
             "title": "In Transit Quantity",
             "type": "integer"
@@ -15247,6 +14866,39 @@
             "default": "unknown",
             "title": "Inventory State",
             "type": "string"
+          },
+          "latest_order_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Order Date"
+          },
+          "next_transit_eta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Transit Eta"
+          },
+          "order_buffer_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Buffer Days"
           },
           "product_name": {
             "anyOf": [
@@ -15261,6 +14913,11 @@
           },
           "production_lead_days": {
             "title": "Production Lead Days",
+            "type": "integer"
+          },
+          "production_plus_shipping_days": {
+            "default": 0,
+            "title": "Production Plus Shipping Days",
             "type": "integer"
           },
           "project_id": {
@@ -15378,6 +15035,11 @@
           "sku": {
             "title": "Sku",
             "type": "string"
+          },
+          "target_days": {
+            "default": 90,
+            "title": "Target Days",
+            "type": "integer"
           },
           "warehouse_entry_date": {
             "anyOf": [
@@ -15497,6 +15159,11 @@
           "sku": {
             "title": "Sku",
             "type": "string"
+          },
+          "target_days": {
+            "default": 90,
+            "title": "Target Days",
+            "type": "integer"
           }
         },
         "required": [
@@ -15539,6 +15206,18 @@
             "minimum": 0.0,
             "title": "Shipping Days",
             "type": "integer"
+          },
+          "target_days": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Days"
           }
         },
         "required": [
@@ -27750,6 +27429,293 @@
         "title": "RuleUpdate",
         "type": "object"
       },
+      "SavedViewCreate": {
+        "description": "保存视图创建（个人视图 MVP；is_shared 仅 admin 可置 true，V2 共享）。\n\nfilters 与列表端点 filters 参数同构（FilterCondition 数组），服务层\n用 filter_engine 白名单校验字段/运算符，非法 → 400。",
+        "properties": {
+          "entity_type": {
+            "enum": [
+              "customer",
+              "lead"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "is_shared": {
+            "default": false,
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "scope": {
+            "default": "all",
+            "enum": [
+              "mine",
+              "all",
+              "sea"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "sort_by": {
+            "default": "updated_at",
+            "maxLength": 50,
+            "title": "Sort By",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": "desc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Sort Order",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "entity_type"
+        ],
+        "title": "SavedViewCreate",
+        "type": "object"
+      },
+      "SavedViewItem": {
+        "description": "保存视图响应（GET/POST/PATCH 统一形状）。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_shared": {
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "sort_by": {
+            "title": "Sort By",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "entity_type",
+          "scope",
+          "sort_by",
+          "sort_order",
+          "is_shared",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SavedViewItem",
+        "type": "object"
+      },
+      "SavedViewUpdate": {
+        "description": "部分更新：只传需要改的字段（权限同 owner；共享视图 owner/admin）。\n\n个人→共享（is_shared false→true）仅 admin 可做（V2 团队共享）。",
+        "properties": {
+          "filters": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "is_shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Shared"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mine",
+                  "all",
+                  "sea"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "sort_by": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort By"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "enum": [
+                  "asc",
+                  "desc"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "SavedViewUpdate",
+        "type": "object"
+      },
       "SeasonalReplenishmentListItem": {
         "description": "季节性补货分析单行。\n\n与 ``InventoryReplenishmentListItem`` 的区别：\n- 4 个主窗口 DMS (90/30/14/7)，不含 3D\n- 可选去年同期对照 (90/30/14/7 YoY)\n- 风险状态**不判定**（``risk_status`` 字段不存在）\n- 售卖截止锚点 = ``to_date`` + sellable_days（不是 ``date.today()``）",
         "properties": {
@@ -37928,8 +37894,8 @@
     },
     "/api/v1/agent/projects": {
       "get": {
-        "description": "``/projects`` 列表专用：复用 external handler + 按 key 的 project_scope 过滤。\n\n受 scope 限制的 agent key（如 ``project_scope=\"1,2\"``）不应看到全部项目名；\n``*`` 全放行时行为与 external 完全一致。无 project_id → 不挂 project_scope。\n\n``name``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」\n的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；\n未命中返回空列表，Agent 据此判断名字写错或项目不存在。",
-        "operationId": "agent_get_external_projects_api_v1_agent_projects_get",
+        "description": "``/agent/projects`` 列表：项目名 + id。\n\n复用 ``projects_query.list_projects``（与删除前的 external handler 同一\n服务函数）；``?name=`` 精确过滤；受 scope 限制的 key 按 project_scope\n白名单过滤 items。",
+        "operationId": "get_agent_projects_api_v1_agent_projects_get",
         "parameters": [
           {
             "in": "query",
@@ -37962,7 +37928,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Projects Api V1 Agent Projects Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -37978,17 +37948,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects",
+        "summary": "Get Agent Projects",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-projects"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-budget-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get",
+        "description": "单数 alias：``ad-budget-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -38100,7 +38070,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Budget Raw Alias Api V1 Agent Projects  Project Id  Ad Budget Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38116,17 +38090,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-budget-raw",
+        "summary": "Get Agent Ad Budget Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-budgets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-budgets": {
       "get": {
-        "operationId": "agent_get_external_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get",
+        "description": "ad-budgets 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get",
         "parameters": [
           {
             "in": "path",
@@ -38194,7 +38168,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Budget Aggregate Api V1 Agent Projects  Project Id  Ad Budgets Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38210,17 +38188,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-budgets",
+        "summary": "Get Agent Ad Budget Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-budgets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-budgets-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get",
+        "description": "ad-budgets-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -38332,7 +38310,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Budget Raw Api V1 Agent Projects  Project Id  Ad Budgets Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38348,17 +38330,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-budgets-raw",
+        "summary": "Get Agent Ad Budget Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-budgets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-campaign-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get",
+        "description": "单数 alias：``ad-campaign-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -38470,7 +38452,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Campaign Raw Alias Api V1 Agent Projects  Project Id  Ad Campaign Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38486,17 +38472,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-campaign-raw",
+        "summary": "Get Agent Ad Campaign Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-campaigns"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-campaigns": {
       "get": {
-        "operationId": "agent_get_external_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get",
+        "description": "ad-campaigns 聚合：按 campaign_name 汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get",
         "parameters": [
           {
             "in": "path",
@@ -38564,7 +38550,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Campaign Aggregate Api V1 Agent Projects  Project Id  Ad Campaigns Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38580,17 +38570,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-campaigns",
+        "summary": "Get Agent Ad Campaign Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-campaigns"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-campaigns-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get",
+        "description": "ad-campaigns-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -38702,7 +38692,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Campaign Raw Api V1 Agent Projects  Project Id  Ad Campaigns Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38718,17 +38712,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-campaigns-raw",
+        "summary": "Get Agent Ad Campaign Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-campaigns"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-invalid-traffic": {
       "get": {
-        "operationId": "agent_get_external_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get",
+        "description": "ad-invalid-traffic 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get",
         "parameters": [
           {
             "in": "path",
@@ -38796,7 +38790,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Invalid Traffic Aggregate Api V1 Agent Projects  Project Id  Ad Invalid Traffic Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38812,17 +38810,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-invalid-traffic",
+        "summary": "Get Agent Ad Invalid Traffic Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-invalid-traffic"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-invalid-traffic-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get",
+        "description": "ad-invalid-traffic-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -38934,7 +38932,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Invalid Traffic Raw Api V1 Agent Projects  Project Id  Ad Invalid Traffic Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -38950,17 +38952,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-invalid-traffic-raw",
+        "summary": "Get Agent Ad Invalid Traffic Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-invalid-traffic"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-placement-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get",
+        "description": "单数 alias：``ad-placement-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -39072,7 +39074,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Placement Raw Alias Api V1 Agent Projects  Project Id  Ad Placement Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39088,17 +39094,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-placement-raw",
+        "summary": "Get Agent Ad Placement Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-placements"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-placements": {
       "get": {
-        "operationId": "agent_get_external_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get",
+        "description": "ad-placements 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get",
         "parameters": [
           {
             "in": "path",
@@ -39166,7 +39172,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Placement Aggregate Api V1 Agent Projects  Project Id  Ad Placements Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39182,17 +39192,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-placements",
+        "summary": "Get Agent Ad Placement Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-placements"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-placements-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get",
+        "description": "ad-placements-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -39304,7 +39314,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Placement Raw Api V1 Agent Projects  Project Id  Ad Placements Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39320,17 +39334,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-placements-raw",
+        "summary": "Get Agent Ad Placement Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-placements"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-promoted-product-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get",
+        "description": "单数 alias：``ad-promoted-product-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -39442,7 +39456,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Promoted Product Raw Alias Api V1 Agent Projects  Project Id  Ad Promoted Product Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39458,17 +39476,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-promoted-product-raw",
+        "summary": "Get Agent Ad Promoted Product Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-promoted-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-promoted-products": {
       "get": {
-        "operationId": "agent_get_external_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get",
+        "description": "ad-promoted-products 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get",
         "parameters": [
           {
             "in": "path",
@@ -39536,7 +39554,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Promoted Product Aggregate Api V1 Agent Projects  Project Id  Ad Promoted Products Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39552,17 +39574,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-promoted-products",
+        "summary": "Get Agent Ad Promoted Product Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-promoted-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-promoted-products-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get",
+        "description": "ad-promoted-products-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -39674,7 +39696,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Promoted Product Raw Api V1 Agent Projects  Project Id  Ad Promoted Products Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39690,17 +39716,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-promoted-products-raw",
+        "summary": "Get Agent Ad Promoted Product Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-promoted-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-purchased-product-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get",
+        "description": "单数 alias：``ad-purchased-product-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -39812,7 +39838,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Purchased Product Raw Alias Api V1 Agent Projects  Project Id  Ad Purchased Product Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39828,17 +39858,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-purchased-product-raw",
+        "summary": "Get Agent Ad Purchased Product Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-purchased-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-purchased-products": {
       "get": {
-        "operationId": "agent_get_external_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get",
+        "description": "ad-purchased-products 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get",
         "parameters": [
           {
             "in": "path",
@@ -39906,7 +39936,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Purchased Product Aggregate Api V1 Agent Projects  Project Id  Ad Purchased Products Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -39922,17 +39956,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-purchased-products",
+        "summary": "Get Agent Ad Purchased Product Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-purchased-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-purchased-products-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get",
+        "description": "ad-purchased-products-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40044,7 +40078,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Purchased Product Raw Api V1 Agent Projects  Project Id  Ad Purchased Products Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40060,17 +40098,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-purchased-products-raw",
+        "summary": "Get Agent Ad Purchased Product Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-purchased-products"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-term-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get",
+        "description": "单数 alias：``ad-search-term-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40182,7 +40220,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Raw Alias Api V1 Agent Projects  Project Id  Ad Search Term Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40198,17 +40240,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-term-raw",
+        "summary": "Get Agent Ad Search Term Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-terms"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-term-share-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get",
+        "description": "单数 alias：``ad-search-term-share-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40320,7 +40362,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Share Raw Alias Api V1 Agent Projects  Project Id  Ad Search Term Share Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40336,17 +40382,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-term-share-raw",
+        "summary": "Get Agent Ad Search Term Share Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-term-shares"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-term-shares": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get",
+        "description": "ad-search-term-shares 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get",
         "parameters": [
           {
             "in": "path",
@@ -40414,7 +40460,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Share Aggregate Api V1 Agent Projects  Project Id  Ad Search Term Shares Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40430,17 +40480,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-term-shares",
+        "summary": "Get Agent Ad Search Term Share Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-term-shares"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-term-shares-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get",
+        "description": "ad-search-term-shares-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40552,7 +40602,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Share Raw Api V1 Agent Projects  Project Id  Ad Search Term Shares Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40568,17 +40622,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-term-shares-raw",
+        "summary": "Get Agent Ad Search Term Share Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-term-shares"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-terms": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get",
+        "description": "ad-search-terms 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get",
         "parameters": [
           {
             "in": "path",
@@ -40646,7 +40700,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Aggregate Api V1 Agent Projects  Project Id  Ad Search Terms Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40662,17 +40720,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-terms",
+        "summary": "Get Agent Ad Search Term Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-terms"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-search-terms-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get",
+        "description": "ad-search-terms-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40784,7 +40842,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Search Term Raw Api V1 Agent Projects  Project Id  Ad Search Terms Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40800,17 +40862,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-search-terms-raw",
+        "summary": "Get Agent Ad Search Term Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-search-terms"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-target-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get",
+        "description": "单数 alias：``ad-target-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -40922,7 +40984,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Target Raw Alias Api V1 Agent Projects  Project Id  Ad Target Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -40938,17 +41004,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-target-raw",
+        "summary": "Get Agent Ad Target Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-targets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-targets": {
       "get": {
-        "operationId": "agent_get_external_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get",
+        "description": "ad-targets 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get",
         "parameters": [
           {
             "in": "path",
@@ -41016,7 +41082,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Target Aggregate Api V1 Agent Projects  Project Id  Ad Targets Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41032,17 +41102,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-targets",
+        "summary": "Get Agent Ad Target Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-targets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-targets-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get",
+        "description": "ad-targets-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -41154,7 +41224,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Target Raw Api V1 Agent Projects  Project Id  Ad Targets Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41170,17 +41244,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-targets-raw",
+        "summary": "Get Agent Ad Target Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-targets"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-time-trend-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get",
+        "description": "单数 alias：``ad-time-trend-raw``（镜像时代路径面，保留不漂移）。",
+        "operationId": "get_agent_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -41292,7 +41366,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Time Trend Raw Alias Api V1 Agent Projects  Project Id  Ad Time Trend Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41308,17 +41386,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-time-trend-raw",
+        "summary": "Get Agent Ad Time Trend Raw Alias",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-time-trends"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-time-trends": {
       "get": {
-        "operationId": "agent_get_external_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get",
+        "description": "ad-time-trends 聚合：按业务键汇总 spend / sales / orders 等。\n\n查询契约与删除前的 external handler 完全一致（period/country 参数语义、\n白名单 order 列、AggregateResponse 形状）。",
+        "operationId": "get_agent_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get",
         "parameters": [
           {
             "in": "path",
@@ -41386,7 +41464,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Time Trend Aggregate Api V1 Agent Projects  Project Id  Ad Time Trends Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41402,17 +41484,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-time-trends",
+        "summary": "Get Agent Ad Time Trend Aggregate",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-time-trends"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/ad-time-trends-raw": {
       "get": {
-        "operationId": "agent_get_external_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get",
+        "description": "ad-time-trends-raw：深诊断原始行（与删除前的 external handler 同契约）。",
+        "operationId": "get_agent_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get",
         "parameters": [
           {
             "in": "path",
@@ -41524,7 +41606,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Ad Time Trend Raw Api V1 Agent Projects  Project Id  Ad Time Trends Raw Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41540,11 +41626,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/ad-time-trends-raw",
+        "summary": "Get Agent Ad Time Trend Raw",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-ad-time-trends"
         ]
       }
     },
@@ -41641,7 +41726,8 @@
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/batches": {
       "get": {
-        "operationId": "agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get",
+        "description": "CSV 导入批次（溯源）：文件标识 + 行数 + 状态 + 跨表一致性结果。",
+        "operationId": "get_agent_inventory_ledger_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get",
         "parameters": [
           {
             "in": "path",
@@ -41671,7 +41757,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Batches Api V1 Agent Projects  Project Id  Inventory Ledger Batches Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41687,17 +41777,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/batches",
+        "summary": "Get Agent Inventory Ledger Batches",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/consistency": {
       "get": {
-        "operationId": "agent_ext_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get",
+        "description": "跨表一致性校验（Detail vs Summary 真值表）：OK / MISMATCH / PENDING。",
+        "operationId": "get_agent_inventory_ledger_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get",
         "parameters": [
           {
             "in": "path",
@@ -41724,7 +41814,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Consistency Api V1 Agent Projects  Project Id  Inventory Ledger Consistency Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41740,17 +41834,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/consistency",
+        "summary": "Get Agent Inventory Ledger Consistency",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/detail": {
       "get": {
-        "operationId": "agent_ext_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get",
+        "description": "事件级明细行（Detailed 视图）+ msku/fulfillment_center/event_type 过滤。",
+        "operationId": "get_agent_inventory_ledger_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get",
         "parameters": [
           {
             "in": "path",
@@ -41762,18 +41856,17 @@
             }
           },
           {
-            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
               "title": "Period",
               "type": "string"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -41787,12 +41880,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -41806,12 +41897,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           },
           {
-            "description": "Optional SKU filter",
             "in": "query",
             "name": "msku",
             "required": false,
@@ -41824,12 +41913,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional SKU filter",
               "title": "Msku"
             }
           },
           {
-            "description": "Optional FBA warehouse code filter",
             "in": "query",
             "name": "fulfillment_center",
             "required": false,
@@ -41842,12 +41929,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional FBA warehouse code filter",
               "title": "Fulfillment Center"
             }
           },
           {
-            "description": "Optional event type filter",
             "in": "query",
             "name": "event_type",
             "required": false,
@@ -41860,7 +41945,6 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional event type filter",
               "title": "Event Type"
             }
           }
@@ -41869,7 +41953,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Detail Api V1 Agent Projects  Project Id  Inventory Ledger Detail Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41885,17 +41973,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/detail",
+        "summary": "Get Agent Inventory Ledger Detail",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/events": {
       "get": {
-        "operationId": "agent_ext_events_api_v1_agent_projects__project_id__inventory_ledger_events_get",
+        "description": "SKU 事件流：周期内每 SKU 各事件列合计。",
+        "operationId": "get_agent_inventory_ledger_events_api_v1_agent_projects__project_id__inventory_ledger_events_get",
         "parameters": [
           {
             "in": "path",
@@ -41907,18 +41995,17 @@
             }
           },
           {
-            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
               "title": "Period",
               "type": "string"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -41932,12 +42019,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -41951,7 +42036,6 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -41960,7 +42044,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Events Api V1 Agent Projects  Project Id  Inventory Ledger Events Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -41976,18 +42064,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/events",
+        "summary": "Get Agent Inventory Ledger Events",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/integrity": {
       "get": {
-        "description": "Cross-month integrity check for a full calendar month.",
-        "operationId": "agent_ext_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get",
+        "description": "跨月完整性校验：上月期末 vs 本月期初（每 SKU × 库位 × 处置）。",
+        "operationId": "get_agent_inventory_ledger_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get",
         "parameters": [
           {
             "in": "path",
@@ -41999,12 +42086,12 @@
             }
           },
           {
-            "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD).",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD).",
               "title": "Period",
               "type": "string"
             }
@@ -42014,7 +42101,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Integrity Api V1 Agent Projects  Project Id  Inventory Ledger Integrity Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42030,17 +42121,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/integrity",
+        "summary": "Get Agent Inventory Ledger Integrity",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/months": {
       "get": {
-        "operationId": "agent_ext_list_months_api_v1_agent_projects__project_id__inventory_ledger_months_get",
+        "description": "月度盘点：有台账数据的月份列表（YYYY-MM-DD，每月 1 号）。",
+        "operationId": "get_agent_inventory_ledger_months_api_v1_agent_projects__project_id__inventory_ledger_months_get",
         "parameters": [
           {
             "in": "path",
@@ -42056,7 +42147,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Months Api V1 Agent Projects  Project Id  Inventory Ledger Months Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42072,17 +42167,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/months",
+        "summary": "Get Agent Inventory Ledger Months",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/receipt-clusters": {
       "get": {
-        "operationId": "agent_ext_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get",
+        "description": "收货簇：按（日期 × 仓库）归组收货。",
+        "operationId": "get_agent_inventory_ledger_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get",
         "parameters": [
           {
             "in": "path",
@@ -42094,18 +42189,17 @@
             }
           },
           {
-            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
               "title": "Period",
               "type": "string"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -42119,12 +42213,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -42138,7 +42230,6 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -42147,7 +42238,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Receipt Clusters Api V1 Agent Projects  Project Id  Inventory Ledger Receipt Clusters Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42163,17 +42258,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/receipt-clusters",
+        "summary": "Get Agent Inventory Ledger Receipt Clusters",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/snapshot": {
       "get": {
-        "operationId": "agent_ext_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get",
+        "description": "月度快照：SKU EOM + 处置汇总 + 完整性（整月窗口跑跨月完整性校验）。",
+        "operationId": "get_agent_inventory_ledger_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get",
         "parameters": [
           {
             "in": "path",
@@ -42185,18 +42280,17 @@
             }
           },
           {
-            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
               "title": "Period",
               "type": "string"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -42210,12 +42304,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -42229,7 +42321,6 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           }
@@ -42238,7 +42329,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Snapshot Api V1 Agent Projects  Project Id  Inventory Ledger Snapshot Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42254,17 +42349,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/snapshot",
+        "summary": "Get Agent Inventory Ledger Snapshot",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/summary": {
       "get": {
-        "operationId": "agent_ext_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get",
+        "description": "日水位行（Summary 视图）+ msku/location/disposition 过滤。",
+        "operationId": "get_agent_inventory_ledger_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get",
         "parameters": [
           {
             "in": "path",
@@ -42276,18 +42371,17 @@
             }
           },
           {
-            "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+            "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
             "in": "query",
             "name": "period",
             "required": true,
             "schema": {
-              "description": "REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``.",
+              "description": "REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md.",
               "title": "Period",
               "type": "string"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "start_date",
             "required": false,
@@ -42301,12 +42395,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "Start Date"
             }
           },
           {
-            "description": "Companion for ``period=custom`` only.",
             "in": "query",
             "name": "end_date",
             "required": false,
@@ -42320,12 +42412,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Companion for ``period=custom`` only.",
               "title": "End Date"
             }
           },
           {
-            "description": "Optional SKU filter",
             "in": "query",
             "name": "msku",
             "required": false,
@@ -42338,12 +42428,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional SKU filter",
               "title": "Msku"
             }
           },
           {
-            "description": "Optional FBA warehouse code filter",
             "in": "query",
             "name": "location",
             "required": false,
@@ -42356,12 +42444,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional FBA warehouse code filter",
               "title": "Location"
             }
           },
           {
-            "description": "Optional disposition filter (e.g. SELLABLE)",
             "in": "query",
             "name": "disposition",
             "required": false,
@@ -42374,7 +42460,6 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional disposition filter (e.g. SELLABLE)",
               "title": "Disposition"
             }
           }
@@ -42383,7 +42468,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Summary Api V1 Agent Projects  Project Id  Inventory Ledger Summary Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42399,18 +42488,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/summary",
+        "summary": "Get Agent Inventory Ledger Summary",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/inventory-ledger/trend": {
       "get": {
-        "description": "Multi-month aggregated trend.",
-        "operationId": "agent_ext_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get",
+        "description": "多月度趋势：最近 N 个月（默认 6，最大 24）聚合序列。",
+        "operationId": "get_agent_inventory_ledger_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get",
         "parameters": [
           {
             "in": "path",
@@ -42440,7 +42528,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Inventory Ledger Trend Api V1 Agent Projects  Project Id  Inventory Ledger Trend Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42456,11 +42548,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/inventory-ledger/trend",
+        "summary": "Get Agent Inventory Ledger Trend",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-inventory-ledger"
         ]
       }
     },
@@ -42799,7 +42890,8 @@
     },
     "/api/v1/agent/projects/{project_id}/pricing-snapshots": {
       "get": {
-        "operationId": "agent_get_external_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get",
+        "description": "定价目录冻结：最近一次 ``snapshot_date ≤ as_of`` 的全 SKU 经济账。",
+        "operationId": "get_agent_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get",
         "parameters": [
           {
             "in": "path",
@@ -42843,7 +42935,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Pricing Snapshot As Of Api V1 Agent Projects  Project Id  Pricing Snapshots Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -42859,11 +42955,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/pricing-snapshots",
+        "summary": "Get Agent Pricing Snapshot As Of",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-pricing-snapshots"
         ]
       }
     },
@@ -44792,7 +44887,8 @@
     },
     "/api/v1/agent/projects/{project_id}/shop-calculation-history": {
       "get": {
-        "operationId": "agent_get_external_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get",
+        "description": "当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平 15 列。",
+        "operationId": "get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get",
         "parameters": [
           {
             "in": "path",
@@ -44862,7 +44958,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Shop Calculation History Api V1 Agent Projects  Project Id  Shop Calculation History Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -44878,17 +44978,17 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/shop-calculation-history",
+        "summary": "Get Agent Shop Calculation History",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-shop-calculation"
         ]
       }
     },
     "/api/v1/agent/projects/{project_id}/shop-calculation/snapshots": {
       "get": {
-        "operationId": "agent_get_external_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get",
+        "description": "append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。",
+        "operationId": "get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get",
         "parameters": [
           {
             "in": "path",
@@ -44968,7 +45068,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Shop Calculation Snapshots Api V1 Agent Projects  Project Id  Shop Calculation Snapshots Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -44984,11 +45088,10 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/shop-calculation/snapshots",
+        "summary": "Get Agent Shop Calculation Snapshots",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-shop-calculation"
         ]
       }
     },
@@ -45443,7 +45546,8 @@
     },
     "/api/v1/agent/projects/{project_id}/sku-info": {
       "get": {
-        "operationId": "agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get",
+        "description": "R1 SKU 列表：country/is_active/sku/asin 筛选 + 分页（spec §4 R1）。\n\n``is_active`` 默认 ``true``（对齐镜像）；显式 ``false`` 查下架。\n``managed_project_ids=[project_id]`` 复用服务层项目白名单过滤（0 改造）。",
+        "operationId": "list_sku_info_api_v1_agent_projects__project_id__sku_info_get",
         "parameters": [
           {
             "in": "path",
@@ -45459,9 +45563,15 @@
             "name": "country",
             "required": false,
             "schema": {
-              "default": "",
-              "title": "Country",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
             }
           },
           {
@@ -45469,9 +45579,16 @@
             "name": "is_active",
             "required": false,
             "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "default": true,
-              "title": "Is Active",
-              "type": "boolean"
+              "title": "Is Active"
             }
           },
           {
@@ -45479,31 +45596,53 @@
             "name": "sku",
             "required": false,
             "schema": {
-              "default": "",
-              "title": "Sku",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sku"
             }
           },
           {
             "in": "query",
-            "name": "limit",
+            "name": "asin",
             "required": false,
             "schema": {
-              "default": 500,
-              "maximum": 5000,
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asin"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
               "minimum": 1,
-              "title": "Limit",
+              "title": "Page",
               "type": "integer"
             }
           },
           {
             "in": "query",
-            "name": "offset",
+            "name": "page_size",
             "required": false,
             "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
               "type": "integer"
             }
           },
@@ -45522,7 +45661,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Sku Info Api V1 Agent Projects  Project Id  Sku Info Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -45538,11 +45681,321 @@
             "description": "Validation Error"
           }
         },
-        "summary": "agent 镜像: /external/projects/{project_id}/sku-info",
+        "summary": "List Sku Info",
         "tags": [
           "agent",
-          "agent-external-mirror",
-          "agent-external-mirror"
+          "agent-sku-info"
+        ]
+      },
+      "post": {
+        "description": "W1 upsert：confirm 两步后按唯一键 upsert + 审计归因 + 缓存失效。",
+        "operationId": "upsert_sku_info_api_v1_agent_projects__project_id__sku_info_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upsert Sku Info Api V1 Agent Projects  Project Id  Sku Info Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Sku Info",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}": {
+      "get": {
+        "description": "R2 单 SKU 详情（全字段含工厂信息 / 图片 url / marketplace_url + 时间戳）。",
+        "operationId": "get_sku_info_detail_api_v1_agent_projects__project_id__sku_info__sku_record_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku_record_id",
+            "required": true,
+            "schema": {
+              "title": "Sku Record Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Sku Info Detail Api V1 Agent Projects  Project Id  Sku Info  Sku Record Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sku Info Detail",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      },
+      "patch": {
+        "description": "W2 局部更新：读-改-写合并 + 审计 before/after + 缓存失效。",
+        "operationId": "update_sku_info_api_v1_agent_projects__project_id__sku_info__sku_record_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Sku Info Api V1 Agent Projects  Project Id  Sku Info  Sku Record Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Sku Info",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/audit": {
+      "get": {
+        "description": "R3 SKU 审计：按 record id 聚合 operation_audit_logs（spec §4 R3）。",
+        "operationId": "get_sku_info_audit_api_v1_agent_projects__project_id__sku_info__sku_record_id__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sku_record_id",
+            "required": true,
+            "schema": {
+              "title": "Sku Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Sku Info Audit Api V1 Agent Projects  Project Id  Sku Info  Sku Record Id  Audit Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sku Info Audit",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/fnsku-label": {
+      "post": {
+        "description": "W4 上传 FNSKU 标签 PDF：multipart confirm 两步后写 R2 + 更新行 + 审计。\n\n执行路径对齐内部 ``upload_fnsku_label``（sku_info.py:841）：\n删旧 R2 key（失败不阻塞）→ ``upload_bytes_to_r2``（file_type=fnsku-labels，\ncontent-type=application/pdf）→ 更新 ``fnsku_label_r2_key/url``。\n**不做 FNSKU 内容验证**（D10，用户拍板；``verify_fnsku_label`` 仅内部路径）。\n标签仅展示用途 → 不失效财务缓存（对齐内部行为）。",
+        "operationId": "upload_sku_info_fnsku_label_api_v1_agent_projects__project_id__sku_info__sku_record_id__fnsku_label_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sku_record_id",
+            "required": true,
+            "schema": {
+              "title": "Sku Record Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upload Sku Info Fnsku Label Api V1 Agent Projects  Project Id  Sku Info  Sku Record Id  Fnsku Label Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Sku Info Fnsku Label",
+        "tags": [
+          "agent",
+          "agent-sku-info"
+        ]
+      }
+    },
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/status": {
+      "post": {
+        "description": "W3 上/下架：is_active 软切换；目标值与当前一致时幂等返回当前态。",
+        "operationId": "transition_sku_info_status_api_v1_agent_projects__project_id__sku_info__sku_record_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transition Sku Info Status Api V1 Agent Projects  Project Id  Sku Info  Sku Record Id  Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition Sku Info Status",
+        "tags": [
+          "agent",
+          "agent-sku-info"
         ]
       }
     },
@@ -50934,1014 +51387,6 @@
         "summary": "Get Current User",
         "tags": [
           "auth"
-        ]
-      }
-    },
-    "/api/v1/backups/health": {
-      "get": {
-        "description": "Check if backup system is healthy (public endpoint, no auth required).",
-        "operationId": "check_backup_health_api_v1_backups_health_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Check Backup Health Api V1 Backups Health Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Check Backup Health",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/info": {
-      "get": {
-        "description": "Get raw pgBackRest info.",
-        "operationId": "get_backup_info_api_v1_backups_info_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupInfoResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Backup Info",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/records": {
-      "get": {
-        "description": "Get list of backup records.",
-        "operationId": "list_backup_records_api_v1_backups_records_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupRecordListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Backup Records",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/status": {
-      "get": {
-        "description": "Get backup status summary.",
-        "operationId": "get_backup_status_api_v1_backups_status_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupStatusSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Backup Status",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/trigger": {
-      "post": {
-        "description": "Trigger a manual backup.",
-        "operationId": "trigger_backup_endpoint_api_v1_backups_trigger_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-User-Id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BackupTriggerRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupTriggerResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Trigger Backup Endpoint",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/verify": {
-      "post": {
-        "description": "Verify all backups.",
-        "operationId": "verify_backup_endpoint_api_v1_backups_verify_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupVerifyResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Verify Backup Endpoint",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/{record_id}": {
-      "delete": {
-        "description": "软删备份记录 + 删除 R2 对象（记录行保留，写 r2_deleted_at）。",
-        "operationId": "delete_backup_api_v1_backups__record_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "record_id",
-            "required": true,
-            "schema": {
-              "title": "Record Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupDeleteResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Backup",
-        "tags": [
-          "备份管理"
-        ]
-      },
-      "get": {
-        "description": "单条备份记录详情（含 phase / R2 字段），供前端轮询。",
-        "operationId": "get_backup_record_api_v1_backups__record_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "record_id",
-            "required": true,
-            "schema": {
-              "title": "Record Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupRecordItem"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Backup Record",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/{record_id}/download-url": {
-      "get": {
-        "description": "生成 R2 临时下载链接（presigned，1h 有效）。",
-        "operationId": "get_backup_download_url_api_v1_backups__record_id__download_url_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "record_id",
-            "required": true,
-            "schema": {
-              "title": "Record Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupDownloadUrlResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Backup Download Url",
-        "tags": [
-          "备份管理"
-        ]
-      }
-    },
-    "/api/v1/backups/{record_id}/restore-command": {
-      "get": {
-        "description": "生成可复制的 pgbackrest restore 命令文本（不执行）。",
-        "operationId": "get_backup_restore_command_api_v1_backups__record_id__restore_command_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "record_id",
-            "required": true,
-            "schema": {
-              "title": "Record Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "target_time",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Target Time"
-            }
-          },
-          {
-            "in": "query",
-            "name": "api_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Api Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-API-Key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Is-Admin",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "X-Is-Admin",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackupRestoreCommandResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Backup Restore Command",
-        "tags": [
-          "备份管理"
         ]
       }
     },
@@ -58814,6 +58259,494 @@
           }
         },
         "summary": "Update Rule",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
+    "/api/v1/crm/saved-views": {
+      "get": {
+        "description": "可见视图：自己的 + 全用户共享的；可按 entity_type（customer/lead）过滤。\n\n返回扁平列表（视图数量少，无需分页），按 updated_at 倒序。",
+        "operationId": "list_saved_views_api_v1_crm_saved_views_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entity_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(customer|lead)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedViewItem"
+                  },
+                  "title": "Response List Saved Views Api V1 Crm Saved Views Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Views",
+        "tags": [
+          "crm"
+        ]
+      },
+      "post": {
+        "description": "创建视图（owner_id=本人）。is_shared=true 仅 admin（V2 团队共享）。",
+        "operationId": "create_saved_view_api_v1_crm_saved_views_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedViewCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedViewItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved View",
+        "tags": [
+          "crm"
+        ]
+      }
+    },
+    "/api/v1/crm/saved-views/{view_id}": {
+      "delete": {
+        "description": "删除视图（个人视图仅 owner；共享视图 owner/admin）。",
+        "operationId": "delete_saved_view_api_v1_crm_saved_views__view_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "view_id",
+            "required": true,
+            "schema": {
+              "title": "View Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saved View",
+        "tags": [
+          "crm"
+        ]
+      },
+      "patch": {
+        "description": "部分更新（个人视图仅 owner；共享视图 owner/admin）。",
+        "operationId": "update_saved_view_api_v1_crm_saved_views__view_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "view_id",
+            "required": true,
+            "schema": {
+              "title": "View Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Is-Admin"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedViewUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedViewItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Saved View",
         "tags": [
           "crm"
         ]

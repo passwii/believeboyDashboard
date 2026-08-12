@@ -255,19 +255,6 @@ class Settings(BaseSettings):
     r2_bucket_name: str = Field(default="", max_length=100)
     r2_region: str = Field(default="auto", max_length=50)
 
-    # --- PostgreSQL Backup (via pgBackRest → R2) ---------------------------
-    # Plan: docs/superpowers/plans/2026-07-17-pg-r2-backup-feature/
-    # true  = API 端只 enqueue, Celery worker 跑 (新形态, §3.1 P0-1)
-    # false = API 端同步 subprocess.run (旧形态, 回滚兜底, §Phase 6)
-    backup_via_celery: bool = Field(default=True)
-    # Celery task 软/硬时间限制（秒）。Phase 1 跑 pgbackrest info 历史 duration 后调。
-    backup_soft_time_limit: int = Field(default=5400)
-    backup_hard_time_limit: int = Field(default=7200)
-    # R2 保留份数，超出由 Celery Beat 04:30 周期清理（§3.7，与本地 retention-full=7 对齐）。
-    backup_r2_retention_count: int = Field(default=7)
-    # 自动备份小时（24h 制），Celery Beat crontab(hour=此值, minute=0)（§3.6）。
-    backup_daily_schedule_hour: int = Field(default=3)
-
     @property
     def r2_enabled(self) -> bool:
         """Check if R2 is properly configured."""

@@ -1,8 +1,7 @@
 """P9 规则引擎三表模型契约测试（BLF-543）。
 
 验证 rule / condition / action 三表的列、索引、FK 与枚举默认值，锁定 schema
-接口供 BLF-544 执行器 / BLF-545 编辑器 / BLF-546 审计消费。纯模型层断言，
-不依赖数据库（对齐 tests/models/test_backup_record_r2_fields.py 模式）。
+接口供 BLF-544 执行器 / BLF-545 编辑器 / BLF-546 审计消费。纯模型层断言，不依赖数据库。
 """
 
 from __future__ import annotations
