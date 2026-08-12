@@ -120,9 +120,9 @@ export default function MarkdownToWordClient() {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-5 [&>*+*]:mt-0">
+    <div className="flex h-auto min-h-[calc(100vh-4rem)] flex-col gap-5 xl:h-[calc(100vh-4rem)] [&>*+*]:mt-0">
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-2">
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <Card className="flex h-auto min-h-0 flex-col overflow-hidden xl:h-full dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
@@ -182,7 +182,7 @@ export default function MarkdownToWordClient() {
           </CardFooter>
         </Card>
 
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
+        <Card className="flex h-auto min-h-0 flex-col overflow-hidden xl:h-full dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">

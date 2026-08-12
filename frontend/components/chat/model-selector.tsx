@@ -313,7 +313,7 @@ export function ModelSelector({
             setIsOpen(true)
           }
         }}
-        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 text-[#8a8a8f] hover:text-white hover:bg-white/5 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto]"
+        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 text-[#8a8a8f] hover:text-white hover:bg-white/5 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]"
       >
         {currentModelMeta?.icon ?? <Cpu className="size-4 text-slate-400" />}
         <span className="hidden xs:inline">{currentModelMeta?.name ?? current}</span>
