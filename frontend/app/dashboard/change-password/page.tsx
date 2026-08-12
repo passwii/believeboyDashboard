@@ -118,7 +118,7 @@ export default function ChangePasswordPage() {
               />
             </div>
 
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

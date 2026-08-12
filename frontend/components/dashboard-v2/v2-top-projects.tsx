@@ -116,7 +116,7 @@ export function V2TopProjects({
   )
 
   return (
-    <V2Card className="relative gap-0 md:col-span-4">
+    <V2Card className="relative gap-0 col-span-2 lg:col-span-4">
       <CardHeader className="border-b">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="space-y-1">

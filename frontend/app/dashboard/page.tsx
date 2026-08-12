@@ -34,7 +34,7 @@ function V2ChartSkeleton({
   chartClass?: string
 }) {
   return (
-    <V2Card className="gap-0 md:col-span-2">
+    <V2Card className="gap-0 col-span-2">
       <div className="flex flex-col gap-1 p-6">
         <Skeleton className={`h-5 ${titleWidth}`} />
         <Skeleton className={`h-3 ${descWidth}`} />
