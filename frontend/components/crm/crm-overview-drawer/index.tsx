@@ -109,7 +109,8 @@ export function CrmOverviewDrawer<T extends object>({
 
         <Tabs defaultValue="detail" className="flex h-full flex-col">
           <div className="px-5 pt-3">
-            <TabsList className={cn('grid w-full', isCustomer ? 'grid-cols-6' : 'grid-cols-5')}>
+            {/* 移动规则（总则 1/2）：6 个 tab 手机端 3 列×2 行（sm+ 恢复单行横排） */}
+            <TabsList className={cn('grid w-full grid-cols-3 sm:grid-cols-6', !isCustomer && 'sm:grid-cols-5')}>
               <TabsTrigger value="detail">详情</TabsTrigger>
               <TabsTrigger value="follow">跟进</TabsTrigger>
               {isCustomer && <TabsTrigger value="contacts">联系人</TabsTrigger>}

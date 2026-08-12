@@ -158,7 +158,7 @@ export function CrmContactList({ customerId }: { customerId: string }) {
 
       {editingId !== null && (
         <div className="space-y-3 rounded-lg border border-border/60 bg-[hsl(var(--surface-subtle))] p-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="col-span-2 space-y-1">
               <Label>姓名 *</Label>
               <Input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="联系人姓名" />

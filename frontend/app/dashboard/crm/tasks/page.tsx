@@ -110,7 +110,7 @@ export default function TasksPage() {
               data-testid="view-board"
               onClick={() => setView('board')}
               className={cn(
-                'flex items-center gap-1 rounded px-3 py-1 transition-colors',
+                'flex items-center gap-1 rounded px-3 py-1.5 transition-colors',
                 view === 'board'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
@@ -126,7 +126,7 @@ export default function TasksPage() {
               data-testid="view-list"
               onClick={() => setView('list')}
               className={cn(
-                'flex items-center gap-1 rounded px-3 py-1 transition-colors',
+                'flex items-center gap-1 rounded px-3 py-1.5 transition-colors',
                 view === 'list'
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground'

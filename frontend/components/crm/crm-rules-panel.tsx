@@ -194,7 +194,7 @@ export function CrmRulesPanel() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-8 w-8 max-md:min-h-[44px] max-md:min-w-[44px]"
                         onClick={() => openEdit(rule)}
                         aria-label={`编辑规则 ${rule.name}`}
                       >
@@ -204,7 +204,7 @@ export function CrmRulesPanel() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-8 w-8 max-md:min-h-[44px] max-md:min-w-[44px] text-destructive hover:text-destructive"
                         onClick={() => void handleDelete(rule)}
                         aria-label={`删除规则 ${rule.name}`}
                       >

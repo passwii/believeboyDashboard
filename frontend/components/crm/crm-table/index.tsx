@@ -218,20 +218,26 @@ export function CrmTable<T extends { id?: string | number }>({
   return (
     <div className="flex h-full flex-col">
       {(searchable || filterFields.length > 0) && (
-        <div className="mb-2 flex flex-wrap items-center gap-3">
+        // 移动规则 2/8：手机 2 列网格内联标签；桌面 md+ 恢复横向 flex 排列
+        <div className="mb-2 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
           {searchable && (
-            <CrmSearchInput
-              value={table.keyword}
-              onChange={table.setKeyword}
-              placeholder={searchPlaceholder}
-            />
+            <div className="col-span-2 md:col-span-1">
+              <CrmSearchInput
+                value={table.keyword}
+                onChange={table.setKeyword}
+                placeholder={searchPlaceholder}
+              />
+            </div>
           )}
           {filterFields.map((f) => (
-            <label key={f.key} className="flex items-center gap-1 text-sm">
-              <span className="text-muted-foreground">{f.label}</span>
+            <label
+              key={f.key}
+              className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1"
+            >
+              <span className="text-xs text-muted-foreground md:text-sm">{f.label}</span>
               <select
                 aria-label={f.label}
-                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm md:h-8 md:w-auto"
                 value={_filterSelectValue(table.filters, f.field ?? f.key)}
                 onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
               >
@@ -353,19 +359,20 @@ export function CrmTable<T extends { id?: string | number }>({
             </label>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
+            {/* 移动规则 5：分页按钮触摸目标 ≥44px */}
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
               <ChevronsLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="px-1">
               第 {table.page} / {totalPages} 页
             </span>
-            <Button variant="outline" size="sm" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
+            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px]" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
               <ChevronsRight className="h-4 w-4" />
             </Button>
             {totalPages > 1 && <PageJump totalPages={totalPages} onJump={table.setPage} />}

@@ -106,7 +106,7 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {step === 'input' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                   粘贴 Excel 复制的内容，或上传 .xlsx 文件。导入的客户进入公海，全员可领取。
                 </p>

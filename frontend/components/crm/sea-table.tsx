@@ -150,7 +150,7 @@ export function CrmSeaTable() {
 
   return (
     <>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">公海客户 · 可筛选 / 搜索 / 导出，点击行领取</p>
         <CrmExportButton entity="customers" scope="sea" keyword={keyword} />
       </div>

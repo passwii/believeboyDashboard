@@ -11,7 +11,8 @@ export default function SeaPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between">
+      {/* 总则 5：标题行手机端 flex-wrap，避免标题+按钮同行挤压 */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">客户公海</h1>
           <p className="text-sm text-muted-foreground">无人认领的客户，可一键领取或批量导入</p>

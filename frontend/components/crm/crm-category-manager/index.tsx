@@ -168,7 +168,7 @@ export function CrmCategoryManager() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
+                      className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
                       onClick={() => void handleRename(c.id)}
                       disabled={busy || !editName.trim()}
                       aria-label="确认改名"
@@ -178,7 +178,7 @@ export function CrmCategoryManager() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
+                      className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
                       onClick={() => setEditingId(null)}
                       aria-label="取消"
                     >
@@ -191,7 +191,7 @@ export function CrmCategoryManager() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
+                      className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
                       onClick={() => {
                         setEditingId(c.id)
                         setEditName(c.name)
@@ -208,7 +208,7 @@ export function CrmCategoryManager() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          className="h-7"
+                          className="h-7 max-md:min-h-[44px]"
                           onClick={() => void handleDelete(c.id)}
                           disabled={busy}
                           aria-label={`确认删除 ${c.name}`}
@@ -218,7 +218,7 @@ export function CrmCategoryManager() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7"
+                          className="h-7 max-md:min-h-[44px]"
                           onClick={() => setConfirmDelete(null)}
                         >
                           取消
@@ -228,7 +228,7 @@ export function CrmCategoryManager() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400"
+                        className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px] text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400"
                         onClick={() => setConfirmDelete(c.id)}
                         aria-label="删除"
                       >
