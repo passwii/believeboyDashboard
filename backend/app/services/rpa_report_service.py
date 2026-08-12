@@ -54,6 +54,36 @@ REPORT_TYPES = [
     "return_report",                # 退货
 ]
 
+# 报表类型 → 中文名（BLF-648：对齐前端 RPA 状态矩阵短名，供 Agent API 返回）。
+# 5 基础用短名（库存/业务/销售/付款/退货）；10 广告用「广告-短名」；
+# 2 分类账不在前端矩阵页展示，沿用 REPORT_UPLOAD_REPORT_TYPE_LABELS 全名。
+# 不含 BLF-647 已删除的 9 个预留类型；未知类型 fallback 原 key（不抛错）。
+REPORT_TYPE_LABELS: dict[str, str] = {
+    "inventory_report": "库存",
+    "business_report": "业务",
+    "sales_report": "销售",
+    "payment_report": "付款",
+    "return_report": "退货",
+    "ad_search_term_share_report": "广告-词份额",
+    "ad_budget_report": "广告-预算",
+    "ad_campaign_report": "广告-广告活动",
+    "ad_purchased_product_report": "广告-已购商品",
+    "ad_promoted_product_report": "广告-推广商品",
+    "ad_invalid_traffic_report": "广告-无效流量",
+    "ad_placement_report": "广告-广告位",
+    "ad_target_report": "广告-搜索词投放",
+    "ad_search_term_report": "广告-搜索词",
+    "ad_time_trend_report": "广告-时间效果",
+    "inventory_ledger_summary": "库存分类账 · 汇总视图（Summary）",
+    "inventory_ledger_detail": "库存分类账 · 明细视图（Detail）",
+}
+
+# status_source 取值 → 中文名（BLF-648）。
+STATUS_SOURCE_LABELS: dict[str, str] = {
+    "upload_log": "上传记录",
+    "business_date_backfill": "业务日期回填",
+}
+
 
 def _ad_report_types() -> list[str]:
     """Return all ad_*_report entries from REPORT_TYPES (derived from a single source of truth)."""

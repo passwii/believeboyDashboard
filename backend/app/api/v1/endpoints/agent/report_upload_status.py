@@ -42,7 +42,9 @@ from app.models.agent_api_key import AgentApiKey
 from app.services.rpa_report_service import (
     AD_REPORT_TYPE_PREFIX,
     AD_REPORT_TYPE_SUFFIX,
+    REPORT_TYPE_LABELS,
     REPORT_TYPES,
+    STATUS_SOURCE_LABELS,
     ProjectReportStatus,
     ReportTypeStatus,
     get_report_status_for_date,
@@ -82,6 +84,16 @@ def _active_report_types() -> tuple[str, ...]:
         if rt.startswith(AD_REPORT_TYPE_PREFIX) and rt.endswith(AD_REPORT_TYPE_SUFFIX)
     )
     return _BASE_ACTIVE_REPORT_TYPES + ad_types
+
+
+# 站点 code → 中文名（BLF-648：对齐前端 REPORT_UPLOAD_COUNTRY_OPTIONS）。
+# 前端完整标签是「US 美国站」，这里 country 字段已带 code，中文名只用
+# 「美国站」后半段，避免重复。未知 code fallback 原值（不抛错）。
+COUNTRY_LABELS: dict[str, str] = {
+    "US": "美国站",
+    "DE": "德国站",
+    "UK": "英国站",
+}
 
 
 # ============================================================
@@ -144,14 +156,24 @@ def _visible_items(
 
 
 def _status_to_dict(st: ReportTypeStatus) -> dict:
-    """ReportTypeStatus dataclass → JSON-safe dict（内部端点同构字段）。"""
+    """ReportTypeStatus dataclass → JSON-safe dict（内部端点同构字段 + 中文字段）。
+
+    新增 ``report_type_name`` / ``status_source_name``（BLF-648），英文 key
+    原样保留；未知类型 / 未知来源 fallback 原值（不抛错）。
+    """
     return {
         "report_type": st.report_type,
+        "report_type_name": REPORT_TYPE_LABELS.get(
+            st.report_type, st.report_type
+        ),
         "has_data": st.has_data,
         "is_uploaded": st.is_uploaded,
         "latest_date": st.latest_date,
         "original_filename": st.original_filename,
         "status_source": st.status_source,
+        "status_source_name": STATUS_SOURCE_LABELS.get(
+            st.status_source, st.status_source
+        ),
     }
 
 
@@ -222,12 +244,16 @@ def get_report_upload_status(
         payload_items = [_project_to_dict(item, active_types) for item in items]
         payload = {
             "country": country,
+            "country_name": COUNTRY_LABELS.get(country, country),
             "report_date": report_date,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "project_count": len(payload_items),
             "missing_project_count": sum(
                 1 for item in payload_items if item["missing_report_types"]
             ),
+            # 报表类型 → 中文名全量映射（含 2 分类账）；missing_report_types
+            # 保持字符串数组不变，需要中文名时查此映射（BLF-648）。
+            "report_type_labels": REPORT_TYPE_LABELS,
             "items": payload_items,
         }
 
