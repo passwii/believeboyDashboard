@@ -125,8 +125,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         返回列表
       </Button>
 
-      <div className="dashboard-surface p-6">
-        <div className="flex items-center gap-5">
+      <div className="dashboard-surface p-4 sm:p-6">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
           <EmployeeAvatar
             employeeType={employee.employee_type}
             size="xl"
@@ -142,7 +142,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <HeartbeatDot lastSeen={employee.last_heartbeat_at} />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 sm:w-auto">
             {employee.status === 'SUSPENDED' ? (
               <Button
                 size="sm"

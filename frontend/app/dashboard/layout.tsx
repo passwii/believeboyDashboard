@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* 服务端通知全局状态（未读数 30s 轮询）：通知入口已迁入 sidebar 底部 profile 面板，
           未读徽标需在面板未打开时也实时，故 Provider 常驻于此（BLF-603） */}
       <ServerNotificationsProvider>
-        <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))]">
+        <div className="flex h-screen w-full overflow-hidden bg-[hsl(var(--surface-low))] supports-[height:100dvh]:h-dvh">
           <SidebarShell />
 
           {/* Main content area — pushed right when sidebar panel is open via parent flex layout */}

@@ -94,7 +94,7 @@ export default function DigitalOfficePage() {
   if (isPresentation) {
     return (
       <div className="min-h-screen bg-background p-8 text-foreground">
-        <div className="mb-6 flex items-start justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">虚拟办公室</h1>
             <p className="mt-1 text-sm text-muted-foreground">{clock}</p>
@@ -105,7 +105,7 @@ export default function DigitalOfficePage() {
             </span>
             <button
               onClick={exitPresentation}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+              className="min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground sm:min-h-[auto]"
             >
               ESC 退出
             </button>
@@ -137,7 +137,7 @@ export default function DigitalOfficePage() {
   return (
     <div className="dashboard-page-shell space-y-6">
       <header className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="dashboard-display">虚拟办公室</h1>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">
@@ -148,7 +148,7 @@ export default function DigitalOfficePage() {
                 void document.documentElement.requestFullscreen?.()
                 window.location.href = '/dashboard/ai/digital-employees/office?mode=presentation'
               }}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              className="min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:min-h-[auto]"
             >
               🖥️ 投屏
             </button>

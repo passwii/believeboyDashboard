@@ -272,7 +272,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 sm:h-8 sm:w-8">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -323,7 +323,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
       </div>
 
       {/* Pagination + stats footer */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>共 {total} 条记录</span>
         {totalPages > 1 && (
           <div className="flex items-center gap-2">

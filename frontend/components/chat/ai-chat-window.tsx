@@ -33,6 +33,7 @@ import {
   type ServerConversation,
 } from '@/lib/api/ai-chat'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useMobile } from '@/lib/hooks/use-mobile'
 
 import type { TextSegment, ChatMessage, Phase, AIChatWindowProps, Conversation } from './types'
 
@@ -106,6 +107,7 @@ export function AIChatWindow({
   const [enableWebSearch, setEnableWebSearch] = useState(false)
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
+  const isMobile = useMobile()
 
   const rootRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -774,7 +776,7 @@ export function AIChatWindow({
       <div
         className="absolute inset-0"
         style={{
-          paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+          paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
           transition: 'padding-left 0.35s var(--motion-ease-standard)',
         }}
       >
@@ -787,7 +789,7 @@ export function AIChatWindow({
         <button
           type="button"
           onClick={() => setShowSidebar(true)}
-          className="absolute top-4 left-4 z-30 flex items-center justify-center size-9 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white/[0.06] border border-white/[0.08] text-[#8a8a8f] hover:text-white hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
           aria-label="打开对话历史"
         >
           <PanelLeft className="size-4" />
@@ -884,7 +886,7 @@ export function AIChatWindow({
             isChat ? 'bb-chat-enter' : 'invisible'
           }`}
           style={{
-            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+            paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
             paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
             transition: 'padding-left 0.35s var(--motion-ease-standard)',
@@ -954,7 +956,7 @@ export function AIChatWindow({
         <div
           className="absolute left-0 right-0 w-full px-3 sm:px-4 pointer-events-none"
           style={{
-            paddingLeft: showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
+            paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             ...(isLanding || isTransitioning
               ? { top: '58%', transform: 'translateY(-50%)' }
               : {

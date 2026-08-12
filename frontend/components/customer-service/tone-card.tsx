@@ -133,7 +133,7 @@ export function ToneCard({
 
   return (
     <Card className="shrink-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <div>
           <CardTitle className="text-sm">{tone.label}</CardTitle>
           <p className="text-xs text-muted-foreground">{tone.description}</p>

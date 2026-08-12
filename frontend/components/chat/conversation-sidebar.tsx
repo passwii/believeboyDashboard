@@ -112,9 +112,8 @@ export function ConversationSidebar({
 
   return (
     <div
-      className="absolute inset-y-0 left-0 z-40 flex flex-col border-r border-white/[0.08] pointer-events-auto"
+      className="absolute inset-y-0 left-0 z-40 flex w-[min(86vw,280px)] flex-col border-r border-white/[0.08] pointer-events-auto sm:w-[280px]"
       style={{
-        width: 'var(--sidebar-width, 280px)',
         background: 'linear-gradient(180deg, #141416 0%, #111113 100%)',
         backdropFilter: 'blur(16px)',
       }}
@@ -305,7 +304,7 @@ export function ConversationSidebar({
                   )}
                 </div>
                 {hoveredId === conv.id && (
-                  <div className="pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-md bg-gradient-to-l from-[#141416] via-[#141416] to-transparent pl-6 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div className="pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-md bg-gradient-to-l from-[#141416] via-[#141416] to-transparent pl-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150">
                     <button
                       type="button"
                       onClick={(e) => {
