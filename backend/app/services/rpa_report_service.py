@@ -52,16 +52,6 @@ REPORT_TYPES = [
     "sales_report",                 # 销售
     "payment_report",               # 付款
     "return_report",                # 退货
-    # 预留（未来报表类型）
-    "storage_report",         # 仓储
-    "returns_detail_report",  # 退货明细
-    "fba_inventory_report",   # FBA库存
-    "reimbursement_report",   # 赔偿
-    "tax_invoice_report",     # 税务发票
-    "health_report",          # 健康报告
-    "advertising_reports",    # 广告报表
-    "brand_report",           # 品牌报表
-    "vendor_report",          # 供应商报表
 ]
 
 

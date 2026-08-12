@@ -19,8 +19,8 @@ confirm、不落审计。路由挂 ``require_business_scope("report_upload_statu
 
 summary 派生口径（与前端矩阵一致，BLF-482 / BLF-484）：
 * ``uploaded_report_count`` / ``missing_report_types`` 只统计活跃 15 类
-  （5 基础 + 10 广告）；分类账 2 类与预留 9 类不纳入缺失统计，但
-  ``statuses`` 原样返回保持与内部端点一致。
+  （5 基础 + 10 广告）；分类账 2 类不纳入缺失统计，但 ``statuses``
+  原样返回保持与内部端点一致。
 """
 
 from __future__ import annotations
@@ -73,8 +73,8 @@ _BASE_ACTIVE_REPORT_TYPES: tuple[str, ...] = (
 def _active_report_types() -> tuple[str, ...]:
     """活跃 15 类 = 5 基础 + 10 广告（``ad_*_report`` 派生自 REPORT_TYPES）。
 
-    分类账 2 类（inventory_ledger_summary / inventory_ledger_detail）与预留
-    9 类不在其中——缺失统计不纳入它们，但 statuses 原样返回（内部端点一致）。
+    分类账 2 类（inventory_ledger_summary / inventory_ledger_detail）不在
+    其中——缺失统计不纳入它们，但 statuses 原样返回（内部端点一致）。
     """
     ad_types = tuple(
         rt
@@ -158,7 +158,7 @@ def _status_to_dict(st: ReportTypeStatus) -> dict:
 def _project_to_dict(item: ProjectReportStatus, active_types: tuple[str, ...]) -> dict:
     """单项目响应 + summary 派生（uploaded_report_count / missing_report_types）。
 
-    ``statuses`` 原样透出（与内部端点一致，含分类账/预留类型）；summary
+    ``statuses`` 原样透出（与内部端点一致，含分类账 2 类）；summary
     只按活跃 15 类统计。
     """
     status_by_type = {st.report_type: st for st in item.statuses}

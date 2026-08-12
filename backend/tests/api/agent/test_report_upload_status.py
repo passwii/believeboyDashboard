@@ -46,9 +46,12 @@ ACTIVE_AD_TYPES = [
 ]
 ACTIVE_TYPES = ACTIVE_BASE_TYPES + ACTIVE_AD_TYPES
 
-# 分类账 2 类与预留 9 类——statuses 里有、missing 统计不纳入。
+# 分类账 2 类——statuses 里有、missing 统计不纳入。
+# （预留 9 类已随 BLF-647 从前端 + 后端一并删除，故不再有对应列。）
 LEDGER_TYPES = ["inventory_ledger_summary", "inventory_ledger_detail"]
-RESERVED_TYPES = [
+
+# BLF-647 回归：这 9 个预留类型必须从 statuses 中消失（前端矩阵列已删）。
+DELETED_RESERVED_TYPES = [
     "storage_report",
     "returns_detail_report",
     "fba_inventory_report",
@@ -264,8 +267,8 @@ class TestSummaryDerivation:
         assert item["uploaded_report_count"] == 5
         assert item["missing_report_types"] == ACTIVE_AD_TYPES
 
-    def test_missing_excludes_ledger_and_reserved(self, client, report_env):
-        """分类账 2 类与预留 9 类不纳入缺失统计，但 statuses 原样返回。"""
+    def test_missing_excludes_ledger(self, client, report_env):
+        """分类账 2 类不纳入缺失统计；预留 9 类已删除（BLF-647），不再出现在 statuses。"""
         resp = _get(client, headers=report_env["headers"])
         assert resp.status_code == 200, resp.text
         data = resp.json()["data"]
@@ -274,13 +277,10 @@ class TestSummaryDerivation:
         item_b = next(
             i for i in data["items"] if i["project_id"] == report_env["project_b"]
         )
-        assert all(
-            rt not in item_b["missing_report_types"]
-            for rt in LEDGER_TYPES + RESERVED_TYPES
-        )
+        assert all(rt not in item_b["missing_report_types"] for rt in LEDGER_TYPES)
         status_types = {s["report_type"] for s in item_b["statuses"]}
         assert set(LEDGER_TYPES).issubset(status_types)
-        assert set(RESERVED_TYPES).issubset(status_types)
+        assert set(DELETED_RESERVED_TYPES).isdisjoint(status_types)
 
     def test_statuses_shape_and_upload_log_fields(self, client, report_env):
         """statuses 字段与内部端点一致：report_type/has_data/is_uploaded/latest_date/
