@@ -193,7 +193,7 @@ function BackupRecordDetail({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-muted-foreground">R2 Key</p>
           <p className="font-mono text-xs break-all">{record.r2_key || '-'}</p>

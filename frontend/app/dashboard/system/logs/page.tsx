@@ -696,7 +696,7 @@ export default function SystemOperationLogsPage() {
       onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
       className="w-full"
     >
-      <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+      <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
         <TabsTrigger value="audit" className="min-h-10 px-5 py-2 text-sm">
           操作审计日志
         </TabsTrigger>
@@ -893,7 +893,7 @@ export default function SystemOperationLogsPage() {
           >
             <DialogContent
               aria-describedby="log-detail-dialog-description"
-              className="max-h-[85vh] max-w-4xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-4xl"
             >
               <span id="log-detail-dialog-description" className="sr-only">
                 日志详情查看
@@ -1080,7 +1080,7 @@ export default function SystemOperationLogsPage() {
           >
             <DialogContent
               aria-describedby="login-log-detail-dialog-description"
-              className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
             >
               <span id="login-log-detail-dialog-description" className="sr-only">
                 登录日志详情查看

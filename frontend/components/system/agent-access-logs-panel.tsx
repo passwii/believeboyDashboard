@@ -449,7 +449,7 @@ export function AgentAccessLogsPanel() {
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
         <DialogContent
           aria-describedby="agent-log-detail-dialog-description"
-          className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
         >
           <span id="agent-log-detail-dialog-description" className="sr-only">
             Agent 访问日志详情查看

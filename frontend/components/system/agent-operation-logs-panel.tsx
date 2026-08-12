@@ -416,7 +416,7 @@ export function AgentOperationLogsPanel() {
       <Dialog open={Boolean(activeRow)} onOpenChange={(open) => (open ? null : setActiveRow(null))}>
         <DialogContent
           aria-describedby="agent-operation-detail-dialog-description"
-          className="max-h-[85vh] max-w-3xl overflow-y-auto dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+          className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-lg dark:border-border/80 dark:bg-[hsl(var(--surface-panel))] sm:max-w-3xl"
         >
           <span id="agent-operation-detail-dialog-description" className="sr-only">
             Agent 写操作明细查看
@@ -481,7 +481,7 @@ export function AgentOperationLogsPanel() {
                     无可展示的字段级变更（before/after 无差异或均为空）
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-md border border-border/70 dark:border-border/80">
+                  <div className="overflow-x-auto rounded-md border border-border/70 dark:border-border/80">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground dark:bg-[hsl(var(--surface-soft))]">

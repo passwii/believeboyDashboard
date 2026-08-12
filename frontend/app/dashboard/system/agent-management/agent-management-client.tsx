@@ -447,7 +447,7 @@ export function AgentManagementClient() {
       />
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+        <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
           <TabsTrigger value="overview" className="min-h-10 px-5 py-2 text-sm">
             <LayoutGrid className="mr-1.5 h-4 w-4" />
             业务域概览
@@ -685,7 +685,7 @@ export function AgentManagementClient() {
         {/* ── Tab 4 访问日志（读访问 / 写操作子 Tab） ─────────────── */}
         <TabsContent value="logs" className="mt-6">
           <Tabs defaultValue="read" className="w-full">
-            <TabsList className="w-full justify-start rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
+            <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-muted/25 p-1 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))] sm:inline-flex sm:w-auto sm:justify-start">
               <TabsTrigger value="read" className="min-h-9 px-4 py-2 text-sm">
                 读访问
               </TabsTrigger>
