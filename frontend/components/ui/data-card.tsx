@@ -143,14 +143,20 @@ interface DataTableCardStatBarProps extends React.HTMLAttributes<HTMLDivElement>
 function DataTableCardStatBar({ items, className, ...props }: DataTableCardStatBarProps) {
   if (items.length === 0) return null
   return (
-    <div className={cn('flex divide-x divide-border/60', className)} {...props}>
+    <div
+      className={cn(
+        'grid grid-cols-2 gap-2 px-4 sm:flex sm:gap-0 sm:px-0 sm:divide-x sm:divide-border/60',
+        className
+      )}
+      {...props}
+    >
       {items.map((item, i) => (
         <div
           key={i}
           className={cn(
-            'flex flex-1 flex-col items-center justify-center py-2.5',
-            i === 0 && 'pl-4',
-            i === items.length - 1 && 'pr-4'
+            'flex flex-col items-center justify-center rounded-lg border border-border/70 px-2 py-2.5 sm:flex-1 sm:rounded-none sm:border-0 sm:px-0',
+            i === 0 && 'sm:pl-4',
+            i === items.length - 1 && 'sm:pr-4'
           )}
         >
           <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">

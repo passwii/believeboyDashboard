@@ -979,12 +979,12 @@ export default function SkuInfoPage() {
         >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsMotionGroup id="sku-cost-tabs">
-            <TabsList className="inline-flex h-auto w-full max-w-[600px] rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none">
+            <TabsList className="grid h-auto w-full max-w-[600px] grid-cols-2 rounded-xl border border-border/70 bg-[hsl(var(--surface-subtle))] p-1 shadow-none sm:inline-flex">
               <SlidingTabsTrigger
                 value="cost"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-4 py-2"
+                className="flex-1 gap-2 px-3 py-2 sm:px-4"
               >
                 <Package2 className="h-4 w-4" />
                 成本管理
@@ -993,7 +993,7 @@ export default function SkuInfoPage() {
                 value="dimension"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-4 py-2"
+                className="flex-1 gap-2 px-3 py-2 sm:px-4"
               >
                 <Ruler className="h-4 w-4" />
                 尺寸管理
@@ -1002,7 +1002,7 @@ export default function SkuInfoPage() {
                 value="factory"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-4 py-2"
+                className="flex-1 gap-2 px-3 py-2 sm:px-4"
               >
                 <FileText className="h-4 w-4" />
                 产品属性
@@ -1011,7 +1011,7 @@ export default function SkuInfoPage() {
                 value="label"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-4 py-2"
+                className="flex-1 gap-2 px-3 py-2 sm:px-4"
               >
                 <Tag className="h-4 w-4" />
                 产品标签
@@ -1020,7 +1020,7 @@ export default function SkuInfoPage() {
                 value="image"
                 activeValue={activeTab}
                 layoutId="sku-cost-tab-indicator"
-                className="flex-1 gap-2 px-4 py-2"
+                className="flex-1 gap-2 px-3 py-2 sm:px-4"
               >
                 <ImageIcon className="h-4 w-4" />
                 产品图片

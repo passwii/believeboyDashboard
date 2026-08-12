@@ -255,7 +255,7 @@ export default function InventoryLedgerPage() {
           actions={
             <>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue placeholder="选择项目" />
                 </SelectTrigger>
                 <SelectContent>
@@ -268,7 +268,7 @@ export default function InventoryLedgerPage() {
               </Select>
 
               <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-full md:w-[140px]">
                   <SelectValue placeholder="选择月份" />
                 </SelectTrigger>
                 <SelectContent>

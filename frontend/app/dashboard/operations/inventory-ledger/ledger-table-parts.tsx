@@ -29,7 +29,7 @@ export function PaginationBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
           disabled={page <= 0}
           onClick={() => onPageChange(page - 1)}
           aria-label="上一页"
@@ -39,7 +39,7 @@ export function PaginationBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
           disabled={page >= pageCount - 1}
           onClick={() => onPageChange(page + 1)}
           aria-label="下一页"
