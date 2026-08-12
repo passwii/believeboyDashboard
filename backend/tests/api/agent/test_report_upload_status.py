@@ -56,7 +56,7 @@ ACTIVE_AD_TYPES = [
 ]
 ACTIVE_TYPES = ACTIVE_BASE_TYPES + ACTIVE_AD_TYPES
 
-# 分类账 2 类——statuses 里有、missing 统计不纳入。
+# 分类账 2 类已随 BLF-649 从 REPORT_TYPES 移除——statuses 不再包含。
 # （预留 9 类已随 BLF-647 从前端 + 后端一并删除，故不再有对应列。）
 LEDGER_TYPES = ["inventory_ledger_summary", "inventory_ledger_detail"]
 
@@ -73,7 +73,7 @@ DELETED_RESERVED_TYPES = [
     "vendor_report",
 ]
 
-# BLF-648：预期中文名（对齐前端 RPA 状态矩阵短名；2 分类账用全名）。
+# BLF-648：预期中文名（对齐前端 RPA 状态矩阵短名；BLF-649 后已无分类账）。
 EXPECTED_REPORT_TYPE_NAMES = {
     "inventory_report": "库存",
     "business_report": "业务",
@@ -90,8 +90,6 @@ EXPECTED_REPORT_TYPE_NAMES = {
     "ad_target_report": "广告-搜索词投放",
     "ad_search_term_report": "广告-搜索词",
     "ad_time_trend_report": "广告-时间效果",
-    "inventory_ledger_summary": "库存分类账 · 汇总视图（Summary）",
-    "inventory_ledger_detail": "库存分类账 · 明细视图（Detail）",
 }
 
 
@@ -298,8 +296,8 @@ class TestSummaryDerivation:
         assert item["uploaded_report_count"] == 5
         assert item["missing_report_types"] == ACTIVE_AD_TYPES
 
-    def test_missing_excludes_ledger(self, client, report_env):
-        """分类账 2 类不纳入缺失统计；预留 9 类已删除（BLF-647），不再出现在 statuses。"""
+    def test_ledger_and_reserved_types_absent(self, client, report_env):
+        """分类账 2 类已随 BLF-649 从 statuses 移除；预留 9 类（BLF-647）也不存在。"""
         resp = _get(client, headers=report_env["headers"])
         assert resp.status_code == 200, resp.text
         data = resp.json()["data"]
@@ -308,9 +306,8 @@ class TestSummaryDerivation:
         item_b = next(
             i for i in data["items"] if i["project_id"] == report_env["project_b"]
         )
-        assert all(rt not in item_b["missing_report_types"] for rt in LEDGER_TYPES)
         status_types = {s["report_type"] for s in item_b["statuses"]}
-        assert set(LEDGER_TYPES).issubset(status_types)
+        assert set(LEDGER_TYPES).isdisjoint(status_types)
         assert set(DELETED_RESERVED_TYPES).isdisjoint(status_types)
 
     def test_statuses_shape_and_upload_log_fields(self, client, report_env):
