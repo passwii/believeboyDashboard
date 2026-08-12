@@ -653,7 +653,7 @@ export default function OrderInfoPage() {
         />
         <DataCardContent className="p-0 px-4 pb-4 pt-3">
           {/* 第一行：6 个等宽筛选项（店铺 / 订单类型 / 订单状态 / 国家 / 币种 / 订单号） */}
-          <div className="grid gap-3 md:grid-cols-12">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-12">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">店铺</label>
               <Select
@@ -741,9 +741,9 @@ export default function OrderInfoPage() {
             </div>
           </div>
 
-          {/* 第二行：日期区间 + SKU + ASIN（4/4/4） */}
-          <div className="mt-3 grid gap-3 md:grid-cols-12">
-            <div className="md:col-span-4">
+          {/* 第二行：日期区间 + SKU + ASIN（4/4/4；手机端日期全宽） */}
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-12">
+            <div className="col-span-2 md:col-span-4">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 日期区间
               </label>
@@ -755,6 +755,7 @@ export default function OrderInfoPage() {
                   setPage(1)
                 }}
                 placeholder="选择下单 PT 日期范围"
+                className="w-full"
               />
             </div>
 

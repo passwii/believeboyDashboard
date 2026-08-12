@@ -1180,7 +1180,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                   return (
                     <div key={idx} className="space-y-1">
                       <div
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        className={`flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
                           isExpanded
                             ? 'border-blue-300 bg-blue-50 dark:bg-blue-950/30'
                             : 'hover:bg-muted/30'
@@ -1211,7 +1211,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
                           )}
                         </span>
 
-                        <span className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
                           <span>利润: {renderCell(period.summary['利润'])}</span>
                           <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>

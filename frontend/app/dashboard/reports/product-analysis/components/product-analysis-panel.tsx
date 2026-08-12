@@ -794,7 +794,8 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
+          {/* 手机端：2 列网格（日期全宽）| 桌面端：横向排列 */}
+          <div className="grid grid-cols-2 gap-3 lg:flex lg:flex-row lg:items-end lg:gap-3">
             {/* Project */}
             <div className="space-y-1.5">
               <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -812,7 +813,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                 }}
                 disabled={projectsLoading || projects.length === 0}
               >
-                <SelectTrigger className="h-10 w-56 max-w-full">
+                <SelectTrigger className="h-10 w-full lg:w-56">
                   <SelectValue
                     placeholder={
                       projectsLoading
@@ -841,7 +842,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                 站点
               </label>
               <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-10 w-36 max-w-full">
+                <SelectTrigger className="h-10 w-full lg:w-36">
                   <SelectValue placeholder="请选择站点" />
                 </SelectTrigger>
                 <SelectContent>
@@ -855,7 +856,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
             </div>
 
             {/* Date Range */}
-            <div className="space-y-1.5">
+            <div className="col-span-2 space-y-1.5 lg:col-span-1 lg:min-w-0 lg:flex-1">
               <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 日期范围
               </label>
@@ -869,17 +870,18 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                   setRunState('idle')
                   setPeriods([])
                 }}
-                className="h-10"
+                className="h-10 w-full"
               />
             </div>
 
             {/* Buttons */}
-            <div className="flex items-center gap-2 pb-0.5">
+            <div className="col-span-2 flex items-center gap-2 lg:col-span-1 lg:pb-0.5">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => void handleCheck()}
                 disabled={!canCheck}
+                className="flex-1 lg:flex-none"
               >
                 {checkState === 'checking' ? (
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -898,6 +900,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                   !availability.has_minimum_data ||
                   runState === 'running'
                 }
+                className="flex-1 lg:flex-none"
               >
                 {runState === 'running' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
                 执行核算
@@ -989,7 +992,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                     <div key={idx} className="space-y-1">
                       {/* Summary row */}
                       <div
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        className={`flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
                           isExpanded
                             ? 'border-blue-300 bg-blue-50 dark:bg-blue-950/30'
                             : 'hover:bg-muted/30'
@@ -1038,7 +1041,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                           )}
                         </span>
 
-                        <span className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
                           <span>利润: {renderCell(period.summary['利润'])}</span>
                           <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>

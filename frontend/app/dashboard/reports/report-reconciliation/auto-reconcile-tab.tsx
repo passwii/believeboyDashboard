@@ -818,7 +818,7 @@ function DetailPanel({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>
             {formatMonth(report.report_month)} - {COUNTRY_LABELS[country] || country}
@@ -874,7 +874,7 @@ function DetailPanel({
             /* Show reconciliation result */
             <>
               {/* Summary Stats */}
-              <div className="mb-6 grid grid-cols-3 gap-4">
+              <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                 <div className="rounded-lg border bg-[hsl(var(--surface-subtle))] p-4">
                   <div className="text-sm text-muted-foreground">收入合计</div>
                   <div className="mt-1 font-mono text-xl font-semibold">
@@ -896,7 +896,7 @@ function DetailPanel({
               </div>
 
               {/* Match Rate Badge */}
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-wrap items-center gap-4">
                 <div
                   className={cn(
                     'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium',
@@ -923,7 +923,7 @@ function DetailPanel({
               </div>
 
               {/* Detail Table */}
-              <div className="rounded-lg border overflow-hidden">
+              <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b bg-[hsl(var(--surface-subtle))] text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -1351,20 +1351,28 @@ export default function AutoReconcileTab() {
       {/* Console / Filter Bar */}
       <DataCard className="overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
         <DataCardContent className="p-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="w-48">
+          {/* 手机端：2 列网格 | 桌面端：横向排列 */}
+          <div className="grid grid-cols-2 gap-3 md:flex md:flex-row md:items-end md:gap-4">
+            <div className="w-full md:w-48">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">项目</label>
               <ProjectSelect
                 value={projectId}
                 onChange={setProjectId}
                 placeholder="选择项目"
+                triggerClassName="w-full"
               />
             </div>
-            <div className="w-36">
+            <div className="w-full md:w-36">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">站点</label>
-              <CountrySelect value={country} onChange={setCountry} />
+              <CountrySelect value={country} onChange={setCountry} triggerClassName="w-full" />
             </div>
-            <Button variant="outline" size="sm" onClick={fetchAvailableReports} disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAvailableReports}
+              disabled={loading}
+              className="h-9 md:self-end"
+            >
               <RefreshCw className={cn('mr-1 h-4 w-4', loading && 'animate-spin')} />
               刷新
             </Button>
