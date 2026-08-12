@@ -60,4 +60,5 @@ jobs:
 
       - name: Playwright (motion-system + mobile-adaptation specs)
         # @mobile-blf611：BLF-611 广告域手机端回归（自包含，无需真实后端/登录态）
-        run: pnpm exec playwright test --grep "@motion|motion system|reduced-motion|reduced-transparency|motion-budget|@mobile-blf611"
+        # @mobile-blf614：BLF-614 运营域 B 手机端回归（自包含，同上）
+        run: pnpm exec playwright test --grep "@motion|motion system|reduced-motion|reduced-transparency|motion-budget|@mobile-blf611|@mobile-blf614"

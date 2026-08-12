@@ -376,12 +376,12 @@ export default function InspectionHistory({ periodId }: InspectionHistoryProps) 
   return (
     <div className="space-y-4">
       {/* Period selector */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium text-muted-foreground">选择周期</label>
         <select
           value={selectedPeriodId}
           onChange={(e) => setSelectedPeriodId(Number(e.target.value))}
-          className="h-9 rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 text-sm"
+          className="h-9 min-h-[44px] flex-1 rounded-md border border-border/70 bg-[hsl(var(--surface-soft))] px-3 text-sm sm:min-h-0 sm:flex-none"
         >
           {periods.map((period) => (
             <option key={period.id} value={period.id}>

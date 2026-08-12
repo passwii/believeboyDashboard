@@ -43,7 +43,7 @@ interface KPICardProps {
 
 function KPICard({ label, value, icon, trend, description }: KPICardProps) {
   return (
-    <div className="dashboard-surface flex flex-col gap-2 rounded-xl p-4">
+    <div className="dashboard-surface flex min-w-0 flex-col gap-2 rounded-xl p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
@@ -53,7 +53,7 @@ function KPICard({ label, value, icon, trend, description }: KPICardProps) {
         </div>
       </div>
       <div className="flex flex-col">
-        <span className="text-2xl font-bold tabular-nums">{value}</span>
+        <span className="text-xl font-bold tabular-nums sm:text-2xl">{value}</span>
         {trend && <span className="text-xs text-emerald-600 dark:text-emerald-400">{trend}</span>}
         {description && <span className="text-xs text-muted-foreground">{description}</span>}
       </div>
@@ -63,7 +63,7 @@ function KPICard({ label, value, icon, trend, description }: KPICardProps) {
 
 export function PortfolioKPICards({ data, country }: PortfolioKPICardsProps) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
       <KPICard
         label="总销售额"
         value={formatMoney(data.total_sales_amount, country)}

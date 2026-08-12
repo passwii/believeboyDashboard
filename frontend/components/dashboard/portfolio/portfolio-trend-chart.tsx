@@ -17,6 +17,7 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useMobile } from '@/lib/hooks/use-mobile'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
 interface PortfolioTrendChartProps {
@@ -60,6 +61,7 @@ function formatMetricValue(value: number, metric: MetricKey, country: string): s
 
 export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartProps) {
   const [metric, setMetric] = useState<MetricKey>('sales_amount')
+  const isMobile = useMobile()
 
   // 图例/tooltip 的 label 解析：ChartLegendContent 走 item.value（= name），
   // ChartTooltipContent 走 item.name —— 都以项目名为 config key。
@@ -101,11 +103,11 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
   }
 
   return (
-    <div className="dashboard-surface rounded-xl p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="dashboard-surface rounded-xl p-3 sm:p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium">多项目趋势对比</h3>
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-          <SelectTrigger className="w-32">
+          <SelectTrigger className="h-9 w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -117,14 +119,24 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
           </SelectContent>
         </Select>
       </div>
-      <ChartContainer config={chartConfig} className="h-[350px] w-full">
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+      <ChartContainer config={chartConfig} className="h-[300px] w-full sm:h-[350px]">
+        <LineChart
+          data={chartData}
+          margin={
+            isMobile
+              ? { top: 5, right: 8, left: -28, bottom: 5 }
+              : { top: 5, right: 20, left: 10, bottom: 5 }
+          }
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
-          <YAxis
-            tick={{ fontSize: 11 }}
-            tickFormatter={(v) => formatMetricValue(v, metric, country)}
-          />
+          {/* 手机端隐藏 Y 轴消除留白（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
+          {!isMobile && (
+            <YAxis
+              tick={{ fontSize: 11 }}
+              tickFormatter={(v) => formatMetricValue(v, metric, country)}
+            />
+          )}
           <ChartTooltip
             content={
               <ChartTooltipContent
