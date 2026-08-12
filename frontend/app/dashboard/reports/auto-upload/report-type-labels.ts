@@ -28,26 +28,17 @@ export function getUploadReportTypeLabel(type: UploadQueueItem['reportType']): s
 }
 
 /** RPA 状态矩阵列定义（key 与后端 status 的 report_type 对齐）。
- * 注意：库存分类账（inventory_ledger_summary / inventory_ledger_detail）不在此页面展示（BLF-482）。 */
-export const REPORT_TYPES: Array<{ key: string; label: string; active: boolean }> = [
-  { key: 'inventory_report', label: '库存', active: true },
-  { key: 'business_report', label: '业务', active: true },
-  { key: 'sales_report', label: '销售', active: true },
-  { key: 'payment_report', label: '付款', active: true },
-  { key: 'return_report', label: '退货', active: true },
+ * 注意：库存分类账（inventory_ledger_summary / inventory_ledger_detail）不在此页面展示（BLF-482）。
+ * 仅保留已激活报表类型；预留/未激活类型已删除（BLF-647）。 */
+export const REPORT_TYPES: Array<{ key: string; label: string }> = [
+  { key: 'inventory_report', label: '库存' },
+  { key: 'business_report', label: '业务' },
+  { key: 'sales_report', label: '销售' },
+  { key: 'payment_report', label: '付款' },
+  { key: 'return_report', label: '退货' },
   // 广告相关列统一加「广告-」前缀（BLF-482），与销售列区分
   ...AD_REPORT_TYPES.map((item) => ({
     key: item.type,
     label: `广告-${item.short}`,
-    active: true,
   })),
-  { key: 'storage_report', label: '仓储', active: false },
-  { key: 'returns_detail_report', label: '退货明细', active: false },
-  { key: 'fba_inventory_report', label: 'FBA库存', active: false },
-  { key: 'reimbursement_report', label: '赔偿', active: false },
-  { key: 'tax_invoice_report', label: '税务发票', active: false },
-  { key: 'health_report', label: '健康报告', active: false },
-  { key: 'advertising_reports', label: '广告报表', active: false },
-  { key: 'brand_report', label: '品牌报表', active: false },
-  { key: 'vendor_report', label: '供应商', active: false },
 ]

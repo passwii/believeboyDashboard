@@ -131,6 +131,23 @@ describe('REPORT_TYPES（RPA 状态矩阵）', () => {
   it('不把旧版 inventory_ledger 作为可展示列', () => {
     expect(REPORT_TYPES.some((rt) => rt.key === 'inventory_ledger')).toBe(false)
   })
+
+  it('不含预留/未激活报表类型（BLF-647 已删除）', () => {
+    const keys = REPORT_TYPES.map((rt) => rt.key)
+    for (const reserved of [
+      'storage_report',
+      'returns_detail_report',
+      'fba_inventory_report',
+      'reimbursement_report',
+      'tax_invoice_report',
+      'health_report',
+      'advertising_reports',
+      'brand_report',
+      'vendor_report',
+    ]) {
+      expect(keys).not.toContain(reserved)
+    }
+  })
 })
 
 describe('DATE_REQUIRED_REPORT_TYPES / isDateRequired', () => {
