@@ -2856,7 +2856,7 @@ export default function PricingCalculationPage() {
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 rounded-full text-muted-foreground opacity-70 transition hover:bg-background/80 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400"
+                                className="h-9 w-9 rounded-full text-muted-foreground opacity-70 transition hover:bg-background/80 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400"
                                 disabled={deletingRunId === run.id}
                                 onClick={() => void handleDeleteRun(run.id)}
                                 title="删除此测算"
