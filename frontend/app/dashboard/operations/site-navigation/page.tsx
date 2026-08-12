@@ -85,7 +85,7 @@ type PlatformGridProps = {
 
 function PlatformGrid({ items }: PlatformGridProps) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
       {items.map((platform, index) => (
         <a
           key={platform.name}
@@ -117,7 +117,7 @@ function PlatformGrid({ items }: PlatformGridProps) {
               {platform.category}
             </p>
 
-            <div className="mt-auto flex items-center justify-between border-t border-border/70 pt-3 dark:border-border/80">
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3 dark:border-border/80">
               <span className="inline-flex items-center rounded-full border border-border/70 px-2.5 py-1 text-xs text-foreground/85 dark:border-border/80 dark:bg-[hsl(var(--surface-soft))]">
                 {platform.category}
               </span>
@@ -162,7 +162,7 @@ export default function SiteNavigationPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
           <h2 className="text-lg font-semibold tracking-tight md:text-xl">平台</h2>
           <p className="text-xs text-muted-foreground md:text-sm">核心运营入口</p>
         </div>
@@ -170,7 +170,7 @@ export default function SiteNavigationPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
           <h2 className="text-lg font-semibold tracking-tight md:text-xl">资讯论坛</h2>
           <p className="text-xs text-muted-foreground md:text-sm">行业信息与工具导航</p>
         </div>
