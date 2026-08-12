@@ -85,7 +85,8 @@ export default function CrmAuditPage() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       {/* 页头 */}
-      <div className="flex items-center justify-between">
+      {/* 总则 5：页头手机端 flex-wrap */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <History className="h-5 w-5 text-muted-foreground" />
@@ -116,9 +117,9 @@ export default function CrmAuditPage() {
         </div>
       ) : (
         <>
-          {/* 筛选 + 总数 */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
+          {/* 筛选 + 总数（规则 2/9：手机 2 列网格内联标签，md+ 横向排列） */}
+          <div className="grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
+            <div className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1.5">
               <span className="text-xs text-muted-foreground">对象</span>
               <Select
                 value={entityType}
@@ -127,7 +128,7 @@ export default function CrmAuditPage() {
                   setPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 w-28">
+                <SelectTrigger className="h-9 w-full md:h-8 md:w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -140,7 +141,7 @@ export default function CrmAuditPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1.5">
               <span className="text-xs text-muted-foreground">操作</span>
               <Select
                 value={action}
@@ -149,7 +150,7 @@ export default function CrmAuditPage() {
                   setPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 w-32">
+                <SelectTrigger className="h-9 w-full md:h-8 md:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -163,7 +164,9 @@ export default function CrmAuditPage() {
               </Select>
             </div>
             {!loading && (
-              <span className="ml-auto text-xs text-muted-foreground">共 {total} 条记录</span>
+              <span className="col-span-2 text-xs text-muted-foreground md:ml-auto md:col-span-1">
+                共 {total} 条记录
+              </span>
             )}
           </div>
 
@@ -230,6 +233,7 @@ export default function CrmAuditPage() {
             <Button
               variant="outline"
               size="sm"
+              className="max-md:min-h-[44px]"
               disabled={page <= 1 || loading}
               onClick={() => setPage((p) => p - 1)}
             >
@@ -242,6 +246,7 @@ export default function CrmAuditPage() {
             <Button
               variant="outline"
               size="sm"
+              className="max-md:min-h-[44px]"
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => p + 1)}
             >

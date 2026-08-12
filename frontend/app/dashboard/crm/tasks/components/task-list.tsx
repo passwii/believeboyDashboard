@@ -229,8 +229,9 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
 
   return (
     <div className="space-y-3">
-      {/* 表头筛选行（type/status/priority/owner/关联客户，复用 P5 筛选语义） */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 shadow-sm">
+      {/* 表头筛选行（type/status/priority/owner/关联客户，复用 P5 筛选语义）
+          规则 2/8：手机 2 列网格内联标签，md+ 横向 flex */}
+      <div className="grid grid-cols-2 items-end gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 shadow-sm md:flex md:flex-wrap md:items-center md:gap-3">
         <FilterSelect
           label="类型"
           value={filters.type}
@@ -261,8 +262,8 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
           onChange={setFilter('customerId')}
           options={customerOptions}
         />
-        <div className="ml-auto">
-          <Button size="sm" onClick={() => setCreating(true)} data-testid="task-list-create">
+        <div className="col-span-2 md:ml-auto">
+          <Button size="sm" className="w-full md:w-auto" onClick={() => setCreating(true)} data-testid="task-list-create">
             <Plus className="mr-1 h-4 w-4" /> 新建任务
           </Button>
         </div>
@@ -404,13 +405,13 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>
 }) {
   return (
-    <label className="flex items-center gap-1.5 text-sm">
-      <span className="text-muted-foreground">{label}</span>
+    <label className="flex flex-col gap-1.5 text-sm md:flex-row md:items-center md:gap-1.5">
+      <span className="text-xs text-muted-foreground md:text-sm">{label}</span>
       <select
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm md:h-8 md:w-auto"
       >
         <option value="">全部</option>
         {options.map((o) => (

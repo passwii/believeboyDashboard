@@ -99,7 +99,7 @@ export function CrmLeadForm({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <FormField
             control={form.control}
             name="company"
@@ -128,7 +128,7 @@ export function CrmLeadForm({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <FormField
             control={form.control}
             name="email"
@@ -182,7 +182,7 @@ export function CrmLeadForm({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <FormField
             control={form.control}
             name="status"
@@ -247,7 +247,7 @@ export function CrmLeadForm({
           )}
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <FormField
             control={form.control}
             name="expectedAmount"

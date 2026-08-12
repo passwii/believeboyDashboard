@@ -26,7 +26,8 @@ export function CrmSearchInput({ value, onChange, placeholder = '搜索…' }: C
   }, [value])
 
   return (
-    <div className="relative w-56">
+    // 移动规则 2：手机端搜索框全宽（网格 col-span-2），桌面 md+ 恢复 224px 固定宽
+    <div className="relative w-full md:w-56">
       <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={text}

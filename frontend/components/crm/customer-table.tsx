@@ -198,11 +198,11 @@ export function CrmCustomerTable() {
 
   return (
     <>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           客户列表 · 勾选后可批量释放到公海
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {selectedIds.length > 0 && (
             <Button
               size="sm"
