@@ -60,7 +60,6 @@ from app.api.v1.endpoints.notification_settings import (
     router as notification_settings_router,
 )
 from app.api.v1.endpoints.platform_revenues import router as platform_revenues_router
-from app.api.v1.endpoints.backups import router as backups_router
 from app.api.v1.endpoints.inspections import router as inspections_router
 from app.api.v1.endpoints.page_render import router as page_render_router
 from app.api.v1.endpoints.external_retired import external_retired_router
@@ -117,7 +116,6 @@ api_router.include_router(alerts_router)
 api_router.include_router(scheduled_reports_router)
 api_router.include_router(notification_settings_router)
 api_router.include_router(platform_revenues_router)
-api_router.include_router(backups_router)
 api_router.include_router(inspections_router)
 api_router.include_router(page_render_router)
 # BLF-459 V3：/external/* 已彻底下线（老消费者全部切到 /agent/*）。

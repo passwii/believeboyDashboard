@@ -93,7 +93,6 @@ const ROUTES: string[] = [
   '/dashboard/system/account-management',
   '/dashboard/system/agent-management',
   '/dashboard/system/alerts',
-  '/dashboard/system/backup-management',
   '/dashboard/system/changelog',
   '/dashboard/system/data-management',
   '/dashboard/system/digital-display',

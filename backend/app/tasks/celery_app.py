@@ -60,7 +60,6 @@ def _build_celery_app() -> Celery:
             "app.celery_tasks.operation_audit_cleanup",
             # BEL-379：每日 03:15 CST 刷新 ai_chat token 用量聚合快照
             "app.celery_tasks.ai_chat_token_usage_refresh",
-            "app.celery_tasks.backup",
         ],
     )
 
@@ -107,9 +106,6 @@ def _build_celery_app() -> Celery:
             "operation_audit_cleanup": {"queue": "default"},
             # BEL-379：ai_chat token 用量每日聚合快照：default 队列（每日一次短任务）
             "ai_chat_token_usage.refresh_daily": {"queue": "default"},
-            # 数据库备份：走 default 队列（由主 worker 顺手跑，不单独起 worker）。
-            # 备份每日 03:00 离峰触发，与报告任务不冲突；run_backup_task 内有
-            # 行锁 + 乐观锁幂等护栏，broker 重投不会重复备份。
         },
         # 虚拟办公室：每 3s 推进所有员工虚拟状态
         beat_schedule={
@@ -167,19 +163,6 @@ def _build_celery_app() -> Celery:
             "ai-chat-token-usage-refresh-daily": {
                 "task": "ai_chat_token_usage.refresh_daily",
                 "schedule": crontab(hour=3, minute=15),
-            },
-            # 数据库备份调度（§3.6 / §3.7）：
-            # - daily-pg-full-backup: 每天 backup_daily_schedule_hour:00（默认 03:00）全量备份
-            # - r2-backup-cleanup: 每天 04:30 跑 R2 保留清理（排在自动备份之后）
-            # beat 必须单实例（systemd 约束），run_backup_task 的乐观锁兜底多实例误启。
-            "daily-pg-full-backup": {
-                "task": "app.celery_tasks.backup.schedule_daily_backup_task",
-                "schedule": crontab(hour=settings.backup_daily_schedule_hour, minute=0),
-                "kwargs": {"backup_type": "full", "triggered_by": "auto"},
-            },
-            "r2-backup-cleanup": {
-                "task": "app.celery_tasks.backup.cleanup_r2_task",
-                "schedule": crontab(hour=4, minute=30),
             },
         },
         # All timestamps in messages/results use project timezone.

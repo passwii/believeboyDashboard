@@ -359,17 +359,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * agent 镜像: /external/projects
-         * @description ``/projects`` 列表专用：复用 external handler + 按 key 的 project_scope 过滤。
+         * Get Agent Projects
+         * @description ``/agent/projects`` 列表：项目名 + id。
          *
-         *     受 scope 限制的 agent key（如 ``project_scope="1,2"``）不应看到全部项目名；
-         *     ``*`` 全放行时行为与 external 完全一致。无 project_id → 不挂 project_scope。
-         *
-         *     ``name``（BLF-461）：可选的项目名精确过滤，作为 Agent「名字 → ID」
-         *     的确定性解析步骤——``project_name`` 有唯一约束，命中 0/1 条；
-         *     未命中返回空列表，Agent 据此判断名字写错或项目不存在。
+         *     复用 ``projects_query.list_projects``（与删除前的 external handler 同一
+         *     服务函数）；``?name=`` 精确过滤；受 scope 限制的 key 按 project_scope
+         *     白名单过滤 items。
          */
-        get: operations["agent_get_external_projects_api_v1_agent_projects_get"];
+        get: operations["get_agent_projects_api_v1_agent_projects_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -385,8 +382,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-budget-raw */
-        get: operations["agent_get_external_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get"];
+        /**
+         * Get Agent Ad Budget Raw Alias
+         * @description 单数 alias：``ad-budget-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -402,8 +402,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-budgets */
-        get: operations["agent_get_external_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get"];
+        /**
+         * Get Agent Ad Budget Aggregate
+         * @description ad-budgets 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -419,8 +425,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-budgets-raw */
-        get: operations["agent_get_external_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get"];
+        /**
+         * Get Agent Ad Budget Raw
+         * @description ad-budgets-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -436,8 +445,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-campaign-raw */
-        get: operations["agent_get_external_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get"];
+        /**
+         * Get Agent Ad Campaign Raw Alias
+         * @description 单数 alias：``ad-campaign-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -453,8 +465,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-campaigns */
-        get: operations["agent_get_external_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get"];
+        /**
+         * Get Agent Ad Campaign Aggregate
+         * @description ad-campaigns 聚合：按 campaign_name 汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -470,8 +488,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-campaigns-raw */
-        get: operations["agent_get_external_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get"];
+        /**
+         * Get Agent Ad Campaign Raw
+         * @description ad-campaigns-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -487,8 +508,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-invalid-traffic */
-        get: operations["agent_get_external_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get"];
+        /**
+         * Get Agent Ad Invalid Traffic Aggregate
+         * @description ad-invalid-traffic 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -504,8 +531,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-invalid-traffic-raw */
-        get: operations["agent_get_external_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get"];
+        /**
+         * Get Agent Ad Invalid Traffic Raw
+         * @description ad-invalid-traffic-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -521,8 +551,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-placement-raw */
-        get: operations["agent_get_external_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get"];
+        /**
+         * Get Agent Ad Placement Raw Alias
+         * @description 单数 alias：``ad-placement-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -538,8 +571,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-placements */
-        get: operations["agent_get_external_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get"];
+        /**
+         * Get Agent Ad Placement Aggregate
+         * @description ad-placements 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -555,8 +594,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-placements-raw */
-        get: operations["agent_get_external_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get"];
+        /**
+         * Get Agent Ad Placement Raw
+         * @description ad-placements-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -572,8 +614,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-promoted-product-raw */
-        get: operations["agent_get_external_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get"];
+        /**
+         * Get Agent Ad Promoted Product Raw Alias
+         * @description 单数 alias：``ad-promoted-product-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -589,8 +634,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-promoted-products */
-        get: operations["agent_get_external_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get"];
+        /**
+         * Get Agent Ad Promoted Product Aggregate
+         * @description ad-promoted-products 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -606,8 +657,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-promoted-products-raw */
-        get: operations["agent_get_external_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get"];
+        /**
+         * Get Agent Ad Promoted Product Raw
+         * @description ad-promoted-products-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -623,8 +677,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-purchased-product-raw */
-        get: operations["agent_get_external_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get"];
+        /**
+         * Get Agent Ad Purchased Product Raw Alias
+         * @description 单数 alias：``ad-purchased-product-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -640,8 +697,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-purchased-products */
-        get: operations["agent_get_external_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get"];
+        /**
+         * Get Agent Ad Purchased Product Aggregate
+         * @description ad-purchased-products 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -657,8 +720,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-purchased-products-raw */
-        get: operations["agent_get_external_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get"];
+        /**
+         * Get Agent Ad Purchased Product Raw
+         * @description ad-purchased-products-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -674,8 +740,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-term-raw */
-        get: operations["agent_get_external_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get"];
+        /**
+         * Get Agent Ad Search Term Raw Alias
+         * @description 单数 alias：``ad-search-term-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -691,8 +760,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-term-share-raw */
-        get: operations["agent_get_external_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get"];
+        /**
+         * Get Agent Ad Search Term Share Raw Alias
+         * @description 单数 alias：``ad-search-term-share-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -708,8 +780,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-term-shares */
-        get: operations["agent_get_external_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get"];
+        /**
+         * Get Agent Ad Search Term Share Aggregate
+         * @description ad-search-term-shares 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -725,8 +803,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-term-shares-raw */
-        get: operations["agent_get_external_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get"];
+        /**
+         * Get Agent Ad Search Term Share Raw
+         * @description ad-search-term-shares-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -742,8 +823,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-terms */
-        get: operations["agent_get_external_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get"];
+        /**
+         * Get Agent Ad Search Term Aggregate
+         * @description ad-search-terms 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -759,8 +846,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-search-terms-raw */
-        get: operations["agent_get_external_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get"];
+        /**
+         * Get Agent Ad Search Term Raw
+         * @description ad-search-terms-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -776,8 +866,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-target-raw */
-        get: operations["agent_get_external_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get"];
+        /**
+         * Get Agent Ad Target Raw Alias
+         * @description 单数 alias：``ad-target-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -793,8 +886,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-targets */
-        get: operations["agent_get_external_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get"];
+        /**
+         * Get Agent Ad Target Aggregate
+         * @description ad-targets 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -810,8 +909,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-targets-raw */
-        get: operations["agent_get_external_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get"];
+        /**
+         * Get Agent Ad Target Raw
+         * @description ad-targets-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -827,8 +929,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-time-trend-raw */
-        get: operations["agent_get_external_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get"];
+        /**
+         * Get Agent Ad Time Trend Raw Alias
+         * @description 单数 alias：``ad-time-trend-raw``（镜像时代路径面，保留不漂移）。
+         */
+        get: operations["get_agent_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -844,8 +949,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-time-trends */
-        get: operations["agent_get_external_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get"];
+        /**
+         * Get Agent Ad Time Trend Aggregate
+         * @description ad-time-trends 聚合：按业务键汇总 spend / sales / orders 等。
+         *
+         *     查询契约与删除前的 external handler 完全一致（period/country 参数语义、
+         *     白名单 order 列、AggregateResponse 形状）。
+         */
+        get: operations["get_agent_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -861,8 +972,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/ad-time-trends-raw */
-        get: operations["agent_get_external_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get"];
+        /**
+         * Get Agent Ad Time Trend Raw
+         * @description ad-time-trends-raw：深诊断原始行（与删除前的 external handler 同契约）。
+         */
+        get: operations["get_agent_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -902,8 +1016,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/batches */
-        get: operations["agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get"];
+        /**
+         * Get Agent Inventory Ledger Batches
+         * @description CSV 导入批次（溯源）：文件标识 + 行数 + 状态 + 跨表一致性结果。
+         */
+        get: operations["get_agent_inventory_ledger_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -919,8 +1036,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/consistency */
-        get: operations["agent_ext_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get"];
+        /**
+         * Get Agent Inventory Ledger Consistency
+         * @description 跨表一致性校验（Detail vs Summary 真值表）：OK / MISMATCH / PENDING。
+         */
+        get: operations["get_agent_inventory_ledger_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -936,8 +1056,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/detail */
-        get: operations["agent_ext_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get"];
+        /**
+         * Get Agent Inventory Ledger Detail
+         * @description 事件级明细行（Detailed 视图）+ msku/fulfillment_center/event_type 过滤。
+         */
+        get: operations["get_agent_inventory_ledger_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -953,8 +1076,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/events */
-        get: operations["agent_ext_events_api_v1_agent_projects__project_id__inventory_ledger_events_get"];
+        /**
+         * Get Agent Inventory Ledger Events
+         * @description SKU 事件流：周期内每 SKU 各事件列合计。
+         */
+        get: operations["get_agent_inventory_ledger_events_api_v1_agent_projects__project_id__inventory_ledger_events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -971,10 +1097,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * agent 镜像: /external/projects/{project_id}/inventory-ledger/integrity
-         * @description Cross-month integrity check for a full calendar month.
+         * Get Agent Inventory Ledger Integrity
+         * @description 跨月完整性校验：上月期末 vs 本月期初（每 SKU × 库位 × 处置）。
          */
-        get: operations["agent_ext_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get"];
+        get: operations["get_agent_inventory_ledger_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -990,8 +1116,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/months */
-        get: operations["agent_ext_list_months_api_v1_agent_projects__project_id__inventory_ledger_months_get"];
+        /**
+         * Get Agent Inventory Ledger Months
+         * @description 月度盘点：有台账数据的月份列表（YYYY-MM-DD，每月 1 号）。
+         */
+        get: operations["get_agent_inventory_ledger_months_api_v1_agent_projects__project_id__inventory_ledger_months_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1007,8 +1136,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/receipt-clusters */
-        get: operations["agent_ext_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get"];
+        /**
+         * Get Agent Inventory Ledger Receipt Clusters
+         * @description 收货簇：按（日期 × 仓库）归组收货。
+         */
+        get: operations["get_agent_inventory_ledger_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1024,8 +1156,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/snapshot */
-        get: operations["agent_ext_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get"];
+        /**
+         * Get Agent Inventory Ledger Snapshot
+         * @description 月度快照：SKU EOM + 处置汇总 + 完整性（整月窗口跑跨月完整性校验）。
+         */
+        get: operations["get_agent_inventory_ledger_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1041,8 +1176,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/inventory-ledger/summary */
-        get: operations["agent_ext_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get"];
+        /**
+         * Get Agent Inventory Ledger Summary
+         * @description 日水位行（Summary 视图）+ msku/location/disposition 过滤。
+         */
+        get: operations["get_agent_inventory_ledger_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1059,10 +1197,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * agent 镜像: /external/projects/{project_id}/inventory-ledger/trend
-         * @description Multi-month aggregated trend.
+         * Get Agent Inventory Ledger Trend
+         * @description 多月度趋势：最近 N 个月（默认 6，最大 24）聚合序列。
          */
-        get: operations["agent_ext_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get"];
+        get: operations["get_agent_inventory_ledger_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1172,8 +1310,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/pricing-snapshots */
-        get: operations["agent_get_external_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get"];
+        /**
+         * Get Agent Pricing Snapshot As Of
+         * @description 定价目录冻结：最近一次 ``snapshot_date ≤ as_of`` 的全 SKU 经济账。
+         */
+        get: operations["get_agent_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1597,8 +1738,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/shop-calculation-history */
-        get: operations["agent_get_external_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get"];
+        /**
+         * Get Agent Shop Calculation History
+         * @description 当前态列表：每 ``(project_id, sku, country)`` 组最新非删行，扁平 15 列。
+         */
+        get: operations["get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1614,8 +1758,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/shop-calculation/snapshots */
-        get: operations["agent_get_external_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get"];
+        /**
+         * Get Agent Shop Calculation Snapshots
+         * @description append-only 时间序列：同一 SKU/country 组可能跨多个 observed_at 快照。
+         */
+        get: operations["get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1735,10 +1882,110 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** agent 镜像: /external/projects/{project_id}/sku-info */
-        get: operations["agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get"];
+        /**
+         * List Sku Info
+         * @description R1 SKU 列表：country/is_active/sku/asin 筛选 + 分页（spec §4 R1）。
+         *
+         *     ``is_active`` 默认 ``true``（对齐镜像）；显式 ``false`` 查下架。
+         *     ``managed_project_ids=[project_id]`` 复用服务层项目白名单过滤（0 改造）。
+         */
+        get: operations["list_sku_info_api_v1_agent_projects__project_id__sku_info_get"];
+        put?: never;
+        /**
+         * Upsert Sku Info
+         * @description W1 upsert：confirm 两步后按唯一键 upsert + 审计归因 + 缓存失效。
+         */
+        post: operations["upsert_sku_info_api_v1_agent_projects__project_id__sku_info_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sku Info Detail
+         * @description R2 单 SKU 详情（全字段含工厂信息 / 图片 url / marketplace_url + 时间戳）。
+         */
+        get: operations["get_sku_info_detail_api_v1_agent_projects__project_id__sku_info__sku_record_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Sku Info
+         * @description W2 局部更新：读-改-写合并 + 审计 before/after + 缓存失效。
+         */
+        patch: operations["update_sku_info_api_v1_agent_projects__project_id__sku_info__sku_record_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sku Info Audit
+         * @description R3 SKU 审计：按 record id 聚合 operation_audit_logs（spec §4 R3）。
+         */
+        get: operations["get_sku_info_audit_api_v1_agent_projects__project_id__sku_info__sku_record_id__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/fnsku-label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Sku Info Fnsku Label
+         * @description W4 上传 FNSKU 标签 PDF：multipart confirm 两步后写 R2 + 更新行 + 审计。
+         *
+         *     执行路径对齐内部 ``upload_fnsku_label``（sku_info.py:841）：
+         *     删旧 R2 key（失败不阻塞）→ ``upload_bytes_to_r2``（file_type=fnsku-labels，
+         *     content-type=application/pdf）→ 更新 ``fnsku_label_r2_key/url``。
+         *     **不做 FNSKU 内容验证**（D10，用户拍板；``verify_fnsku_label`` 仅内部路径）。
+         *     标签仅展示用途 → 不失效财务缓存（对齐内部行为）。
+         */
+        post: operations["upload_sku_info_fnsku_label_api_v1_agent_projects__project_id__sku_info__sku_record_id__fnsku_label_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/projects/{project_id}/sku-info/{sku_record_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Sku Info Status
+         * @description W3 上/下架：is_active 软切换；目标值与当前一致时幂等返回当前态。
+         */
+        post: operations["transition_sku_info_status_api_v1_agent_projects__project_id__sku_info__sku_record_id__status_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2376,190 +2623,6 @@ export interface paths {
         };
         /** Get Current User */
         get: operations["get_current_user_api_v1_auth_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Backup Health
-         * @description Check if backup system is healthy (public endpoint, no auth required).
-         */
-        get: operations["check_backup_health_api_v1_backups_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Backup Info
-         * @description Get raw pgBackRest info.
-         */
-        get: operations["get_backup_info_api_v1_backups_info_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/records": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Backup Records
-         * @description Get list of backup records.
-         */
-        get: operations["list_backup_records_api_v1_backups_records_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Backup Status
-         * @description Get backup status summary.
-         */
-        get: operations["get_backup_status_api_v1_backups_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/trigger": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Trigger Backup Endpoint
-         * @description Trigger a manual backup.
-         */
-        post: operations["trigger_backup_endpoint_api_v1_backups_trigger_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Verify Backup Endpoint
-         * @description Verify all backups.
-         */
-        post: operations["verify_backup_endpoint_api_v1_backups_verify_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/{record_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Backup Record
-         * @description 单条备份记录详情（含 phase / R2 字段），供前端轮询。
-         */
-        get: operations["get_backup_record_api_v1_backups__record_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Backup
-         * @description 软删备份记录 + 删除 R2 对象（记录行保留，写 r2_deleted_at）。
-         */
-        delete: operations["delete_backup_api_v1_backups__record_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/{record_id}/download-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Backup Download Url
-         * @description 生成 R2 临时下载链接（presigned，1h 有效）。
-         */
-        get: operations["get_backup_download_url_api_v1_backups__record_id__download_url_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/backups/{record_id}/restore-command": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Backup Restore Command
-         * @description 生成可复制的 pgbackrest restore 命令文本（不执行）。
-         */
-        get: operations["get_backup_restore_command_api_v1_backups__record_id__restore_command_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3330,6 +3393,56 @@ export interface paths {
         head?: never;
         /** Update Rule */
         patch: operations["update_rule_api_v1_crm_rules__rule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/saved-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Saved Views
+         * @description 可见视图：自己的 + 全用户共享的；可按 entity_type（customer/lead）过滤。
+         *
+         *     返回扁平列表（视图数量少，无需分页），按 updated_at 倒序。
+         */
+        get: operations["list_saved_views_api_v1_crm_saved_views_get"];
+        put?: never;
+        /**
+         * Create Saved View
+         * @description 创建视图（owner_id=本人）。is_shared=true 仅 admin（V2 团队共享）。
+         */
+        post: operations["create_saved_view_api_v1_crm_saved_views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/saved-views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Saved View
+         * @description 删除视图（个人视图仅 owner；共享视图 owner/admin）。
+         */
+        delete: operations["delete_saved_view_api_v1_crm_saved_views__view_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Saved View
+         * @description 部分更新（个人视图仅 owner；共享视图 owner/admin）。
+         */
+        patch: operations["update_saved_view_api_v1_crm_saved_views__view_id__patch"];
         trace?: never;
     };
     "/api/v1/crm/settings/workflow": {
@@ -9371,175 +9484,6 @@ export interface components {
             size: number;
         };
         /**
-         * BackupDeleteResponse
-         * @description 软删备份记录结果。
-         */
-        BackupDeleteResponse: {
-            /** Deleted */
-            deleted: boolean;
-            /** Id */
-            id: number;
-        };
-        /**
-         * BackupDownloadUrlResponse
-         * @description R2 presigned 下载链接。
-         */
-        BackupDownloadUrlResponse: {
-            /** Url */
-            url: string;
-        };
-        /**
-         * BackupInfoResponse
-         * @description Raw pgBackRest info output.
-         */
-        BackupInfoResponse: {
-            /** Backups */
-            backups?: {
-                [key: string]: unknown;
-            }[];
-            /** Raw Info */
-            raw_info: string;
-        };
-        /**
-         * BackupRecordItem
-         * @description Single backup record item.
-         */
-        BackupRecordItem: {
-            /** Backup Info */
-            backup_info?: string | null;
-            /** Backup Set Name */
-            backup_set_name?: string | null;
-            /** Backup Type */
-            backup_type: string;
-            /** Completed At */
-            completed_at?: string | null;
-            /** Compressed Size Bytes */
-            compressed_size_bytes?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Created By */
-            created_by?: number | null;
-            /** Duration Seconds */
-            duration_seconds?: number | null;
-            /** Error Message */
-            error_message?: string | null;
-            /** Id */
-            id: number;
-            /**
-             * Phase
-             * @default pending
-             */
-            phase: string;
-            /** R2 Bucket */
-            r2_bucket?: string | null;
-            /** R2 Deleted At */
-            r2_deleted_at?: string | null;
-            /** R2 Key */
-            r2_key?: string | null;
-            /** R2 Uploaded At */
-            r2_uploaded_at?: string | null;
-            /** R2 Url */
-            r2_url?: string | null;
-            /**
-             * Retry Count
-             * @default 0
-             */
-            retry_count: number;
-            /** Size Bytes */
-            size_bytes?: number | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /** Status */
-            status: string;
-            /**
-             * Triggered By
-             * @default manual
-             */
-            triggered_by: string;
-        };
-        /**
-         * BackupRecordListResponse
-         * @description List of backup records.
-         */
-        BackupRecordListResponse: {
-            /** Items */
-            items: components["schemas"]["BackupRecordItem"][];
-            /** Total */
-            total: number;
-        };
-        /**
-         * BackupRestoreCommandResponse
-         * @description pgbackrest restore 命令预览（不执行）。
-         */
-        BackupRestoreCommandResponse: {
-            /** Command */
-            command: string;
-            /** Set Name */
-            set_name: string;
-        };
-        /**
-         * BackupStatusSummary
-         * @description Summary of backup status.
-         */
-        BackupStatusSummary: {
-            /** Failed Backups */
-            failed_backups: number;
-            /** Is Backup Running */
-            is_backup_running: boolean;
-            last_backup?: components["schemas"]["BackupRecordItem"] | null;
-            /** R2 Storage Bytes */
-            r2_storage_bytes?: number | null;
-            /** Successful Backups */
-            successful_backups: number;
-            /** Total Backups */
-            total_backups: number;
-        };
-        /**
-         * BackupTriggerRequest
-         * @description Request to trigger a manual backup.
-         */
-        BackupTriggerRequest: {
-            /**
-             * Backup Type
-             * @default full
-             * @enum {string}
-             */
-            backup_type: "full" | "differential";
-        };
-        /**
-         * BackupTriggerResponse
-         * @description Response after triggering a backup.
-         */
-        BackupTriggerResponse: {
-            /** Id */
-            id: number;
-            /** Message */
-            message: string;
-            /** Status */
-            status: string;
-        };
-        /**
-         * BackupVerifyResponse
-         * @description Response from backup verification.
-         */
-        BackupVerifyResponse: {
-            /** Message */
-            message: string;
-            /** Success */
-            success: boolean;
-            /**
-             * Verified At
-             * Format: date-time
-             */
-            verified_at: string;
-        };
-        /**
          * BatchFnskuLabelDownloadRequest
          * @description 批量下载 FNSKU 标签请求
          */
@@ -13369,6 +13313,8 @@ export interface components {
             base_dms?: number | null;
             /** Country */
             country: string;
+            /** Coverage End Date */
+            coverage_end_date?: string | null;
             decision_path?: components["schemas"]["InventoryDecisionPath"] | null;
             /** Dms 14 */
             dms_14?: number | null;
@@ -13380,6 +13326,13 @@ export interface components {
             dms_7?: number | null;
             /** Estimated Replenishment Quantity */
             estimated_replenishment_quantity?: number | null;
+            /**
+             * Gap Days
+             * @default 0
+             */
+            gap_days: number;
+            /** Gap Start Date */
+            gap_start_date?: string | null;
             /** In Transit Quantity */
             in_transit_quantity: number;
             /**
@@ -13387,10 +13340,21 @@ export interface components {
              * @default unknown
              */
             inventory_state: string;
+            /** Latest Order Date */
+            latest_order_date?: string | null;
+            /** Next Transit Eta */
+            next_transit_eta?: string | null;
+            /** Order Buffer Days */
+            order_buffer_days?: number | null;
             /** Product Name */
             product_name?: string | null;
             /** Production Lead Days */
             production_lead_days: number;
+            /**
+             * Production Plus Shipping Days
+             * @default 0
+             */
+            production_plus_shipping_days: number;
             /** Project Id */
             project_id: number;
             /** Project Name */
@@ -13423,6 +13387,11 @@ export interface components {
             signals?: components["schemas"]["InventorySignals"] | null;
             /** Sku */
             sku: string;
+            /**
+             * Target Days
+             * @default 90
+             */
+            target_days: number;
             /** Warehouse Entry Date */
             warehouse_entry_date?: string | null;
             /** Weighted Dms */
@@ -13460,6 +13429,11 @@ export interface components {
             shipping_days: number;
             /** Sku */
             sku: string;
+            /**
+             * Target Days
+             * @default 90
+             */
+            target_days: number;
         };
         /** InventoryReplenishmentSettingUpdate */
         InventoryReplenishmentSettingUpdate: {
@@ -13471,6 +13445,8 @@ export interface components {
             safety_factor: number;
             /** Shipping Days */
             shipping_days: number;
+            /** Target Days */
+            target_days?: number | null;
         };
         /** InventoryReplenishmentShipmentItem */
         InventoryReplenishmentShipmentItem: {
@@ -18007,6 +17983,114 @@ export interface components {
             priority?: number | null;
         };
         /**
+         * SavedViewCreate
+         * @description 保存视图创建（个人视图 MVP；is_shared 仅 admin 可置 true，V2 共享）。
+         *
+         *     filters 与列表端点 filters 参数同构（FilterCondition 数组），服务层
+         *     用 filter_engine 白名单校验字段/运算符，非法 → 400。
+         */
+        SavedViewCreate: {
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "customer" | "lead";
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
+            /** Keyword */
+            keyword?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Scope
+             * @default all
+             * @enum {string}
+             */
+            scope: "mine" | "all" | "sea";
+            /**
+             * Sort By
+             * @default updated_at
+             */
+            sort_by: string;
+            /**
+             * Sort Order
+             * @default desc
+             * @enum {string}
+             */
+            sort_order: "asc" | "desc";
+        };
+        /**
+         * SavedViewItem
+         * @description 保存视图响应（GET/POST/PATCH 统一形状）。
+         */
+        SavedViewItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Id */
+            id: number;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Keyword */
+            keyword?: string | null;
+            /** Name */
+            name: string;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Scope */
+            scope: string;
+            /** Sort By */
+            sort_by: string;
+            /** Sort Order */
+            sort_order: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SavedViewUpdate
+         * @description 部分更新：只传需要改的字段（权限同 owner；共享视图 owner/admin）。
+         *
+         *     个人→共享（is_shared false→true）仅 admin 可做（V2 团队共享）。
+         */
+        SavedViewUpdate: {
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Is Shared */
+            is_shared?: boolean | null;
+            /** Keyword */
+            keyword?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Scope */
+            scope?: ("mine" | "all" | "sea") | null;
+            /** Sort By */
+            sort_by?: string | null;
+            /** Sort Order */
+            sort_order?: ("asc" | "desc") | null;
+        };
+        /**
          * SeasonalReplenishmentListItem
          * @description 季节性补货分析单行。
          *
@@ -21353,7 +21437,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_projects_api_v1_agent_projects_get: {
+    get_agent_projects_api_v1_agent_projects_get: {
         parameters: {
             query?: {
                 status?: string;
@@ -21371,7 +21455,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21385,7 +21471,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get: {
+    get_agent_ad_budget_raw_alias_api_v1_agent_projects__project_id__ad_budget_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21411,7 +21497,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21425,7 +21513,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get: {
+    get_agent_ad_budget_aggregate_api_v1_agent_projects__project_id__ad_budgets_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21447,7 +21535,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21461,47 +21551,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get: {
+    get_agent_ad_budget_raw_api_v1_agent_projects__project_id__ad_budgets_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21527,7 +21577,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21541,43 +21593,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get: {
+    get_agent_ad_campaign_raw_alias_api_v1_agent_projects__project_id__ad_campaign_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21603,7 +21619,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21617,7 +21635,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get: {
+    get_agent_ad_campaign_aggregate_api_v1_agent_projects__project_id__ad_campaigns_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21639,7 +21657,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21653,47 +21673,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get: {
+    get_agent_ad_campaign_raw_api_v1_agent_projects__project_id__ad_campaigns_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21719,7 +21699,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21733,7 +21715,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get: {
+    get_agent_ad_invalid_traffic_aggregate_api_v1_agent_projects__project_id__ad_invalid_traffic_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21755,7 +21737,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21769,47 +21753,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get: {
+    get_agent_ad_invalid_traffic_raw_api_v1_agent_projects__project_id__ad_invalid_traffic_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21835,7 +21779,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21849,43 +21795,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get: {
+    get_agent_ad_placement_raw_alias_api_v1_agent_projects__project_id__ad_placement_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21911,7 +21821,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21925,7 +21837,45 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get: {
+    get_agent_ad_placement_aggregate_api_v1_agent_projects__project_id__ad_placements_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_placement_raw_api_v1_agent_projects__project_id__ad_placements_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -21951,7 +21901,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -21965,43 +21917,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get: {
+    get_agent_ad_promoted_product_raw_alias_api_v1_agent_projects__project_id__ad_promoted_product_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22027,7 +21943,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22041,7 +21959,45 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get: {
+    get_agent_ad_promoted_product_aggregate_api_v1_agent_projects__project_id__ad_promoted_products_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_promoted_product_raw_api_v1_agent_projects__project_id__ad_promoted_products_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22067,7 +22023,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22081,7 +22039,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get: {
+    get_agent_ad_purchased_product_raw_alias_api_v1_agent_projects__project_id__ad_purchased_product_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22107,7 +22065,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22121,7 +22081,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get: {
+    get_agent_ad_purchased_product_aggregate_api_v1_agent_projects__project_id__ad_purchased_products_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22143,7 +22103,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22157,83 +22119,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-                limit?: number;
-                offset?: number;
-                order_by?: string;
-                order_dir?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get: {
+    get_agent_ad_purchased_product_raw_api_v1_agent_projects__project_id__ad_purchased_products_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22259,7 +22145,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22273,7 +22161,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get: {
+    get_agent_ad_search_term_raw_alias_api_v1_agent_projects__project_id__ad_search_term_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22299,7 +22187,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22313,43 +22203,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get: {
-        parameters: {
-            query?: {
-                period?: string;
-                start_date?: string | null;
-                end_date?: string | null;
-                country?: string;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    agent_get_external_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get: {
+    get_agent_ad_search_term_share_raw_alias_api_v1_agent_projects__project_id__ad_search_term_share_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22375,7 +22229,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22389,7 +22245,45 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get: {
+    get_agent_ad_search_term_share_aggregate_api_v1_agent_projects__project_id__ad_search_term_shares_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_search_term_share_raw_api_v1_agent_projects__project_id__ad_search_term_shares_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22415,7 +22309,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22429,7 +22325,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get: {
+    get_agent_ad_search_term_aggregate_api_v1_agent_projects__project_id__ad_search_terms_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22451,7 +22347,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22465,7 +22363,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get: {
+    get_agent_ad_search_term_raw_api_v1_agent_projects__project_id__ad_search_terms_raw_get: {
         parameters: {
             query?: {
                 period?: string;
@@ -22491,7 +22389,253 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_target_raw_alias_api_v1_agent_projects__project_id__ad_target_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_target_aggregate_api_v1_agent_projects__project_id__ad_targets_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_target_raw_api_v1_agent_projects__project_id__ad_targets_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_time_trend_raw_alias_api_v1_agent_projects__project_id__ad_time_trend_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_time_trend_aggregate_api_v1_agent_projects__project_id__ad_time_trends_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_agent_ad_time_trend_raw_api_v1_agent_projects__project_id__ad_time_trends_raw_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                country?: string;
+                limit?: number;
+                offset?: number;
+                order_by?: string;
+                order_dir?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22543,7 +22687,7 @@ export interface operations {
             };
         };
     };
-    agent_ext_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get: {
+    get_agent_inventory_ledger_batches_api_v1_agent_projects__project_id__inventory_ledger_batches_get: {
         parameters: {
             query?: {
                 /** @description Max batches to return */
@@ -22563,7 +22707,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22577,7 +22723,7 @@ export interface operations {
             };
         };
     };
-    agent_ext_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get: {
+    get_agent_inventory_ledger_consistency_api_v1_agent_projects__project_id__inventory_ledger_consistency_get: {
         parameters: {
             query: {
                 /** @description REQUIRED. Must resolve to a full calendar month. */
@@ -22597,7 +22743,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22611,20 +22759,15 @@ export interface operations {
             };
         };
     };
-    agent_ext_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get: {
+    get_agent_inventory_ledger_detail_api_v1_agent_projects__project_id__inventory_ledger_detail_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md. */
                 period: string;
-                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
-                /** @description Optional SKU filter */
                 msku?: string | null;
-                /** @description Optional FBA warehouse code filter */
                 fulfillment_center?: string | null;
-                /** @description Optional event type filter */
                 event_type?: string | null;
             };
             header?: never;
@@ -22641,7 +22784,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22655,14 +22800,12 @@ export interface operations {
             };
         };
     };
-    agent_ext_events_api_v1_agent_projects__project_id__inventory_ledger_events_get: {
+    get_agent_inventory_ledger_events_api_v1_agent_projects__project_id__inventory_ledger_events_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md. */
                 period: string;
-                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -22679,7 +22822,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22693,10 +22838,10 @@ export interface operations {
             };
         };
     };
-    agent_ext_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get: {
+    get_agent_inventory_ledger_integrity_api_v1_agent_projects__project_id__inventory_ledger_integrity_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). See ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Must resolve to a full calendar month (last_month, this_month, ytd, YYYY-MM, YYYY-MM-DD). */
                 period: string;
             };
             header?: never;
@@ -22713,7 +22858,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22727,7 +22874,7 @@ export interface operations {
             };
         };
     };
-    agent_ext_list_months_api_v1_agent_projects__project_id__inventory_ledger_months_get: {
+    get_agent_inventory_ledger_months_api_v1_agent_projects__project_id__inventory_ledger_months_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -22744,7 +22891,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22758,14 +22907,12 @@ export interface operations {
             };
         };
     };
-    agent_ext_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get: {
+    get_agent_inventory_ledger_receipt_clusters_api_v1_agent_projects__project_id__inventory_ledger_receipt_clusters_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md. */
                 period: string;
-                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -22782,7 +22929,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22796,14 +22945,12 @@ export interface operations {
             };
         };
     };
-    agent_ext_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get: {
+    get_agent_inventory_ledger_snapshot_api_v1_agent_projects__project_id__inventory_ledger_snapshot_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md. */
                 period: string;
-                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
             };
             header?: never;
@@ -22820,7 +22967,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22834,20 +22983,15 @@ export interface operations {
             };
         };
     };
-    agent_ext_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get: {
+    get_agent_inventory_ledger_summary_api_v1_agent_projects__project_id__inventory_ledger_summary_get: {
         parameters: {
             query: {
-                /** @description REQUIRED. Period selector — see ``backend/docs/inventory-ledger-api.md``. */
+                /** @description REQUIRED. Period selector — see backend/docs/inventory-ledger-api.md. */
                 period: string;
-                /** @description Companion for ``period=custom`` only. */
                 start_date?: string | null;
-                /** @description Companion for ``period=custom`` only. */
                 end_date?: string | null;
-                /** @description Optional SKU filter */
                 msku?: string | null;
-                /** @description Optional FBA warehouse code filter */
                 location?: string | null;
-                /** @description Optional disposition filter (e.g. SELLABLE) */
                 disposition?: string | null;
             };
             header?: never;
@@ -22864,7 +23008,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -22878,7 +23024,7 @@ export interface operations {
             };
         };
     };
-    agent_ext_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get: {
+    get_agent_inventory_ledger_trend_api_v1_agent_projects__project_id__inventory_ledger_trend_get: {
         parameters: {
             query?: {
                 /** @description Number of recent months */
@@ -22898,7 +23044,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -23092,7 +23240,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get: {
+    get_agent_pricing_snapshot_as_of_api_v1_agent_projects__project_id__pricing_snapshots_get: {
         parameters: {
             query?: {
                 /** @description Inclusive upper bound (YYYY-MM-DD). Defaults to no upper bound (most recent snapshot). */
@@ -23113,7 +23261,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -23915,7 +24065,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get: {
+    get_agent_shop_calculation_history_api_v1_agent_projects__project_id__shop_calculation_history_get: {
         parameters: {
             query?: {
                 country?: string;
@@ -23938,7 +24088,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -23952,7 +24104,7 @@ export interface operations {
             };
         };
     };
-    agent_get_external_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get: {
+    get_agent_shop_calculation_snapshots_api_v1_agent_projects__project_id__shop_calculation_snapshots_get: {
         parameters: {
             query?: {
                 /** @description Inclusive lower bound (YYYY-MM-DD). Defaults to no lower bound. */
@@ -23977,7 +24129,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -24210,14 +24364,15 @@ export interface operations {
             };
         };
     };
-    agent_get_external_sku_info_api_v1_agent_projects__project_id__sku_info_get: {
+    list_sku_info_api_v1_agent_projects__project_id__sku_info_get: {
         parameters: {
             query?: {
-                country?: string;
-                is_active?: boolean;
-                sku?: string;
-                limit?: number;
-                offset?: number;
+                country?: string | null;
+                is_active?: boolean | null;
+                sku?: string | null;
+                asin?: string | null;
+                page?: number;
+                page_size?: number;
                 include_total?: boolean;
             };
             header?: never;
@@ -24234,7 +24389,212 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_sku_info_api_v1_agent_projects__project_id__sku_info_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sku_info_detail_api_v1_agent_projects__project_id__sku_info__sku_record_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                sku_record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_sku_info_api_v1_agent_projects__project_id__sku_info__sku_record_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sku_info_audit_api_v1_agent_projects__project_id__sku_info__sku_record_id__audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                sku_record_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_sku_info_fnsku_label_api_v1_agent_projects__project_id__sku_info__sku_record_id__fnsku_label_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sku_record_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transition_sku_info_status_api_v1_agent_projects__project_id__sku_info__sku_record_id__status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -25895,373 +26255,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    check_backup_health_api_v1_backups_health_get: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backup_info_api_v1_backups_info_get: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupInfoResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_backup_records_api_v1_backups_records_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupRecordListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backup_status_api_v1_backups_status_get: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupStatusSummary"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    trigger_backup_endpoint_api_v1_backups_trigger_post: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-User-Id"?: string | null;
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BackupTriggerRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupTriggerResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    verify_backup_endpoint_api_v1_backups_verify_post: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupVerifyResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backup_record_api_v1_backups__record_id__get: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path: {
-                record_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupRecordItem"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_backup_api_v1_backups__record_id__delete: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path: {
-                record_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupDeleteResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backup_download_url_api_v1_backups__record_id__download_url_get: {
-        parameters: {
-            query?: {
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path: {
-                record_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupDownloadUrlResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backup_restore_command_api_v1_backups__record_id__restore_command_get: {
-        parameters: {
-            query?: {
-                target_time?: string | null;
-                api_key?: string | null;
-            };
-            header?: {
-                "X-API-Key"?: string | null;
-                Authorization?: string | null;
-                "X-Is-Admin"?: boolean;
-            };
-            path: {
-                record_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackupRestoreCommandResponse"];
                 };
             };
             /** @description Validation Error */
@@ -28371,6 +28364,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_saved_views_api_v1_crm_saved_views_get: {
+        parameters: {
+            query?: {
+                entity_type?: string | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_saved_view_api_v1_crm_saved_views_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedViewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_saved_view_api_v1_crm_saved_views__view_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                view_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_saved_view_api_v1_crm_saved_views__view_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                view_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedViewUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewItem"];
                 };
             };
             /** @description Validation Error */
