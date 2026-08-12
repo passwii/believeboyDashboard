@@ -19,8 +19,8 @@ confirm、不落审计。路由挂 ``require_business_scope("report_upload_statu
 
 summary 派生口径（与前端矩阵一致，BLF-482 / BLF-484）：
 * ``uploaded_report_count`` / ``missing_report_types`` 只统计活跃 15 类
-  （5 基础 + 10 广告）；分类账 2 类不纳入缺失统计，但 ``statuses``
-  原样返回保持与内部端点一致。
+  （5 基础 + 10 广告）。库存分类账 2 类已随 BLF-649 从 REPORT_TYPES 移除，
+  statuses 不再包含（分类账数据不来自 RPA 上传，矩阵中无意义）。
 """
 
 from __future__ import annotations
