@@ -400,9 +400,7 @@ function RpaStatusGrid({
                   key={rt.key}
                   className={`flex items-center justify-center border-b border-t border-border/50 px-1 ${TABLE_HEADER_HEIGHT_CLASS}${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}`}
                 >
-                  <span
-                    className={`text-xs font-semibold uppercase tracking-wider${rt.active ? ' text-muted-foreground' : ' text-muted-foreground/40'}`}
-                  >
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {rt.label}
                   </span>
                 </div>
@@ -434,7 +432,7 @@ function RpaStatusGrid({
                         <div
                           key={rt.key}
                           className={`flex items-center justify-center border-border/50 px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
-                            !rt.active ? '' : isUploaded ? ' bg-emerald-600' : ' bg-rose-500'
+                            isUploaded ? ' bg-emerald-600' : ' bg-rose-500'
                           }`}
                         >
                           {isUploaded ? (
