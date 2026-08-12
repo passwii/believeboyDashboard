@@ -94,9 +94,11 @@ export function PortfolioFilters({
   const selectedProjects = projects.filter((p) => projectIds.includes(p.id))
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    // BLF-614：手机端 2 列网格（总则 1 / 规则 2）——项目多选与日期范围占满整行，国家/刷新同行；
+    // md+ 还原横向 flex 排列，桌面布局零回归。
+    <div className="grid grid-cols-2 items-center gap-2 md:flex md:flex-wrap md:items-center md:gap-3">
       {/* Multi-project selector */}
-      <div className="w-72">
+      <div className="col-span-2 w-full md:col-span-1 md:w-72">
         {loadingProjects ? (
           <Skeleton className="h-10 w-full rounded-lg" />
         ) : (
@@ -160,18 +162,26 @@ export function PortfolioFilters({
         )}
       </div>
 
-      <CountrySelect value={country} onChange={onCountryChange} />
+      <CountrySelect
+        value={country}
+        onChange={onCountryChange}
+        triggerClassName="h-10 w-full md:h-9 md:w-auto"
+      />
 
       <DateRangePicker
         value={
           startDate || endDate ? { from: parseDate(startDate), to: parseDate(endDate) } : undefined
         }
         onChange={handleDateRangeChange}
-        className="w-64"
+        className="col-span-2 h-10 w-full md:col-span-1 md:h-9 md:w-64"
         placeholder="日期范围"
       />
 
-      <RefreshButton onClick={onRefresh} loading={loading} />
+      <RefreshButton
+        onClick={onRefresh}
+        loading={loading}
+        className="col-span-1 w-full md:col-span-1 md:w-auto"
+      />
     </div>
   )
 }

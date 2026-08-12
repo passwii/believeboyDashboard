@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
+import { useMobile } from '@/lib/hooks/use-mobile'
 
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
@@ -1028,6 +1029,7 @@ function fillDetailWorksheet(
 export default function WeeklyProductAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
+  const isMobile = useMobile()
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
@@ -1777,14 +1779,14 @@ export default function WeeklyProductAnalysisPage() {
               setStartDate(formatDateInputValue(range?.from))
               setEndDate(formatDateInputValue(range?.to))
             }}
-            className="h-9 w-full sm:w-[220px]"
+            className="col-span-2 h-9 w-full sm:w-[220px]"
           />
           <RefreshButton
             onClick={() => void loadWeeklyData({ force: true })}
             loading={loading}
             label="刷新数据"
             variant="outline"
-            className="h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-auto"
+            className="col-span-2 h-9 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-auto"
           />
         </FilterToolbar>
 
@@ -1803,6 +1805,7 @@ export default function WeeklyProductAnalysisPage() {
       <div className="dashboard-surface overflow-hidden">
         <DataCardHeader
           title="周度趋势"
+          className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between"
           action={
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
               <button
@@ -2009,7 +2012,11 @@ export default function WeeklyProductAnalysisPage() {
                 <ComposedChart
                   accessibilityLayer
                   data={trendPoints}
-                  margin={{ top: 10, right: 50, left: 0, bottom: 0 }}
+                  margin={
+                    isMobile
+                      ? { top: 8, right: 4, left: -16, bottom: 0 }
+                      : { top: 10, right: 50, left: 0, bottom: 0 }
+                  }
                 >
                   <CartesianGrid
                     vertical={false}
@@ -2024,33 +2031,37 @@ export default function WeeklyProductAnalysisPage() {
                     minTickGap={32}
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   />
-                  {/* Primary Y-axis for absolute values */}
-                  <YAxis
-                    yAxisId="primary"
-                    tickFormatter={(v) => {
-                      const num = Number(v)
-                      if (Math.abs(num) >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-                      if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}k`
-                      return num.toLocaleString()
-                    }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                    width={52}
-                  />
+                  {/* 手机端隐藏双 Y 轴（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
+                  {!isMobile && (
+                    <YAxis
+                      yAxisId="primary"
+                      tickFormatter={(v) => {
+                        const num = Number(v)
+                        if (Math.abs(num) >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+                        if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}k`
+                        return num.toLocaleString()
+                      }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                      width={52}
+                    />
+                  )}
                   {/* Secondary Y-axis for percentages */}
-                  <YAxis
-                    yAxisId="percent"
-                    orientation="right"
-                    domain={[0, 'auto']}
-                    tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={4}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                    width={40}
-                  />
+                  {!isMobile && (
+                    <YAxis
+                      yAxisId="percent"
+                      orientation="right"
+                      domain={[0, 'auto']}
+                      tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={4}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                      width={40}
+                    />
+                  )}
                   <ChartTooltip
                     cursor={{
                       stroke: 'rgba(15,23,42,0.18)',
@@ -2099,7 +2110,7 @@ export default function WeeklyProductAnalysisPage() {
                       dataKey="sales_amount"
                       fill="var(--color-sales_amount)"
                       radius={[4, 4, 0, 0]}
-                      barSize={24}
+                      barSize={isMobile ? 14 : 24}
                       opacity={0.9}
                     />
                   ) : null}
@@ -2111,7 +2122,7 @@ export default function WeeklyProductAnalysisPage() {
                       dataKey="units_sold"
                       fill="var(--color-units_sold)"
                       radius={[4, 4, 0, 0]}
-                      barSize={24}
+                      barSize={isMobile ? 14 : 24}
                       opacity={0.7}
                     />
                   ) : null}
@@ -2264,7 +2275,7 @@ export default function WeeklyProductAnalysisPage() {
         {skeletonState === 'loading' && (
           <div className="absolute inset-0 z-10 rounded-xl border border-border/70 bg-background">
             <div className="space-y-4 p-6">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-8 w-full" />
@@ -2288,7 +2299,7 @@ export default function WeeklyProductAnalysisPage() {
                     onValueChange={setSelectedWeekId}
                     disabled={summaryRows.length === 0}
                   >
-                    <SelectTrigger className="h-8 w-[250px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]">
+                    <SelectTrigger className="h-8 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:w-[250px]">
                       <SelectValue placeholder="选择周次" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2323,7 +2334,7 @@ export default function WeeklyProductAnalysisPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-8 border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))]"
+                    className="h-8 min-h-[44px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none dark:border-border/85 dark:bg-[hsl(var(--surface-overlay))] sm:min-h-0"
                     onClick={() => void loadWeeklyDetails({ force: true })}
                     disabled={!selectedWeekId || detailsLoading}
                   >
@@ -2334,7 +2345,7 @@ export default function WeeklyProductAnalysisPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8"
+                className="h-8 min-h-[44px] sm:min-h-0"
                 onClick={() => void exportWeeklyAnalysis()}
                 disabled={exporting || summaryRows.length === 0}
               >
@@ -2348,7 +2359,7 @@ export default function WeeklyProductAnalysisPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-8"
+                className="h-8 min-h-[44px] sm:min-h-0"
                 onClick={() => void handleRecomputeHistory()}
                 disabled={recomputing || loading || !projectId}
               >
