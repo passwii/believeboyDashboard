@@ -60,7 +60,7 @@ function StoreGrid({ items }: StoreGridProps) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
       {items.map((store, index) => (
         <a
           key={store.id}
@@ -99,7 +99,7 @@ function StoreGrid({ items }: StoreGridProps) {
               {store.store_address ? '点击访问店铺页面' : '暂无店铺链接'}
             </p>
 
-            <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-2.5">
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-2.5">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/60 px-2.5 py-1 text-xs text-muted-foreground dark:border-border/70 dark:bg-[hsl(var(--surface-soft))]/80">
                 <ExternalLink className="h-3 w-3" />
                 店铺链接
@@ -184,7 +184,7 @@ export default function StoreNavigationPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
+        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
           <h2 className="text-base font-medium tracking-tight text-foreground/80 md:text-lg">
             全部店铺
           </h2>
