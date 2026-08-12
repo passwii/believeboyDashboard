@@ -41,6 +41,7 @@ from app.services.ad.upload.recognition import _detect_report_spec
 from app.services.ad.upload.utils import _find_column_ci, _read_dataframe, _date_to_string
 from app.services.ad.upload.project_match import _build_project_match
 
+from config import resolve_project_dir
 from models import ProductCost
 
 # ─── Set of B-table ad report types (for routing in processor.py) ─────────────
@@ -191,7 +192,7 @@ def _build_b_table_result(
     if project_match["status"] in {"unmatched", "manual"}:
         from models import Project
         from sqlalchemy import select
-        folder_name = path.parent.name
+        folder_name = resolve_project_dir(path).name
         project = db.execute(
             select(Project).where(Project.project_name == folder_name)
         ).scalars().first()
@@ -280,7 +281,7 @@ def _add_project_match(result: RecognitionResult, db: Session, path: Path, count
         if result.project_match["status"] == "unmatched":
             from models import Project
             from sqlalchemy import select
-            folder_name = path.parent.name
+            folder_name = resolve_project_dir(path).name
             project = db.execute(
                 select(Project).where(Project.project_name == folder_name)
             ).scalars().first()

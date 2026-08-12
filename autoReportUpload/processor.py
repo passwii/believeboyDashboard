@@ -18,7 +18,7 @@ from sqlalchemy import insert, select, update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from config import AD_PROCESSED_SUBDIR, PROCESSED_SUBDIR
+from config import AD_PROCESSED_SUBDIR, PROCESSED_SUBDIR, resolve_project_dir
 from models import (
     AnalysisBusinessRow,
     AnalysisPaymentRow,
@@ -1443,7 +1443,10 @@ def _move_to_processed(file_path: Path, report_type: str | None = None) -> None:
         subdir = AD_PROCESSED_SUBDIR
     else:
         subdir = PROCESSED_SUBDIR
-    processed_dir = file_path.parent / subdir
+    # 文件可能位于国家子文件夹（如 <project>/美国/）——processed 归档统一
+    # 放在项目根目录下，不在美国子文件夹内重新生成（BLF-646）。
+    project_dir = resolve_project_dir(file_path)
+    processed_dir = project_dir / subdir
     processed_dir.mkdir(parents=True, exist_ok=True)
     dest = processed_dir / file_path.name
     if dest.exists():

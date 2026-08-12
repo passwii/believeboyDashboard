@@ -9,7 +9,17 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import AD_PROCESSED_SUBDIR, CHECK_INTERVAL_MINUTES, IGNORED_DIRS, PROCESSED_SUBDIR, PROJECTS, SUPPORTED_EXTENSIONS, WATCH_ROOT
+from config import (
+    AD_PROCESSED_SUBDIR,
+    CHECK_INTERVAL_MINUTES,
+    COUNTRY_SUBFOLDERS,
+    IGNORED_DIRS,
+    PROCESSED_SUBDIR,
+    PROJECTS,
+    SUPPORTED_EXTENSIONS,
+    WATCH_ROOT,
+    resolve_project_dir,
+)
 from db import Session, check_db_health, get_db_session, get_db_session_with_retry, reconnect_engine
 from processor import ProcessResult, process_file
 from recognition import B_TABLE_AD_REPORT_TYPES
@@ -305,23 +315,28 @@ class RunLogger:
 
 
 def _collect_files(project_dir: Path) -> list[Path]:
-    """Return top-level files in project_dir that are supported and not already processed."""
+    """Return files in project_dir (root + country subfolders, e.g. 美国) that are
+    supported and not already processed."""
     if not project_dir.is_dir():
         return []
 
     collected = []
-    for entry in project_dir.iterdir():
-        if entry.is_dir():
-            # Skip the processed subfolders themselves (general + ad-specific)
-            if (
-                entry.name == PROCESSED_SUBDIR
-                or entry.name == AD_PROCESSED_SUBDIR
-                or entry.name in IGNORED_DIRS
-            ):
+    roots = [project_dir] + [
+        project_dir / sub for sub in COUNTRY_SUBFOLDERS if (project_dir / sub).is_dir()
+    ]
+    for root in roots:
+        for entry in root.iterdir():
+            if entry.is_dir():
+                # Skip the processed subfolders themselves (general + ad-specific)
+                if (
+                    entry.name == PROCESSED_SUBDIR
+                    or entry.name == AD_PROCESSED_SUBDIR
+                    or entry.name in IGNORED_DIRS
+                ):
+                    continue
                 continue
-            continue
-        if entry.suffix.lower() in SUPPORTED_EXTENSIONS:
-            collected.append(entry)
+            if entry.suffix.lower() in SUPPORTED_EXTENSIONS:
+                collected.append(entry)
     return collected
 
 
@@ -425,7 +440,7 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
             self._pending[key] = now
 
             try:
-                project_name = file_path.parent.name
+                project_name = resolve_project_dir(file_path).name
                 if (
                     project_name == PROCESSED_SUBDIR
                     or project_name == AD_PROCESSED_SUBDIR
@@ -464,6 +479,12 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
         project_dir = WATCH_ROOT / project_name
         if project_dir.exists():
             observer.schedule(handler, str(project_dir), recursive=False)
+            # Country site subfolders (e.g. 美国) are watched too — files dropped
+            # there belong to the same project.
+            for sub in COUNTRY_SUBFOLDERS:
+                sub_dir = project_dir / sub
+                if sub_dir.exists():
+                    observer.schedule(handler, str(sub_dir), recursive=False)
     observer.start()
     logger.info(f"watchdog 监控已启动，监控目录: {WATCH_ROOT}")
     return observer
