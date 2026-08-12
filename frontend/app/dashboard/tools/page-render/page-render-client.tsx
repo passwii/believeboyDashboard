@@ -333,7 +333,7 @@ export default function PageRenderClient() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <code className="flex-1 truncate rounded-md border border-border/70 bg-background px-3 py-2 text-xs">
                 {typeof window !== 'undefined'
                   ? `${window.location.origin}/p/${recentlyUploaded.id}`

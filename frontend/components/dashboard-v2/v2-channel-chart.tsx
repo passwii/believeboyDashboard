@@ -52,7 +52,7 @@ export function V2ChannelChart({ currentRows, comparisonRows = [] }: V2ChannelCh
   }))
 
   return (
-    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] md:col-span-2">
+    <V2Card className="gap-0 transition-colors hover:bg-blue-50/60 dark:hover:bg-[hsl(var(--surface-subtle)/0.4)] col-span-2">
       <CardHeader>
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">

@@ -60,7 +60,7 @@ function AlertWidgetSkeleton() {
   return (
     <div className="dashboard-surface p-5">
       <Skeleton className="h-5 w-20" />
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
@@ -142,7 +142,7 @@ function AdSpendChartSkeleton() {
         </div>
         <Skeleton className="h-7 w-7 rounded-md" />
       </div>
-      <div className="grid grid-cols-3 gap-3 pb-3">
+      <div className="grid grid-cols-2 gap-3 pb-3 sm:grid-cols-3">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />

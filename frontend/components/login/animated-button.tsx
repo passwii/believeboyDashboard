@@ -76,7 +76,7 @@ const AnimatedButton = ({ isLoading, children, className = '', ...props }: Anima
         ref={btnRef}
         type="submit"
         disabled={isLoading}
-        className={`relative inline-flex w-full items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-medium text-white transition-shadow transition-colors duration-300 hover:from-blue-600 hover:to-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+        className={`relative inline-flex min-h-touch w-full items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-medium text-white transition-shadow transition-colors duration-300 hover:from-blue-600 hover:to-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
           isHovered ? 'shadow-lg shadow-blue-200 dark:shadow-black/30' : ''
         } ${className}`}
         {...props}
