@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.8 — report-upload-status 响应补充中文字段）
+# Agent API 设计文档（v0.9 — report-upload-status 移除库存分类账状态）
 
-> **状态**：v0.8 — report-upload-status 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）；v0.6 新增「单域端点」硬约束 + 删除存量跨域端点 `business-summary`（BLF-476）。
+> **状态**：v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -581,6 +581,10 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 
 ## 修订记录
 
+- **v0.9（2026-08-12）**：report-upload-status 移除库存分类账状态（BLF-649）——
+  1. `REPORT_TYPES` 删除 `inventory_ledger_summary` / `inventory_ledger_detail`（17 → 15 类）：分类账数据不来自 RPA 上传，其在 RPA 上传状态矩阵中的状态无意义（前端矩阵页自 BLF-482 起即不展示）；Agent 端点与内部 `/api/v1/rpa-reports/status` 的 `statuses` 同步收窄；
+  2. `report_type_labels` 相应移除 2 个 key；service 删除分类账 fallback（查 `inventory_ledger_*` 表标记 has_data 的代码块）；日志循环加防御守卫，历史分类账上传记录不再产生状态（不抛错）；
+  3. **库存分类账功能本身不受影响**——独立 Agent API 域 `agent/inventory_ledger.py`（10 条读路由）与前端 `operations/inventory-ledger` 页面原样保留。
 - **v0.8（2026-08-12）**：report-upload-status 响应补充中文字段（BLF-648）——
   1. `statuses[]` 每项新增 `report_type_name`（报表类型中文名，对齐前端 RPA 状态矩阵短名：5 基础「库存/业务/销售/付款/退货」、10 广告「广告-词份额」式、2 分类账用全名）与 `status_source_name`（`upload_log → 上传记录`、`business_date_backfill → 业务日期回填`）；
   2. 顶层新增 `country_name`（`US → 美国站`、`DE → 德国站`、`UK → 英国站`，对齐前端 `REPORT_UPLOAD_COUNTRY_OPTIONS`）与 `report_type_labels`（report_type → 中文名全量映射，含 2 分类账）；
