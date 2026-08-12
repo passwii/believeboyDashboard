@@ -77,6 +77,25 @@ PROJECTS = [
     "瑞迪特",
 ]
 
+# Country site subfolders under each project folder. A file placed in either
+# the project root or one of these subfolders belongs to the same project;
+# the subfolder marks the country site (e.g. "美国" = US). Only 美国 exists
+# for now — add new entries here when other country sites land.
+COUNTRY_SUBFOLDERS: frozenset[str] = frozenset({"美国"})
+
+
+def resolve_project_dir(file_path: Path) -> Path:
+    """Resolve the project root dir for a file, handling country subfolders.
+
+    ``<project>/a.csv``            -> ``<project>``
+    ``<project>/美国/a.csv``        -> ``<project>``
+    """
+    parent = file_path.parent
+    if parent.name in COUNTRY_SUBFOLDERS:
+        return parent.parent
+    return parent
+
+
 # How often (in minutes) the monitor loop checks for new files
 CHECK_INTERVAL_MINUTES = 5
 
