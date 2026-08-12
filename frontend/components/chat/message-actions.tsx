@@ -39,11 +39,11 @@ export function MessageActions({
   }
 
   return (
-    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
       <button
         type="button"
         onClick={handleCopy}
-        className="flex items-center justify-center size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95"
+        className="flex items-center justify-center size-9 sm:size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95 touch-manipulation"
         aria-label={copied ? '已复制' : '复制'}
       >
         {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
@@ -53,7 +53,7 @@ export function MessageActions({
         <button
           type="button"
           onClick={onEdit}
-          className="flex items-center justify-center size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95"
+          className="flex items-center justify-center size-9 sm:size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95 touch-manipulation"
           aria-label="编辑"
         >
           <Pencil className="size-3.5" />
@@ -64,7 +64,7 @@ export function MessageActions({
         <button
           type="button"
           onClick={onRegenerate}
-          className="flex items-center justify-center size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95"
+          className="flex items-center justify-center size-9 sm:size-7 rounded-lg text-[#5a5a5f] hover:text-white hover:bg-white/[0.06] transition-all duration-150 active:scale-95 touch-manipulation"
           aria-label="重新生成"
         >
           <RefreshCw className="size-3.5" />
@@ -75,7 +75,7 @@ export function MessageActions({
         <button
           type="button"
           onClick={onDelete}
-          className="flex items-center justify-center size-7 rounded-lg text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.06] transition-all duration-150 active:scale-95"
+          className="flex items-center justify-center size-9 sm:size-7 rounded-lg text-[#5a5a5f] hover:text-red-400 hover:bg-red-400/[0.06] transition-all duration-150 active:scale-95 touch-manipulation"
           aria-label="删除"
         >
           <Trash2 className="size-3.5" />

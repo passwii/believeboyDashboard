@@ -2396,7 +2396,7 @@ export default function AIInsightsPage() {
       {activeTab === 'schedules' && (
         <div className="space-y-4">
           {/* Header with "New Schedule" button */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">定时任务管理</h2>
               <p className="text-sm text-muted-foreground">
@@ -2408,6 +2408,7 @@ export default function AIInsightsPage() {
                 setEditingSchedule(null)
                 setScheduleDialogOpen(true)
               }}
+              className="w-full sm:w-auto"
             >
               <Sparkles className="mr-2 h-4 w-4" />
               新建定时任务
@@ -2437,7 +2438,7 @@ export default function AIInsightsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="grid grid-cols-2 gap-2.5 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
                 {isLoadingProjects ? (
                   <Skeleton className="h-10 w-[180px]" />
                 ) : (
@@ -2446,7 +2447,7 @@ export default function AIInsightsPage() {
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="outline"
-                          className="h-10 w-[180px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
+                          className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[180px]"
                         >
                           {selectedProjectId === 'all'
                             ? '全部项目'
@@ -2478,7 +2479,7 @@ export default function AIInsightsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-10 px-3 text-muted-foreground hover:text-foreground"
+                        className="h-10 w-fit px-3 text-muted-foreground hover:text-foreground"
                         onClick={() => {
                           window.location.href = `/dashboard/system/project-info?configure=${selectedProjectId}`
                         }}
@@ -2495,7 +2496,7 @@ export default function AIInsightsPage() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-10 w-[140px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
+                      className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[140px]"
                     >
                       {COUNTRY_OPTIONS.find((c) => c.value === selectedCountry)?.label ||
                         '国家站点'}
@@ -2519,7 +2520,7 @@ export default function AIInsightsPage() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-10 w-[120px] justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none"
+                      className="h-10 w-full justify-between border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[120px]"
                     >
                       {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insightType)?.label || '类型'}
                       <ChevronDown className="h-4 w-4 opacity-50" />
@@ -2543,7 +2544,7 @@ export default function AIInsightsPage() {
                   onValueChange={setSelectedModel}
                   disabled={isLoadingModelConfig || isGenerating || !modelConfig?.models.length}
                 >
-                  <SelectTrigger className="h-10 w-[220px] border-border/70 bg-[hsl(var(--surface-soft))] shadow-none">
+                  <SelectTrigger className="h-10 w-full border-border/70 bg-[hsl(var(--surface-soft))] shadow-none lg:w-[220px]">
                     <SelectValue
                       placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
                     />
@@ -2586,7 +2587,7 @@ export default function AIInsightsPage() {
                 <DateRangePicker
                   value={dateRange}
                   onChange={setDateRange}
-                  className="h-10 w-[240px]"
+                  className="h-10 w-full lg:w-[240px]"
                   timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
                 />
                 <Button
@@ -2598,7 +2599,7 @@ export default function AIInsightsPage() {
                     !dateRange?.to ||
                     isGenerating
                   }
-                  className="h-10 gap-2"
+                  className="h-10 col-span-2 gap-2 w-full lg:col-span-1 lg:w-auto"
                 >
                   {isGenerating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2722,7 +2723,7 @@ export default function AIInsightsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-9 w-9 sm:h-8 sm:w-8"
                               disabled={insight.status === 'generating'}
                               onClick={() => void handleViewInsight(insight.id)}
                             >
@@ -2731,7 +2732,7 @@ export default function AIInsightsPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-9 w-9 sm:h-8 sm:w-8"
                               onClick={() => void handleDelete(insight.id)}
                             >
                               <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -2951,7 +2952,7 @@ export default function AIInsightsPage() {
                 洞察详情查看对话框
               </span>
               <DialogHeader>
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div>
                     <DialogTitle className="flex items-center gap-2">
                       {viewingInsight?.status === 'generating' ||
@@ -3053,7 +3054,7 @@ export default function AIInsightsPage() {
                     <span className="ml-3 text-muted-foreground">正在加载洞察内容...</span>
                   </div>
                 ) : isEditingDetail ? (
-                  <div className="grid grid-cols-2 gap-4" style={{ height: '70vh' }}>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ height: '70vh' }}>
                     <div className="flex flex-col overflow-y-auto rounded-2xl border border-border/70 bg-background/60">
                       <div className="sticky top-0 z-10 border-b border-border/40 bg-background/90 px-4 py-2.5 backdrop-blur-sm">
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -3069,13 +3070,13 @@ export default function AIInsightsPage() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 min-h-0">
-                      <div className="shrink-0 flex items-center justify-between rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground">
+                      <div className="shrink-0 flex flex-col gap-3 rounded-xl border border-border/70 bg-[hsl(var(--surface-soft))] px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                         <span>
                           直接编辑 Markdown 内容，支持表格、
                           <code className="text-foreground">lineChart</code> /
                           <code className="text-foreground">pieChart</code> 代码块实时预览。
                         </span>
-                        <div className="flex items-center gap-2 ml-4 shrink-0">
+                        <div className="flex items-center gap-2 sm:ml-4 shrink-0">
                           <Button
                             variant="outline"
                             size="sm"

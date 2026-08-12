@@ -216,7 +216,7 @@ function SchedulesTab() {
   // ScheduleList 自带 onRefresh 触发, 我们用 refreshTrigger 让父组件在保存/删除/切换后重新触发
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">定时任务管理</h2>
           <p className="text-sm text-muted-foreground">
@@ -228,6 +228,7 @@ function SchedulesTab() {
             setEditingSchedule(null)
             setScheduleDialogOpen(true)
           }}
+          className="w-full sm:w-auto"
         >
           <Clock className="mr-2 h-4 w-4" />
           新建定时任务

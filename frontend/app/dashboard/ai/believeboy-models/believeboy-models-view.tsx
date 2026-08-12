@@ -96,7 +96,19 @@ export function BelieveboyModelsView({ source }: Props) {
               '[&_hr]:my-6 [&_hr]:border-border/70'
             )}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // 手机端 markdown 表格：包一层 overflow-x-auto，列宽不压缩（规则 10）
+                table: ({ children }) => (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">{children}</table>
+                  </div>
+                ),
+              }}
+            >
+              {source}
+            </ReactMarkdown>
           </div>
         </CardContent>
       </Card>

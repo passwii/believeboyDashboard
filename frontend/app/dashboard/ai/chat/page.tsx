@@ -43,7 +43,7 @@ export default function DashboardAiChatPage() {
   }, [])
 
   return (
-    <div className="!absolute inset-0 -m-1 -mt-3 -mb-6 md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4">
+    <div className="relative -m-1 -mt-5 -mb-6 h-screen supports-[height:100dvh]:h-dvh md:!absolute md:inset-0 md:h-auto md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4">
       <AIChatWindow />
     </div>
   )

@@ -318,7 +318,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button variant="ghost" size="sm" className="h-9 w-9 p-0 sm:h-8 sm:w-8">
                         <MoreHorizontal className="h-4 w-4" />
                         <span className="sr-only">打开菜单</span>
                       </Button>
@@ -369,7 +369,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
       </div>
 
       {/* Stats footer */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>共 {schedules.length} 个定时任务</span>
         <div className="flex items-center gap-4">
           <span>

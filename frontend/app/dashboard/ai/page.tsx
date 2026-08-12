@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 export default function AiLandingPage() {
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-screen w-full supports-[height:100dvh]:h-dvh md:h-full">
       <AIChatWindow
         title="让 AI"
         titleHighlight="助你"

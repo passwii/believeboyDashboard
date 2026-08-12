@@ -28,7 +28,9 @@ const runsMobileSpec = process.argv.some(
     arg.includes('crm-mobile-blf618') ||
     arg.includes('@mobile-blf618') ||
     arg.includes('reports-mobile-blf616') ||
-    arg.includes('@mobile-blf616')
+    arg.includes('@mobile-blf616') ||
+    arg.includes('ai-mobile-blf619') ||
+    arg.includes('@mobile-blf619')
 )
 let envFileBackup: string | null = null
 

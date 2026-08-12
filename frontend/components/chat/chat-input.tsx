@@ -231,7 +231,7 @@ export function ChatInput({
                     setShowAttachMenu(!showAttachMenu)
                   }}
                   disabled={disabled}
-                  className={`attach-btn flex items-center justify-center size-9 sm:size-10 rounded-full transition-all duration-300 active:scale-95 touch-manipulation ${
+                  className={`attach-btn flex items-center justify-center size-10 sm:size-10 rounded-full transition-all duration-300 active:scale-95 touch-manipulation ${
                     focused
                       ? 'bg-blue-500/15 text-blue-400 hover:bg-blue-500/25'
                       : 'bg-white/[0.08] text-[#8a8a8f] hover:bg-white/[0.12] hover:text-white'
@@ -333,7 +333,7 @@ export function ChatInput({
                 type="button"
                 onClick={handleToggleReasoning}
                 disabled={disabled || !reasoningSupported}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[36px] sm:min-h-[auto] ${
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   reasoningEnabled
                     ? 'bg-blue-500/20 text-blue-300'
                     : 'text-[#8a8a8f] hover:text-white hover:bg-white/5'
@@ -355,7 +355,7 @@ export function ChatInput({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!message.trim() || disabled}
-                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 touch-manipulation ${
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   focused
                     ? 'bg-[#1a94ff] shadow-[0_0_25px_rgba(20,136,252,0.5),0_0_50px_rgba(20,136,252,0.2)]'
                     : 'bg-[#1488fc] shadow-[0_0_20px_rgba(20,136,252,0.3)] hover:bg-[#1a94ff] hover:shadow-[0_0_30px_rgba(20,136,252,0.45)]'
