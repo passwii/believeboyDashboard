@@ -30,7 +30,6 @@ import {
   DataCardContent,
   DataTableCard,
   DataTableCardHeader,
-  DataTableCardMetrics,
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import {
@@ -565,7 +564,7 @@ function SearchableSkuField({
       </Button>
       <DialogContent
         aria-describedby="shipment-sku-search-dialog-description"
-        className="overflow-hidden p-0 sm:max-w-xl"
+        className="max-w-[calc(100%-2rem)] overflow-hidden rounded-lg p-0 sm:max-w-xl"
       >
         <span id="shipment-sku-search-dialog-description" className="sr-only">
           搜索并选择 SKU
@@ -3030,6 +3029,7 @@ export default function ShipmentManagementPage() {
                       </Button>
                       <Button
                         variant="outline"
+                        className="max-md:min-h-[44px]"
                         disabled={page <= 1 || loading}
                         onClick={() => void loadList(page - 1)}
                       >
@@ -3037,6 +3037,7 @@ export default function ShipmentManagementPage() {
                       </Button>
                       <Button
                         variant="outline"
+                        className="max-md:min-h-[44px]"
                         disabled={!hasNext || loading}
                         onClick={() => void loadList(page + 1)}
                       >
@@ -3897,7 +3898,7 @@ export default function ShipmentManagementPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="shipment-dialog-description"
-          className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-5xl"
         >
           <span id="shipment-dialog-description" className="sr-only">
             {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
@@ -4171,7 +4172,7 @@ export default function ShipmentManagementPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div className="rounded-2xl border border-border/70 bg-[hsl(var(--surface-subtle))] px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                       SKU 数
@@ -4398,7 +4399,7 @@ export default function ShipmentManagementPage() {
       <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
         <DialogContent
           aria-describedby="sku-detail-dialog-description"
-          className="max-h-[90vh] overflow-auto border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl"
+          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-lg border-border/70 bg-[hsl(var(--surface-panel))] dark:border-border/90 sm:max-w-2xl"
         >
           <span id="sku-detail-dialog-description" className="sr-only">
             SKU 明细：
@@ -4467,7 +4468,7 @@ export default function ShipmentManagementPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-shipment-dialog-description"
-          className="sm:max-w-md"
+          className="max-w-[calc(100%-2rem)] rounded-lg sm:max-w-md"
         >
           <span id="delete-shipment-dialog-description" className="sr-only">
             确认删除船期批次
