@@ -22,7 +22,9 @@ const runsMobileSpec = process.argv.some(
     arg.includes('operations-mobile-blf614') ||
     arg.includes('@mobile-blf614') ||
     arg.includes('operations-mobile-blf615') ||
-    arg.includes('@mobile-blf615')
+    arg.includes('@mobile-blf615') ||
+    arg.includes('reports-mobile-blf617') ||
+    arg.includes('@mobile-blf617')
 )
 let envFileBackup: string | null = null
 
@@ -49,6 +51,11 @@ if (runsMobileSpec && fs.existsSync(ENV_FILE)) {
   })
 }
 
+// 多会话并行（多 Multica runtime 同时跑同一仓库）时各会话共用端口 3200 会互踩：
+// A 会话的 dev server 可能被 B 会话的 playwright 复用，导致 B 看到 A 的旧代码。
+// 允许用 PLAYWRIGHT_PORT 指定专属端口，默认维持 3200 不变。
+const PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT || '3200'
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -57,7 +64,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['html'], ['list']],
   use: {
-    baseURL: 'http://localhost:3200',
+    baseURL: `http://localhost:${PLAYWRIGHT_PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -77,14 +84,14 @@ export default defineConfig({
   webServer: process.env.CI
     ? {
         command: 'pnpm start',
-        url: 'http://localhost:3200',
+        url: `http://localhost:${PLAYWRIGHT_PORT}`,
         reuseExistingServer: false,
         timeout: 120 * 1000,
         env: { NEXTAUTH_SECRET: BLF611_FIXTURE_SECRET },
       }
     : {
-        command: 'pnpm dev',
-        url: 'http://localhost:3200',
+        command: `pnpm dev -p ${PLAYWRIGHT_PORT}`,
+        url: `http://localhost:${PLAYWRIGHT_PORT}`,
         reuseExistingServer: true,
         timeout: 120 * 1000,
         env: { NEXTAUTH_SECRET: BLF611_FIXTURE_SECRET },
