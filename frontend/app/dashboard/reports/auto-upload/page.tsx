@@ -389,7 +389,7 @@ function RpaStatusGrid({
               style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
             >
               <div
-                className={`flex items-center border border-b-0 border-border/50 bg-[hsl(var(--surface-subtle))] px-3 ${TABLE_HEADER_HEIGHT_CLASS}`}
+                className={`sticky left-0 z-20 flex items-center border border-b-0 border-r border-border/50 bg-[hsl(var(--surface-subtle))] px-3 ${TABLE_HEADER_HEIGHT_CLASS}`}
               >
                 <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   项目
@@ -422,7 +422,7 @@ function RpaStatusGrid({
                     className={`grid border border-t-0 border-border/50 transition-colors hover:bg-[hsl(var(--surface-subtle))] ${TABLE_ROW_HEIGHT_CLASS}`}
                     style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
                   >
-                    <div className="flex items-center border-r border-border/50 bg-[hsl(var(--surface-panel))] px-3">
+                    <div className="sticky left-0 z-10 flex items-center border-r border-border/50 bg-[hsl(var(--surface-panel))] px-3">
                       <span className="truncate text-sm font-medium">{row.project_name}</span>
                     </div>
                     {REPORT_TYPES.map((rt, colIdx) => {
@@ -793,10 +793,10 @@ function AutoUploadContent({
 
   return (
     <div className="flex flex-1 flex-col gap-4">
-      {/* Top controls */}
-      <div className="flex shrink-0 items-center gap-3">
+      {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className="h-10 w-[160px] rounded-md border-border/70 bg-[hsl(var(--surface-overlay))]">
+          <SelectTrigger className="col-span-2 h-10 w-full rounded-md border-border/70 bg-[hsl(var(--surface-overlay))] sm:col-span-1 sm:w-[160px]">
             <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>
@@ -808,7 +808,7 @@ function AutoUploadContent({
           </SelectContent>
         </Select>
 
-        <Button onClick={handleUploadAll} disabled={pendingCount === 0 || uploading}>
+        <Button onClick={handleUploadAll} disabled={pendingCount === 0 || uploading} className="flex-1 sm:flex-none">
           {uploading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -826,6 +826,7 @@ function AutoUploadContent({
           variant="outline"
           onClick={clearAll}
           disabled={queueItems.length === 0 || recognizing || uploading}
+          className="flex-1 sm:flex-none"
         >
           清空列表
         </Button>
@@ -1030,7 +1031,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                                      className="ml-1 rounded-md px-1.5 py-1 -my-1 text-[10px] text-sky-600 hover:bg-sky-500/10 hover:text-sky-700 dark:text-sky-400"
                                     >
                                       {item.userReportStartDate ? '取消' : '编辑'}
                                     </button>
@@ -1055,7 +1056,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="ml-1 text-[10px] text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                                      className="ml-1 rounded-md px-1.5 py-1 -my-1 text-[10px] text-sky-600 hover:bg-sky-500/10 hover:text-sky-700 dark:text-sky-400"
                                     >
                                       {item.userReportDate ? '取消' : '编辑'}
                                     </button>

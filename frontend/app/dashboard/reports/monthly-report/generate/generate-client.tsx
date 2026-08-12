@@ -845,7 +845,7 @@ export default function GenerateTab() {
             <CardTitle className="text-lg">控制台</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {projectsLoading ? (
                 <ReportFilterSkeleton />
               ) : (
@@ -890,7 +890,7 @@ export default function GenerateTab() {
                 />
               </FilterField>
 
-              <FilterField label="账期月份" labelStyle="sm">
+              <FilterField label="账期月份" labelStyle="sm" className="col-span-2 md:col-span-1">
                 <MonthNavigation
                   value={parseMonthInputValue(reportMonth)}
                   onChange={(date) => setReportMonth(formatMonthInputValue(date))}
@@ -902,7 +902,7 @@ export default function GenerateTab() {
               </FilterField>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
               <div className="rounded-lg border border-border/70 bg-[hsl(var(--surface-subtle))] px-3 py-2">
                 <p className="text-xs text-muted-foreground">识别</p>
                 <p className="mt-1 text-sm font-semibold">

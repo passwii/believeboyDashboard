@@ -32,6 +32,27 @@ if (typeof Element !== 'undefined' && !Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {}
 }
 
+// jsdom v29 未暴露 window.matchMedia，而 useMobile（lib/hooks/use-mobile.ts，
+// 图表手机端优化用）在组件渲染时同步调用 matchMedia。补一个默认不匹配的桩：
+// 测试环境一律按“桌面端”渲染（getSnapshot 返回 false 的语义一致）。
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'undefined') {
+  const matchMediaStub = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })
+  Object.defineProperty(window, 'matchMedia', {
+    value: matchMediaStub,
+    configurable: true,
+    writable: true,
+  })
+}
+
 // jsdom v29 在当前环境不暴露 window.localStorage，导致 mock-crm-client.test.ts
 // 的 beforeEach `window.localStorage.clear()` 抛 "Cannot read properties of
 // undefined (reading 'clear')"，连带 MockCrmClient 的持久化读写也无存储可用。
