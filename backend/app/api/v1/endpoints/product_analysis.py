@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.models import AnalysisPT1Calculation, AnalysisPTSKUDetail, SkuRecord
 from app.schemas.product_analysis_source import (
     AnalysisSourceFileItem,
@@ -52,13 +57,17 @@ from app.services.product.serialization import to_source_item as _to_source_item
 from app.services.infra import (
     get_weekly_analysis_cache,
     set_weekly_analysis_cache,
-    invalidate_weekly_analysis_cache,
 )
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.utils.country import normalize_country
 from app.utils.math_utils import to_float as _to_float, safe_div as _safe_div
 from app.core.config import Settings, get_settings as _get_settings
-from app.services.ad.upload.recognition import resolve_ad_upload_temp_file_path as _resolve_ad_temp
-from app.services.upload_service import resolve_report_upload_temp_file_path as _resolve_report_temp
+from app.services.ad.upload.recognition import (
+    resolve_ad_upload_temp_file_path as _resolve_ad_temp,
+)
+from app.services.upload_service import (
+    resolve_report_upload_temp_file_path as _resolve_report_temp,
+)
 from pathlib import Path as _Path
 
 
@@ -594,6 +603,7 @@ def list_product_analysis_weekly(
     "/product-analysis/weekly/recompute",
     response_model=ProductAnalysisWeeklyRecomputeResponse,
 )
+@invalidate_cache_on_commit_l1(domains=["product_analysis"], project_id_from="query")
 def recompute_product_analysis_weekly(
     request: Request,
     project_id: int = Query(gt=0),
@@ -638,7 +648,6 @@ def recompute_product_analysis_weekly(
             request=request,
         )
         db.commit()
-        invalidate_weekly_analysis_cache()
     except ValueError as exc:
         db.rollback()
         detail = str(exc)
@@ -651,7 +660,9 @@ def recompute_product_analysis_weekly(
     return payload
 
 
-@router.post("/product-analysis/calculation/check", response_model=ProductAnalysisCheckResponse)
+@router.post(
+    "/product-analysis/calculation/check", response_model=ProductAnalysisCheckResponse
+)
 def check_product_analysis_data(
     body: ProductAnalysisCheckRequest,
     db: Session = Depends(get_primary_db_session),
@@ -675,7 +686,10 @@ def check_product_analysis_data(
     return result
 
 
-@router.post("/product-analysis/calculation/run", response_model=ProductAnalysisRunResponse)
+@router.post(
+    "/product-analysis/calculation/run", response_model=ProductAnalysisRunResponse
+)
+@invalidate_cache_on_commit_l1(domains=["product_analysis"], project_id_from="payload")
 def run_product_analysis(
     body: ProductAnalysisRunRequest,
     request: Request,
@@ -716,7 +730,6 @@ def run_product_analysis(
             request=request,
         )
         db.commit()
-        invalidate_weekly_analysis_cache()
     except ValueError as exc:
         db.rollback()
         detail = str(exc)
@@ -729,7 +742,9 @@ def run_product_analysis(
     return result
 
 
-@router.post("/product-analysis/calculation/preview", response_model=ProductAnalysisRunResponse)
+@router.post(
+    "/product-analysis/calculation/preview", response_model=ProductAnalysisRunResponse
+)
 def preview_product_analysis(
     body: ProductAnalysisPreviewRequest,
     request: Request,
@@ -756,7 +771,7 @@ def preview_product_analysis(
         if not temp_file_id:
             return None
         # 业务/付款走 report-upload tmp；广告走 ad-upload tmp
-        if temp_file_id.endswith(('.xlsx', '.xls')):
+        if temp_file_id.endswith((".xlsx", ".xls")):
             return _resolve_ad_temp(settings, temp_file_id)
         return _resolve_report_temp(settings, temp_file_id)
 
@@ -766,15 +781,15 @@ def preview_product_analysis(
 
     missing = []
     if business_path is None or not business_path.exists():
-        missing.append('business_temp_file_id')
+        missing.append("business_temp_file_id")
     if payment_path is None or not payment_path.exists():
-        missing.append('payment_temp_file_id')
+        missing.append("payment_temp_file_id")
     if ad_path is None or not ad_path.exists():
-        missing.append('ad_temp_file_id')
+        missing.append("ad_temp_file_id")
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f'临时文件不存在或已失效: {", ".join(missing)}',
+            detail=f"临时文件不存在或已失效: {', '.join(missing)}",
         )
 
     try:
@@ -824,6 +839,7 @@ def preview_product_analysis(
 
 
 @router.post("/product-analysis/trigger-recompute")
+@invalidate_cache_on_commit_l1(domains=["product_analysis"], project_id_from="query")
 def trigger_pt1_recompute(
     request: Request,
     project_id: int = Query(gt=0),
@@ -853,7 +869,6 @@ def trigger_pt1_recompute(
             period_start_date=period_start_date,
             period_end_date=period_end_date,
         )
-        invalidate_weekly_analysis_cache()
         append_operation_audit_log(
             db,
             action="product_analysis.trigger_recompute",
@@ -886,6 +901,7 @@ def trigger_pt1_recompute(
     "/product-analysis/sources/upload-file",
     response_model=UploadProductAnalysisSourcesResponse,
 )
+@invalidate_cache_on_commit_l1(domains=["product_analysis"], project_id_from="payload")
 def upload_product_analysis_sources(
     request: Request,
     body: UploadProductAnalysisSourcesRequest,
@@ -926,14 +942,17 @@ def upload_product_analysis_sources(
                 "report_start_date": body.report_start_date,
                 "report_end_date": body.report_end_date,
                 "outcomes": [
-                    {"type": o.report_type, "success": o.success, "source_id": o.source_id}
+                    {
+                        "type": o.report_type,
+                        "success": o.success,
+                        "source_id": o.source_id,
+                    }
                     for o in outcomes
                 ],
             },
             request=request,
         )
         db.commit()
-        invalidate_weekly_analysis_cache()
 
         return UploadProductAnalysisSourcesResponse(
             outcomes=[

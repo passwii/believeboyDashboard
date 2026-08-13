@@ -17,13 +17,15 @@ SHIPMENT_COST_SUMMARY_TTL = 3600
 SHIPMENT_SKU_TTL = 1800
 
 DAILY_ANALYSIS_KEY_PREFIX = _p("cache:reports:daily")
-DAILY_ANALYSIS_TTL = 120  # 2 minutes; 短 TTL + 主动 invalidate，负载高时再放宽
+# BLF-668: 统一 L1 档 5min（原 2min），短 TTL + 主动 invalidate
+DAILY_ANALYSIS_TTL = 300  # 5 minutes
 
 SHIPMENT_IN_TRANSIT_QTY_KEY_PREFIX = _p("cache:shipment:in-transit-qty")
 SHIPMENT_IN_TRANSIT_QTY_TTL = 1800  # 30 minutes
 
 MONTHLY_FINANCIAL_SERIES_KEY_PREFIX = _p("cache:monthly:financial-series")
-MONTHLY_FINANCIAL_SERIES_TTL = 3600
+# BLF-668: 统一 L1 档 5min（原 1h），短 TTL + 主动 invalidate
+MONTHLY_FINANCIAL_SERIES_TTL = 300
 
 
 # ── Generic cache operations ──────────────────────────────────────────
