@@ -409,6 +409,15 @@ register_invalidate_fn(
 register_invalidate_fn(
     "inventory_replenishment", invalidate_inventory_replenishment_cache
 )
-register_invalidate_fn("return_analysis", invalidate_return_analysis_cache)
+
+
+def _invalidate_return_analysis_dual(project_id: int | None = None) -> int:
+    """BLF-668: v1+v2 双清（退货分析既有两套前缀）。"""
+    return invalidate_return_analysis_cache(
+        project_id
+    ) + invalidate_return_analysis_v2_cache(project_id)
+
+
+register_invalidate_fn("return_analysis", _invalidate_return_analysis_dual)
 register_invalidate_fn("platform_revenues", invalidate_platform_revenue_cache)
 register_invalidate_fn("sku_info", invalidate_sku_info_cache)

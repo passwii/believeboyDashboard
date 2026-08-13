@@ -23,6 +23,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
+from app.services.infra.cache_decorator import (
+    invalidate_cache_on_commit_celery,
+    mark_committed,
+)
 from app.utils.stats import compute_risk_level
 
 logger = logging.getLogger(__name__)
@@ -35,6 +39,11 @@ logger = logging.getLogger(__name__)
     retry_backoff=True,
     retry_backoff_max=300,
     acks_late=True,
+)
+@invalidate_cache_on_commit_celery(
+    domains=["return_analysis"],
+    project_id_from="global",
+    on_error="log",
 )
 def refresh_return_aggregates(
     self, target_date: str | date | None = None
@@ -57,6 +66,7 @@ def refresh_return_aggregates(
     db = SessionLocal()
     try:
         result = _refresh_one_day(db, target_date=run_date)
+        mark_committed()  # BLF-668: _refresh_one_day 内部已 commit，按协议标记
         logger.info(
             "return_analysis.refresh_daily 完成：date=%s rows=%d projects=%d",
             run_date.isoformat(),

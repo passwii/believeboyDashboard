@@ -148,7 +148,8 @@ def main() -> int:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         exists = any(
-            isinstance(node, ast.FunctionDef) and node.name == spec.function
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == spec.function
             for node in tree.body
         )
         if not exists:

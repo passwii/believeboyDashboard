@@ -49,7 +49,10 @@ def _function_decorators(module: str, function: str) -> set[str]:
         return set()
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == function:
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == function
+        ):
             names: set[str] = set()
             for dec in node.decorator_list:
                 if isinstance(dec, ast.Call):
@@ -193,7 +196,8 @@ def _function_exists(module: str, function: str) -> bool:
         return False
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     return any(
-        isinstance(node, ast.FunctionDef) and node.name == function
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == function
         for node in tree.body
     )
 
