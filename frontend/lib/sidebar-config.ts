@@ -188,7 +188,6 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/reports/pricing-calculation/shop-calculation'],
         icon: IconMap.Store,
       },
-      { title: '报表核对', url: '/dashboard/reports/report-reconciliation', icon: IconMap.Shield },
       {
         title: '定时报告',
         url: '/dashboard/reports/scheduled-reports',

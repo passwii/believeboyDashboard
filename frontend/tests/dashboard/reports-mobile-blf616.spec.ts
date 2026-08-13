@@ -116,7 +116,7 @@ test.beforeEach(async ({ page, context }) => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 对账核对（report-reconciliation）
+// 对账核对（monthly-report/reconcile，原 report-reconciliation）
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe('@mobile-blf616 对账核对 手机端（BLF-616）', () => {
@@ -193,8 +193,8 @@ test.describe('@mobile-blf616 对账核对 手机端（BLF-616）', () => {
       route.fulfill({ json: RECONCILE_RESULT })
     )
 
-    await page.goto('/dashboard/reports/report-reconciliation')
-    await expect(page.getByRole('heading', { name: '对账核对' })).toBeVisible({ timeout: 30000 })
+    await page.goto('/dashboard/reports/monthly-report/reconcile')
+    await expect(page.getByRole('heading', { name: '财务月报' })).toBeVisible({ timeout: 30000 })
 
     // 控制台筛选项：手机端 2 列网格 → 项目 / 站点 同一行（项目自动选中首项）
     const projectTrigger = page.getByText('E2E 测试店铺')
@@ -236,8 +236,8 @@ test.describe('@mobile-blf616 对账核对 手机端（BLF-616）', () => {
     await page.route('**/api/backend/api/v1/projects/manage**', (route) =>
       route.fulfill({ json: PROJECTS })
     )
-    await page.goto('/dashboard/reports/report-reconciliation')
-    await expect(page.getByRole('heading', { name: '对账核对' })).toBeVisible({ timeout: 30000 })
+    await page.goto('/dashboard/reports/monthly-report/reconcile')
+    await expect(page.getByRole('heading', { name: '财务月报' })).toBeVisible({ timeout: 30000 })
 
     await page.getByRole('tab', { name: '手动核对' }).click()
     await expect(page.getByText('月度财务报表 (Excel)')).toBeVisible({ timeout: 10000 })
@@ -487,8 +487,8 @@ test.describe('@mobile-blf616 小屏 / 桌面回归（BLF-616）', () => {
       route.fulfill({ json: { reports: [] } })
     )
     await page.setViewportSize({ width: 360, height: 800 })
-    await page.goto('/dashboard/reports/report-reconciliation')
-    await expect(page.getByRole('heading', { name: '对账核对' })).toBeVisible({ timeout: 30000 })
+    await page.goto('/dashboard/reports/monthly-report/reconcile')
+    await expect(page.getByRole('heading', { name: '财务月报' })).toBeVisible({ timeout: 30000 })
     const projectTrigger = page.getByText('E2E 测试店铺')
     const countryTrigger = page.getByText('美国站 (US)')
     await expect(projectTrigger).toBeVisible({ timeout: 30000 })
