@@ -565,3 +565,37 @@ def invalidate_cache_on_commit_celery(
         return wrapper
 
     return decorator
+
+
+# ── 集中登记（BLF-665 子 #2）────────────────────────────────────────────
+# 导入所有域缓存模块，触发其模块级 register_invalidate_fn 调用，使
+# REGISTERED_DOMAINS 在装饰器被使用前完整。位于文件底部避免循环导入。
+
+
+def _register_all_domains() -> None:
+    """导入各域缓存模块以触发 invalidate_fn 注册（幂等）。"""
+    from app.services.infra import (  # noqa: F401
+        commission_cache,
+        crm_cache,
+        data_management,
+        inventory_cache,
+        product_cache,
+    )
+    from app.services.infra.cache import (  # noqa: F401
+        invalidate_all_shipment_schedules_cache,
+        invalidate_daily_analysis_cache,
+        invalidate_financial_series_cache,
+        invalidate_shipment_in_transit_qty_cache,
+    )
+
+    _ensure_registered("shipment_schedules", invalidate_all_shipment_schedules_cache)
+    _ensure_registered("daily_analysis", invalidate_daily_analysis_cache)
+    _ensure_registered("monthly_financial_series", invalidate_financial_series_cache)
+
+
+def _ensure_registered(domain: str, fn: Callable[..., Any]) -> None:
+    if REGISTERED_DOMAINS[domain]["invalidate_fn"] is None:
+        register_invalidate_fn(domain, fn)
+
+
+_register_all_domains()

@@ -5,7 +5,12 @@ from datetime import date
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.models import AnalysisSourceFile
 from sqlalchemy import func, select
 from app.schemas.inventory_replenishment import (
@@ -26,6 +31,7 @@ from app.services import (
     inventory_analysis_service,
     project_service,
 )
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.services.infra.inventory_cache import (
     get_inventory_analysis_cache,
     set_inventory_analysis_cache,
@@ -35,7 +41,6 @@ from app.services.infra.inventory_cache import (
     set_inventory_replenishment_cache,
     invalidate_inventory_analysis_cache,
     invalidate_inventory_snapshot_options_cache,
-    invalidate_inventory_replenishment_cache,
 )
 from app.services.inventory.replenishment import (
     list_inventory_replenishment_analysis,
@@ -48,7 +53,11 @@ from app.services.audit_log_service import (
     append_operation_audit_log,
     append_operation_view_log,
 )
-from app.schemas.inventory_replenishment import InventorySnapshotOption, CalendarRowItem, CalendarResponse
+from app.schemas.inventory_replenishment import (
+    InventorySnapshotOption,
+    CalendarRowItem,
+    CalendarResponse,
+)
 
 router = APIRouter(dependencies=[Depends(protected)])
 
@@ -132,7 +141,9 @@ def list_inventory_snapshot_options(
 
     options = list_snapshot_options(db, project_id=project_id, country=country)
     result = [
-        InventorySnapshotOption(report_date=row["report_date"], is_current=row["is_current"])
+        InventorySnapshotOption(
+            report_date=row["report_date"], is_current=row["is_current"]
+        )
         for row in options
     ]
     set_inventory_snapshot_options_cache(
@@ -172,17 +183,15 @@ def list_inventory_replenishment_analysis_endpoint(
     if cached is not None:
         return InventoryReplenishmentListResponse(**cached)
 
-    rows, summary, total, has_next = (
-        list_inventory_replenishment_analysis(
-            db,
-            project_id=project_id,
-            country=country,
-            keyword=keyword,
-            risk_status=risk_status,
-            in_transit_only=in_transit_only,
-            page=page,
-            page_size=page_size,
-        )
+    rows, summary, total, has_next = list_inventory_replenishment_analysis(
+        db,
+        project_id=project_id,
+        country=country,
+        keyword=keyword,
+        risk_status=risk_status,
+        in_transit_only=in_transit_only,
+        page=page,
+        page_size=page_size,
     )
     append_operation_view_log(
         db,
@@ -213,7 +222,13 @@ def list_inventory_replenishment_analysis_endpoint(
         has_next=has_next,
     )
     set_inventory_replenishment_cache(
-        project_id, country, keyword, risk_status, in_transit_only, page, page_size,
+        project_id,
+        country,
+        keyword,
+        risk_status,
+        in_transit_only,
+        page,
+        page_size,
         response.model_dump(mode="json"),
     )
     return response
@@ -222,6 +237,10 @@ def list_inventory_replenishment_analysis_endpoint(
 @router.put(
     "/inventory-replenishment-settings/{project_id}/{sku:path}",
     response_model=InventoryReplenishmentSettingItem,
+)
+@invalidate_cache_on_commit(
+    domains=["inventory_replenishment"],
+    project_id_from="path",
 )
 def update_inventory_replenishment_setting(
     project_id: int,
@@ -270,8 +289,6 @@ def update_inventory_replenishment_setting(
         request=request,
     )
     db.commit()
-    # BLF-633: 设置写路径未失效补货分析缓存 → 保存/刷新重算最长 5 分钟返回旧值
-    invalidate_inventory_replenishment_cache(project_id)
     return InventoryReplenishmentSettingItem(
         project_id=int(row.project_id),
         project_name=str(row.project_name),
@@ -343,7 +360,9 @@ def list_inventory_replenishment_calendar(
     is_admin: bool = Header(default=False, alias="X-Is-Admin"),
 ) -> CalendarResponse:
     from datetime import date as DateType, timedelta
-    from app.services.inventory.replenishment import list_inventory_replenishment_analysis
+    from app.services.inventory.replenishment import (
+        list_inventory_replenishment_analysis,
+    )
 
     project_service.ensure_project_access(
         db,
@@ -374,7 +393,11 @@ def list_inventory_replenishment_calendar(
         sellout_date = row.get("sellout_date_with_transit") or row.get("sellout_date")
 
         if sellout_date:
-            sellout_date_obj = DateType.fromisoformat(sellout_date) if isinstance(sellout_date, str) else sellout_date
+            sellout_date_obj = (
+                DateType.fromisoformat(sellout_date)
+                if isinstance(sellout_date, str)
+                else sellout_date
+            )
             if date_from and sellout_date_obj < date_from:
                 continue
             if date_to and sellout_date_obj > date_to:
@@ -384,23 +407,25 @@ def list_inventory_replenishment_calendar(
         is_slow = risk in SLOW_MOVING_STATUSES
         is_crit = risk in CRITICAL_STATUSES
 
-        calendar_items.append(CalendarRowItem(
-            project_id=row["project_id"],
-            project_name=row["project_name"],
-            sku=row["sku"],
-            country=row["country"],
-            risk_status=risk,
-            today=today_str,
-            sellout_date=sellout_date,
-            order_date=row.get("replenishment_order_date"),
-            warehouse_entry_date=row.get("warehouse_entry_date"),
-            available_inventory=row.get("available_inventory", 0),
-            in_transit_quantity=row.get("in_transit_quantity", 0),
-            weighted_dms=row.get("weighted_dms"),
-            estimated_quantity=row.get("estimated_replenishment_quantity"),
-            is_slow_moving=is_slow,
-            is_critical=is_crit,
-        ))
+        calendar_items.append(
+            CalendarRowItem(
+                project_id=row["project_id"],
+                project_name=row["project_name"],
+                sku=row["sku"],
+                country=row["country"],
+                risk_status=risk,
+                today=today_str,
+                sellout_date=sellout_date,
+                order_date=row.get("replenishment_order_date"),
+                warehouse_entry_date=row.get("warehouse_entry_date"),
+                available_inventory=row.get("available_inventory", 0),
+                in_transit_quantity=row.get("in_transit_quantity", 0),
+                weighted_dms=row.get("weighted_dms"),
+                estimated_quantity=row.get("estimated_replenishment_quantity"),
+                is_slow_moving=is_slow,
+                is_critical=is_crit,
+            )
+        )
 
     append_operation_view_log(
         db,

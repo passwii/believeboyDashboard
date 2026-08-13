@@ -28,6 +28,7 @@ from app.api.deps import (
 )
 from app.db.session import SessionLocal
 from app.models.crm import CrmCustomer, CrmLead
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.schemas.crm import (
     AuditLogListResponse,
     BatchIdsRequest,
@@ -195,6 +196,10 @@ def export_customers(
 @router.post(
     "/customers", response_model=CustomerItem, status_code=status.HTTP_201_CREATED
 )
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_customer(
     payload: CustomerCreate,
     db: Session = Depends(get_primary_db_session),
@@ -214,6 +219,10 @@ def create_customer(
 
 
 @router.post("/customers/import-sea", response_model=CustomerSeaImportResult)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def import_customers_to_sea(
     payload: CustomerSeaImportRequest,
     db: Session = Depends(get_primary_db_session),
@@ -233,6 +242,10 @@ def get_customer(customer_id: int, db: Session = Depends(get_read_db_session)):
 
 
 @router.patch("/customers/{customer_id}", response_model=CustomerItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_customer(
     customer_id: int,
     payload: CustomerUpdate,
@@ -280,6 +293,10 @@ def _summarize_value_scores(
 
 
 @router.patch("/customers/{customer_id}/value-scores", response_model=CustomerItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_value_scores(
     customer_id: int,
     payload: ValueScoresUpdate,
@@ -323,6 +340,10 @@ def update_value_scores(
 
 
 @router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def delete_customer(
     customer_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -348,6 +369,10 @@ def delete_customer(
 
 
 @router.post("/customers/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def batch_transfer(
     payload: BatchTransferRequest,
     db: Session = Depends(get_primary_db_session),
@@ -369,6 +394,10 @@ def batch_transfer(
 
 
 @router.post("/customers/batch-move-sea", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def batch_move_to_sea(
     payload: BatchIdsRequest,
     db: Session = Depends(get_primary_db_session),
@@ -390,6 +419,10 @@ def batch_move_to_sea(
 
 
 @router.post("/customers/{customer_id}/claim", response_model=CustomerItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def claim_from_sea(
     customer_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -425,6 +458,10 @@ def list_contacts(customer_id: int, db: Session = Depends(get_read_db_session)):
     response_model=ContactItem,
     status_code=status.HTTP_201_CREATED,
 )
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_contact(
     customer_id: int,
     payload: ContactCreate,
@@ -449,6 +486,10 @@ def create_contact(
 
 
 @router.patch("/contacts/{contact_id}", response_model=ContactItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_contact(
     contact_id: int,
     payload: ContactUpdate,
@@ -477,6 +518,10 @@ def update_contact(
 
 
 @router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def delete_contact(
     contact_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -562,6 +607,10 @@ def export_leads(
 
 
 @router.post("/leads", response_model=LeadItem, status_code=status.HTTP_201_CREATED)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_lead(
     payload: LeadCreate,
     db: Session = Depends(get_primary_db_session),
@@ -591,6 +640,10 @@ def get_lead(lead_id: int, db: Session = Depends(get_read_db_session)):
 
 
 @router.patch("/leads/{lead_id}", response_model=LeadItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_lead(
     lead_id: int,
     payload: LeadUpdate,
@@ -622,6 +675,10 @@ def update_lead(
 
 
 @router.post("/leads/batch-transfer", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def batch_transfer_leads(
     payload: BatchTransferRequest,
     db: Session = Depends(get_primary_db_session),
@@ -643,6 +700,10 @@ def batch_transfer_leads(
 
 
 @router.post("/leads/batch-move-pool", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def batch_move_leads_to_pool(
     payload: BatchIdsRequest,
     db: Session = Depends(get_primary_db_session),
@@ -664,6 +725,10 @@ def batch_move_leads_to_pool(
 
 
 @router.post("/leads/{lead_id}/claim", response_model=LeadItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def claim_lead_from_pool(
     lead_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -687,6 +752,10 @@ def claim_lead_from_pool(
 
 
 @router.post("/leads/{lead_id}/convert", response_model=ConvertLeadResponse)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def convert_lead(
     lead_id: int,
     payload: ConvertLeadRequest | None = None,
@@ -758,6 +827,10 @@ def list_follows(
 
 
 @router.post("/follows", response_model=FollowItem, status_code=status.HTTP_201_CREATED)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_follow(
     payload: FollowCreate,
     db: Session = Depends(get_primary_db_session),
@@ -1148,6 +1221,10 @@ async def follow_up_reminders_stream(
 
 
 @router.post("/tasks", response_model=TaskItem, status_code=status.HTTP_201_CREATED)
+@invalidate_cache_on_commit(
+    domains=["crm_tasks", "crm"],
+    project_id_from="global",
+)
 def create_task(
     payload: TaskCreate,
     db: Session = Depends(get_primary_db_session),
@@ -1192,6 +1269,10 @@ def get_task(
 
 
 @router.patch("/tasks/{task_id}", response_model=TaskItem)
+@invalidate_cache_on_commit(
+    domains=["crm_tasks", "crm"],
+    project_id_from="global",
+)
 def update_task(
     task_id: int,
     payload: TaskUpdate,
@@ -1237,6 +1318,10 @@ def update_task(
 
 
 @router.post("/tasks/{task_id}/status", response_model=TaskItem)
+@invalidate_cache_on_commit(
+    domains=["crm_tasks", "crm"],
+    project_id_from="global",
+)
 def set_task_status(
     task_id: int,
     payload: TaskStatusUpdate,
@@ -1267,6 +1352,10 @@ def set_task_status(
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskItem)
+@invalidate_cache_on_commit(
+    domains=["crm_tasks", "crm"],
+    project_id_from="global",
+)
 def complete_task(
     task_id: int,
     payload: TaskCompleteRequest | None = None,
@@ -1303,6 +1392,10 @@ def complete_task(
 
 
 @router.post("/tasks/{task_id}/cancel", response_model=TaskItem)
+@invalidate_cache_on_commit(
+    domains=["crm_tasks", "crm"],
+    project_id_from="global",
+)
 def cancel_task(
     task_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -1429,6 +1522,10 @@ def list_rules(
 
 
 @router.post("/rules", response_model=RuleItem, status_code=status.HTTP_201_CREATED)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_rule(
     payload: RuleCreate,
     db: Session = Depends(get_primary_db_session),
@@ -1456,6 +1553,10 @@ def create_rule(
 
 
 @router.patch("/rules/{rule_id}", response_model=RuleItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_rule(
     rule_id: int,
     payload: RuleUpdate,
@@ -1498,6 +1599,10 @@ def update_rule(
 
 
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def delete_rule(
     rule_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -1537,6 +1642,10 @@ def get_workflow_settings(
 
 
 @router.put("/settings/workflow", response_model=WorkflowSettings)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_workflow_settings(
     payload: WorkflowSettingsUpdate,
     db: Session = Depends(get_primary_db_session),
@@ -1564,6 +1673,10 @@ def list_categories(db: Session = Depends(get_read_db_session)):
 @router.post(
     "/categories", response_model=CategoryItem, status_code=status.HTTP_201_CREATED
 )
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_category(
     body: CategoryCreate,
     db: Session = Depends(get_primary_db_session),
@@ -1590,6 +1703,10 @@ def create_category(
 
 
 @router.patch("/categories/{category_id}", response_model=CategoryItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_category(
     category_id: int,
     body: CategoryUpdate,
@@ -1619,6 +1736,10 @@ def update_category(
 
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def delete_category(
     category_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -1641,6 +1762,10 @@ def delete_category(
 
 
 @router.put("/customers/{customer_id}/categories", response_model=CustomerItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def set_customer_categories(
     customer_id: int,
     body: CustomerCategoriesUpdate,
@@ -1708,6 +1833,10 @@ def list_saved_views(
     response_model=SavedViewItem,
     status_code=status.HTTP_201_CREATED,
 )
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def create_saved_view(
     payload: SavedViewCreate,
     db: Session = Depends(get_primary_db_session),
@@ -1725,6 +1854,10 @@ def create_saved_view(
 
 
 @router.patch("/saved-views/{view_id}", response_model=SavedViewItem)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def update_saved_view(
     view_id: int,
     payload: SavedViewUpdate,
@@ -1745,6 +1878,10 @@ def update_saved_view(
 
 
 @router.delete("/saved-views/{view_id}", status_code=status.HTTP_204_NO_CONTENT)
+@invalidate_cache_on_commit(
+    domains=["crm"],
+    project_id_from="global",
+)
 def delete_saved_view(
     view_id: int,
     db: Session = Depends(get_primary_db_session),

@@ -55,11 +55,18 @@ def _fake_row():
         production_lead_days=30,
         shipping_days=35,
         safety_factor=0.25,
+        target_days=45,
     )
 
 
 def _patch_deps(monkeypatch, endpoint_module):
-    """放行访问控制 + 假 upsert + 假审计，返回 invalidate spy。"""
+    """放行访问控制 + 假 upsert + 假审计，返回 invalidate spy。
+
+    BLF-667 起失效由装饰器经 REGISTERED_DOMAINS 调用，因此 spy 挂在注册表上。
+    """
+    from app.services.infra import cache_decorator as cd
+    from app.services.infra import inventory_cache as ic
+
     monkeypatch.setattr(
         endpoint_module.project_service,
         "ensure_project_access",
@@ -76,10 +83,10 @@ def _patch_deps(monkeypatch, endpoint_module):
         lambda *a, **k: None,
     )
     calls: list[int] = []
-    monkeypatch.setattr(
-        endpoint_module,
-        "invalidate_inventory_replenishment_cache",
-        lambda pid: calls.append(pid),
+    monkeypatch.setitem(
+        cd.REGISTERED_DOMAINS,
+        "inventory_replenishment",
+        {"invalidate_fn": lambda project_id=None: calls.append(project_id), "layer": 3},
     )
     return calls
 
@@ -109,6 +116,8 @@ class TestUpdateInventoryReplenishmentSetting:
     def test_access_denied_does_not_invalidate(
         self, monkeypatch, client, auth_headers, endpoint_module
     ):
+        from app.services.infra import cache_decorator as cd
+
         def deny(*a, **k):
             raise HTTPException(status_code=403, detail="无权访问该项目")
 
@@ -116,10 +125,13 @@ class TestUpdateInventoryReplenishmentSetting:
             endpoint_module.project_service, "ensure_project_access", deny
         )
         calls: list[int] = []
-        monkeypatch.setattr(
-            endpoint_module,
-            "invalidate_inventory_replenishment_cache",
-            lambda pid: calls.append(pid),
+        monkeypatch.setitem(
+            cd.REGISTERED_DOMAINS,
+            "inventory_replenishment",
+            {
+                "invalidate_fn": lambda project_id=None: calls.append(project_id),
+                "layer": 3,
+            },
         )
         resp = client.put(
             "/api/v1/inventory-replenishment-settings/18/X-001",

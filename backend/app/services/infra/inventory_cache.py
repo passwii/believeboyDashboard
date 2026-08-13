@@ -12,6 +12,7 @@ TTL 策略:
 import hashlib
 
 from app.services.infra.cache import cache_delete_pattern, cache_get, cache_set
+from app.services.infra.cache_decorator import register_invalidate_fn
 from app.services.infra.redis import _p
 
 # ── TTL constants ─────────────────────────────────────────────────────
@@ -398,3 +399,16 @@ def set_sku_info_cache(
 
 def invalidate_sku_info_cache() -> int:
     return cache_delete_pattern(f"{SKU_INFO_KEY_PREFIX}:*")
+
+
+# ── 域注册（供装饰器契约使用，BLF-665 子 #2）────────────────────────────
+register_invalidate_fn("inventory_analysis", invalidate_inventory_analysis_cache)
+register_invalidate_fn(
+    "inventory_snapshot_options", invalidate_inventory_snapshot_options_cache
+)
+register_invalidate_fn(
+    "inventory_replenishment", invalidate_inventory_replenishment_cache
+)
+register_invalidate_fn("return_analysis", invalidate_return_analysis_cache)
+register_invalidate_fn("platform_revenues", invalidate_platform_revenue_cache)
+register_invalidate_fn("sku_info", invalidate_sku_info_cache)
