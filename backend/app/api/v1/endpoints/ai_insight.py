@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_is_admin, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_is_admin,
+    get_request_operator,
+    protected,
+)
 from app.models import AIInsight, InsightStatus, InsightType, Project
 from app.schemas.ai_insight import (
     InsightChunkResponse,
@@ -33,8 +39,12 @@ from app.schemas.insight_schedule import (
     InsightScheduleRunNowResponse,
     InsightScheduleDeleteResponse,
 )
-from app.celery_tasks.insights.generate import generate_insight as celery_generate_insight
+from app.celery_tasks.insights.generate import (
+    generate_insight as celery_generate_insight,
+)
 from app.services import project_service
+from app.services.infra import ai_cache  # noqa: F401 —— 触发 L2 域 invalidate_fn 注册
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.services.ai_insight_generator import (
     normalize_insight_markdown,
 )
@@ -57,10 +67,14 @@ def _serialize_insight(row: AIInsight) -> InsightItem:
         project_name=row.project_name,
         country=row.country,
         title=row.title,
-        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
+        insight_type=row.insight_type.value
+        if isinstance(row.insight_type, InsightType)
+        else row.insight_type,
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
-        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        status=row.status.value
+        if isinstance(row.status, InsightStatus)
+        else row.status,
         sub_status=row.sub_status,
         error_message=row.error_message,
         created_by=row.created_by,
@@ -77,13 +91,17 @@ def _serialize_insight_detail(row: AIInsight) -> InsightDetail:
         country=row.country,
         title=row.title,
         content=normalize_insight_markdown(row.content or ""),
-        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
+        insight_type=row.insight_type.value
+        if isinstance(row.insight_type, InsightType)
+        else row.insight_type,
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
-        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        status=row.status.value
+        if isinstance(row.status, InsightStatus)
+        else row.status,
         sub_status=row.sub_status,
         error_message=row.error_message,
-        strategy_metadata=getattr(row, 'strategy_metadata', None),
+        strategy_metadata=getattr(row, "strategy_metadata", None),
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -101,10 +119,16 @@ def _encode_sse_event(payload: dict) -> bytes:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
-router = APIRouter(prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)])
+router = APIRouter(
+    prefix="/ai-insights", tags=["ai-insights"], dependencies=[Depends(protected)]
+)
 
 
 @router.post("/generate", response_model=InsightStatusResponse)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def generate_insight(
     payload: InsightGenerateRequest,
     db: Session = Depends(get_primary_db_session),
@@ -115,7 +139,9 @@ def generate_insight(
     Start insight generation in the background.
     Returns immediately with the insight ID. Poll /ai-insights/{id}/stream for progress.
     """
-    project_service.ensure_project_access(db, payload.project_id, operator=x_operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, payload.project_id, operator=x_operator, is_admin=is_admin
+    )
     project = _get_project_or_404(db, payload.project_id)
 
     insight = AIInsight(
@@ -161,7 +187,9 @@ def stream_insight(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
 
     # Access check: non-admin users can only stream insights from projects they manage
-    project_service.ensure_project_access(db, insight.project_id, operator=operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, insight.project_id, operator=operator, is_admin=is_admin
+    )
 
     insight_id_val = insight.id
     start_status = insight.status
@@ -169,15 +197,17 @@ def stream_insight(
     def event_generator():
         # If already completed/failed, send current state immediately and close
         if start_status in (InsightStatus.completed, InsightStatus.failed):
-            yield _encode_sse_event({
-                "type": "status",
-                "status": start_status.value,
-                "sub_status": None,
-                "insight_id": insight_id_val,
-                "title": insight.title or "",
-                "content": normalize_insight_markdown(insight.content or ""),
-                "error_message": insight.error_message,
-            })
+            yield _encode_sse_event(
+                {
+                    "type": "status",
+                    "status": start_status.value,
+                    "sub_status": None,
+                    "insight_id": insight_id_val,
+                    "title": insight.title or "",
+                    "content": normalize_insight_markdown(insight.content or ""),
+                    "error_message": insight.error_message,
+                }
+            )
             return
 
         # Celery-backed generation: poll the authoritative DB row and stream terminal state when ready.
@@ -188,38 +218,48 @@ def stream_insight(
             current_status = insight.status
             if current_status in (InsightStatus.completed, InsightStatus.failed):
                 if current_status == InsightStatus.completed:
-                    yield _encode_sse_event({
-                        "type": "done",
-                        "status": current_status.value,
-                        "insight_id": insight_id_val,
-                        "title": insight.title or "",
-                        "content": normalize_insight_markdown(insight.content or ""),
-                        "error_message": None,
-                    })
+                    yield _encode_sse_event(
+                        {
+                            "type": "done",
+                            "status": current_status.value,
+                            "insight_id": insight_id_val,
+                            "title": insight.title or "",
+                            "content": normalize_insight_markdown(
+                                insight.content or ""
+                            ),
+                            "error_message": None,
+                        }
+                    )
                 else:
-                    yield _encode_sse_event({
-                        "type": "error",
-                        "error": insight.error_message or "洞察生成失败",
-                        "insight_id": insight_id_val,
-                        "status": current_status.value,
-                        "error_message": insight.error_message,
-                    })
+                    yield _encode_sse_event(
+                        {
+                            "type": "error",
+                            "error": insight.error_message or "洞察生成失败",
+                            "insight_id": insight_id_val,
+                            "status": current_status.value,
+                            "error_message": insight.error_message,
+                        }
+                    )
                 return
             if current_status != last_status:
                 last_status = current_status
-                yield _encode_sse_event({
-                    "type": "status",
-                    "status": current_status.value,
-                    "sub_status": insight.sub_status,
-                    "insight_id": insight_id_val,
-                })
+                yield _encode_sse_event(
+                    {
+                        "type": "status",
+                        "status": current_status.value,
+                        "sub_status": insight.sub_status,
+                        "insight_id": insight_id_val,
+                    }
+                )
             yield _encode_sse_event({"type": "ping"})
 
-        yield _encode_sse_event({
-            "type": "error",
-            "error": "洞察生成超时，请稍后查看结果",
-            "insight_id": insight_id_val,
-        })
+        yield _encode_sse_event(
+            {
+                "type": "error",
+                "error": "洞察生成超时，请稍后查看结果",
+                "insight_id": insight_id_val,
+            }
+        )
 
     return StreamingResponse(
         event_generator(),
@@ -244,7 +284,9 @@ def list_insights(
     operator: str | None = Depends(get_request_operator),
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightListResponse:
-    accessible_ids = project_service.list_accessible_project_ids(db, operator=operator, is_admin=is_admin)
+    accessible_ids = project_service.list_accessible_project_ids(
+        db, operator=operator, is_admin=is_admin
+    )
 
     stmt = select(AIInsight)
     count_stmt = select(func.count(AIInsight.id))
@@ -289,7 +331,9 @@ def get_latest_insight(
     is_admin: bool = Depends(get_request_is_admin),
 ) -> InsightDetail | InsightStatusResponse:
     # Access check: non-admin users can only view latest insight from projects they manage
-    project_service.ensure_project_access(db, project_id, operator=operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, project_id, operator=operator, is_admin=is_admin
+    )
 
     stmt = (
         select(AIInsight)
@@ -303,7 +347,9 @@ def get_latest_insight(
     )
     row = db.execute(stmt).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="暂无洞察记录")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="暂无洞察记录"
+        )
     return _serialize_insight_detail(row)
 
 
@@ -311,6 +357,7 @@ def get_latest_insight(
 # Insight Schedule Endpoints (定时任务管理)
 # NOTE: These MUST be defined BEFORE /{insight_id} routes to avoid path conflicts
 # -------------------------------------------------------------------------------------------------
+
 
 def _serialize_schedule(db: Session, schedule) -> InsightScheduleItem:
     """序列化 InsightSchedule 为响应模型"""
@@ -366,9 +413,7 @@ def list_schedules(
             db, operator=operator, is_admin=is_admin
         )
         if accessible_ids is not None:
-            schedules = [
-                s for s in schedules if s.project_id in accessible_ids
-            ]
+            schedules = [s for s in schedules if s.project_id in accessible_ids]
 
     return InsightScheduleListResponse(
         items=[_serialize_schedule(db, s) for s in schedules],
@@ -380,6 +425,10 @@ def list_schedules(
     "/schedules",
     response_model=InsightScheduleItem,
     status_code=status.HTTP_201_CREATED,
+)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
 )
 def create_insight_schedule(
     payload: InsightScheduleCreate,
@@ -398,6 +447,10 @@ def create_insight_schedule(
 
 
 @router.patch("/schedules/{schedule_id}", response_model=InsightScheduleItem)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def update_insight_schedule(
     schedule_id: int,
     payload: InsightScheduleUpdate,
@@ -412,6 +465,10 @@ def update_insight_schedule(
 
 
 @router.delete("/schedules/{schedule_id}")
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def delete_insight_schedule(
     schedule_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -427,6 +484,10 @@ def delete_insight_schedule(
 @router.post(
     "/schedules/{schedule_id}/toggle",
     response_model=InsightScheduleToggleResponse,
+)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
 )
 def toggle_insight_schedule(
     schedule_id: int,
@@ -447,6 +508,10 @@ def toggle_insight_schedule(
 @router.post(
     "/schedules/{schedule_id}/run-now",
     response_model=InsightScheduleRunNowResponse,
+)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
 )
 def run_insight_schedule_now(
     schedule_id: int,
@@ -484,7 +549,9 @@ def get_insight(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
 
     # Access check: non-admin users can only view insights from projects they manage
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, row.project_id, operator=operator, is_admin=is_admin
+    )
 
     return InsightDetail(
         id=row.id,
@@ -493,13 +560,17 @@ def get_insight(
         country=row.country,
         title=row.title,
         content=row.content,
-        insight_type=row.insight_type.value if isinstance(row.insight_type, InsightType) else row.insight_type,
+        insight_type=row.insight_type.value
+        if isinstance(row.insight_type, InsightType)
+        else row.insight_type,
         date_range_start=row.date_range_start,
         date_range_end=row.date_range_end,
-        status=row.status.value if isinstance(row.status, InsightStatus) else row.status,
+        status=row.status.value
+        if isinstance(row.status, InsightStatus)
+        else row.status,
         sub_status=row.sub_status,
         error_message=row.error_message,
-        strategy_metadata=getattr(row, 'strategy_metadata', None),
+        strategy_metadata=getattr(row, "strategy_metadata", None),
         created_by=row.created_by,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -507,6 +578,10 @@ def get_insight(
 
 
 @router.put("/{insight_id}")
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def update_insight(
     insight_id: int,
     payload: InsightUpdateRequest,
@@ -518,7 +593,9 @@ def update_insight(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
 
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, row.project_id, operator=operator, is_admin=is_admin
+    )
 
     row.content = normalize_insight_markdown(payload.content.strip())
     row.updated_at = datetime.now(timezone.utc)
@@ -530,6 +607,10 @@ def update_insight(
 
 
 @router.post("/{insight_id}/retry", response_model=InsightRetryResponse)
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def retry_insight(
     insight_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -545,7 +626,9 @@ def retry_insight(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
 
     # Access check: non-admin users can only retry insights from projects they manage
-    project_service.ensure_project_access(db, row.project_id, operator=x_operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, row.project_id, operator=x_operator, is_admin=is_admin
+    )
 
     if row.status == InsightStatus.completed:
         raise HTTPException(
@@ -567,6 +650,10 @@ def retry_insight(
 
 
 @router.delete("/{insight_id}")
+@invalidate_cache_on_commit(
+    domains=["ai_insight"],
+    project_id_from="global",
+)
 def delete_insight(
     insight_id: int,
     db: Session = Depends(get_primary_db_session),
@@ -574,11 +661,14 @@ def delete_insight(
     is_admin: bool = Depends(get_request_is_admin),
 ):
     from app.schemas.ai_insight import InsightDeleteResponse
+
     row = db.get(AIInsight, insight_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="洞察不存在")
 
-    project_service.ensure_project_access(db, row.project_id, operator=operator, is_admin=is_admin)
+    project_service.ensure_project_access(
+        db, row.project_id, operator=operator, is_admin=is_admin
+    )
 
     db.delete(row)
     db.commit()
@@ -600,11 +690,13 @@ def get_ad_agent_evolution_report(
     rows = get_run_history_from_db(db, project_id=project_id, limit=100)
     runs: list[AnalysisRunMetadata] = []
     for r in rows:
-        runs.append(AnalysisRunMetadata(
-            run_id=r["run_id"],
-            project_id=r["project_id"],
-            dimensions_analyzed=r.get("dimensions_analyzed", []),
-            dimensions_skipped=r.get("dimensions_skipped", []),
-        ))
+        runs.append(
+            AnalysisRunMetadata(
+                run_id=r["run_id"],
+                project_id=r["project_id"],
+                dimensions_analyzed=r.get("dimensions_analyzed", []),
+                dimensions_skipped=r.get("dimensions_skipped", []),
+            )
+        )
     report = evolve_dimension_weights(runs, None)
     return report

@@ -13,6 +13,7 @@ from celery import shared_task
 from app.db.session import SessionLocal
 from app.services.alert.detector import detect_anomalies
 from app.services.alert.dispatcher import dispatch_batch
+from app.services.infra.cache_decorator import mark_committed
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def alert_detect() -> str:
     try:
         events = detect_anomalies(db)
         db.commit()
+        mark_committed()  # BLF-669: commit 后必须 mark
         if events:
             dispatch_batch(db, events)
     finally:

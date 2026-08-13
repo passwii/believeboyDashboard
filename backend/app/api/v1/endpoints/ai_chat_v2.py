@@ -19,6 +19,8 @@ from app.api.deps import get_primary_db_session, get_read_db_session, protected
 from app.core.config import Settings, get_settings
 from app.schemas.ai_chat import MessageCreate
 from app.services import ai as ai_chat_service
+from app.services.infra import ai_cache  # noqa: F401 —— 触发 L2 域 invalidate_fn 注册
+from app.services.infra.cache_decorator import invalidate_cache_on_commit
 from app.services.ai.chat import DEFAULT_CONVERSATION_TITLE
 from app.services.ai.agent import build_chat_agent
 
@@ -74,6 +76,10 @@ def get_runner() -> StreamRunner:
 
 
 @router.post("/conversations/{conversation_id}/messages/stream")
+@invalidate_cache_on_commit(
+    domains=["ai_chat_v2"],
+    project_id_from="global",
+)
 async def stream_message_v2(
     request: Request,
     conversation_id: int,
@@ -349,6 +355,10 @@ def _encode_done_sse(payload: dict) -> bytes:
 
 
 @router.post("/conversations/{conversation_id}/cancel")
+@invalidate_cache_on_commit(
+    domains=["ai_chat_v2"],
+    project_id_from="global",
+)
 async def cancel_stream_v2(
     conversation_id: int,
     db: Session = Depends(get_primary_db_session),

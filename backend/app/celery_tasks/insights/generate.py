@@ -9,6 +9,7 @@ from celery import shared_task
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.services.infra.cache_decorator import mark_committed
 from app.models import AIInsight, InsightSchedule, InsightStatus, InsightType, Project
 from app.services.ai_insight_runtime_service import run_insight_generation
 from app.services.insight_concurrency import acquire_remote_semaphore
@@ -55,7 +56,9 @@ def generate_insight(
 
             project = db.get(Project, schedule.project_id)
             if project is None:
-                logger.error("generate_insight: project %s not found", schedule.project_id)
+                logger.error(
+                    "generate_insight: project %s not found", schedule.project_id
+                )
                 return {"status": "missing_project", "schedule_id": schedule_id}
 
             start_date, end_date = _calculate_date_range(schedule.date_range_strategy)
@@ -73,6 +76,7 @@ def generate_insight(
             )
             db.add(insight)
             db.commit()
+            mark_committed()  # BLF-669: commit 后必须 mark
             db.refresh(insight)
             created_insight_id = insight.id
 
@@ -81,6 +85,7 @@ def generate_insight(
             schedule.run_count += 1
             schedule.last_error = None
             db.commit()
+            mark_committed()  # BLF-669: commit 后必须 mark
         else:
             insight = db.get(AIInsight, insight_id)
             if insight is None:
@@ -90,6 +95,7 @@ def generate_insight(
             if schedule is not None:
                 schedule.last_insight_id = insight.id
                 db.commit()
+                mark_committed()  # BLF-669: commit 后必须 mark
 
         payload = {
             "project_id": insight.project_id,
@@ -107,16 +113,27 @@ def generate_insight(
         logger.exception("generate_insight: failed to prepare insight payload: %s", exc)
         if schedule_id is not None:
             _update_schedule_failure(db, schedule_id, str(exc))
-        return {"status": "failed", "schedule_id": schedule_id, "insight_id": insight_id, "error": str(exc)}
+        return {
+            "status": "failed",
+            "schedule_id": schedule_id,
+            "insight_id": insight_id,
+            "error": str(exc),
+        }
     finally:
         db.close()
 
     try:
         with acquire_remote_semaphore("insights", timeout=300) as acquired:
             if not acquired:
-                _update_insight_failure(created_insight_id, "Could not acquire insight semaphore")
+                _update_insight_failure(
+                    created_insight_id, "Could not acquire insight semaphore"
+                )
                 if schedule_id is not None:
-                    _update_schedule_failure(SessionLocal(), schedule_id, "Could not acquire insight semaphore")
+                    _update_schedule_failure(
+                        SessionLocal(),
+                        schedule_id,
+                        "Could not acquire insight semaphore",
+                    )
                 return {
                     "status": "semaphore_timeout",
                     "schedule_id": schedule_id,
@@ -127,22 +144,41 @@ def generate_insight(
                 insight_id=created_insight_id,
                 settings=settings,
                 payload=payload,
-                operator=f"scheduler:{schedule_id}" if schedule_id is not None else "celery",
+                operator=f"scheduler:{schedule_id}"
+                if schedule_id is not None
+                else "celery",
             )
     except Exception as exc:
-        logger.exception("generate_insight: insight %s generation failed", created_insight_id)
+        logger.exception(
+            "generate_insight: insight %s generation failed", created_insight_id
+        )
         _update_insight_failure(created_insight_id, str(exc))
         if schedule_id is not None:
             _update_schedule_failure(SessionLocal(), schedule_id, str(exc))
-        return {"status": "failed", "schedule_id": schedule_id, "insight_id": created_insight_id, "error": str(exc)}
+        return {
+            "status": "failed",
+            "schedule_id": schedule_id,
+            "insight_id": created_insight_id,
+            "error": str(exc),
+        }
 
     if not ok:
         _update_insight_failure(created_insight_id, "Insight generation failed")
         if schedule_id is not None:
-            _update_schedule_failure(SessionLocal(), schedule_id, "Insight generation failed")
-        return {"status": "failed", "schedule_id": schedule_id, "insight_id": created_insight_id}
+            _update_schedule_failure(
+                SessionLocal(), schedule_id, "Insight generation failed"
+            )
+        return {
+            "status": "failed",
+            "schedule_id": schedule_id,
+            "insight_id": created_insight_id,
+        }
 
-    return {"status": "completed", "schedule_id": schedule_id, "insight_id": created_insight_id}
+    return {
+        "status": "completed",
+        "schedule_id": schedule_id,
+        "insight_id": created_insight_id,
+    }
 
 
 def _calculate_date_range(strategy: str) -> tuple[date, date]:
@@ -166,7 +202,9 @@ def _calculate_date_range(strategy: str) -> tuple[date, date]:
         last_monday = reference_date - timedelta(days_since_monday + 7)
         return last_monday, last_monday + timedelta(days=6)
 
-    logger.warning("Unknown date_range_strategy '%s', defaulting to yesterday", strategy)
+    logger.warning(
+        "Unknown date_range_strategy '%s', defaulting to yesterday", strategy
+    )
     return yesterday, yesterday
 
 
@@ -182,6 +220,7 @@ def _update_insight_failure(insight_id: int | None, error_message: str) -> None:
             insight.sub_status = None
             insight.error_message = error_message[:2000]
             db.commit()
+            mark_committed()  # BLF-669: commit 后必须 mark
     except Exception:
         db.rollback()
     finally:
@@ -195,6 +234,7 @@ def _update_schedule_failure(db, schedule_id: int, error_message: str) -> None:
             schedule.failure_count += 1
             schedule.last_error = error_message[:500]
             db.commit()
+            mark_committed()  # BLF-669: commit 后必须 mark
     except Exception:
         db.rollback()
     finally:
