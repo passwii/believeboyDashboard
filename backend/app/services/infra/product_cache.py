@@ -4,6 +4,7 @@
 """
 
 from app.services.infra.cache import cache_delete_pattern, cache_get, cache_set
+from app.services.infra.cache_decorator import register_invalidate_fn
 from app.services.infra.redis import _p
 
 PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX = _p("product_analysis:weekly")
@@ -56,3 +57,7 @@ def set_weekly_analysis_cache(
 
 def invalidate_weekly_analysis_cache() -> int:
     return cache_delete_pattern(f"{PRODUCT_ANALYSIS_WEEKLY_KEY_PREFIX}:*")
+
+
+# 域注册（供装饰器契约使用，BLF-665 子 #2）
+register_invalidate_fn("product_analysis", invalidate_weekly_analysis_cache)
