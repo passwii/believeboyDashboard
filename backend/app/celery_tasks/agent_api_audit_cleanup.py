@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 from celery import shared_task
 from sqlalchemy import delete
 
+from app.services.infra.cache_decorator import mark_committed
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,7 @@ def agent_api_audit_cleanup() -> str:
             delete(AgentApiAuditLog).where(AgentApiAuditLog.created_at < cutoff)
         )
         db.commit()
+        mark_committed()  # BLF-669: commit 后必须 mark
         deleted = result.rowcount or 0
     finally:
         db.close()

@@ -563,7 +563,87 @@ L1_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = (
 # ── L2 省 token 层（2 域）写端点 ──────────────────────────────────────
 # 首版：ai_chat_v2 / ai_insight 的写端点待 BLF-669 盘点后登记。
 
-L2_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = ()
+L2_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = (
+    # ── BLF-669 ai_insight（L2 省 token：防重复计费）──
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="generate_insight", method="POST", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="create_insight_schedule", method="POST", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="update_insight_schedule", method="PATCH", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="delete_insight_schedule", method="DELETE", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="toggle_insight_schedule", method="POST", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="run_insight_schedule_now", method="POST", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="update_insight", method="PUT", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="retry_insight", method="POST", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_insight", layer="L2",
+        module="app.api.v1.endpoints.ai_insight",
+        function="delete_insight", method="DELETE", path="/ai-insights",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 洞察写端点（L2 强制：漏失效=重复计费）", issue_ref="BLF-669",
+    ),
+    # ── BLF-669 ai_chat_v2（L2 省 token：防 stale prompt）──
+    WriteEndpointSpec(
+        domain="ai_chat_v2", layer="L2",
+        module="app.api.v1.endpoints.ai_chat_v2",
+        function="stream_message_v2", method="POST", path="/conversations/{conversation_id}/messages/stream",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 对话写端点（L2 强制：防 stale prompt）", issue_ref="BLF-669",
+    ),
+    WriteEndpointSpec(
+        domain="ai_chat_v2", layer="L2",
+        module="app.api.v1.endpoints.ai_chat_v2",
+        function="cancel_stream_v2", method="POST", path="/conversations/{conversation_id}/cancel",
+        required_decorator=DECORATOR_L0, decorator_applied=True,
+        rationale="AI 对话取消写端点（L2 强制）", issue_ref="BLF-669",
+    ),
+)
 
 # ── 合并访问器 ────────────────────────────────────────────────────────
 

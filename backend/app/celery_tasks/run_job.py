@@ -39,6 +39,7 @@ from app.celery_tasks._common import (
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.services.infra.cache_decorator import mark_committed
 from app.models.job import JobStatus
 from app.services import job_service
 from app.services import report as monthly_report_service
@@ -113,28 +114,45 @@ def run_job(self, job_id: int) -> dict:
         if isinstance(params, dict):
             existing_resolved = params.get("resolved_file_paths")
             resolved_file_paths = (
-                {k: v for k, v in existing_resolved.items() if isinstance(v, str) and v.strip()}
+                {
+                    k: v
+                    for k, v in existing_resolved.items()
+                    if isinstance(v, str) and v.strip()
+                }
                 if isinstance(existing_resolved, dict)
                 else {}
             )
-            resolved_file_paths = {**resolved_file_paths, **resolve_extra_file_ids(settings, params)}
+            resolved_file_paths = {
+                **resolved_file_paths,
+                **resolve_extra_file_ids(settings, params),
+            }
             params = {**params, "resolved_file_paths": resolved_file_paths}
         else:
             params = {}
         if payload.get("job_type") == "monthly_report":
-            params = {**params, "_progress_callback": monthly_progress_callback(db, run)}
-        resolved_file_paths = params.get("resolved_file_paths", {}) if isinstance(params, dict) else {}
+            params = {
+                **params,
+                "_progress_callback": monthly_progress_callback(db, run),
+            }
+        resolved_file_paths = (
+            params.get("resolved_file_paths", {}) if isinstance(params, dict) else {}
+        )
         upload_path_raw = resolved_file_paths.get("transaction_report")
         if isinstance(upload_path_raw, str) and upload_path_raw.strip():
             upload_path = Path(upload_path_raw)
         elif payload.get("job_type") == "monthly_report":
-            raise FileNotFoundError("transaction_report path not found for monthly_report")
+            raise FileNotFoundError(
+                "transaction_report path not found for monthly_report"
+            )
         else:
             upload_path = job_service.resolve_upload_path(settings, payload["file_id"])
-        monthly_report_id = prepare_monthly_report_if_needed(settings, db, payload, params)
+        monthly_report_id = prepare_monthly_report_if_needed(
+            settings, db, payload, params
+        )
         if monthly_report_id is not None:
             monthly_report_service.mark_report_running(db, monthly_report_id)
             db.commit()
+            mark_committed()  # BLF-669: commit 后必须 mark
         push_progress(
             db,
             run,
@@ -177,11 +195,15 @@ def run_job(self, job_id: int) -> dict:
                     calculation_version=1,
                 )
                 db.commit()
+                mark_committed()  # BLF-669: commit 后必须 mark
             except Exception as persist_error:  # noqa: BLE001
                 db.rollback()
                 persist_error_message = f"db_persist_error: {persist_error}"
-                monthly_report_service.mark_report_failed(db, monthly_report_id, persist_error_message)
+                monthly_report_service.mark_report_failed(
+                    db, monthly_report_id, persist_error_message
+                )
                 db.commit()
+                mark_committed()  # BLF-669: commit 后必须 mark
 
         return {"status": "success", "job_id": job_id, "result_path": result_path}
 
@@ -196,7 +218,9 @@ def run_job(self, job_id: int) -> dict:
             if monthly_report_id is None:
                 monthly_report_id = extract_monthly_report_id(payload, params)
             if monthly_report_id is not None:
-                monthly_report_service.mark_report_failed(db, monthly_report_id, str(error))
+                monthly_report_service.mark_report_failed(
+                    db, monthly_report_id, str(error)
+                )
             if job.status != JobStatus.success:
                 push_progress(
                     db,

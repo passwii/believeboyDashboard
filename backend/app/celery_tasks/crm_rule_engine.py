@@ -13,16 +13,23 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_celery
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="crm_rule_engine", acks_late=False)
+@invalidate_cache_on_commit_celery(
+    domains=["crm"],
+    project_id_from="global",
+    on_error="log",
+)
 def crm_rule_engine() -> str:
     """扫描规则并执行。acks_late=False：幂等周期任务，丢了重跑即可。"""
     from app.core.config import get_settings
     from app.db.session import SessionLocal
     from app.services.crm.rule_engine_service import scan_rules
+    from app.services.infra.cache_decorator import mark_committed
 
     settings = get_settings()
     if not settings.crm_rule_engine_enabled:
@@ -33,6 +40,7 @@ def crm_rule_engine() -> str:
     try:
         result = scan_rules(db)
         db.commit()  # scan_rules 只 flush；此处统一 commit，否则 close 时回滚丢写
+        mark_committed()  # BLF-669: commit 后必须 mark（装饰器在返回时统一失效）
     finally:
         db.close()
 

@@ -18,6 +18,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+from app.services.infra.cache_decorator import mark_committed
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -64,6 +66,7 @@ def rebuild_full_snapshot(db: Session) -> dict[str, Any]:
         d += timedelta(days=1)
 
     db.commit()
+    mark_committed()  # BLF-669: commit 后必须 mark（装饰器在任务返回时统一失效）
 
     # 3) summarize
     proj_count = (
