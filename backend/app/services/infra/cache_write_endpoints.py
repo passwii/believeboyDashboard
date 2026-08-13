@@ -471,7 +471,44 @@ L1_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = (
 # ── L2 长 TTL 省 token 层（2 域 × 写端点）── 强制登记 ──────────────────
 # ai_chat_v2 / ai_insight 写端点盘点在子 #4（BLF-669）完成；首版暂无登记。
 
-L2_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = ()
+L2_WRITE_ENDPOINTS: tuple[WriteEndpointSpec, ...] = (
+    # ai_insight（L2 省 token：防重复计费）
+    *(
+        WriteEndpointSpec(
+            domain="ai_insight",
+            module="app.api.v1.endpoints.ai_insight",
+            function=fn,
+            decorator="invalidate_cache_on_commit",
+            project_id_from="global",
+            rationale="AI 洞察写端点（L2 强制装饰器：漏失效=重复计费）",
+            issue_ref="BLF-669",
+        )
+        for fn in (
+            "generate_insight",
+            "create_insight_schedule",
+            "update_insight_schedule",
+            "delete_insight_schedule",
+            "toggle_insight_schedule",
+            "run_insight_schedule_now",
+            "update_insight",
+            "retry_insight",
+            "delete_insight",
+        )
+    ),
+    # ai_chat_v2（L2 省 token：防 stale prompt）
+    *(
+        WriteEndpointSpec(
+            domain="ai_chat_v2",
+            module="app.api.v1.endpoints.ai_chat_v2",
+            function=fn,
+            decorator="invalidate_cache_on_commit",
+            project_id_from="global",
+            rationale="AI 对话写端点（L2 强制装饰器：防 stale prompt）",
+            issue_ref="BLF-669",
+        )
+        for fn in ("stream_message_v2", "cancel_stream_v2")
+    ),
+)
 
 
 def ALL_WRITE_ENDPOINTS() -> tuple[WriteEndpointSpec, ...]:

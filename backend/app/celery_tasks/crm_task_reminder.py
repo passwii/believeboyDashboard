@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_celery
 
 from app.services.crm.task_service import REMIND_LEAD_HOURS
 
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="crm_task_reminder", acks_late=False)
+@invalidate_cache_on_commit_celery(
+    domains=["crm_tasks"], project_id_from="global", on_error="log"
+)
 def crm_task_reminder() -> str:
     """扫描并标记截止前 24h 内未提醒的任务。
 
@@ -26,10 +30,12 @@ def crm_task_reminder() -> str:
     """
     from app.db.session import SessionLocal
     from app.services.crm.task_service import mark_due_tasks_reminded
+    from app.services.infra.cache_decorator import mark_committed
 
     db = SessionLocal()
     try:
         marked = mark_due_tasks_reminded(db, lead_hours=REMIND_LEAD_HOURS)
+        mark_committed()  # BLF-669: service 内部已 commit，协议标记
     finally:
         db.close()
 

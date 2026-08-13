@@ -575,6 +575,7 @@ def invalidate_cache_on_commit_celery(
 def _register_all_domains() -> None:
     """导入各域缓存模块以触发 invalidate_fn 注册（幂等）。"""
     from app.services.infra import (  # noqa: F401
+        ai_cache,
         commission_cache,
         crm_cache,
         data_management,

@@ -12,11 +12,15 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_celery
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="crm_stale_email", acks_late=False)
+@invalidate_cache_on_commit_celery(
+    domains=["crm"], project_id_from="global", on_error="log"
+)
 def crm_stale_email() -> str:
     """扫描并发送无跟进提醒邮件。
 
@@ -24,10 +28,12 @@ def crm_stale_email() -> str:
     """
     from app.db.session import SessionLocal
     from app.services.crm.stale_email_service import send_stale_reminder_emails
+    from app.services.infra.cache_decorator import mark_committed
 
     db = SessionLocal()
     try:
         result = send_stale_reminder_emails(db)
+        mark_committed()  # BLF-669: service 内部已 commit，协议标记
     finally:
         db.close()
 

@@ -13,11 +13,17 @@ from __future__ import annotations
 import logging
 
 from celery import shared_task
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_celery
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task(name="crm_sea_reclaim", acks_late=False)
+@invalidate_cache_on_commit_celery(
+    domains=["crm"],
+    project_id_from="global",
+    on_error="log",
+)
 def crm_sea_reclaim() -> str:
     """扫描并回收 N 天未跟进的客户/线索至公海。
 
@@ -26,6 +32,7 @@ def crm_sea_reclaim() -> str:
     from app.core.config import get_settings
     from app.db.session import SessionLocal
     from app.services.crm.sea_reclaim_service import reclaim_stale_to_sea
+    from app.services.infra.cache_decorator import mark_committed
 
     settings = get_settings()
     days = settings.crm_sea_reclaim_days
@@ -36,6 +43,7 @@ def crm_sea_reclaim() -> str:
     db = SessionLocal()
     try:
         result = reclaim_stale_to_sea(db, days=days)
+        mark_committed()  # BLF-669: service 内部已 commit，协议标记
     finally:
         db.close()
 

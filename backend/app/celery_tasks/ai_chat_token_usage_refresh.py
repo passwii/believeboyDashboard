@@ -27,6 +27,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
+from app.services.infra.cache_decorator import mark_committed
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ def refresh_ai_chat_token_usage(
     db = SessionLocal()
     try:
         result = _refresh_one_day(db, target_date=run_date)
+        mark_committed()  # BLF-669: _refresh_one_day 内部已 commit，协议标记
         logger.info(
             "ai_chat_token_usage.refresh_daily 完成：date=%s rows=%d users=%d",
             run_date.isoformat(),
@@ -177,6 +179,7 @@ def _refresh_one_day(db: Session, *, target_date: date) -> dict[str, Any]:
 
     db.execute(upsert)
     db.commit()
+    mark_committed()  # BLF-669: commit 后必须 mark
 
     unique_users = {r["user_id"] for r in rows}
     return {

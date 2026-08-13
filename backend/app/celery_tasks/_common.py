@@ -28,6 +28,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.services.infra.cache_decorator import mark_committed
 from app.models import JobRun
 from app.services import job_service
 from app.services import report as monthly_report_service
@@ -75,7 +76,9 @@ def push_progress(
         job_service.update_run_log_excerpt(
             db,
             run,
-            build_progress_payload(stage=stage, progress=progress, message=message, task_id=task_id),
+            build_progress_payload(
+                stage=stage, progress=progress, message=message, task_id=task_id
+            ),
         )
     except Exception:  # noqa: BLE001
         db.rollback()
@@ -118,7 +121,9 @@ def resolve_extra_file_ids(settings: Settings, params: dict) -> dict:
         file_type = file_type_by_key.get(key)
         if not (project_name and file_type):
             continue
-        path = upload_service.build_upload_file_path(settings, project_name, file_type, file_id)
+        path = upload_service.build_upload_file_path(
+            settings, project_name, file_type, file_id
+        )
         resolved[key] = str(path)
     return resolved
 
@@ -174,11 +179,15 @@ def prepare_monthly_report_if_needed(
         raise ValueError("transaction_file_id is required for monthly_report job")
     summary_pdf_file_id_raw = file_ids_dict.get("monthly_summary_pdf")
     summary_pdf_file_id = (
-        str(summary_pdf_file_id_raw).strip() if summary_pdf_file_id_raw is not None else None
+        str(summary_pdf_file_id_raw).strip()
+        if summary_pdf_file_id_raw is not None
+        else None
     )
 
     resolved_file_paths = params.get("resolved_file_paths")
-    resolved_paths_dict = resolved_file_paths if isinstance(resolved_file_paths, dict) else {}
+    resolved_paths_dict = (
+        resolved_file_paths if isinstance(resolved_file_paths, dict) else {}
+    )
     transaction_file_path = str(
         resolved_paths_dict.get("transaction_report")
         or upload_service.build_upload_file_path(
@@ -210,4 +219,5 @@ def prepare_monthly_report_if_needed(
         file_size=None,
     )
     db.commit()
+    mark_committed()  # BLF-669: 服务层 commit 后协议标记（ContextVar 跨调用栈可见）
     return report.id
