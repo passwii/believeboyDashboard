@@ -25,6 +25,7 @@ from app.api.agent.errors import (
     error_payload,
     register_agent_error_handlers,
 )
+from app.api.v1.lazy_router import preload_all_lazy_groups
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.session import ReadSessionLocal, SessionLocal
@@ -141,6 +142,17 @@ async def on_shutdown() -> None:
 
     close_redis_client()
     await close_async_redis_clients()
+
+
+@app.middleware("http")
+async def lazy_groups_preload_middleware(request: Request, call_next):
+    """BLF-657：首次请求 /openapi.json（含 /docs 依赖的 schema）前，预加载全部
+    懒分组，保证 openapi 生成期间路由/版本稳定（详见 lazy_router.preload_all_lazy_groups）。
+    预加载幂等：只会在第一次命中时真正 import。
+    """
+    if request.url.path in ("/openapi.json", "/docs", "/redoc"):
+        preload_all_lazy_groups()
+    return await call_next(request)
 
 
 @app.middleware("http")
