@@ -522,11 +522,11 @@ export default function ShopCalculationPage() {
 
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
 
-          // Profit / profit rate columns: apply percentage format to rate, color to both
-          const isProfitRateCol = (isUS && colNum === 25) || (!isUS && colNum === 24)
-          const isProfitCol =
-            (isUS && (colNum === 24 || colNum === 25)) ||
-            (!isUS && (colNum === 23 || colNum === 24))
+          // Profit / profit rate columns: apply percentage format to rate, color to both.
+          // US 与 EU 布局一致：col 24 = 利润，col 25 = 利润率
+          // （EU 仅在 col 23 多一列「增值税」，不影响 24/25 的列位）。
+          const isProfitRateCol = colNum === 25
+          const isProfitCol = colNum === 24 || colNum === 25
           if (isProfitRateCol) {
             cell.numFmt = '0.00%'
           } else if (Number.isFinite(num)) {
