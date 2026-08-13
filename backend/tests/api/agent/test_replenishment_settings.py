@@ -206,13 +206,13 @@ class TestR6SettingsWrite:
         self, client, shipment_env, confirm_memory_store, monkeypatch
     ):
         """BLF-633: R6 重放落库后必须失效补货分析缓存；预览阶段不失效。"""
-        from app.api.v1.endpoints.agent import replenishment_analysis as rp_module
+        from app.services.infra import cache_decorator as cd
 
         calls: list[int] = []
-        monkeypatch.setattr(
-            rp_module,
-            "invalidate_inventory_replenishment_cache",
-            lambda project_id: calls.append(project_id),
+        monkeypatch.setitem(
+            cd._INVALIDATE_FNS,
+            "inventory_replenishment",
+            lambda project_id=None, **kw: calls.append(project_id),
         )
 
         idem = f"idem-{uuid.uuid4().hex[:12]}"

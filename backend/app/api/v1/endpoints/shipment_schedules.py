@@ -17,7 +17,12 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_primary_db_session, get_read_db_session, get_request_operator, protected
+from app.api.deps import (
+    get_primary_db_session,
+    get_read_db_session,
+    get_request_operator,
+    protected,
+)
 from app.schemas.shipment_schedule import (
     ShipmentBatchHiddenDeleteRequest,
     ShipmentCostCalculateRequest,
@@ -40,6 +45,7 @@ from app.services.audit_log_service import (
 from app.services import project_service
 from app.services import shipment as shipment_schedule_service
 from app.services import infra as redis_service
+from app.services.infra.cache_decorator import invalidate_cache_on_commit_l1
 from app.services.shipment.serialization import (
     serialize_schedule_list_item,
     get_shipment_schedule_detail_payload,
@@ -534,6 +540,7 @@ def get_shipment_schedule_detail(
 
 
 @router.post("/shipment-schedules", response_model=ShipmentScheduleDetail)
+@invalidate_cache_on_commit_l1(domains=["shipment_schedules"], project_id_from="global")
 def create_shipment_schedule(
     payload: ShipmentScheduleCreate,
     request: Request,
@@ -632,6 +639,7 @@ def import_shipment_schedules_csv(
 @router.patch(
     "/shipment-schedules/{schedule_id}", response_model=ShipmentScheduleDetail
 )
+@invalidate_cache_on_commit_l1(domains=["shipment_schedules"], project_id_from="global")
 def update_shipment_schedule(
     schedule_id: int,
     payload: ShipmentScheduleUpdate,
@@ -676,6 +684,7 @@ def update_shipment_schedule(
 @router.delete(
     "/shipment-schedules/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT
 )
+@invalidate_cache_on_commit_l1(domains=["shipment_schedules"], project_id_from="global")
 def delete_shipment_schedule(
     schedule_id: int,
     request: Request,

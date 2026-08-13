@@ -273,6 +273,12 @@ def _resolve_project_ids(
     source, _, param_name = project_id_from.partition(":")
     name = param_name or "project_id"
 
+    # 定位 Request：kwargs['request'] 优先；其次扫描位置参数（require_confirmation
+    # 等 wrapper 会以位置参数传递 request，BLF-667 发现）
+    request = kwargs.get("request")
+    if request is None:
+        request = next((a for a in args if hasattr(a, "path_params")), None)
+
     if source == "global":
         return [None]
 
@@ -281,17 +287,15 @@ def _resolve_project_ids(
         if name in kwargs:
             return [kwargs[name]]
         # request.path_params 兜底（async 端点常从 request 取）
-        request = kwargs.get("request")
         path_params = getattr(request, "path_params", {}) or {}
         if name in path_params:
-            return [path_params[name]]
+            return [_coerce_project_id(path_params[name])]
         raise ValueError(f"路径参数缺少 {name!r}")
 
     if source == "query":
-        request = kwargs.get("request")
         query = getattr(request, "query_params", {}) or {}
         if name in query:
-            return [query[name]]
+            return [_coerce_project_id(query[name])]
         raise ValueError(f"query 参数缺少 {name!r}")
 
     if source == "payload":
@@ -322,6 +326,16 @@ def _resolve_project_ids(
         raise ValueError(f"函数参数缺少 {name!r}")
 
     raise ValueError(f"未知 project_id_from 策略: {project_id_from!r}")
+
+
+def _coerce_project_id(value: Any) -> int:
+    """将路径/query 参数（字符串）归一为 int；失败原样返回（由调用方兜底）。"""
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return value
 
 
 def _resolve_resource_id(
